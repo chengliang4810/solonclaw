@@ -1493,6 +1493,22 @@ public class ToolRegistryExposureTest {
                                 .get("javascriptCredentialFileClipboardExportDetection")
                                 .getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("dangerousCommandApprovalPolicy")
+                                .get("pythonCredentialFileLogWriteDetection")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("dangerousCommandApprovalPolicy")
+                                .get("javascriptCredentialFileLogWriteDetection")
+                                .getBoolean())
+                .isTrue();
         assertThat(policyStatus.toJson())
                 .doesNotContain("secret-sudo")
                 .doesNotContain("TENOR_API_KEY");

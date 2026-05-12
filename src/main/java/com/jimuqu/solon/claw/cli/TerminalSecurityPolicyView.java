@@ -510,6 +510,15 @@ public final class TerminalSecurityPolicyView {
                 .append(" js=")
                 .append(value(approval, "javascriptCredentialFileClipboardExportDetection"));
         buffer.append('\n')
+                .append("- 代码凭据输出：pythonStdout=")
+                .append(value(approval, "pythonCredentialFileStdoutDetection"))
+                .append(" pythonLog=")
+                .append(value(approval, "pythonCredentialFileLogWriteDetection"))
+                .append(" jsStdout=")
+                .append(value(approval, "javascriptCredentialFileStdoutDetection"))
+                .append(" jsLog=")
+                .append(value(approval, "javascriptCredentialFileLogWriteDetection"));
+        buffer.append('\n')
                 .append("- Secret 存储：")
                 .append(value(approval, "secretStoreRuleSamples"));
         return buffer.toString();

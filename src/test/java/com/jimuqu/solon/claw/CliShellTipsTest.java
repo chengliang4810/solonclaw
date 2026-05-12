@@ -96,6 +96,9 @@ public class CliShellTipsTest {
                 .contains("剪贴板凭据")
                 .contains("python=true")
                 .contains("js=true")
+                .contains("代码凭据输出")
+                .contains("pythonStdout=true")
+                .contains("jsLog=true")
                 .contains("Secret 存储")
                 .contains("secret_store_destroy")
                 .contains("终端护栏");

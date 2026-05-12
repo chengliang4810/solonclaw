@@ -2458,6 +2458,12 @@ public class DangerousCommandApprovalService {
         summary.put("pythonCredentialFileClipboardExportDetection", Boolean.TRUE);
         summary.put("javascriptCredentialFileClipboardExportDetection", Boolean.TRUE);
         summary.put("codeCredentialFileStdoutDetection", Boolean.TRUE);
+        summary.put("pythonCredentialFileStdoutDetection", Boolean.TRUE);
+        summary.put("pythonCredentialFileVariableStdoutDetection", Boolean.TRUE);
+        summary.put("pythonCredentialFileLogWriteDetection", Boolean.TRUE);
+        summary.put("javascriptCredentialFileStdoutDetection", Boolean.TRUE);
+        summary.put("javascriptCredentialFileVariableStdoutDetection", Boolean.TRUE);
+        summary.put("javascriptCredentialFileLogWriteDetection", Boolean.TRUE);
         summary.put("codeCredentialFileVariableStdoutDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);

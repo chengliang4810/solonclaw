@@ -570,6 +570,12 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "credentialFileClipboardExportDetection");
             copyPolicyValue(summary, safe, "pythonCredentialFileClipboardExportDetection");
             copyPolicyValue(summary, safe, "javascriptCredentialFileClipboardExportDetection");
+            copyPolicyValue(summary, safe, "pythonCredentialFileStdoutDetection");
+            copyPolicyValue(summary, safe, "pythonCredentialFileVariableStdoutDetection");
+            copyPolicyValue(summary, safe, "pythonCredentialFileLogWriteDetection");
+            copyPolicyValue(summary, safe, "javascriptCredentialFileStdoutDetection");
+            copyPolicyValue(summary, safe, "javascriptCredentialFileVariableStdoutDetection");
+            copyPolicyValue(summary, safe, "javascriptCredentialFileLogWriteDetection");
             copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
             copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
             copyPolicyValue(summary, safe, "alwaysApprovalCount");

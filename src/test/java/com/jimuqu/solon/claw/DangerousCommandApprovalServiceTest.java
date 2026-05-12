@@ -106,6 +106,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("pythonCredentialFileClipboardExportDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("javascriptCredentialFileClipboardExportDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeCredentialFileStdoutDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonCredentialFileStdoutDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonCredentialFileVariableStdoutDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonCredentialFileLogWriteDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("javascriptCredentialFileStdoutDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("javascriptCredentialFileVariableStdoutDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("javascriptCredentialFileLogWriteDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeCredentialFileVariableStdoutDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialDisclosureDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialFileDisclosureDetection")).isEqualTo(Boolean.TRUE);
