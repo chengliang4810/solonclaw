@@ -3201,6 +3201,48 @@ public class DashboardDiagnosticsService {
                         "sensitive_file_clipboard_export"));
         items.add(
                 approvalDetectionProbe(
+                        "credential_file_encoded_output",
+                        "凭据文件编码输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "base64 token.json",
+                        "credential_file_encoded_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_hash_output",
+                        "凭据文件哈希输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "sha256sum token.json",
+                        "credential_file_hash_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_binary_dump",
+                        "凭据文件二进制转储审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "xxd token.json",
+                        "credential_file_binary_dump"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_visual_encode",
+                        "凭据文件视觉编码审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "qrencode -r token.json",
+                        "credential_file_visual_encode"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_environment_load",
+                        "凭据文件环境加载审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "source .env",
+                        "credential_file_environment_load"));
+        items.add(
+                approvalDetectionProbe(
+                        "linux_credential_material_dump",
+                        "Linux 凭据材料转储审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "unshadow /etc/passwd /etc/shadow",
+                        "linux_credential_material_dump"));
+        items.add(
+                approvalDetectionProbe(
                         "code_credential_clipboard",
                         "代码工具凭据剪贴板审批",
                         ToolNameConstants.EXECUTE_PYTHON,

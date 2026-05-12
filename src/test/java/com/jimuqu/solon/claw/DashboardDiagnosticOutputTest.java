@@ -585,6 +585,18 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
+        Map<String, Object> credentialFileEncodedOutput =
+                findProbe(items, "credential_file_encoded_output");
+        Map<String, Object> credentialFileHashOutput =
+                findProbe(items, "credential_file_hash_output");
+        Map<String, Object> credentialFileBinaryDump =
+                findProbe(items, "credential_file_binary_dump");
+        Map<String, Object> credentialFileVisualEncode =
+                findProbe(items, "credential_file_visual_encode");
+        Map<String, Object> credentialFileEnvironmentLoad =
+                findProbe(items, "credential_file_environment_load");
+        Map<String, Object> linuxCredentialMaterialDump =
+                findProbe(items, "linux_credential_material_dump");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
         Map<String, Object> pythonRecursiveDelete =
                 findProbe(items, "python_recursive_delete");
@@ -1713,6 +1725,32 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEncodedOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEncodedOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEncodedOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileEncodedOutput)).contains("base64");
+        assertThat(credentialFileHashOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileHashOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileHashOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileHashOutput)).contains("sha256sum");
+        assertThat(credentialFileBinaryDump.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileBinaryDump.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileBinaryDump.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileBinaryDump)).contains("xxd");
+        assertThat(credentialFileVisualEncode.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileVisualEncode.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileVisualEncode.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileVisualEncode)).contains("qrencode");
+        assertThat(credentialFileEnvironmentLoad.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEnvironmentLoad.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEnvironmentLoad.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileEnvironmentLoad))
+                .contains("source [REDACTED_PATH]")
+                .doesNotContain("source .env");
+        assertThat(linuxCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxCredentialMaterialDump.get("skipped")).isNull();
+        assertThat(String.valueOf(linuxCredentialMaterialDump)).contains("unshadow");
         assertThat(codeCredentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeCredentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(pythonRecursiveDelete.get("passed")).isEqualTo(Boolean.TRUE);
