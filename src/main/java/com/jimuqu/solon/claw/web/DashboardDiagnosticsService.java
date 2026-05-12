@@ -1379,7 +1379,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "stdinExecutionPayloadChecked");
             copyPolicyValue(summary, safe, "stdinExecutionTools");
             copyPolicyValue(summary, safe, "stdinPrivilegeWrapperDetection");
-            copyPolicyValue(summary, safe, "stdinWrapperFamilies");
+            if (summary.containsKey("stdinWrapperFamilies")) {
+                safe.put("stdinPrivilegeWrapperFamilyCount", Integer.valueOf(listSize(summary.get("stdinWrapperFamilies"))));
+            }
             copyPolicyValue(summary, safe, "waitTimeoutClamped");
             copyPolicyValue(summary, safe, "processWaitTimeoutSeconds");
             copyPolicyValue(summary, safe, "managedBackgroundRequiredForLongRunningCommands");
@@ -1682,6 +1684,17 @@ public class DashboardDiagnosticsService {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
         }
+    }
+
+    private int listSize(Object value) {
+        if (!(value instanceof Iterable)) {
+            return 0;
+        }
+        int count = 0;
+        for (Object ignored : (Iterable<?>) value) {
+            count++;
+        }
+        return count;
     }
 
     @SuppressWarnings("unchecked")

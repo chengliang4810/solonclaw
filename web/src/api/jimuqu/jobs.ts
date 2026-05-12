@@ -100,6 +100,23 @@ export interface CronGuide {
   api_routes: string[]
 }
 
+export interface CronPolicy {
+  actions: string[]
+  action_syntax: Record<string, string>
+  sourceScopedList: boolean
+  freshSessionRuns: boolean
+  selfContainedPromptRequired: boolean
+  recursiveCronCreationDiscouraged: boolean
+  update_fields: string[]
+  clear_fields: string[]
+  status_fields: string[]
+  history_fields: string[]
+  schedule: Record<string, unknown>
+  delivery: Record<string, unknown>
+  skill_binding: Record<string, unknown>
+  execution: Record<string, unknown>
+}
+
 export interface CreateJobRequest {
   name: string
   schedule: string
@@ -231,6 +248,10 @@ export async function listJobs(): Promise<Job[]> {
 
 export async function fetchCronGuide(): Promise<CronGuide> {
   return request<CronGuide>('/api/cron/jobs/guide')
+}
+
+export async function fetchCronPolicy(): Promise<CronPolicy> {
+  return request<CronPolicy>('/api/cron/jobs/policy')
 }
 
 export async function getJob(jobId: string): Promise<Job> {

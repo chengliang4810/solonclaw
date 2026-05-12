@@ -4,7 +4,7 @@ import { NButton, NSpin } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/jimuqu/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/jimuqu/jobs/JobFormModal.vue'
-import { fetchCronGuide, type CronGuide } from '@/api/jimuqu/jobs'
+import { fetchCronGuide, fetchCronPolicy, type CronGuide, type CronPolicy } from '@/api/jimuqu/jobs'
 import { useJobsStore } from '@/stores/jimuqu/jobs'
 
 const { t } = useI18n()
@@ -12,12 +12,14 @@ const jobsStore = useJobsStore()
 const showModal = ref(false)
 const editingJob = ref<string | null>(null)
 const guide = ref<CronGuide | null>(null)
+const policy = ref<CronPolicy | null>(null)
 const showGuide = ref(false)
 
 onMounted(() => {
   jobsStore.fetchJobs()
   jobsStore.fetchUpcomingJobs()
   loadGuide()
+  loadPolicy()
 })
 
 async function loadGuide() {
@@ -25,6 +27,14 @@ async function loadGuide() {
     guide.value = await fetchCronGuide()
   } catch (err) {
     console.error('Failed to fetch cron guide:', err)
+  }
+}
+
+async function loadPolicy() {
+  try {
+    policy.value = await fetchCronPolicy()
+  } catch (err) {
+    console.error('Failed to fetch cron policy:', err)
   }
 }
 
@@ -66,6 +76,21 @@ function valueText(value: unknown): string {
   if (typeof value === 'boolean') return value ? '是' : '否'
   if (value === null || value === undefined || value === '') return '—'
   return String(value)
+}
+
+function valueList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(item => valueText(item)).filter(item => item && item !== '—')
+  if (typeof value === 'string' && value.trim()) return [value.trim()]
+  return []
+}
+
+function policyFlags(): string[] {
+  const flags: string[] = []
+  if (policy.value?.sourceScopedList) flags.push('会话来源隔离')
+  if (policy.value?.freshSessionRuns) flags.push('独立会话运行')
+  if (policy.value?.selfContainedPromptRequired) flags.push('提示词需自包含')
+  if (policy.value?.recursiveCronCreationDiscouraged) flags.push('避免递归创建任务')
+  return flags
 }
 </script>
 
@@ -117,6 +142,45 @@ function valueText(value: unknown): string {
             <span>安全策略</span>
             <strong>{{ valueText(guide.security.prompt_scan) }}</strong>
             <p>{{ valueText(guide.security.script_validation) }}</p>
+          </section>
+        </div>
+        <div v-if="policy" class="policy-grid">
+          <section class="guide-block">
+            <span>动作语法</span>
+            <code v-for="syntax in Object.values(policy.action_syntax || {}).slice(0, 4)" :key="syntax">
+              {{ syntax }}
+            </code>
+          </section>
+          <section class="guide-block">
+            <span>可更新字段</span>
+            <p>{{ valueText(policy.update_fields) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>可清空字段</span>
+            <p>{{ valueText(policy.clear_fields) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>执行策略</span>
+            <p>{{ valueText(policyFlags()) }}</p>
+            <p>安全审批：{{ valueText(policy.execution?.dangerousCommandApprovalApplied) }} · 历史：{{ valueText(policy.execution?.historySupported) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>投递能力</span>
+            <p>{{ valueText(policy.delivery?.targetForms) }}</p>
+            <p>{{ valueText(policy.delivery?.wrapFlags) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>技能与依赖</span>
+            <p>{{ valueText(policy.skill_binding?.appendFlags) }}</p>
+            <p>{{ valueText(policy.skill_binding?.dependencyFlags) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>调度能力</span>
+            <p>{{ valueText(valueList(policy.schedule?.cronExpressionSupported).length ? valueList(policy.schedule?.cronExpressionSupported) : ['cron', 'interval', 'once']) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>历史字段</span>
+            <p>{{ valueText(policy.history_fields) }}</p>
           </section>
         </div>
         <div class="guide-examples">
@@ -216,6 +280,13 @@ function valueText(value: unknown): string {
   gap: 10px;
 }
 
+.policy-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .guide-block {
   min-width: 0;
   border: 1px solid $border-light;
@@ -245,6 +316,18 @@ function valueText(value: unknown): string {
     color: $text-secondary;
     font-size: 12px;
     line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  code {
+    display: block;
+    margin-top: 6px;
+    color: $text-secondary;
+    font-family: $font-code;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 }
 
@@ -268,7 +351,8 @@ function valueText(value: unknown): string {
 
 @media (max-width: $breakpoint-mobile) {
   .guide-summary,
-  .guide-grid {
+  .guide-grid,
+  .policy-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
