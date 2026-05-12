@@ -486,6 +486,9 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_gcloud_key_file_path");
         Map<String, Object> commandEncodedPathTraversal =
                 findProbe(items, "command_encoded_path_traversal");
+        Map<String, Object> commandHostsFileWrite = findProbe(items, "command_hosts_file_write");
+        Map<String, Object> commandResolverFileWrite =
+                findProbe(items, "command_resolver_file_write");
         Map<String, Object> commandBarePackedIpv4Metadata =
                 findProbe(items, "command_bare_packed_ipv4_metadata");
         Map<String, Object> commandBareHexIpv4Metadata =
@@ -1171,6 +1174,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandEncodedPathTraversal))
                 .contains("cat")
                 .contains("%252e%252e");
+        assertThat(commandHostsFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandHostsFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandHostsFileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandHostsFileWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/hosts");
+        assertThat(commandResolverFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandResolverFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandResolverFileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandResolverFileWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/resolv.conf");
         assertThat(commandBarePackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("skipped")).isNull();

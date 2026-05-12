@@ -2894,6 +2894,16 @@ public class DashboardDiagnosticsService {
                         "命令编码路径遍历检查",
                         "cat safe/%252e%252e/readme.txt"));
         items.add(
+                commandPathPolicyProbe(
+                        "command_hosts_file_write",
+                        "命令 hosts 文件写入检查",
+                        "printf '127.0.0.1 blocked.example' >> /etc/hosts"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_resolver_file_write",
+                        "命令 resolver 文件写入检查",
+                        "printf 'nameserver 169.254.169.254' > /etc/resolv.conf"));
+        items.add(
                 commandAlwaysBlockedUrlProbe(
                         "command_bare_packed_ipv4_metadata",
                         "命令裸数字元数据地址阻断",
