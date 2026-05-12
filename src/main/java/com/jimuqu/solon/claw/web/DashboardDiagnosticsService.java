@@ -2325,6 +2325,10 @@ public class DashboardDiagnosticsService {
                         "subprocess_environment",
                         "子进程环境变量净化"));
         items.add(
+                toolResultStorageProbe(
+                        "tool_result_storage",
+                        "工具输出结果存储"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2689,6 +2693,69 @@ public class DashboardDiagnosticsService {
                     "子进程环境净化探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
+    }
+
+    private Map<String, Object> toolResultStorageProbe(String key, String label) {
+        try {
+            ToolResultStorageService service =
+                    toolResultStorageService == null
+                            ? dashboardProbeToolResultStorageService()
+                            : toolResultStorageService;
+            String output =
+                    "first line\nOPENAI_API_KEY=sk-dashboard-tool-result-secret\n"
+                            + repeatText("tail line\n", 80);
+            ToolResultStorageService.StoredResult stored =
+                    service.observe(
+                            ToolNameConstants.EXECUTE_SHELL,
+                            output,
+                            "dashboard-probe-run",
+                            "dashboard-probe-call");
+            ToolResultStorageService.StoredResult described =
+                    ToolResultStorageService.describeObservation(stored.getObservation());
+            boolean allowed =
+                    stored.isTruncated()
+                            && StrUtil.isNotBlank(stored.getResultRef())
+                            && stored.getObservation().startsWith("<persisted-output>")
+                            && stored.getObservation().contains("Full output saved to:")
+                            && stored.getObservation().contains("OPENAI_API_KEY=***")
+                            && !stored.getObservation().contains("sk-dashboard-tool-result-secret")
+                            && StrUtil.equals(stored.getResultRef(), described.getResultRef())
+                            && described.isTruncated();
+            return policyProbeItem(
+                    key,
+                    label,
+                    "tool_result_storage",
+                    true,
+                    allowed,
+                    "oversized execute_shell output",
+                    allowed ? "大体积工具输出已落盘、返回引用并脱敏预览。" : "工具输出结果存储探针未得到预期结果。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "tool_result_storage",
+                    true,
+                    false,
+                    "oversized execute_shell output",
+                    "工具输出结果存储探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    private ToolResultStorageService dashboardProbeToolResultStorageService() {
+        String cacheDir =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? null
+                        : appConfig.getRuntime().getCacheDir();
+        return new ToolResultStorageService(cacheDir, 256, 200000, 300);
+    }
+
+    private String repeatText(String value, int count) {
+        StringBuilder builder = new StringBuilder(StrUtil.nullToEmpty(value).length() * count);
+        for (int i = 0; i < count; i++) {
+            builder.append(value);
+        }
+        return builder.toString();
     }
 
     private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
