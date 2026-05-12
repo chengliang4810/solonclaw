@@ -601,6 +601,22 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "python_dynamic_code_execution");
         Map<String, Object> pythonHttpCredentialHeaderSend =
                 findProbe(items, "python_http_credential_header_send");
+        Map<String, Object> pythonCredentialFileStdout =
+                findProbe(items, "python_credential_file_stdout");
+        Map<String, Object> pythonCredentialFileVariableStdout =
+                findProbe(items, "python_credential_file_variable_stdout");
+        Map<String, Object> pythonCredentialFileExceptionOutput =
+                findProbe(items, "python_credential_file_exception_output");
+        Map<String, Object> pythonCredentialFileDebugArtifactWrite =
+                findProbe(items, "python_credential_file_debug_artifact_write");
+        Map<String, Object> pythonCredentialFileNotificationOutput =
+                findProbe(items, "python_credential_file_notification_output");
+        Map<String, Object> pythonHttpCredentialFileVariableSend =
+                findProbe(items, "python_http_credential_file_variable_send");
+        Map<String, Object> pythonHttpCredentialBodySend =
+                findProbe(items, "python_http_credential_body_send");
+        Map<String, Object> pythonHttpCredentialFileSend =
+                findProbe(items, "python_http_credential_file_send");
         Map<String, Object> jsChildProcessCredentialOutput =
                 findProbe(items, "js_child_process_credential_output");
         Map<String, Object> jsChildProcessExecution =
@@ -608,6 +624,24 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> jsRequireChildProcess = findProbe(items, "js_require_child_process");
         Map<String, Object> jsDynamicCodeExecution =
                 findProbe(items, "js_dynamic_code_execution");
+        Map<String, Object> jsHttpCredentialHeaderSend =
+                findProbe(items, "js_http_credential_header_send");
+        Map<String, Object> jsCredentialFileStdout =
+                findProbe(items, "js_credential_file_stdout");
+        Map<String, Object> jsCredentialFileVariableStdout =
+                findProbe(items, "js_credential_file_variable_stdout");
+        Map<String, Object> jsCredentialFileExceptionOutput =
+                findProbe(items, "js_credential_file_exception_output");
+        Map<String, Object> jsCredentialFileDebugArtifactWrite =
+                findProbe(items, "js_credential_file_debug_artifact_write");
+        Map<String, Object> jsCredentialFileNotificationOutput =
+                findProbe(items, "js_credential_file_notification_output");
+        Map<String, Object> jsHttpCredentialFileVariableSend =
+                findProbe(items, "js_http_credential_file_variable_send");
+        Map<String, Object> jsHttpCredentialBodySend =
+                findProbe(items, "js_http_credential_body_send");
+        Map<String, Object> jsHttpCredentialFileSend =
+                findProbe(items, "js_http_credential_file_send");
         Map<String, Object> jsFileDelete = findProbe(items, "js_file_delete");
         Map<String, Object> hostFirewallDisable = findProbe(items, "host_firewall_disable");
         Map<String, Object> hostMacPolicyDisable = findProbe(items, "host_mac_policy_disable");
@@ -1707,6 +1741,38 @@ public class DashboardDiagnosticOutputTest {
         assertThat(pythonHttpCredentialHeaderSend.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(pythonHttpCredentialHeaderSend.get("skipped")).isNull();
         assertThat(String.valueOf(pythonHttpCredentialHeaderSend)).contains("Authorization");
+        assertThat(pythonCredentialFileStdout.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileStdout.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileStdout.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonCredentialFileStdout)).contains("token.json");
+        assertThat(pythonCredentialFileVariableStdout.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileVariableStdout.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileVariableStdout.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonCredentialFileVariableStdout)).contains("secret");
+        assertThat(pythonCredentialFileExceptionOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileExceptionOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileExceptionOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonCredentialFileExceptionOutput)).contains("RuntimeError");
+        assertThat(pythonCredentialFileDebugArtifactWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileDebugArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileDebugArtifactWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonCredentialFileDebugArtifactWrite)).contains("debug.log");
+        assertThat(pythonCredentialFileNotificationOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileNotificationOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileNotificationOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonCredentialFileNotificationOutput)).contains("notify2");
+        assertThat(pythonHttpCredentialFileVariableSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialFileVariableSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialFileVariableSend.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonHttpCredentialFileVariableSend)).contains("requests.post");
+        assertThat(pythonHttpCredentialBodySend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialBodySend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialBodySend.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonHttpCredentialBodySend)).contains("api_key");
+        assertThat(pythonHttpCredentialFileSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialFileSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialFileSend.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonHttpCredentialFileSend)).contains("token.json");
         assertThat(jsChildProcessCredentialOutput.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(jsChildProcessCredentialOutput.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(jsChildProcessCredentialOutput.get("skipped")).isNull();
@@ -1724,6 +1790,42 @@ public class DashboardDiagnosticOutputTest {
         assertThat(jsDynamicCodeExecution.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(jsDynamicCodeExecution.get("skipped")).isNull();
         assertThat(String.valueOf(jsDynamicCodeExecution)).contains("eval");
+        assertThat(jsHttpCredentialHeaderSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialHeaderSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialHeaderSend.get("skipped")).isNull();
+        assertThat(String.valueOf(jsHttpCredentialHeaderSend)).contains("Authorization");
+        assertThat(jsCredentialFileStdout.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileStdout.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileStdout.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileStdout)).contains("console.log");
+        assertThat(jsCredentialFileVariableStdout.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileVariableStdout.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileVariableStdout.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileVariableStdout)).contains("secret");
+        assertThat(jsCredentialFileExceptionOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileExceptionOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileExceptionOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileExceptionOutput)).contains("Error");
+        assertThat(jsCredentialFileDebugArtifactWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileDebugArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileDebugArtifactWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileDebugArtifactWrite)).contains("debug.log");
+        assertThat(jsCredentialFileNotificationOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileNotificationOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileNotificationOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileNotificationOutput)).contains("notifier.notify");
+        assertThat(jsHttpCredentialFileVariableSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialFileVariableSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialFileVariableSend.get("skipped")).isNull();
+        assertThat(String.valueOf(jsHttpCredentialFileVariableSend)).contains("fetch");
+        assertThat(jsHttpCredentialBodySend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialBodySend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialBodySend.get("skipped")).isNull();
+        assertThat(String.valueOf(jsHttpCredentialBodySend)).contains("api_key");
+        assertThat(jsHttpCredentialFileSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialFileSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsHttpCredentialFileSend.get("skipped")).isNull();
+        assertThat(String.valueOf(jsHttpCredentialFileSend)).contains("token.json");
         assertThat(jsFileDelete.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(jsFileDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(jsFileDelete.get("skipped")).isNull();
