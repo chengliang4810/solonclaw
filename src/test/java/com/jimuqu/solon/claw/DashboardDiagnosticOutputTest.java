@@ -876,6 +876,36 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> azureResourceDelete = findProbe(items, "azure_resource_delete");
         Map<String, Object> terraformStateSensitiveRead =
                 findProbe(items, "terraform_state_sensitive_read");
+        Map<String, Object> windowsTaskkill = findProbe(items, "windows_taskkill");
+        Map<String, Object> windowsStopProcess = findProbe(items, "windows_stop_process");
+        Map<String, Object> windowsRegDelete = findProbe(items, "windows_reg_delete");
+        Map<String, Object> windowsSecurityRegistryWeaken =
+                findProbe(items, "windows_security_registry_weaken");
+        Map<String, Object> windowsExecutionPolicyWeaken =
+                findProbe(items, "windows_execution_policy_weaken");
+        Map<String, Object> windowsPowershellEncodedCommand =
+                findProbe(items, "windows_powershell_encoded_command");
+        Map<String, Object> windowsPowershellRemoteExecute =
+                findProbe(items, "windows_powershell_remote_execute");
+        Map<String, Object> windowsPowershellInvokeExpression =
+                findProbe(items, "windows_powershell_invoke_expression");
+        Map<String, Object> windowsLolbinRemoteExecution =
+                findProbe(items, "windows_lolbin_remote_execution");
+        Map<String, Object> windowsAuditPolicyDisabled =
+                findProbe(items, "windows_audit_policy_disabled");
+        Map<String, Object> windowsDisableFirewall =
+                findProbe(items, "windows_disable_firewall");
+        Map<String, Object> windowsDisableDefender =
+                findProbe(items, "windows_disable_defender");
+        Map<String, Object> windowsDefenderExclusion =
+                findProbe(items, "windows_defender_exclusion");
+        Map<String, Object> windowsStopService = findProbe(items, "windows_stop_service");
+        Map<String, Object> windowsServicePrivilegeOrRecoveryChange =
+                findProbe(items, "windows_service_privilege_or_recovery_change");
+        Map<String, Object> windowsPersistenceRegistration =
+                findProbe(items, "windows_persistence_registration");
+        Map<String, Object> windowsExportCredentials =
+                findProbe(items, "windows_export_credentials");
         Map<String, Object> windowsCredentialMaterialDump =
                 findProbe(items, "windows_credential_material_dump");
         Map<String, Object> windowsCredentialManagerRead =
@@ -2584,6 +2614,74 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terraformStateSensitiveRead.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terraformStateSensitiveRead.get("skipped")).isNull();
         assertThat(String.valueOf(terraformStateSensitiveRead)).contains("state pull");
+        assertThat(windowsTaskkill.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsTaskkill.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsTaskkill.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsTaskkill)).contains("taskkill");
+        assertThat(windowsStopProcess.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsStopProcess.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsStopProcess.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsStopProcess)).contains("Stop-Process");
+        assertThat(windowsRegDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsRegDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsRegDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsRegDelete)).contains("reg delete");
+        assertThat(windowsSecurityRegistryWeaken.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsSecurityRegistryWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsSecurityRegistryWeaken.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsSecurityRegistryWeaken)).contains("DisableAntiSpyware");
+        assertThat(windowsExecutionPolicyWeaken.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsExecutionPolicyWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsExecutionPolicyWeaken.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsExecutionPolicyWeaken)).contains("Set-ExecutionPolicy");
+        assertThat(windowsPowershellEncodedCommand.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPowershellEncodedCommand.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPowershellEncodedCommand.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsPowershellEncodedCommand)).contains("EncodedCommand");
+        assertThat(windowsPowershellRemoteExecute.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPowershellRemoteExecute.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPowershellRemoteExecute.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsPowershellRemoteExecute)).contains("| IEX");
+        assertThat(windowsPowershellInvokeExpression.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPowershellInvokeExpression.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPowershellInvokeExpression.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsPowershellInvokeExpression)).contains("Invoke-Expression");
+        assertThat(windowsLolbinRemoteExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsLolbinRemoteExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsLolbinRemoteExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsLolbinRemoteExecution)).contains("mshta");
+        assertThat(windowsAuditPolicyDisabled.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsAuditPolicyDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsAuditPolicyDisabled.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsAuditPolicyDisabled)).contains("auditpol");
+        assertThat(windowsDisableFirewall.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDisableFirewall.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDisableFirewall.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsDisableFirewall)).contains("advfirewall");
+        assertThat(windowsDisableDefender.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDisableDefender.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDisableDefender.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsDisableDefender)).contains("DisableRealtimeMonitoring");
+        assertThat(windowsDefenderExclusion.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDefenderExclusion.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDefenderExclusion.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsDefenderExclusion)).contains("ExclusionPath");
+        assertThat(windowsStopService.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsStopService.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsStopService.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsStopService)).contains("sc stop");
+        assertThat(windowsServicePrivilegeOrRecoveryChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsServicePrivilegeOrRecoveryChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsServicePrivilegeOrRecoveryChange.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsServicePrivilegeOrRecoveryChange)).contains("LocalSystem");
+        assertThat(windowsPersistenceRegistration.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPersistenceRegistration.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsPersistenceRegistration.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsPersistenceRegistration)).contains("schtasks");
+        assertThat(windowsExportCredentials.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsExportCredentials.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsExportCredentials.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsExportCredentials)).contains("Export-Clixml");
         assertThat(windowsCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(windowsCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsCredentialMaterialDump.get("skipped")).isNull();
