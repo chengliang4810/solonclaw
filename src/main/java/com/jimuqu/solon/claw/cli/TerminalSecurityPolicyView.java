@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.util.Map;
 
 /** Read-only security policy summary for local terminal commands. */
@@ -95,6 +96,9 @@ public final class TerminalSecurityPolicyView {
         }
         if ("mcp".equals(mode)) {
             return renderMcpPolicy(McpRuntimeService.policySummary(config));
+        }
+        if ("mcp-oauth".equals(mode)) {
+            return renderMcpOAuthPolicy(DashboardMcpService.oauthPolicySummary());
         }
         if ("schema".equals(mode)) {
             return renderSchemaPolicy(SolonClawToolSchemaSanitizer.policySummary());
@@ -201,6 +205,9 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("tool-arg") || rest.startsWith("tools")) {
             return "tool-args";
         }
+        if (rest.startsWith("mcp-oauth")) {
+            return "mcp-oauth";
+        }
         if (rest.startsWith("mcp")) {
             return "mcp";
         }
@@ -302,7 +309,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -385,6 +392,14 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcpReload, "persistentDisableSupported"))
                 .append(" toolNotice=")
                 .append(value(mcpReload, "toolChangeNoticeInjected"));
+        Map<String, Object> oauth = DashboardMcpService.oauthPolicySummary();
+        buffer.append('\n')
+                .append("- MCP OAuth：authUrlSafe=")
+                .append(value(oauth, "authorizationEndpointUrlSafety"))
+                .append(" pkce=")
+                .append(value(oauth, "pkceS256Required"))
+                .append(" tokenRedacted=")
+                .append(value(oauth, "accessTokenRedacted"));
         Map<String, Object> lifecycle = approvalService.approvalLifecyclePolicySummary();
         buffer.append('\n')
                 .append("- 审批生命周期：approveAll=")
@@ -1028,6 +1043,43 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcp, "oauthFailureStructuredReauth"))
                 .append(" secretsRedacted=")
                 .append(value(mcp, "oauthSecretsRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderMcpOAuthPolicy(Map<String, Object> oauth) {
+        StringBuilder buffer = new StringBuilder("MCP OAuth 安全策略摘要：");
+        buffer.append('\n')
+                .append("- URL：authorization=")
+                .append(value(oauth, "authorizationEndpointUrlSafety"))
+                .append(" token=")
+                .append(value(oauth, "tokenEndpointUrlSafety"))
+                .append(" redirect=")
+                .append(value(oauth, "tokenEndpointRedirectUrlSafety"))
+                .append(" maxRedirects=")
+                .append(value(oauth, "tokenEndpointRedirectLimit"));
+        buffer.append('\n')
+                .append("- 授权：stateRequired=")
+                .append(value(oauth, "stateValidationRequired"))
+                .append(" pkceS256=")
+                .append(value(oauth, "pkceS256Required"))
+                .append(" verifierHidden=")
+                .append(value(oauth, "codeVerifierHiddenFromStatus"));
+        buffer.append('\n')
+                .append("- 密钥：accessRedacted=")
+                .append(value(oauth, "accessTokenRedacted"))
+                .append(" refreshRedacted=")
+                .append(value(oauth, "refreshTokenRedacted"))
+                .append(" clientSecretRedacted=")
+                .append(value(oauth, "clientSecretRedacted"))
+                .append(" statusFields=")
+                .append(value(oauth, "statusPresenceFields"));
+        buffer.append('\n')
+                .append("- 错误和重授权：callbackRedacted=")
+                .append(value(oauth, "callbackErrorsRedacted"))
+                .append(" tokenErrorsRedacted=")
+                .append(value(oauth, "tokenErrorsRedacted"))
+                .append(" handle401=")
+                .append(value(oauth, "handle401RefreshThenReauth"));
         return buffer.toString();
     }
 

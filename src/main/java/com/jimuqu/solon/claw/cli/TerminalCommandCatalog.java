@@ -26,7 +26,7 @@ public final class TerminalCommandCatalog {
                 "/security subagent-approvals", "/security smart-approval",
                 "/security paths", "/security credentials", "/security tool-args",
                 "/security skill-credentials",
-                "/security mcp", "/security schema", "/security attachments",
+                "/security mcp", "/security mcp-oauth", "/security schema", "/security attachments",
                 "/security terminal-paste", "/security media-cache", "/security tool-results",
                 "/security patch", "/security code-execution", "/security subprocess-env",
                 "/security terminal-output", "/security sudo", "/security process",
