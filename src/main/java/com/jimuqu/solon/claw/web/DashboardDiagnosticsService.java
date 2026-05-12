@@ -2939,6 +2939,16 @@ public class DashboardDiagnosticsService {
                         "命令 Windows 系统目录写入检查",
                         "Set-Content C:/Windows/System32/drivers/etc/hosts '127.0.0.1 blocked.example'"));
         items.add(
+                commandPathPolicyProbe(
+                        "command_device_path_read",
+                        "命令设备文件读取检查",
+                        "cat /dev/zero"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_raw_block_device_write",
+                        "命令裸块设备写入检查",
+                        "dd if=probe.img of=/dev/sda bs=1M count=1"));
+        items.add(
                 commandAlwaysBlockedUrlProbe(
                         "command_bare_packed_ipv4_metadata",
                         "命令裸数字元数据地址阻断",

@@ -503,6 +503,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_usr_local_bin_write");
         Map<String, Object> commandWindowsSystemWrite =
                 findProbe(items, "command_windows_system_write");
+        Map<String, Object> commandDevicePathRead =
+                findProbe(items, "command_device_path_read");
+        Map<String, Object> commandRawBlockDeviceWrite =
+                findProbe(items, "command_raw_block_device_write");
         Map<String, Object> commandBarePackedIpv4Metadata =
                 findProbe(items, "command_bare_packed_ipv4_metadata");
         Map<String, Object> commandBareHexIpv4Metadata =
@@ -1242,6 +1246,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandWindowsSystemWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("C:/Windows/System32/drivers/etc/hosts");
+        assertThat(commandDevicePathRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandDevicePathRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandDevicePathRead.get("skipped")).isNull();
+        assertThat(String.valueOf(commandDevicePathRead.get("target")))
+                .contains("cat")
+                .contains("/dev/zero");
+        assertThat(commandRawBlockDeviceWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRawBlockDeviceWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRawBlockDeviceWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRawBlockDeviceWrite.get("target")))
+                .contains("dd")
+                .contains("/dev/sda");
         assertThat(commandBarePackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("skipped")).isNull();
