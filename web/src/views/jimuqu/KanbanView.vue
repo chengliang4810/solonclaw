@@ -9,6 +9,7 @@ import {
   fetchKanbanBoardsWithArchived,
   fetchKanbanDaemon,
   fetchKanbanGuide,
+  fetchKanbanHomeNotificationChannels,
   fetchKanbanTaskDrawer,
   fetchKanbanTasks,
   kanbanStatuses,
@@ -19,14 +20,17 @@ import {
   reassignKanbanTask,
   retryKanbanTask,
   startKanbanDaemon,
+  subscribeKanbanHomeNotification,
   stepKanbanTask,
   stopKanbanDaemon,
   switchKanbanBoard,
+  unsubscribeKanbanHomeNotification,
   updateKanbanTask,
   type KanbanBoard,
   type KanbanDaemonStatus,
   type KanbanEvent,
   type KanbanGuide,
+  type KanbanHomeNotificationChannel,
   type KanbanNotification,
   type KanbanPipelineOverview,
   type KanbanRun,
@@ -46,6 +50,8 @@ const showBoardModal = ref(false)
 const showBoardManager = ref(false)
 const selectedTask = ref<KanbanTask | null>(null)
 const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
+const homeNotificationChannels = ref<KanbanHomeNotificationChannel[]>([])
+const notificationBusy = ref('')
 const commentText = ref('')
 const recoveryReason = ref('')
 const reassignAssignee = ref('')
@@ -251,6 +257,7 @@ function openCreateTask() {
 async function openTask(task: KanbanTask) {
   selectedDrawer.value = await fetchKanbanTaskDrawer(task.id)
   selectedTask.value = selectedDrawer.value.task
+  homeNotificationChannels.value = await fetchKanbanHomeNotificationChannels(selectedTask.value.id)
   taskForm.value = {
     title: selectedTask.value.title,
     body: selectedTask.value.body || '',
@@ -275,6 +282,13 @@ async function openTask(task: KanbanTask) {
   showTaskModal.value = true
 }
 
+async function refreshSelectedTaskDrawer() {
+  if (!selectedTask.value) return
+  selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+  selectedTask.value = selectedDrawer.value.task
+  homeNotificationChannels.value = await fetchKanbanHomeNotificationChannels(selectedTask.value.id)
+}
+
 async function saveTask() {
   if (!taskForm.value.title.trim()) {
     message.error('任务标题不能为空')
@@ -297,6 +311,7 @@ async function saveTask() {
   if (selectedTask.value) {
     await updateKanbanTask(selectedTask.value.id, payload)
     message.success('任务已更新')
+    await refreshSelectedTaskDrawer()
   } else {
     await createKanbanTask(payload)
     message.success('任务已创建')
@@ -314,8 +329,7 @@ async function moveTask(task: KanbanTask, status: KanbanStatus) {
 async function saveComment() {
   if (!selectedTask.value || !commentText.value.trim()) return
   selectedTask.value = await addKanbanComment(selectedTask.value.id, commentText.value.trim())
-  selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
-  selectedTask.value = selectedDrawer.value.task
+  await refreshSelectedTaskDrawer()
   commentText.value = ''
   await reloadTasks()
 }
@@ -333,8 +347,7 @@ async function advanceSelectedStep() {
       note: stepForm.value.note.trim(),
       actor: 'dashboard',
     })
-    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
-    selectedTask.value = selectedDrawer.value.task
+    await refreshSelectedTaskDrawer()
     stepForm.value = {
       workflow_template_id: selectedTask.value.workflow_template_id || '',
       step_key: selectedTask.value.current_step_key || '',
@@ -353,8 +366,7 @@ async function reclaimSelectedTask() {
   if (!selectedTask.value) return
   try {
     selectedTask.value = await reclaimKanbanTask(selectedTask.value.id, recoveryReason.value.trim() || 'dashboard')
-    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
-    selectedTask.value = selectedDrawer.value.task
+    await refreshSelectedTaskDrawer()
     recoveryReason.value = ''
     message.success('任务执行权已收回')
     await reloadTasks()
@@ -375,8 +387,7 @@ async function reassignSelectedTask(reclaimFirst = false) {
       reclaimFirst,
       recoveryReason.value.trim() || 'dashboard',
     )
-    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
-    selectedTask.value = selectedDrawer.value.task
+    await refreshSelectedTaskDrawer()
     recoveryReason.value = ''
     message.success('任务已重新分配')
     await reloadTasks()
@@ -389,8 +400,7 @@ async function retrySelectedTask() {
   if (!selectedTask.value) return
   try {
     selectedTask.value = await retryKanbanTask(selectedTask.value.id, recoveryReason.value.trim() || 'dashboard')
-    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
-    selectedTask.value = selectedDrawer.value.task
+    await refreshSelectedTaskDrawer()
     recoveryReason.value = ''
     message.success('任务已重置为就绪')
     await reloadTasks()
@@ -644,6 +654,31 @@ function guideActionText(value?: string[]): string {
 function notificationSummary(notification: KanbanNotification): string {
   const thread = notification.thread_id ? ` / ${notification.thread_id}` : ''
   return `${notification.platform} / ${notification.chat_id}${thread}`
+}
+
+function homeNotificationSummary(channel: KanbanHomeNotificationChannel): string {
+  const name = channel.chat_name ? `${channel.chat_name} · ` : ''
+  const thread = channel.thread_id ? ` / ${channel.thread_id}` : ''
+  return `${name}${channel.chat_id}${thread}`
+}
+
+async function toggleHomeNotification(channel: KanbanHomeNotificationChannel) {
+  if (!selectedTask.value || !channel.platform) return
+  notificationBusy.value = channel.platform
+  try {
+    if (channel.subscribed) {
+      await unsubscribeKanbanHomeNotification(selectedTask.value.id, channel.platform)
+      message.success('已取消看板通知订阅')
+    } else {
+      await subscribeKanbanHomeNotification(selectedTask.value.id, channel.platform)
+      message.success('已订阅看板通知')
+    }
+    await refreshSelectedTaskDrawer()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '更新通知订阅失败')
+  } finally {
+    notificationBusy.value = ''
+  }
 }
 
 async function toggleArchivedBoards() {
@@ -1154,8 +1189,25 @@ function hasWarnings(task: KanbanTask): boolean {
             </div>
           </div>
 
-          <div v-if="(selectedDrawer?.notifications || []).length" class="notifications">
+          <div v-if="homeNotificationChannels.length || (selectedDrawer?.notifications || []).length" class="notifications">
             <div class="comments-title">通知投递</div>
+            <div v-if="homeNotificationChannels.length" class="home-notification-list">
+              <div v-for="channel in homeNotificationChannels" :key="channel.platform" class="home-notification-row">
+                <div>
+                  <strong>{{ channel.platform }}</strong>
+                  <span>{{ homeNotificationSummary(channel) }}</span>
+                </div>
+                <NButton
+                  size="tiny"
+                  :type="channel.subscribed ? 'default' : 'primary'"
+                  :loading="notificationBusy === channel.platform"
+                  @click="toggleHomeNotification(channel)"
+                >
+                  {{ channel.subscribed ? '取消订阅' : '订阅' }}
+                </NButton>
+              </div>
+            </div>
+            <div v-else class="empty-note">未配置可用的 home channel</div>
             <div v-for="notification in selectedDrawer?.notifications || []" :key="notification.id" class="notification-row">
               <span>{{ notificationSummary(notification) }}</span>
               <span>{{ notification.created_at }}</span>
@@ -1836,6 +1888,53 @@ function hasWarnings(task: KanbanTask): boolean {
   grid-template-columns: minmax(0, 1fr) 180px;
   gap: 8px;
   padding: 5px 0;
+}
+
+.home-notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.home-notification-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: $bg-card-hover;
+
+  div,
+  strong,
+  span {
+    min-width: 0;
+  }
+
+  strong,
+  span {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+
+  span {
+    color: $text-secondary;
+    font-size: 12px;
+  }
+}
+
+.empty-note {
+  color: $text-muted;
+  font-size: 12px;
+  margin-bottom: 8px;
 }
 
 .worker-context pre,

@@ -61,7 +61,17 @@ export interface KanbanNotification {
   platform: string
   chat_id: string
   thread_id?: string | null
+  user_id?: string | null
   created_at: string
+}
+
+export interface KanbanHomeNotificationChannel {
+  platform: string
+  chat_id: string
+  thread_id?: string | null
+  chat_name?: string | null
+  updated_at?: number | string | null
+  subscribed: boolean
 }
 
 export interface KanbanTaskLog {
@@ -353,6 +363,24 @@ export async function fetchKanbanTaskDrawer(taskId: string, tail = 4096): Promis
   const params = new URLSearchParams()
   params.set('tail', String(tail))
   return request<KanbanTaskDrawer>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/drawer?${params.toString()}`)
+}
+
+export async function fetchKanbanHomeNotificationChannels(taskId: string): Promise<KanbanHomeNotificationChannel[]> {
+  const params = new URLSearchParams()
+  params.set('task', taskId)
+  return request<KanbanHomeNotificationChannel[]>(`/api/kanban/notify-subscriptions/home-channels?${params.toString()}`)
+}
+
+export async function subscribeKanbanHomeNotification(taskId: string, platform: string): Promise<KanbanNotification> {
+  return request<KanbanNotification>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/home-subscribe/${encodeURIComponent(platform)}`, {
+    method: 'POST',
+  })
+}
+
+export async function unsubscribeKanbanHomeNotification(taskId: string, platform: string): Promise<{ removed: boolean }> {
+  return request<{ removed: boolean }>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/home-subscribe/${encodeURIComponent(platform)}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function createKanbanTask(data: CreateKanbanTaskRequest): Promise<KanbanTask> {
