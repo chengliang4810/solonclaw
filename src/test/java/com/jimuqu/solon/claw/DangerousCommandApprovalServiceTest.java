@@ -10885,6 +10885,23 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(commandArrayPending.getToolName()).isEqualTo("execute_shell");
         assertThat(commandArrayPending.getPatternKey()).isEqualTo("terraform_destroy");
 
+        Map<String, Object> nestedArrayItem = new LinkedHashMap<String, Object>();
+        nestedArrayItem.put("cmd", "docker system prune -af");
+        Map<String, Object> nestedCommandArrayArgs = new LinkedHashMap<String, Object>();
+        nestedCommandArrayArgs.put("commands", new Object[] {"echo ready", nestedArrayItem});
+        Map<String, Object> nestedCommandArrayCall = new LinkedHashMap<String, Object>();
+        nestedCommandArrayCall.put("tool_name", "exec_command");
+        nestedCommandArrayCall.put("tool_args", nestedCommandArrayArgs);
+        TestTrace nestedCommandArrayTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(nestedCommandArrayTrace, "call_tool", nestedCommandArrayCall);
+
+        DangerousCommandApprovalService.PendingApproval nestedCommandArrayPending =
+                service.getPendingApproval(nestedCommandArrayTrace.session);
+        assertThat(nestedCommandArrayPending).isNotNull();
+        assertThat(nestedCommandArrayPending.getToolName()).isEqualTo("execute_shell");
+        assertThat(nestedCommandArrayPending.getPatternKey()).isEqualTo("docker_destructive_prune");
+
         Map<String, Object> safeNestedArgs = new LinkedHashMap<String, Object>();
         safeNestedArgs.put("note", "git reset --hard appears in docs, not as a command key");
         Map<String, Object> safeNestedCall = new LinkedHashMap<String, Object>();

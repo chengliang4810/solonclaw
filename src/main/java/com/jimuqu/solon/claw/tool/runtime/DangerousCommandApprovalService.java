@@ -3191,10 +3191,22 @@ public class DangerousCommandApprovalService {
                 if (value == null) {
                     continue;
                 }
-                if (buffer.length() > 0) {
-                    buffer.append('\n');
+                if (value instanceof CharSequence
+                        || value instanceof Number
+                        || value instanceof Boolean) {
+                    if (buffer.length() > 0) {
+                        buffer.append('\n');
+                    }
+                    buffer.append(String.valueOf(value));
+                    continue;
                 }
-                buffer.append(String.valueOf(value));
+                String nested = commandLikeArg(value, depth + 1);
+                if (StrUtil.isNotBlank(nested)) {
+                    if (buffer.length() > 0) {
+                        buffer.append('\n');
+                    }
+                    buffer.append(nested);
+                }
             }
             return buffer.length() == 0 ? null : buffer.toString();
         }
