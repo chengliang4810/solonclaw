@@ -485,6 +485,9 @@ public class DomesticChannelEnhancementTest {
         String content = card.get("elements").get(0).get("content").getString();
         ONode actions = card.get("elements").get(1).get("actions");
 
+        assertThat(card.get("header").get("title").get("content").getString())
+                .isEqualTo("⚠️ 危险命令审批");
+        assertThat(content).contains("**原因：**");
         assertThat(content)
                 .contains("OPENAI_API_KEY=***")
                 .contains("Bearer ***")
@@ -493,6 +496,11 @@ public class DomesticChannelEnhancementTest {
                 .doesNotContain("\u001b")
                 .doesNotContain("\u202E");
         assertThat(((List<?>) actions.toData()).size()).isEqualTo(3);
+        assertThat(actions.get(0).get("text").get("content").getString())
+                .isEqualTo("✅ 允许一次");
+        assertThat(actions.get(1).get("text").get("content").getString())
+                .isEqualTo("✅ 本会话允许");
+        assertThat(actions.get(2).get("text").get("content").getString()).isEqualTo("❌ 拒绝");
         assertThat(actions.get(0).get("value").get("approvalId").getString()).isEmpty();
         assertThat(actions.get(2).get("value").get(DangerousCommandApprovalService.CARD_ACTION_KEY).getString())
                 .isEqualTo(DangerousCommandApprovalService.CARD_ACTION_DENY);

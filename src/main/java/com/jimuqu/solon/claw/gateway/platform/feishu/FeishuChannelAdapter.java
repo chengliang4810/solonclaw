@@ -1260,14 +1260,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         List<Object> actions = new ArrayList<Object>();
         actions.add(
                 cardButton(
-                        "✅ Allow Once",
+                        "✅ 允许一次",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
                         approvalId,
                         "once",
                         "primary"));
         actions.add(
                 cardButton(
-                        "✅ Session",
+                        "✅ 本会话允许",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
                         approvalId,
                         "session",
@@ -1275,7 +1275,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (approvalCardAllowAlways(extras)) {
             actions.add(
                     cardButton(
-                            "✅ Always",
+                            "✅ 始终允许",
                             DangerousCommandApprovalService.CARD_ACTION_APPROVE,
                             approvalId,
                             "always",
@@ -1283,7 +1283,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         actions.add(
                 cardButton(
-                        "❌ Deny",
+                        "❌ 拒绝",
                         DangerousCommandApprovalService.CARD_ACTION_DENY,
                         approvalId,
                         "deny",
@@ -1297,8 +1297,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 "content",
                                 "```\n"
                                         + preview
-                                        + "\n```\n**Reason:** "
-                                        + StrUtil.blankToDefault(description, "dangerous command"))
+                                        + "\n```\n**原因：** "
+                                        + StrUtil.blankToDefault(description, "危险命令"))
                         .toData());
         elements.add(new ONode().set("tag", "action").set("actions", actions).toData());
 
@@ -1306,7 +1306,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         card.getOrNew("config").set("wide_screen_mode", true);
         ONode header = card.getOrNew("header");
         header.getOrNew("title")
-                .set("content", "⚠️ Dangerous Command Approval")
+                .set("content", "⚠️ 危险命令审批")
                 .set("tag", "plain_text");
         header.set("template", "orange");
         card.set("elements", elements);
