@@ -2358,6 +2358,16 @@ public class DashboardDiagnosticsService {
                         "命令 URL 前置策略检查",
                         "curl http://169.254.169.254/latest/user-data"));
         items.add(
+                commandUrlPolicyProbe(
+                        "command_preproxy_url_policy",
+                        "命令 preproxy URL 前置策略检查",
+                        "curl --preproxy socks5://127.0.0.1:1080 https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_proxy_env_policy",
+                        "命令代理环境 URL 前置策略检查",
+                        "https_proxy=http://169.254.169.254:8080 curl https://example.test"));
+        items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_credential_path",
                         "文件工具凭据路径参数检查",

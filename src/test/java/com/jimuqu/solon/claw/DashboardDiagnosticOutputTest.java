@@ -306,6 +306,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
+        Map<String, Object> commandPreproxyUrlPolicy =
+                findProbe(items, "command_preproxy_url_policy");
+        Map<String, Object> commandProxyEnvPolicy =
+                findProbe(items, "command_proxy_env_policy");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpPackageSecurity = findProbe(items, "mcp_package_security");
@@ -411,6 +415,16 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("skipped")).isNull();
+        assertThat(commandPreproxyUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPreproxyUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPreproxyUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPreproxyUrlPolicy)).contains("--preproxy");
+        assertThat(commandProxyEnvPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyEnvPolicy))
+                .contains("https_proxy")
+                .contains("169.254.169.254");
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();
