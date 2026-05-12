@@ -4363,6 +4363,8 @@ public class DefaultCronSchedulerTest {
 
         assertThat(dashboardView.get("id")).isEqualTo(dashboardJob.getJobId());
         assertThat(apiView.get("id")).isEqualTo(apiJob.getJobId());
+        assertThat(dashboardView.get("pending_trigger")).isEqualTo("manual");
+        assertThat(apiView.get("pending_trigger")).isEqualTo("manual");
         assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getPendingTriggerType())
                 .isEqualTo("manual");
         assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getPendingTriggerType())
