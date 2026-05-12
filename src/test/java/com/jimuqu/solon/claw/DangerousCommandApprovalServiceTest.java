@@ -2012,6 +2012,8 @@ public class DangerousCommandApprovalServiceTest {
                 env, "Get-StoredCredential -Target server.example", "windows_credential_manager_read");
         assertDangerPattern(env, "Get-Secret prod-db", "windows_credential_manager_read");
         assertDangerPattern(env, "Get-SecretInfo", "windows_credential_manager_read");
+        assertDangerPattern(env, "Get-SecretVault", "windows_credential_manager_read");
+        assertDangerPattern(env, "Unlock-SecretVault -Name LocalStore", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
                 "cmdkey /add:server.example /user:deploy /pass:secret",
@@ -2026,6 +2028,8 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(env, "vaultcmd /deletecreds:\"Windows Credentials\"", "windows_credential_manager_change");
         assertDangerPattern(env, "Set-Secret prod-db secret", "windows_credential_manager_change");
         assertDangerPattern(env, "Remove-Secret prod-db", "windows_credential_manager_change");
+        assertDangerPattern(env, "Register-SecretVault -Name LocalStore -ModuleName SecretStore", "windows_credential_manager_change");
+        assertDangerPattern(env, "Unregister-SecretVault -Name LocalStore", "windows_credential_manager_change");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertThat(
                         env.dangerousCommandApprovalService.detect(

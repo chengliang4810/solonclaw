@@ -1596,13 +1596,13 @@ public class DangerousCommandApprovalService {
                                     "windows_credential_manager_read",
                                     "Windows credential manager read",
                                     pattern(
-                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b|(?:Get-StoredCredential|Get-VaultCredential|Get-SecretInfo|Get-Secret)\\b)"),
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b|(?:Get-StoredCredential|Get-VaultCredential|Get-SecretInfo|Get-Secret|Get-SecretVault|Unlock-SecretVault)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_credential_manager_change",
                                     "Windows credential manager changed",
                                     pattern(
-                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/(?:add|delete)\\b|vaultcmd(?:\\.exe)?\\s+/(?:addcreds|deletecreds)\\b|(?:New|Set|Remove)-StoredCredential\\b|New-Credential\\b|(?:New|Set|Remove)-Secret\\b|Remove-VaultCredential\\b)"),
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/(?:add|delete)\\b|vaultcmd(?:\\.exe)?\\s+/(?:addcreds|deletecreds)\\b|(?:New|Set|Remove)-StoredCredential\\b|New-Credential\\b|(?:New|Set|Remove)-Secret\\b|(?:Register|Unregister|Set)-SecretVault\\b|Remove-VaultCredential\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_sensitive_file_write",
