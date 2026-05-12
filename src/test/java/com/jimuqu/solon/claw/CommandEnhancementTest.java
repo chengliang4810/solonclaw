@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
@@ -240,6 +242,45 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/acp [status]");
+    }
+
+    @Test
+    void shouldRedactTrackedSlashCommandEventArgsBeforeStorage() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        GatewayReply conversation = env.send("admin-chat", "admin-user", "记录一条运行");
+        assertThat(conversation.getContent()).contains("echo:记录一条运行");
+        SessionRecord session =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        List<AgentRunRecord> runs = env.agentRunRepository.listBySession(session.getSessionId(), 1);
+        assertThat(runs).isNotEmpty();
+        String runId = runs.get(0).getRunId();
+
+        String secret = "ghp_slashmetadata12345";
+        GatewayReply stop = env.send("admin-chat", "admin-user", "/stop token=" + secret);
+        assertThat(stop.getContent()).doesNotContain(secret);
+
+        List<AgentRunEventRecord> events = env.agentRunRepository.listEvents(runId);
+        AgentRunEventRecord slashEvent = null;
+        for (AgentRunEventRecord event : events) {
+            if ("slash.command".equals(event.getEventType())) {
+                slashEvent = event;
+                break;
+            }
+        }
+        assertThat(slashEvent).isNotNull();
+        assertThat(slashEvent.getSessionId()).isEqualTo(session.getSessionId());
+        assertThat(slashEvent.getSummary()).isEqualTo("/stop");
+        assertThat(slashEvent.getMetadataJson())
+                .contains("token=***")
+                .doesNotContain(secret);
+
+        DashboardRunService runService = new DashboardRunService(env.agentRunRepository);
+        String dashboardEvents = ONode.serialize(runService.events(runId));
+        assertThat(dashboardEvents)
+                .contains("token=***")
+                .doesNotContain(secret)
+                .doesNotContain("ghp_slashmetadata");
     }
 
     @Test

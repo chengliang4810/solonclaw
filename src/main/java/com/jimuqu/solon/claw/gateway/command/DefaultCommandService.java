@@ -1493,7 +1493,8 @@ public class DefaultCommandService implements CommandService {
             event.setSummary("/" + command);
             event.setMetadataJson(
                     org.noear.snack4.ONode.serialize(
-                            java.util.Collections.singletonMap("args", StrUtil.nullToEmpty(args))));
+                            java.util.Collections.singletonMap(
+                                    "args", SecretRedactor.redact(args, 4000))));
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
         } catch (Exception ignored) {
