@@ -38,8 +38,8 @@ public class SlashConfirmService {
         PendingConfirm confirm = new PendingConfirm();
         confirm.setConfirmId(com.jimuqu.solon.claw.support.IdSupport.newId());
         confirm.setSourceKey(cleanDisplay(sourceKey));
-        confirm.setCommand(cleanDisplay(command));
-        confirm.setPrompt(cleanDisplay(prompt));
+        confirm.setCommand(safeDisplay(command));
+        confirm.setPrompt(safeDisplay(prompt));
         confirm.setAllowAlways(allowAlways);
         confirm.setCreatedAt(System.currentTimeMillis());
         pendingBySource.put(confirm.getSourceKey(), confirm);
@@ -182,6 +182,10 @@ public class SlashConfirmService {
 
     private String cleanDisplay(String value) {
         return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value));
+    }
+
+    private String safeDisplay(String value) {
+        return SecretRedactor.redact(cleanDisplay(value), 2000);
     }
 
     public static class PendingConfirm {

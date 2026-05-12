@@ -92,19 +92,26 @@ public class SlashConfirmServiceTest {
     }
 
     @Test
-    void shouldStripDisplayControlsFromCommandAndPromptAtRegistration() {
+    void shouldStripDisplayControlsAndSecretsFromCommandAndPromptAtRegistration() {
         SlashConfirmService service = new SlashConfirmService(new MemorySettings());
 
         SlashConfirmService.PendingConfirm pending =
                 service.register(
                         "session-a",
-                        "reload\u202E-mcp",
-                        "reload Authorization\u202E: Bearer token");
+                        "reload\u202E-mcp token=ghp_slashcommand12345",
+                        "reload Authorization\u202E: Bearer ghp_slashprompt12345");
 
-        assertThat(pending.getCommand()).isEqualTo("reload-mcp");
-        assertThat(pending.getPrompt()).isEqualTo("reload Authorization: Bearer token");
+        assertThat(pending.getCommand())
+                .contains("reload-mcp")
+                .contains("token=***")
+                .doesNotContain("\u202E")
+                .doesNotContain("ghp_slashcommand12345");
+        assertThat(pending.getPrompt())
+                .contains("reload Authorization: Bearer ***")
+                .doesNotContain("\u202E")
+                .doesNotContain("ghp_slashprompt12345");
         assertThat(service.resolve("session-a", pending.getConfirmId()).getCommand())
-                .isEqualTo("reload-mcp");
+                .doesNotContain("ghp_slashcommand12345");
     }
 
     @Test
