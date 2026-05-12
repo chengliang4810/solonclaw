@@ -141,6 +141,9 @@ public final class TerminalSecurityPolicyView {
         if ("process".equals(mode)) {
             return renderProcessPolicy(ProcessTools.backgroundProcessPolicySummary(config));
         }
+        if ("status".equals(mode)) {
+            return renderPolicyStatus(securityPolicyService, approvalService, config);
+        }
         if ("policy".equals(mode)) {
             return renderPolicy(securityPolicyService, approvalService, config);
         }
@@ -258,6 +261,9 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("process") || rest.startsWith("background")) {
             return "process";
         }
+        if (rest.startsWith("status")) {
+            return "status";
+        }
         if (rest.startsWith("policy")) {
             return "policy";
         }
@@ -323,7 +329,49 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security audit-tool、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security mcp-package、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security status、/security policy、/security audit-tool、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security mcp-package、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+        return buffer.toString();
+    }
+
+    private static String renderPolicyStatus(
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            AppConfig config) {
+        StringBuilder buffer = new StringBuilder("安全策略状态摘要：");
+        appendApprovalLine(buffer, approvalService.approvalPolicySummary());
+        appendUrlLine(buffer, securityPolicyService.urlPolicySummary());
+        Map<String, Object> auditTool = SecurityAuditTools.readOnlyAuditPolicySummary();
+        buffer.append('\n')
+                .append("- 审计入口：supportsActions=")
+                .append(value(auditTool, "supportsActions"))
+                .append(" executesCommand=")
+                .append(value(auditTool, "executesCommand"))
+                .append(" redacted=")
+                .append(value(auditTool, "secretRedactionApplied"));
+        Map<String, Object> toolArgs = securityPolicyService.toolArgsPolicySummary();
+        buffer.append('\n')
+                .append("- 工具参数：recursiveUrl=")
+                .append(value(toolArgs, "recursiveUrlExtraction"))
+                .append(" patchTarget=")
+                .append(value(toolArgs, "patchTargetExtraction"))
+                .append(" unsupportedScheme=")
+                .append(value(toolArgs, "unsupportedNetworkSchemeChecked"));
+        Map<String, Object> lifecycle = approvalService.approvalLifecyclePolicySummary();
+        buffer.append('\n')
+                .append("- 审批生命周期：approveAll=")
+                .append(value(lifecycle, "approveAllSupported"))
+                .append(" clearAll=")
+                .append(value(lifecycle, "clearAllSupported"))
+                .append(" statusAlias=")
+                .append(value(lifecycle, "statusAliasSupported"));
+        Map<String, Object> tirith = new TirithSecurityService(config).policySummary();
+        buffer.append('\n')
+                .append("- 安全拦截：enabled=")
+                .append(value(tirith, "enabled"))
+                .append(" promptGuard=")
+                .append(value(tirith, "promptInjectionGuardEnabled"))
+                .append(" failOpen=")
+                .append(value(tirith, "failOpen"));
         return buffer.toString();
     }
 

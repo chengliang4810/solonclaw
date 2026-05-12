@@ -132,6 +132,27 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldRenderSecurityPolicyStatusLocally() throws Exception {
+        TuiShell shell =
+                new TuiShell(
+                        null,
+                        new CliMode(CliMode.Kind.TUI, null, null),
+                        null,
+                        new AppConfig());
+        java.io.StringWriter buffer = new java.io.StringWriter();
+        java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
+
+        int exitCode = send(shell, writer, "/security status");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString())
+                .contains("安全策略状态摘要")
+                .contains("supportsActions=command,url,path,tool_args,policy,status")
+                .contains("executesCommand=false")
+                .contains("statusAlias=true");
+    }
+
+    @Test
     void shouldUseSharedTerminalCommandCatalogForCompletion() throws Exception {
         Field field = TuiShell.class.getDeclaredField("COMMANDS");
         field.setAccessible(true);
