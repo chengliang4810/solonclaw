@@ -495,6 +495,7 @@ const auditActionOptions = [
   { label: 'URL', value: 'url' },
   { label: '路径', value: 'path' },
   { label: '工具参数', value: 'tool_args' },
+  { label: '策略状态', value: 'status' },
 ]
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 const pendingCount = computed(() => pendingApprovals.value.length)
@@ -1037,6 +1038,9 @@ onMounted(load)
                   placeholder="{&quot;url&quot;:&quot;https://example.com&quot;}"
                 />
               </label>
+              <p v-if="auditForm.action === 'status'" class="approval-note">
+                只读取当前安全策略摘要，不执行命令、不访问 URL、不读取文件。
+              </p>
               <NButton size="small" type="primary" :loading="auditLoading" @click="runAudit">审计</NButton>
             </div>
             <div class="audit-result">
