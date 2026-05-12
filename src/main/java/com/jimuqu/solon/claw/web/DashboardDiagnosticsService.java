@@ -41,6 +41,7 @@ import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -2339,6 +2340,10 @@ public class DashboardDiagnosticsService {
                         "tool_result_storage",
                         "工具输出结果存储"));
         items.add(
+                toolResultRetrievalRedactionProbe(
+                        "tool_result_retrieval_redaction",
+                        "工具输出读取脱敏检查"));
+        items.add(
                 attachmentDownloadUrlProbe(
                         "attachment_download_url",
                         "附件下载 URL 安全检查",
@@ -2867,6 +2872,87 @@ public class DashboardDiagnosticsService {
                         ? null
                         : appConfig.getRuntime().getCacheDir();
         return new ToolResultStorageService(cacheDir, 256, 200000, 300);
+    }
+
+    private Map<String, Object> toolResultRetrievalRedactionProbe(String key, String label) {
+        Path cacheDir = null;
+        try {
+            cacheDir = Files.createTempDirectory("dashboard-tool-result-read-probe");
+            ToolResultStorageService service =
+                    new ToolResultStorageService(
+                            cacheDir.toFile().getAbsolutePath(), 40, 200000, 300);
+            String secret = "sk-dashboardtoolresultreadprobe12345";
+            ToolResultStorageService.StoredResult stored =
+                    service.observe(
+                            ToolNameConstants.EXECUTE_SHELL,
+                            "first line\nOPENAI_API_KEY="
+                                    + secret
+                                    + "\ncallback https://example.test/callback?api%255Fkey="
+                                    + secret
+                                    + "\n"
+                                    + repeatText("tail line\n", 80),
+                            "run-token-" + secret,
+                            "call-token-" + secret);
+            Path persisted = runtimeProbeResultFile(cacheDir, stored.getResultRef());
+            String storedContent =
+                    persisted == null
+                            ? ""
+                            : new String(Files.readAllBytes(persisted), StandardCharsets.UTF_8);
+            ToolResultStorageService.StoredResult described =
+                    ToolResultStorageService.describeObservation(stored.getObservation());
+            boolean allowed =
+                    stored.isTruncated()
+                            && persisted != null
+                            && Files.exists(persisted)
+                            && described.isTruncated()
+                            && StrUtil.isNotBlank(described.getResultRef())
+                            && stored.getObservation().contains("OPENAI_API_KEY=***")
+                            && storedContent.contains("OPENAI_API_KEY=***")
+                            && storedContent.contains("api%255Fkey=***")
+                            && !stored.getObservation().contains(secret)
+                            && !stored.getResultRef().contains(secret)
+                            && !described.getResultRef().contains(secret)
+                            && !storedContent.contains(secret);
+            return policyProbeItem(
+                    key,
+                    label,
+                    "tool_result_retrieval_redaction",
+                    true,
+                    allowed,
+                    "runtime tool result ref, persisted content, encoded query secret",
+                    allowed
+                            ? "工具输出引用、读取路径和落盘内容均保持脱敏。"
+                            : "工具输出引用、读取路径或落盘内容脱敏检查未通过。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "tool_result_retrieval_redaction",
+                    true,
+                    false,
+                    "runtime tool result ref, persisted content, encoded query secret",
+                    "工具输出读取脱敏探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        } finally {
+            deleteProbeDirectory(cacheDir);
+        }
+    }
+
+    private Path runtimeProbeResultFile(Path cacheDir, String resultRef) {
+        String prefix = "runtime://tool-results/";
+        if (cacheDir == null || !StrUtil.startWith(resultRef, prefix)) {
+            return null;
+        }
+        try {
+            Path base = cacheDir.resolve("tool-results").toRealPath();
+            Path candidate = base.resolve(resultRef.substring(prefix.length())).normalize();
+            if (!candidate.startsWith(base)) {
+                return null;
+            }
+            return candidate;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String repeatText(String value, int count) {

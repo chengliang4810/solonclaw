@@ -301,6 +301,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> mcpPackageSecurity = findProbe(items, "mcp_package_security");
         Map<String, Object> subprocessEnvironment = findProbe(items, "subprocess_environment");
         Map<String, Object> toolResultStorage = findProbe(items, "tool_result_storage");
+        Map<String, Object> toolResultRetrievalRedaction =
+                findProbe(items, "tool_result_retrieval_redaction");
         Map<String, Object> attachmentDownloadUrl = findProbe(items, "attachment_download_url");
         Map<String, Object> attachmentMediaCache = findProbe(items, "attachment_media_cache");
         Map<String, Object> attachmentTerminalPaste = findProbe(items, "attachment_terminal_paste");
@@ -376,6 +378,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(toolResultStorage.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(toolResultStorage.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(toolResultStorage.get("skipped")).isNull();
+        assertThat(toolResultRetrievalRedaction.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolResultRetrievalRedaction.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolResultRetrievalRedaction.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(toolResultRetrievalRedaction.get("skipped")).isNull();
+        assertThat(String.valueOf(toolResultRetrievalRedaction))
+                .doesNotContain("sk-dashboardtoolresultreadprobe12345");
         assertThat(attachmentDownloadUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(attachmentDownloadUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(attachmentDownloadUrl.get("skipped")).isNull();
