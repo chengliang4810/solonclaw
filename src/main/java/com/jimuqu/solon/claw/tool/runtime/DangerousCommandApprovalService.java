@@ -209,7 +209,7 @@ public class DangerousCommandApprovalService {
                                     "world_writable",
                                     "world/other-writable permissions",
                                     pattern(
-                                            "\\bchmod\\s+(-[^\\s]*\\s+)*(777|666|o\\+[rwx]*w|a\\+[rwx]*w)\\b"),
+                                            "\\bchmod\\s+(?!--recursive\\b)(-[^\\s]*\\s+)*(777|666|o\\+[rwx]*w|a\\+[rwx]*w)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "world_writable_long_flag",

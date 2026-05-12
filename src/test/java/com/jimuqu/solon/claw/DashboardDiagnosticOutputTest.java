@@ -587,6 +587,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
+        Map<String, Object> credentialFilePermissiveChmod =
+                findProbe(items, "credential_file_permissive_chmod");
+        Map<String, Object> credentialFileOwnerOrAclChange =
+                findProbe(items, "credential_file_owner_or_acl_change");
         Map<String, Object> sensitiveEnvironmentInlineAssignment =
                 findProbe(items, "sensitive_environment_inline_assignment");
         Map<String, Object> sensitiveEnvironmentHttpHeaderSend =
@@ -616,6 +620,11 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "credential_file_binary_dump");
         Map<String, Object> credentialFileVisualEncode =
                 findProbe(items, "credential_file_visual_encode");
+        Map<String, Object> credentialFileArchive = findProbe(items, "credential_file_archive");
+        Map<String, Object> credentialFileArchiveMemberOutput =
+                findProbe(items, "credential_file_archive_member_output");
+        Map<String, Object> credentialFileCopyToSharedLocation =
+                findProbe(items, "credential_file_copy_to_shared_location");
         Map<String, Object> credentialFileEnvironmentLoad =
                 findProbe(items, "credential_file_environment_load");
         Map<String, Object> credentialFileCompareOutput =
@@ -786,10 +795,14 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> packageManagerRemoteExecute =
                 findProbe(items, "package_manager_remote_execute");
         Map<String, Object> findDelete = findProbe(items, "find_delete");
+        Map<String, Object> recursiveDelete = findProbe(items, "recursive_delete");
+        Map<String, Object> recursiveDeleteLongFlag =
+                findProbe(items, "recursive_delete_long_flag");
         Map<String, Object> findExecRm = findProbe(items, "find_exec_rm");
         Map<String, Object> xargsRm = findProbe(items, "xargs_rm");
         Map<String, Object> shellCommandFlag = findProbe(items, "shell_command_flag");
         Map<String, Object> scriptEvalFlag = findProbe(items, "script_eval_flag");
+        Map<String, Object> chmodExecuteScript = findProbe(items, "chmod_execute_script");
         Map<String, Object> curlPipeShell = findProbe(items, "curl_pipe_shell");
         Map<String, Object> remoteScriptProcessSubstitution =
                 findProbe(items, "remote_script_process_substitution");
@@ -803,8 +816,13 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> copyIntoProjectSensitive =
                 findProbe(items, "copy_into_project_sensitive");
         Map<String, Object> chmodSetuidSetgid = findProbe(items, "chmod_setuid_setgid");
+        Map<String, Object> worldWritable = findProbe(items, "world_writable");
+        Map<String, Object> worldWritableLongFlag =
+                findProbe(items, "world_writable_long_flag");
         Map<String, Object> linuxAclPermissionWiden =
                 findProbe(items, "linux_acl_permission_widen");
+        Map<String, Object> chownRoot = findProbe(items, "chown_root");
+        Map<String, Object> chownRootLongFlag = findProbe(items, "chown_root_long_flag");
         Map<String, Object> setcapPrivilege = findProbe(items, "setcap_privilege");
         Map<String, Object> linuxImmutableFlagRemoved =
                 findProbe(items, "linux_immutable_flag_removed");
@@ -1867,6 +1885,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePermissiveChmod.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePermissiveChmod.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePermissiveChmod.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFilePermissiveChmod)).contains("chmod 777");
+        assertThat(credentialFileOwnerOrAclChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileOwnerOrAclChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileOwnerOrAclChange.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileOwnerOrAclChange)).contains("chown root");
         assertThat(sensitiveEnvironmentInlineAssignment.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveEnvironmentInlineAssignment.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveEnvironmentInlineAssignment.get("skipped")).isNull();
@@ -1931,6 +1957,20 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialFileVisualEncode.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileVisualEncode.get("skipped")).isNull();
         assertThat(String.valueOf(credentialFileVisualEncode)).contains("qrencode");
+        assertThat(credentialFileArchive.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileArchive.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileArchive.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileArchive)).contains("tar -cf");
+        assertThat(credentialFileArchiveMemberOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileArchiveMemberOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileArchiveMemberOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileArchiveMemberOutput)).contains("tar -tf");
+        assertThat(credentialFileCopyToSharedLocation.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileCopyToSharedLocation.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileCopyToSharedLocation.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileCopyToSharedLocation))
+                .contains("cp token.json")
+                .contains("[REDACTED_PATH]");
         assertThat(credentialFileEnvironmentLoad.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileEnvironmentLoad.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileEnvironmentLoad.get("skipped")).isNull();
@@ -2328,6 +2368,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(findDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(findDelete.get("skipped")).isNull();
         assertThat(String.valueOf(findDelete)).contains("find runtime/cache -delete");
+        assertThat(recursiveDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(recursiveDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(recursiveDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(recursiveDelete)).contains("rm -rf");
+        assertThat(recursiveDeleteLongFlag.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(recursiveDeleteLongFlag.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(recursiveDeleteLongFlag.get("skipped")).isNull();
+        assertThat(String.valueOf(recursiveDeleteLongFlag)).contains("--recursive");
         assertThat(findExecRm.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(findExecRm.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(findExecRm.get("skipped")).isNull();
@@ -2344,6 +2392,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(scriptEvalFlag.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(scriptEvalFlag.get("skipped")).isNull();
         assertThat(String.valueOf(scriptEvalFlag)).contains("python -c");
+        assertThat(chmodExecuteScript.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(chmodExecuteScript.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(chmodExecuteScript.get("skipped")).isNull();
+        assertThat(String.valueOf(chmodExecuteScript)).contains("chmod +x");
         assertThat(curlPipeShell.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(curlPipeShell.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(curlPipeShell.get("skipped")).isNull();
@@ -2380,10 +2432,26 @@ public class DashboardDiagnosticOutputTest {
         assertThat(chmodSetuidSetgid.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(chmodSetuidSetgid.get("skipped")).isNull();
         assertThat(String.valueOf(chmodSetuidSetgid)).contains("chmod u+s");
+        assertThat(worldWritable.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(worldWritable.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(worldWritable.get("skipped")).isNull();
+        assertThat(String.valueOf(worldWritable)).contains("chmod 777");
+        assertThat(worldWritableLongFlag.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(worldWritableLongFlag.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(worldWritableLongFlag.get("skipped")).isNull();
+        assertThat(String.valueOf(worldWritableLongFlag)).contains("--recursive");
         assertThat(linuxAclPermissionWiden.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(linuxAclPermissionWiden.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(linuxAclPermissionWiden.get("skipped")).isNull();
         assertThat(String.valueOf(linuxAclPermissionWiden)).contains("setfacl");
+        assertThat(chownRoot.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(chownRoot.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(chownRoot.get("skipped")).isNull();
+        assertThat(String.valueOf(chownRoot)).contains("chown -R root");
+        assertThat(chownRootLongFlag.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(chownRootLongFlag.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(chownRootLongFlag.get("skipped")).isNull();
+        assertThat(String.valueOf(chownRootLongFlag)).contains("chown --recursive");
         assertThat(setcapPrivilege.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(setcapPrivilege.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(setcapPrivilege.get("skipped")).isNull();

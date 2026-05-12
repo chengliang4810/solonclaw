@@ -2069,6 +2069,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(curlPipe).isNotNull();
         assertThat(curlPipe.getPatternKey()).isEqualTo("curl_pipe_shell");
         assertThat(chmod).isNotNull();
+        assertThat(chmod.getPatternKey()).isEqualTo("world_writable_long_flag");
         assertThat(chmod.getDescription()).contains("writable");
         assertThat(findDelete).isNotNull();
         assertThat(findDelete.getPatternKey()).isEqualTo("find_delete");

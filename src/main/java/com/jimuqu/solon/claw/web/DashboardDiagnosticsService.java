@@ -3201,6 +3201,20 @@ public class DashboardDiagnosticsService {
                         "sensitive_file_clipboard_export"));
         items.add(
                 approvalDetectionProbe(
+                        "credential_file_permissive_chmod",
+                        "凭据文件宽权限审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chmod 777 token.json",
+                        "credential_file_permissive_chmod"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_owner_or_acl_change",
+                        "凭据文件属主或 ACL 变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chown root token.json",
+                        "credential_file_owner_or_acl_change"));
+        items.add(
+                approvalDetectionProbe(
                         "sensitive_environment_inline_assignment",
                         "敏感环境变量内联赋值审批",
                         ToolNameConstants.EXECUTE_SHELL,
@@ -3311,6 +3325,27 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_SHELL,
                         "qrencode -r token.json",
                         "credential_file_visual_encode"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_archive",
+                        "凭据文件归档审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "tar -cf backup.tar token.json",
+                        "credential_file_archive"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_archive_member_output",
+                        "凭据归档成员读取审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "tar -tf backup.tar token.json",
+                        "credential_file_archive_member_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_copy_to_shared_location",
+                        "凭据文件共享目录复制审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cp token.json /tmp/token.json",
+                        "credential_file_copy_to_shared_location"));
         items.add(
                 approvalDetectionProbe(
                         "credential_file_environment_load",
@@ -3992,6 +4027,20 @@ public class DashboardDiagnosticsService {
                         "find_delete"));
         items.add(
                 approvalDetectionProbe(
+                        "recursive_delete",
+                        "递归删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "rm -rf runtime/cache",
+                        "recursive_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "recursive_delete_long_flag",
+                        "递归删除长参数审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "rm --recursive runtime/cache",
+                        "recursive_delete_long_flag"));
+        items.add(
+                approvalDetectionProbe(
                         "find_exec_rm",
                         "find 执行 rm 审批",
                         ToolNameConstants.EXECUTE_SHELL,
@@ -4018,6 +4067,13 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_SHELL,
                         "python -c \"print('probe')\"",
                         "script_eval_flag"));
+        items.add(
+                approvalDetectionProbe(
+                        "chmod_execute_script",
+                        "授权执行脚本后立即运行审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chmod +x setup.sh && ./setup.sh",
+                        "chmod_execute_script"));
         items.add(
                 approvalDetectionProbe(
                         "curl_pipe_shell",
@@ -4076,11 +4132,39 @@ public class DashboardDiagnosticsService {
                         "chmod_setuid_setgid"));
         items.add(
                 approvalDetectionProbe(
+                        "world_writable",
+                        "全局可写权限审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chmod 777 runtime/cache",
+                        "world_writable"));
+        items.add(
+                approvalDetectionProbe(
+                        "world_writable_long_flag",
+                        "递归全局可写权限审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chmod --recursive 777 runtime/cache",
+                        "world_writable_long_flag"));
+        items.add(
+                approvalDetectionProbe(
                         "linux_acl_permission_widen",
                         "Linux ACL 权限放宽审批",
                         ToolNameConstants.EXECUTE_SHELL,
                         "setfacl -m u:deploy:rw runtime/config.yml",
                         "linux_acl_permission_widen"));
+        items.add(
+                approvalDetectionProbe(
+                        "chown_root",
+                        "递归属主改为 root 审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chown -R root runtime/cache",
+                        "chown_root"));
+        items.add(
+                approvalDetectionProbe(
+                        "chown_root_long_flag",
+                        "递归属主改为 root 长参数审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chown --recursive root runtime/cache",
+                        "chown_root_long_flag"));
         items.add(
                 approvalDetectionProbe(
                         "setcap_privilege",
