@@ -251,6 +251,9 @@ public class CliShellTipsTest {
                 .contains("MCP 包安全策略摘要")
                 .contains("launchers=[npx, uvx, pipx]")
                 .contains("malwarePrefix=MAL-")
+                .contains("npxPackageOption=true")
+                .contains("pypiSourceOption=true")
+                .contains("pipxRunSkipped=true")
                 .contains("failOpen=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security audit-tool"))
                 .contains("安全审计工具策略摘要")
