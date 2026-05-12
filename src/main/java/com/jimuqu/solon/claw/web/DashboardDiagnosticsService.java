@@ -2270,6 +2270,16 @@ public class DashboardDiagnosticsService {
                         "内网 URL 默认阻断",
                         "http://10.0.0.5/internal"));
         items.add(
+                privateUrlProbe(
+                        "loopback_url",
+                        "本机回环 URL 默认阻断",
+                        "http://localhost:8080/admin"));
+        items.add(
+                privateUrlProbe(
+                        "ipv6_loopback_url",
+                        "IPv6 回环 URL 默认阻断",
+                        "http://[::1]:8080/admin"));
+        items.add(
                 urlProbe(
                         "sensitive_query",
                         "敏感 URL 参数阻断",

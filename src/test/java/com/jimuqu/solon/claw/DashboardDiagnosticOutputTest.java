@@ -292,6 +292,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> terminalOutput = findProbe(items, "terminal_output");
         Map<String, Object> backgroundProcessGuard = findProbe(items, "background_process_guard");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
+        Map<String, Object> loopbackUrl = findProbe(items, "loopback_url");
+        Map<String, Object> ipv6LoopbackUrl = findProbe(items, "ipv6_loopback_url");
         Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
         Map<String, Object> encodedSensitiveQuery = findProbe(items, "encoded_sensitive_query");
         Map<String, Object> signedUrl = findProbe(items, "signed_url");
@@ -354,6 +356,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("skipped")).isNull();
+        assertThat(loopbackUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(loopbackUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(loopbackUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(loopbackUrl)).contains("localhost");
+        assertThat(ipv6LoopbackUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(ipv6LoopbackUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(ipv6LoopbackUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(ipv6LoopbackUrl)).contains("[::1]");
         assertThat(sensitiveFragment.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveFragment.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveFragment.get("skipped")).isNull();
