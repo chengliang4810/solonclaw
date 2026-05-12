@@ -5,6 +5,7 @@ import {
   addKanbanComment,
   createKanbanBoard,
   createKanbanTask,
+  deliverKanbanNotifications,
   dispatchKanban,
   fetchKanbanBoardsWithArchived,
   fetchKanbanDaemon,
@@ -32,6 +33,7 @@ import {
   type KanbanGuide,
   type KanbanHomeNotificationChannel,
   type KanbanNotification,
+  type KanbanNotificationDeliveryResult,
   type KanbanPipelineOverview,
   type KanbanRun,
   type KanbanRunSummary,
@@ -52,6 +54,7 @@ const selectedTask = ref<KanbanTask | null>(null)
 const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
 const homeNotificationChannels = ref<KanbanHomeNotificationChannel[]>([])
 const notificationBusy = ref('')
+const notificationDelivering = ref(false)
 const commentText = ref('')
 const recoveryReason = ref('')
 const reassignAssignee = ref('')
@@ -429,6 +432,21 @@ async function runDispatcher(dryRun = false) {
   }
 }
 
+async function deliverNotificationsNow() {
+  notificationDelivering.value = true
+  try {
+    const result = await deliverKanbanNotifications()
+    message.success(notificationDeliveryText(result))
+    if (selectedTask.value) {
+      await refreshSelectedTaskDrawer()
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '通知投递失败')
+  } finally {
+    notificationDelivering.value = false
+  }
+}
+
 async function startDaemon() {
   daemonBusy.value = true
   try {
@@ -656,6 +674,10 @@ function notificationSummary(notification: KanbanNotification): string {
   return `${notification.platform} / ${notification.chat_id}${thread}`
 }
 
+function notificationDeliveryText(result: KanbanNotificationDeliveryResult): string {
+  return `通知投递：订阅 ${result.subscriptions || 0}，领取 ${result.claimed_events || 0}，成功 ${result.delivered_events || 0}，失败 ${result.failed_events || 0}`
+}
+
 function homeNotificationSummary(channel: KanbanHomeNotificationChannel): string {
   const name = channel.chat_name ? `${channel.chat_name} · ` : ''
   const thread = channel.thread_id ? ` / ${channel.thread_id}` : ''
@@ -837,6 +859,7 @@ function hasWarnings(task: KanbanTask): boolean {
         <NButton size="small" @click="showBoardManager = true">管理看板</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(true)">预检派发</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(false)">派发执行</NButton>
+        <NButton size="small" :loading="notificationDelivering" @click="deliverNotificationsNow">投递通知</NButton>
         <span class="daemon-status" :class="{ active: daemon?.running }">
           {{ daemon?.running ? `后台派发中 · ${daemon.tick_count || 0} 次` : '后台派发未启动' }}
         </span>

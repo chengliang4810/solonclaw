@@ -74,6 +74,15 @@ export interface KanbanHomeNotificationChannel {
   subscribed: boolean
 }
 
+export interface KanbanNotificationDeliveryResult {
+  subscriptions: number
+  claimed_events: number
+  delivered_events: number
+  failed_events: number
+  removed_subscriptions: number
+  errors?: string[]
+}
+
 export interface KanbanTaskLog {
   task_id: string
   path: string
@@ -380,6 +389,12 @@ export async function subscribeKanbanHomeNotification(taskId: string, platform: 
 export async function unsubscribeKanbanHomeNotification(taskId: string, platform: string): Promise<{ removed: boolean }> {
   return request<{ removed: boolean }>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/home-subscribe/${encodeURIComponent(platform)}`, {
     method: 'DELETE',
+  })
+}
+
+export async function deliverKanbanNotifications(): Promise<KanbanNotificationDeliveryResult> {
+  return request<KanbanNotificationDeliveryResult>('/api/kanban/notify-subscriptions/deliver', {
+    method: 'POST',
   })
 }
 
