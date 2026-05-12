@@ -2940,6 +2940,21 @@ public class DashboardDiagnosticsService {
                         "printf '[Service]\\nExecStart=/bin/true' > /etc/systemd/system/probe.service"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_boot_loader_write",
+                        "命令启动目录写入检查",
+                        "printf probe > /boot/probe.cfg"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_sbin_write",
+                        "命令系统维护目录写入检查",
+                        "printf probe > /sbin/probe"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_usr_sbin_write",
+                        "命令系统管理目录写入检查",
+                        "printf probe > /usr/sbin/probe"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_usr_local_bin_write",
                         "命令系统二进制目录写入检查",
                         "printf probe > /usr/local/bin/probe"));
