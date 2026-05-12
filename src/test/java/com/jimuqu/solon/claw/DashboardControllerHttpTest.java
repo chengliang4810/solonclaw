@@ -2243,7 +2243,11 @@ public class DashboardControllerHttpTest {
                 .contains("DELETE /api/cron/jobs/{id}")
                 .contains("POST /api/cron/jobs/{id}/disable")
                 .contains("POST /api/cron/jobs/{id}/trigger")
-                .contains("POST /api/cron/jobs/{id}/rerun");
+                .contains("POST /api/cron/jobs/{id}/rerun")
+                .contains("PATCH /api/jobs/{id}")
+                .contains("DELETE /api/jobs/{id}")
+                .contains("GET /api/jobs/{id}/history")
+                .contains("POST /api/jobs/{id}/retry");
         assertThat(dashboardGuideData.get("security").get("prompt_scan").toJson()).contains("prompt_injection");
 
         HttpResult apiGuide = request("GET", "/api/jobs/guide", null, token);

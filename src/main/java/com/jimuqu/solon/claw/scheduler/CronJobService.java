@@ -558,7 +558,30 @@ public class CronJobService {
                         "POST /api/cron/jobs/{id}/rerun",
                         "GET /api/cron/jobs/{id}/runs",
                         "GET /api/cron/jobs/{id}/history",
-                        "GET /api/jobs/guide"));
+                        "GET /api/jobs/guide",
+                        "GET /api/jobs/policy",
+                        "GET /api/jobs/status",
+                        "GET /api/jobs/next",
+                        "GET /api/jobs",
+                        "POST /api/jobs",
+                        "PATCH /api/jobs/{id}",
+                        "PUT /api/jobs/{id}",
+                        "DELETE /api/jobs/{id}",
+                        "GET /api/jobs/{id}",
+                        "GET /api/jobs/{id}/inspect",
+                        "GET /api/jobs/{id}/show",
+                        "POST /api/jobs/{id}/pause",
+                        "POST /api/jobs/{id}/disable",
+                        "POST /api/jobs/{id}/stop",
+                        "POST /api/jobs/{id}/resume",
+                        "POST /api/jobs/{id}/enable",
+                        "POST /api/jobs/{id}/start",
+                        "POST /api/jobs/{id}/run",
+                        "POST /api/jobs/{id}/trigger",
+                        "POST /api/jobs/{id}/retry",
+                        "POST /api/jobs/{id}/rerun",
+                        "GET /api/jobs/{id}/runs",
+                        "GET /api/jobs/{id}/history"));
         return result;
     }
 
