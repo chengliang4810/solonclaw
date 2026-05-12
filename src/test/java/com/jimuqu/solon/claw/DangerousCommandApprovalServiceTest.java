@@ -1818,6 +1818,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "Set-NetFirewallRule -DisplayName DevServer -Direction Inbound -Action Allow",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall firewall set rule name=DevServer new dir=in action=allow",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -DisableRealtimeMonitoring $true",
                 "windows_disable_defender");
         assertDangerPattern(
