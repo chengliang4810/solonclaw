@@ -643,7 +643,7 @@ async function loadSlashConfirms() {
 async function runAudit() {
   auditLoading.value = true
   try {
-    auditResult.value = await auditSecurity({
+    const result = await auditSecurity({
       action: auditForm.value.action,
       toolName: auditForm.value.toolName,
       command: auditForm.value.command,
@@ -652,6 +652,10 @@ async function runAudit() {
       writeLike: auditForm.value.writeLike,
       argsJson: auditForm.value.argsJson,
     })
+    auditResult.value = result
+    if ((result.action === 'policy' || result.action === 'status') && result.policy) {
+      policyAuditResult.value = result
+    }
   } finally {
     auditLoading.value = false
   }
