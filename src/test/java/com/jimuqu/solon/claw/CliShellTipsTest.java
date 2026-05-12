@@ -322,6 +322,15 @@ public class CliShellTipsTest {
                 .contains("executesCommand=false")
                 .contains("writesFile=false")
                 .contains("secretRedaction=true");
+        assertThat(TerminalSecurityPolicyView.render(
+                        null,
+                        "/security status echo token=ghp_terminalstatus12345 http://127.0.0.1/?token=terminal-status-secret target/sk-terminal-status-secret.txt"))
+                .contains("安全策略状态摘要")
+                .contains("executesCommand=false")
+                .contains("statusAlias=true")
+                .doesNotContain("ghp_terminalstatus12345")
+                .doesNotContain("terminal-status-secret")
+                .doesNotContain("sk-terminal-status-secret");
         assertThat(TerminalSecurityPolicyView.render(null, "/security schema"))
                 .contains("工具 schema 安全策略摘要")
                 .contains("nullableUnionCollapsed");
