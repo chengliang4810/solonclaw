@@ -289,6 +289,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> sudoRewrite = findProbe(items, "sudo_rewrite");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
+        Map<String, Object> terminalOutput = findProbe(items, "terminal_output");
         Map<String, Object> backgroundProcessGuard = findProbe(items, "background_process_guard");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
@@ -319,6 +320,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
+        assertThat(terminalOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalOutput.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalOutput.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(terminalOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(terminalOutput)).doesNotContain("sk-dashboardterminalprobe12345");
         assertThat(backgroundProcessGuard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(backgroundProcessGuard.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(backgroundProcessGuard.get("skipped")).isNull();

@@ -35,6 +35,7 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
@@ -2354,6 +2355,10 @@ public class DashboardDiagnosticsService {
                         "长时间前台命令守卫",
                         "npm run dev"));
         items.add(
+                terminalOutputProbe(
+                        "terminal_output",
+                        "终端输出安全检查"));
+        items.add(
                 backgroundProcessGuardProbe(
                         "background_process_guard",
                         "后台进程守卫检查"));
@@ -2938,6 +2943,56 @@ public class DashboardDiagnosticsService {
                 !blocked,
                 safeAuditPreview(command, 400),
                 guidance);
+    }
+
+    private Map<String, Object> terminalOutputProbe(String key, String label) {
+        try {
+            AppConfig probeConfig = new AppConfig();
+            probeConfig.getTask().setToolOutputInlineLimit(256);
+            Map<String, Object> summary = SolonClawShellSkill.terminalOutputPolicySummary(probeConfig);
+            String secret = "sk-dashboardterminalprobe12345";
+            String raw =
+                    "\u001B]0;dashboard-probe\u0007"
+                            + "\u001B[31mAPI_KEY="
+                            + secret
+                            + "\u001B[0m"
+                            + "\u202E";
+            String cleaned = SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(raw), 2000);
+            boolean controlsRemoved =
+                    cleaned.indexOf('\u001B') < 0
+                            && cleaned.indexOf('\u0007') < 0
+                            && cleaned.indexOf('\u202E') < 0;
+            boolean secretRedacted =
+                    !StrUtil.contains(cleaned, secret)
+                            && StrUtil.contains(cleaned, "API_KEY=***");
+            boolean truncationConfigured =
+                    Boolean.TRUE.equals(summary.get("headTailTruncation"))
+                            && Boolean.TRUE.equals(summary.get("truncationNoticeIncluded"))
+                            && Integer.valueOf(256).equals(summary.get("maxInlineChars"));
+            boolean safe = controlsRemoved && secretRedacted && truncationConfigured;
+            String message =
+                    safe
+                            ? "终端输出已清理控制序列、脱敏密钥并启用头尾截断策略。"
+                            : "终端输出清理、脱敏或截断策略检查未通过。";
+            return policyProbeItem(
+                    key,
+                    label,
+                    "terminal_output",
+                    true,
+                    safe,
+                    "ANSI/OSC, API_KEY, inline output limit",
+                    message);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "terminal_output",
+                    true,
+                    false,
+                    "ANSI/OSC, API_KEY, inline output limit",
+                    "终端输出安全探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
     }
 
     private Map<String, Object> backgroundProcessGuardProbe(String key, String label) {
