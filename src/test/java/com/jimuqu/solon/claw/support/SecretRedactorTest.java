@@ -237,6 +237,20 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactEncodedSensitiveFileTokens() {
+        String result =
+                SecretRedactor.redact(
+                        "blocked files client&#95;secret.json api%5Fkey.txt access%255Ftoken.cache private-key.pem");
+
+        assertThat(result)
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("client&#95;secret.json")
+                .doesNotContain("api%5Fkey.txt")
+                .doesNotContain("access%255Ftoken.cache")
+                .doesNotContain("private-key.pem");
+    }
+
+    @Test
     void shouldRedactSkillsHubInternalCachePaths() {
         String result =
                 SecretRedactor.redact(

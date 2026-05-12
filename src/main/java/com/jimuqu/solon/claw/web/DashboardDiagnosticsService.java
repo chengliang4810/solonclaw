@@ -2476,6 +2476,12 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.FILE_READ,
                         ".env"));
         items.add(
+                fileToolPathPolicyProbe(
+                        "file_tool_entity_credential_path",
+                        "文件工具编码凭据路径检查",
+                        ToolNameConstants.FILE_READ,
+                        "client&#95;secret.json"));
+        items.add(
                 patchToolPolicyProbe(
                         "patch_tool_credential_path",
                         "补丁工具凭据路径参数检查",
@@ -2508,6 +2514,16 @@ public class DashboardDiagnosticsService {
                         "command_encoded_path_traversal",
                         "命令编码路径遍历检查",
                         "cat safe/%252e%252e/readme.txt"));
+        items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_bare_packed_ipv4_metadata",
+                        "命令裸数字元数据地址阻断",
+                        "curl 2852039166"));
+        items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_bare_hex_ipv4_metadata",
+                        "命令裸十六进制元数据地址阻断",
+                        "curl 0xa9fea9fe"));
         items.add(
                 schemaSanitizerProbe(
                         "schema_sanitizer",
@@ -2892,6 +2908,19 @@ public class DashboardDiagnosticsService {
                 key,
                 label,
                 "command_path_policy",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(command, 400),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> commandAlwaysBlockedUrlProbe(String key, String label, String command) {
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkCommandAlwaysBlockedUrls(command);
+        return policyProbeItem(
+                key,
+                label,
+                "command_always_blocked_url",
                 false,
                 verdict.isAllowed(),
                 safeAuditPreview(command, 400),

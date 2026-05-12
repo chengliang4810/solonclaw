@@ -46,6 +46,28 @@ public final class SecretRedactor {
                             + "|(?:^|(?<=[\\s\"'=:]))(?:[^\\s\"'<>|;?#]+[\\\\/])*skills[\\\\/]\\.hub(?:[\\\\/][^\\s\"'<>|;?#]+)*"
                             + "|(?:^|(?<=[\\s\"'=:]))(?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh[\\\\/][^\\s\"'<>|;?#]+|credentials|secrets|credentials?[\\\\/][^\\s\"'<>|;?#]+|secrets?[\\\\/][^\\s\"'<>|;?#]+|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
                             + ")");
+    private static final String ENCODED_SEPARATOR =
+            "(?:_|-|&#95;|&#x5[fF];|&lowbar;|%5[fF]|%255[fF])";
+    private static final Pattern SENSITIVE_FILE_TOKEN =
+            Pattern.compile(
+                    "(?i)(?<![A-Za-z0-9_.-])(?:[^\\s\"'<>|;?#=\\\\/]*?(?:"
+                            + "credential"
+                            + "|client"
+                            + ENCODED_SEPARATOR
+                            + "secret"
+                            + "|api"
+                            + ENCODED_SEPARATOR
+                            + "key"
+                            + "|access"
+                            + ENCODED_SEPARATOR
+                            + "token"
+                            + "|refresh"
+                            + ENCODED_SEPARATOR
+                            + "token"
+                            + "|private"
+                            + ENCODED_SEPARATOR
+                            + "key"
+                            + ")[^\\s\"'<>|;?#=\\\\/]*\\.[A-Za-z0-9]{1,12})(?![A-Za-z0-9_.-])");
     private static final Pattern PREFIX_SECRET =
             Pattern.compile(
                     "(?<![A-Za-z0-9_-])("
@@ -113,6 +135,7 @@ public final class SecretRedactor {
         result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = redactEncodedSensitiveQuery(result);
+        result = SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
         result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {

@@ -346,6 +346,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandLocalManagementPipe =
                 findProbe(items, "command_local_management_pipe");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
+        Map<String, Object> fileToolEntityCredentialPath =
+                findProbe(items, "file_tool_entity_credential_path");
         Map<String, Object> patchToolCredentialPath =
                 findProbe(items, "patch_tool_credential_path");
         Map<String, Object> commandDownloadOutputPath =
@@ -358,6 +360,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_credential_option_path");
         Map<String, Object> commandEncodedPathTraversal =
                 findProbe(items, "command_encoded_path_traversal");
+        Map<String, Object> commandBarePackedIpv4Metadata =
+                findProbe(items, "command_bare_packed_ipv4_metadata");
+        Map<String, Object> commandBareHexIpv4Metadata =
+                findProbe(items, "command_bare_hex_ipv4_metadata");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
@@ -581,6 +587,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();
+        assertThat(fileToolEntityCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(fileToolEntityCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(fileToolEntityCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(fileToolEntityCredentialPath))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("client&#95;secret.json");
         assertThat(patchToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("skipped")).isNull();
@@ -617,6 +629,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandEncodedPathTraversal))
                 .contains("cat")
                 .contains("%252e%252e");
+        assertThat(commandBarePackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBarePackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBarePackedIpv4Metadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandBarePackedIpv4Metadata)).contains("2852039166");
+        assertThat(commandBareHexIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBareHexIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBareHexIpv4Metadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandBareHexIpv4Metadata)).contains("0xa9fea9fe");
         assertThat(schemaSanitizer.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);
