@@ -81,6 +81,8 @@ public class CronjobTools {
             @Param(name = "state", description = "status 的别名；编辑任务状态", required = false) String state,
             @Param(name = "paused_reason", description = "任务暂停原因；仅暂停状态下生效", required = false)
                     String pausedReason,
+            @Param(name = "trigger_type", description = "run/retry 时写入执行历史的短触发来源", required = false)
+                    String triggerType,
             @Param(name = "limit", description = "history 返回条数", required = false) Integer limit,
             @Param(name = "reason", description = "pause 时记录的暂停原因", required = false) String reason)
             throws Exception {
@@ -294,7 +296,7 @@ public class CronjobTools {
                     .preview(safeText(job.getJobId() + " " + job.getName() + " REMOVED"))
                     .toJson();
         } else if ("run".equals(normalized)) {
-            job = cronJobService.trigger(jobId);
+            job = cronJobService.trigger(jobId, runTriggerType(triggerType, reason));
             Map<String, Object> view = formattedView(job);
             return ToolResultEnvelope.ok("Cron job queued for immediate run: " + safeText(job.getName()))
                     .data("job", view)
@@ -317,6 +319,12 @@ public class CronjobTools {
         } catch (Exception e) {
             return ToolResultEnvelope.error(safeError(e)).toJson();
         }
+    }
+
+    private String runTriggerType(String triggerType, String reason) {
+        String raw = triggerType == null || triggerType.trim().length() == 0 ? reason : triggerType;
+        String normalized = cronJobService.normalizeTriggerType(raw, "manual");
+        return "scheduled".equals(normalized) ? "manual" : normalized;
     }
 
     private String safeError(Exception e) {
@@ -380,6 +388,7 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
                 null,
                 null,
                 null,
@@ -451,6 +460,7 @@ public class CronjobTools {
                 null,
                 null,
                 null,
+                null,
                 limit,
                 reason);
     }
@@ -505,6 +515,7 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
                 null,
                 null,
                 null,
@@ -567,6 +578,11 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
+                null,
+                null,
+                null,
+                null,
                 limit,
                 reason);
     }
@@ -633,6 +649,7 @@ public class CronjobTools {
                 status,
                 state,
                 pausedReason,
+                null,
                 limit,
                 reason);
     }
@@ -688,6 +705,7 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
                 null,
                 null,
                 null,

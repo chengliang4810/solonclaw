@@ -481,10 +481,12 @@ public class DefaultCronScheduler {
     }
 
     private void execute(CronJobRecord job, long now) throws Exception {
-        execute(job, now, "scheduled");
+        execute(job, now, queuedTriggerType(job));
     }
 
     private void execute(CronJobRecord job, long now, String triggerType) throws Exception {
+        triggerType = StrUtil.blankToDefault(triggerType, "scheduled");
+        job.setPendingTriggerType(null);
         long nextRunAt = CronSupport.nextRunAt(job.getCronExpr(), now);
         int completed = job.getRepeatCompleted() + 1;
         boolean done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
@@ -625,6 +627,13 @@ public class DefaultCronScheduler {
             recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
             throw e;
         }
+    }
+
+    private String queuedTriggerType(CronJobRecord job) {
+        if (job == null || StrUtil.isBlank(job.getPendingTriggerType())) {
+            return "scheduled";
+        }
+        return job.getPendingTriggerType();
     }
 
     private String silentCronOutput(CronJobRecord job, String reason) {

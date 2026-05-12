@@ -2192,7 +2192,7 @@ public class DefaultCommandService implements CommandService {
             cronJobService.require(jobId);
             runTriggerType = cronRunTriggerType(options, runTriggerType);
             if (cronScheduler == null) {
-                cronJobService.trigger(jobId);
+                cronJobService.trigger(jobId, runTriggerType);
                 return GatewayReply.ok("已标记定时任务将在下一次 tick 执行：" + jobId);
             }
             cronScheduler.runNow(jobId, runTriggerType);
@@ -2221,30 +2221,7 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String normalizeCronTriggerType(String value, String fallback) {
-        String text = StrUtil.nullToEmpty(value).trim().toLowerCase(java.util.Locale.ROOT);
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < text.length() && builder.length() < 40; i++) {
-            char ch = text.charAt(i);
-            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
-                builder.append(ch);
-            } else if (ch == '_' || ch == '-' || ch == '.') {
-                builder.append(ch);
-            } else if (Character.isWhitespace(ch)) {
-                builder.append('_');
-            }
-        }
-        while (builder.length() > 0
-                && (builder.charAt(0) == '_' || builder.charAt(0) == '-' || builder.charAt(0) == '.')) {
-            builder.deleteCharAt(0);
-        }
-        while (builder.length() > 0) {
-            char ch = builder.charAt(builder.length() - 1);
-            if (ch != '_' && ch != '-' && ch != '.') {
-                break;
-            }
-            builder.deleteCharAt(builder.length() - 1);
-        }
-        return builder.length() == 0 ? fallback : builder.toString();
+        return cronJobService.normalizeTriggerType(value, fallback);
     }
 
     private String formatCronGuide(Map<String, Object> guide) {

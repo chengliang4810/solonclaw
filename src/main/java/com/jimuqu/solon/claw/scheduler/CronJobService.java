@@ -316,9 +316,14 @@ public class CronJobService {
     }
 
     public CronJobRecord trigger(String jobId) throws Exception {
+        return trigger(jobId, "manual");
+    }
+
+    public CronJobRecord trigger(String jobId, String triggerType) throws Exception {
         CronJobRecord record = require(jobId);
         record.setStatus(STATUS_ACTIVE);
         record.setNextRunAt(System.currentTimeMillis());
+        record.setPendingTriggerType(normalizeTriggerType(triggerType, "manual"));
         return cronJobRepository.update(record);
     }
 
@@ -479,6 +484,7 @@ public class CronJobService {
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeViewText(record.getLastError()));
         result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
+        result.put("pending_trigger", safeViewText(record.getPendingTriggerType()));
         result.put("last_output", safeViewText(record.getLastOutput()));
         result.put("paused_at", record.getPausedAt() <= 0 ? null : Long.valueOf(record.getPausedAt()));
         result.put("paused_reason", record.getPausedReason());
@@ -671,6 +677,7 @@ public class CronJobService {
         policy.put("trigger_type_fields", Arrays.asList("trigger_type", "triggerType", "reason"));
         policy.put("custom_manual_trigger_supported", Boolean.TRUE);
         policy.put("custom_retry_trigger_supported", Boolean.TRUE);
+        policy.put("queued_trigger_type_persisted", Boolean.TRUE);
 
         Map<String, Object> schedule = new LinkedHashMap<String, Object>();
         schedule.put("cronExpressionSupported", Boolean.TRUE);
@@ -1491,6 +1498,36 @@ public class CronJobService {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    public String normalizeTriggerType(String value, String fallback) {
+        String text = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (text.length() == 0) {
+            return fallback;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < text.length() && builder.length() < 40; i++) {
+            char ch = text.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                builder.append(ch);
+            } else if (ch == '_' || ch == '-' || ch == '.') {
+                builder.append(ch);
+            } else if (Character.isWhitespace(ch)) {
+                builder.append('_');
+            }
+        }
+        while (builder.length() > 0
+                && (builder.charAt(0) == '_' || builder.charAt(0) == '-' || builder.charAt(0) == '.')) {
+            builder.deleteCharAt(0);
+        }
+        while (builder.length() > 0) {
+            char ch = builder.charAt(builder.length() - 1);
+            if (ch != '_' && ch != '-' && ch != '.') {
+                break;
+            }
+            builder.deleteCharAt(builder.length() - 1);
+        }
+        return builder.length() == 0 ? fallback : builder.toString();
     }
 
     private String normalizeBlank(String value) {

@@ -81,6 +81,9 @@ public class CronJobRecord {
     /** 最近一次投递错误。 */
     private String lastDeliveryError;
 
+    /** 等待下一次 tick 执行的手动触发来源。 */
+    private String pendingTriggerType;
+
     /** 暂停时间。 */
     private long pausedAt;
 

@@ -21,7 +21,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, base_url, wrap_response, last_status, last_error, last_delivery_error, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, base_url, wrap_response, last_status, last_error, last_delivery_error, pending_trigger_type, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, job.getJobId());
             statement.setString(2, job.getName());
             statement.setString(3, job.getCronExpr());
@@ -46,14 +46,15 @@ public class SqliteCronJobRepository implements CronJobRepository {
             statement.setString(22, job.getLastStatus());
             statement.setString(23, redact(job.getLastError(), 2000));
             statement.setString(24, redact(job.getLastDeliveryError(), 2000));
-            statement.setLong(25, job.getPausedAt());
-            statement.setString(26, job.getPausedReason());
-            statement.setString(27, redact(job.getLastOutput(), 8000));
-            statement.setString(28, job.getStatus());
-            statement.setLong(29, job.getNextRunAt());
-            statement.setLong(30, job.getLastRunAt());
-            statement.setLong(31, job.getCreatedAt());
-            statement.setLong(32, job.getUpdatedAt());
+            statement.setString(25, job.getPendingTriggerType());
+            statement.setLong(26, job.getPausedAt());
+            statement.setString(27, job.getPausedReason());
+            statement.setString(28, redact(job.getLastOutput(), 8000));
+            statement.setString(29, job.getStatus());
+            statement.setLong(30, job.getNextRunAt());
+            statement.setLong(31, job.getLastRunAt());
+            statement.setLong(32, job.getCreatedAt());
+            statement.setLong(33, job.getUpdatedAt());
             statement.executeUpdate();
             statement.close();
             return job;
@@ -222,7 +223,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = ?, last_delivery_error = null, updated_at = ? where job_id = ?");
+                            "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = ?, pending_trigger_type = null, last_delivery_error = null, updated_at = ? where job_id = ?");
             statement.setLong(1, lastRunAt);
             statement.setLong(2, nextRunAt);
             statement.setString(3, status);
@@ -336,6 +337,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         record.setLastStatus(resultSet.getString("last_status"));
         record.setLastError(resultSet.getString("last_error"));
         record.setLastDeliveryError(resultSet.getString("last_delivery_error"));
+        record.setPendingTriggerType(resultSet.getString("pending_trigger_type"));
         record.setPausedAt(resultSet.getLong("paused_at"));
         record.setPausedReason(resultSet.getString("paused_reason"));
         record.setLastOutput(resultSet.getString("last_output"));

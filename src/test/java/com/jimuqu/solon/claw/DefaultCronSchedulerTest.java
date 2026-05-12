@@ -3852,7 +3852,7 @@ public class DefaultCronSchedulerTest {
         job.setNextRunAt(now + 60L * 60L * 1000L);
         env.cronJobRepository.save(job);
 
-        service.trigger("job-manual-trigger");
+        service.trigger("job-manual-trigger", "operator button");
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         env.appConfig,
@@ -3866,7 +3866,10 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById("job-manual-trigger");
         assertThat(gateway.toolObjectsText).isNotBlank();
         assertThat(updated.getLastRunAt()).isGreaterThanOrEqualTo(now);
+        assertThat(updated.getPendingTriggerType()).isNull();
         assertThat(env.cronJobRepository.listRuns("job-manual-trigger", 5)).hasSize(1);
+        assertThat(env.cronJobRepository.listRuns("job-manual-trigger", 5).get(0).getTriggerType())
+                .isEqualTo("operator_button");
     }
 
     @Test
@@ -4360,6 +4363,10 @@ public class DefaultCronSchedulerTest {
 
         assertThat(dashboardView.get("id")).isEqualTo(dashboardJob.getJobId());
         assertThat(apiView.get("id")).isEqualTo(apiJob.getJobId());
+        assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getPendingTriggerType())
+                .isEqualTo("manual");
+        assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getPendingTriggerType())
+                .isEqualTo("manual");
         assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getStatus())
                 .isEqualTo("ACTIVE");
         assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getStatus())

@@ -362,6 +362,7 @@ public class SqliteDatabase {
                             + "last_status text,"
                             + "last_error text,"
                             + "last_delivery_error text,"
+                            + "pending_trigger_type text,"
                             + "paused_at integer not null default 0,"
                             + "paused_reason text,"
                             + "last_output text,"
@@ -392,6 +393,7 @@ public class SqliteDatabase {
             addColumn(statement, "cron_jobs", "last_status text");
             addColumn(statement, "cron_jobs", "last_error text");
             addColumn(statement, "cron_jobs", "last_delivery_error text");
+            addColumn(statement, "cron_jobs", "pending_trigger_type text");
             addColumn(statement, "cron_jobs", "paused_at integer not null default 0");
             addColumn(statement, "cron_jobs", "paused_reason text");
             addColumn(statement, "cron_jobs", "last_output text");

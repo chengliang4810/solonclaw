@@ -242,7 +242,7 @@ public class DashboardCronService {
 
     private void runOrTrigger(String id, String triggerType) throws Exception {
         if (cronScheduler == null) {
-            cronJobService.trigger(id);
+            cronJobService.trigger(id, triggerType);
             return;
         }
         cronScheduler.runNow(id, triggerType);
@@ -264,7 +264,7 @@ public class DashboardCronService {
         if (raw == null) {
             raw = body.get("reason");
         }
-        String normalized = normalizeTriggerType(raw, fallback);
+        String normalized = cronJobService.normalizeTriggerType(raw == null ? null : String.valueOf(raw), fallback);
         if ("scheduled".equals(normalized)) {
             return fallback;
         }
@@ -272,36 +272,6 @@ public class DashboardCronService {
             return "retry";
         }
         return normalized;
-    }
-
-    private String normalizeTriggerType(Object value, String fallback) {
-        String text = value == null ? "" : String.valueOf(value).trim().toLowerCase(java.util.Locale.ROOT);
-        if (text.length() == 0) {
-            return fallback;
-        }
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < text.length() && builder.length() < 40; i++) {
-            char ch = text.charAt(i);
-            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
-                builder.append(ch);
-            } else if (ch == '_' || ch == '-' || ch == '.') {
-                builder.append(ch);
-            } else if (Character.isWhitespace(ch)) {
-                builder.append('_');
-            }
-        }
-        while (builder.length() > 0
-                && (builder.charAt(0) == '_' || builder.charAt(0) == '-' || builder.charAt(0) == '.')) {
-            builder.deleteCharAt(0);
-        }
-        while (builder.length() > 0) {
-            char ch = builder.charAt(builder.length() - 1);
-            if (ch != '_' && ch != '-' && ch != '.') {
-                break;
-            }
-            builder.deleteCharAt(builder.length() - 1);
-        }
-        return builder.length() == 0 ? fallback : builder.toString();
     }
 
     public Map<String, Object> delete(String id) throws Exception {
