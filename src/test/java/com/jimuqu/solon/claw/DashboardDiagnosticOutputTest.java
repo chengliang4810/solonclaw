@@ -298,6 +298,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
+        Map<String, Object> mcpPackageSecurity = findProbe(items, "mcp_package_security");
         Map<String, Object> subprocessEnvironment = findProbe(items, "subprocess_environment");
         Map<String, Object> toolResultStorage = findProbe(items, "tool_result_storage");
         Map<String, Object> attachmentDownloadUrl = findProbe(items, "attachment_download_url");
@@ -359,6 +360,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(schemaSanitizer.get("skipped")).isNull();
+        assertThat(mcpPackageSecurity.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpPackageSecurity.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpPackageSecurity.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(mcpPackageSecurity.get("skipped")).isNull();
+        assertThat(String.valueOf(mcpPackageSecurity))
+                .doesNotContain("sk-dashboardmcppackageprobe12345");
         assertThat(subprocessEnvironment.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(subprocessEnvironment.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(subprocessEnvironment.get("blocked")).isEqualTo(Boolean.FALSE);

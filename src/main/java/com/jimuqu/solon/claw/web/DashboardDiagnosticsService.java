@@ -2327,6 +2327,10 @@ public class DashboardDiagnosticsService {
                         "schema_sanitizer",
                         "工具 Schema 安全清洗"));
         items.add(
+                mcpPackageSecurityProbe(
+                        "mcp_package_security",
+                        "MCP 包安全检查"));
+        items.add(
                 subprocessEnvironmentProbe(
                         "subprocess_environment",
                         "子进程环境变量净化"));
@@ -2687,6 +2691,78 @@ public class DashboardDiagnosticsService {
                     false,
                     "pattern, format, $ref, $defs, allOf",
                     "工具 Schema 清洗探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    private Map<String, Object> mcpPackageSecurityProbe(String key, String label) {
+        try {
+            String secret = "sk-dashboardmcppackageprobe12345";
+            SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+            McpPackageSecurityService unsafeEndpointService =
+                    new McpPackageSecurityService(
+                            null,
+                            "http://169.254.169.254/osv?token=" + secret,
+                            policy);
+            McpPackageSecurityService.SecurityVerdict npmVerdict =
+                    unsafeEndpointService.check(
+                            "npx",
+                            Arrays.asList("--package", "@scope/dashboard-mcp-server@1.2.3", "server"));
+            McpPackageSecurityService.SecurityVerdict pypiVerdict =
+                    unsafeEndpointService.check(
+                            "pipx",
+                            Arrays.asList("run", "--spec", "dashboard-mcp-server[cli]==1.2.3"));
+            McpPackageSecurityService allowedService =
+                    new McpPackageSecurityService(null, "https://api.osv.dev/v1/query", policy);
+            McpPackageSecurityService.SecurityVerdict unknownVerdict =
+                    allowedService.check("node", Arrays.asList("server.js", "--token", secret));
+            Map<String, Object> summary = unsafeEndpointService.policySummary();
+            boolean endpointBlocked =
+                    !npmVerdict.isAllowed()
+                            && "unsafe_endpoint".equals(npmVerdict.getReason())
+                            && !pypiVerdict.isAllowed()
+                            && "unsafe_endpoint".equals(pypiVerdict.getReason());
+            boolean unknownLauncherIgnored =
+                    unknownVerdict.isAllowed()
+                            && "allow".equals(unknownVerdict.getReason());
+            boolean policyAdvertised =
+                    Boolean.TRUE.equals(summary.get("unsafeEndpointBlocksBeforeNetwork"))
+                            && Boolean.TRUE.equals(summary.get("scopedNpmPackageParsed"))
+                            && Boolean.TRUE.equals(summary.get("pypiExtrasIgnored"))
+                            && Boolean.TRUE.equals(summary.get("jsonArgsSupported"));
+            String serialized =
+                    SecretRedactor.redact(
+                            npmVerdict.getMessage()
+                                    + "\n"
+                                    + pypiVerdict.getMessage()
+                                    + "\n"
+                                    + ONode.serialize(summary),
+                            2000);
+            boolean secretHidden =
+                    !StrUtil.contains(serialized, secret)
+                            && StrUtil.contains(serialized, "token=***");
+            boolean passed = endpointBlocked && unknownLauncherIgnored && policyAdvertised && secretHidden;
+            String message =
+                    passed
+                            ? "MCP stdio 包安全检查已在联网前阻断不安全 OSV 端点，并覆盖 npm/PyPI 参数解析。"
+                            : "MCP 包安全端点阻断、launcher 解析或脱敏检查未通过。";
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_package_security",
+                    true,
+                    passed,
+                    "npx --package, pipx --spec, unsafe OSV endpoint",
+                    message);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_package_security",
+                    true,
+                    false,
+                    "npx --package, pipx --spec, unsafe OSV endpoint",
+                    "MCP 包安全探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
     }
