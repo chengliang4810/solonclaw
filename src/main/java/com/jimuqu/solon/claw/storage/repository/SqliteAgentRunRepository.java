@@ -509,10 +509,10 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(4, record.getSourceKey());
             statement.setString(5, record.getToolName());
             statement.setString(6, record.getStatus());
-            statement.setString(7, record.getArgsPreview());
-            statement.setString(8, record.getResultPreview());
-            statement.setString(9, record.getResultRef());
-            statement.setString(10, record.getError());
+            statement.setString(7, redact(record.getArgsPreview(), 8000));
+            statement.setString(8, redact(record.getResultPreview(), 8000));
+            statement.setString(9, redact(record.getResultRef(), 1000));
+            statement.setString(10, redact(record.getError(), 2000));
             statement.setInt(11, record.isReadOnly() ? 1 : 0);
             statement.setInt(12, record.isInterruptible() ? 1 : 0);
             statement.setInt(13, record.isSideEffecting() ? 1 : 0);
@@ -1017,15 +1017,15 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                     5,
                     String.valueOf(record.getToolName())
                             + " "
-                            + String.valueOf(record.getResultPreview()));
+                            + redact(record.getResultPreview(), 8000));
             statement.setString(
                     6,
                     "{\"tool_name\":\""
                             + escapeJson(record.getToolName())
                             + "\",\"args_preview\":\""
-                            + escapeJson(record.getArgsPreview())
+                            + escapeJson(redact(record.getArgsPreview(), 8000))
                             + "\",\"result_ref\":\""
-                            + escapeJson(SecretRedactor.redact(record.getResultRef(), 1000))
+                            + escapeJson(redact(record.getResultRef(), 1000))
                             + "\"}");
             statement.executeUpdate();
             statement.close();
@@ -1038,5 +1038,9 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String redact(String value, int maxLength) {
+        return value == null ? null : SecretRedactor.redact(value, maxLength);
     }
 }

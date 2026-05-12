@@ -272,6 +272,59 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRedactToolCallPreviewsBeforeStorageAndSearchIndex() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-secret:user");
+        env.sessionRepository.save(session);
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-tool-secret-preview-1");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:tool-secret:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(session.getSessionId());
+        toolCall.setSourceKey("MEMORY:tool-secret:user");
+        toolCall.setToolName("execute_shell");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("curl https://example.test?api_key=sk-toolarg-secret12345");
+        toolCall.setResultPreview("Authorization: Bearer ghp_toolresultsecret12345");
+        toolCall.setError("password=tool-error-secret");
+        toolCall.setResultIndexable(true);
+        toolCall.setStartedAt(System.currentTimeMillis());
+
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        List<ToolCallRecord> stored = env.agentRunRepository.listToolCalls(run.getRunId());
+        assertThat(stored).hasSize(1);
+        String storedPayload =
+                stored.get(0).getArgsPreview()
+                        + "\n"
+                        + stored.get(0).getResultPreview()
+                        + "\n"
+                        + stored.get(0).getError();
+        assertThat(storedPayload)
+                .contains("api_key=***")
+                .contains("Bearer ***")
+                .contains("password=***")
+                .doesNotContain("sk-toolarg-secret12345")
+                .doesNotContain("ghp_toolresultsecret12345")
+                .doesNotContain("tool-error-secret");
+
+        String fts = readRunEventFts(env, run.getRunId(), "tool.result");
+        assertThat(fts)
+                .contains("api_key=***")
+                .contains("Bearer ***")
+                .doesNotContain("sk-toolarg-secret12345")
+                .doesNotContain("ghp_toolresultsecret12345");
+    }
+
+    @Test
     void shouldRedactEventSummariesAndMetadataFromRunSearchIndex() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:event-room:user");
