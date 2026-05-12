@@ -2311,6 +2311,12 @@ public class DashboardDiagnosticsService {
                         "命令 URL 前置策略检查",
                         "curl http://169.254.169.254/latest/user-data"));
         items.add(
+                fileToolPathPolicyProbe(
+                        "file_tool_credential_path",
+                        "文件工具凭据路径参数检查",
+                        ToolNameConstants.FILE_READ,
+                        ".env"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2567,6 +2573,22 @@ public class DashboardDiagnosticsService {
                 false,
                 verdict.isAllowed(),
                 safeAuditPreview(command, 400),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> fileToolPathPolicyProbe(
+            String key, String label, String toolName, String path) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("path", path);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs(toolName, args);
+        return policyProbeItem(
+                key,
+                label,
+                "file_tool_path_policy",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(path, 400),
                 verdict.getMessage());
     }
 
