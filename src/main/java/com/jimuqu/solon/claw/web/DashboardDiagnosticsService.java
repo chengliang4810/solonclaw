@@ -2306,6 +2306,16 @@ public class DashboardDiagnosticsService {
                         "ftp://example.test/file.txt"));
         items.add(
                 urlProbe(
+                        "unsupported_sftp_scheme",
+                        "不支持的 SFTP 协议阻断",
+                        "sftp://example.test/file.txt"));
+        items.add(
+                urlProbe(
+                        "unsupported_scp_scheme",
+                        "不支持的 SCP 协议阻断",
+                        "scp://example.test/file.txt"));
+        items.add(
+                urlProbe(
                         "sensitive_query",
                         "敏感 URL 参数阻断",
                         "https://example.test/callback?api_key=sk-dashboard-probe-secret"));

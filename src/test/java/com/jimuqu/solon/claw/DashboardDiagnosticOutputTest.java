@@ -303,6 +303,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "encoded_private_host_url");
         Map<String, Object> unsupportedNetworkScheme =
                 findProbe(items, "unsupported_network_scheme");
+        Map<String, Object> unsupportedSftpScheme =
+                findProbe(items, "unsupported_sftp_scheme");
+        Map<String, Object> unsupportedScpScheme =
+                findProbe(items, "unsupported_scp_scheme");
         Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
         Map<String, Object> encodedSensitiveQuery = findProbe(items, "encoded_sensitive_query");
         Map<String, Object> signedUrl = findProbe(items, "signed_url");
@@ -564,7 +568,21 @@ public class DashboardDiagnosticOutputTest {
         assertThat(unsupportedNetworkScheme.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(unsupportedNetworkScheme.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(unsupportedNetworkScheme.get("skipped")).isNull();
-        assertThat(String.valueOf(unsupportedNetworkScheme)).contains("ftp://example.test");
+        assertThat(String.valueOf(unsupportedNetworkScheme))
+                .contains("ftp://example.test")
+                .contains("仅允许");
+        assertThat(unsupportedSftpScheme.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(unsupportedSftpScheme.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(unsupportedSftpScheme.get("skipped")).isNull();
+        assertThat(String.valueOf(unsupportedSftpScheme))
+                .contains("sftp://example.test")
+                .contains("仅允许");
+        assertThat(unsupportedScpScheme.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(unsupportedScpScheme.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(unsupportedScpScheme.get("skipped")).isNull();
+        assertThat(String.valueOf(unsupportedScpScheme))
+                .contains("scp://example.test")
+                .contains("仅允许");
         assertThat(sensitiveFragment.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveFragment.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveFragment.get("skipped")).isNull();
