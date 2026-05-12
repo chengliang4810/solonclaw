@@ -339,6 +339,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "skills_hub_internal_path");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
         Map<String, Object> workdirTextPolicy = findProbe(items, "workdir_text_policy");
+        Map<String, Object> toolArgsRepeatedEncodedSensitiveUrl =
+                findProbe(items, "tool_args_repeated_encoded_sensitive_url");
+        Map<String, Object> toolArgsSemicolonSensitiveUrl =
+                findProbe(items, "tool_args_semicolon_sensitive_url");
         Map<String, Object> toolArgsEndpointPrivateUrl =
                 findProbe(items, "tool_args_endpoint_private_url");
         Map<String, Object> toolArgsNestedEndpointPrivateUrl =
@@ -706,6 +710,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(workdirTextPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(workdirTextPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(workdirTextPolicy)).contains("workspace|bad");
+        assertThat(toolArgsRepeatedEncodedSensitiveUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsRepeatedEncodedSensitiveUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsRepeatedEncodedSensitiveUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(toolArgsRepeatedEncodedSensitiveUrl))
+                .contains("api%25255Fkey=***")
+                .doesNotContain("tool-args-repeated-encoded-secret");
+        assertThat(toolArgsSemicolonSensitiveUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsSemicolonSensitiveUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsSemicolonSensitiveUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(toolArgsSemicolonSensitiveUrl))
+                .contains("client_secret=***")
+                .doesNotContain("tool-args-semicolon-secret");
         assertThat(toolArgsEndpointPrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("skipped")).isNull();

@@ -2481,6 +2481,16 @@ public class DashboardDiagnosticsService {
                         "tool_args_url",
                         "工具返回 URL 递归检查",
                         "http://169.254.169.254/latest/user-data"));
+        items.add(
+                toolArgsUrlProbe(
+                        "tool_args_repeated_encoded_sensitive_url",
+                        "工具返回重复编码敏感 URL 检查",
+                        "https://example.test/callback?api%25255Fkey=tool-args-repeated-encoded-secret"));
+        items.add(
+                toolArgsUrlProbe(
+                        "tool_args_semicolon_sensitive_url",
+                        "工具返回分号敏感 URL 检查",
+                        "https://example.test/callback?page=1;client_secret=tool-args-semicolon-secret"));
         Map<String, Object> endpointArgs = new LinkedHashMap<String, Object>();
         endpointArgs.put("base_url", "localhost:8080/admin");
         items.add(
