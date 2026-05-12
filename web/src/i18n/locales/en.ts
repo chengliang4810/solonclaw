@@ -308,6 +308,8 @@ export default {
       resume: 'Resume',
       resumeJob: 'Resume job',
       runNow: 'Run Now',
+      retry: 'Retry',
+      rerunJob: 'Rerun the latest execution',
       triggerImmediately: 'Trigger immediately',
       history: 'History',
       detail: 'Details',

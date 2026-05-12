@@ -23,6 +23,7 @@ const detailJob = ref<Job | null>(null)
 
 const jobId = computed(() => props.job.job_id || props.job.id)
 const activeJob = computed(() => detailJob.value || props.job)
+const actionFlags = computed(() => activeJob.value.actions || props.job.actions || {})
 
 const statusLabel = computed(() => {
   if (props.job.state === 'running') return t('jobs.status.running')
@@ -37,6 +38,14 @@ const statusType = computed(() => {
   if (!props.job.enabled) return 'error' as const
   return 'success' as const
 })
+
+const canPause = computed(() => actionFlags.value.can_pause ?? (props.job.state !== 'paused' && props.job.enabled))
+const canResume = computed(() => actionFlags.value.can_resume ?? props.job.state === 'paused')
+const canRun = computed(() => actionFlags.value.can_run !== false)
+const canRetry = computed(() => actionFlags.value.can_retry === true)
+const canInspect = computed(() => actionFlags.value.can_inspect !== false)
+const canEdit = computed(() => actionFlags.value.can_edit !== false)
+const canRemove = computed(() => actionFlags.value.can_remove !== false)
 
 const scheduleExpr = computed(() => {
   const s = props.job.schedule
@@ -245,27 +254,29 @@ async function handleDelete() {
     </div>
 
     <div class="card-actions">
-      <NTooltip v-if="job.state !== 'paused' && job.enabled">
+      <NTooltip v-if="canPause">
         <template #trigger>
           <NButton size="tiny" quaternary @click="openPauseModal">{{ t('jobs.action.pause') }}</NButton>
         </template>
         {{ t('jobs.action.pauseJob') }}
       </NTooltip>
-      <NTooltip v-else-if="job.state === 'paused'">
+      <NTooltip v-else-if="canResume">
         <template #trigger>
           <NButton size="tiny" quaternary @click="handleResume">{{ t('jobs.action.resume') }}</NButton>
         </template>
         {{ t('jobs.action.resumeJob') }}
       </NTooltip>
-      <NTooltip>
+      <NTooltip v-if="canRun">
         <template #trigger>
-          <NButton size="tiny" quaternary @click="handleRun">{{ t('jobs.action.runNow') }}</NButton>
+          <NButton size="tiny" quaternary @click="handleRun">
+            {{ canRetry ? t('jobs.action.retry') : t('jobs.action.runNow') }}
+          </NButton>
         </template>
-        {{ t('jobs.action.triggerImmediately') }}
+        {{ canRetry ? t('jobs.action.rerunJob') : t('jobs.action.triggerImmediately') }}
       </NTooltip>
-      <NButton size="tiny" quaternary @click="openRuns">{{ t('jobs.action.detail') }}</NButton>
-      <NButton size="tiny" quaternary @click="emit('edit', jobId)">{{ t('common.edit') }}</NButton>
-      <NButton size="tiny" quaternary type="error" @click="handleDelete">{{ t('common.delete') }}</NButton>
+      <NButton v-if="canInspect" size="tiny" quaternary @click="openRuns">{{ t('jobs.action.detail') }}</NButton>
+      <NButton v-if="canEdit" size="tiny" quaternary @click="emit('edit', jobId)">{{ t('common.edit') }}</NButton>
+      <NButton v-if="canRemove" size="tiny" quaternary type="error" @click="handleDelete">{{ t('common.delete') }}</NButton>
     </div>
 
     <NModal

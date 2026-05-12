@@ -24,6 +24,7 @@ export interface Job {
   repeat: string | { times: number | null; completed: number }
   enabled: boolean
   state: string
+  actions?: JobActions
   paused_at: string | null
   paused_reason: string | null
   created_at: string
@@ -98,6 +99,22 @@ export interface CronGuide {
   security: Record<string, string[] | string>
   slash_examples: string[]
   api_routes: string[]
+}
+
+export interface JobActions {
+  can_inspect?: boolean
+  can_edit?: boolean
+  can_remove?: boolean
+  can_history?: boolean
+  can_pause?: boolean
+  can_resume?: boolean
+  can_run?: boolean
+  can_retry?: boolean
+  supports_enable_alias?: boolean
+  supports_disable_alias?: boolean
+  supports_start_alias?: boolean
+  supports_stop_alias?: boolean
+  supports_rerun_alias?: boolean
 }
 
 export interface CronPolicy {
@@ -208,6 +225,7 @@ interface DashboardJob {
   schedule_display: string
   enabled: boolean
   state: string
+  actions?: JobActions
   deliver?: string
   origin?: Job['origin']
   paused_at?: string | null
@@ -246,6 +264,7 @@ function mapJob(job: DashboardJob): Job {
     repeat: job.repeat || 'forever',
     enabled: job.enabled,
     state,
+    actions: job.actions,
     paused_at: job.paused_at || null,
     paused_reason: job.paused_reason || null,
     created_at: (job as any).created_at || job.last_run_at || job.next_run_at || new Date().toISOString(),

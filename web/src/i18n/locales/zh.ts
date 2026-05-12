@@ -311,6 +311,8 @@ export default {
       resume: '恢复',
       resumeJob: '恢复任务',
       runNow: '立即运行',
+      retry: '重试',
+      rerunJob: '重跑最近一次执行',
       triggerImmediately: '立即触发',
       history: '历史',
       detail: '详情',
