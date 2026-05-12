@@ -2482,6 +2482,21 @@ public class DashboardDiagnosticsService {
                         "git config --global https.proxy http://169.254.169.254:8080"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_persistent_proxy_assignment_policy",
+                        "命令持久化代理赋值 URL 前置策略检查",
+                        "git config --global https.proxy=http://169.254.169.254:8080"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_persistent_no_proxy_add_policy",
+                        "命令持久化 noProxy 追加 URL 前置策略检查",
+                        "git config --global --add http.noProxy metadata.google.internal"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_persistent_proxy_replace_policy",
+                        "命令持久化代理替换 URL 前置策略检查",
+                        "git config --global --replace-all http.proxy http://169.254.169.254:8080"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_winhttp_proxy_policy",
                         "Windows winhttp 代理 URL 前置策略检查",
                         "netsh winhttp set proxy proxy-server=169.254.169.254:8080 bypass-list=example.com"));

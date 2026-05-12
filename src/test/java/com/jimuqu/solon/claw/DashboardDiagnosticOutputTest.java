@@ -344,6 +344,12 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_proxy_bypass_policy");
         Map<String, Object> commandPersistentProxyPolicy =
                 findProbe(items, "command_persistent_proxy_policy");
+        Map<String, Object> commandPersistentProxyAssignmentPolicy =
+                findProbe(items, "command_persistent_proxy_assignment_policy");
+        Map<String, Object> commandPersistentNoProxyAddPolicy =
+                findProbe(items, "command_persistent_no_proxy_add_policy");
+        Map<String, Object> commandPersistentProxyReplacePolicy =
+                findProbe(items, "command_persistent_proxy_replace_policy");
         Map<String, Object> commandWinhttpProxyPolicy =
                 findProbe(items, "command_winhttp_proxy_policy");
         Map<String, Object> commandWinhttpBypassPolicy =
@@ -618,6 +624,24 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandPersistentProxyPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandPersistentProxyPolicy))
                 .contains("git config")
+                .contains("169.254.169.254");
+        assertThat(commandPersistentProxyAssignmentPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentProxyAssignmentPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentProxyAssignmentPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPersistentProxyAssignmentPolicy))
+                .contains("https.proxy=")
+                .contains("169.254.169.254");
+        assertThat(commandPersistentNoProxyAddPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentNoProxyAddPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentNoProxyAddPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPersistentNoProxyAddPolicy))
+                .contains("--add")
+                .contains("metadata.google.internal");
+        assertThat(commandPersistentProxyReplacePolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentProxyReplacePolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentProxyReplacePolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPersistentProxyReplacePolicy))
+                .contains("--replace-all")
                 .contains("169.254.169.254");
         assertThat(commandWinhttpProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandWinhttpProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
