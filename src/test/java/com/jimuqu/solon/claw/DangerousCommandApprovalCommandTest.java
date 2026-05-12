@@ -386,6 +386,78 @@ public class DangerousCommandApprovalCommandTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldHideSecretLikeApprovalIdInApprovalListAndApproveThroughSafeKeySelector()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-secret-selector", "user-secret-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-secret-selector", "user-secret-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-secret-selector:user-secret-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-ghp_selectorsecret123456");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-secret-selector:user-secret-selector"),
+                        env.sessionRepository);
+        String safeSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                restoredAgentSession));
+
+        GatewayReply list =
+                env.send("room-secret-selector", "user-secret-selector", "/approve list");
+        GatewayReply rawRejected =
+                env.send(
+                        "room-secret-selector",
+                        "user-secret-selector",
+                        "/approve approval-ghp_selectorsecret123456 session");
+        GatewayReply prefixRejected =
+                env.send(
+                        "room-secret-selector",
+                        "user-secret-selector",
+                        "/approve approval-ghp_select session");
+        GatewayReply approved =
+                env.send(
+                        "room-secret-selector",
+                        "user-secret-selector",
+                        "/approve " + safeSelector + " session");
+
+        assertThat(safeSelector).startsWith("key_");
+        assertThat(list.getContent())
+                .contains("#1 " + safeSelector)
+                .doesNotContain("approval-ghp_selectorsecret123456")
+                .doesNotContain("selectorsecret123456");
+        assertThat(rawRejected.isError()).isTrue();
+        assertThat(prefixRejected.isError()).isTrue();
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                new SqliteAgentSession(
+                                        env.sessionRepository.getBoundSession(
+                                                "MEMORY:room-secret-selector:user-secret-selector"),
+                                        env.sessionRepository)))
+                .isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldRejectShortKeySelectorPrefix() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(

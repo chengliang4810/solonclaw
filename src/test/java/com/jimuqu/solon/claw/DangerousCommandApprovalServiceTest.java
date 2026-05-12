@@ -215,6 +215,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("unsafeSelectorRejected")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("outboundApprovalIdSanitized")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("unsafeApprovalIdFallsBackToKeySelector")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("secretLikeApprovalIdFallsBackToKeySelector"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approveCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("denyCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("alwaysScopeCommandGenerated")).isEqualTo(Boolean.TRUE);

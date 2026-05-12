@@ -2731,6 +2731,7 @@ public class DangerousCommandApprovalService {
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("outboundApprovalIdSanitized", Boolean.TRUE);
         summary.put("unsafeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
+        summary.put("secretLikeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
         summary.put("approveCommandGenerated", Boolean.TRUE);
         summary.put("denyCommandGenerated", Boolean.TRUE);
         summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
@@ -3051,7 +3052,10 @@ public class DangerousCommandApprovalService {
         if (StrUtil.isBlank(token)) {
             return "";
         }
-        return APPROVAL_SELECTOR_TOKEN.matcher(token).matches() ? token : null;
+        if (!APPROVAL_SELECTOR_TOKEN.matcher(token).matches()) {
+            return null;
+        }
+        return token.equals(SecretRedactor.redact(token, token.length() + 128)) ? token : null;
     }
 
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
@@ -4239,12 +4243,13 @@ public class DangerousCommandApprovalService {
         }
         String value = SecretRedactor.stripDisplayControls(selector).trim();
         String approvalId = item.getApprovalId();
+        String safeApprovalId = safeApprovalSelectorToken(approvalId);
         String approvalKey = item.approvalKey();
         String opaqueSelector = approvalSelector(item);
-        return value.equals(item.getApprovalId())
+        return (StrUtil.isNotBlank(safeApprovalId) && value.equals(safeApprovalId))
                 || value.equals(approvalKey)
                 || value.equals(opaqueSelector)
-                || (approvalId != null && approvalId.startsWith(value))
+                || (StrUtil.isNotBlank(safeApprovalId) && safeApprovalId.startsWith(value))
                 || (approvalKey != null && approvalKey.startsWith(value))
                 || (StrUtil.isNotBlank(opaqueSelector)
                         && value.length() >= 8
