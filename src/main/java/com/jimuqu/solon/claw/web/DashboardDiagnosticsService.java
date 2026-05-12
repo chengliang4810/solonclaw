@@ -2321,6 +2321,10 @@ public class DashboardDiagnosticsService {
                         "schema_sanitizer",
                         "工具 Schema 安全清洗"));
         items.add(
+                subprocessEnvironmentProbe(
+                        "subprocess_environment",
+                        "子进程环境变量净化"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2644,6 +2648,45 @@ public class DashboardDiagnosticsService {
                     false,
                     "pattern, format, $ref, $defs, allOf",
                     "工具 Schema 清洗探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    private Map<String, Object> subprocessEnvironmentProbe(String key, String label) {
+        Map<String, String> env = new LinkedHashMap<String, String>();
+        env.put("PATH", "/usr/bin");
+        env.put("HOME", "/home/dashboard");
+        env.put("OPENAI_API_KEY", "sk-dashboard-probe-secret");
+        env.put("FEISHU_APP_SECRET", "dashboard-feishu-secret");
+        env.put("MY_UNKNOWN_ENV", "drop-me");
+        env.put(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN", "keep-me");
+        try {
+            SubprocessEnvironmentSanitizer.sanitize(env, appConfig);
+            boolean allowed =
+                    env.containsKey("PATH")
+                            && env.containsKey("HOME")
+                            && "keep-me".equals(env.get("CUSTOM_TOKEN"))
+                            && !env.containsKey("OPENAI_API_KEY")
+                            && !env.containsKey("FEISHU_APP_SECRET")
+                            && !env.containsKey("MY_UNKNOWN_ENV")
+                            && !env.containsKey(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN");
+            return policyProbeItem(
+                    key,
+                    label,
+                    "subprocess_environment",
+                    true,
+                    allowed,
+                    "PATH, HOME, provider secret, channel secret, unknown env, force prefix",
+                    allowed ? "子进程环境已保留安全变量、剔除敏感变量并应用显式放行前缀。" : "子进程环境净化结果不完整。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "subprocess_environment",
+                    true,
+                    false,
+                    "PATH, HOME, provider secret, channel secret, unknown env, force prefix",
+                    "子进程环境净化探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
     }
