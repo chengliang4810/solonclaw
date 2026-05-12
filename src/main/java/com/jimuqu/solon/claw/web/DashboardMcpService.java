@@ -833,6 +833,9 @@ public class DashboardMcpService {
     private Map<String, Object> securityMap(McpPackageSecurityService.SecurityVerdict verdict) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("allowed", verdict == null || verdict.isAllowed());
+        if (verdict != null) {
+            map.put("reason", verdict.getReason());
+        }
         if (verdict != null && StrUtil.isNotBlank(verdict.getMessage())) {
             map.put("message", safeDisplayError(verdict.getMessage()));
         }

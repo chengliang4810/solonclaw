@@ -26,6 +26,7 @@ public class McpPackageSecurityServiceTest {
                 service.check("npx", Arrays.asList("-y", "@scope/server@1.2.3", "--stdio"));
 
         assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getReason()).isEqualTo("malware_advisory");
         assertThat(verdict.getMessage()).contains("MAL-2026-0001");
         assertThat(verdict.getMessage()).doesNotContain("GHSA-regular");
         assertThat(http.lastBody).contains("\"name\":\"@scope/server\"");
@@ -115,6 +116,7 @@ public class McpPackageSecurityServiceTest {
                 service.check("uvx", Arrays.asList("demo-mcp==0.1.0"));
 
         assertThat(verdict.isAllowed()).isTrue();
+        assertThat(verdict.getReason()).isEqualTo("allow");
     }
 
     @Test
@@ -130,6 +132,7 @@ public class McpPackageSecurityServiceTest {
                 service.check("npx", Arrays.asList("-y", "safe-server"));
 
         assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getReason()).isEqualTo("unsafe_endpoint");
         assertThat(verdict.getMessage()).contains("OSV endpoint is unsafe");
         assertThat(verdict.getMessage()).contains("169.254.169.254");
         assertThat(verdict.getMessage()).contains("token=***");
@@ -161,6 +164,7 @@ public class McpPackageSecurityServiceTest {
         Map<String, Object> listed = service.list();
 
         assertThat(String.valueOf(saved.get("security"))).contains("allowed=false");
+        assertThat(String.valueOf(saved.get("security"))).contains("reason=malware_advisory");
         assertThat(checked.get("status")).isEqualTo("blocked");
         assertThat(String.valueOf(checked.get("security"))).contains("MAL-2026-9999");
         assertThat(String.valueOf(listed.get("servers"))).contains("blocked");
@@ -192,6 +196,7 @@ public class McpPackageSecurityServiceTest {
         Map<String, Object> listed = service.list();
 
         assertThat(String.valueOf(saved.get("security"))).contains("token=***");
+        assertThat(String.valueOf(saved.get("security"))).contains("reason=unsafe_endpoint");
         assertThat(String.valueOf(checked.get("security"))).contains("token=***");
         assertThat(String.valueOf(listed.get("servers"))).contains("token=***");
         assertThat(String.valueOf(saved)).doesNotContain("secret-mcp-osv");

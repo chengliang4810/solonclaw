@@ -338,14 +338,16 @@ public class McpPackageSecurityService {
     public static class SecurityVerdict {
         private final boolean allowed;
         private final String message;
+        private final String reason;
 
-        private SecurityVerdict(boolean allowed, String message) {
+        private SecurityVerdict(boolean allowed, String message, String reason) {
             this.allowed = allowed;
             this.message = message;
+            this.reason = StrUtil.blankToDefault(reason, allowed ? "allow" : "blocked");
         }
 
         public static SecurityVerdict allow() {
-            return new SecurityVerdict(true, "");
+            return new SecurityVerdict(true, "", "allow");
         }
 
         public static SecurityVerdict block(
@@ -378,7 +380,8 @@ public class McpPackageSecurityService {
                             + ") has known malware advisories: "
                             + ids
                             + ". Details: "
-                            + summaries);
+                            + summaries,
+                    "malware_advisory");
         }
 
         public static SecurityVerdict blockEndpoint(String endpoint, String reason) {
@@ -388,7 +391,8 @@ public class McpPackageSecurityService {
                             + SecretRedactor.maskUrl(endpoint)
                             + " ("
                             + reason
-                            + ")");
+                            + ")",
+                    "unsafe_endpoint");
         }
 
         public boolean isAllowed() {
@@ -397,6 +401,10 @@ public class McpPackageSecurityService {
 
         public String getMessage() {
             return message;
+        }
+
+        public String getReason() {
+            return reason;
         }
     }
 }
