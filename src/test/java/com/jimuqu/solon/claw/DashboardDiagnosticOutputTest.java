@@ -864,8 +864,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> projectSensitiveRedirection =
                 findProbe(items, "project_sensitive_redirection");
         Map<String, Object> overwriteEtcRedirection = findProbe(items, "overwrite_etc_redirection");
+        Map<String, Object> sensitiveRedirection = findProbe(items, "sensitive_redirection");
         Map<String, Object> projectSensitiveTee = findProbe(items, "project_sensitive_tee");
         Map<String, Object> overwriteEtcTee = findProbe(items, "overwrite_etc_tee");
+        Map<String, Object> sensitiveTee = findProbe(items, "sensitive_tee");
         Map<String, Object> copyIntoProjectSensitive =
                 findProbe(items, "copy_into_project_sensitive");
         Map<String, Object> chmodSetuidSetgid = findProbe(items, "chmod_setuid_setgid");
@@ -2650,6 +2652,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(overwriteEtcRedirection))
                 .contains("echo token")
                 .contains("/etc/app.conf");
+        assertThat(sensitiveRedirection.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveRedirection.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveRedirection.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveRedirection)).contains("authorized_keys");
         assertThat(projectSensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveTee.get("skipped")).isNull();
@@ -2662,6 +2668,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(overwriteEtcTee))
                 .contains("tee")
                 .contains("/etc/app.conf");
+        assertThat(sensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveTee.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveTee)).contains("JIMUQU_HOME");
         assertThat(copyIntoProjectSensitive.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("skipped")).isNull();

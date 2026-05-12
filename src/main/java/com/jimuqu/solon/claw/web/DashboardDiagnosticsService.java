@@ -4338,6 +4338,13 @@ public class DashboardDiagnosticsService {
                         "overwrite_etc"));
         items.add(
                 approvalDetectionProbe(
+                        "sensitive_redirection",
+                        "敏感路径重定向写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cat key >> $env:HOME/.ssh/authorized_keys",
+                        "sensitive_redirection"));
+        items.add(
+                approvalDetectionProbe(
                         "project_sensitive_tee",
                         "项目敏感文件 tee 写入审批",
                         ToolNameConstants.EXECUTE_SHELL,
@@ -4350,6 +4357,13 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_SHELL,
                         "echo token | tee /etc/app.conf",
                         "overwrite_etc"));
+        items.add(
+                approvalDetectionProbe(
+                        "sensitive_tee",
+                        "敏感路径 tee 写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo x | tee $JIMUQU_HOME/.env",
+                        "sensitive_tee"));
         items.add(
                 approvalDetectionProbe(
                         "copy_into_project_sensitive",
