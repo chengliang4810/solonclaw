@@ -3845,6 +3845,55 @@ public class DashboardDiagnosticsService {
                         "package_manager_remote_execute"));
         items.add(
                 approvalDetectionProbe(
+                        "project_sensitive_redirection",
+                        "项目敏感文件重定向写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo TOKEN=value > .env",
+                        "project_sensitive_redirection"));
+        items.add(
+                approvalDetectionProbe(
+                        "project_sensitive_tee",
+                        "项目敏感文件 tee 写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo TOKEN=value | tee .env",
+                        "project_sensitive_tee"));
+        items.add(
+                approvalDetectionProbe(
+                        "copy_into_project_sensitive",
+                        "项目敏感文件覆盖审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cp runtime/config.yml .env",
+                        "copy_into_project_sensitive"));
+        items.add(
+                approvalDetectionProbe(
+                        "chmod_setuid_setgid",
+                        "Setuid/Setgid 权限变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chmod u+s runtime/bin/helper",
+                        "chmod_setuid_setgid"));
+        items.add(
+                approvalDetectionProbe(
+                        "linux_acl_permission_widen",
+                        "Linux ACL 权限放宽审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "setfacl -m u:deploy:rw runtime/config.yml",
+                        "linux_acl_permission_widen"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_take_ownership",
+                        "Windows 文件所有权接管审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "takeown /f C:\\ProgramData\\app /r /d y",
+                        "windows_take_ownership"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_acl_rewrite",
+                        "Windows ACL 重写审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "icacls C:\\ProgramData\\app /grant Everyone:F /t",
+                        "windows_acl_rewrite"));
+        items.add(
+                approvalDetectionProbe(
                         "system_config_copy",
                         "系统配置目录写入审批",
                         ToolNameConstants.EXECUTE_SHELL,

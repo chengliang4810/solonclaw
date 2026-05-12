@@ -752,6 +752,16 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "package_manager_script_policy_change");
         Map<String, Object> packageManagerRemoteExecute =
                 findProbe(items, "package_manager_remote_execute");
+        Map<String, Object> projectSensitiveRedirection =
+                findProbe(items, "project_sensitive_redirection");
+        Map<String, Object> projectSensitiveTee = findProbe(items, "project_sensitive_tee");
+        Map<String, Object> copyIntoProjectSensitive =
+                findProbe(items, "copy_into_project_sensitive");
+        Map<String, Object> chmodSetuidSetgid = findProbe(items, "chmod_setuid_setgid");
+        Map<String, Object> linuxAclPermissionWiden =
+                findProbe(items, "linux_acl_permission_widen");
+        Map<String, Object> windowsTakeOwnership = findProbe(items, "windows_take_ownership");
+        Map<String, Object> windowsAclRewrite = findProbe(items, "windows_acl_rewrite");
         Map<String, Object> systemConfigCopy = findProbe(items, "system_config_copy");
         Map<String, Object> systemConfigInplaceEdit =
                 findProbe(items, "system_config_inplace_edit");
@@ -2171,6 +2181,38 @@ public class DashboardDiagnosticOutputTest {
         assertThat(packageManagerRemoteExecute.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(packageManagerRemoteExecute.get("skipped")).isNull();
         assertThat(String.valueOf(packageManagerRemoteExecute)).contains("npx create-vite");
+        assertThat(projectSensitiveRedirection.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(projectSensitiveRedirection.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(projectSensitiveRedirection.get("skipped")).isNull();
+        assertThat(String.valueOf(projectSensitiveRedirection))
+                .contains("echo TOKEN=***")
+                .contains("[REDACTED_PATH]");
+        assertThat(projectSensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(projectSensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(projectSensitiveTee.get("skipped")).isNull();
+        assertThat(String.valueOf(projectSensitiveTee))
+                .contains("tee")
+                .contains("[REDACTED_PATH]");
+        assertThat(copyIntoProjectSensitive.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(copyIntoProjectSensitive.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(copyIntoProjectSensitive.get("skipped")).isNull();
+        assertThat(String.valueOf(copyIntoProjectSensitive)).contains("cp runtime/config.yml");
+        assertThat(chmodSetuidSetgid.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(chmodSetuidSetgid.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(chmodSetuidSetgid.get("skipped")).isNull();
+        assertThat(String.valueOf(chmodSetuidSetgid)).contains("chmod u+s");
+        assertThat(linuxAclPermissionWiden.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxAclPermissionWiden.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxAclPermissionWiden.get("skipped")).isNull();
+        assertThat(String.valueOf(linuxAclPermissionWiden)).contains("setfacl");
+        assertThat(windowsTakeOwnership.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsTakeOwnership.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsTakeOwnership.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsTakeOwnership)).contains("takeown");
+        assertThat(windowsAclRewrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsAclRewrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsAclRewrite.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsAclRewrite)).contains("icacls");
         assertThat(systemConfigCopy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(systemConfigCopy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(systemConfigCopy.get("skipped")).isNull();
