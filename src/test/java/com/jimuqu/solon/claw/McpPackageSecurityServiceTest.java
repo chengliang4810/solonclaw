@@ -165,10 +165,13 @@ public class McpPackageSecurityServiceTest {
 
         assertThat(String.valueOf(saved.get("security"))).contains("allowed=false");
         assertThat(String.valueOf(saved.get("security"))).contains("reason=malware_advisory");
+        assertThat(String.valueOf(saved.get("security"))).doesNotContain("reason=unsafe_endpoint");
         assertThat(checked.get("status")).isEqualTo("blocked");
         assertThat(String.valueOf(checked.get("security"))).contains("MAL-2026-9999");
+        assertThat(String.valueOf(checked.get("security"))).contains("reason=malware_advisory");
         assertThat(String.valueOf(listed.get("servers"))).contains("blocked");
         assertThat(String.valueOf(listed.get("servers"))).contains("MAL-2026-9999");
+        assertThat(String.valueOf(listed.get("servers"))).contains("reason=malware_advisory");
     }
 
     @Test
@@ -198,7 +201,9 @@ public class McpPackageSecurityServiceTest {
         assertThat(String.valueOf(saved.get("security"))).contains("token=***");
         assertThat(String.valueOf(saved.get("security"))).contains("reason=unsafe_endpoint");
         assertThat(String.valueOf(checked.get("security"))).contains("token=***");
+        assertThat(String.valueOf(checked.get("security"))).contains("reason=unsafe_endpoint");
         assertThat(String.valueOf(listed.get("servers"))).contains("token=***");
+        assertThat(String.valueOf(listed.get("servers"))).contains("reason=unsafe_endpoint");
         assertThat(String.valueOf(saved)).doesNotContain("secret-mcp-osv");
         assertThat(String.valueOf(checked)).doesNotContain("secret-mcp-osv");
         assertThat(String.valueOf(listed)).doesNotContain("secret-mcp-osv");

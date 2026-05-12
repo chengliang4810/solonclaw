@@ -718,13 +718,37 @@ public class DashboardMcpService {
         map.put("status", resultSet.getString("status"));
         map.put("tools", redactParsed(parse(resultSet.getString("tools_json"))));
         map.put("last_tools_hash", resultSet.getString("last_tools_hash"));
-        map.put("last_error", SecretRedactor.redact(resultSet.getString("last_error"), 1000));
+        String lastError = SecretRedactor.redact(resultSet.getString("last_error"), 1000);
+        map.put("last_error", lastError);
+        map.put("security", persistedSecurityMap(resultSet.getString("status"), lastError));
         map.put("enabled", resultSet.getInt("enabled") != 0);
         map.put("created_at", resultSet.getLong("created_at"));
         map.put("updated_at", resultSet.getLong("updated_at"));
         map.put("last_checked_at", resultSet.getLong("last_checked_at"));
         map.put("last_tools_changed_at", resultSet.getLong("last_tools_changed_at"));
         return map;
+    }
+
+    private Map<String, Object> persistedSecurityMap(String status, String lastError) {
+        Map<String, Object> security = new LinkedHashMap<String, Object>();
+        boolean blocked = "blocked".equals(StrUtil.nullToEmpty(status));
+        security.put("allowed", Boolean.valueOf(!blocked));
+        security.put("reason", blocked ? inferPersistedSecurityReason(lastError) : "allow");
+        if (blocked && StrUtil.isNotBlank(lastError)) {
+            security.put("message", lastError);
+        }
+        return security;
+    }
+
+    private String inferPersistedSecurityReason(String lastError) {
+        String value = StrUtil.nullToEmpty(lastError);
+        if (value.contains("OSV endpoint is unsafe")) {
+            return "unsafe_endpoint";
+        }
+        if (value.contains("known malware advisories")) {
+            return "malware_advisory";
+        }
+        return "blocked";
     }
 
     private String read(Map<String, Object> body, String key) {
