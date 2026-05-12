@@ -2386,6 +2386,27 @@ public class DashboardDiagnosticsService {
                         "工具端点参数内网 URL 检查",
                         "remote_fetch",
                         endpointArgs));
+        Map<String, Object> nestedEndpoint = new LinkedHashMap<String, Object>();
+        nestedEndpoint.put("api_url", "localhost:8080/admin");
+        Map<String, Object> nestedEndpointArgs = new LinkedHashMap<String, Object>();
+        nestedEndpointArgs.put("config", nestedEndpoint);
+        items.add(
+                toolArgsPolicyProbe(
+                        "tool_args_nested_endpoint_private_url",
+                        "工具嵌套端点参数内网 URL 检查",
+                        "mcp_proxy",
+                        nestedEndpointArgs));
+        Map<String, Object> hostTarget = new LinkedHashMap<String, Object>();
+        hostTarget.put("server", "localhost:8080");
+        hostTarget.put("proxyHost", "localhost:8081");
+        Map<String, Object> hostTargetArgs = new LinkedHashMap<String, Object>();
+        hostTargetArgs.put("transport", hostTarget);
+        items.add(
+                toolArgsPolicyProbe(
+                        "tool_args_host_target_private_url",
+                        "工具主机目标参数内网 URL 检查",
+                        "mcp_proxy",
+                        hostTargetArgs));
         Map<String, Object> redirectArgs = new LinkedHashMap<String, Object>();
         redirectArgs.put("content", "HTTP/1.1 302 Found\nLocation: http://localhost:8080/admin\n");
         items.add(

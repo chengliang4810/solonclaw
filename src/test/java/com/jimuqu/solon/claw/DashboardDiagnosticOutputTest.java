@@ -315,6 +315,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
         Map<String, Object> toolArgsEndpointPrivateUrl =
                 findProbe(items, "tool_args_endpoint_private_url");
+        Map<String, Object> toolArgsNestedEndpointPrivateUrl =
+                findProbe(items, "tool_args_nested_endpoint_private_url");
+        Map<String, Object> toolArgsHostTargetPrivateUrl =
+                findProbe(items, "tool_args_host_target_private_url");
         Map<String, Object> toolResultRedirectTarget =
                 findProbe(items, "tool_result_redirect_target");
         Map<String, Object> commandWebsocketUrlPolicy =
@@ -500,6 +504,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(toolArgsEndpointPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("skipped")).isNull();
         assertThat(String.valueOf(toolArgsEndpointPrivateUrl)).contains("base_url");
+        assertThat(toolArgsNestedEndpointPrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsNestedEndpointPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsNestedEndpointPrivateUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(toolArgsNestedEndpointPrivateUrl))
+                .contains("api_url")
+                .contains("localhost:8080");
+        assertThat(toolArgsHostTargetPrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsHostTargetPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsHostTargetPrivateUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(toolArgsHostTargetPrivateUrl))
+                .contains("proxyHost")
+                .contains("localhost:8081");
         assertThat(toolResultRedirectTarget.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(toolResultRedirectTarget.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolResultRedirectTarget.get("skipped")).isNull();
@@ -822,9 +838,19 @@ public class DashboardDiagnosticOutputTest {
         assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
+        Map<String, Object> nestedEndpoint =
+                findProbe(items, "tool_args_nested_endpoint_private_url");
+        Map<String, Object> hostTarget =
+                findProbe(items, "tool_args_host_target_private_url");
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(privateUrl.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(nestedEndpoint.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(nestedEndpoint.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(nestedEndpoint.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(hostTarget.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hostTarget.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(hostTarget.get("skipped")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
