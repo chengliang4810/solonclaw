@@ -92,6 +92,11 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const credentialPolicy = objectValue(policy.credential_policy)
   const toolArgsPolicy = objectValue(policy.tool_args_policy)
   const readOnlyAuditPolicy = objectValue(securityCoverage.value.readOnlyAuditPolicy)
+  const schemaSanitizerPolicy = objectValue(securityCoverage.value.schemaSanitizerPolicy)
+  const patchParserPolicy = objectValue(securityCoverage.value.patchParserPolicy)
+  const mcpRuntimePolicy = objectValue(securityCoverage.value.mcpRuntimePolicy)
+  const mcpOAuthPolicy = objectValue(securityCoverage.value.mcpOAuthPolicy)
+  const mcpPackageSecurityPolicy = objectValue(securityCoverage.value.mcpPackageSecurityPolicy)
   const approvalPolicy = objectValue(securityApprovals.value.approval_policy)
   const hardlinePolicy = objectValue(securityApprovals.value.hardline_policy)
   const cronApprovalPolicy = objectValue(securityApprovals.value.cron_approval_policy)
@@ -231,6 +236,46 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
         metric('JSON 错误脱敏', readOnlyAuditPolicy.toolArgsJsonParseErrorsRedacted),
         metric('命令预览上限', readOnlyAuditPolicy.commandPreviewLimitChars),
         metric('发现消息上限', readOnlyAuditPolicy.findingMessageLimitChars),
+      ],
+    },
+    {
+      title: 'Schema 与补丁解析',
+      items: [
+        metric('Schema 清洗启用', schemaSanitizerPolicy.enabled),
+        metric('输入 Schema 清洗', schemaSanitizerPolicy.inputSchemaSanitized),
+        metric('MCP 输入 Schema 清洗', schemaSanitizerPolicy.mcpInputSchemaSanitized),
+        metric('非法 Schema 默认对象', schemaSanitizerPolicy.invalidSchemaDefaultsToObject),
+        metric('顶层对象必需', schemaSanitizerPolicy.topLevelObjectRequired),
+        metric('required 裁剪', schemaSanitizerPolicy.requiredPrunedToKnownProperties),
+        metric('pattern/format 移除', schemaSanitizerPolicy.patternAndFormatStripped),
+        metric('补丁原子校验', patchParserPolicy.atomicValidationBeforeWrite),
+        metric('校验失败不部分写入', patchParserPolicy.noPartialWritesOnValidationFailure),
+        metric('重复匹配需显式 all', patchParserPolicy.replaceAllRequiresExplicitFlag),
+        metric('歧义块阻断', patchParserPolicy.ambiguousHunksBlocked),
+        metric('缺失块阻断', patchParserPolicy.missingHunksBlocked),
+        metric('补丁路径穿越阻断', patchParserPolicy.pathTraversalBlocked),
+        metric('补丁凭据预检', patchParserPolicy.credentialPolicyPrechecked),
+      ],
+    },
+    {
+      title: 'MCP 安全',
+      items: [
+        metric('远程端点 URL 安全', mcpRuntimePolicy.remoteEndpointUrlSafety),
+        metric('远程工具 URL 参数安全', mcpRuntimePolicy.remoteToolArgumentUrlSafety),
+        metric('远程工具路径参数安全', mcpRuntimePolicy.remoteToolArgumentPathSafety),
+        metric('资源 URI URL 安全', mcpRuntimePolicy.resourceUriUrlSafety),
+        metric('资源 URI 路径安全', mcpRuntimePolicy.resourceUriPathSafety),
+        metric('嵌套 URL 提取', mcpRuntimePolicy.nestedUrlExtraction),
+        metric('阻断 URL 脱敏', mcpRuntimePolicy.blockedUrlsMasked),
+        metric('阻断路径脱敏', mcpRuntimePolicy.blockedPathsRedacted),
+        metric('工具名加前缀', mcpRuntimePolicy.toolNamesPrefixed),
+        metric('工具变更持久通知', mcpRuntimePolicy.toolsChangeNotificationPersisted),
+        metric('OAuth 授权 URL 安全', mcpOAuthPolicy.authorizationEndpointUrlSafety),
+        metric('OAuth state 校验', mcpOAuthPolicy.stateValidationRequired),
+        metric('OAuth PKCE S256', mcpOAuthPolicy.pkceS256Required),
+        metric('访问令牌脱敏', mcpOAuthPolicy.accessTokenRedacted),
+        metric('包端点预检', mcpPackageSecurityPolicy.endpointUrlSafetyChecked),
+        metric('恶意包阻断保存', mcpPackageSecurityPolicy.malwareBlocksSaveAndCheck),
       ],
     },
     {
