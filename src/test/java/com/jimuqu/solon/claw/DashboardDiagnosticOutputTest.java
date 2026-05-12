@@ -329,6 +329,13 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_protocol_relative_url_policy");
         Map<String, Object> commandEncodedHostUrlPolicy =
                 findProbe(items, "command_encoded_host_url_policy");
+        Map<String, Object> commandCurlConnectToPolicy =
+                findProbe(items, "command_curl_connect_to_policy");
+        Map<String, Object> commandCurlResolvePolicy =
+                findProbe(items, "command_curl_resolve_policy");
+        Map<String, Object> commandCurlDohPolicy = findProbe(items, "command_curl_doh_policy");
+        Map<String, Object> commandCurlDnsServersPolicy =
+                findProbe(items, "command_curl_dns_servers_policy");
         Map<String, Object> commandPreproxyUrlPolicy =
                 findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandProxyEnvPolicy =
@@ -552,6 +559,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandEncodedHostUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedHostUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandEncodedHostUrlPolicy)).contains("%31%36%39.254.169.254");
+        assertThat(commandCurlConnectToPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlConnectToPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlConnectToPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCurlConnectToPolicy))
+                .contains("--connect-to")
+                .contains("169.254.169.254");
+        assertThat(commandCurlResolvePolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlResolvePolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlResolvePolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCurlResolvePolicy))
+                .contains("--resolve")
+                .contains("169.254.169.254");
+        assertThat(commandCurlDohPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlDohPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlDohPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCurlDohPolicy))
+                .contains("--doh-url")
+                .contains("169.254.169.254");
+        assertThat(commandCurlDnsServersPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlDnsServersPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlDnsServersPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCurlDnsServersPolicy))
+                .contains("--dns-servers")
+                .contains("169.254.169.254");
         assertThat(commandPreproxyUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("skipped")).isNull();

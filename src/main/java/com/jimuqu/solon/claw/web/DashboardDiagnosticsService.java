@@ -2442,6 +2442,26 @@ public class DashboardDiagnosticsService {
                         "curl http://%31%36%39.254.169.254/latest/meta-data/"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_curl_connect_to_policy",
+                        "curl connect-to 主机改写检查",
+                        "curl --connect-to example.test:443:169.254.169.254:443 https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_curl_resolve_policy",
+                        "curl resolve 主机解析检查",
+                        "curl --resolve example.test:443:169.254.169.254 https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_curl_doh_policy",
+                        "curl DoH 地址检查",
+                        "curl --doh-url http://169.254.169.254/dns-query https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_curl_dns_servers_policy",
+                        "curl DNS 服务器地址检查",
+                        "curl --dns-servers 169.254.169.254 https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_preproxy_url_policy",
                         "命令 preproxy URL 前置策略检查",
                         "curl --preproxy socks5://127.0.0.1:1080 https://example.test"));
