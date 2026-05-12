@@ -6,6 +6,8 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
+type DeliveryMode = 'origin' | 'local' | 'platform' | 'specific' | 'multi'
+
 const props = defineProps<{
   jobId: string | null
 }>()
@@ -25,7 +27,7 @@ const formData = ref({
   name: '',
   schedule: '',
   prompt: '',
-  deliver: 'origin',
+  deliver: 'local',
   deliver_chat_id: '',
   deliver_thread_id: '',
   repeat_times: null as number | null,
@@ -48,6 +50,9 @@ const presetValue = ref<string | null>(null)
 const scheduleKind = ref<'cron' | 'interval' | 'once'>('cron')
 const intervalAmount = ref<number | null>(30)
 const intervalUnit = ref<'m' | 'h' | 'd'>('m')
+const deliveryMode = ref<DeliveryMode>('local')
+const deliveryPlatform = ref('feishu')
+const deliveryMultiText = ref('')
 
 const isEdit = computed(() => !!props.jobId)
 
@@ -67,6 +72,23 @@ const stateOptions = computed(() => [
   { label: t('jobs.stateScheduled'), value: 'scheduled' },
   { label: t('jobs.statePaused'), value: 'paused' },
   { label: t('jobs.stateCompleted'), value: 'completed' },
+])
+
+const deliveryModeOptions = computed(() => [
+  { label: t('jobs.deliveryModeOrigin'), value: 'origin' },
+  { label: t('jobs.deliveryModeLocal'), value: 'local' },
+  { label: t('jobs.deliveryModePlatform'), value: 'platform' },
+  { label: t('jobs.deliveryModeSpecific'), value: 'specific' },
+  { label: t('jobs.deliveryModeMulti'), value: 'multi' },
+])
+
+const deliveryPlatformOptions = computed(() => [
+  { label: t('jobs.platformFeishu'), value: 'feishu' },
+  { label: t('jobs.platformDingtalk'), value: 'dingtalk' },
+  { label: t('jobs.platformWecom'), value: 'wecom' },
+  { label: t('jobs.platformWeixin'), value: 'weixin' },
+  { label: t('jobs.platformQqbot'), value: 'qqbot' },
+  { label: t('jobs.platformYuanbao'), value: 'yuanbao' },
 ])
 
 const schedulePresets = computed(() => [
@@ -161,6 +183,97 @@ function joinCsv(value?: string[] | null) {
   return (value || []).join(', ')
 }
 
+function supportedDeliveryPlatform(value: string) {
+  return deliveryPlatformOptions.value.some(option => option.value === value.trim().toLowerCase())
+}
+
+function splitDeliveryTarget(value: string) {
+  const parts = value.trim().split(':')
+  return {
+    platform: (parts[0] || '').trim().toLowerCase(),
+    chatId: (parts[1] || '').trim(),
+    threadId: parts.slice(2).join(':').trim(),
+  }
+}
+
+function inferDeliveryControls(
+  deliver?: string | null,
+  chatId?: string | null,
+  threadId?: string | null,
+  originPlatform?: string | null,
+) {
+  const value = (deliver || 'origin').trim() || 'origin'
+  formData.value.deliver_chat_id = chatId || ''
+  formData.value.deliver_thread_id = threadId || ''
+
+  if (value.indexOf(',') >= 0) {
+    deliveryMode.value = 'multi'
+    deliveryMultiText.value = value
+    return
+  }
+
+  const target = splitDeliveryTarget(value)
+  if ((target.platform === 'origin' || target.platform === 'local') && !chatId && !threadId && !target.chatId) {
+    deliveryMode.value = target.platform as DeliveryMode
+    deliveryMultiText.value = ''
+    return
+  }
+  if (target.platform === 'origin' && (chatId || threadId)) {
+    const platform = (originPlatform || '').trim().toLowerCase()
+    if (supportedDeliveryPlatform(platform)) {
+      deliveryPlatform.value = platform
+      deliveryMode.value = 'specific'
+      deliveryMultiText.value = value
+      return
+    }
+  }
+
+  if (supportedDeliveryPlatform(target.platform)) {
+    deliveryPlatform.value = target.platform
+    if (chatId || threadId || target.chatId || target.threadId) {
+      deliveryMode.value = 'specific'
+      formData.value.deliver_chat_id = chatId || target.chatId || ''
+      formData.value.deliver_thread_id = threadId || target.threadId || ''
+    } else {
+      deliveryMode.value = 'platform'
+    }
+    deliveryMultiText.value = value
+    return
+  }
+
+  deliveryMode.value = 'multi'
+  deliveryMultiText.value = value
+}
+
+function buildDeliveryPayload() {
+  if (deliveryMode.value === 'multi') {
+    return {
+      deliver: deliveryMultiText.value.trim() || 'local',
+      deliver_chat_id: '',
+      deliver_thread_id: '',
+    }
+  }
+  if (deliveryMode.value === 'platform') {
+    return {
+      deliver: deliveryPlatform.value,
+      deliver_chat_id: '',
+      deliver_thread_id: '',
+    }
+  }
+  if (deliveryMode.value === 'specific') {
+    return {
+      deliver: deliveryPlatform.value,
+      deliver_chat_id: formData.value.deliver_chat_id.trim(),
+      deliver_thread_id: formData.value.deliver_thread_id.trim(),
+    }
+  }
+  return {
+    deliver: deliveryMode.value,
+    deliver_chat_id: '',
+    deliver_thread_id: '',
+  }
+}
+
 onMounted(async () => {
   if (props.jobId) {
     try {
@@ -188,6 +301,7 @@ onMounted(async () => {
         enabled: job.enabled,
         paused_reason: job.paused_reason || '',
       }
+      inferDeliveryControls(job.deliver, job.deliver_chat_id, job.deliver_thread_id, job.origin?.platform)
       inferScheduleControls(job.schedule, job.schedule_display || '')
     } catch (e: any) {
       message.error(t('jobs.loadFailed') + ': ' + e.message)
@@ -213,6 +327,10 @@ async function handleSave() {
     message.warning(t('jobs.promptOrSkillRequired'))
     return
   }
+  if (deliveryMode.value === 'specific' && !formData.value.deliver_chat_id.trim()) {
+    message.warning(t('jobs.deliverChatIdRequired'))
+    return
+  }
 
   loading.value = true
   try {
@@ -220,13 +338,14 @@ async function handleSave() {
     const contextFrom = splitCsv(formData.value.context_from_text)
     const enabledToolsets = splitCsv(formData.value.enabled_toolsets_text)
     const repeatValue = formData.value.repeat_times
+    const deliveryPayload = buildDeliveryPayload()
     const payload: any = {
       name: formData.value.name,
       schedule: scheduleValue,
       prompt: formData.value.prompt,
-      deliver: formData.value.deliver,
-      deliver_chat_id: formData.value.deliver_chat_id.trim() || undefined,
-      deliver_thread_id: formData.value.deliver_thread_id.trim() || undefined,
+      deliver: deliveryPayload.deliver,
+      deliver_chat_id: deliveryPayload.deliver_chat_id || undefined,
+      deliver_thread_id: deliveryPayload.deliver_thread_id || undefined,
       repeat: repeatValue ?? (isEdit.value ? null : undefined),
       skills,
       wrap_response: formData.value.wrap_response,
@@ -243,8 +362,8 @@ async function handleSave() {
       ['provider', formData.value.provider],
       ['model', formData.value.model],
       ['base_url', formData.value.base_url],
-      ['deliver_chat_id', formData.value.deliver_chat_id],
-      ['deliver_thread_id', formData.value.deliver_thread_id],
+      ['deliver_chat_id', deliveryPayload.deliver_chat_id],
+      ['deliver_thread_id', deliveryPayload.deliver_thread_id],
       ['paused_reason', formData.value.paused_reason],
     ]
     for (const [key, raw] of nullableFields) {
@@ -369,29 +488,62 @@ function handlePresetChange(value: string) {
           />
         </NFormItem>
 
-        <NFormItem :label="t('jobs.deliverTarget')">
-          <NInput
-            v-model:value="formData.deliver"
-            :placeholder="t('jobs.deliverPlaceholder')"
+        <NFormItem :label="t('jobs.deliveryMode')">
+          <NSelect
+            v-model:value="deliveryMode"
+            :options="deliveryModeOptions"
           />
         </NFormItem>
       </div>
 
-      <div class="form-grid">
-        <NFormItem :label="t('jobs.deliverChatId')">
+      <div
+        v-if="deliveryMode === 'platform' || deliveryMode === 'specific'"
+        class="form-grid"
+      >
+        <NFormItem :label="t('jobs.deliveryPlatform')">
+          <NSelect
+            v-model:value="deliveryPlatform"
+            :options="deliveryPlatformOptions"
+          />
+        </NFormItem>
+
+        <NFormItem
+          v-if="deliveryMode === 'specific'"
+          :label="t('jobs.deliverChatId')"
+          required
+        >
           <NInput
             v-model:value="formData.deliver_chat_id"
             :placeholder="t('jobs.deliverChatIdPlaceholder')"
           />
         </NFormItem>
+      </div>
 
+      <div v-if="deliveryMode === 'specific'" class="form-grid">
         <NFormItem :label="t('jobs.deliverThreadId')">
           <NInput
             v-model:value="formData.deliver_thread_id"
             :placeholder="t('jobs.deliverThreadIdPlaceholder')"
           />
         </NFormItem>
+
+        <NFormItem :label="t('jobs.deliverPreview')">
+          <NInput
+            :value="`${deliveryPlatform}:${formData.deliver_chat_id || 'chat_id'}${formData.deliver_thread_id ? ':' + formData.deliver_thread_id : ''}`"
+            readonly
+          />
+        </NFormItem>
       </div>
+
+      <NFormItem
+        v-if="deliveryMode === 'multi'"
+        :label="t('jobs.deliverTarget')"
+      >
+        <NInput
+          v-model:value="deliveryMultiText"
+          :placeholder="t('jobs.deliverPlaceholder')"
+        />
+      </NFormItem>
 
       <NFormItem :label="t('jobs.prompt')" :required="!formData.no_agent">
         <NInput
