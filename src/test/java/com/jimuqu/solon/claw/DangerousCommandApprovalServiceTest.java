@@ -217,6 +217,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("unsafeApprovalIdFallsBackToKeySelector")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("secretLikeApprovalIdFallsBackToKeySelector"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("secretLikeInboundApprovalIdRejected")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approveCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("denyCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("alwaysScopeCommandGenerated")).isEqualTo(Boolean.TRUE);
@@ -8957,6 +8958,10 @@ public class DangerousCommandApprovalServiceTest {
         payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123|always");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
         payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval:123");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+        payload.put(
+                DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY,
+                "approval-ghp_cardsecret123456");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
 
         String jsonPayload =

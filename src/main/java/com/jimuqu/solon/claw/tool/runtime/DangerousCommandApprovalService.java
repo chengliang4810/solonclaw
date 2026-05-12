@@ -2737,6 +2737,7 @@ public class DangerousCommandApprovalService {
         summary.put("outboundApprovalIdSanitized", Boolean.TRUE);
         summary.put("unsafeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
         summary.put("secretLikeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
+        summary.put("secretLikeInboundApprovalIdRejected", Boolean.TRUE);
         summary.put("approveCommandGenerated", Boolean.TRUE);
         summary.put("denyCommandGenerated", Boolean.TRUE);
         summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
