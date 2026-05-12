@@ -841,6 +841,10 @@ public class ToolRegistryExposureTest {
                 .isGreaterThan(0);
         assertThat(dangerousCommandApprovalPolicy.get("configuredCredentialCommandPathDetection").getBoolean())
                 .isTrue();
+        assertThat(dangerousCommandApprovalPolicy.get("recursiveStructuredToolArgsDetection").getBoolean())
+                .isTrue();
+        assertThat(dangerousCommandApprovalPolicy.get("nestedArrayCommandArgumentDetection").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(dangerousCommandApprovalPolicy))
                 .contains("rm")
                 .contains("hardlinePolicy")

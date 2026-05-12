@@ -2503,6 +2503,8 @@ public class DangerousCommandApprovalService {
         summary.put("codeHttpCredentialFileVariableDisclosureDetection", Boolean.TRUE);
         summary.put("powershellCredentialFileHttpDisclosureDetection", Boolean.TRUE);
         summary.put("configuredCredentialCommandPathDetection", Boolean.TRUE);
+        summary.put("recursiveStructuredToolArgsDetection", Boolean.TRUE);
+        summary.put("nestedArrayCommandArgumentDetection", Boolean.TRUE);
         summary.put("urlPolicyPrechecked", Boolean.TRUE);
         summary.put("privateUrlPolicyPrechecked", Boolean.TRUE);
         summary.put("credentialUrlPolicyPrechecked", Boolean.TRUE);
