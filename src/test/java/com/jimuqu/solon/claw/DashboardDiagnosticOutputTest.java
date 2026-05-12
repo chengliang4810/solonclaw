@@ -487,6 +487,12 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
         Map<String, Object> slashConfirmExpiry = findProbe(items, "slash_confirm_expiry");
         Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
+        Map<String, Object> websitePolicyNormalizedHost =
+                findProbe(items, "website_policy_normalized_host");
+        Map<String, Object> websitePolicyWildcardChild =
+                findProbe(items, "website_policy_wildcard_child");
+        Map<String, Object> websitePolicyPrecedesCredentialQuery =
+                findProbe(items, "website_policy_precedes_credential_query");
         Map<String, Object> tirithSecurity = findProbe(items, "tirith_security");
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
@@ -1143,6 +1149,27 @@ public class DashboardDiagnosticOutputTest {
         assertThat(websitePolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicy.get("skipped")).isNull();
+        assertThat(websitePolicyNormalizedHost.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyNormalizedHost.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyNormalizedHost.get("skipped")).isNull();
+        assertThat(String.valueOf(websitePolicyNormalizedHost))
+                .contains("WWW.Blocked.Example")
+                .contains("token=***")
+                .doesNotContain("dashboard-website-normalized-secret");
+        assertThat(websitePolicyWildcardChild.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyWildcardChild.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyWildcardChild.get("skipped")).isNull();
+        assertThat(String.valueOf(websitePolicyWildcardChild))
+                .contains("child.blocked.example")
+                .contains("token=***")
+                .doesNotContain("dashboard-website-wildcard-secret");
+        assertThat(websitePolicyPrecedesCredentialQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyPrecedesCredentialQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyPrecedesCredentialQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(websitePolicyPrecedesCredentialQuery))
+                .contains("blocked.example")
+                .contains("token=***")
+                .doesNotContain("dashboard-website-token-secret");
     }
 
     @Test

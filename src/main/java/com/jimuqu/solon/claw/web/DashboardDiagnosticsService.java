@@ -2364,6 +2364,24 @@ public class DashboardDiagnosticsService {
                         "website_policy_rule",
                         "网站访问策略规则阻断"));
         items.add(
+                websitePolicyProbe(
+                        "website_policy_normalized_host",
+                        "网站访问策略规范化主机阻断",
+                        "blocked.example",
+                        "https://WWW.Blocked.Example./docs?token=dashboard-website-normalized-secret"));
+        items.add(
+                websitePolicyProbe(
+                        "website_policy_wildcard_child",
+                        "网站访问策略通配符子域阻断",
+                        "blocked.example",
+                        "https://child.blocked.example/pixel?token=dashboard-website-wildcard-secret"));
+        items.add(
+                websitePolicyProbe(
+                        "website_policy_precedes_credential_query",
+                        "网站访问策略先于凭据参数阻断",
+                        "blocked.example",
+                        "https://api.blocked.example/path?token=dashboard-website-token-secret"));
+        items.add(
                 pathProbe(
                         "credential_path",
                         "凭据文件读取阻断",
@@ -3011,6 +3029,31 @@ public class DashboardDiagnosticsService {
         }
         String url = websiteProbeUrl(rule);
         if (StrUtil.isBlank(url)) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "website_policy",
+                    safeAuditPreview(rule, 400),
+                    "网站访问策略规则无法构造安全探测 URL，跳过规则阻断探针。");
+        }
+        return websitePolicyProbe(key, label, rule, url);
+    }
+
+    private Map<String, Object> websitePolicyProbe(
+            String key, String label, String rule, String url) {
+        AppConfig.WebsiteBlocklistConfig blocklist =
+                appConfig == null || appConfig.getSecurity() == null
+                        ? null
+                        : appConfig.getSecurity().getWebsiteBlocklist();
+        if (blocklist == null || !blocklist.isEnabled()) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "website_policy",
+                    SecretRedactor.maskUrl(url),
+                    "网站访问策略未启用，跳过规则阻断探针。");
+        }
+        if (StrUtil.isBlank(rule) || StrUtil.isBlank(url)) {
             return skippedPolicyProbeItem(
                     key,
                     label,
