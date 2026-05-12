@@ -976,6 +976,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "malwareBlocksSaveAndCheck");
             copyPolicyValue(summary, safe, "requestFailureFailsOpen");
             copyPolicyValue(summary, safe, "unsafeEndpointBlocksBeforeNetwork");
+            copyPolicyValue(summary, safe, "structuredReasons");
+            copyPolicyValue(summary, safe, "persistedListReasonExposed");
             copyPolicyValue(summary, safe, "packageVersionParsed");
             copyPolicyValue(summary, safe, "scopedNpmPackageParsed");
             copyPolicyValue(summary, safe, "npxPackageOptionParsed");

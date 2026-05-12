@@ -90,6 +90,10 @@ public class McpPackageSecurityService {
         summary.put("malwareBlocksSaveAndCheck", Boolean.TRUE);
         summary.put("requestFailureFailsOpen", Boolean.TRUE);
         summary.put("unsafeEndpointBlocksBeforeNetwork", Boolean.TRUE);
+        summary.put(
+                "structuredReasons",
+                java.util.Arrays.asList("allow", "malware_advisory", "unsafe_endpoint", "blocked"));
+        summary.put("persistedListReasonExposed", Boolean.TRUE);
         summary.put("packageVersionParsed", Boolean.TRUE);
         summary.put("scopedNpmPackageParsed", Boolean.TRUE);
         summary.put("npxPackageOptionParsed", Boolean.TRUE);

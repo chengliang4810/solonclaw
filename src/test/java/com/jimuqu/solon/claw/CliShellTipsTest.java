@@ -165,6 +165,7 @@ public class CliShellTipsTest {
                 .contains("malwareBlocks=true")
                 .contains("npxPackageOption=true")
                 .contains("pypiSourceOption=true")
+                .contains("persistedReason=true")
                 .contains("审计工具")
                 .contains("executesCommand=false")
                 .contains("技能凭据")
@@ -257,6 +258,8 @@ public class CliShellTipsTest {
                 .contains("npxPackageOption=true")
                 .contains("pypiSourceOption=true")
                 .contains("pipxRunSkipped=true")
+                .contains("reasons=[allow, malware_advisory, unsafe_endpoint, blocked]")
+                .contains("listReason=true")
                 .contains("failOpen=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security audit-tool"))
                 .contains("安全审计工具策略摘要")

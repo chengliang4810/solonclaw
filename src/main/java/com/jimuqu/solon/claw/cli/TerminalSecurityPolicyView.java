@@ -424,6 +424,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcpPackage, "npxPackageOptionParsed"))
                 .append(" pypiSourceOption=")
                 .append(value(mcpPackage, "pypiSourceOptionParsed"))
+                .append(" persistedReason=")
+                .append(value(mcpPackage, "persistedListReasonExposed"))
                 .append(" failOpen=")
                 .append(value(mcpPackage, "requestFailureFailsOpen"));
         Map<String, Object> auditTool = SecurityAuditTools.readOnlyAuditPolicySummary();
@@ -1142,6 +1144,11 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcpPackage, "malwareBlocksSaveAndCheck"))
                 .append(" failOpen=")
                 .append(value(mcpPackage, "requestFailureFailsOpen"));
+        buffer.append('\n')
+                .append("- 结构化原因：reasons=")
+                .append(value(mcpPackage, "structuredReasons"))
+                .append(" listReason=")
+                .append(value(mcpPackage, "persistedListReasonExposed"));
         buffer.append('\n')
                 .append("- 解析和脱敏：versionParsed=")
                 .append(value(mcpPackage, "packageVersionParsed"))
