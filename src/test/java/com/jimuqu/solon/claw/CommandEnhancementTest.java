@@ -1287,6 +1287,38 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldRejectUnsafeSlashConfirmIdWithoutEchoingInput() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.slashConfirmService.register(
+                "MEMORY:admin-chat:admin-user",
+                "reload-mcp --token=ghp_slashunsafecommand12345",
+                "确认刷新 Authorization: Bearer ghp_slashunsafeprompt12345");
+
+        GatewayReply rejected =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/approve 00000000000000000000000000000000 ok token=ghp_slashunsafeinput12345");
+        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
+
+        assertThat(rejected.getContent())
+                .contains("确认编号不匹配")
+                .doesNotContain("00000000000000000000000000000000")
+                .doesNotContain("ghp_slashunsafeinput12345")
+                .doesNotContain("ghp_slashunsafecommand12345")
+                .doesNotContain("ghp_slashunsafeprompt12345");
+        assertThat(status.getContent())
+                .contains("reload-mcp --token=***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_slashunsafecommand12345")
+                .doesNotContain("ghp_slashunsafeprompt12345");
+
+        GatewayReply cancelled = env.send("admin-chat", "admin-user", "/deny");
+        assertThat(cancelled.getContent()).contains("已取消 /reload-mcp");
+    }
+
+    @Test
     void shouldSupersedePendingReloadMcpSlashConfirm() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
