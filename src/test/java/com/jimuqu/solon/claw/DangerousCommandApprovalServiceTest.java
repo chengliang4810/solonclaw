@@ -1786,6 +1786,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_audit_policy_disabled");
         assertDangerPattern(
                 env,
+                "auditpol /clear /y",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "auditpol /remove /user:Guest /category:*",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
                 "wevtutil sl Security /e:false",
                 "windows_audit_policy_disabled");
         assertDangerPattern(
