@@ -562,6 +562,8 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandUrls("curl sftp://example.com/secret.txt");
         SecurityPolicyService.UrlVerdict scp =
                 policy.checkCommandUrls("curl scp://example.com/secret.txt");
+        SecurityPolicyService.UrlVerdict gopher =
+                policy.checkCommandUrls("curl gopher://example.com/_payload");
 
         assertThat(ftp.isAllowed()).isFalse();
         assertThat(ftp.getMessage()).contains("仅允许");
@@ -569,6 +571,8 @@ public class SecurityPolicyServiceTest {
         assertThat(sftp.getMessage()).contains("仅允许");
         assertThat(scp.isAllowed()).isFalse();
         assertThat(scp.getMessage()).contains("仅允许");
+        assertThat(gopher.isAllowed()).isFalse();
+        assertThat(gopher.getMessage()).contains("仅允许");
     }
 
     @Test
