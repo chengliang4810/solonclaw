@@ -2341,6 +2341,11 @@ public class DashboardDiagnosticsService {
                         "https://example.test/callback?page=1;client_secret=dashboard-semicolon-secret"));
         items.add(
                 urlProbe(
+                        "sensitive_query_alias",
+                        "敏感 URL 参数别名阻断",
+                        "https://example.test/callback?api.key=dashboard-dot-secret&private-key=dashboard-dash-secret"));
+        items.add(
+                urlProbe(
                         "signed_url",
                         "签名型 URL 凭据参数阻断",
                         "https://bucket.example.test/file?OSSAccessKeyId=ak-dashboard&Signature=dashboard-signature-secret&Expires=9999999999"));

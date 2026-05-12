@@ -178,6 +178,19 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactSensitiveUrlQueryNameAliases() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback?api.key=dot-secret&private-key=dash-secret&ok=value");
+
+        assertThat(result)
+                .isEqualTo(
+                        "https://example.com/callback?api.key=***&private-key=***&ok=value")
+                .doesNotContain("dot-secret")
+                .doesNotContain("dash-secret");
+    }
+
+    @Test
     void shouldRedactEncodedUrlParametersAfterPlainSensitiveParameters() {
         String result =
                 SecretRedactor.redact(

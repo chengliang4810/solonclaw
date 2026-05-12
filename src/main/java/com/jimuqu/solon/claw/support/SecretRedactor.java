@@ -38,7 +38,7 @@ public final class SecretRedactor {
     private static final Pattern JWT =
             Pattern.compile("eyJ[A-Za-z0-9_-]{10,}(?:\\.[A-Za-z0-9_=-]{4,}){0,2}");
     private static final String SENSITIVE_QUERY_NAMES =
-            "access_token|refresh_token|id_token|token|api_key|apikey|client_secret|password|auth|jwt|session|secret|key|code|signature|x-amz-signature";
+            "access_token|refresh_token|id_token|auth_token|token|api_key|apikey|client_secret|password|private_key|auth|jwt|session|secret|key|code|signature|security_token|x-amz-signature|x_amz_signature|x_amz_credential|x_amz_security_token|x_goog_signature|x_goog_credential|x_oss_signature|x_oss_security_token|x_cos_signature|x_cos_security_token|x_obs_signature|x_obs_security_token|x_ms_signature";
     private static final Pattern SENSITIVE_QUERY =
             Pattern.compile("(?i)([?&](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&#\\s]+");
     private static final Pattern SENSITIVE_PATH =
@@ -313,7 +313,7 @@ public final class SecretRedactor {
             return parameter;
         }
         String name = parameter.substring(0, equals);
-        String decodedName = decodeRepeated(name).toLowerCase(Locale.ROOT);
+        String decodedName = normalizeSensitiveQueryName(decodeRepeated(name));
         if (!decodedName.matches("(?i)(?:" + SENSITIVE_QUERY_NAMES + ")")) {
             return name + "=" + redactEmbeddedEncodedSensitiveQuery(parameter.substring(equals + 1));
         }
@@ -356,5 +356,11 @@ public final class SecretRedactor {
             value = decoded;
         }
         return value;
+    }
+
+    private static String normalizeSensitiveQueryName(String raw) {
+        String name = StrUtil.nullToEmpty(raw).toLowerCase(Locale.ROOT);
+        name = name.replace('-', '_').replace('.', '_');
+        return name.replaceAll("\\s+", "_");
     }
 }

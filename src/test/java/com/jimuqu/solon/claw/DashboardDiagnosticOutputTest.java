@@ -313,6 +313,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "repeated_encoded_sensitive_query");
         Map<String, Object> semicolonSensitiveQuery =
                 findProbe(items, "semicolon_sensitive_query");
+        Map<String, Object> sensitiveQueryAlias = findProbe(items, "sensitive_query_alias");
         Map<String, Object> signedUrl = findProbe(items, "signed_url");
         Map<String, Object> nestedSignedUrl = findProbe(items, "nested_signed_url");
         Map<String, Object> encodedUserinfoUrl = findProbe(items, "encoded_userinfo_url");
@@ -619,6 +620,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(semicolonSensitiveQuery))
                 .contains("client_secret=***")
                 .doesNotContain("dashboard-semicolon-secret");
+        assertThat(sensitiveQueryAlias.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveQueryAlias.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveQueryAlias.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveQueryAlias))
+                .contains("api.key=***")
+                .contains("private-key=***")
+                .doesNotContain("dashboard-dot-secret")
+                .doesNotContain("dashboard-dash-secret");
         assertThat(signedUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(signedUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(signedUrl.get("skipped")).isNull();
