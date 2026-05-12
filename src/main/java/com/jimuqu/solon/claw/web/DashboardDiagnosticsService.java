@@ -2368,6 +2368,11 @@ public class DashboardDiagnosticsService {
                         "命令代理环境 URL 前置策略检查",
                         "https_proxy=http://169.254.169.254:8080 curl https://example.test"));
         items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_socket",
+                        "命令本地管理套接字阻断",
+                        "DOCKER_HOST=unix:///var/run/docker.sock docker ps"));
+        items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_credential_path",
                         "文件工具凭据路径参数检查",

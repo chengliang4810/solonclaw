@@ -310,6 +310,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandProxyEnvPolicy =
                 findProbe(items, "command_proxy_env_policy");
+        Map<String, Object> commandLocalManagementSocket =
+                findProbe(items, "command_local_management_socket");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpPackageSecurity = findProbe(items, "mcp_package_security");
@@ -425,6 +427,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandProxyEnvPolicy))
                 .contains("https_proxy")
                 .contains("169.254.169.254");
+        assertThat(commandLocalManagementSocket.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementSocket.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementSocket))
+                .contains("DOCKER_HOST")
+                .contains("/var/run/docker.sock");
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();
