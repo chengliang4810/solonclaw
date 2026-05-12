@@ -2630,6 +2630,26 @@ public class DashboardDiagnosticsService {
                         "curl --preproxy socks5://127.0.0.1:1080 https://example.test"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_proxy_option_url_policy",
+                        "命令 proxy 选项 URL 前置策略检查",
+                        "curl --proxy http://169.254.169.254:8080 https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_proxy_server_url_policy",
+                        "命令 proxy-server 选项 URL 前置策略检查",
+                        "node app.js --proxy-server socks5://169.254.169.254:1080"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_java_proxy_property_policy",
+                        "Java 代理属性 URL 前置策略检查",
+                        "java -Dhttp.proxyHost=169.254.169.254 -Dhttp.proxyPort=8080 -jar app.jar"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_java_proxy_options_policy",
+                        "Java 代理环境参数 URL 前置策略检查",
+                        "MAVEN_OPTS=-DsocksProxyHost=169.254.169.254 mvn test"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_proxy_env_policy",
                         "命令代理环境 URL 前置策略检查",
                         "https_proxy=http://169.254.169.254:8080 curl https://example.test"));

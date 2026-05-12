@@ -387,6 +387,14 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_curl_dns_servers_policy");
         Map<String, Object> commandPreproxyUrlPolicy =
                 findProbe(items, "command_preproxy_url_policy");
+        Map<String, Object> commandProxyOptionUrlPolicy =
+                findProbe(items, "command_proxy_option_url_policy");
+        Map<String, Object> commandProxyServerUrlPolicy =
+                findProbe(items, "command_proxy_server_url_policy");
+        Map<String, Object> commandJavaProxyPropertyPolicy =
+                findProbe(items, "command_java_proxy_property_policy");
+        Map<String, Object> commandJavaProxyOptionsPolicy =
+                findProbe(items, "command_java_proxy_options_policy");
         Map<String, Object> commandProxyEnvPolicy =
                 findProbe(items, "command_proxy_env_policy");
         Map<String, Object> commandProxyEnvSetitemPolicy =
@@ -862,6 +870,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandPreproxyUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandPreproxyUrlPolicy)).contains("--preproxy");
+        assertThat(commandProxyOptionUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyOptionUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyOptionUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyOptionUrlPolicy))
+                .contains("--proxy")
+                .contains("169.254.169.254");
+        assertThat(commandProxyServerUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyServerUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyServerUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyServerUrlPolicy))
+                .contains("--proxy-server")
+                .contains("169.254.169.254");
+        assertThat(commandJavaProxyPropertyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandJavaProxyPropertyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandJavaProxyPropertyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandJavaProxyPropertyPolicy))
+                .contains("proxyHost")
+                .contains("169.254.169.254");
+        assertThat(commandJavaProxyOptionsPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandJavaProxyOptionsPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandJavaProxyOptionsPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandJavaProxyOptionsPolicy))
+                .contains("MAVEN_OPTS")
+                .contains("169.254.169.254");
         assertThat(commandProxyEnvPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandProxyEnvPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandProxyEnvPolicy.get("skipped")).isNull();
