@@ -2345,6 +2345,10 @@ public class DashboardDiagnosticsService {
                         "硬阻断命令检查",
                         "sudo reboot"));
         items.add(
+                sudoRewriteProbe(
+                        "sudo_rewrite",
+                        "sudo 改写安全检查"));
+        items.add(
                 terminalGuardrailProbe(
                         "terminal_guardrail",
                         "长时间前台命令守卫",
@@ -2867,6 +2871,54 @@ public class DashboardDiagnosticsService {
                 !blocked,
                 safeAuditPreview(command, 400),
                 message);
+    }
+
+    private Map<String, Object> sudoRewriteProbe(String key, String label) {
+        Path dir = null;
+        String secret = "dashboard-sudo-probe-secret";
+        try {
+            dir = Files.createTempDirectory("dashboard-sudo-probe");
+            AppConfig probeConfig = new AppConfig();
+            probeConfig.getTerminal().setSudoPassword(secret);
+            SolonClawShellSkill shellSkill =
+                    new SolonClawShellSkill(dir.toString(), probeConfig);
+            SolonClawShellSkill.SudoTransform transform =
+                    shellSkill.transformSudoCommand(
+                            "echo sudo && DEBUG=1 sudo whoami\n# sudo ignored");
+            SolonClawShellSkill.SudoTransform quoted =
+                    shellSkill.transformSudoCommand("printf '%s\\n' sudo");
+            boolean safe =
+                    transform.isChanged()
+                            && "echo sudo && DEBUG=1 sudo -S -p '' whoami\n# sudo ignored"
+                                    .equals(transform.getCommand())
+                            && (secret + "\n").equals(transform.getStdin())
+                            && !StrUtil.contains(transform.getCommand(), secret)
+                            && !quoted.isChanged();
+            String message =
+                    safe
+                            ? "sudo 命令已改写为 stdin 注入密码，诊断输出不包含密码。"
+                            : "sudo 改写或密码隔离检查未通过。";
+            return policyProbeItem(
+                    key,
+                    label,
+                    "sudo_rewrite",
+                    true,
+                    safe,
+                    "sudo whoami",
+                    message);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "sudo_rewrite",
+                    true,
+                    false,
+                    "sudo whoami",
+                    "sudo 改写探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        } finally {
+            deleteProbeDirectory(dir);
+        }
     }
 
     private Map<String, Object> terminalGuardrailProbe(String key, String label, String command) {

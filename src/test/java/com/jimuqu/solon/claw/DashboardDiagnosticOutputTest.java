@@ -287,6 +287,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> hardline = findProbe(items, "hardline_command");
+        Map<String, Object> sudoRewrite = findProbe(items, "sudo_rewrite");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
         Map<String, Object> backgroundProcessGuard = findProbe(items, "background_process_guard");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
@@ -310,6 +311,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("skipped")).isNull();
+        assertThat(sudoRewrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoRewrite.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoRewrite.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(sudoRewrite.get("skipped")).isNull();
+        assertThat(String.valueOf(sudoRewrite)).doesNotContain("dashboard-sudo-probe-secret");
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
