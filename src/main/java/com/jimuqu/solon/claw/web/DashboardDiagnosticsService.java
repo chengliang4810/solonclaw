@@ -2924,6 +2924,21 @@ public class DashboardDiagnosticsService {
                         "命令用户启动脚本写入检查",
                         "echo 'alias ll=ls -la' >> ~/.bashrc"));
         items.add(
+                commandPathPolicyProbe(
+                        "command_systemd_unit_write",
+                        "命令 systemd 单元写入检查",
+                        "printf '[Service]\\nExecStart=/bin/true' > /etc/systemd/system/probe.service"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_usr_local_bin_write",
+                        "命令系统二进制目录写入检查",
+                        "printf probe > /usr/local/bin/probe"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_windows_system_write",
+                        "命令 Windows 系统目录写入检查",
+                        "Set-Content C:/Windows/System32/drivers/etc/hosts '127.0.0.1 blocked.example'"));
+        items.add(
                 commandAlwaysBlockedUrlProbe(
                         "command_bare_packed_ipv4_metadata",
                         "命令裸数字元数据地址阻断",

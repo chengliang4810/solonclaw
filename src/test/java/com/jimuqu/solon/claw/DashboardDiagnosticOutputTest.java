@@ -497,6 +497,12 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_docker_socket_write");
         Map<String, Object> commandHomeProfileWrite =
                 findProbe(items, "command_home_profile_write");
+        Map<String, Object> commandSystemdUnitWrite =
+                findProbe(items, "command_systemd_unit_write");
+        Map<String, Object> commandUsrLocalBinWrite =
+                findProbe(items, "command_usr_local_bin_write");
+        Map<String, Object> commandWindowsSystemWrite =
+                findProbe(items, "command_windows_system_write");
         Map<String, Object> commandBarePackedIpv4Metadata =
                 findProbe(items, "command_bare_packed_ipv4_metadata");
         Map<String, Object> commandBareHexIpv4Metadata =
@@ -1218,6 +1224,24 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandHomeProfileWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain(".bashrc");
+        assertThat(commandSystemdUnitWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSystemdUnitWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSystemdUnitWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSystemdUnitWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/systemd/system/probe.service");
+        assertThat(commandUsrLocalBinWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUsrLocalBinWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUsrLocalBinWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUsrLocalBinWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/usr/local/bin/probe");
+        assertThat(commandWindowsSystemWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsSystemWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsSystemWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWindowsSystemWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("C:/Windows/System32/drivers/etc/hosts");
         assertThat(commandBarePackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("skipped")).isNull();
