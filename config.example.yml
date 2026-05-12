@@ -89,6 +89,8 @@ solonclaw:
     # 是否允许 URL 工具访问内网/私有地址。云元数据地址始终阻断，无法通过本开关放行。
     # 也可用环境变量 JIMUQU_ALLOW_PRIVATE_URLS=true 临时开启。
     allowPrivateUrls: false
+    # MCP stdio 包安全检查默认使用 OSV 官方端点；如需内网代理或镜像，优先用环境变量 JIMUQU_OSV_ENDPOINT 覆盖。
+    # 兼容旧环境变量 OSV_ENDPOINT；两者同时存在时 JIMUQU_OSV_ENDPOINT 优先。
     # URL 工具的网站阻断策略，用于 webfetch/websearch/codesearch 中出现的 URL。
     websiteBlocklist:
       # 是否启用域名阻断。
