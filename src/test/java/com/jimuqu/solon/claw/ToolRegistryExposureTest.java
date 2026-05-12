@@ -1379,6 +1379,9 @@ public class ToolRegistryExposureTest {
         assertThat(mcpPackagePolicy.get("requestFailureFailsOpen").getBoolean()).isTrue();
         assertThat(mcpPackagePolicy.get("unsafeEndpointBlocksBeforeNetwork").getBoolean()).isTrue();
         assertThat(mcpPackagePolicy.get("messageRedacted").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("npxPackageOptionParsed").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("pipxRunSubcommandSkipped").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("pypiSourceOptionParsed").getBoolean()).isTrue();
         assertThat(String.valueOf(mcpPackagePolicy)).contains("npx").contains("uvx").contains("pipx");
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentUrlSafety").getBoolean())
                 .isTrue();

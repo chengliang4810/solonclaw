@@ -212,6 +212,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(coverage.get("privateUrlPolicy")).isEqualTo(Boolean.TRUE);
         assertThat(coverage.get("mcpPackageSecurity")).isEqualTo(Boolean.TRUE);
         assertThat(coverage.get("mcpPackageSecurityPolicy")).isInstanceOf(Map.class);
+        Map<String, Object> mcpPackagePolicy =
+                (Map<String, Object>) coverage.get("mcpPackageSecurityPolicy");
+        assertThat(mcpPackagePolicy.get("npxPackageOptionParsed")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpPackagePolicy.get("pipxRunSubcommandSkipped")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpPackagePolicy.get("pypiSourceOptionParsed")).isEqualTo(Boolean.TRUE);
         assertThat(coverage.get("toolResultStorage")).isEqualTo(Boolean.TRUE);
         Map<String, Object> storagePolicy =
                 (Map<String, Object>) coverage.get("toolResultStoragePolicy");

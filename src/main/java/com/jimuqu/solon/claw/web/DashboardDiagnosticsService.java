@@ -976,6 +976,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "unsafeEndpointBlocksBeforeNetwork");
             copyPolicyValue(summary, safe, "packageVersionParsed");
             copyPolicyValue(summary, safe, "scopedNpmPackageParsed");
+            copyPolicyValue(summary, safe, "npxPackageOptionParsed");
+            copyPolicyValue(summary, safe, "pipxRunSubcommandSkipped");
+            copyPolicyValue(summary, safe, "pypiSourceOptionParsed");
             copyPolicyValue(summary, safe, "pypiExtrasIgnored");
             copyPolicyValue(summary, safe, "jsonArgsSupported");
             copyPolicyValue(summary, safe, "advisoryMessageLimit");
