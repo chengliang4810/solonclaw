@@ -2295,6 +2295,11 @@ public class DashboardDiagnosticsService {
                         "协议相对内网 URL 默认阻断",
                         "//127.0.0.1:8080/admin"));
         items.add(
+                privateUrlProbe(
+                        "encoded_private_host_url",
+                        "编码内网主机 URL 默认阻断",
+                        "http://%31%32%37.0.0.1:8080/admin"));
+        items.add(
                 urlProbe(
                         "unsupported_network_scheme",
                         "不支持的网络协议阻断",
@@ -2336,6 +2341,11 @@ public class DashboardDiagnosticsService {
                         "https://user%253Apassword@example.test/private"));
         items.add(
                 urlProbe(
+                        "schemeless_userinfo_url",
+                        "无协议 URL 用户名密码阻断",
+                        "alice:dashboard-schemeless-password@example.test/path"));
+        items.add(
+                urlProbe(
                         "sensitive_path_segment_url",
                         "敏感 URL 路径段阻断",
                         "https://example.test/oauth/access_token/secret123"));
@@ -2369,6 +2379,12 @@ public class DashboardDiagnosticsService {
                         "网站访问策略规范化主机阻断",
                         "blocked.example",
                         "https://WWW.Blocked.Example./docs?token=dashboard-website-normalized-secret"));
+        items.add(
+                websitePolicyProbe(
+                        "website_policy_idn_separator",
+                        "网站访问策略 IDN 点号归一化阻断",
+                        "blocked.example",
+                        "http://blocked\uFF0Eexample/path?token=dashboard-website-idn-secret"));
         items.add(
                 websitePolicyProbe(
                         "website_policy_wildcard_child",
@@ -2497,6 +2513,11 @@ public class DashboardDiagnosticsService {
                         "command_userinfo_url_policy",
                         "命令 userinfo URL 前置策略检查",
                         "curl https://alice:dashboard-password@example.test/private"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_schemeless_userinfo_url_policy",
+                        "命令无协议 userinfo URL 前置策略检查",
+                        "curl alice:dashboard-command-password@example.test/private"));
         items.add(
                 commandUrlPolicyProbe(
                         "command_protocol_relative_url_policy",

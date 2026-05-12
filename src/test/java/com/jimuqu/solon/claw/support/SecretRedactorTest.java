@@ -86,6 +86,13 @@ class SecretRedactorTest {
         assertThat(repeatedlyEncoded)
                 .isEqualTo("https://user%253A***@example.com/path?ok=value")
                 .doesNotContain("encoded-password");
+
+        String schemeless =
+                SecretRedactor.maskUrl("alice:schemeless-password@example.com/private");
+
+        assertThat(schemeless)
+                .isEqualTo("alice:***@example.com/private")
+                .doesNotContain("schemeless-password");
     }
 
     @Test

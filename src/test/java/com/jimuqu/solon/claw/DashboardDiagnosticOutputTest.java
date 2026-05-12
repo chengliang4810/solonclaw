@@ -299,6 +299,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "ipv4_mapped_loopback_url");
         Map<String, Object> protocolRelativePrivateUrl =
                 findProbe(items, "protocol_relative_private_url");
+        Map<String, Object> encodedPrivateHostUrl =
+                findProbe(items, "encoded_private_host_url");
         Map<String, Object> unsupportedNetworkScheme =
                 findProbe(items, "unsupported_network_scheme");
         Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
@@ -306,6 +308,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> signedUrl = findProbe(items, "signed_url");
         Map<String, Object> nestedSignedUrl = findProbe(items, "nested_signed_url");
         Map<String, Object> encodedUserinfoUrl = findProbe(items, "encoded_userinfo_url");
+        Map<String, Object> schemelessUserinfoUrl =
+                findProbe(items, "schemeless_userinfo_url");
         Map<String, Object> sensitivePathSegmentUrl =
                 findProbe(items, "sensitive_path_segment_url");
         Map<String, Object> schemelessSensitiveQuery =
@@ -339,6 +343,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_websocket_url_policy");
         Map<String, Object> commandUserinfoUrlPolicy =
                 findProbe(items, "command_userinfo_url_policy");
+        Map<String, Object> commandSchemelessUserinfoUrlPolicy =
+                findProbe(items, "command_schemeless_userinfo_url_policy");
         Map<String, Object> commandProtocolRelativeUrlPolicy =
                 findProbe(items, "command_protocol_relative_url_policy");
         Map<String, Object> commandEncodedHostUrlPolicy =
@@ -489,6 +495,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
         Map<String, Object> websitePolicyNormalizedHost =
                 findProbe(items, "website_policy_normalized_host");
+        Map<String, Object> websitePolicyIdnSeparator =
+                findProbe(items, "website_policy_idn_separator");
         Map<String, Object> websitePolicyWildcardChild =
                 findProbe(items, "website_policy_wildcard_child");
         Map<String, Object> websitePolicyPrecedesCredentialQuery =
@@ -543,6 +551,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(protocolRelativePrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(protocolRelativePrivateUrl.get("skipped")).isNull();
         assertThat(String.valueOf(protocolRelativePrivateUrl)).contains("//127.0.0.1");
+        assertThat(encodedPrivateHostUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedPrivateHostUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedPrivateHostUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(encodedPrivateHostUrl)).contains("%31%32%37.0.0.1");
         assertThat(unsupportedNetworkScheme.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(unsupportedNetworkScheme.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(unsupportedNetworkScheme.get("skipped")).isNull();
@@ -576,6 +588,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(encodedUserinfoUrl))
                 .contains("user%253A***@")
                 .doesNotContain("password");
+        assertThat(schemelessUserinfoUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessUserinfoUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessUserinfoUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(schemelessUserinfoUrl))
+                .contains("alice:***@example.test")
+                .doesNotContain("dashboard-schemeless-password");
         assertThat(sensitivePathSegmentUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sensitivePathSegmentUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitivePathSegmentUrl.get("skipped")).isNull();
@@ -676,6 +694,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandUserinfoUrlPolicy))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("dashboard-password");
+        assertThat(commandSchemelessUserinfoUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSchemelessUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSchemelessUserinfoUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSchemelessUserinfoUrlPolicy))
+                .contains("alice:***@example.test")
+                .doesNotContain("dashboard-command-password");
         assertThat(commandProtocolRelativeUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandProtocolRelativeUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandProtocolRelativeUrlPolicy.get("skipped")).isNull();
@@ -1156,6 +1180,13 @@ public class DashboardDiagnosticOutputTest {
                 .contains("WWW.Blocked.Example")
                 .contains("token=***")
                 .doesNotContain("dashboard-website-normalized-secret");
+        assertThat(websitePolicyIdnSeparator.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyIdnSeparator.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicyIdnSeparator.get("skipped")).isNull();
+        assertThat(String.valueOf(websitePolicyIdnSeparator))
+                .contains("blocked")
+                .contains("token=***")
+                .doesNotContain("dashboard-website-idn-secret");
         assertThat(websitePolicyWildcardChild.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicyWildcardChild.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicyWildcardChild.get("skipped")).isNull();
