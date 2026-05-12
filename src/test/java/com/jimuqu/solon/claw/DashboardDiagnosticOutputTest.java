@@ -344,6 +344,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "tool_args_repeated_encoded_sensitive_url");
         Map<String, Object> toolArgsSemicolonSensitiveUrl =
                 findProbe(items, "tool_args_semicolon_sensitive_url");
+        Map<String, Object> toolArgsSensitiveQueryAlias =
+                findProbe(items, "tool_args_sensitive_query_alias");
         Map<String, Object> toolArgsEndpointPrivateUrl =
                 findProbe(items, "tool_args_endpoint_private_url");
         Map<String, Object> toolArgsNestedEndpointPrivateUrl =
@@ -374,6 +376,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_repeated_encoded_sensitive_url_policy");
         Map<String, Object> commandSemicolonSensitiveUrlPolicy =
                 findProbe(items, "command_semicolon_sensitive_url_policy");
+        Map<String, Object> commandSensitiveQueryAliasPolicy =
+                findProbe(items, "command_sensitive_query_alias_policy");
         Map<String, Object> commandCurlConnectToPolicy =
                 findProbe(items, "command_curl_connect_to_policy");
         Map<String, Object> commandCurlResolvePolicy =
@@ -731,6 +735,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(toolArgsSemicolonSensitiveUrl))
                 .contains("client_secret=***")
                 .doesNotContain("tool-args-semicolon-secret");
+        assertThat(toolArgsSensitiveQueryAlias.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsSensitiveQueryAlias.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsSensitiveQueryAlias.get("skipped")).isNull();
+        assertThat(String.valueOf(toolArgsSensitiveQueryAlias))
+                .contains("api.key=***")
+                .contains("private-key=***")
+                .doesNotContain("tool-args-dot-secret")
+                .doesNotContain("tool-args-dash-secret");
         assertThat(toolArgsEndpointPrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("skipped")).isNull();
@@ -814,6 +826,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandSemicolonSensitiveUrlPolicy))
                 .contains("client_secret=***")
                 .doesNotContain("command-semicolon-secret");
+        assertThat(commandSensitiveQueryAliasPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSensitiveQueryAliasPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSensitiveQueryAliasPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSensitiveQueryAliasPolicy))
+                .contains("api.key=***")
+                .contains("private-key=***")
+                .doesNotContain("command-dot-secret")
+                .doesNotContain("command-dash-secret");
         assertThat(commandCurlConnectToPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandCurlConnectToPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandCurlConnectToPolicy.get("skipped")).isNull();
