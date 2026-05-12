@@ -10221,12 +10221,49 @@ public class DangerousCommandApprovalServiceTest {
                 "kubectl_network_exposure");
         assertGatewayCommandApproval(
                 service,
+                "kubectl proxy --address=::",
+                "kubectl_network_exposure");
+        assertGatewayCommandApproval(
+                service,
+                "kubectl port-forward --address [::] svc/app 8080:80",
+                "kubectl_network_exposure");
+        assertGatewayCommandApproval(
+                service,
                 "terraform state pull",
                 "terraform_state_sensitive_read");
         assertGatewayCommandApproval(
                 service,
                 "gcloud compute firewall-rules create open-ssh --allow tcp:22 --source-ranges 0.0.0.0/0",
                 "cloud_network_exposure_change");
+    }
+
+    @Test
+    void shouldDetectLocalServiceBroadListenAddress() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        List<String> commands =
+                Arrays.asList(
+                        "python -m http.server 8000 --bind 0.0.0.0",
+                        "vite --host 0.0.0.0",
+                        "npm run dev -- --host 0.0.0.0",
+                        "pnpm dev --host ::",
+                        "yarn serve --host *");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("local_service_network_exposure");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "python -m http.server 8000 --bind 127.0.0.1"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "vite --host localhost"))
+                .isNull();
     }
 
     @Test

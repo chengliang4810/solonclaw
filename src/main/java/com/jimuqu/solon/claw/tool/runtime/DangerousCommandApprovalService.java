@@ -107,6 +107,7 @@ public class DangerousCommandApprovalService {
     private static final String SENSITIVE_REQUEST_FIELD_NAME =
             "(?:access[_.\\s-]?(?:key|token)|refresh[_.\\s-]?token|id[_.\\s-]?token|auth[_.\\s-]?token|api[_.\\s-]?(?:key|token)|token|secret|secret[_.\\s-]?key|client[_.\\s-]?secret|password|passwd|credential|authorization)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
+    private static final String BROAD_LISTEN_ADDRESS = "(?:0\\.0\\.0\\.0|\\[?::\\]?|\\*)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final String SHELL_COMMAND_START =
@@ -1230,7 +1231,19 @@ public class DangerousCommandApprovalService {
                                     "kubectl_network_exposure",
                                     "Kubernetes local proxy or port-forward exposes a broad listen address",
                                     pattern(
-                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*(?:port-forward|proxy)\\b(?=[^\\n]*(?:(?:--address(?:=|\\s+)(?:0\\.0\\.0\\.0|\\[?:::\\]?|\\*)\\b)|(?:--accept-hosts(?:=|\\s+)(?:\\.\\*|['\"]?\\^?\\.\\*\\$?['\"]?|\\S*\\*\\S*))))"),
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*(?:port-forward|proxy)\\b(?=[^\\n]*(?:(?:--address(?:=|\\s+)"
+                                                    + BROAD_LISTEN_ADDRESS
+                                                    + "(?:\\s|$))|(?:--accept-hosts(?:=|\\s+)(?:\\.\\*|['\"]?\\^?\\.\\*\\$?['\"]?|\\S*\\*\\S*))))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "local_service_network_exposure",
+                                    "local development service exposes a broad listen address",
+                                    pattern(
+                                            "\\b(?:python(?:3)?\\s+-m\\s+http\\.server|vite|next\\s+dev|webpack-dev-server|npm\\s+run\\s+(?:dev|start|serve)|pnpm\\s+(?:dev|start|serve)|yarn\\s+(?:dev|start|serve)|bun\\s+(?:dev|start|serve))\\b(?=[^\\n]*(?:--(?:host|hostname|bind|listen|address)(?:=|\\s+)"
+                                                    + BROAD_LISTEN_ADDRESS
+                                                    + "(?:\\s|$)|-(?:H|b)\\s+"
+                                                    + BROAD_LISTEN_ADDRESS
+                                                    + "(?:\\s|$)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "helm_uninstall",
