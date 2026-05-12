@@ -3236,6 +3236,90 @@ public class DashboardDiagnosticsService {
                         "credential_file_environment_load"));
         items.add(
                 approvalDetectionProbe(
+                        "credential_file_compare_output",
+                        "凭据文件比较输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "diff token.json token.json.bak",
+                        "credential_file_compare_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_filtered_output",
+                        "凭据文件过滤输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cut -d= -f2 .env",
+                        "credential_file_filtered_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_structured_output",
+                        "凭据文件结构化输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "jq . token.json",
+                        "credential_file_structured_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_transcript_output",
+                        "凭据文件转录输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cat token.json | tee debug.log",
+                        "credential_file_transcript_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_history_write",
+                        "凭据文件写入历史审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "history -s $(cat token.json)",
+                        "credential_file_history_write"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_pager_output",
+                        "凭据文件分页查看审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "bat token.json",
+                        "credential_file_pager_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_pipeline_preview",
+                        "凭据文件管道预览审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cat token.json | head",
+                        "credential_file_pipeline_preview"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_substitution_output",
+                        "凭据文件命令替换输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo $(cat token.json)",
+                        "credential_file_substitution_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_terminal_output",
+                        "凭据文件终端输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cat token.json",
+                        "credential_file_terminal_output"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_editor_open",
+                        "凭据文件编辑器打开审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "vim token.json",
+                        "credential_file_editor_open"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_system_open",
+                        "凭据文件系统打开审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "xdg-open token.json",
+                        "credential_file_system_open"));
+        items.add(
+                approvalDetectionProbe(
+                        "credential_file_metadata_output",
+                        "凭据文件元数据输出审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "stat token.json",
+                        "credential_file_metadata_output"));
+        items.add(
+                approvalDetectionProbe(
                         "linux_credential_material_dump",
                         "Linux 凭据材料转储审批",
                         ToolNameConstants.EXECUTE_SHELL,

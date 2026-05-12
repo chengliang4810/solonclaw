@@ -595,6 +595,30 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "credential_file_visual_encode");
         Map<String, Object> credentialFileEnvironmentLoad =
                 findProbe(items, "credential_file_environment_load");
+        Map<String, Object> credentialFileCompareOutput =
+                findProbe(items, "credential_file_compare_output");
+        Map<String, Object> credentialFileFilteredOutput =
+                findProbe(items, "credential_file_filtered_output");
+        Map<String, Object> credentialFileStructuredOutput =
+                findProbe(items, "credential_file_structured_output");
+        Map<String, Object> credentialFileTranscriptOutput =
+                findProbe(items, "credential_file_transcript_output");
+        Map<String, Object> credentialFileHistoryWrite =
+                findProbe(items, "credential_file_history_write");
+        Map<String, Object> credentialFilePagerOutput =
+                findProbe(items, "credential_file_pager_output");
+        Map<String, Object> credentialFilePipelinePreview =
+                findProbe(items, "credential_file_pipeline_preview");
+        Map<String, Object> credentialFileSubstitutionOutput =
+                findProbe(items, "credential_file_substitution_output");
+        Map<String, Object> credentialFileTerminalOutput =
+                findProbe(items, "credential_file_terminal_output");
+        Map<String, Object> credentialFileEditorOpen =
+                findProbe(items, "credential_file_editor_open");
+        Map<String, Object> credentialFileSystemOpen =
+                findProbe(items, "credential_file_system_open");
+        Map<String, Object> credentialFileMetadataOutput =
+                findProbe(items, "credential_file_metadata_output");
         Map<String, Object> linuxCredentialMaterialDump =
                 findProbe(items, "linux_credential_material_dump");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -1747,6 +1771,54 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(credentialFileEnvironmentLoad))
                 .contains("source [REDACTED_PATH]")
                 .doesNotContain("source .env");
+        assertThat(credentialFileCompareOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileCompareOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileCompareOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileCompareOutput)).contains("diff");
+        assertThat(credentialFileFilteredOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileFilteredOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileFilteredOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileFilteredOutput)).contains("cut");
+        assertThat(credentialFileStructuredOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileStructuredOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileStructuredOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileStructuredOutput)).contains("jq");
+        assertThat(credentialFileTranscriptOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileTranscriptOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileTranscriptOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileTranscriptOutput)).contains("tee");
+        assertThat(credentialFileHistoryWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileHistoryWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileHistoryWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileHistoryWrite)).contains("history -s");
+        assertThat(credentialFilePagerOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePagerOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePagerOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFilePagerOutput)).contains("bat");
+        assertThat(credentialFilePipelinePreview.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePipelinePreview.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFilePipelinePreview.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFilePipelinePreview)).contains("head");
+        assertThat(credentialFileSubstitutionOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileSubstitutionOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileSubstitutionOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileSubstitutionOutput)).contains("echo");
+        assertThat(credentialFileTerminalOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileTerminalOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileTerminalOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileTerminalOutput)).contains("cat");
+        assertThat(credentialFileEditorOpen.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEditorOpen.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileEditorOpen.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileEditorOpen)).contains("vim");
+        assertThat(credentialFileSystemOpen.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileSystemOpen.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileSystemOpen.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileSystemOpen)).contains("xdg-open");
+        assertThat(credentialFileMetadataOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileMetadataOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileMetadataOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialFileMetadataOutput)).contains("stat");
         assertThat(linuxCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("skipped")).isNull();
