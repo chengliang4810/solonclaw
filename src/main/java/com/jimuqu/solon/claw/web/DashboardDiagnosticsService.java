@@ -2427,6 +2427,10 @@ public class DashboardDiagnosticsService {
                         "approval_expiry_cleanup",
                         "审批过期清理安全检查"));
         items.add(
+                approvalCardSelectorProbe(
+                        "approval_card_selector",
+                        "审批卡选择器安全检查"));
+        items.add(
                 approvalAuditRedactionProbe(
                         "approval_audit_redaction",
                         "审批审计脱敏检查"));
@@ -3752,6 +3756,59 @@ public class DashboardDiagnosticsService {
                 expiredPruned
                         ? "过期待审批项在读取前会被清理，不会继续等待审批或被误批准。"
                         : "审批过期清理检查未通过。");
+    }
+
+    private Map<String, Object> approvalCardSelectorProbe(String key, String label) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "approval_card_selector", "approval unsafe always", "审批服务尚未启用。");
+        }
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setToolName(ToolNameConstants.EXECUTE_SHELL);
+        pending.setPatternKey("recursive_delete");
+        pending.setPatternKeys(Collections.singletonList("recursive_delete"));
+        pending.setDescription("dashboard approval card selector probe");
+        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommandHash("dashboard-card-selector");
+        pending.setApprovalKey(
+                ToolNameConstants.EXECUTE_SHELL
+                        + ":recursive_delete:dashboard-card-selector");
+        pending.setApprovalId("approval unsafe always");
+        pending.setCreatedAt(System.currentTimeMillis());
+        pending.setExpiresAt(System.currentTimeMillis() + 60000L);
+
+        Map<String, Object> extras =
+                approvalService.buildDeliveryExtras(PlatformType.FEISHU, pending);
+        String outboundSelector = StrUtil.nullToEmpty(String.valueOf(extras.get("approvalId")));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "session");
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, outboundSelector);
+        String command = DangerousCommandApprovalService.commandFromCardActionPayload(payload);
+        boolean unsafeRejected =
+                DangerousCommandApprovalService.safeApprovalSelectorToken("approval unsafe always")
+                        == null;
+        boolean safeFallback =
+                outboundSelector.startsWith("key_")
+                        && !outboundSelector.contains(" ")
+                        && outboundSelector.length() > 8;
+        boolean commandSafe =
+                StrUtil.isNotBlank(command)
+                        && command.equals("/approve " + outboundSelector + " session");
+        boolean passed = unsafeRejected && safeFallback && commandSafe;
+        return policyProbeItem(
+                key,
+                label,
+                "approval_card_selector",
+                false,
+                !passed,
+                "approval unsafe always",
+                passed
+                        ? "审批卡出站编号会回退为安全 key 选择器，并生成安全确认命令。"
+                        : "审批卡选择器安全检查未通过。");
     }
 
     private Map<String, Object> slashConfirmSelectorProbe(String key, String label) {
