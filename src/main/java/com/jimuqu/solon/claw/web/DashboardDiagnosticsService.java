@@ -2284,6 +2284,18 @@ public class DashboardDiagnosticsService {
                         false));
         items.add(
                 pathProbe(
+                        "credential_file_name",
+                        "凭据文件名读取阻断",
+                        ".npmrc",
+                        false));
+        items.add(
+                pathProbe(
+                        "credential_path_suffix",
+                        "凭据路径后缀读取阻断",
+                        "~/.config/gemini/oauth_creds.json",
+                        false));
+        items.add(
+                pathProbe(
                         "system_write_path",
                         "系统文件写入阻断",
                         "/etc/hosts",

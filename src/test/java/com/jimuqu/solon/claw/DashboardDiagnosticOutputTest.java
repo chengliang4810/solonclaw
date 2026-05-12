@@ -285,6 +285,9 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
+        Map<String, Object> credentialPath = findProbe(items, "credential_path");
+        Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
+        Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -300,6 +303,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("skipped")).isNull();
+        assertThat(credentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialPath.get("skipped")).isNull();
+        assertThat(credentialFileName.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileName.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialFileName.get("skipped")).isNull();
+        assertThat(credentialPathSuffix.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialPathSuffix.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialPathSuffix.get("skipped")).isNull();
         assertThat(credentialUpload.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
