@@ -206,6 +206,36 @@ public class WeixinQrSetupServiceTest {
         assertThat(current.get("error_message").toString()).doesNotContain("sk-test-weixinqr12345");
     }
 
+    @Test
+    void shouldRedactRawQrFailureMessagesAtStatusBoundary() throws Exception {
+        AppConfig config = testConfig();
+        GatewayRuntimeRefreshService refreshService = refreshService(config);
+        WeixinQrSetupService service =
+                new WeixinQrSetupService(
+                        config,
+                        new DashboardConfigService(config, refreshService),
+                        refreshService);
+        Object state = state("qr-raw-token");
+
+        java.lang.reflect.Method fail =
+                WeixinQrSetupService.class.getDeclaredMethod(
+                        "fail", state.getClass(), String.class, String.class);
+        fail.setAccessible(true);
+        fail.invoke(
+                service,
+                state,
+                "qr_failed",
+                "raw failure token=sk-test-weixinqrboundary12345");
+        java.lang.reflect.Method toMap =
+                WeixinQrSetupService.class.getDeclaredMethod("toMap", state.getClass());
+        toMap.setAccessible(true);
+        Map<String, Object> current = (Map<String, Object>) toMap.invoke(service, state);
+
+        assertThat(current.get("error_message").toString()).contains("token=***");
+        assertThat(current.get("message").toString()).contains("token=***");
+        assertThat(String.valueOf(current)).doesNotContain("sk-test-weixinqrboundary12345");
+    }
+
     private AppConfig testConfig() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-weixin-qr").toFile();
         AppConfig config = new AppConfig();
@@ -255,10 +285,29 @@ public class WeixinQrSetupServiceTest {
         }
     }
 
+    private Object state(String ticket) throws Exception {
+        Class<?> stateType = Class.forName("com.jimuqu.solon.claw.web.WeixinQrSetupService$TicketState");
+        java.lang.reflect.Constructor<?> constructor = stateType.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object state = constructor.newInstance();
+        java.lang.reflect.Field ticketField = stateType.getDeclaredField("ticket");
+        ticketField.setAccessible(true);
+        ticketField.set(state, ticket);
+        return state;
+    }
+
     private static class AllowLocalButBlockMetadataSecurityPolicyService
             extends SecurityPolicyService {
         private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
             super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrl(url);
         }
 
         @Override

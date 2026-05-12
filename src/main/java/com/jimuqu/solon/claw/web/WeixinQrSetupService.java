@@ -238,10 +238,11 @@ public class WeixinQrSetupService {
     }
 
     private void fail(TicketState state, String code, String message) {
+        String safe = safeText(message);
         state.status = "failed";
         state.errorCode = code;
-        state.errorMessage = message;
-        state.message = message;
+        state.errorMessage = safe;
+        state.message = safe;
         state.updatedAt = System.currentTimeMillis();
     }
 
@@ -274,7 +275,11 @@ public class WeixinQrSetupService {
     private String safeMessage(Exception e) {
         String message = e.getMessage();
         String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
-        return SecretRedactor.redact(safe, 1000);
+        return safeText(safe);
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
     }
 
     private void assertSafeBaseUrl(String baseUrl, String purpose) {
