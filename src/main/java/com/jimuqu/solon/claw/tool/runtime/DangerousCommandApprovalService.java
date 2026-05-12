@@ -2742,8 +2742,10 @@ public class DangerousCommandApprovalService {
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("descriptionPreviewRedacted", Boolean.TRUE);
         summary.put("toolNameRedacted", Boolean.TRUE);
+        summary.put("commandPreviewRedactedInExtras", Boolean.TRUE);
         summary.put("rawCommandRedactedInExtras", Boolean.TRUE);
         summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
+        summary.put("encodedUrlParameterRedactedInExtras", Boolean.TRUE);
         summary.put("semicolonUrlParameterRedacted", Boolean.TRUE);
         summary.put("fragmentUrlParameterRedacted", Boolean.TRUE);
         summary.put("description", "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, map card actions back to /approve or /deny commands with redacted previews, and expose localized card labels plus session-scope channel actions.");

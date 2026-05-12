@@ -892,8 +892,10 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "commandPreviewRedacted");
             copyPolicyValue(summary, safe, "descriptionPreviewRedacted");
             copyPolicyValue(summary, safe, "toolNameRedacted");
+            copyPolicyValue(summary, safe, "commandPreviewRedactedInExtras");
             copyPolicyValue(summary, safe, "rawCommandRedactedInExtras");
             copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
+            copyPolicyValue(summary, safe, "encodedUrlParameterRedactedInExtras");
             copyPolicyValue(summary, safe, "semicolonUrlParameterRedacted");
             copyPolicyValue(summary, safe, "fragmentUrlParameterRedacted");
             return safe;
@@ -2138,8 +2140,10 @@ public class DashboardDiagnosticsService {
                 "commandPreviewRedacted",
                 "descriptionPreviewRedacted",
                 "toolNameRedacted",
+                "commandPreviewRedactedInExtras",
                 "rawCommandRedactedInExtras",
                 "encodedUrlParameterRedacted",
+                "encodedUrlParameterRedactedInExtras",
                 "semicolonUrlParameterRedacted",
                 "fragmentUrlParameterRedacted");
     }

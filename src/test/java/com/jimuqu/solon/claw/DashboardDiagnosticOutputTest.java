@@ -3379,13 +3379,27 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalsScanPolicy.get("descriptionRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsSlashPolicy =
                 (Map<String, Object>) approvals.get("slashConfirmPolicy");
+        assertThat(approvalsSlashPolicy.get("selectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("unsafeSelectorRejected")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsSlashPolicy.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("pendingQueueSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("pendingListHidesApprovalKey")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsSlashPolicy.get("pendingListUsesSafeSelector")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsSlashPolicy.get("approvalMetadataRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("observerEventsRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsCardPolicy =
                 (Map<String, Object>) approvals.get("approvalCardPolicy");
         assertThat(approvalsCardPolicy.get("approvalIdSelectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("unsafeSelectorRejected")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("outboundApprovalIdSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("unsafeApprovalIdFallsBackToKeySelector"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("commandPreviewRedactedInExtras")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("rawCommandRedactedInExtras")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("encodedUrlParameterRedactedInExtras"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("domesticCardLabelsLocalized")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("qqbotSessionActionSupported")).isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsAuditPolicy =
