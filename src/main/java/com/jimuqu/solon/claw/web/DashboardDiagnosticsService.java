@@ -2340,6 +2340,26 @@ public class DashboardDiagnosticsService {
                         "敏感 URL 路径段阻断",
                         "https://example.test/oauth/access_token/secret123"));
         items.add(
+                urlProbe(
+                        "schemeless_sensitive_query",
+                        "无协议敏感 URL 参数阻断",
+                        "example.test/callback?access_token=schemeless-secret"));
+        items.add(
+                urlProbe(
+                        "schemeless_sensitive_path",
+                        "无协议敏感 URL 路径段阻断",
+                        "example.test/oauth/client_secret/schemeless-path-secret"));
+        items.add(
+                urlProbe(
+                        "encoded_separator_sensitive_query",
+                        "编码分隔符敏感 URL 参数阻断",
+                        "https://example.test/callback?page=1%2526client_secret=separator-secret"));
+        items.add(
+                urlProbe(
+                        "html_entity_sensitive_query",
+                        "HTML 实体敏感 URL 参数阻断",
+                        "https://example.test/callback?client&#95;secret=entity-secret"));
+        items.add(
                 websitePolicyProbe(
                         "website_policy_rule",
                         "网站访问策略规则阻断"));
@@ -2469,6 +2489,11 @@ public class DashboardDiagnosticsService {
                         "command_encoded_host_url_policy",
                         "命令编码主机 URL 前置策略检查",
                         "curl http://%31%36%39.254.169.254/latest/meta-data/"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_schemeless_sensitive_url_policy",
+                        "命令无协议敏感 URL 前置策略检查",
+                        "curl example.test/callback?api%255Fkey=command-schemeless-secret"));
         items.add(
                 commandUrlPolicyProbe(
                         "command_curl_connect_to_policy",

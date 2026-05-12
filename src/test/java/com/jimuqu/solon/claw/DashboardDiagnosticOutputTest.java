@@ -308,6 +308,14 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> encodedUserinfoUrl = findProbe(items, "encoded_userinfo_url");
         Map<String, Object> sensitivePathSegmentUrl =
                 findProbe(items, "sensitive_path_segment_url");
+        Map<String, Object> schemelessSensitiveQuery =
+                findProbe(items, "schemeless_sensitive_query");
+        Map<String, Object> schemelessSensitivePath =
+                findProbe(items, "schemeless_sensitive_path");
+        Map<String, Object> encodedSeparatorSensitiveQuery =
+                findProbe(items, "encoded_separator_sensitive_query");
+        Map<String, Object> htmlEntitySensitiveQuery =
+                findProbe(items, "html_entity_sensitive_query");
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
@@ -335,6 +343,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_protocol_relative_url_policy");
         Map<String, Object> commandEncodedHostUrlPolicy =
                 findProbe(items, "command_encoded_host_url_policy");
+        Map<String, Object> commandSchemelessSensitiveUrlPolicy =
+                findProbe(items, "command_schemeless_sensitive_url_policy");
         Map<String, Object> commandCurlConnectToPolicy =
                 findProbe(items, "command_curl_connect_to_policy");
         Map<String, Object> commandCurlResolvePolicy =
@@ -566,6 +576,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(sensitivePathSegmentUrl))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("secret123");
+        assertThat(schemelessSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessSensitiveQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(schemelessSensitiveQuery))
+                .contains("access_token=***")
+                .doesNotContain("schemeless-secret");
+        assertThat(schemelessSensitivePath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessSensitivePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessSensitivePath.get("skipped")).isNull();
+        assertThat(String.valueOf(schemelessSensitivePath))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("schemeless-path-secret");
+        assertThat(encodedSeparatorSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedSeparatorSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedSeparatorSensitiveQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(encodedSeparatorSensitiveQuery))
+                .contains("page=***")
+                .doesNotContain("separator-secret");
+        assertThat(htmlEntitySensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(htmlEntitySensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(htmlEntitySensitiveQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(htmlEntitySensitiveQuery))
+                .contains("client&#95;secret=***")
+                .doesNotContain("entity-secret");
         assertThat(credentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPath.get("skipped")).isNull();
@@ -645,6 +679,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandEncodedHostUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedHostUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandEncodedHostUrlPolicy)).contains("%31%36%39.254.169.254");
+        assertThat(commandSchemelessSensitiveUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSchemelessSensitiveUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSchemelessSensitiveUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSchemelessSensitiveUrlPolicy))
+                .contains("api%255Fkey=***")
+                .doesNotContain("command-schemeless-secret");
         assertThat(commandCurlConnectToPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandCurlConnectToPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandCurlConnectToPolicy.get("skipped")).isNull();

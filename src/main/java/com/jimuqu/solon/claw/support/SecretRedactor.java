@@ -68,6 +68,17 @@ public final class SecretRedactor {
                             + ENCODED_SEPARATOR
                             + "key"
                             + ")[^\\s\"'<>|;?#=\\\\/]*\\.[A-Za-z0-9]{1,12})(?![A-Za-z0-9_.-])");
+    private static final Pattern SENSITIVE_URL_PATH_SEGMENT =
+            Pattern.compile(
+                    "(?i)/(?:(?:access|refresh|id)"
+                            + ENCODED_SEPARATOR
+                            + "token|token|api"
+                            + ENCODED_SEPARATOR
+                            + "key|client"
+                            + ENCODED_SEPARATOR
+                            + "secret|private"
+                            + ENCODED_SEPARATOR
+                            + "key|credential|credentials|secret|password|auth|jwt|session|signature)(?:[/:=][^/?#\\s&;]+)+");
     private static final Pattern PREFIX_SECRET =
             Pattern.compile(
                     "(?<![A-Za-z0-9_-])("
@@ -179,6 +190,9 @@ public final class SecretRedactor {
         result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = redactEncodedSensitiveQuery(result);
+        result = SENSITIVE_URL_PATH_SEGMENT.matcher(result).replaceAll("/[REDACTED_PATH]");
+        result = SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
+        result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
         return PREFIX_SECRET.matcher(result).replaceAll("***");
     }
 
@@ -298,7 +312,10 @@ public final class SecretRedactor {
                 value.indexOf('?') >= 0 || value.indexOf('#') >= 0 || value.indexOf(';') >= 0;
         String decoded = decodeRepeated(value);
         boolean hasDecodedSeparator =
-                decoded.indexOf('?') >= 0 || decoded.indexOf('#') >= 0 || decoded.indexOf(';') >= 0;
+                decoded.indexOf('?') >= 0
+                        || decoded.indexOf('#') >= 0
+                        || decoded.indexOf(';') >= 0
+                        || decoded.indexOf('&') >= 0;
         if (!hasRawSeparator && !hasDecodedSeparator) {
             return value;
         }

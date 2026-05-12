@@ -126,6 +126,34 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldMaskNestedEncodedSensitiveParametersAfterAmpersand() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback?page=1%2526client_secret=nested-client-secret&ok=value");
+
+        assertThat(result)
+                .isEqualTo("https://example.com/callback?page=***&ok=value")
+                .doesNotContain("nested-client-secret");
+    }
+
+    @Test
+    void shouldMaskSensitiveUrlPathSegments() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "example.com/oauth/client_secret/schemeless-path-secret");
+
+        assertThat(result)
+                .isEqualTo("example.com/oauth/[REDACTED_PATH]")
+                .doesNotContain("schemeless-path-secret");
+
+        String fileToken = SecretRedactor.maskUrl("example.com/download/client_secret.json");
+
+        assertThat(fileToken)
+                .isEqualTo("example.com/download/[REDACTED_PATH]")
+                .doesNotContain("client_secret.json");
+    }
+
+    @Test
     void shouldRedactEncodedSensitiveUrlQueryNamesInGeneralText() {
         String result =
                 SecretRedactor.redact(
