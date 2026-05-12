@@ -2955,9 +2955,24 @@ public class DashboardDiagnosticsService {
                         "printf probe > /usr/sbin/probe"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_bin_write",
+                        "命令基础执行目录写入检查",
+                        "printf probe > /bin/probe"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_usr_bin_write",
+                        "命令用户执行目录写入检查",
+                        "printf probe > /usr/bin/probe"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_usr_local_bin_write",
                         "命令系统二进制目录写入检查",
                         "printf probe > /usr/local/bin/probe"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_usr_local_sbin_write",
+                        "命令本地系统管理目录写入检查",
+                        "printf probe > /usr/local/sbin/probe"));
         items.add(
                 commandPathPolicyProbe(
                         "command_windows_system_write",

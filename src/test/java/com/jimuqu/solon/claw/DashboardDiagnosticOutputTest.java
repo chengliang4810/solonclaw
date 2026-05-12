@@ -509,8 +509,14 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_sbin_write");
         Map<String, Object> commandUsrSbinWrite =
                 findProbe(items, "command_usr_sbin_write");
+        Map<String, Object> commandBinWrite =
+                findProbe(items, "command_bin_write");
+        Map<String, Object> commandUsrBinWrite =
+                findProbe(items, "command_usr_bin_write");
         Map<String, Object> commandUsrLocalBinWrite =
                 findProbe(items, "command_usr_local_bin_write");
+        Map<String, Object> commandUsrLocalSbinWrite =
+                findProbe(items, "command_usr_local_sbin_write");
         Map<String, Object> commandWindowsSystemWrite =
                 findProbe(items, "command_windows_system_write");
         Map<String, Object> commandDevicePathRead =
@@ -1274,12 +1280,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandUsrSbinWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("/usr/sbin/probe");
+        assertThat(commandBinWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBinWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBinWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandBinWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/bin/probe");
+        assertThat(commandUsrBinWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUsrBinWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUsrBinWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUsrBinWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/usr/bin/probe");
         assertThat(commandUsrLocalBinWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUsrLocalBinWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUsrLocalBinWrite.get("skipped")).isNull();
         assertThat(String.valueOf(commandUsrLocalBinWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("/usr/local/bin/probe");
+        assertThat(commandUsrLocalSbinWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUsrLocalSbinWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUsrLocalSbinWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUsrLocalSbinWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/usr/local/sbin/probe");
         assertThat(commandWindowsSystemWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandWindowsSystemWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandWindowsSystemWrite.get("skipped")).isNull();
