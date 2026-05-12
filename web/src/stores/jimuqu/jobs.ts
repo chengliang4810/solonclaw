@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as jobsApi from '@/api/jimuqu/jobs'
-import type { Job, CreateJobRequest, UpdateJobRequest, CronStatus } from '@/api/jimuqu/jobs'
+import type { Job, CreateJobRequest, UpdateJobRequest, CronGuide, CronPolicy, CronStatus } from '@/api/jimuqu/jobs'
 
 function matchId(job: Job, id: string): boolean {
   return job.job_id === id || job.id === id
@@ -11,9 +11,12 @@ export const useJobsStore = defineStore('jobs', () => {
   const jobs = ref<Job[]>([])
   const upcomingJobs = ref<Job[]>([])
   const status = ref<CronStatus | null>(null)
+  const guide = ref<CronGuide | null>(null)
+  const policy = ref<CronPolicy | null>(null)
   const loading = ref(false)
   const upcomingLoading = ref(false)
   const statusLoading = ref(false)
+  const guideLoading = ref(false)
 
   async function fetchJobs() {
     loading.value = true
@@ -45,6 +48,22 @@ export const useJobsStore = defineStore('jobs', () => {
       console.error('Failed to fetch cron status:', err)
     } finally {
       statusLoading.value = false
+    }
+  }
+
+  async function fetchGuideAndPolicy() {
+    guideLoading.value = true
+    try {
+      const [guideResult, policyResult] = await Promise.all([
+        jobsApi.fetchCronGuide(),
+        jobsApi.fetchCronPolicy(),
+      ])
+      guide.value = guideResult
+      policy.value = policyResult
+    } catch (err) {
+      console.error('Failed to fetch cron guide:', err)
+    } finally {
+      guideLoading.value = false
     }
   }
 
@@ -102,12 +121,16 @@ export const useJobsStore = defineStore('jobs', () => {
     jobs,
     upcomingJobs,
     status,
+    guide,
+    policy,
     loading,
     upcomingLoading,
     statusLoading,
+    guideLoading,
     fetchJobs,
     fetchUpcomingJobs,
     fetchStatus,
+    fetchGuideAndPolicy,
     fetchJob,
     createJob,
     updateJob,

@@ -92,11 +92,11 @@ export interface CronGuide {
   editable_fields: string[]
   actions: Record<string, string>
   aliases: Record<string, string[]>
-  skill_binding: Record<string, string[] | boolean>
-  delivery: Record<string, string[] | string>
-  runtime_modes: Record<string, string[] | string>
-  history_and_status: Record<string, string[] | string>
-  security: Record<string, string[] | string>
+  skill_binding: Record<string, unknown>
+  delivery: Record<string, unknown>
+  runtime_modes: Record<string, unknown>
+  history_and_status: Record<string, unknown>
+  security: Record<string, unknown>
   slash_examples: string[]
   api_routes: string[]
 }

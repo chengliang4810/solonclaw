@@ -2,6 +2,7 @@
 import JobCard from './JobCard.vue'
 import { useJobsStore } from '@/stores/jimuqu/jobs'
 import { useI18n } from 'vue-i18n'
+import { computed, onMounted } from 'vue'
 
 const { t } = useI18n()
 
@@ -26,6 +27,41 @@ const scheduleLabel = (job: any) => {
 function refreshUpcoming() {
   jobsStore.fetchUpcomingJobs()
 }
+
+const guideActions = computed(() => {
+  const actions = jobsStore.guide?.actions || {}
+  return Object.keys(actions).map(key => `${key}: ${actions[key]}`)
+})
+
+const guideDeliveries = computed(() => {
+  const delivery = jobsStore.guide?.delivery || {}
+  const modes = Array.isArray(delivery.modes) ? delivery.modes : []
+  const targets = Array.isArray(delivery.targets) ? delivery.targets : []
+  return [
+    ...modes.map(String),
+    targets.length ? `${t('jobs.guideTargets')}: ${targets.join(', ')}` : '',
+  ].filter(Boolean)
+})
+
+const guideAutomation = computed(() => {
+  const guide = jobsStore.guide
+  const policy = jobsStore.policy
+  return [
+    guide?.skill_binding?.multipleSkillsSupported ? t('jobs.guideMultiSkill') : '',
+    guide?.skill_binding?.skillRewriteSupported ? t('jobs.guideSkillRewrite') : '',
+    policy?.schedule?.intervalSupported ? t('jobs.guideInterval') : '',
+    policy?.schedule?.onceSupported ? t('jobs.guideOnce') : '',
+    policy?.execution?.noAgentScriptSupported ? t('jobs.guideNoAgent') : '',
+    policy?.delivery?.multiTargetDeliverySupported ? t('jobs.guideMultiTarget') : '',
+    policy?.delivery?.wrapResponseSupported ? t('jobs.guideWrap') : '',
+  ].filter(Boolean)
+})
+
+onMounted(() => {
+  if (!jobsStore.guide && !jobsStore.guideLoading) {
+    jobsStore.fetchGuideAndPolicy()
+  }
+})
 </script>
 
 <template>
@@ -50,6 +86,35 @@ function refreshUpcoming() {
           <span class="upcoming-name">{{ job.name }}</span>
           <code class="upcoming-schedule">{{ scheduleLabel(job) }}</code>
         </button>
+      </div>
+    </section>
+
+    <section class="guide-panel">
+      <div class="guide-head">
+        <div>
+          <span class="guide-title">{{ t('jobs.guideTitle') }}</span>
+          <p>{{ t('jobs.guideDescription') }}</p>
+        </div>
+        <button class="upcoming-refresh" type="button" @click="jobsStore.fetchGuideAndPolicy">
+          {{ jobsStore.guideLoading ? t('common.loading') : t('common.refresh') }}
+        </button>
+      </div>
+      <div class="guide-grid">
+        <div class="guide-block">
+          <span class="guide-block-title">{{ t('jobs.guideAutomation') }}</span>
+          <span v-for="item in guideAutomation" :key="item" class="guide-chip">{{ item }}</span>
+          <span v-if="!guideAutomation.length" class="guide-muted">{{ t('common.noData') }}</span>
+        </div>
+        <div class="guide-block">
+          <span class="guide-block-title">{{ t('jobs.guideDelivery') }}</span>
+          <span v-for="item in guideDeliveries" :key="item" class="guide-chip">{{ item }}</span>
+          <span v-if="!guideDeliveries.length" class="guide-muted">{{ t('common.noData') }}</span>
+        </div>
+        <div class="guide-block">
+          <span class="guide-block-title">{{ t('jobs.guideActions') }}</span>
+          <span v-for="item in guideActions" :key="item" class="guide-chip">{{ item }}</span>
+          <span v-if="!guideActions.length" class="guide-muted">{{ t('common.noData') }}</span>
+        </div>
       </div>
     </section>
 
@@ -90,6 +155,28 @@ function refreshUpcoming() {
   padding: 12px;
 }
 
+.guide-panel {
+  border: 1px solid $border-light;
+  border-radius: $radius-md;
+  background: $bg-card;
+  padding: 12px;
+}
+
+.guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  p {
+    margin: 4px 0 0;
+    color: $text-muted;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
 .upcoming-head {
   display: flex;
   align-items: center;
@@ -102,6 +189,53 @@ function refreshUpcoming() {
   font-size: 13px;
   font-weight: 600;
   color: $text-primary;
+}
+
+.guide-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guide-block {
+  min-width: 0;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-content: flex-start;
+}
+
+.guide-block-title {
+  flex-basis: 100%;
+  color: $text-secondary;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.guide-chip {
+  max-width: 100%;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  color: $text-secondary;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 2px 6px;
+  overflow-wrap: anywhere;
+}
+
+.guide-muted {
+  color: $text-muted;
+  font-size: 12px;
 }
 
 .upcoming-meta {
@@ -205,6 +339,10 @@ function refreshUpcoming() {
 }
 
 @media (max-width: $breakpoint-mobile) {
+  .guide-grid {
+    grid-template-columns: 1fr;
+  }
+
   .upcoming-item {
     grid-template-columns: minmax(0, 1fr);
   }
