@@ -2268,6 +2268,10 @@ public class DashboardDiagnosticsService {
                         "URL 用户名密码阻断",
                         "https://user:dashboard-probe-password@example.test/path"));
         items.add(
+                websitePolicyProbe(
+                        "website_policy_rule",
+                        "网站访问策略规则阻断"));
+        items.add(
                 pathProbe(
                         "credential_path",
                         "凭据文件读取阻断",
@@ -2338,6 +2342,140 @@ public class DashboardDiagnosticsService {
                 verdict.isAllowed(),
                 SecretRedactor.maskUrl(url),
                 verdict.getMessage());
+    }
+
+    private Map<String, Object> websitePolicyProbe(String key, String label) {
+        AppConfig.WebsiteBlocklistConfig blocklist =
+                appConfig == null || appConfig.getSecurity() == null
+                        ? null
+                        : appConfig.getSecurity().getWebsiteBlocklist();
+        if (blocklist == null || !blocklist.isEnabled()) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "website_policy",
+                    "",
+                    "网站访问策略未启用，跳过规则阻断探针。");
+        }
+        String rule = firstConfiguredWebsiteRule(blocklist);
+        if (StrUtil.isBlank(rule)) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "website_policy",
+                    "",
+                    "网站访问策略未配置可探测规则，跳过规则阻断探针。");
+        }
+        String url = websiteProbeUrl(rule);
+        if (StrUtil.isBlank(url)) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "website_policy",
+                    safeAuditPreview(rule, 400),
+                    "网站访问策略规则无法构造安全探测 URL，跳过规则阻断探针。");
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        return policyProbeItem(
+                key,
+                label,
+                "website_policy",
+                false,
+                verdict.isAllowed(),
+                SecretRedactor.maskUrl(url),
+                verdict.getMessage());
+    }
+
+    private String firstConfiguredWebsiteRule(AppConfig.WebsiteBlocklistConfig blocklist) {
+        String direct = firstText(blocklist.getDomains());
+        if (StrUtil.isNotBlank(direct)) {
+            return direct;
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.websitePolicySummary();
+            Number sharedRuleCount = numberValue(summary.get("sharedRuleCount"));
+            if (sharedRuleCount == null || sharedRuleCount.intValue() <= 0) {
+                return "";
+            }
+            return firstTextValue(summary.get("sharedRuleSamples"));
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String websiteProbeUrl(String rawRule) {
+        String rule = StrUtil.nullToEmpty(rawRule).trim();
+        if (rule.length() == 0 || rule.indexOf('*') > 0 || rule.indexOf("***") >= 0) {
+            return "";
+        }
+        int scheme = rule.indexOf("://");
+        if (scheme >= 0) {
+            rule = rule.substring(scheme + 3);
+        }
+        if (rule.startsWith("//")) {
+            rule = rule.substring(2);
+        }
+        int at = rule.lastIndexOf('@');
+        if (at >= 0) {
+            rule = rule.substring(at + 1);
+        }
+        int slash = firstIndex(rule, '/', '?', '#');
+        if (slash >= 0) {
+            rule = rule.substring(0, slash);
+        }
+        rule = StrUtil.removeSuffix(rule, ".");
+        String host;
+        if (rule.startsWith("*.")) {
+            host = "probe." + rule.substring(2);
+        } else {
+            host = rule;
+        }
+        host = StrUtil.nullToEmpty(host).trim();
+        if (host.length() == 0 || host.indexOf(' ') >= 0 || host.indexOf('*') >= 0) {
+            return "";
+        }
+        return "https://" + host + "/dashboard-policy-probe";
+    }
+
+    private int firstIndex(String value, char first, char second, char third) {
+        int result = -1;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == first || ch == second || ch == third) {
+                result = i;
+                break;
+            }
+        }
+        return result;
+    }
+
+    private Number numberValue(Object value) {
+        return value instanceof Number ? (Number) value : null;
+    }
+
+    private String firstText(List<String> values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private String firstTextValue(Object value) {
+        if (!(value instanceof List)) {
+            return "";
+        }
+        List<?> values = (List<?>) value;
+        for (Object item : values) {
+            if (item != null && StrUtil.isNotBlank(String.valueOf(item))) {
+                return String.valueOf(item);
+            }
+        }
+        return "";
     }
 
     private Map<String, Object> pathProbe(String key, String label, String path, boolean writeLike) {

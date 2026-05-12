@@ -254,6 +254,8 @@ public class DashboardDiagnosticOutputTest {
         config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
                         null, config, new SecurityPolicyService(config));
@@ -287,6 +289,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
+        Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("skipped")).isNull();
@@ -305,6 +308,46 @@ public class DashboardDiagnosticOutputTest {
         assertThat(slashConfirmSelector.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(slashConfirmSelector.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(slashConfirmSelector.get("skipped")).isNull();
+        assertThat(websitePolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicy.get("skipped")).isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSkipWebsitePolicyProbeWhenWebsiteBlocklistHasNoRules() {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/dashboard-security-probes-skip").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+
+        Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
+        Map<String, Object> probes = (Map<String, Object>) security.get("probes");
+        assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
+        Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
+        assertThat(websitePolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(websitePolicy.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(websitePolicy.get("skipped")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
