@@ -618,6 +618,21 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> remoteDownloadExecute = findProbe(items, "remote_download_execute");
         Map<String, Object> remoteArchiveExtractExecute =
                 findProbe(items, "remote_archive_extract_execute");
+        Map<String, Object> secretStoreRead = findProbe(items, "secret_store_read");
+        Map<String, Object> secretStoreWrite = findProbe(items, "secret_store_write");
+        Map<String, Object> secretStoreDestroy = findProbe(items, "secret_store_destroy");
+        Map<String, Object> encryptedSecretFileDecrypt =
+                findProbe(items, "encrypted_secret_file_decrypt");
+        Map<String, Object> cloudCredentialConfigChange =
+                findProbe(items, "cloud_credential_config_change");
+        Map<String, Object> cloudDestructiveResource =
+                findProbe(items, "cloud_destructive_resource");
+        Map<String, Object> domesticCloudDestructiveResource =
+                findProbe(items, "domestic_cloud_destructive_resource");
+        Map<String, Object> objectStorageRecursiveRemove =
+                findProbe(items, "object_storage_recursive_remove");
+        Map<String, Object> objectStorageExposureChange =
+                findProbe(items, "object_storage_exposure_change");
         Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
@@ -1674,6 +1689,42 @@ public class DashboardDiagnosticOutputTest {
         assertThat(remoteArchiveExtractExecute.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(remoteArchiveExtractExecute.get("skipped")).isNull();
         assertThat(String.valueOf(remoteArchiveExtractExecute)).contains("app.tar.gz");
+        assertThat(secretStoreRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(secretStoreRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(secretStoreRead.get("skipped")).isNull();
+        assertThat(String.valueOf(secretStoreRead)).contains("get-secret-value");
+        assertThat(secretStoreWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(secretStoreWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(secretStoreWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(secretStoreWrite)).contains("gh secret set");
+        assertThat(secretStoreDestroy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(secretStoreDestroy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(secretStoreDestroy.get("skipped")).isNull();
+        assertThat(String.valueOf(secretStoreDestroy)).contains("delete secret");
+        assertThat(encryptedSecretFileDecrypt.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(encryptedSecretFileDecrypt.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(encryptedSecretFileDecrypt.get("skipped")).isNull();
+        assertThat(String.valueOf(encryptedSecretFileDecrypt)).contains("sops -d");
+        assertThat(cloudCredentialConfigChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudCredentialConfigChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudCredentialConfigChange.get("skipped")).isNull();
+        assertThat(String.valueOf(cloudCredentialConfigChange)).contains("coscli config add");
+        assertThat(cloudDestructiveResource.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudDestructiveResource.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudDestructiveResource.get("skipped")).isNull();
+        assertThat(String.valueOf(cloudDestructiveResource)).contains("terminate-instances");
+        assertThat(domesticCloudDestructiveResource.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(domesticCloudDestructiveResource.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(domesticCloudDestructiveResource.get("skipped")).isNull();
+        assertThat(String.valueOf(domesticCloudDestructiveResource)).contains("DeleteInstance");
+        assertThat(objectStorageRecursiveRemove.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(objectStorageRecursiveRemove.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(objectStorageRecursiveRemove.get("skipped")).isNull();
+        assertThat(String.valueOf(objectStorageRecursiveRemove)).contains("--recursive");
+        assertThat(objectStorageExposureChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(objectStorageExposureChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(objectStorageExposureChange.get("skipped")).isNull();
+        assertThat(String.valueOf(objectStorageExposureChange)).contains("public-read");
         assertThat(codeExecutionSandbox.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("blocked")).isEqualTo(Boolean.FALSE);
