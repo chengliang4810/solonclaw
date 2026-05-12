@@ -493,6 +493,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_passwd_file_write");
         Map<String, Object> commandShadowFileWrite =
                 findProbe(items, "command_shadow_file_write");
+        Map<String, Object> commandSudoersFileWrite =
+                findProbe(items, "command_sudoers_file_write");
+        Map<String, Object> commandSudoersDropinWrite =
+                findProbe(items, "command_sudoers_dropin_write");
         Map<String, Object> commandDockerSocketWrite =
                 findProbe(items, "command_docker_socket_write");
         Map<String, Object> commandHomeProfileWrite =
@@ -1216,6 +1220,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandShadowFileWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("/etc/shadow");
+        assertThat(commandSudoersFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSudoersFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSudoersFileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSudoersFileWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/sudoers");
+        assertThat(commandSudoersDropinWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSudoersDropinWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSudoersDropinWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSudoersDropinWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/sudoers.d/probe");
         assertThat(commandDockerSocketWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandDockerSocketWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandDockerSocketWrite.get("skipped")).isNull();

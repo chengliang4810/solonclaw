@@ -2915,6 +2915,16 @@ public class DashboardDiagnosticsService {
                         "printf 'blocked:*:19000:0:99999:7:::' > /etc/shadow"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_sudoers_file_write",
+                        "命令 sudoers 文件写入检查",
+                        "printf 'blocked ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_sudoers_dropin_write",
+                        "命令 sudoers drop-in 写入检查",
+                        "printf 'blocked ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/probe"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_docker_socket_write",
                         "命令容器管理套接字写入检查",
                         "printf probe > /var/run/docker.sock"));
