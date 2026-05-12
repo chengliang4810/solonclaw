@@ -39,6 +39,7 @@ const formData = ref({
   provider: '',
   model: '',
   base_url: '',
+  state: 'scheduled',
   enabled: true,
   paused_reason: '',
 })
@@ -60,6 +61,12 @@ const intervalUnitOptions = computed(() => [
   { label: t('jobs.intervalMinutes'), value: 'm' },
   { label: t('jobs.intervalHours'), value: 'h' },
   { label: t('jobs.intervalDays'), value: 'd' },
+])
+
+const stateOptions = computed(() => [
+  { label: t('jobs.stateScheduled'), value: 'scheduled' },
+  { label: t('jobs.statePaused'), value: 'paused' },
+  { label: t('jobs.stateCompleted'), value: 'completed' },
 ])
 
 const schedulePresets = computed(() => [
@@ -177,6 +184,7 @@ onMounted(async () => {
         provider: job.provider || '',
         model: job.model || '',
         base_url: job.base_url || '',
+        state: job.state === 'completed' || job.state === 'paused' ? job.state : 'scheduled',
         enabled: job.enabled,
         paused_reason: job.paused_reason || '',
       }
@@ -225,7 +233,8 @@ async function handleSave() {
       no_agent: formData.value.no_agent,
       context_from: contextFrom,
       enabled_toolsets: enabledToolsets,
-      enabled: formData.value.enabled,
+      enabled: formData.value.state === 'scheduled',
+      state: formData.value.state === 'scheduled' ? 'active' : formData.value.state,
       paused_reason: formData.value.paused_reason.trim() || undefined,
     }
     const nullableFields = [
@@ -411,15 +420,18 @@ function handlePresetChange(value: string) {
         </NFormItem>
       </div>
 
-      <div class="form-grid">
-        <NFormItem :label="t('jobs.enabled')">
-          <NSwitch v-model:value="formData.enabled" />
+      <div v-if="isEdit" class="form-grid">
+        <NFormItem :label="t('jobs.state')">
+          <NSelect
+            v-model:value="formData.state"
+            :options="stateOptions"
+          />
         </NFormItem>
 
         <NFormItem :label="t('jobs.pausedReason')">
           <NInput
             v-model:value="formData.paused_reason"
-            :disabled="formData.enabled"
+            :disabled="formData.state !== 'paused'"
             :placeholder="t('jobs.pausedReasonPlaceholder')"
             maxlength="300"
             show-count

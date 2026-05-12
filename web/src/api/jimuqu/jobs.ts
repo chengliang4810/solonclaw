@@ -170,6 +170,9 @@ export interface UpdateJobRequest {
   skill?: string
   repeat?: number | null
   enabled?: boolean
+  state?: string
+  status?: string
+  paused_reason?: string | null
   wrap_response?: boolean
   script?: string | null
   workdir?: string | null
@@ -366,6 +369,9 @@ export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<
       skill: data.skill,
       repeat: data.repeat,
       enabled: data.enabled,
+      state: data.state,
+      status: data.status,
+      paused_reason: data.paused_reason,
       wrap_response: data.wrap_response,
       script: data.script,
       workdir: data.workdir,
