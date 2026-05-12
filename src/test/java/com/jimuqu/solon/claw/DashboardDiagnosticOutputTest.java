@@ -209,6 +209,9 @@ public class DashboardDiagnosticOutputTest {
 
         Map<String, Object> policy = (Map<String, Object>) result.get("policy");
         Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        assertThat(coverage.get("privateUrlPolicy")).isEqualTo(Boolean.TRUE);
+        assertThat(coverage.get("mcpPackageSecurity")).isEqualTo(Boolean.TRUE);
+        assertThat(coverage.get("mcpPackageSecurityPolicy")).isInstanceOf(Map.class);
         assertThat(coverage.get("toolResultStorage")).isEqualTo(Boolean.TRUE);
         Map<String, Object> storagePolicy =
                 (Map<String, Object>) coverage.get("toolResultStoragePolicy");
@@ -221,7 +224,10 @@ public class DashboardDiagnosticOutputTest {
                 .contains("previewRedacted")
                 .doesNotContain("dashboard-security-audit-results")
                 .doesNotContain("tool-result-secret");
-        assertThat(policy.get("activeSurfaces").toString()).contains("toolResultStorage");
+        assertThat(policy.get("activeSurfaces").toString())
+                .contains("privateUrlPolicy")
+                .contains("mcpPackageSecurity")
+                .contains("toolResultStorage");
     }
 
     @Test
