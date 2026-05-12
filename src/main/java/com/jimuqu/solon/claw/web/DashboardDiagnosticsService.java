@@ -2482,6 +2482,26 @@ public class DashboardDiagnosticsService {
                         "git config --global https.proxy http://169.254.169.254:8080"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_winhttp_proxy_policy",
+                        "Windows winhttp 代理 URL 前置策略检查",
+                        "netsh winhttp set proxy proxy-server=169.254.169.254:8080 bypass-list=example.com"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_winhttp_bypass_policy",
+                        "Windows winhttp 代理绕过 URL 前置策略检查",
+                        "netsh winhttp set proxy proxy-server=proxy.example:8080 bypass-list=localhost"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_macos_web_proxy_policy",
+                        "macOS Web 代理 URL 前置策略检查",
+                        "networksetup -setwebproxy Wi-Fi 169.254.169.254 8080"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_macos_socks_proxy_policy",
+                        "macOS SOCKS 代理 URL 前置策略检查",
+                        "networksetup -setsocksfirewallproxy Wi-Fi metadata.google.internal 1080"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_package_proxy_bypass_policy",
                         "包管理器代理绕过 URL 前置策略检查",
                         "PNPM_CONFIG_NOPROXY=metadata.google.internal pnpm install"));

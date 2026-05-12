@@ -344,6 +344,14 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_proxy_bypass_policy");
         Map<String, Object> commandPersistentProxyPolicy =
                 findProbe(items, "command_persistent_proxy_policy");
+        Map<String, Object> commandWinhttpProxyPolicy =
+                findProbe(items, "command_winhttp_proxy_policy");
+        Map<String, Object> commandWinhttpBypassPolicy =
+                findProbe(items, "command_winhttp_bypass_policy");
+        Map<String, Object> commandMacosWebProxyPolicy =
+                findProbe(items, "command_macos_web_proxy_policy");
+        Map<String, Object> commandMacosSocksProxyPolicy =
+                findProbe(items, "command_macos_socks_proxy_policy");
         Map<String, Object> commandPackageProxyBypassPolicy =
                 findProbe(items, "command_package_proxy_bypass_policy");
         Map<String, Object> commandPackagePersistentProxyPolicy =
@@ -605,6 +613,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandPersistentProxyPolicy))
                 .contains("git config")
                 .contains("169.254.169.254");
+        assertThat(commandWinhttpProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWinhttpProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWinhttpProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWinhttpProxyPolicy))
+                .contains("winhttp")
+                .contains("169.254.169.254");
+        assertThat(commandWinhttpBypassPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWinhttpBypassPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWinhttpBypassPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWinhttpBypassPolicy))
+                .contains("bypass-list")
+                .contains("localhost");
+        assertThat(commandMacosWebProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandMacosWebProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandMacosWebProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandMacosWebProxyPolicy))
+                .contains("networksetup")
+                .contains("169.254.169.254");
+        assertThat(commandMacosSocksProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandMacosSocksProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandMacosSocksProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandMacosSocksProxyPolicy))
+                .contains("setsocksfirewallproxy")
+                .contains("metadata.google.internal");
         assertThat(commandPackageProxyBypassPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandPackageProxyBypassPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPackageProxyBypassPolicy.get("skipped")).isNull();
