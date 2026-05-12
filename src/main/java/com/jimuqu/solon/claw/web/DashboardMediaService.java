@@ -79,10 +79,14 @@ public class DashboardMediaService {
             statement.setString(3, read(body, "chatId"));
             statement.setString(4, read(body, "messageId"));
             statement.setString(5, read(body, "kind"));
-            statement.setString(6, StrUtil.blankToDefault(read(body, "originalName"), file.getName()));
+            statement.setString(
+                    6,
+                    SecretRedactor.redact(
+                            StrUtil.blankToDefault(read(body, "originalName"), file.getName()),
+                            400));
             statement.setString(7, read(body, "mimeType"));
             statement.setString(8, file.getAbsolutePath());
-            statement.setString(9, read(body, "remoteId"));
+            statement.setString(9, SecretRedactor.redact(read(body, "remoteId"), 400));
             statement.setString(10, "cached");
             statement.setString(11, null);
             statement.setLong(12, file.length());
@@ -175,11 +179,11 @@ public class DashboardMediaService {
         map.put("chat_id", resultSet.getString("chat_id"));
         map.put("message_id", resultSet.getString("message_id"));
         map.put("kind", resultSet.getString("kind"));
-        map.put("original_name", SecretRedactor.redact(resultSet.getString("original_name"), 400));
+        map.put("original_name", resultSet.getString("original_name"));
         map.put("mime_type", resultSet.getString("mime_type"));
         map.put("local_path", mediaReference(FileUtil.file(resultSet.getString("local_path"))));
         map.put("reference", map.get("local_path"));
-        map.put("remote_id", SecretRedactor.redact(resultSet.getString("remote_id"), 400));
+        map.put("remote_id", resultSet.getString("remote_id"));
         map.put("status", resultSet.getString("status"));
         map.put("error", SecretRedactor.redact(resultSet.getString("error"), 1000));
         map.put("size_bytes", resultSet.getLong("size_bytes"));
