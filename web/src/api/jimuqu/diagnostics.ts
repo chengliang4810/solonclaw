@@ -10,6 +10,7 @@ export interface Diagnostics {
     approvals?: Record<string, unknown>
     policy?: Record<string, unknown>
     terminal?: Record<string, unknown>
+    audit_policy?: Record<string, unknown>
     probes?: {
       available?: boolean
       count?: number

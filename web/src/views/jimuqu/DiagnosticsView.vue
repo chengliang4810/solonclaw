@@ -58,15 +58,18 @@ const resolvingConfirmKey = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
+const securityAuditPolicy = computed<Record<string, unknown>>(() => diagnostics.value?.security?.audit_policy || {})
 const securityProbes = computed<SecurityPolicyProbe[]>(() => diagnostics.value?.security?.probes?.items || [])
 const securityProbePassed = computed(() => diagnostics.value?.security?.probes?.passed)
 const securityCoverage = computed<Record<string, unknown>>(() => {
   const policy = policyAuditResult.value?.policy as Record<string, unknown> | undefined
-  return (policy?.coverage as Record<string, unknown> | undefined) || {}
+  const coverage = objectValue(policy?.coverage)
+  if (Object.keys(coverage).length > 0) return coverage
+  return objectValue(securityAuditPolicy.value.coverage)
 })
 const securitySurfaces = computed<string[]>(() => {
   const policy = policyAuditResult.value?.policy as Record<string, unknown> | undefined
-  const surfaces = policy?.activeSurfaces
+  const surfaces = policy?.activeSurfaces || securityAuditPolicy.value.activeSurfaces
   return Array.isArray(surfaces) ? surfaces.map((item) => String(item)) : []
 })
 type SecurityMetric = {
@@ -88,6 +91,7 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const pathPolicy = objectValue(policy.path_policy)
   const credentialPolicy = objectValue(policy.credential_policy)
   const toolArgsPolicy = objectValue(policy.tool_args_policy)
+  const readOnlyAuditPolicy = objectValue(securityCoverage.value.readOnlyAuditPolicy)
   const approvalPolicy = objectValue(securityApprovals.value.approval_policy)
   const hardlinePolicy = objectValue(securityApprovals.value.hardline_policy)
   const cronApprovalPolicy = objectValue(securityApprovals.value.cron_approval_policy)
@@ -209,6 +213,24 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
         metric('MCP 重载需确认', mcpReloadPolicy.confirmRequired),
         metric('确认由 Slash 承载', mcpReloadPolicy.slashConfirmBacked),
         metric('OAuth URL 安全覆盖', mcpReloadPolicy.oauthUrlSafetyCovered),
+      ],
+    },
+    {
+      title: '只读审计工具',
+      items: [
+        metric('工具名', readOnlyAuditPolicy.toolName),
+        metric('不执行命令', readOnlyAuditPolicy.executesCommand, false),
+        metric('不打开网络连接', readOnlyAuditPolicy.opensNetworkConnection, false),
+        metric('不读取目标 URL', readOnlyAuditPolicy.readsTargetUrl, false),
+        metric('不写文件', readOnlyAuditPolicy.writesFile, false),
+        metric('不保存审计输入', readOnlyAuditPolicy.storesAuditInput, false),
+        metric('密文脱敏', readOnlyAuditPolicy.secretRedactionApplied),
+        metric('继承命令策略', readOnlyAuditPolicy.toolArgsCommandPolicyInherited),
+        metric('继承 URL 策略', readOnlyAuditPolicy.toolArgsUrlPolicyInherited),
+        metric('继承路径策略', readOnlyAuditPolicy.toolArgsPathPolicyInherited),
+        metric('JSON 错误脱敏', readOnlyAuditPolicy.toolArgsJsonParseErrorsRedacted),
+        metric('命令预览上限', readOnlyAuditPolicy.commandPreviewLimitChars),
+        metric('发现消息上限', readOnlyAuditPolicy.findingMessageLimitChars),
       ],
     },
     {
