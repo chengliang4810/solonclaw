@@ -53,6 +53,9 @@ const intervalUnit = ref<'m' | 'h' | 'd'>('m')
 const deliveryMode = ref<DeliveryMode>('local')
 const deliveryPlatform = ref('feishu')
 const deliveryMultiText = ref('')
+const skillEditMode = ref<'replace' | 'merge' | 'clear'>('replace')
+const addSkillsText = ref('')
+const removeSkillsText = ref('')
 
 const isEdit = computed(() => !!props.jobId)
 
@@ -89,6 +92,12 @@ const deliveryPlatformOptions = computed(() => [
   { label: t('jobs.platformWeixin'), value: 'weixin' },
   { label: t('jobs.platformQqbot'), value: 'qqbot' },
   { label: t('jobs.platformYuanbao'), value: 'yuanbao' },
+])
+
+const skillEditModeOptions = computed(() => [
+  { label: t('jobs.skillEditReplace'), value: 'replace' },
+  { label: t('jobs.skillEditMerge'), value: 'merge' },
+  { label: t('jobs.skillEditClear'), value: 'clear' },
 ])
 
 const schedulePresets = computed(() => [
@@ -303,6 +312,9 @@ onMounted(async () => {
       }
       inferDeliveryControls(job.deliver, job.deliver_chat_id, job.deliver_thread_id, job.origin?.platform)
       inferScheduleControls(job.schedule, job.schedule_display || '')
+      skillEditMode.value = 'replace'
+      addSkillsText.value = ''
+      removeSkillsText.value = ''
     } catch (e: any) {
       message.error(t('jobs.loadFailed') + ': ' + e.message)
     }
@@ -355,6 +367,14 @@ async function handleSave() {
       enabled: formData.value.state === 'scheduled',
       state: formData.value.state === 'scheduled' ? 'active' : formData.value.state,
       paused_reason: formData.value.paused_reason.trim() || undefined,
+    }
+    if (isEdit.value && skillEditMode.value === 'merge') {
+      delete payload.skills
+      payload.add_skills = splitCsv(addSkillsText.value)
+      payload.remove_skills = splitCsv(removeSkillsText.value)
+    } else if (isEdit.value && skillEditMode.value === 'clear') {
+      delete payload.skills
+      payload.clear_skills = true
     }
     const nullableFields = [
       ['script', formData.value.script],
@@ -481,13 +501,51 @@ function handlePresetChange(value: string) {
       </div>
 
       <div class="form-grid">
-        <NFormItem :label="t('jobs.skills')">
+        <NFormItem v-if="isEdit" :label="t('jobs.skillEditMode')">
+          <NSelect
+            v-model:value="skillEditMode"
+            :options="skillEditModeOptions"
+          />
+        </NFormItem>
+
+        <NFormItem
+          v-if="!isEdit || skillEditMode === 'replace'"
+          :label="t('jobs.skills')"
+        >
           <NInput
             v-model:value="formData.skills_text"
             :placeholder="t('jobs.skillsPlaceholder')"
           />
         </NFormItem>
 
+        <template v-if="isEdit && skillEditMode === 'merge'">
+          <NFormItem :label="t('jobs.addSkills')">
+            <NInput
+              v-model:value="addSkillsText"
+              :placeholder="t('jobs.addSkillsPlaceholder')"
+            />
+          </NFormItem>
+
+          <NFormItem :label="t('jobs.removeSkills')">
+            <NInput
+              v-model:value="removeSkillsText"
+              :placeholder="t('jobs.removeSkillsPlaceholder')"
+            />
+          </NFormItem>
+        </template>
+
+        <NFormItem
+          v-if="isEdit && skillEditMode === 'clear'"
+          :label="t('jobs.skills')"
+        >
+          <NInput
+            :value="t('jobs.clearSkillsNotice')"
+            readonly
+          />
+        </NFormItem>
+      </div>
+
+      <div class="form-grid">
         <NFormItem :label="t('jobs.deliveryMode')">
           <NSelect
             v-model:value="deliveryMode"
