@@ -2975,6 +2975,16 @@ public class DashboardDiagnosticsService {
                         "printf probe > /usr/local/sbin/probe"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_private_etc_write",
+                        "命令私有配置目录写入检查",
+                        "printf probe > /private/etc/probe.conf"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_private_var_write",
+                        "命令私有运行目录写入检查",
+                        "printf probe > /private/var/db/probe"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_windows_system_write",
                         "命令 Windows 系统目录写入检查",
                         "Set-Content C:/Windows/System32/drivers/etc/hosts '127.0.0.1 blocked.example'"));

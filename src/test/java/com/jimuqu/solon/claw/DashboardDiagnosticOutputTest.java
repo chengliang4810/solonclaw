@@ -517,6 +517,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_usr_local_bin_write");
         Map<String, Object> commandUsrLocalSbinWrite =
                 findProbe(items, "command_usr_local_sbin_write");
+        Map<String, Object> commandPrivateEtcWrite =
+                findProbe(items, "command_private_etc_write");
+        Map<String, Object> commandPrivateVarWrite =
+                findProbe(items, "command_private_var_write");
         Map<String, Object> commandWindowsSystemWrite =
                 findProbe(items, "command_windows_system_write");
         Map<String, Object> commandDevicePathRead =
@@ -1304,6 +1308,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandUsrLocalSbinWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("/usr/local/sbin/probe");
+        assertThat(commandPrivateEtcWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPrivateEtcWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPrivateEtcWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPrivateEtcWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/private/etc/probe.conf");
+        assertThat(commandPrivateVarWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPrivateVarWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPrivateVarWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPrivateVarWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/private/var/db/probe");
         assertThat(commandWindowsSystemWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandWindowsSystemWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandWindowsSystemWrite.get("skipped")).isNull();
