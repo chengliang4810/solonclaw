@@ -3207,6 +3207,41 @@ public class DashboardDiagnosticsService {
                         "pyperclip.copy(open('.env').read())",
                         "python_credential_file_clipboard_export"));
         items.add(
+                approvalDetectionProbe(
+                        "host_firewall_disable",
+                        "主机防火墙关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "ufw disable",
+                        "linux_disable_firewall"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_mac_policy_disable",
+                        "主机强制访问控制关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "setenforce 0",
+                        "linux_disable_mac_policy"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_service_control",
+                        "主机服务控制审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "systemctl stop sshd",
+                        "stop_service"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_cron_change",
+                        "主机 Cron 持久化变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "crontab -e",
+                        "unix_cron_persistence_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_admin_group_change",
+                        "主机管理员组变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "usermod -aG sudo deploy",
+                        "local_admin_permission_change"));
+        items.add(
                 codeExecutionSandboxProbe(
                         "code_execution_sandbox",
                         "代码执行沙箱安全检查"));
