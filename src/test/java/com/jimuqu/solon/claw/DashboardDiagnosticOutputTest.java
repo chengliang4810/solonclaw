@@ -368,6 +368,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_bare_packed_ipv4_metadata");
         Map<String, Object> commandBareHexIpv4Metadata =
                 findProbe(items, "command_bare_hex_ipv4_metadata");
+        Map<String, Object> commandBareIpv6MappedMetadata =
+                findProbe(items, "command_bare_ipv6_mapped_metadata");
+        Map<String, Object> commandBareIpv6ExpandedMetadata =
+                findProbe(items, "command_bare_ipv6_expanded_metadata");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
@@ -653,6 +657,16 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandBareHexIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandBareHexIpv4Metadata.get("skipped")).isNull();
         assertThat(String.valueOf(commandBareHexIpv4Metadata)).contains("0xa9fea9fe");
+        assertThat(commandBareIpv6MappedMetadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBareIpv6MappedMetadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBareIpv6MappedMetadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandBareIpv6MappedMetadata))
+                .contains("::ffff:169.254.169.254");
+        assertThat(commandBareIpv6ExpandedMetadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBareIpv6ExpandedMetadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBareIpv6ExpandedMetadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandBareIpv6ExpandedMetadata))
+                .contains("0:0:0:0:0:ffff:a9fe:a9fe");
         assertThat(schemaSanitizer.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);

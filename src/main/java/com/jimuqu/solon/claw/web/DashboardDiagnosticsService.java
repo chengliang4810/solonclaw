@@ -2546,6 +2546,16 @@ public class DashboardDiagnosticsService {
                         "命令裸十六进制元数据地址阻断",
                         "curl 0xa9fea9fe"));
         items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_bare_ipv6_mapped_metadata",
+                        "命令裸 IPv4 映射 IPv6 元数据地址阻断",
+                        "curl [::ffff:169.254.169.254]"));
+        items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_bare_ipv6_expanded_metadata",
+                        "命令裸展开 IPv6 元数据地址阻断",
+                        "curl [0:0:0:0:0:ffff:a9fe:a9fe]"));
+        items.add(
                 schemaSanitizerProbe(
                         "schema_sanitizer",
                         "工具 Schema 安全清洗"));
