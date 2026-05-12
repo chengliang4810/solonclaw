@@ -39,6 +39,8 @@ const formData = ref({
   provider: '',
   model: '',
   base_url: '',
+  enabled: true,
+  paused_reason: '',
 })
 
 const presetValue = ref<string | null>(null)
@@ -175,6 +177,8 @@ onMounted(async () => {
         provider: job.provider || '',
         model: job.model || '',
         base_url: job.base_url || '',
+        enabled: job.enabled,
+        paused_reason: job.paused_reason || '',
       }
       inferScheduleControls(job.schedule, job.schedule_display || '')
     } catch (e: any) {
@@ -221,6 +225,8 @@ async function handleSave() {
       no_agent: formData.value.no_agent,
       context_from: contextFrom,
       enabled_toolsets: enabledToolsets,
+      enabled: formData.value.enabled,
+      paused_reason: formData.value.paused_reason.trim() || undefined,
     }
     const nullableFields = [
       ['script', formData.value.script],
@@ -230,6 +236,7 @@ async function handleSave() {
       ['base_url', formData.value.base_url],
       ['deliver_chat_id', formData.value.deliver_chat_id],
       ['deliver_thread_id', formData.value.deliver_thread_id],
+      ['paused_reason', formData.value.paused_reason],
     ]
     for (const [key, raw] of nullableFields) {
       const value = String(raw).trim()
@@ -401,6 +408,22 @@ function handlePresetChange(value: string) {
 
         <NFormItem :label="t('jobs.wrapResponse')">
           <NSwitch v-model:value="formData.wrap_response" />
+        </NFormItem>
+      </div>
+
+      <div class="form-grid">
+        <NFormItem :label="t('jobs.enabled')">
+          <NSwitch v-model:value="formData.enabled" />
+        </NFormItem>
+
+        <NFormItem :label="t('jobs.pausedReason')">
+          <NInput
+            v-model:value="formData.paused_reason"
+            :disabled="formData.enabled"
+            :placeholder="t('jobs.pausedReasonPlaceholder')"
+            maxlength="300"
+            show-count
+          />
         </NFormItem>
       </div>
 
