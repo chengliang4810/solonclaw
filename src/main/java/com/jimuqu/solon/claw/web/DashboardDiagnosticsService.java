@@ -2369,6 +2369,16 @@ public class DashboardDiagnosticsService {
                         "curl http://169.254.169.254/latest/user-data"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_websocket_url_policy",
+                        "命令 WebSocket URL 前置策略检查",
+                        "websocat wss://169.254.169.254/latest"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_userinfo_url_policy",
+                        "命令 userinfo URL 前置策略检查",
+                        "curl https://alice:dashboard-password@example.test/private"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_preproxy_url_policy",
                         "命令 preproxy URL 前置策略检查",
                         "curl --preproxy socks5://127.0.0.1:1080 https://example.test"));

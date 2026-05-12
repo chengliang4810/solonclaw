@@ -309,6 +309,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
+        Map<String, Object> commandWebsocketUrlPolicy =
+                findProbe(items, "command_websocket_url_policy");
+        Map<String, Object> commandUserinfoUrlPolicy =
+                findProbe(items, "command_userinfo_url_policy");
         Map<String, Object> commandPreproxyUrlPolicy =
                 findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandProxyEnvPolicy =
@@ -446,6 +450,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("skipped")).isNull();
+        assertThat(commandWebsocketUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWebsocketUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWebsocketUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWebsocketUrlPolicy))
+                .contains("websocat")
+                .contains("169.254.169.254");
+        assertThat(commandUserinfoUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUserinfoUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUserinfoUrlPolicy))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("dashboard-password");
         assertThat(commandPreproxyUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("skipped")).isNull();
