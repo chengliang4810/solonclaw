@@ -853,6 +853,12 @@ public final class TerminalSecurityPolicyView {
                 .append(value(cron, "dangerousPatternCheckedBeforeRun"))
                 .append(" hardlineBlocked=")
                 .append(value(cron, "hardlineAlwaysBlocked"))
+                .append(" file=")
+                .append(value(cron, "filePolicyPrechecked"))
+                .append(" url=")
+                .append(value(cron, "urlPolicyPrechecked"))
+                .append(" terminal=")
+                .append(value(cron, "terminalGuardrailPrechecked"))
                 .append(" scriptChecked=")
                 .append(value(cron, "scriptContentChecked"));
         buffer.append('\n')

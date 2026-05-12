@@ -284,6 +284,9 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security cron-approvals"))
                 .contains("Cron 审批策略摘要")
                 .contains("hardlineBlocked=true")
+                .contains("file=true")
+                .contains("url=true")
+                .contains("terminal=true")
                 .contains("scriptChecked=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security subagent-approvals"))
                 .contains("子 Agent 审批策略摘要")
