@@ -533,6 +533,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_windows_env_windir_write");
         Map<String, Object> commandWindowsPercentWindirWrite =
                 findProbe(items, "command_windows_percent_windir_write");
+        Map<String, Object> commandWindowsEnvProgramFilesWrite =
+                findProbe(items, "command_windows_env_program_files_write");
+        Map<String, Object> commandWindowsPercentProgramFilesWrite =
+                findProbe(items, "command_windows_percent_program_files_write");
         Map<String, Object> commandDevicePathRead =
                 findProbe(items, "command_device_path_read");
         Map<String, Object> commandRawBlockDeviceWrite =
@@ -1366,6 +1370,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandWindowsPercentWindirWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("%windir%/System32/probe.txt");
+        assertThat(commandWindowsEnvProgramFilesWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsEnvProgramFilesWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsEnvProgramFilesWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWindowsEnvProgramFilesWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("$env:ProgramFiles/Probe/probe.txt");
+        assertThat(commandWindowsPercentProgramFilesWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsPercentProgramFilesWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsPercentProgramFilesWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWindowsPercentProgramFilesWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("%ProgramFiles%/Probe/probe.txt");
         assertThat(commandDevicePathRead.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandDevicePathRead.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandDevicePathRead.get("skipped")).isNull();
