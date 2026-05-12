@@ -925,14 +925,40 @@ public final class TerminalSecurityPolicyView {
         appendUrlLine(buffer, url);
         buffer.append('\n')
                 .append("- 允许 scheme：")
-                .append(value(url, "allowedNetworkSchemes"));
+                .append(value(url, "allowedNetworkSchemes"))
+                .append(" unsupportedBlocked=")
+                .append(value(url, "unsupportedNetworkSchemeBlocked"));
+        buffer.append('\n')
+                .append("- URL 解析：protocolRelative=")
+                .append(value(url, "protocolRelativeUrlChecked"))
+                .append(" schemelessHost=")
+                .append(value(url, "schemelessHostChecked"))
+                .append(" percentHost=")
+                .append(value(url, "percentEncodedHostChecked"))
+                .append(" idn=")
+                .append(value(url, "idnHostNormalized"));
         buffer.append('\n')
                 .append("- 敏感参数：encoded=")
                 .append(value(url, "encodedSensitiveQueryBlocked"))
                 .append(" repeated=")
                 .append(value(url, "repeatedEncodedSensitiveQueryBlocked"))
                 .append(" semicolon=")
-                .append(value(url, "semicolonSensitiveQueryBlocked"));
+                .append(value(url, "semicolonSensitiveQueryBlocked"))
+                .append(" fragment=")
+                .append(value(url, "fragmentSensitiveQueryBlocked"))
+                .append(" userinfo=")
+                .append(value(url, "userinfoBlocked"))
+                .append(" pathCredential=")
+                .append(value(url, "sensitivePathCredentialBlocked"));
+        buffer.append('\n')
+                .append("- 系统网络：dns=")
+                .append(value(url, "systemDnsCommandChecked"))
+                .append(" proxy=")
+                .append(value(url, "systemProxyCommandChecked"))
+                .append(" gitProxy=")
+                .append(value(url, "gitPersistentProxyConfigChecked"))
+                .append(" packageProxy=")
+                .append(value(url, "packageManagerPersistentProxyConfigChecked"));
         return buffer.toString();
     }
 
@@ -958,7 +984,16 @@ public final class TerminalSecurityPolicyView {
                 .append(" linkLocal=")
                 .append(value(url, "linkLocalBlocked"))
                 .append(" siteLocal=")
-                .append(value(url, "siteLocalBlocked"));
+                .append(value(url, "siteLocalBlocked"))
+                .append(" multicast=")
+                .append(value(url, "multicastBlocked"))
+                .append(" documentation=")
+                .append(value(url, "reservedDocumentationRangesBlocked"));
+        buffer.append('\n')
+                .append("- 样例：trustedPrivateHosts=")
+                .append(value(url, "trustedPrivateIpHostSamples"))
+                .append(" blockedHosts=")
+                .append(value(url, "alwaysBlockedHostSamples"));
         return buffer.toString();
     }
 

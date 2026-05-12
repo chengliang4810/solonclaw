@@ -127,11 +127,19 @@ public class CliShellTipsTest {
                 .contains("/security process");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")
-                .contains("unsupportedSchemeBlocked");
+                .contains("unsupportedSchemeBlocked")
+                .contains("protocolRelative=true")
+                .contains("userinfo=true")
+                .contains("fragment=true")
+                .contains("pathCredential=true")
+                .contains("packageProxy=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security private-urls"))
                 .contains("私有 URL 安全策略摘要")
                 .contains("metadataAlwaysBlocked")
-                .contains("loopback");
+                .contains("loopback")
+                .contains("multicast=true")
+                .contains("documentation=true")
+                .contains("trustedPrivateHosts=");
         assertThat(TerminalSecurityPolicyView.render(null, "/security website"))
                 .contains("网站策略摘要")
                 .contains("wildcard")
