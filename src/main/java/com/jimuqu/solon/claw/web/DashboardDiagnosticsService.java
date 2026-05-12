@@ -2276,6 +2276,16 @@ public class DashboardDiagnosticsService {
                         "https://example.test/callback?api_key=sk-dashboard-probe-secret"));
         items.add(
                 urlProbe(
+                        "sensitive_fragment",
+                        "敏感 URL 片段参数阻断",
+                        "https://example.test/callback#access_token=sk-dashboard-fragment-secret"));
+        items.add(
+                urlProbe(
+                        "encoded_sensitive_query",
+                        "编码敏感 URL 参数阻断",
+                        "https://example.test/callback?api%255Fkey=sk-dashboard-encoded-secret"));
+        items.add(
+                urlProbe(
                         "userinfo_url",
                         "URL 用户名密码阻断",
                         "https://user:dashboard-probe-password@example.test/path"));

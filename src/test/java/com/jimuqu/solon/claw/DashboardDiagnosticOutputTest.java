@@ -292,6 +292,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> terminalOutput = findProbe(items, "terminal_output");
         Map<String, Object> backgroundProcessGuard = findProbe(items, "background_process_guard");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
+        Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
+        Map<String, Object> encodedSensitiveQuery = findProbe(items, "encoded_sensitive_query");
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
@@ -350,6 +352,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("skipped")).isNull();
+        assertThat(sensitiveFragment.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveFragment.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveFragment.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveFragment))
+                .contains("access_token=***")
+                .doesNotContain("sk-dashboard-fragment-secret");
+        assertThat(encodedSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedSensitiveQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(encodedSensitiveQuery))
+                .contains("api%255Fkey=***")
+                .doesNotContain("sk-dashboard-encoded-secret");
         assertThat(credentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPath.get("skipped")).isNull();
