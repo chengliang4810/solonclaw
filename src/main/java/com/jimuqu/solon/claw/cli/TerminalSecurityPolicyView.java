@@ -501,6 +501,15 @@ public final class TerminalSecurityPolicyView {
                 .append("- 凭据处理：")
                 .append(value(approval, "credentialHandlingRuleSamples"));
         buffer.append('\n')
+                .append("- 剪贴板凭据：shell=")
+                .append(value(approval, "sensitiveClipboardExportDetection"))
+                .append(" file=")
+                .append(value(approval, "credentialFileClipboardExportDetection"))
+                .append(" python=")
+                .append(value(approval, "pythonCredentialFileClipboardExportDetection"))
+                .append(" js=")
+                .append(value(approval, "javascriptCredentialFileClipboardExportDetection"));
+        buffer.append('\n')
                 .append("- Secret 存储：")
                 .append(value(approval, "secretStoreRuleSamples"));
         return buffer.toString();

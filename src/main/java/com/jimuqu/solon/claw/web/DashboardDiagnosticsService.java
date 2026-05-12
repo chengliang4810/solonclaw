@@ -566,6 +566,10 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "websitePolicyPrechecked");
             copyPolicyValue(summary, safe, "unsafeUrlBlockedBeforeApproval");
             copyPolicyValue(summary, safe, "unsafeUrlApprovalBypassAllowed");
+            copyPolicyValue(summary, safe, "sensitiveClipboardExportDetection");
+            copyPolicyValue(summary, safe, "credentialFileClipboardExportDetection");
+            copyPolicyValue(summary, safe, "pythonCredentialFileClipboardExportDetection");
+            copyPolicyValue(summary, safe, "javascriptCredentialFileClipboardExportDetection");
             copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
             copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
             copyPolicyValue(summary, safe, "alwaysApprovalCount");

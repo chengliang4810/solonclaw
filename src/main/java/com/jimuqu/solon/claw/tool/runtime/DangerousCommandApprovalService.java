@@ -2453,6 +2453,10 @@ public class DangerousCommandApprovalService {
         summary.put("networkCredentialFieldAliasDetection", Boolean.TRUE);
         summary.put("sensitiveHttpHeaderAliasDetection", Boolean.TRUE);
         summary.put("rawCredentialFileUploadDetection", Boolean.TRUE);
+        summary.put("sensitiveClipboardExportDetection", Boolean.TRUE);
+        summary.put("credentialFileClipboardExportDetection", Boolean.TRUE);
+        summary.put("pythonCredentialFileClipboardExportDetection", Boolean.TRUE);
+        summary.put("javascriptCredentialFileClipboardExportDetection", Boolean.TRUE);
         summary.put("codeCredentialFileStdoutDetection", Boolean.TRUE);
         summary.put("codeCredentialFileVariableStdoutDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);

@@ -101,6 +101,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("networkCredentialFieldAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveHttpHeaderAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawCredentialFileUploadDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sensitiveClipboardExportDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialFileClipboardExportDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonCredentialFileClipboardExportDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("javascriptCredentialFileClipboardExportDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeCredentialFileStdoutDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeCredentialFileVariableStdoutDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialDisclosureDetection")).isEqualTo(Boolean.TRUE);

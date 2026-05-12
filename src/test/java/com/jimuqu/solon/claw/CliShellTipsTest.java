@@ -93,6 +93,9 @@ public class CliShellTipsTest {
                 .contains("object_storage_exposure_change")
                 .contains("remote_credential_file_transfer")
                 .contains("sensitive_file_clipboard_export")
+                .contains("剪贴板凭据")
+                .contains("python=true")
+                .contains("js=true")
                 .contains("Secret 存储")
                 .contains("secret_store_destroy")
                 .contains("终端护栏");

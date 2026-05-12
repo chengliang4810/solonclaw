@@ -1477,6 +1477,22 @@ public class ToolRegistryExposureTest {
                 .contains("attachmentPolicy")
                 .contains("terminalAttachmentPathSafety")
                 .contains("readOnlyAuditTool");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("dangerousCommandApprovalPolicy")
+                                .get("pythonCredentialFileClipboardExportDetection")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("dangerousCommandApprovalPolicy")
+                                .get("javascriptCredentialFileClipboardExportDetection")
+                                .getBoolean())
+                .isTrue();
         assertThat(policyStatus.toJson())
                 .doesNotContain("secret-sudo")
                 .doesNotContain("TENOR_API_KEY");
