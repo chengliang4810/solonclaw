@@ -117,6 +117,28 @@ export interface CronPolicy {
   execution: Record<string, unknown>
 }
 
+export interface CronFailure {
+  id?: string
+  job_id?: string
+  name?: string
+  last_status?: string | null
+  last_error?: string | null
+  last_delivery_error?: string | null
+  last_run_at?: string | null
+}
+
+export interface CronStatus {
+  total: number
+  active: number
+  paused: number
+  completed: number
+  due: number
+  include_disabled: boolean
+  limit: number
+  next: Job[]
+  recent_failures: CronFailure[]
+}
+
 export interface CreateJobRequest {
   name: string
   schedule: string
@@ -252,6 +274,27 @@ export async function fetchCronGuide(): Promise<CronGuide> {
 
 export async function fetchCronPolicy(): Promise<CronPolicy> {
   return request<CronPolicy>('/api/cron/jobs/policy')
+}
+
+export async function fetchCronStatus(includeDisabled = true, limit = 5): Promise<CronStatus> {
+  const params = new URLSearchParams({
+    include_disabled: String(includeDisabled),
+    limit: String(limit),
+  })
+  const status = await request<Omit<CronStatus, 'next'> & { next?: DashboardJob[] }>(
+    `/api/cron/jobs/status?${params.toString()}`,
+  )
+  return {
+    total: status.total || 0,
+    active: status.active || 0,
+    paused: status.paused || 0,
+    completed: status.completed || 0,
+    due: status.due || 0,
+    include_disabled: status.include_disabled !== false,
+    limit: status.limit || limit,
+    next: (status.next || []).map(mapJob),
+    recent_failures: status.recent_failures || [],
+  }
 }
 
 export async function getJob(jobId: string): Promise<Job> {

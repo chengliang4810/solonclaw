@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as jobsApi from '@/api/jimuqu/jobs'
-import type { Job, CreateJobRequest, UpdateJobRequest } from '@/api/jimuqu/jobs'
+import type { Job, CreateJobRequest, UpdateJobRequest, CronStatus } from '@/api/jimuqu/jobs'
 
 function matchId(job: Job, id: string): boolean {
   return job.job_id === id || job.id === id
@@ -10,8 +10,10 @@ function matchId(job: Job, id: string): boolean {
 export const useJobsStore = defineStore('jobs', () => {
   const jobs = ref<Job[]>([])
   const upcomingJobs = ref<Job[]>([])
+  const status = ref<CronStatus | null>(null)
   const loading = ref(false)
   const upcomingLoading = ref(false)
+  const statusLoading = ref(false)
 
   async function fetchJobs() {
     loading.value = true
@@ -32,6 +34,17 @@ export const useJobsStore = defineStore('jobs', () => {
       console.error('Failed to fetch upcoming jobs:', err)
     } finally {
       upcomingLoading.value = false
+    }
+  }
+
+  async function fetchStatus(limit = 5) {
+    statusLoading.value = true
+    try {
+      status.value = await jobsApi.fetchCronStatus(true, limit)
+    } catch (err) {
+      console.error('Failed to fetch cron status:', err)
+    } finally {
+      statusLoading.value = false
     }
   }
 
@@ -82,10 +95,13 @@ export const useJobsStore = defineStore('jobs', () => {
   return {
     jobs,
     upcomingJobs,
+    status,
     loading,
     upcomingLoading,
+    statusLoading,
     fetchJobs,
     fetchUpcomingJobs,
+    fetchStatus,
     fetchJob,
     createJob,
     updateJob,

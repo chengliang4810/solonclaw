@@ -18,6 +18,7 @@ const showGuide = ref(false)
 onMounted(() => {
   jobsStore.fetchJobs()
   jobsStore.fetchUpcomingJobs()
+  jobsStore.fetchStatus()
   loadGuide()
   loadPolicy()
 })
@@ -56,11 +57,15 @@ function handleModalClose() {
 async function handleSave() {
   await jobsStore.fetchJobs()
   await jobsStore.fetchUpcomingJobs()
+  await jobsStore.fetchStatus()
   handleModalClose()
 }
 
 async function refreshSchedules() {
-  await jobsStore.fetchUpcomingJobs()
+  await Promise.all([
+    jobsStore.fetchUpcomingJobs(),
+    jobsStore.fetchStatus(),
+  ])
 }
 
 function listText(value?: string[]): string {
@@ -189,6 +194,51 @@ function policyFlags(): string[] {
       </div>
     </section>
 
+    <section v-if="jobsStore.status" class="status-panel">
+      <div class="status-grid">
+        <div class="status-item">
+          <span>总任务</span>
+          <strong>{{ jobsStore.status.total }}</strong>
+        </div>
+        <div class="status-item">
+          <span>活跃</span>
+          <strong>{{ jobsStore.status.active }}</strong>
+        </div>
+        <div class="status-item">
+          <span>暂停</span>
+          <strong>{{ jobsStore.status.paused }}</strong>
+        </div>
+        <div class="status-item">
+          <span>完成</span>
+          <strong>{{ jobsStore.status.completed }}</strong>
+        </div>
+        <div class="status-item due" :class="{ hot: jobsStore.status.due > 0 }">
+          <span>到期</span>
+          <strong>{{ jobsStore.status.due }}</strong>
+        </div>
+      </div>
+      <div class="status-side">
+        <div class="status-list">
+          <span>最近失败</span>
+          <template v-if="jobsStore.status.recent_failures.length">
+            <code v-for="failure in jobsStore.status.recent_failures.slice(0, 3)" :key="failure.job_id || failure.id || failure.name">
+              {{ failure.name || failure.job_id || failure.id }} · {{ failure.last_error || failure.last_delivery_error || failure.last_status }}
+            </code>
+          </template>
+          <code v-else>—</code>
+        </div>
+        <div class="status-list">
+          <span>下次运行</span>
+          <template v-if="jobsStore.status.next.length">
+            <code v-for="job in jobsStore.status.next.slice(0, 3)" :key="job.id">
+              {{ job.name }} · {{ job.next_run_at ? new Date(job.next_run_at).toLocaleString() : '—' }}
+            </code>
+          </template>
+          <code v-else>—</code>
+        </div>
+      </div>
+    </section>
+
     <div class="jobs-content">
       <NSpin :show="jobsStore.loading && jobsStore.jobs.length === 0">
         <JobsPanel @edit="openEditModal" @changed="refreshSchedules" />
@@ -217,6 +267,79 @@ function policyFlags(): string[] {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+.status-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 12px 20px 0;
+  border: 1px solid $border-light;
+  border-radius: $radius-md;
+  background: $bg-card;
+  padding: 12px 14px;
+  flex-shrink: 0;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.status-item {
+  min-width: 0;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  background: $bg-card-hover;
+  padding: 8px 10px;
+
+  span {
+    display: block;
+    color: $text-muted;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  strong {
+    display: block;
+    margin-top: 3px;
+    color: $text-primary;
+    font-size: 18px;
+    line-height: 1.3;
+  }
+
+  &.hot strong {
+    color: $warning;
+  }
+}
+
+.status-side {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.status-list {
+  min-width: 0;
+
+  span {
+    display: block;
+    margin-bottom: 5px;
+    color: $text-muted;
+    font-size: 12px;
+  }
+
+  code {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: $text-secondary;
+    font-family: $font-code;
+    font-size: 12px;
+    line-height: 1.6;
+  }
 }
 
 .guide-panel {
@@ -350,10 +473,16 @@ function policyFlags(): string[] {
 }
 
 @media (max-width: $breakpoint-mobile) {
+  .status-panel,
   .guide-summary,
   .guide-grid,
   .policy-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .status-grid,
+  .status-side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .guide-meta {
