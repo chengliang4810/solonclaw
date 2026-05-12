@@ -252,6 +252,7 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security mcp-package"))
                 .contains("MCP 包安全策略摘要")
                 .contains("launchers=[npx, uvx, pipx]")
+                .contains("env=JIMUQU_OSV_ENDPOINT,OSV_ENDPOINT")
                 .contains("malwarePrefix=MAL-")
                 .contains("npxPackageOption=true")
                 .contains("pypiSourceOption=true")
