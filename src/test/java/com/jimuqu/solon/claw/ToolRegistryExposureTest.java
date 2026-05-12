@@ -326,6 +326,22 @@ public class ToolRegistryExposureTest {
         assertThat(String.valueOf(structuredCommandArgs.get("findings")))
                 .contains("recursive_delete")
                 .contains("request_approval");
+        ONode nestedStructuredCommandArgs =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "execute_shell",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"command\":[\"echo ready\",{\"cmd\":\"rm -rf runtime/cache\"}]}"));
+        assertThat(nestedStructuredCommandArgs.get("decision").getString()).isEqualTo("warn");
+        assertThat(nestedStructuredCommandArgs.get("blocking").getBoolean()).isFalse();
+        assertThat(nestedStructuredCommandArgs.get("approval_required").getBoolean()).isTrue();
+        assertThat(String.valueOf(nestedStructuredCommandArgs.get("findings")))
+                .contains("recursive_delete")
+                .contains("request_approval");
 
         assertThat(policyStatus.get("success").getBoolean()).isTrue();
         assertThat(policyStatus.get("summary").getString()).contains("without exposing secret values");
@@ -1256,6 +1272,7 @@ public class ToolRegistryExposureTest {
         assertThat(readOnlyAuditPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("structuredCommandArgumentsJoined").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("nestedStructuredCommandArgumentsExtracted").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsUrlPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsPathPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean()).isTrue();

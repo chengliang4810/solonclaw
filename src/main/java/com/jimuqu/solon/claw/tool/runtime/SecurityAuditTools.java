@@ -700,6 +700,24 @@ public class SecurityAuditTools {
             return String.valueOf(value);
         }
         StringBuilder buffer = new StringBuilder();
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key =
+                        entry.getKey() == null
+                                ? ""
+                                : String.valueOf(entry.getKey()).trim().toLowerCase(Locale.ROOT);
+                if (COMMAND_ARGUMENT_KEYS.contains(key)) {
+                    appendCommandPart(buffer, entry.getValue());
+                }
+            }
+            if (buffer.length() == 0) {
+                for (Object nested : map.values()) {
+                    appendCommandPart(buffer, nested);
+                }
+            }
+            return buffer.length() == 0 ? null : buffer.toString();
+        }
         if (value instanceof Iterable) {
             for (Object item : (Iterable<?>) value) {
                 appendCommandPart(buffer, item);
@@ -727,6 +745,16 @@ public class SecurityAuditTools {
                     buffer.append(' ');
                 }
                 buffer.append(part);
+            }
+            return;
+        }
+        if (value instanceof Map || value instanceof Iterable || value.getClass().isArray()) {
+            String nested = commandValueToString(value);
+            if (StrUtil.isNotBlank(nested)) {
+                if (buffer.length() > 0) {
+                    buffer.append('\n');
+                }
+                buffer.append(nested);
             }
         }
     }
@@ -918,6 +946,7 @@ public class SecurityAuditTools {
         policy.put("secretRedactionApplied", Boolean.TRUE);
         policy.put("toolArgsCommandPolicyInherited", Boolean.TRUE);
         policy.put("structuredCommandArgumentsJoined", Boolean.TRUE);
+        policy.put("nestedStructuredCommandArgumentsExtracted", Boolean.TRUE);
         policy.put("toolArgsUrlPolicyInherited", Boolean.TRUE);
         policy.put("toolArgsPathPolicyInherited", Boolean.TRUE);
         policy.put("toolArgsJsonParseErrorsRedacted", Boolean.TRUE);
