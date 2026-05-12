@@ -1908,6 +1908,15 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_stop_service");
         assertDangerPattern(
                 env,
+                "Set-Service -Name Spooler -Status Stopped",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "Suspend-Service -Name Spooler",
+                "windows_stop_service");
+        assertDangerPattern(env, "sc pause Spooler", "windows_stop_service");
+        assertDangerPattern(
+                env,
                 "sc.exe config DemoService obj= LocalSystem",
                 "windows_service_privilege_or_recovery_change");
         assertDangerPattern(

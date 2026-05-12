@@ -1566,7 +1566,7 @@ public class DangerousCommandApprovalService {
                                     "windows_stop_service",
                                     "Windows service stopped or disabled",
                                     pattern(
-                                            "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
+                                            "\\b(?:sc(?:\\.exe)?\\s+(?:stop|pause|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|(?:Stop-Service|Suspend-Service)\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*(?:-StartupType\\s+Disabled\\b|-Status\\s+Stopped\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_service_privilege_or_recovery_change",
