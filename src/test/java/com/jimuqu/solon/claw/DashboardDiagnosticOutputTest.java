@@ -301,6 +301,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> subprocessEnvironment = findProbe(items, "subprocess_environment");
         Map<String, Object> toolResultStorage = findProbe(items, "tool_result_storage");
         Map<String, Object> attachmentDownloadUrl = findProbe(items, "attachment_download_url");
+        Map<String, Object> attachmentMediaCache = findProbe(items, "attachment_media_cache");
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
@@ -373,6 +374,12 @@ public class DashboardDiagnosticOutputTest {
                 .contains("169.254.169.254")
                 .contains("token=***")
                 .doesNotContain("dashboard-probe-secret");
+        assertThat(attachmentMediaCache.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentMediaCache.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentMediaCache.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(attachmentMediaCache.get("skipped")).isNull();
+        assertThat(String.valueOf(attachmentMediaCache))
+                .doesNotContain("sk-dashboardattachmentprobe12345");
         assertThat(patchParserPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchParserPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchParserPath.get("skipped")).isNull();

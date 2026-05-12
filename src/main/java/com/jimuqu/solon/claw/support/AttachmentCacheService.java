@@ -486,10 +486,23 @@ public class AttachmentCacheService {
                         .replace(">", "_")
                         .replace("|", "_")
                         .trim();
+        value = removeTraversalDots(value);
         if (value.length() > 120) {
             value = value.substring(0, 120);
         }
         return value.length() == 0 ? "attachment.bin" : value;
+    }
+
+    private static String removeTraversalDots(String value) {
+        String result = StrUtil.nullToEmpty(value);
+        while (result.contains("..")) {
+            result = result.replace("..", "_");
+        }
+        while (result.startsWith(".")) {
+            result = result.substring(1);
+        }
+        result = result.trim();
+        return result.length() == 0 ? "attachment.bin" : result;
     }
 
     private static String safePath(File file) {

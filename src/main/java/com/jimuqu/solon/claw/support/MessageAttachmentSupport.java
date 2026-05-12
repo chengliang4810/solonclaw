@@ -71,7 +71,8 @@ public final class MessageAttachmentSupport {
 
     private static String safeInline(String text) {
         String value = StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
-        return value.length() > 300 ? value.substring(0, 300) : value;
+        value = value.length() > 300 ? value.substring(0, 300) : value;
+        return SecretRedactor.redact(value, 300);
     }
 
     private static String safeAttachmentName(String name) {

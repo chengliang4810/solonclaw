@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -24,6 +25,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -2338,6 +2340,10 @@ public class DashboardDiagnosticsService {
                         "附件下载 URL 安全检查",
                         "http://169.254.169.254/latest/meta-data/?token=dashboard-probe-secret"));
         items.add(
+                attachmentMediaCacheProbe(
+                        "attachment_media_cache",
+                        "附件媒体缓存安全检查"));
+        items.add(
                 patchParserPathProbe(
                         "patch_parser_path",
                         "补丁解析路径安全检查"));
@@ -2805,6 +2811,76 @@ public class DashboardDiagnosticsService {
                 allowed,
                 SecretRedactor.maskUrl(url),
                 StrUtil.blankToDefault(message, allowed ? "附件下载 URL 未被阻断。" : "附件下载 URL 已被阻断。"));
+    }
+
+    private Map<String, Object> attachmentMediaCacheProbe(String key, String label) {
+        File runtimeHome = null;
+        try {
+            runtimeHome = Files.createTempDirectory("dashboard-media-cache-probe").toFile();
+            AppConfig probeConfig = new AppConfig();
+            probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
+            probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            AttachmentCacheService cacheService = new AttachmentCacheService(probeConfig);
+            String secret = "sk-dashboardattachmentprobe12345";
+            MessageAttachment attachment =
+                    cacheService.cacheBytes(
+                            PlatformType.FEISHU,
+                            "file",
+                            "../token-" + secret + ".txt",
+                            "text/plain",
+                            false,
+                            "API_KEY=" + secret,
+                            "probe".getBytes("UTF-8"));
+            String reference = cacheService.mediaReference(attachment);
+            File resolved = cacheService.resolveMediaReference(reference);
+            boolean traversalBlocked = false;
+            try {
+                cacheService.resolveMediaReference("media://../runtime/config.yml");
+            } catch (IllegalArgumentException expected) {
+                traversalBlocked = true;
+            }
+            GatewayMessage message =
+                    new GatewayMessage(PlatformType.FEISHU, "chat", "user", "附件探针");
+            message.getAttachments().add(attachment);
+            String text = MessageAttachmentSupport.composeEffectiveUserText(message);
+            boolean cachedUnderMedia =
+                    StrUtil.startWith(reference, "media://")
+                            && resolved.getAbsolutePath().replace('\\', '/').contains("/cache/media/");
+            boolean nameSafe =
+                    !StrUtil.contains(attachment.getOriginalName(), "..")
+                            && !StrUtil.contains(attachment.getOriginalName(), "/")
+                            && !StrUtil.contains(attachment.getOriginalName(), "\\")
+                            && !StrUtil.contains(attachment.getOriginalName(), secret);
+            boolean promptSafe =
+                    !StrUtil.contains(text, secret)
+                            && StrUtil.contains(text, "API_KEY=***")
+                            && StrUtil.contains(text, "path://");
+            boolean passed = cachedUnderMedia && traversalBlocked && nameSafe && promptSafe;
+            String messageText =
+                    passed
+                            ? "附件缓存引用限制在媒体目录内，展示名和会话注入文本已脱敏。"
+                            : "附件缓存路径、展示名或会话注入文本安全检查未通过。";
+            return policyProbeItem(
+                    key,
+                    label,
+                    "attachment_media_cache",
+                    true,
+                    passed,
+                    "media://, traversal, originalName, transcribedText",
+                    messageText);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "attachment_media_cache",
+                    true,
+                    false,
+                    "media://, traversal, originalName, transcribedText",
+                    "附件媒体缓存探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        } finally {
+            deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
+        }
     }
 
     private Map<String, Object> patchParserPathProbe(String key, String label) {
