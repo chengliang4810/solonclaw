@@ -3348,6 +3348,12 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("nestedArrayCommandArgumentDetection"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("codeHttpCredentialDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("codeHttpCredentialFileVariableDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("powershellCredentialFileHttpDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(approvalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
@@ -3397,6 +3403,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(coverageApprovalPolicy.get("recursiveStructuredToolArgsDetection"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(coverageApprovalPolicy.get("nestedArrayCommandArgumentDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("codeHttpCredentialDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("codeHttpCredentialFileVariableDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("powershellCredentialFileHttpDisclosureDetection"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(coverageApprovalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")

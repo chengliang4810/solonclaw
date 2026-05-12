@@ -620,6 +620,11 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "javascriptCredentialFileStdoutDetection");
             copyPolicyValue(summary, safe, "javascriptCredentialFileVariableStdoutDetection");
             copyPolicyValue(summary, safe, "javascriptCredentialFileLogWriteDetection");
+            copyPolicyValue(summary, safe, "codeCredentialFileVariableStdoutDetection");
+            copyPolicyValue(summary, safe, "codeHttpCredentialDisclosureDetection");
+            copyPolicyValue(summary, safe, "codeHttpCredentialFileDisclosureDetection");
+            copyPolicyValue(summary, safe, "codeHttpCredentialFileVariableDisclosureDetection");
+            copyPolicyValue(summary, safe, "powershellCredentialFileHttpDisclosureDetection");
             copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
             copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
             copyPolicyValue(summary, safe, "alwaysApprovalCount");
