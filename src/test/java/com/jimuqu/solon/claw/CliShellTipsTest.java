@@ -225,6 +225,11 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-guardrails"))
                 .contains("终端护栏策略摘要")
                 .contains("managedRequired")
+                .contains("PowerShell")
+                .contains("Start-Process")
+                .contains("requiresWait=true")
+                .contains("noNewWindowNotEnough=true")
+                .contains("passThruNotEnough=true")
                 .contains("credentialPath")
                 .contains("systemDns")
                 .contains("systemProxy");
