@@ -713,7 +713,10 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:cp|mv|install)\\b(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + ")(?=[^\\n]*(?:\\s(?:/tmp|/var/tmp|/private/tmp|/dev/shm|public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)))"),
+                                                    + ")(?=[^\\n]*(?:\\s(?:/tmp|/var/tmp|/private/tmp|/dev/shm|public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)))"
+                                                    + "|\\b(?:Copy-Item|copy|xcopy|robocopy)\\b(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")(?=[^\\n]*(?:[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|\\s(?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_http_header_send",

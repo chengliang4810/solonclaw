@@ -3910,7 +3910,11 @@ public class DangerousCommandApprovalServiceTest {
                         "install -m 0644 client_secret.json public/client_secret.json",
                         "cp ~/.config/gcloud/application_default_credentials.json shared/",
                         "mv private-prod.pem downloads/private-prod.pem",
-                        "cp service-account.json /srv/app/uploads/service-account.json");
+                        "cp service-account.json /srv/app/uploads/service-account.json",
+                        "Copy-Item -Path .env -Destination public\\.env",
+                        "copy client_secret.json downloads\\client_secret.json",
+                        "xcopy .npmrc shared\\ /Y",
+                        "robocopy . public .env");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -3931,6 +3935,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "mv report.txt runtime/report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Copy-Item report.txt public\\report.txt"))
                 .isNull();
     }
 
