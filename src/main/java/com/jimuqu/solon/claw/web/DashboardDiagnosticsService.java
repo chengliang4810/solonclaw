@@ -608,6 +608,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "unsafeUrlBlockedBeforeApproval");
             copyPolicyValue(summary, safe, "unsafeUrlApprovalBypassAllowed");
             copyPolicyValue(summary, safe, "configuredCredentialCommandPathDetection");
+            copyPolicyValue(summary, safe, "recursiveStructuredToolArgsDetection");
+            copyPolicyValue(summary, safe, "nestedArrayCommandArgumentDetection");
             copyPolicyValue(summary, safe, "sensitiveClipboardExportDetection");
             copyPolicyValue(summary, safe, "credentialFileClipboardExportDetection");
             copyPolicyValue(summary, safe, "pythonCredentialFileClipboardExportDetection");
