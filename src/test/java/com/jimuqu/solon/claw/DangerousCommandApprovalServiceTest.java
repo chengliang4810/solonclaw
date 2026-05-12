@@ -1859,6 +1859,14 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(env, "Set-MpPreference -PUAProtection 0", "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Set-MpPreference -AttackSurfaceReductionRules_Action Disabled",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -AttackSurfaceReductionRules_Action 0",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
                 "windows_defender_exclusion");
         assertDangerPattern(
