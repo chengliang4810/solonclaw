@@ -24,7 +24,7 @@ public class McpPackageSecurityService {
     private final SecurityPolicyService securityPolicyService;
 
     public McpPackageSecurityService(SkillHubHttpClient httpClient) {
-        this(httpClient, System.getenv("OSV_ENDPOINT"), null);
+        this(httpClient, endpointFromEnvironment(), null);
     }
 
     public McpPackageSecurityService(SkillHubHttpClient httpClient, String endpoint) {
@@ -33,7 +33,7 @@ public class McpPackageSecurityService {
 
     public McpPackageSecurityService(
             SkillHubHttpClient httpClient, SecurityPolicyService securityPolicyService) {
-        this(httpClient, System.getenv("OSV_ENDPOINT"), securityPolicyService);
+        this(httpClient, endpointFromEnvironment(), securityPolicyService);
     }
 
     public McpPackageSecurityService(
@@ -82,7 +82,9 @@ public class McpPackageSecurityService {
         summary.put("supportedEcosystems", java.util.Arrays.asList("npm", "PyPI"));
         summary.put("endpointUrlSafetyChecked", Boolean.valueOf(securityPolicyService != null));
         summary.put("defaultEndpoint", DEFAULT_OSV_ENDPOINT);
-        summary.put("endpointOverrideEnvironment", "OSV_ENDPOINT");
+        summary.put("endpointOverrideEnvironment", "JIMUQU_OSV_ENDPOINT,OSV_ENDPOINT");
+        summary.put("projectEndpointOverrideEnvironment", "JIMUQU_OSV_ENDPOINT");
+        summary.put("legacyEndpointOverrideEnvironment", "OSV_ENDPOINT");
         summary.put("malwareAdvisoryPrefix", "MAL-");
         summary.put("nonMalwareVulnerabilitiesIgnored", Boolean.TRUE);
         summary.put("malwareBlocksSaveAndCheck", Boolean.TRUE);
@@ -102,6 +104,14 @@ public class McpPackageSecurityService {
                 "description",
                 "MCP stdio package launchers are checked against OSV malware advisories before save/check; unsafe OSV endpoints are blocked before network access and advisory messages are redacted.");
         return summary;
+    }
+
+    private static String endpointFromEnvironment() {
+        String projectValue = StrUtil.nullToEmpty(System.getenv("JIMUQU_OSV_ENDPOINT")).trim();
+        if (StrUtil.isNotBlank(projectValue)) {
+            return projectValue;
+        }
+        return System.getenv("OSV_ENDPOINT");
     }
 
     private String inferEcosystem(String command) {

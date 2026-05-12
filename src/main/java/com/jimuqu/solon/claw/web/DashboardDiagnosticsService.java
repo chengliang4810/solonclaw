@@ -969,6 +969,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "supportedEcosystems");
             copyPolicyValue(summary, safe, "endpointUrlSafetyChecked");
             copyPolicyValue(summary, safe, "endpointOverrideEnvironment");
+            copyPolicyValue(summary, safe, "projectEndpointOverrideEnvironment");
+            copyPolicyValue(summary, safe, "legacyEndpointOverrideEnvironment");
             copyPolicyValue(summary, safe, "malwareAdvisoryPrefix");
             copyPolicyValue(summary, safe, "nonMalwareVulnerabilitiesIgnored");
             copyPolicyValue(summary, safe, "malwareBlocksSaveAndCheck");
