@@ -8,6 +8,9 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -197,6 +200,7 @@ public class McpPackageSecurityServiceTest {
         Map<String, Object> saved = service.save(body);
         Map<String, Object> checked = service.check("unsafe-osv-mcp");
         Map<String, Object> listed = service.list();
+        String storedLastError = storedLastError(env, "unsafe-osv-mcp");
 
         assertThat(String.valueOf(saved.get("security"))).contains("token=***");
         assertThat(String.valueOf(saved.get("security"))).contains("reason=unsafe_endpoint");
@@ -204,6 +208,8 @@ public class McpPackageSecurityServiceTest {
         assertThat(String.valueOf(checked.get("security"))).contains("reason=unsafe_endpoint");
         assertThat(String.valueOf(listed.get("servers"))).contains("token=***");
         assertThat(String.valueOf(listed.get("servers"))).contains("reason=unsafe_endpoint");
+        assertThat(storedLastError).contains("token=***");
+        assertThat(storedLastError).doesNotContain("secret-mcp-osv");
         assertThat(String.valueOf(saved)).doesNotContain("secret-mcp-osv");
         assertThat(String.valueOf(checked)).doesNotContain("secret-mcp-osv");
         assertThat(String.valueOf(listed)).doesNotContain("secret-mcp-osv");
@@ -232,6 +238,25 @@ public class McpPackageSecurityServiceTest {
         Map<String, Object> tool = new LinkedHashMap<String, Object>();
         tool.put("name", name);
         return tool;
+    }
+
+    private String storedLastError(TestEnvironment env, String serverId) throws Exception {
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement("select last_error from mcp_servers where server_id = ?");
+            statement.setString(1, serverId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                assertThat(resultSet.next()).isTrue();
+                return resultSet.getString("last_error");
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
     }
 
     private static class FakeOsvHttpClient implements SkillHubHttpClient {

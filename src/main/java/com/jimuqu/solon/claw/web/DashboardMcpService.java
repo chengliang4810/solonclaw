@@ -181,7 +181,8 @@ public class DashboardMcpService {
             statement.setString(11, toolsJson);
             statement.setString(12, previousToolsHash);
             statement.setString(13, previousLastToolsJson);
-            statement.setString(14, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
+            statement.setString(
+                    14, securityVerdict.isAllowed() ? null : safeDisplayError(securityVerdict.getMessage()));
             statement.setInt(15, asBoolean(body.get("enabled"), true) ? 1 : 0);
             statement.setLong(16, createdAt);
             statement.setLong(17, now);
