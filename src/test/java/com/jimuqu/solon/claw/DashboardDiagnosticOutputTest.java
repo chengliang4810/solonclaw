@@ -3391,6 +3391,55 @@ public class DashboardDiagnosticOutputTest {
         assertThat(toolArgsPolicy.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("windowsRegistryProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> readOnlyAuditPolicy =
+                (Map<String, Object>) coverage.get("readOnlyAuditPolicy");
+        assertThat(readOnlyAuditPolicy.get("executesCommand")).isEqualTo(Boolean.FALSE);
+        assertThat(readOnlyAuditPolicy.get("opensNetworkConnection")).isEqualTo(Boolean.FALSE);
+        assertThat(readOnlyAuditPolicy.get("secretRedactionApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited")).isEqualTo(Boolean.TRUE);
+        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> schemaSanitizerPolicy =
+                (Map<String, Object>) coverage.get("schemaSanitizerPolicy");
+        assertThat(schemaSanitizerPolicy.get("inputSchemaSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(schemaSanitizerPolicy.get("mcpInputSchemaSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(schemaSanitizerPolicy.get("patternAndFormatStripped")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> patchParserPolicy =
+                (Map<String, Object>) coverage.get("patchParserPolicy");
+        assertThat(patchParserPolicy.get("atomicValidationBeforeWrite")).isEqualTo(Boolean.TRUE);
+        assertThat(patchParserPolicy.get("noPartialWritesOnValidationFailure")).isEqualTo(Boolean.TRUE);
+        assertThat(patchParserPolicy.get("pathTraversalBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(patchParserPolicy.get("credentialPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> mcpRuntimePolicy =
+                (Map<String, Object>) coverage.get("mcpRuntimePolicy");
+        assertThat(mcpRuntimePolicy.get("remoteEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpRuntimePolicy.get("remoteToolArgumentUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpRuntimePolicy.get("resourceUriPathSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpRuntimePolicy.get("toolsChangeNotificationPersisted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> mcpOAuthPolicy =
+                (Map<String, Object>) coverage.get("mcpOAuthPolicy");
+        assertThat(mcpOAuthPolicy.get("authorizationEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpOAuthPolicy.get("stateValidationRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpOAuthPolicy.get("accessTokenRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> attachmentPolicy =
+                (Map<String, Object>) coverage.get("attachmentPolicy");
+        Map<String, Object> attachmentDownloadPolicy =
+                (Map<String, Object>) attachmentPolicy.get("downloadIo");
+        Map<String, Object> attachmentMediaCachePolicy =
+                (Map<String, Object>) attachmentPolicy.get("mediaCache");
+        Map<String, Object> attachmentTerminalPastePolicy =
+                (Map<String, Object>) attachmentPolicy.get("terminalPaste");
+        assertThat(attachmentDownloadPolicy.get("redirectUrlCheckedBeforeFollow"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentDownloadPolicy.get("crossHostHeaderForwardingBlocked"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentMediaCachePolicy.get("safeOriginalNameSecretRedacted"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentMediaCachePolicy.get("mediaReferenceTraversalBlocked"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPastePolicy.get("pathPolicyCheckedBeforeCache"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPastePolicy.get("rawPathHiddenInPrompt"))
+                .isEqualTo(Boolean.TRUE);
     }
 
     @Test
