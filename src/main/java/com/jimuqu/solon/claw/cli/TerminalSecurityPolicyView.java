@@ -1024,11 +1024,22 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 目录和后缀：directorySegments=")
                 .append(value(credential, "directorySegmentCount"))
+                .append(" directorySamples=")
+                .append(value(credential, "directorySegmentSamples"))
                 .append(" suffixes=")
-                .append(value(credential, "pathSuffixCount"));
+                .append(value(credential, "pathSuffixCount"))
+                .append(" suffixSamples=")
+                .append(value(credential, "pathSuffixSamples"));
+        buffer.append('\n')
+                .append("- Key 文件：extensions=")
+                .append(value(credential, "keyFileExtensionCount"))
+                .append(" markers=")
+                .append(value(credential, "keyFileMarkerCount"));
         buffer.append('\n')
                 .append("- 配置项：configuredFiles=")
                 .append(value(credential, "configuredCredentialFileCount"))
+                .append(" samples=")
+                .append(value(credential, "configuredCredentialFileSamples"))
                 .append(" envExamplesAllowed=")
                 .append(value(credential, "envExampleFilesAllowed"));
         return buffer.toString();

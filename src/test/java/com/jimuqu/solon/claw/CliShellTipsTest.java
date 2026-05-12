@@ -142,7 +142,12 @@ public class CliShellTipsTest {
                 .contains("windowsPrefixDenied");
         assertThat(TerminalSecurityPolicyView.render(null, "/security credentials"))
                 .contains("凭据文件策略摘要")
-                .contains(".env");
+                .contains(".env")
+                .contains(".credentials.json")
+                .contains("Key 文件")
+                .contains("extensions=")
+                .contains("markers=")
+                .contains("envExamplesAllowed=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security skill-credentials"))
                 .contains("技能凭据文件安全策略摘要")
                 .contains("relativeOnly=true")
