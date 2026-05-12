@@ -593,7 +593,7 @@ async function load() {
 }
 
 async function loadPolicyAudit() {
-  policyAuditResult.value = await auditSecurity({ action: 'policy' })
+  policyAuditResult.value = await auditSecurity({ action: 'status' })
 }
 
 async function loadApprovals() {
