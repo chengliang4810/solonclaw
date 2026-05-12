@@ -101,6 +101,7 @@ public class ToolResultStorageService {
         summary.put("resultRefReturned", Boolean.TRUE);
         summary.put("readBackGuidanceIncluded", Boolean.TRUE);
         summary.put("previewRedacted", Boolean.TRUE);
+        summary.put("describedPreviewRedacted", Boolean.TRUE);
         summary.put("persistedOutputRedacted", Boolean.TRUE);
         summary.put("fullOutputSavedRaw", Boolean.FALSE);
         summary.put("pathSegmentsSanitized", Boolean.TRUE);
@@ -120,7 +121,7 @@ public class ToolResultStorageService {
         String content = StrUtil.nullToEmpty(observation);
         StoredResult stored = new StoredResult();
         stored.setObservation(content);
-        stored.setPreview(content);
+        stored.setPreview(safeDescribedPreview(content));
         stored.setSizeBytes(content.getBytes(StandardCharsets.UTF_8).length);
         stored.setTruncated(false);
         if (looksLikePersistedOutputBlock(content)) {
@@ -139,7 +140,7 @@ public class ToolResultStorageService {
                 return stored;
             }
             if (node.hasKey("preview")) {
-                stored.setPreview(node.get("preview").getString());
+                stored.setPreview(safeDescribedPreview(node.get("preview").getString()));
             }
             if (node.hasKey("result_ref")) {
                 stored.setResultRef(safeResultRef(node.get("result_ref").getString()));
@@ -212,8 +213,12 @@ public class ToolResultStorageService {
         }
         String preview = previewFromPersistedOutputBlock(content);
         if (preview != null) {
-            stored.setPreview(preview);
+            stored.setPreview(safeDescribedPreview(preview));
         }
+    }
+
+    private static String safeDescribedPreview(String preview) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(preview), 8000);
     }
 
     private static String lineValue(String content, String prefix) {

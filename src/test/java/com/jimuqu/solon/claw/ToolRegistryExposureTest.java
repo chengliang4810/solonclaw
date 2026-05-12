@@ -1398,6 +1398,7 @@ public class ToolRegistryExposureTest {
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolResultStoragePolicy")))
                 .contains("read_file")
                 .contains("previewRedacted")
+                .contains("describedPreviewRedacted")
                 .contains("persistedOutputRedacted")
                 .contains("pathSegmentsSanitized")
                 .contains(".jimuqu/tool-results")

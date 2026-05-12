@@ -1377,6 +1377,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "resultRefReturned");
             copyPolicyValue(summary, safe, "readBackGuidanceIncluded");
             copyPolicyValue(summary, safe, "previewRedacted");
+            copyPolicyValue(summary, safe, "describedPreviewRedacted");
             copyPolicyValue(summary, safe, "persistedOutputRedacted");
             copyPolicyValue(summary, safe, "fullOutputSavedRaw");
             copyPolicyValue(summary, safe, "pathSegmentsSanitized");

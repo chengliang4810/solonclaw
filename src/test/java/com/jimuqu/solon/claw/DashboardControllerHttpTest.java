@@ -504,6 +504,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"turnBudgetOverflowPersisted\":true")
                 .contains("\"resultRefReturned\":true")
                 .contains("\"previewRedacted\":true")
+                .contains("\"describedPreviewRedacted\":true")
                 .contains("\"persistedOutputRedacted\":true")
                 .contains("\"fullOutputSavedRaw\":false")
                 .contains("\"storageBase\":\"tool-results\"")

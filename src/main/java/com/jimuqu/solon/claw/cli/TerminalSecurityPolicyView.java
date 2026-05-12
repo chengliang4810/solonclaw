@@ -1464,6 +1464,8 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 脱敏：previewRedacted=")
                 .append(value(toolResults, "previewRedacted"))
+                .append(" describedPreviewRedacted=")
+                .append(value(toolResults, "describedPreviewRedacted"))
                 .append(" pinnedPreviewRedacted=")
                 .append(value(toolResults, "pinnedInlinePreviewRedacted"))
                 .append(" persistedRedacted=")

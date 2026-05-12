@@ -36,11 +36,13 @@ public class ToolResultStorageServiceTest {
         assertThat(cacheSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.FALSE);
         assertThat(cacheSummary.get("pinnedInlineRawObservationAllowed")).isEqualTo(Boolean.TRUE);
         assertThat(cacheSummary.get("pinnedInlinePreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("describedPreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(cacheSummary))
                 .contains("file_read")
                 .contains("read_file")
                 .contains("resultRefReturned")
                 .contains("previewRedacted")
+                .contains("describedPreviewRedacted")
                 .contains("persistedOutputRedacted")
                 .contains("tool-results")
                 .doesNotContain(tempDir.getAbsolutePath());
@@ -169,12 +171,14 @@ public class ToolResultStorageServiceTest {
     @Test
     void shouldDescribeLegacyJsonEnvelope() {
         String json =
-                "{\"status\":\"success\",\"success\":true,\"preview\":\"old preview\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old api_key=sk-legacy-preview-secret\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";
 
         ToolResultStorageService.StoredResult described =
                 ToolResultStorageService.describeObservation(json);
 
-        assertThat(described.getPreview()).isEqualTo("old preview");
+        assertThat(described.getPreview())
+                .contains("api_key=***")
+                .doesNotContain("sk-legacy-preview-secret");
         assertThat(described.getResultRef()).isEqualTo("/tmp/result.txt");
         assertThat(described.getSizeBytes()).isEqualTo(42L);
         assertThat(described.isTruncated()).isTrue();
@@ -185,24 +189,24 @@ public class ToolResultStorageServiceTest {
         String sensitivePathRef = "/tmp/output-token=secret123-ghp_1234567890abcdef.txt";
         String encodedQueryRef = "https://example.test/output?api%255Fkey=legacy-result-secret";
         String sensitivePathJson =
-                "{\"status\":\"success\",\"success\":true,\"preview\":\"old preview\",\"result_ref\":\"" + sensitivePathRef
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old token=ghp_previewsecret12345\",\"result_ref\":\"" + sensitivePathRef
                         + "\",\"size\":42,\"truncated\":true}";
         String encodedQueryJson =
-                "{\"status\":\"success\",\"success\":true,\"preview\":\"old preview\",\"result_ref\":\"" + encodedQueryRef
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old token=ghp_previewsecret12345\",\"result_ref\":\"" + encodedQueryRef
                         + "\",\"size\":42,\"truncated\":true}";
         String sensitivePathBlock =
                 "<persisted-output>\n"
                         + "This tool result was too large (42 bytes).\n"
                         + "Full output saved to: " + sensitivePathRef + "\n"
                         + "Preview (first 3 chars):\n"
-                        + "old\n"
+                        + "old token=ghp_previewsecret12345\n"
                         + "</persisted-output>";
         String encodedQueryBlock =
                 "<persisted-output>\n"
                         + "This tool result was too large (42 bytes).\n"
                         + "Full output saved to: " + encodedQueryRef + "\n"
                         + "Preview (first 3 chars):\n"
-                        + "old\n"
+                        + "old token=ghp_previewsecret12345\n"
                         + "</persisted-output>";
 
         ToolResultStorageService.StoredResult sensitivePathJsonDescribed =
@@ -230,6 +234,10 @@ public class ToolResultStorageServiceTest {
                 .doesNotContain("legacy-result-secret")
                 .doesNotContain("secret123")
                 .doesNotContain("ghp_1234567890abcdef");
+        assertThat(sensitivePathJsonDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+        assertThat(sensitivePathBlockDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+        assertThat(encodedQueryJsonDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+        assertThat(encodedQueryBlockDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
     }
 
     @Test
