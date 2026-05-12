@@ -294,6 +294,8 @@ export default {
       contextFrom: '上游任务',
       enabledToolsets: '工具集',
       model: '模型固定',
+      actions: '可用动作',
+      aliases: '动作别名',
       lastResult: '上次结果',
       yes: '是',
       no: '否',

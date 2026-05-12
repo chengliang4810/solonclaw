@@ -291,6 +291,8 @@ export default {
       contextFrom: 'Upstream Jobs',
       enabledToolsets: 'Toolsets',
       model: 'Model Pin',
+      actions: 'Available Actions',
+      aliases: 'Action Aliases',
       lastResult: 'Last Result',
       yes: 'Yes',
       no: 'No',
