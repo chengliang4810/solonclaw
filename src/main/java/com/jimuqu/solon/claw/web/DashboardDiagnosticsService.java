@@ -610,10 +610,14 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "configuredCredentialCommandPathDetection");
             copyPolicyValue(summary, safe, "recursiveStructuredToolArgsDetection");
             copyPolicyValue(summary, safe, "nestedArrayCommandArgumentDetection");
+            copyPolicyValue(summary, safe, "networkCredentialFieldAliasDetection");
+            copyPolicyValue(summary, safe, "sensitiveHttpHeaderAliasDetection");
+            copyPolicyValue(summary, safe, "rawCredentialFileUploadDetection");
             copyPolicyValue(summary, safe, "sensitiveClipboardExportDetection");
             copyPolicyValue(summary, safe, "credentialFileClipboardExportDetection");
             copyPolicyValue(summary, safe, "pythonCredentialFileClipboardExportDetection");
             copyPolicyValue(summary, safe, "javascriptCredentialFileClipboardExportDetection");
+            copyPolicyValue(summary, safe, "codeCredentialFileStdoutDetection");
             copyPolicyValue(summary, safe, "pythonCredentialFileStdoutDetection");
             copyPolicyValue(summary, safe, "pythonCredentialFileVariableStdoutDetection");
             copyPolicyValue(summary, safe, "pythonCredentialFileLogWriteDetection");

@@ -3354,6 +3354,14 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("powershellCredentialFileHttpDisclosureDetection"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("networkCredentialFieldAliasDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("sensitiveHttpHeaderAliasDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("rawCredentialFileUploadDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("codeCredentialFileStdoutDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(approvalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
@@ -3409,6 +3417,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(coverageApprovalPolicy.get("codeHttpCredentialFileVariableDisclosureDetection"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(coverageApprovalPolicy.get("powershellCredentialFileHttpDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("networkCredentialFieldAliasDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("sensitiveHttpHeaderAliasDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("rawCredentialFileUploadDetection"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("codeCredentialFileStdoutDetection"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(coverageApprovalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
