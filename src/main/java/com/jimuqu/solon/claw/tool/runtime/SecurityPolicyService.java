@@ -1166,8 +1166,20 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(path)) {
                 path = localManagementSocketEnvironmentValue(token);
             }
-            if (isLocalManagementSocket(path)) {
-                return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+            if (StrUtil.isBlank(path)) {
+                path = localManagementHostOptionValue(token);
+                if (StrUtil.isBlank(path) && isDetachedLocalManagementHostOption(token) && i + 1 < tokens.size()) {
+                    path = localManagementSocketEnvironmentPath(tokens.get(++i));
+                }
+            }
+            if (StrUtil.isNotBlank(path)) {
+                if (isLocalManagementSocket(path)) {
+                    return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+                }
+                String endpointPipe = localManagementPipeToken(path);
+                if (StrUtil.isNotBlank(endpointPipe)) {
+                    return UrlVerdict.block(endpointPipe, "阻断本地容器/运行时管理命名管道访问：" + endpointPipe);
+                }
             }
             String pipe = localManagementPipeToken(token);
             if (StrUtil.isNotBlank(pipe)) {
@@ -1216,6 +1228,24 @@ public class SecurityPolicyService {
             return value.substring("unix://".length());
         }
         return value;
+    }
+
+    private String localManagementHostOptionValue(String token) {
+        String value = StrUtil.nullToEmpty(token).trim();
+        if (value.regionMatches(true, 0, "--host=", 0, "--host=".length())) {
+            return localManagementSocketEnvironmentPath(value.substring("--host=".length()));
+        }
+        if (value.regionMatches(true, 0, "-H=", 0, "-H=".length())) {
+            return localManagementSocketEnvironmentPath(value.substring("-H=".length()));
+        }
+        if (value.length() > 2 && value.regionMatches(true, 0, "-H", 0, 2)) {
+            return localManagementSocketEnvironmentPath(value.substring(2));
+        }
+        return "";
+    }
+
+    private boolean isDetachedLocalManagementHostOption(String token) {
+        return "-H".equalsIgnoreCase(token) || "--host".equalsIgnoreCase(token);
     }
 
     private boolean isLocalManagementSocket(String rawPath) {

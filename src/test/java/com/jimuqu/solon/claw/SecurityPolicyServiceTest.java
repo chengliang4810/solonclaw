@@ -1715,10 +1715,18 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict powershellPipeEnv =
                 policy.checkCommandUrls(
                         "[Environment]::SetEnvironmentVariable('DOCKER_HOST','npipe:////./pipe/docker_engine')");
+        SecurityPolicyService.UrlVerdict dockerHostOption =
+                policy.checkCommandUrls("docker -H unix:///var/run/docker.sock ps");
+        SecurityPolicyService.UrlVerdict dockerAssignedHostOption =
+                policy.checkCommandUrls("docker --host=unix:///run/docker.sock ps");
+        SecurityPolicyService.UrlVerdict podmanCompactHostOption =
+                policy.checkCommandUrls("podman -Hnpipe:////./pipe/docker_engine ps");
         SecurityPolicyService.UrlVerdict ordinarySocketEnv =
                 policy.checkCommandUrls("DOCKER_HOST=unix://runtime/app.sock docker ps");
         SecurityPolicyService.UrlVerdict ordinaryPowerShellSocketEnv =
                 policy.checkCommandUrls("$env:DOCKER_HOST='unix://runtime/app.sock'; docker ps");
+        SecurityPolicyService.UrlVerdict ordinaryRemoteHostOption =
+                policy.checkCommandUrls("docker -H tcp://builder.example:2376 ps");
 
         assertThat(bidiPath.isAllowed()).isFalse();
         assertThat(bidiPath.getMessage()).contains("命名管道");
@@ -1734,8 +1742,15 @@ public class SecurityPolicyServiceTest {
         assertThat(powershellSocketEnv.getMessage()).contains("管理套接字");
         assertThat(powershellPipeEnv.isAllowed()).isFalse();
         assertThat(powershellPipeEnv.getMessage()).contains("命名管道");
+        assertThat(dockerHostOption.isAllowed()).isFalse();
+        assertThat(dockerHostOption.getMessage()).contains("管理套接字");
+        assertThat(dockerAssignedHostOption.isAllowed()).isFalse();
+        assertThat(dockerAssignedHostOption.getMessage()).contains("管理套接字");
+        assertThat(podmanCompactHostOption.isAllowed()).isFalse();
+        assertThat(podmanCompactHostOption.getMessage()).contains("命名管道");
         assertThat(ordinarySocketEnv.isAllowed()).isTrue();
         assertThat(ordinaryPowerShellSocketEnv.isAllowed()).isTrue();
+        assertThat(ordinaryRemoteHostOption.isAllowed()).isTrue();
     }
 
     @Test
