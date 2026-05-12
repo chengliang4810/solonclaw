@@ -393,6 +393,12 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "file_tool_entity_credential_path");
         Map<String, Object> patchToolCredentialPath =
                 findProbe(items, "patch_tool_credential_path");
+        Map<String, Object> patchToolUnifiedCredentialPath =
+                findProbe(items, "patch_tool_unified_credential_path");
+        Map<String, Object> patchToolMoveCredentialPath =
+                findProbe(items, "patch_tool_move_credential_path");
+        Map<String, Object> patchToolUnifiedAddCredentialPath =
+                findProbe(items, "patch_tool_unified_add_credential_path");
         Map<String, Object> commandDownloadOutputPath =
                 findProbe(items, "command_download_output_path");
         Map<String, Object> commandUploadSourcePath =
@@ -783,8 +789,26 @@ public class DashboardDiagnosticOutputTest {
         assertThat(patchToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolCredentialPath))
-                .contains("Add File")
-                .contains("[REDACTED_PATH]");
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env");
+        assertThat(patchToolUnifiedCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolUnifiedCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolUnifiedCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(patchToolUnifiedCredentialPath))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".ssh/authorized_keys");
+        assertThat(patchToolMoveCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolMoveCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolMoveCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(patchToolMoveCredentialPath))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env.local");
+        assertThat(patchToolUnifiedAddCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolUnifiedAddCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolUnifiedAddCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(patchToolUnifiedAddCredentialPath))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env");
         assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandDownloadOutputPath.get("skipped")).isNull();

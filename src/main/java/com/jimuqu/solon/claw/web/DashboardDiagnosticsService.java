@@ -2611,6 +2611,31 @@ public class DashboardDiagnosticsService {
                                 + "+TOKEN=probe\n"
                                 + "*** End Patch\n"));
         items.add(
+                patchToolPolicyProbe(
+                        "patch_tool_unified_credential_path",
+                        "补丁工具统一 diff 凭据路径检查",
+                        "diff",
+                        "diff --git a/src/Main.java b/.ssh/authorized_keys\n"
+                                + "--- a/src/Main.java\n"
+                                + "+++ b/.ssh/authorized_keys\n"
+                                + "@@ -0,0 +1 @@\n"
+                                + "+ssh-rsa AAA\n"));
+        items.add(
+                patchToolPolicyProbe(
+                        "patch_tool_move_credential_path",
+                        "补丁工具移动凭据路径检查",
+                        "*** Begin Patch\n"
+                                + "*** Move File: .env.local\n"
+                                + "*** End Patch\n"));
+        items.add(
+                patchToolPolicyProbe(
+                        "patch_tool_unified_add_credential_path",
+                        "补丁工具统一新增凭据路径检查",
+                        "--- /dev/null\n"
+                                + "+++ b/.env\n"
+                                + "@@ -0,0 +1 @@\n"
+                                + "+TOKEN=probe\n"));
+        items.add(
                 commandPathPolicyProbe(
                         "command_download_output_path",
                         "命令下载输出凭据路径检查",
@@ -3095,17 +3120,23 @@ public class DashboardDiagnosticsService {
     }
 
     private Map<String, Object> patchToolPolicyProbe(String key, String label, String patch) {
+        return patchToolPolicyProbe(key, label, "patch", patch);
+    }
+
+    private Map<String, Object> patchToolPolicyProbe(
+            String key, String label, String argKey, String patch) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("patch", patch);
+        args.put(argKey, patch);
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs(ToolNameConstants.PATCH, args);
+        String target = StrUtil.isNotBlank(verdict.getPath()) ? verdict.getPath() : patch;
         return policyProbeItem(
                 key,
                 label,
                 "patch_tool_path_policy",
                 false,
                 verdict.isAllowed(),
-                safeAuditPreview(patch, 400),
+                safeAuditPreview(target, 400),
                 verdict.getMessage());
     }
 
