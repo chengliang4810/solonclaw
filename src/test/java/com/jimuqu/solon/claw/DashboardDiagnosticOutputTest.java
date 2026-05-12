@@ -764,6 +764,18 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "package_manager_script_policy_change");
         Map<String, Object> packageManagerRemoteExecute =
                 findProbe(items, "package_manager_remote_execute");
+        Map<String, Object> findDelete = findProbe(items, "find_delete");
+        Map<String, Object> findExecRm = findProbe(items, "find_exec_rm");
+        Map<String, Object> xargsRm = findProbe(items, "xargs_rm");
+        Map<String, Object> shellCommandFlag = findProbe(items, "shell_command_flag");
+        Map<String, Object> scriptEvalFlag = findProbe(items, "script_eval_flag");
+        Map<String, Object> curlPipeShell = findProbe(items, "curl_pipe_shell");
+        Map<String, Object> remoteScriptProcessSubstitution =
+                findProbe(items, "remote_script_process_substitution");
+        Map<String, Object> remoteScriptShellSubstitution =
+                findProbe(items, "remote_script_shell_substitution");
+        Map<String, Object> encodedPayloadExecute =
+                findProbe(items, "encoded_payload_execute");
         Map<String, Object> projectSensitiveRedirection =
                 findProbe(items, "project_sensitive_redirection");
         Map<String, Object> projectSensitiveTee = findProbe(items, "project_sensitive_tee");
@@ -2229,6 +2241,42 @@ public class DashboardDiagnosticOutputTest {
         assertThat(packageManagerRemoteExecute.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(packageManagerRemoteExecute.get("skipped")).isNull();
         assertThat(String.valueOf(packageManagerRemoteExecute)).contains("npx create-vite");
+        assertThat(findDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(findDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(findDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(findDelete)).contains("find runtime/cache -delete");
+        assertThat(findExecRm.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(findExecRm.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(findExecRm.get("skipped")).isNull();
+        assertThat(String.valueOf(findExecRm)).contains("-exec rm");
+        assertThat(xargsRm.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(xargsRm.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(xargsRm.get("skipped")).isNull();
+        assertThat(String.valueOf(xargsRm)).contains("xargs rm");
+        assertThat(shellCommandFlag.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(shellCommandFlag.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(shellCommandFlag.get("skipped")).isNull();
+        assertThat(String.valueOf(shellCommandFlag)).contains("bash -c");
+        assertThat(scriptEvalFlag.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(scriptEvalFlag.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(scriptEvalFlag.get("skipped")).isNull();
+        assertThat(String.valueOf(scriptEvalFlag)).contains("python -c");
+        assertThat(curlPipeShell.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(curlPipeShell.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(curlPipeShell.get("skipped")).isNull();
+        assertThat(String.valueOf(curlPipeShell)).contains("| sh");
+        assertThat(remoteScriptProcessSubstitution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteScriptProcessSubstitution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteScriptProcessSubstitution.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteScriptProcessSubstitution)).contains("<(curl");
+        assertThat(remoteScriptShellSubstitution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteScriptShellSubstitution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteScriptShellSubstitution.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteScriptShellSubstitution)).contains("$(curl");
+        assertThat(encodedPayloadExecute.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedPayloadExecute.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedPayloadExecute.get("skipped")).isNull();
+        assertThat(String.valueOf(encodedPayloadExecute)).contains("base64 -d");
         assertThat(projectSensitiveRedirection.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveRedirection.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveRedirection.get("skipped")).isNull();
