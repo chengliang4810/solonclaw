@@ -313,6 +313,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandProxyEnvPolicy =
                 findProbe(items, "command_proxy_env_policy");
+        Map<String, Object> commandProxyBypassPolicy =
+                findProbe(items, "command_proxy_bypass_policy");
+        Map<String, Object> commandPersistentProxyPolicy =
+                findProbe(items, "command_persistent_proxy_policy");
         Map<String, Object> commandLocalManagementSocket =
                 findProbe(items, "command_local_management_socket");
         Map<String, Object> commandLocalManagementPipe =
@@ -443,6 +447,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandProxyEnvPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandProxyEnvPolicy))
                 .contains("https_proxy")
+                .contains("169.254.169.254");
+        assertThat(commandProxyBypassPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyBypassPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyBypassPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyBypassPolicy))
+                .contains("NO_PROXY")
+                .contains("169.254.169.254");
+        assertThat(commandPersistentProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPersistentProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPersistentProxyPolicy))
+                .contains("git config")
                 .contains("169.254.169.254");
         assertThat(commandLocalManagementSocket.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandLocalManagementSocket.get("blocked")).isEqualTo(Boolean.TRUE);

@@ -2379,6 +2379,16 @@ public class DashboardDiagnosticsService {
                         "https_proxy=http://169.254.169.254:8080 curl https://example.test"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_proxy_bypass_policy",
+                        "命令代理绕过 URL 前置策略检查",
+                        "NO_PROXY=169.254.169.254 curl https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_persistent_proxy_policy",
+                        "命令持久化代理 URL 前置策略检查",
+                        "git config --global https.proxy http://169.254.169.254:8080"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_local_management_socket",
                         "命令本地管理套接字阻断",
                         "DOCKER_HOST=unix:///var/run/docker.sock docker ps"));
