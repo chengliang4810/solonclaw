@@ -3999,6 +3999,27 @@ public class DashboardDiagnosticsService {
                         "linux_acl_permission_widen"));
         items.add(
                 approvalDetectionProbe(
+                        "setcap_privilege",
+                        "Linux capability 提权审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "setcap cap_net_bind_service+ep runtime/bin/app",
+                        "setcap_privilege"));
+        items.add(
+                approvalDetectionProbe(
+                        "linux_immutable_flag_removed",
+                        "Linux immutable 标记移除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "chattr -i runtime/config.yml",
+                        "linux_immutable_flag_removed"));
+        items.add(
+                approvalDetectionProbe(
+                        "dynamic_library_preload_injection",
+                        "动态库预加载注入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "LD_PRELOAD=/tmp/hook.so app",
+                        "dynamic_library_preload_injection"));
+        items.add(
+                approvalDetectionProbe(
                         "windows_take_ownership",
                         "Windows 文件所有权接管审批",
                         ToolNameConstants.EXECUTE_SHELL,
@@ -4011,6 +4032,48 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_SHELL,
                         "icacls C:\\ProgramData\\app /grant Everyone:F /t",
                         "windows_acl_rewrite"));
+        items.add(
+                approvalDetectionProbe(
+                        "hosts_file_tampering",
+                        "Hosts 文件篡改审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo 127.0.0.1 example.test >> /etc/hosts",
+                        "hosts_file_tampering"));
+        items.add(
+                approvalDetectionProbe(
+                        "dns_resolver_tampering",
+                        "DNS 解析配置篡改审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo nameserver 1.1.1.1 > /etc/resolv.conf",
+                        "dns_resolver_tampering"));
+        items.add(
+                approvalDetectionProbe(
+                        "network_route_or_portproxy_change",
+                        "网络路由或端口代理变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "ip route add 10.0.0.0/8 via 192.0.2.1",
+                        "network_route_or_portproxy_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "linux_kernel_policy_change",
+                        "Linux 内核策略变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "sysctl -w kernel.kptr_restrict=0",
+                        "linux_kernel_policy_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "filesystem_mount_policy_change",
+                        "文件系统挂载策略变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "mount -o remount,rw /",
+                        "filesystem_mount_policy_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "write_block_device",
+                        "块设备写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo data > /dev/sdb",
+                        "write_block_device"));
         items.add(
                 approvalDetectionProbe(
                         "system_config_copy",

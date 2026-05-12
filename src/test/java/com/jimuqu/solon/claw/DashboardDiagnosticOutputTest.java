@@ -784,8 +784,22 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> chmodSetuidSetgid = findProbe(items, "chmod_setuid_setgid");
         Map<String, Object> linuxAclPermissionWiden =
                 findProbe(items, "linux_acl_permission_widen");
+        Map<String, Object> setcapPrivilege = findProbe(items, "setcap_privilege");
+        Map<String, Object> linuxImmutableFlagRemoved =
+                findProbe(items, "linux_immutable_flag_removed");
+        Map<String, Object> dynamicLibraryPreloadInjection =
+                findProbe(items, "dynamic_library_preload_injection");
         Map<String, Object> windowsTakeOwnership = findProbe(items, "windows_take_ownership");
         Map<String, Object> windowsAclRewrite = findProbe(items, "windows_acl_rewrite");
+        Map<String, Object> hostsFileTampering = findProbe(items, "hosts_file_tampering");
+        Map<String, Object> dnsResolverTampering = findProbe(items, "dns_resolver_tampering");
+        Map<String, Object> networkRouteOrPortproxyChange =
+                findProbe(items, "network_route_or_portproxy_change");
+        Map<String, Object> linuxKernelPolicyChange =
+                findProbe(items, "linux_kernel_policy_change");
+        Map<String, Object> filesystemMountPolicyChange =
+                findProbe(items, "filesystem_mount_policy_change");
+        Map<String, Object> writeBlockDevice = findProbe(items, "write_block_device");
         Map<String, Object> systemConfigCopy = findProbe(items, "system_config_copy");
         Map<String, Object> systemConfigInplaceEdit =
                 findProbe(items, "system_config_inplace_edit");
@@ -2301,6 +2315,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(linuxAclPermissionWiden.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(linuxAclPermissionWiden.get("skipped")).isNull();
         assertThat(String.valueOf(linuxAclPermissionWiden)).contains("setfacl");
+        assertThat(setcapPrivilege.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(setcapPrivilege.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(setcapPrivilege.get("skipped")).isNull();
+        assertThat(String.valueOf(setcapPrivilege)).contains("setcap");
+        assertThat(linuxImmutableFlagRemoved.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxImmutableFlagRemoved.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxImmutableFlagRemoved.get("skipped")).isNull();
+        assertThat(String.valueOf(linuxImmutableFlagRemoved)).contains("chattr -i");
+        assertThat(dynamicLibraryPreloadInjection.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(dynamicLibraryPreloadInjection.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(dynamicLibraryPreloadInjection.get("skipped")).isNull();
+        assertThat(String.valueOf(dynamicLibraryPreloadInjection)).contains("LD_PRELOAD");
         assertThat(windowsTakeOwnership.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(windowsTakeOwnership.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsTakeOwnership.get("skipped")).isNull();
@@ -2309,6 +2335,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(windowsAclRewrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsAclRewrite.get("skipped")).isNull();
         assertThat(String.valueOf(windowsAclRewrite)).contains("icacls");
+        assertThat(hostsFileTampering.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hostsFileTampering.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hostsFileTampering.get("skipped")).isNull();
+        assertThat(String.valueOf(hostsFileTampering)).contains("/etc/hosts");
+        assertThat(dnsResolverTampering.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(dnsResolverTampering.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(dnsResolverTampering.get("skipped")).isNull();
+        assertThat(String.valueOf(dnsResolverTampering)).contains("/etc/resolv.conf");
+        assertThat(networkRouteOrPortproxyChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(networkRouteOrPortproxyChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(networkRouteOrPortproxyChange.get("skipped")).isNull();
+        assertThat(String.valueOf(networkRouteOrPortproxyChange)).contains("ip route add");
+        assertThat(linuxKernelPolicyChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxKernelPolicyChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxKernelPolicyChange.get("skipped")).isNull();
+        assertThat(String.valueOf(linuxKernelPolicyChange)).contains("sysctl -w");
+        assertThat(filesystemMountPolicyChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(filesystemMountPolicyChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(filesystemMountPolicyChange.get("skipped")).isNull();
+        assertThat(String.valueOf(filesystemMountPolicyChange)).contains("remount,rw");
+        assertThat(writeBlockDevice.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(writeBlockDevice.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(writeBlockDevice.get("skipped")).isNull();
+        assertThat(String.valueOf(writeBlockDevice)).contains("/dev/sdb");
         assertThat(systemConfigCopy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(systemConfigCopy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(systemConfigCopy.get("skipped")).isNull();
