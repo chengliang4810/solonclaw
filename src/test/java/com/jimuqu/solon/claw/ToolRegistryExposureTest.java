@@ -1193,6 +1193,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedDocumentContentChecked").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedDocumentMetadataUrlChecked").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("encodedUrlParameterPolicyInherited").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("rawPathControlCharacterPolicyInherited").getBoolean())

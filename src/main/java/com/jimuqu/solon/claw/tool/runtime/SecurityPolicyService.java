@@ -771,6 +771,7 @@ public class SecurityPolicyService {
         summary.put("returnedContentUrlExtraction", Boolean.TRUE);
         summary.put("returnedSchemelessUrlChecked", Boolean.TRUE);
         summary.put("returnedDocumentContentChecked", Boolean.TRUE);
+        summary.put("returnedDocumentMetadataUrlChecked", Boolean.TRUE);
         summary.put("returnedUrlKeySamples", Arrays.asList("href", "link", "browser_download_url", "source_url", "finalUrl"));
         summary.put("recursivePathExtraction", Boolean.TRUE);
         summary.put("encodedUrlParameterPolicyInherited", Boolean.TRUE);
@@ -799,7 +800,7 @@ public class SecurityPolicyService {
         summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
         summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
         summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
-        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths and network upload source paths, checks returned documents, and parses patch/diff targets before tool execution.");
+        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths and network upload source paths, checks returned document content and metadata, and parses patch/diff targets before tool execution.");
         return summary;
     }
 

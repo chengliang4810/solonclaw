@@ -1745,6 +1745,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("returnedContentUrlExtraction")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("returnedSchemelessUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("returnedDocumentContentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("returnedDocumentMetadataUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("recursivePathExtraction")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("encodedUrlParameterPolicyInherited")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawPathControlCharacterPolicyInherited")).isEqualTo(Boolean.TRUE);
