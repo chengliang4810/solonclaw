@@ -2388,6 +2388,10 @@ public class DashboardDiagnosticsService {
                         "schema_sanitizer",
                         "工具 Schema 安全清洗"));
         items.add(
+                mcpOAuthPolicyProbe(
+                        "mcp_oauth_policy",
+                        "MCP OAuth 安全策略检查"));
+        items.add(
                 mcpPackageSecurityProbe(
                         "mcp_package_security",
                         "MCP 包安全检查"));
@@ -2858,6 +2862,53 @@ public class DashboardDiagnosticsService {
                     false,
                     "npx --package, pipx --spec, unsafe OSV endpoint",
                     "MCP 包安全探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    private Map<String, Object> mcpOAuthPolicyProbe(String key, String label) {
+        try {
+            Map<String, Object> summary = DashboardMcpService.oauthPolicySummary();
+            boolean endpointSafety =
+                    Boolean.TRUE.equals(summary.get("authorizationEndpointUrlSafety"))
+                            && Boolean.TRUE.equals(summary.get("tokenEndpointUrlSafety"))
+                            && Boolean.TRUE.equals(summary.get("tokenEndpointRedirectUrlSafety"));
+            boolean flowSafety =
+                    Boolean.TRUE.equals(summary.get("stateValidationRequired"))
+                            && Boolean.TRUE.equals(summary.get("pkceS256Required"))
+                            && Boolean.TRUE.equals(summary.get("codeVerifierHiddenFromStatus"));
+            boolean redaction =
+                    Boolean.TRUE.equals(summary.get("accessTokenRedacted"))
+                            && Boolean.TRUE.equals(summary.get("refreshTokenRedacted"))
+                            && Boolean.TRUE.equals(summary.get("clientSecretRedacted"))
+                            && Boolean.TRUE.equals(summary.get("callbackErrorsRedacted"))
+                            && Boolean.TRUE.equals(summary.get("tokenErrorsRedacted"));
+            boolean redirectLimit =
+                    numberValue(summary.get("tokenEndpointRedirectLimit")) != null
+                            && numberValue(summary.get("tokenEndpointRedirectLimit")).intValue() > 0;
+            boolean passed = endpointSafety && flowSafety && redaction && redirectLimit;
+            String target =
+                    "authorization_endpoint, token_endpoint, redirect_limit="
+                            + String.valueOf(summary.get("tokenEndpointRedirectLimit"));
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_oauth_policy",
+                    true,
+                    passed,
+                    target,
+                    passed
+                            ? "MCP OAuth endpoint、state、PKCE、重定向和脱敏策略已启用。"
+                            : "MCP OAuth 安全策略检查未通过。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_oauth_policy",
+                    true,
+                    false,
+                    "authorization_endpoint, token_endpoint",
+                    "MCP OAuth 探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
     }
