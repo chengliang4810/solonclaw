@@ -12,11 +12,14 @@ import {
   resolveSlashConfirm,
   revokeAlwaysApproval,
   type AlwaysApproval,
+  type AlwaysApprovalsResult,
   type ApprovalAuditEvent,
+  type ApprovalHistoryResult,
   type Diagnostics,
   type PendingApproval,
   type PendingApprovalsResult,
   type PendingSlashConfirm,
+  type PendingSlashConfirmsResult,
   type SecurityAuditFinding,
   type SecurityAuditResult,
 } from '@/api/jimuqu/diagnostics'
@@ -34,8 +37,11 @@ const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
+const approvalHistoryMeta = ref<ApprovalHistoryResult | null>(null)
 const alwaysApprovals = ref<AlwaysApproval[]>([])
+const alwaysApprovalMeta = ref<AlwaysApprovalsResult | null>(null)
 const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
+const slashConfirmMeta = ref<PendingSlashConfirmsResult | null>(null)
 const auditForm = ref({
   action: 'command',
   toolName: 'execute_shell',
@@ -182,6 +188,7 @@ async function loadHistory() {
   historyLoading.value = true
   try {
     const result = await fetchApprovalHistory(100)
+    approvalHistoryMeta.value = result
     approvalHistory.value = result.items || []
   } finally {
     historyLoading.value = false
@@ -192,6 +199,7 @@ async function loadAlwaysApprovals() {
   alwaysLoading.value = true
   try {
     const result = await fetchAlwaysApprovals(100)
+    alwaysApprovalMeta.value = result
     alwaysApprovals.value = result.items || []
   } finally {
     alwaysLoading.value = false
@@ -202,6 +210,7 @@ async function loadSlashConfirms() {
   confirmsLoading.value = true
   try {
     const result = await fetchPendingSlashConfirms(100)
+    slashConfirmMeta.value = result
     pendingSlashConfirms.value = result.items || []
   } finally {
     confirmsLoading.value = false
@@ -692,6 +701,9 @@ onMounted(load)
             </div>
           </div>
           <NSpin :show="historyLoading">
+            <p v-if="approvalHistoryMeta?.available === false" class="approval-note">
+              {{ approvalHistoryMeta.message || '审批历史服务尚未启用。' }}
+            </p>
             <div v-if="approvalHistory.length" class="approval-list">
               <article v-for="item in approvalHistory" :key="item.event_id" class="approval-item">
                 <div class="approval-head">
@@ -723,6 +735,9 @@ onMounted(load)
             </div>
           </div>
           <NSpin :show="alwaysLoading">
+            <p v-if="alwaysApprovalMeta?.available === false" class="approval-note">
+              {{ alwaysApprovalMeta.message || '审批服务尚未启用。' }}
+            </p>
             <div v-if="alwaysApprovals.length" class="approval-list">
               <article v-for="item in alwaysApprovals" :key="item.approval_id || `${item.tool_name}:${item.pattern_key}`" class="approval-item">
                 <div class="approval-head">
@@ -759,6 +774,9 @@ onMounted(load)
             </div>
           </div>
           <NSpin :show="confirmsLoading">
+            <p v-if="slashConfirmMeta?.available === false" class="approval-note">
+              {{ slashConfirmMeta.message || 'Slash 确认服务尚未启用。' }}
+            </p>
             <div v-if="pendingSlashConfirms.length" class="approval-list">
               <article v-for="item in pendingSlashConfirms" :key="item.confirm_id" class="approval-item">
                 <div class="approval-head">

@@ -101,6 +101,9 @@ export interface ApprovalAuditEvent {
 export interface ApprovalHistoryResult {
   count: number
   items: ApprovalAuditEvent[]
+  available?: boolean
+  code?: string
+  message?: string
 }
 
 export interface AlwaysApproval {
@@ -112,6 +115,9 @@ export interface AlwaysApproval {
 export interface AlwaysApprovalsResult {
   count: number
   items: AlwaysApproval[]
+  available?: boolean
+  code?: string
+  message?: string
 }
 
 export interface PendingSlashConfirm {
@@ -131,6 +137,9 @@ export interface PendingSlashConfirm {
 export interface PendingSlashConfirmsResult {
   count: number
   items: PendingSlashConfirm[]
+  available?: boolean
+  code?: string
+  message?: string
 }
 
 export interface ResolveSlashConfirmRequest {

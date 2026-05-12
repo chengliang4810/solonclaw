@@ -259,10 +259,12 @@ public class DashboardDiagnosticsService {
     public Map<String, Object> approvalHistory(int limit) throws Exception {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        if (approvalAuditRepository != null) {
-            for (ApprovalAuditEvent event : approvalAuditRepository.listRecent(effectiveLimit)) {
-                items.add(approvalAuditItem(event));
-            }
+        if (approvalAuditRepository == null) {
+            return disabledList(
+                    items, "approval_history_unavailable", "审批历史服务尚未启用。");
+        }
+        for (ApprovalAuditEvent event : approvalAuditRepository.listRecent(effectiveLimit)) {
+            items.add(approvalAuditItem(event));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("count", Integer.valueOf(items.size()));
@@ -273,12 +275,13 @@ public class DashboardDiagnosticsService {
     public Map<String, Object> alwaysApprovals(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        if (approvalService != null) {
-            for (String approval : approvalService.listAlwaysApprovals()) {
-                items.add(alwaysApprovalItem(approval));
-                if (items.size() >= effectiveLimit) {
-                    break;
-                }
+        if (approvalService == null) {
+            return disabledList(items, "approval_unavailable", "审批服务尚未启用。");
+        }
+        for (String approval : approvalService.listAlwaysApprovals()) {
+            items.add(alwaysApprovalItem(approval));
+            if (items.size() >= effectiveLimit) {
+                break;
             }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -292,6 +295,9 @@ public class DashboardDiagnosticsService {
         String approval =
                 resolveAlwaysApproval(StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")));
         String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
+        if (approvalService == null) {
+            return resolveResult(false, "approval_unavailable", "审批服务尚未启用。", null);
+        }
         if (StrUtil.isBlank(approval)) {
             return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
         }
@@ -306,12 +312,13 @@ public class DashboardDiagnosticsService {
     public Map<String, Object> pendingSlashConfirms(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        if (slashConfirmService != null) {
-            for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
-                items.add(slashConfirmItem(pending));
-                if (items.size() >= effectiveLimit) {
-                    break;
-                }
+        if (slashConfirmService == null) {
+            return disabledList(items, "slash_confirm_unavailable", "Slash 确认服务尚未启用。");
+        }
+        for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
+            items.add(slashConfirmItem(pending));
+            if (items.size() >= effectiveLimit) {
+                break;
             }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -330,6 +337,9 @@ public class DashboardDiagnosticsService {
         }
         if (!"approve".equals(action) && !"deny".equals(action) && !"always".equals(action)) {
             return resolveResult(false, "invalid_action", "确认动作必须是 approve、always 或 deny。", null);
+        }
+        if (slashConfirmService == null || commandService == null) {
+            return resolveResult(false, "slash_confirm_unavailable", "Slash 确认服务尚未启用。", null);
         }
         SlashConfirmService.PendingConfirm pending = findPendingSlashConfirm(confirmId, sourceKey);
         if (pending == null) {
@@ -2333,6 +2343,17 @@ public class DashboardDiagnosticsService {
         if (reply != null) {
             result.put("reply", reply);
         }
+        return result;
+    }
+
+    private Map<String, Object> disabledList(
+            List<Map<String, Object>> items, String code, String message) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("count", Integer.valueOf(0));
+        result.put("items", items == null ? Collections.<Map<String, Object>>emptyList() : items);
+        result.put("available", Boolean.FALSE);
+        result.put("code", code);
+        result.put("message", message);
         return result;
     }
 

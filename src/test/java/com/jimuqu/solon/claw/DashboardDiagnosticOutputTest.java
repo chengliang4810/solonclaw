@@ -656,6 +656,78 @@ public class DashboardDiagnosticOutputTest {
         assertThat(pendingResult.get("available")).isEqualTo(Boolean.FALSE);
         assertThat(pendingResult.get("code")).isEqualTo("approval_unavailable");
         assertThat(String.valueOf(pendingResult.get("message"))).contains("审批服务");
+
+        Map<String, Object> alwaysResult = missingApprovalService.alwaysApprovals(10);
+        assertThat(alwaysResult.get("count")).isEqualTo(Integer.valueOf(0));
+        assertThat(alwaysResult.get("available")).isEqualTo(Boolean.FALSE);
+        assertThat(alwaysResult.get("code")).isEqualTo("approval_unavailable");
+
+        Map<String, Object> revokeResult = missingApprovalService.revokeAlwaysApproval(
+                Collections.singletonMap("approvalId", "approval-missing-service"));
+        assertThat(revokeResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(revokeResult.get("code")).isEqualTo("approval_unavailable");
+    }
+
+    @Test
+    void shouldReturnStructuredApprovalHistoryFailureWhenRepositoryUnavailable()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new DangerousCommandApprovalService(
+                                null, config, new SecurityPolicyService(config)),
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.approvalHistory(10);
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(0));
+        assertThat(result.get("available")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("code")).isEqualTo("approval_history_unavailable");
+        assertThat(String.valueOf(result.get("message"))).contains("审批历史");
+    }
+
+    @Test
+    void shouldReturnStructuredSlashConfirmFailureWhenServiceUnavailable()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> list = diagnosticsService.pendingSlashConfirms(10);
+        assertThat(list.get("count")).isEqualTo(Integer.valueOf(0));
+        assertThat(list.get("available")).isEqualTo(Boolean.FALSE);
+        assertThat(list.get("code")).isEqualTo("slash_confirm_unavailable");
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("confirmId", "confirm-missing-service");
+        body.put("action", "deny");
+        Map<String, Object> result = diagnosticsService.resolveSlashConfirm(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("code")).isEqualTo("slash_confirm_unavailable");
+        assertThat(String.valueOf(result.get("message"))).contains("Slash");
     }
 
     @Test
