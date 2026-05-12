@@ -288,6 +288,7 @@ public class DashboardDiagnosticOutputTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
+        Map<String, Object> backgroundProcessGuard = findProbe(items, "background_process_guard");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
@@ -312,6 +313,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
+        assertThat(backgroundProcessGuard.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessGuard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessGuard.get("skipped")).isNull();
+        assertThat(String.valueOf(backgroundProcessGuard))
+                .contains("Start-Process")
+                .contains("systemd-run");
         assertThat(tirithSecurity.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(tirithSecurity.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(tirithSecurity.get("skipped")).isNull();

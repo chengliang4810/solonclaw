@@ -2350,6 +2350,10 @@ public class DashboardDiagnosticsService {
                         "长时间前台命令守卫",
                         "npm run dev"));
         items.add(
+                backgroundProcessGuardProbe(
+                        "background_process_guard",
+                        "后台进程守卫检查"));
+        items.add(
                 tirithSecurityProbe(
                         "tirith_security",
                         "Tirith 命令安全扫描",
@@ -2882,6 +2886,48 @@ public class DashboardDiagnosticsService {
                 !blocked,
                 safeAuditPreview(command, 400),
                 guidance);
+    }
+
+    private Map<String, Object> backgroundProcessGuardProbe(String key, String label) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "background_process_guard", "background launchers", "审批服务尚未启用。");
+        }
+        String[] unsafeCommands =
+                new String[] {
+                    "nohup npm run dev > app.log 2>&1",
+                    "Start-Process npm -ArgumentList 'run dev'",
+                    "tmux new-session -d -s app 'npm run dev'",
+                    "screen -dmS app npm run dev",
+                    "systemd-run --user npm run dev",
+                    "cmd /c start \"app\" /B npm run dev"
+                };
+        List<String> missed = new ArrayList<String>();
+        for (String command : unsafeCommands) {
+            String guidance =
+                    approvalService.foregroundBackgroundGuidance(
+                            ToolNameConstants.EXECUTE_SHELL, command);
+            if (StrUtil.isBlank(guidance)) {
+                missed.add(command);
+            }
+        }
+        String safeGuidance =
+                approvalService.foregroundBackgroundGuidance(
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Start-Process npm -ArgumentList 'run build' -Wait");
+        boolean blocked = missed.isEmpty() && StrUtil.isBlank(safeGuidance);
+        String message =
+                blocked
+                        ? "未受管后台启动方式已被守卫拦截，等待型命令未误报。"
+                        : "后台进程守卫覆盖不完整：" + safeAuditPreview(missed.toString(), 240);
+        return policyProbeItem(
+                key,
+                label,
+                "background_process_guard",
+                false,
+                !blocked,
+                "nohup, Start-Process, tmux, screen, systemd-run, cmd start",
+                message);
     }
 
     private Map<String, Object> tirithSecurityProbe(String key, String label, String command) {
