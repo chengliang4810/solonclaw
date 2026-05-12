@@ -271,8 +271,16 @@ public final class SecretRedactor {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        if (value.indexOf('?') < 0 && value.indexOf('#') < 0 && value.indexOf(';') < 0) {
+        boolean hasRawSeparator =
+                value.indexOf('?') >= 0 || value.indexOf('#') >= 0 || value.indexOf(';') >= 0;
+        String decoded = decodeRepeated(value);
+        boolean hasDecodedSeparator =
+                decoded.indexOf('?') >= 0 || decoded.indexOf('#') >= 0 || decoded.indexOf(';') >= 0;
+        if (!hasRawSeparator && !hasDecodedSeparator) {
             return value;
+        }
+        if (!hasRawSeparator && !redactEncodedSensitiveQuery(decoded).equals(decoded)) {
+            return "***";
         }
         return redactEncodedSensitiveQuery(value);
     }

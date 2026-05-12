@@ -115,6 +115,17 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldMaskNestedEncodedSignedUrls() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/download?next=https%253A%252F%252Fbucket.example.com%252Ffile%253Fx-amz-signature%253Dnested-signature-secret&ok=value");
+
+        assertThat(result)
+                .isEqualTo("https://example.com/download?next=***&ok=value")
+                .doesNotContain("nested-signature-secret");
+    }
+
+    @Test
     void shouldRedactEncodedSensitiveUrlQueryNamesInGeneralText() {
         String result =
                 SecretRedactor.redact(

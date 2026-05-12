@@ -294,6 +294,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
         Map<String, Object> encodedSensitiveQuery = findProbe(items, "encoded_sensitive_query");
+        Map<String, Object> signedUrl = findProbe(items, "signed_url");
+        Map<String, Object> nestedSignedUrl = findProbe(items, "nested_signed_url");
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
@@ -364,6 +366,17 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(encodedSensitiveQuery))
                 .contains("api%255Fkey=***")
                 .doesNotContain("sk-dashboard-encoded-secret");
+        assertThat(signedUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(signedUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(signedUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(signedUrl))
+                .contains("Signature=***")
+                .doesNotContain("dashboard-signature-secret");
+        assertThat(nestedSignedUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(nestedSignedUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(nestedSignedUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(nestedSignedUrl))
+                .doesNotContain("dashboard-nested-signature");
         assertThat(credentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPath.get("skipped")).isNull();

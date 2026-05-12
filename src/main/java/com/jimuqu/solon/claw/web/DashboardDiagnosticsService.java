@@ -2286,6 +2286,16 @@ public class DashboardDiagnosticsService {
                         "https://example.test/callback?api%255Fkey=sk-dashboard-encoded-secret"));
         items.add(
                 urlProbe(
+                        "signed_url",
+                        "签名型 URL 凭据参数阻断",
+                        "https://bucket.example.test/file?OSSAccessKeyId=ak-dashboard&Signature=dashboard-signature-secret&Expires=9999999999"));
+        items.add(
+                urlProbe(
+                        "nested_signed_url",
+                        "嵌套签名 URL 凭据参数阻断",
+                        "https://example.test/download?next=https%253A%252F%252Fbucket.example.test%252Ffile%253Fx-amz-signature%253Ddashboard-nested-signature"));
+        items.add(
+                urlProbe(
                         "userinfo_url",
                         "URL 用户名密码阻断",
                         "https://user:dashboard-probe-password@example.test/path"));
