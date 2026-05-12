@@ -3366,6 +3366,8 @@ public class DashboardDiagnosticOutputTest {
                 (Map<String, Object>) approvals.get("approvalCardPolicy");
         assertThat(approvalsCardPolicy.get("approvalIdSelectorSupported")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("rawCommandRedactedInExtras")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("domesticCardLabelsLocalized")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("qqbotSessionActionSupported")).isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsAuditPolicy =
                 (Map<String, Object>) approvals.get("auditLogPolicy");
         assertThat(approvalsAuditPolicy.get("manualRevocationAudited")).isEqualTo(Boolean.TRUE);

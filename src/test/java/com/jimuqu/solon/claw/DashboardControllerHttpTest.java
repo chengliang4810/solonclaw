@@ -407,6 +407,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"approvalCardPlatforms\":[\"FEISHU\",\"QQBOT\"]")
                 .contains("\"permanentApprovalAllowedExceptTirith\":true")
                 .contains("\"tirithPermanentApprovalHidden\":true")
+                .contains("\"domesticCardLabelsLocalized\":true")
+                .contains("\"qqbotSessionActionSupported\":true")
                 .contains("\"outboundApprovalIdSanitized\":true")
                 .contains("\"unsafeApprovalIdFallsBackToKeySelector\":true")
                 .contains("\"pendingListUsesSafeSelector\":true")
@@ -537,6 +539,10 @@ public class DashboardControllerHttpTest {
         assertThat(approvalCardDiagnostics.get("outboundApprovalIdSanitized").getBoolean())
                 .isTrue();
         assertThat(approvalCardDiagnostics.get("unsafeApprovalIdFallsBackToKeySelector").getBoolean())
+                .isTrue();
+        assertThat(approvalCardDiagnostics.get("domesticCardLabelsLocalized").getBoolean())
+                .isTrue();
+        assertThat(approvalCardDiagnostics.get("qqbotSessionActionSupported").getBoolean())
                 .isTrue();
         ONode mcpDiagnostics = ONode.ofJson(diagnostics.body).get("data").get("mcp");
         assertThat(mcpDiagnostics.toJson())

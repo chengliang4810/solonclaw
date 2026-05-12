@@ -875,6 +875,9 @@ public class ToolRegistryExposureTest {
         assertThat(approvalCardPolicy.get("denyCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("alwaysScopeCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("sessionScopeCommandGenerated").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("domesticCardLabelsLocalized").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("feishuChineseCardLabels").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("qqbotSessionActionSupported").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("tirithPermanentApprovalHidden").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("descriptionPreviewRedacted").getBoolean()).isTrue();

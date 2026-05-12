@@ -436,6 +436,10 @@ public final class TerminalSecurityPolicyView {
                 .append(value(card, "deliveryMode"))
                 .append(" platforms=")
                 .append(value(card, "supportedPlatforms"))
+                .append(" localized=")
+                .append(value(card, "domesticCardLabelsLocalized"))
+                .append(" qqbotSession=")
+                .append(value(card, "qqbotSessionActionSupported"))
                 .append(" redacted=")
                 .append(value(card, "commandPreviewRedacted"));
         Map<String, Object> audit = approvalService.approvalAuditPolicySummary();
@@ -616,6 +620,13 @@ public final class TerminalSecurityPolicyView {
                 .append(value(card, "scopeOptions"))
                 .append(" default=")
                 .append(value(card, "defaultScope"));
+        buffer.append('\n')
+                .append("- 国内渠道：localized=")
+                .append(value(card, "domesticCardLabelsLocalized"))
+                .append(" feishuChinese=")
+                .append(value(card, "feishuChineseCardLabels"))
+                .append(" qqbotSession=")
+                .append(value(card, "qqbotSessionActionSupported"));
         buffer.append('\n')
                 .append("- 选择器：idSelector=")
                 .append(value(card, "approvalIdSelectorSupported"))

@@ -873,6 +873,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "denyCommandGenerated");
             copyPolicyValue(summary, safe, "alwaysScopeCommandGenerated");
             copyPolicyValue(summary, safe, "sessionScopeCommandGenerated");
+            copyPolicyValue(summary, safe, "domesticCardLabelsLocalized");
+            copyPolicyValue(summary, safe, "feishuChineseCardLabels");
+            copyPolicyValue(summary, safe, "qqbotSessionActionSupported");
             copyPolicyValue(summary, safe, "tirithPermanentApprovalHidden");
             copyPolicyValue(summary, safe, "commandPreviewRedacted");
             copyPolicyValue(summary, safe, "descriptionPreviewRedacted");
@@ -2114,6 +2117,9 @@ public class DashboardDiagnosticsService {
                 "denyCommandGenerated",
                 "alwaysScopeCommandGenerated",
                 "sessionScopeCommandGenerated",
+                "domesticCardLabelsLocalized",
+                "feishuChineseCardLabels",
+                "qqbotSessionActionSupported",
                 "tirithPermanentApprovalHidden",
                 "commandPreviewRedacted",
                 "descriptionPreviewRedacted",

@@ -190,6 +190,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("denyCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("alwaysScopeCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sessionScopeCommandGenerated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("domesticCardLabelsLocalized")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("feishuChineseCardLabels")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("qqbotSessionActionSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("tirithPermanentApprovalHidden")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("descriptionPreviewRedacted")).isEqualTo(Boolean.TRUE);

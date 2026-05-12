@@ -2699,6 +2699,9 @@ public class DangerousCommandApprovalService {
         summary.put("denyCommandGenerated", Boolean.TRUE);
         summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
         summary.put("sessionScopeCommandGenerated", Boolean.TRUE);
+        summary.put("domesticCardLabelsLocalized", Boolean.TRUE);
+        summary.put("feishuChineseCardLabels", Boolean.TRUE);
+        summary.put("qqbotSessionActionSupported", Boolean.TRUE);
         summary.put("tirithPermanentApprovalHidden", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("descriptionPreviewRedacted", Boolean.TRUE);
@@ -2707,7 +2710,7 @@ public class DangerousCommandApprovalService {
         summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
         summary.put("semicolonUrlParameterRedacted", Boolean.TRUE);
         summary.put("fragmentUrlParameterRedacted", Boolean.TRUE);
-        summary.put("description", "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, and map card actions back to /approve or /deny commands with redacted previews.");
+        summary.put("description", "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, map card actions back to /approve or /deny commands with redacted previews, and expose localized card labels plus session-scope channel actions.");
         return summary;
     }
 

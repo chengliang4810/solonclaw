@@ -233,6 +233,8 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security approval-card"))
                 .contains("审批卡策略摘要")
                 .contains("platforms=[FEISHU, QQBOT]")
+                .contains("localized=true")
+                .contains("qqbotSession=true")
                 .contains("outboundSanitized=true")
                 .contains("rawCommand=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security approval-audit"))
