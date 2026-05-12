@@ -1,43 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { NButton, NSpin } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/jimuqu/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/jimuqu/jobs/JobFormModal.vue'
-import { fetchCronGuide, fetchCronPolicy, type CronGuide, type CronPolicy } from '@/api/jimuqu/jobs'
 import { useJobsStore } from '@/stores/jimuqu/jobs'
 
 const { t } = useI18n()
 const jobsStore = useJobsStore()
 const showModal = ref(false)
 const editingJob = ref<string | null>(null)
-const guide = ref<CronGuide | null>(null)
-const policy = ref<CronPolicy | null>(null)
 const showGuide = ref(false)
+const guide = computed(() => jobsStore.guide)
+const policy = computed(() => jobsStore.policy)
 
 onMounted(() => {
   jobsStore.fetchJobs()
   jobsStore.fetchUpcomingJobs()
   jobsStore.fetchStatus()
-  loadGuide()
-  loadPolicy()
+  jobsStore.fetchGuideAndPolicy()
 })
-
-async function loadGuide() {
-  try {
-    guide.value = await fetchCronGuide()
-  } catch (err) {
-    console.error('Failed to fetch cron guide:', err)
-  }
-}
-
-async function loadPolicy() {
-  try {
-    policy.value = await fetchCronPolicy()
-  } catch (err) {
-    console.error('Failed to fetch cron policy:', err)
-  }
-}
 
 function openCreateModal() {
   editingJob.value = null
