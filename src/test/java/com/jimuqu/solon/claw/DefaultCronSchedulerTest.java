@@ -977,7 +977,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldRedactCronRunViewsWithoutMutatingStoredRuns() throws Exception {
+    void shouldRedactCronRunViewsAndStoredRuns() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobRecord job = job("job-redacted-run-view", "MEMORY:run-view:user");
         job.setLastStatus("error");
@@ -1030,8 +1030,28 @@ public class DefaultCronSchedulerTest {
                 .doesNotContain("\u202E");
 
         CronJobRunRecord stored = env.cronJobRepository.listRuns(job.getJobId(), 1).get(0);
-        assertThat(stored.getOutput()).contains("ghp_runoutput12345");
-        assertThat(stored.getDeliveryResultJson()).contains("ghp_targetsecret12345");
+        String storedPayload =
+                stored.getSummary()
+                        + "\n"
+                        + stored.getOutput()
+                        + "\n"
+                        + stored.getError()
+                        + "\n"
+                        + stored.getDeliveryError()
+                        + "\n"
+                        + stored.getDeliveryResultJson();
+        assertThat(storedPayload)
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_runoutput12345")
+                .doesNotContain("sk-runerror-secret12345")
+                .doesNotContain("ghp_deliveryerror12345")
+                .doesNotContain("ghp_targetsecret12345")
+                .doesNotContain("sk-summary-secret12345")
+                .doesNotContain("ghp_runsummary12345")
+                .doesNotContain("\u202E");
     }
 
     @Test

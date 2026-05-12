@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.storage.repository;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -270,11 +271,11 @@ public class SqliteCronJobRepository implements CronJobRepository {
             statement.setLong(6, run.getStartedAt());
             statement.setLong(7, run.getFinishedAt());
             statement.setString(8, run.getStatus());
-            statement.setString(9, run.getSummary());
-            statement.setString(10, run.getOutput());
-            statement.setString(11, run.getError());
-            statement.setString(12, run.getDeliveryError());
-            statement.setString(13, run.getDeliveryResultJson());
+            statement.setString(9, redact(run.getSummary(), 2000));
+            statement.setString(10, redact(run.getOutput(), 8000));
+            statement.setString(11, redact(run.getError(), 2000));
+            statement.setString(12, redact(run.getDeliveryError(), 2000));
+            statement.setString(13, redact(run.getDeliveryResultJson(), 4000));
             statement.executeUpdate();
             statement.close();
             return run;
@@ -362,5 +363,9 @@ public class SqliteCronJobRepository implements CronJobRepository {
         record.setDeliveryError(resultSet.getString("delivery_error"));
         record.setDeliveryResultJson(resultSet.getString("delivery_result_json"));
         return record;
+    }
+
+    private String redact(String value, int maxLength) {
+        return value == null ? null : SecretRedactor.redact(value, maxLength);
     }
 }
