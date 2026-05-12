@@ -2423,6 +2423,10 @@ public class DashboardDiagnosticsService {
                         "approval_selector",
                         "审批选择器安全检查"));
         items.add(
+                approvalExpiryCleanupProbe(
+                        "approval_expiry_cleanup",
+                        "审批过期清理安全检查"));
+        items.add(
                 approvalAuditRedactionProbe(
                         "approval_audit_redaction",
                         "审批审计脱敏检查"));
@@ -3710,6 +3714,44 @@ public class DashboardDiagnosticsService {
                 blocked
                         ? "非法选择器与过短 key 前缀均不会命中待审批项。"
                         : "审批选择器安全检查未通过。");
+    }
+
+    private Map<String, Object> approvalExpiryCleanupProbe(String key, String label) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "approval_expiry_cleanup", "expired approval", "审批服务尚未启用。");
+        }
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("dashboard-probe-approval-expiry");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        Map<String, Object> expired = new LinkedHashMap<String, Object>();
+        expired.put("toolName", ToolNameConstants.EXECUTE_SHELL);
+        expired.put("patternKey", "recursive_delete");
+        expired.put("patternKeys", Collections.singletonList("recursive_delete"));
+        expired.put("description", "dashboard approval expiry probe");
+        expired.put("command", "rm -rf runtime/cache");
+        expired.put("commandHash", "dashboard-expired-command");
+        expired.put(
+                "approvalKey",
+                ToolNameConstants.EXECUTE_SHELL
+                        + ":recursive_delete:dashboard-expired-command");
+        expired.put("createdAt", Long.valueOf(System.currentTimeMillis() - 10000L));
+        expired.put("expiresAt", Long.valueOf(System.currentTimeMillis() - 1000L));
+        session.getContext().put("_dangerous_command_pending_", expired);
+
+        boolean expiredPruned =
+                approvalService.getPendingApproval(session) == null
+                        && approvalService.listPendingApprovals(session).isEmpty();
+        return policyProbeItem(
+                key,
+                label,
+                "approval_expiry_cleanup",
+                false,
+                !expiredPruned,
+                "expired approval",
+                expiredPruned
+                        ? "过期待审批项在读取前会被清理，不会继续等待审批或被误批准。"
+                        : "审批过期清理检查未通过。");
     }
 
     private Map<String, Object> slashConfirmSelectorProbe(String key, String label) {
