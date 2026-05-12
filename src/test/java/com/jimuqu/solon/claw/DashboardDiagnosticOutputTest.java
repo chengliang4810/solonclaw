@@ -499,6 +499,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_sudoers_dropin_write");
         Map<String, Object> commandDockerSocketWrite =
                 findProbe(items, "command_docker_socket_write");
+        Map<String, Object> commandRuntimeDockerSocketWrite =
+                findProbe(items, "command_runtime_docker_socket_write");
         Map<String, Object> commandHomeProfileWrite =
                 findProbe(items, "command_home_profile_write");
         Map<String, Object> commandSystemdUnitWrite =
@@ -1254,6 +1256,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandDockerSocketWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("/var/run/docker.sock");
+        assertThat(commandRuntimeDockerSocketWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRuntimeDockerSocketWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRuntimeDockerSocketWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRuntimeDockerSocketWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/run/docker.sock");
         assertThat(commandHomeProfileWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandHomeProfileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandHomeProfileWrite.get("skipped")).isNull();

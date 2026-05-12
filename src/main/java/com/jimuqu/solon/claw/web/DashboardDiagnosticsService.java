@@ -2930,6 +2930,11 @@ public class DashboardDiagnosticsService {
                         "printf probe > /var/run/docker.sock"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_runtime_docker_socket_write",
+                        "命令运行时容器套接字写入检查",
+                        "printf probe > /run/docker.sock"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_home_profile_write",
                         "命令用户启动脚本写入检查",
                         "echo 'alias ll=ls -la' >> ~/.bashrc"));
