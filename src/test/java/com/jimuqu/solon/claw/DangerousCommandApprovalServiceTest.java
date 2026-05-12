@@ -1977,6 +1977,10 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_export_credentials");
         assertDangerPattern(
                 env,
+                "$secure | ConvertFrom-SecureString | Set-Content secret.txt",
+                "windows_export_credentials");
+        assertDangerPattern(
+                env,
                 "procdump64.exe -ma lsass.exe lsass.dmp",
                 "windows_credential_material_dump");
         assertDangerPattern(
