@@ -442,6 +442,13 @@ public class DashboardDiagnosticOutputTest {
                 (Map<String, Object>) coverage.get("backgroundProcessPolicy");
         assertThat(backgroundProcessPolicy.get("startHardlineBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessPolicy.get("stdinPrivilegeWrapperDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(backgroundProcessPolicy.get("stdinExecutionTools")))
+                .contains("execute_shell")
+                .contains("execute_python");
+        assertThat(String.valueOf(backgroundProcessPolicy.get("stdinWrapperFamilies")))
+                .contains("sudo")
+                .contains("nohup");
         Map<String, Object> toolArgsPolicy = (Map<String, Object>) coverage.get("toolArgsPolicy");
         assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);

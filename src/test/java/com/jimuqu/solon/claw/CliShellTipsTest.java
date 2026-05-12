@@ -327,6 +327,10 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security process"))
                 .contains("后台进程安全策略摘要")
                 .contains("dangerousChecked")
+                .contains("pathChecked=true")
+                .contains("payloadChecked=true")
+                .contains("execute_python")
+                .contains("wrappers=[env, sudo")
                 .contains("managedRequired");
     }
 

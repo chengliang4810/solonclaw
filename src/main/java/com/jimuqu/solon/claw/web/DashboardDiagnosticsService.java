@@ -1379,6 +1379,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "stdinExecutionPayloadChecked");
             copyPolicyValue(summary, safe, "stdinExecutionTools");
             copyPolicyValue(summary, safe, "stdinPrivilegeWrapperDetection");
+            copyPolicyValue(summary, safe, "stdinWrapperFamilies");
             copyPolicyValue(summary, safe, "waitTimeoutClamped");
             copyPolicyValue(summary, safe, "processWaitTimeoutSeconds");
             copyPolicyValue(summary, safe, "managedBackgroundRequiredForLongRunningCommands");

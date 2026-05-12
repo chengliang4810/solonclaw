@@ -1524,8 +1524,17 @@ public final class TerminalSecurityPolicyView {
                 .append(value(process, "startDangerousCommandChecked"))
                 .append(" hardlineBlocked=")
                 .append(value(process, "startHardlineBlocked"))
+                .append(" pathChecked=")
+                .append(value(process, "startPathPolicyChecked"))
                 .append(" urlChecked=")
                 .append(value(process, "startUrlPolicyChecked"));
+        buffer.append('\n')
+                .append("- stdin：payloadChecked=")
+                .append(value(process, "stdinExecutionPayloadChecked"))
+                .append(" tools=")
+                .append(value(process, "stdinExecutionTools"))
+                .append(" wrappers=")
+                .append(value(process, "stdinWrapperFamilies"));
         buffer.append('\n')
                 .append("- 运行：outputRedacted=")
                 .append(value(process, "outputRedacted"))
