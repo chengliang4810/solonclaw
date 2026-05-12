@@ -82,6 +82,9 @@ public class SolonClawWebTools {
         if (document == null) {
             return;
         }
+        for (String url : securityPolicyService.extractUrlishValues(document.getMetadata())) {
+            checkUrl(securityPolicyService, url);
+        }
         List<String> keys =
                 Arrays.asList("url", "sourceURL", "sourceUrl", "source_url", "finalUrl", "final_url");
         for (String key : keys) {
