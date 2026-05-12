@@ -212,6 +212,17 @@ public class AppUpdateServiceTest {
                 .doesNotContain(leakedToken);
     }
 
+    @Test
+    void shouldRedactUpdateResultErrorMessagesAtBoundary() {
+        String leakedToken = "ghp_updateresult12345";
+
+        AppUpdateService.UpdateResult result =
+                AppUpdateService.UpdateResult.error("update failed Authorization: Bearer " + leakedToken);
+
+        assertThat(result.isError()).isTrue();
+        assertThat(result.getMessage()).contains("Bearer ***").doesNotContain(leakedToken);
+    }
+
     private static class FakeUpdateService extends AppUpdateService {
         private int releaseStatus = 200;
         private String releaseBody = "";

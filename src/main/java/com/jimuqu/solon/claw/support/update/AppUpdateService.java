@@ -612,7 +612,7 @@ public class AppUpdateService {
         }
 
         public static UpdateResult error(String message) {
-            return new UpdateResult(true, message);
+            return new UpdateResult(true, SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
         }
 
         public boolean isError() {
