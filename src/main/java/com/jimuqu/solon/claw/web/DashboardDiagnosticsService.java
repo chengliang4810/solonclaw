@@ -565,6 +565,7 @@ public class DashboardDiagnosticsService {
                 "foreground_retry_base_delay_seconds",
                 Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
         map.put("terminal", terminal);
+        map.put("probes", securityPolicyProbes());
         map.put("audit_policy", securityAuditPolicy());
         return map;
     }
@@ -2236,6 +2237,124 @@ public class DashboardDiagnosticsService {
                             1000));
         }
         return fallback;
+    }
+
+    private Map<String, Object> securityPolicyProbes() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        result.put("items", items);
+        if (securityPolicyService == null) {
+            result.put("available", Boolean.FALSE);
+            result.put("count", Integer.valueOf(0));
+            result.put("passed", Boolean.FALSE);
+            result.put("message", "安全策略服务尚未启用。");
+            return result;
+        }
+        result.put("available", Boolean.TRUE);
+        items.add(
+                urlProbe(
+                        "metadata_url",
+                        "云元数据 URL 阻断",
+                        "http://169.254.169.254/latest/meta-data/"));
+        items.add(
+                urlProbe(
+                        "sensitive_query",
+                        "敏感 URL 参数阻断",
+                        "https://example.test/callback?api_key=sk-dashboard-probe-secret"));
+        items.add(
+                urlProbe(
+                        "userinfo_url",
+                        "URL 用户名密码阻断",
+                        "https://user:dashboard-probe-password@example.test/path"));
+        items.add(
+                pathProbe(
+                        "credential_path",
+                        "凭据文件读取阻断",
+                        "~/.ssh/id_rsa",
+                        false));
+        items.add(
+                pathProbe(
+                        "system_write_path",
+                        "系统文件写入阻断",
+                        "/etc/hosts",
+                        true));
+        items.add(
+                toolArgsUrlProbe(
+                        "tool_args_url",
+                        "工具返回 URL 递归检查",
+                        "http://169.254.169.254/latest/user-data"));
+        result.put("count", Integer.valueOf(items.size()));
+        result.put("passed", Boolean.valueOf(allProbePassed(items)));
+        return result;
+    }
+
+    private Map<String, Object> urlProbe(String key, String label, String url) {
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        return policyProbeItem(
+                key,
+                label,
+                "url",
+                false,
+                verdict.isAllowed(),
+                SecretRedactor.maskUrl(url),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> pathProbe(String key, String label, String path, boolean writeLike) {
+        SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkPath(path, writeLike);
+        return policyProbeItem(
+                key,
+                label,
+                writeLike ? "path_write" : "path_read",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(path, 400),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> toolArgsUrlProbe(String key, String label, String url) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("content", "download: " + url);
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkToolArgs("tool_result", args);
+        return policyProbeItem(
+                key,
+                label,
+                "tool_args",
+                false,
+                verdict.isAllowed(),
+                SecretRedactor.maskUrl(url),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> policyProbeItem(
+            String key,
+            String label,
+            String surface,
+            boolean expectedAllowed,
+            boolean actualAllowed,
+            String target,
+            String message) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("key", key);
+        item.put("label", label);
+        item.put("surface", surface);
+        item.put("expected_allowed", Boolean.valueOf(expectedAllowed));
+        item.put("allowed", Boolean.valueOf(actualAllowed));
+        item.put("blocked", Boolean.valueOf(!actualAllowed));
+        item.put("passed", Boolean.valueOf(expectedAllowed == actualAllowed));
+        item.put("target", safeAuditPreview(target, 400));
+        item.put("message", safeAuditPreview(message, 600));
+        return item;
+    }
+
+    private boolean allProbePassed(List<Map<String, Object>> items) {
+        for (Map<String, Object> item : items) {
+            if (!Boolean.TRUE.equals(item.get("passed"))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Map<String, Object> pendingApprovalItem(

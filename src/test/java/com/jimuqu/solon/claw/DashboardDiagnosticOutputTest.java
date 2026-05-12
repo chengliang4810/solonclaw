@@ -100,7 +100,7 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         null,
                         null,
-                        null,
+                        new SecurityPolicyService(config),
                         null);
         String diagnosticsJson = ONode.serialize(diagnosticsService.diagnostics());
         assertThat(diagnosticsJson).contains("path://state.db");
@@ -117,6 +117,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("tirith_approval_policy");
         assertThat(diagnosticsJson).contains("terminal_guardrail_policy");
         assertThat(diagnosticsJson).contains("approval service is unavailable");
+        assertThat(diagnosticsJson).contains("\"probes\"");
+        assertThat(diagnosticsJson).contains("\"metadata_url\"");
+        assertThat(diagnosticsJson).contains("\"sensitive_query\"");
+        assertThat(diagnosticsJson).contains("\"tool_args_url\"");
+        assertThat(diagnosticsJson).contains("\"passed\":true");
         assertThat(diagnosticsJson).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(diagnosticsJson).doesNotContain(externalState.getParentFile().getAbsolutePath());
         assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticexternal123");
@@ -124,6 +129,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).doesNotContain("provider-pass");
         assertThat(diagnosticsJson).doesNotContain("provider-token");
         assertThat(diagnosticsJson).doesNotContain("sk-test-providersecret");
+        assertThat(diagnosticsJson).doesNotContain("sk-dashboard-probe-secret");
+        assertThat(diagnosticsJson).doesNotContain("dashboard-probe-password");
         assertThat(diagnosticsJson).doesNotContain("ghp_doctorerror123");
         assertThat(diagnosticsJson).doesNotContain("doctor-password");
     }

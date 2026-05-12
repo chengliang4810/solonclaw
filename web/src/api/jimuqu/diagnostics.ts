@@ -10,7 +10,26 @@ export interface Diagnostics {
     approvals?: Record<string, unknown>
     policy?: Record<string, unknown>
     terminal?: Record<string, unknown>
+    probes?: {
+      available?: boolean
+      count?: number
+      passed?: boolean
+      message?: string
+      items?: SecurityPolicyProbe[]
+    }
   }
+}
+
+export interface SecurityPolicyProbe {
+  key?: string
+  label?: string
+  surface?: string
+  expected_allowed?: boolean
+  allowed?: boolean
+  blocked?: boolean
+  passed?: boolean
+  target?: string
+  message?: string
 }
 
 export interface SecurityAuditRequest {

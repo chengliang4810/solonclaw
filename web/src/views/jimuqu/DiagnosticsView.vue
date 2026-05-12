@@ -20,6 +20,7 @@ import {
   type PendingApprovalsResult,
   type PendingSlashConfirm,
   type PendingSlashConfirmsResult,
+  type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
 } from '@/api/jimuqu/diagnostics'
@@ -57,6 +58,8 @@ const resolvingConfirmKey = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
+const securityProbes = computed<SecurityPolicyProbe[]>(() => diagnostics.value?.security?.probes?.items || [])
+const securityProbePassed = computed(() => diagnostics.value?.security?.probes?.passed)
 const securityCoverage = computed<Record<string, unknown>>(() => {
   const policy = policyAuditResult.value?.policy as Record<string, unknown> | undefined
   return (policy?.coverage as Record<string, unknown> | undefined) || {}
@@ -657,6 +660,34 @@ onMounted(load)
               </div>
             </div>
           </div>
+          <div class="probe-section">
+            <div class="coverage-title">
+              <h4>安全探针</h4>
+              <NTag size="small" :type="securityProbePassed === false ? 'error' : 'success'" :bordered="false">
+                {{ securityProbePassed === false ? '存在异常' : '全部通过' }}
+              </NTag>
+            </div>
+            <p v-if="diagnostics?.security?.probes?.available === false" class="approval-note">
+              {{ diagnostics?.security?.probes?.message || '安全策略服务尚未启用。' }}
+            </p>
+            <div v-else-if="securityProbes.length" class="probe-grid">
+              <div v-for="probe in securityProbes" :key="probe.key || probe.label" class="probe-item">
+                <div class="probe-head">
+                  <strong>{{ probe.label || probe.key }}</strong>
+                  <NTag size="small" :type="probe.passed ? 'success' : 'error'" :bordered="false">
+                    {{ probe.passed ? '通过' : '异常' }}
+                  </NTag>
+                </div>
+                <div class="probe-meta">
+                  <span>{{ probe.surface || '-' }}</span>
+                  <span>{{ probe.blocked ? '已阻断' : '已放行' }}</span>
+                </div>
+                <p>{{ probe.message || '-' }}</p>
+                <code>{{ probe.target || '-' }}</code>
+              </div>
+            </div>
+            <div v-else class="surface-empty">暂无安全探针数据</div>
+          </div>
         </section>
         <section class="panel audit-panel">
           <h3>安全审计</h3>
@@ -1054,6 +1085,14 @@ onMounted(load)
   background: $bg-secondary;
 }
 
+.probe-section {
+  margin-top: 12px;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  padding: 12px;
+  background: $bg-secondary;
+}
+
 .coverage-title {
   display: flex;
   justify-content: space-between;
@@ -1121,6 +1160,53 @@ onMounted(load)
   align-items: center;
   font-size: 12px;
   color: $text-secondary;
+}
+
+.probe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.probe-item {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+  padding: 10px;
+}
+
+.probe-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.probe-head strong {
+  font-size: 12px;
+  color: $text-primary;
+}
+
+.probe-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.probe-item p {
+  margin: 8px 0;
+  font-size: 12px;
+  color: $text-secondary;
+  word-break: break-word;
+}
+
+.probe-item code {
+  display: block;
+  font-size: 12px;
+  color: $text-muted;
+  word-break: break-word;
 }
 
 h3 {
