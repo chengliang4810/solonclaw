@@ -3529,6 +3529,104 @@ public class DashboardDiagnosticsService {
                         "dropdb production",
                         "database_dropdb"));
         items.add(
+                approvalDetectionProbe(
+                        "database_flush",
+                        "数据库缓存清空审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "redis-cli FLUSHALL",
+                        "database_flush"));
+        items.add(
+                approvalDetectionProbe(
+                        "mongodb_destructive_eval",
+                        "MongoDB 破坏性脚本审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "mongosh --eval \"db.dropDatabase()\"",
+                        "mongodb_destructive_eval"));
+        items.add(
+                approvalDetectionProbe(
+                        "volume_delete",
+                        "存储卷删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "zfs destroy pool/data",
+                        "volume_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "snapshot_delete",
+                        "本地快照删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "snapper delete 42",
+                        "snapshot_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "backup_prune_delete",
+                        "备份仓库清理删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "restic forget --prune latest",
+                        "backup_prune_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_remove_item",
+                        "Windows 递归删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Remove-Item -Recurse C:\\temp\\cache",
+                        "windows_remove_item"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_del_force",
+                        "Windows 强制删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "del /s /f C:\\temp\\*.log",
+                        "windows_del_force"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_rmdir_force",
+                        "Windows 目录递归删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "rmdir /s /q C:\\temp\\cache",
+                        "windows_rmdir_force"));
+        items.add(
+                approvalDetectionProbe(
+                        "powershell_sensitive_file_write",
+                        "PowerShell 敏感文件写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Set-Content -Path .env -Value secret",
+                        "powershell_sensitive_file_write"));
+        items.add(
+                approvalDetectionProbe(
+                        "powershell_sensitive_file_copy",
+                        "PowerShell 敏感文件复制审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Copy-Item token.json -Destination .env",
+                        "powershell_sensitive_file_copy"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_sensitive_file_copy",
+                        "Windows 敏感文件复制审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "copy token.json .env",
+                        "windows_sensitive_file_copy"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_delete_shadow_copies",
+                        "Windows 卷影副本删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "vssadmin delete shadows /all /quiet",
+                        "windows_delete_shadow_copies"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_delete_backup",
+                        "Windows 备份删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "wbadmin delete backup -keepVersions:0",
+                        "windows_delete_backup"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_disable_recovery",
+                        "Windows 恢复能力关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "reagentc /disable",
+                        "windows_disable_recovery"));
+        items.add(
                 codeExecutionSandboxProbe(
                         "code_execution_sandbox",
                         "代码执行沙箱安全检查"));
