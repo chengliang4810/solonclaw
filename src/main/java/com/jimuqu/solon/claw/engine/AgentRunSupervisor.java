@@ -1484,7 +1484,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
             event.setPhase(record.getPhase());
             event.setSeverity(eventType != null && eventType.contains("reject") ? "warn" : "info");
             event.setSummary(safeText(summary));
-            event.setMetadataJson(metadataJson);
+            event.setMetadataJson(
+                    metadataJson == null ? null : SecretRedactor.redact(metadataJson, 4000));
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
         } catch (Exception ignored) {

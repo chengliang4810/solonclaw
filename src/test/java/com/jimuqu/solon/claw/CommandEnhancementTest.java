@@ -403,6 +403,16 @@ public class CommandEnhancementTest {
         assertThat(pending.getPayloadJson())
                 .contains("ghp_dashcontrol12345")
                 .contains("sk-dash-control-secret");
+        assertThat(env.agentRunRepository.listEvents(runId))
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getEventType()).isEqualTo("run.steer");
+                            assertThat(event.getMetadataJson())
+                                    .contains("token=***")
+                                    .contains("\"api_key\":\"***\"")
+                                    .doesNotContain("ghp_dashcontrol12345")
+                                    .doesNotContain("sk-dash-control-secret");
+                        });
 
         String detail = ONode.serialize(dashboard.detail(runId));
 
