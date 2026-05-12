@@ -6,10 +6,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import cn.hutool.core.io.FileUtil;
 import java.io.File;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -429,7 +433,8 @@ public class KanbanServiceTest {
 
     @Test
     void shouldRedactSecretsFromKanbanRunSummaries() throws Exception {
-        KanbanService service = service();
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
         String taskId = createTask(service, "脱敏任务", "alice", "tester");
         Map<String, Object> runningBody = new LinkedHashMap<String, Object>();
         runningBody.put("status", "running");
@@ -454,6 +459,7 @@ public class KanbanServiceTest {
         assertRedactedRunSummary(runsJson);
         assertRedactedRunSummary(drawer);
         assertRedactedRunSummary(context);
+        assertRedactedRunSummary(readKanbanAuditStorage(env.sqliteDatabase, taskId));
     }
 
     @Test
@@ -797,7 +803,8 @@ public class KanbanServiceTest {
 
     @Test
     void shouldRedactKanbanErrorViewsAndHistoryText() throws Exception {
-        KanbanService service = service();
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
         String taskId = createTask(service, "脱敏任务", "worker", "planner");
         service.status(taskId, "ready", null);
 
@@ -831,6 +838,12 @@ public class KanbanServiceTest {
                 .doesNotContain(leakedKey)
                 .doesNotContain("\u202E");
         assertThat(String.valueOf(service.context(taskId).get("worker_context")))
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain(leakedToken)
+                .doesNotContain(leakedKey)
+                .doesNotContain("\u202E");
+        assertThat(readKanbanAuditStorage(env.sqliteDatabase, taskId))
                 .contains("token=***")
                 .contains("api_key=***")
                 .doesNotContain(leakedToken)
@@ -1033,5 +1046,43 @@ public class KanbanServiceTest {
                 .doesNotContain("ghp_kanbansummary12345")
                 .doesNotContain("kanban-token")
                 .doesNotContain("u:p@example.com");
+    }
+
+    private static String readKanbanAuditStorage(SqliteDatabase database, String taskId) throws Exception {
+        StringBuilder buffer = new StringBuilder();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement runs =
+                    connection.prepareStatement(
+                            "select summary, metadata_json, error from kanban_runs where task_id = ?");
+            runs.setString(1, taskId);
+            ResultSet runSet = runs.executeQuery();
+            try {
+                while (runSet.next()) {
+                    buffer.append(runSet.getString("summary")).append('\n');
+                    buffer.append(runSet.getString("metadata_json")).append('\n');
+                    buffer.append(runSet.getString("error")).append('\n');
+                }
+            } finally {
+                runSet.close();
+                runs.close();
+            }
+            PreparedStatement events =
+                    connection.prepareStatement(
+                            "select payload_json from kanban_events where task_id = ?");
+            events.setString(1, taskId);
+            ResultSet eventSet = events.executeQuery();
+            try {
+                while (eventSet.next()) {
+                    buffer.append(eventSet.getString("payload_json")).append('\n');
+                }
+            } finally {
+                eventSet.close();
+                events.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return buffer.toString();
     }
 }

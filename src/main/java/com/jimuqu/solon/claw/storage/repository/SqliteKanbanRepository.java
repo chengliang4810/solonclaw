@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
 import com.jimuqu.solon.claw.kanban.KanbanTaskRecord;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -1255,7 +1256,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.setString(1, event.getEventId());
             statement.setString(2, event.getTaskId());
             statement.setString(3, event.getKind());
-            statement.setString(4, event.getPayloadJson());
+            statement.setString(4, redact(event.getPayloadJson(), 8000));
             statement.setLong(5, event.getCreatedAt());
             statement.executeUpdate();
             statement.close();
@@ -1412,9 +1413,9 @@ public class SqliteKanbanRepository implements KanbanRepository {
             PreparedStatement statement =
                     connection.prepareStatement(
                             "update kanban_runs set summary = coalesce(?, summary), metadata_json = coalesce(?, metadata_json), error = coalesce(?, error) where run_id = ?");
-            statement.setString(1, summary);
-            statement.setString(2, metadataJson);
-            statement.setString(3, error);
+            statement.setString(1, redact(summary, 8000));
+            statement.setString(2, redact(metadataJson, 8000));
+            statement.setString(3, redact(error, 4000));
             statement.setString(4, run.getRunId());
             int updated = statement.executeUpdate();
             statement.close();
@@ -1468,11 +1469,11 @@ public class SqliteKanbanRepository implements KanbanRepository {
                                         "update kanban_runs set summary = ? where run_id = ?")
                                 : connection.prepareStatement(
                                         "update kanban_runs set summary = ?, metadata_json = ? where run_id = ?");
-                updateRun.setString(1, handoffSummary);
+                updateRun.setString(1, redact(handoffSummary, 8000));
                 if (metadataJson == null) {
                     updateRun.setString(2, runId);
                 } else {
-                    updateRun.setString(2, metadataJson);
+                    updateRun.setString(2, redact(metadataJson, 8000));
                     updateRun.setString(3, runId);
                 }
                 updateRun.executeUpdate();
@@ -2134,7 +2135,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         PreparedStatement statement =
                 connection.prepareStatement(
                         "update kanban_runs set error = coalesce(?, error), worker_pid = 0 where run_id = ? and ended_at = 0");
-        statement.setString(1, error);
+        statement.setString(1, redact(error, 4000));
         statement.setString(2, task.getCurrentRunId());
         statement.executeUpdate();
         statement.close();
@@ -2243,9 +2244,9 @@ public class SqliteKanbanRepository implements KanbanRepository {
                         "update kanban_runs set status = ?, outcome = ?, summary = coalesce(?, summary), metadata_json = coalesce(?, metadata_json), error = coalesce(?, error), ended_at = case when ended_at = 0 then ? else ended_at end, claim_lock = null, claim_expires_at = 0 where run_id = ? and ended_at = 0");
         statement.setString(1, status);
         statement.setString(2, outcome);
-        statement.setString(3, summary);
-        statement.setString(4, metadataJson);
-        statement.setString(5, error);
+        statement.setString(3, redact(summary, 8000));
+        statement.setString(4, redact(metadataJson, 8000));
+        statement.setString(5, redact(error, 4000));
         statement.setLong(6, now);
         statement.setString(7, runId);
         int updated = statement.executeUpdate();
@@ -2285,9 +2286,9 @@ public class SqliteKanbanRepository implements KanbanRepository {
         statement.setLong(12, run.getStartedAt());
         statement.setLong(13, run.getEndedAt());
         statement.setString(14, run.getOutcome());
-        statement.setString(15, run.getSummary());
-        statement.setString(16, run.getMetadataJson());
-        statement.setString(17, run.getError());
+        statement.setString(15, redact(run.getSummary(), 8000));
+        statement.setString(16, redact(run.getMetadataJson(), 8000));
+        statement.setString(17, redact(run.getError(), 4000));
         statement.executeUpdate();
         statement.close();
     }
@@ -2309,9 +2310,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
         statement.setString(1, "event_" + IdSupport.newId());
         statement.setString(2, taskId);
         statement.setString(3, kind);
-        statement.setString(4, payload == null ? null : ONode.serialize(payload));
+        statement.setString(4, redact(payload == null ? null : ONode.serialize(payload), 8000));
         statement.setLong(5, System.currentTimeMillis());
         statement.executeUpdate();
         statement.close();
+    }
+
+    private String redact(String value, int maxLength) {
+        return value == null ? null : SecretRedactor.redact(value, maxLength);
     }
 }
