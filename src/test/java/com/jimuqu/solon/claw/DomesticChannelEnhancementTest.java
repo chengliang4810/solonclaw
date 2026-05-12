@@ -212,14 +212,16 @@ public class DomesticChannelEnhancementTest {
         assertThat(body.get("content").getString()).isNull();
         assertThat(body.get("msg_id").getString()).isEqualTo("m1");
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
-        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(4);
         assertThat(buttons.get(0).get("action").get("data").getString())
                 .isEqualTo("approve:approval-123:allow-once");
-        assertThat(buttons.get(1).get("render_data").get("label").getString())
+        assertThat(buttons.get(1).get("action").get("data").getString())
+                .isEqualTo("approve:approval-123:allow-session");
+        assertThat(buttons.get(2).get("render_data").get("label").getString())
                 .isEqualTo("⭐ 始终允许");
-        assertThat(buttons.get(2).get("action").get("data").getString())
+        assertThat(buttons.get(3).get("action").get("data").getString())
                 .isEqualTo("approve:approval-123:deny");
-        assertThat(buttons.get(2).get("group_id").getString()).isEqualTo("approval");
+        assertThat(buttons.get(3).get("group_id").getString()).isEqualTo("approval");
     }
 
     @Test
@@ -239,10 +241,14 @@ public class DomesticChannelEnhancementTest {
         ONode body = adapter.buildApprovalBody(request);
 
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
-        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(2);
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
         assertThat(buttons.get(1).get("render_data").get("label").getString())
-                .isEqualTo("❌ 拒绝");
+                .isEqualTo("✅ 本会话允许");
         assertThat(buttons.get(1).get("action").get("data").getString())
+                .isEqualTo("approve:approval-456:allow-session");
+        assertThat(buttons.get(2).get("render_data").get("label").getString())
+                .isEqualTo("❌ 拒绝");
+        assertThat(buttons.get(2).get("action").get("data").getString())
                 .isEqualTo("approve:approval-456:deny");
     }
 
@@ -270,10 +276,12 @@ public class DomesticChannelEnhancementTest {
                 .doesNotContain("sk-proj-abcdefghijklmnop")
                 .doesNotContain("\u001b")
                 .doesNotContain("\u202E");
-        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(2);
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
         assertThat(buttons.get(0).get("action").get("data").getString())
                 .isEqualTo("approve::allow-once");
         assertThat(buttons.get(1).get("action").get("data").getString())
+                .isEqualTo("approve::allow-session");
+        assertThat(buttons.get(2).get("action").get("data").getString())
                 .isEqualTo("approve::deny");
     }
 
@@ -323,6 +331,10 @@ public class DomesticChannelEnhancementTest {
         assertThat(approve.getChatId()).isEqualTo("group-a");
         assertThat(approve.getUserId()).isEqualTo("user-a");
         assertThat(approve.getThreadId()).isEqualTo("int-1");
+        GatewayMessage session =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-session\",\"chat_type\":2,\"user_openid\":\"user-session\",\"resolved\":{\"button_data\":\"approve:approval-123:allow-session\"}}}");
+        assertThat(session.getText()).isEqualTo("/approve approval-123 session");
         assertThat(deny.getText()).isEqualTo("/deny approval-123");
         assertThat(deny.getChatType()).isEqualTo("dm");
         assertThat(deny.getChatId()).isEqualTo("user-b");
@@ -350,14 +362,14 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldIgnoreQqbotNonJimuquApprovalDecision() {
+    void shouldIgnoreQqbotUnknownApprovalDecision() {
         AppConfig config = new AppConfig();
         config.getChannels().getQqbot().setAllowAllUsers(true);
         TestQQBotAdapter adapter = new TestQQBotAdapter(config);
 
         GatewayMessage message =
                 adapter.parse(
-                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-3\",\"chat_type\":2,\"user_openid\":\"user-c\",\"resolved\":{\"button_data\":\"approve:approval-123:allow-session\"}}}");
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-3\",\"chat_type\":2,\"user_openid\":\"user-c\",\"resolved\":{\"button_data\":\"approve:approval-123:allow-forever\"}}}");
 
         assertThat(message).isNull();
     }

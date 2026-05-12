@@ -11,7 +11,7 @@ import org.noear.snack4.ONode;
 /** QQBot inline keyboard helpers. */
 final class QQBotKeyboardSupport {
     private static final Pattern APPROVAL_DATA_PATTERN =
-            Pattern.compile("^approve:(.+):(allow-once|allow-always|deny)$");
+            Pattern.compile("^approve:(.*):(allow-once|allow-session|allow-always|deny)$");
     private static final Pattern UPDATE_PROMPT_DATA_PATTERN =
             Pattern.compile("^update_prompt:([yn])$");
 
@@ -33,6 +33,14 @@ final class QQBotKeyboardSupport {
                         "✅ 允许一次",
                         "已允许",
                         "approve:" + safeApprovalId + ":allow-once",
+                        1,
+                        "approval"));
+        buttons.add(
+                button(
+                        "session",
+                        "✅ 本会话允许",
+                        "已允许本会话",
+                        "approve:" + safeApprovalId + ":allow-session",
                         1,
                         "approval"));
         if (allowAlways) {
@@ -76,6 +84,9 @@ final class QQBotKeyboardSupport {
         }
         if ("allow-always".equals(decision)) {
             return "/approve " + approvalId + " always";
+        }
+        if ("allow-session".equals(decision)) {
+            return "/approve " + approvalId + " session";
         }
         return StrUtil.isBlank(approvalId) ? "/approve" : "/approve " + approvalId;
     }
