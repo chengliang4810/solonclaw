@@ -723,6 +723,20 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> hostServiceControl = findProbe(items, "host_service_control");
         Map<String, Object> hostCronChange = findProbe(items, "host_cron_change");
         Map<String, Object> hostAdminGroupChange = findProbe(items, "host_admin_group_change");
+        Map<String, Object> hostTimeTamper = findProbe(items, "host_time_tamper");
+        Map<String, Object> hostKillAllProcesses = findProbe(items, "host_kill_all_processes");
+        Map<String, Object> hostForceProcessKill = findProbe(items, "host_force_process_kill");
+        Map<String, Object> hostForkBomb = findProbe(items, "host_fork_bomb");
+        Map<String, Object> gatewayDetachedRun = findProbe(items, "gateway_detached_run");
+        Map<String, Object> processLookupKill = findProbe(items, "process_lookup_kill");
+        Map<String, Object> servicePersistenceRegistration =
+                findProbe(items, "service_persistence_registration");
+        Map<String, Object> shellProfilePersistenceInjection =
+                findProbe(items, "shell_profile_persistence_injection");
+        Map<String, Object> gitHookPersistenceChange =
+                findProbe(items, "git_hook_persistence_change");
+        Map<String, Object> remoteFleetCommandExecution =
+                findProbe(items, "remote_fleet_command_execution");
         Map<String, Object> containerPrivilegedHostMount =
                 findProbe(items, "container_privileged_host_mount");
         Map<String, Object> containerSecretExposure =
@@ -2085,6 +2099,46 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hostAdminGroupChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hostAdminGroupChange.get("skipped")).isNull();
         assertThat(String.valueOf(hostAdminGroupChange)).contains("usermod -aG sudo deploy");
+        assertThat(hostTimeTamper.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hostTimeTamper.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hostTimeTamper.get("skipped")).isNull();
+        assertThat(String.valueOf(hostTimeTamper)).contains("timedatectl");
+        assertThat(hostKillAllProcesses.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hostKillAllProcesses.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hostKillAllProcesses.get("skipped")).isNull();
+        assertThat(String.valueOf(hostKillAllProcesses)).contains("kill -9 -1");
+        assertThat(hostForceProcessKill.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hostForceProcessKill.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hostForceProcessKill.get("skipped")).isNull();
+        assertThat(String.valueOf(hostForceProcessKill)).contains("pkill -9");
+        assertThat(hostForkBomb.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hostForkBomb.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hostForkBomb.get("skipped")).isNull();
+        assertThat(String.valueOf(hostForkBomb)).contains(":(){");
+        assertThat(gatewayDetachedRun.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gatewayDetachedRun.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gatewayDetachedRun.get("skipped")).isNull();
+        assertThat(String.valueOf(gatewayDetachedRun)).contains("nohup gateway run");
+        assertThat(processLookupKill.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(processLookupKill.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(processLookupKill.get("skipped")).isNull();
+        assertThat(String.valueOf(processLookupKill)).contains("pgrep gateway");
+        assertThat(servicePersistenceRegistration.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(servicePersistenceRegistration.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(servicePersistenceRegistration.get("skipped")).isNull();
+        assertThat(String.valueOf(servicePersistenceRegistration)).contains("systemctl enable");
+        assertThat(shellProfilePersistenceInjection.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(shellProfilePersistenceInjection.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(shellProfilePersistenceInjection.get("skipped")).isNull();
+        assertThat(String.valueOf(shellProfilePersistenceInjection)).contains(".bashrc");
+        assertThat(gitHookPersistenceChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gitHookPersistenceChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gitHookPersistenceChange.get("skipped")).isNull();
+        assertThat(String.valueOf(gitHookPersistenceChange)).contains("core.hooksPath");
+        assertThat(remoteFleetCommandExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteFleetCommandExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteFleetCommandExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteFleetCommandExecution)).contains("ansible all");
         assertThat(containerPrivilegedHostMount.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(containerPrivilegedHostMount.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(containerPrivilegedHostMount.get("skipped")).isNull();

@@ -3719,6 +3719,76 @@ public class DashboardDiagnosticsService {
                         "local_admin_permission_change"));
         items.add(
                 approvalDetectionProbe(
+                        "host_time_tamper",
+                        "主机时间配置篡改审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "timedatectl set-ntp false",
+                        "system_time_tamper"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_kill_all_processes",
+                        "主机全进程终止审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kill -9 -1",
+                        "kill_all"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_force_process_kill",
+                        "主机强制进程终止审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "pkill -9 worker",
+                        "pkill_force"));
+        items.add(
+                approvalDetectionProbe(
+                        "host_fork_bomb",
+                        "主机 Fork 炸弹审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        ":(){ :|:& };:",
+                        "fork_bomb"));
+        items.add(
+                approvalDetectionProbe(
+                        "gateway_detached_run",
+                        "网关脱管运行审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "nohup gateway run &",
+                        "gateway_run_detached"));
+        items.add(
+                approvalDetectionProbe(
+                        "process_lookup_kill",
+                        "进程查找后终止审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kill $(pgrep gateway)",
+                        "kill_pgrep_expansion"));
+        items.add(
+                approvalDetectionProbe(
+                        "service_persistence_registration",
+                        "服务持久化注册审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "systemctl enable worker.service",
+                        "service_persistence_registration"));
+        items.add(
+                approvalDetectionProbe(
+                        "shell_profile_persistence_injection",
+                        "Shell 启动配置持久化审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "echo 'alias ll=ls' >> ~/.bashrc",
+                        "shell_profile_persistence_injection"));
+        items.add(
+                approvalDetectionProbe(
+                        "git_hook_persistence_change",
+                        "Git Hook 持久化变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "git config core.hooksPath .githooks",
+                        "git_hook_persistence_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "remote_fleet_command_execution",
+                        "远程批量命令执行审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "ansible all -m shell -a uptime",
+                        "remote_fleet_command_execution"));
+        items.add(
+                approvalDetectionProbe(
                         "container_privileged_host_mount",
                         "容器特权与宿主挂载审批",
                         ToolNameConstants.EXECUTE_SHELL,
