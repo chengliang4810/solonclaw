@@ -372,6 +372,13 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_bare_ipv6_mapped_metadata");
         Map<String, Object> commandBareIpv6ExpandedMetadata =
                 findProbe(items, "command_bare_ipv6_expanded_metadata");
+        Map<String, Object> commandBitsPackedIpv4Metadata =
+                findProbe(items, "command_bits_packed_ipv4_metadata");
+        Map<String, Object> commandCertutilPackedIpv4Metadata =
+                findProbe(items, "command_certutil_packed_ipv4_metadata");
+        Map<String, Object> commandNetcatMetadata = findProbe(items, "command_netcat_metadata");
+        Map<String, Object> commandOpensslConnectMetadata =
+                findProbe(items, "command_openssl_connect_metadata");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
@@ -667,6 +674,28 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandBareIpv6ExpandedMetadata.get("skipped")).isNull();
         assertThat(String.valueOf(commandBareIpv6ExpandedMetadata))
                 .contains("0:0:0:0:0:ffff:a9fe:a9fe");
+        assertThat(commandBitsPackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBitsPackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandBitsPackedIpv4Metadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandBitsPackedIpv4Metadata))
+                .contains("Start-BitsTransfer")
+                .contains("0xa9fea9fe");
+        assertThat(commandCertutilPackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCertutilPackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCertutilPackedIpv4Metadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCertutilPackedIpv4Metadata))
+                .contains("certutil")
+                .contains("2852039166");
+        assertThat(commandNetcatMetadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandNetcatMetadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandNetcatMetadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandNetcatMetadata)).contains("nc 169.254.169.254 80");
+        assertThat(commandOpensslConnectMetadata.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandOpensslConnectMetadata.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandOpensslConnectMetadata.get("skipped")).isNull();
+        assertThat(String.valueOf(commandOpensslConnectMetadata))
+                .contains("openssl")
+                .contains("169.254.169.254:443");
         assertThat(schemaSanitizer.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);

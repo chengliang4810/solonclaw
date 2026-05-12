@@ -2556,6 +2556,26 @@ public class DashboardDiagnosticsService {
                         "命令裸展开 IPv6 元数据地址阻断",
                         "curl [0:0:0:0:0:ffff:a9fe:a9fe]"));
         items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_bits_packed_ipv4_metadata",
+                        "BITS 命令裸元数据地址阻断",
+                        "Start-BitsTransfer -Source 0xa9fea9fe -Destination out.txt"));
+        items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_certutil_packed_ipv4_metadata",
+                        "certutil 命令裸元数据地址阻断",
+                        "certutil -urlcache -split -f 2852039166 payload.bin"));
+        items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_netcat_metadata",
+                        "netcat 命令元数据地址阻断",
+                        "nc 169.254.169.254 80"));
+        items.add(
+                commandAlwaysBlockedUrlProbe(
+                        "command_openssl_connect_metadata",
+                        "openssl 直连元数据地址阻断",
+                        "openssl s_client -connect 169.254.169.254:443"));
+        items.add(
                 schemaSanitizerProbe(
                         "schema_sanitizer",
                         "工具 Schema 安全清洗"));
