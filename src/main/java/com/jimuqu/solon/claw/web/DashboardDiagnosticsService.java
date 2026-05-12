@@ -2373,6 +2373,11 @@ public class DashboardDiagnosticsService {
                         "命令本地管理套接字阻断",
                         "DOCKER_HOST=unix:///var/run/docker.sock docker ps"));
         items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_pipe",
+                        "命令本地管理命名管道阻断",
+                        "DOCKER_HOST=npipe:////./pipe/docker_engine docker ps"));
+        items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_credential_path",
                         "文件工具凭据路径参数检查",
