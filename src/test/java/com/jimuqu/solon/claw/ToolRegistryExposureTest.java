@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +39,7 @@ import org.noear.solon.ai.rag.Document;
 import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
 import org.noear.solon.ai.skills.web.WebsearchTool;
+import org.noear.solon.annotation.Param;
 
 public class ToolRegistryExposureTest {
     @Test
@@ -113,6 +115,26 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("ConfigRefreshTool");
         assertThat(joined).doesNotContain("ToolGatewaySkill");
+    }
+
+    @Test
+    void shouldDescribeSecurityAuditStatusActionInToolParameters() throws Exception {
+        Method method =
+                SecurityAuditTools.class.getMethod(
+                        "audit",
+                        String.class,
+                        String.class,
+                        String.class,
+                        String.class,
+                        String.class,
+                        Boolean.class,
+                        String.class);
+
+        assertThat(paramDescription(method, "action"))
+                .contains("command")
+                .contains("tool_args")
+                .contains("policy")
+                .contains("status");
     }
 
     @Test
@@ -4561,6 +4583,16 @@ public class ToolRegistryExposureTest {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private String paramDescription(Method method, String name) {
+        for (Parameter parameter : method.getParameters()) {
+            Param annotation = parameter.getAnnotation(Param.class);
+            if (annotation != null && name.equals(annotation.name())) {
+                return annotation.description();
+            }
+        }
+        throw new IllegalStateException("parameter not found: " + name);
     }
 
     private String resolveStdinExecutionToolName(ProcessTools tools, String command) throws Exception {

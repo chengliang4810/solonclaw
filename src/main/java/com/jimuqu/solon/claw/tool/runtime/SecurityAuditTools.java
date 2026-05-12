@@ -66,7 +66,7 @@ public class SecurityAuditTools {
             description =
                     "只读安全审计。action 支持 command、url、path、tool_args、policy/status；不会执行命令或访问目标。")
     public String audit(
-            @Param(name = "action", description = "command/url/path/tool_args") String action,
+            @Param(name = "action", description = "command/url/path/tool_args/policy/status") String action,
             @Param(name = "toolName", description = "工具名，可选", required = false)
                     String toolName,
             @Param(name = "command", description = "要审计的命令或代码", required = false)
