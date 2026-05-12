@@ -319,10 +319,7 @@ public class DashboardCronService {
             throw new IllegalArgumentException("request body is required");
         }
         Object name = body.get("name");
-        if (name == null || String.valueOf(name).trim().length() == 0) {
-            throw new IllegalArgumentException("name is required");
-        }
-        if (String.valueOf(name).trim().length() > API_MAX_NAME_LENGTH) {
+        if (name != null && String.valueOf(name).trim().length() > API_MAX_NAME_LENGTH) {
             throw new IllegalArgumentException("name must be at most 200 characters");
         }
         Object schedule = body.containsKey("schedule") ? body.get("schedule") : body.get("cronExpr");
@@ -330,7 +327,7 @@ public class DashboardCronService {
             throw new IllegalArgumentException("schedule is required");
         }
         validatePromptLength(body.get("prompt"));
-        validateApiRepeat(body.get("repeat"), false);
+        validateApiRepeat(body.get("repeat"), true);
     }
 
     private String pauseReason(Map<String, Object> body) {

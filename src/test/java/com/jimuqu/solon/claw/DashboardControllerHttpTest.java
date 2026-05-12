@@ -2193,16 +2193,39 @@ public class DashboardControllerHttpTest {
     void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
-        HttpResult missingName =
+        HttpResult promptNamed =
                 request("POST", "/api/jobs", "{\"schedule\":\"every 1h\",\"prompt\":\"missing name\"}", token);
-        assertThat(missingName.status).isEqualTo(400);
-        assertThat(missingName.body).contains("name");
+        assertThat(promptNamed.status).isEqualTo(200);
+        ONode defaultNamed = ONode.ofJson(promptNamed.body).get("job");
+        assertThat(defaultNamed.get("name").getString()).isEqualTo("missing name");
+
+        request("DELETE", "/api/jobs/" + defaultNamed.get("id").getString(), null, token);
+
+        HttpResult skillNamed =
+                request("POST", "/api/jobs", "{\"schedule\":\"every 1h\",\"skill\":\"weekly-report\"}", token);
+        assertThat(skillNamed.status).isEqualTo(200);
+        ONode defaultSkillNamed = ONode.ofJson(skillNamed.body).get("job");
+        assertThat(defaultSkillNamed.get("name").getString()).isEqualTo("weekly-report");
+        assertThat(defaultSkillNamed.get("skills").toJson()).contains("weekly-report");
+
+        request("DELETE", "/api/jobs/" + defaultSkillNamed.get("id").getString(), null, token);
+
+        HttpResult unlimitedRepeat =
+                request(
+                        "POST",
+                        "/api/jobs",
+                        "{\"name\":\"unlimited-repeat\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"repeat\":0}",
+                        token);
+        assertThat(unlimitedRepeat.status).isEqualTo(200);
+        assertThat(ONode.ofJson(unlimitedRepeat.body).get("job").get("repeat").get("times").isNull()).isTrue();
+
+        request("DELETE", "/api/jobs/" + ONode.ofJson(unlimitedRepeat.body).get("job").get("id").getString(), null, token);
 
         HttpResult invalidRepeat =
                 request(
                         "POST",
                         "/api/jobs",
-                        "{\"name\":\"bad-repeat\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"repeat\":0}",
+                        "{\"name\":\"bad-repeat\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"repeat\":-1}",
                         token);
         assertThat(invalidRepeat.status).isEqualTo(400);
         assertThat(invalidRepeat.body).contains("repeat");
