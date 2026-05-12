@@ -44,11 +44,11 @@ public class SqliteCronJobRepository implements CronJobRepository {
             statement.setString(20, job.getBaseUrl());
             statement.setInt(21, job.isWrapResponse() ? 1 : 0);
             statement.setString(22, job.getLastStatus());
-            statement.setString(23, job.getLastError());
-            statement.setString(24, job.getLastDeliveryError());
+            statement.setString(23, redact(job.getLastError(), 2000));
+            statement.setString(24, redact(job.getLastDeliveryError(), 2000));
             statement.setLong(25, job.getPausedAt());
             statement.setString(26, job.getPausedReason());
-            statement.setString(27, job.getLastOutput());
+            statement.setString(27, redact(job.getLastOutput(), 8000));
             statement.setString(28, job.getStatus());
             statement.setLong(29, job.getNextRunAt());
             statement.setLong(30, job.getLastRunAt());
@@ -226,8 +226,8 @@ public class SqliteCronJobRepository implements CronJobRepository {
             statement.setLong(1, lastRunAt);
             statement.setLong(2, nextRunAt);
             statement.setString(3, status);
-            statement.setString(4, error);
-            statement.setString(5, output);
+            statement.setString(4, redact(error, 2000));
+            statement.setString(5, redact(output, 8000));
             statement.setInt(6, repeatCompleted);
             statement.setString(7, nextStatus);
             statement.setLong(8, System.currentTimeMillis());
@@ -246,7 +246,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
             PreparedStatement statement =
                     connection.prepareStatement(
                             "update cron_jobs set last_delivery_error = ?, updated_at = ? where job_id = ?");
-            statement.setString(1, error);
+            statement.setString(1, redact(error, 2000));
             statement.setLong(2, System.currentTimeMillis());
             statement.setString(3, jobId);
             statement.executeUpdate();

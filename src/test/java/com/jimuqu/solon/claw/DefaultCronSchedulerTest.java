@@ -1015,6 +1015,22 @@ public class DefaultCronSchedulerTest {
                 .doesNotContain("ghp_outputview12345")
                 .doesNotContain("\u202E");
 
+        CronJobRecord storedJob = env.cronJobRepository.findById(job.getJobId());
+        String storedJobPayload =
+                storedJob.getLastError()
+                        + "\n"
+                        + storedJob.getLastDeliveryError()
+                        + "\n"
+                        + storedJob.getLastOutput();
+        assertThat(storedJobPayload)
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_lastview12345")
+                .doesNotContain("sk-lastview-secret12345")
+                .doesNotContain("ghp_outputview12345")
+                .doesNotContain("\u202E");
+
         Map<String, Object> runView = service.runToView(env.cronJobRepository.listRuns(job.getJobId(), 1).get(0));
         assertThat(String.valueOf(runView))
                 .contains("token=***")
