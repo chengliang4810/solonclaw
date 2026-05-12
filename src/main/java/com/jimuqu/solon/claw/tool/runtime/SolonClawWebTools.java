@@ -142,6 +142,11 @@ public class SolonClawWebTools {
         Object structured = structuredPojoValue(value);
         if (structured != value) {
             checkReturnedUrls(securityPolicyService, structured, visited);
+            if (isEmptyStructuredValue(structured)) {
+                checkReturnedTextUrls(securityPolicyService, String.valueOf(value));
+            }
+        } else if (shouldStructurePojo(value)) {
+            checkReturnedTextUrls(securityPolicyService, String.valueOf(value));
         }
     }
 
@@ -512,9 +517,19 @@ public class SolonClawWebTools {
         }
         Object structured = structuredPojoValue(value);
         if (structured != value) {
+            if (isEmptyStructuredValue(structured)) {
+                return SecretRedactor.redact(String.valueOf(value));
+            }
             return safeValue(structured);
         }
+        if (shouldStructurePojo(value)) {
+            return SecretRedactor.redact(String.valueOf(value));
+        }
         return value;
+    }
+
+    private static boolean isEmptyStructuredValue(Object value) {
+        return value instanceof Map && ((Map<?, ?>) value).isEmpty();
     }
 
     private static Object structuredPojoValue(Object value) {

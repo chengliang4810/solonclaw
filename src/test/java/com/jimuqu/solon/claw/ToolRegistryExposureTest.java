@@ -3626,6 +3626,68 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardCodesearchUnstructuredObjectStringUrls() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        policy,
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                return new BlockedStringReturnedObject();
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
+    void shouldRedactCodesearchUnstructuredObjectStringFields() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        policy,
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                return new SecretStringReturnedObject();
+                            }
+                        });
+
+        Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
+
+        assertThat(result).isInstanceOf(String.class);
+        assertThat(String.valueOf(result))
+                .contains("example.com")
+                .doesNotContain("ghp_unstructured12345");
+    }
+
+    @Test
     void shouldGuardCodeExecutionToolsBeforeDelegatingToSolonAiSkills() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -4784,6 +4846,20 @@ public class ToolRegistryExposureTest {
 
         public String getFinalUrl() {
             return finalUrl;
+        }
+    }
+
+    public static class BlockedStringReturnedObject {
+        @Override
+        public String toString() {
+            return "https://blocked.example/code?token=secret123";
+        }
+    }
+
+    public static class SecretStringReturnedObject {
+        @Override
+        public String toString() {
+            return "token=ghp_unstructured12345 https://example.com/code";
         }
     }
 }
