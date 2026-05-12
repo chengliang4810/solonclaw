@@ -12,7 +12,9 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
+import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ContextBudgetService;
@@ -106,6 +108,71 @@ public class AgentRunSupervisorTest {
         List<AgentRunEventRecord> events =
                 fixture.agentRunRepository.listEvents(outcome.getRunRecord().getRunId());
         assertThat(eventTypes(events)).contains("compression.unchanged");
+    }
+
+    @Test
+    void shouldRedactSubagentAndRecoveryRecordsBeforeStorage() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-record-redaction-1");
+        run.setSessionId("session-record-redaction-1");
+        run.setSourceKey("MEMORY:record-redaction:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        fixture.agentRunRepository.saveRun(run);
+
+        SubagentRunRecord subagent = new SubagentRunRecord();
+        subagent.setSubagentId("subagent-record-redaction-1");
+        subagent.setParentRunId(run.getRunId());
+        subagent.setSessionId(run.getSessionId());
+        subagent.setName("delegate");
+        subagent.setStatus("failed");
+        subagent.setGoalPreview("inspect token=ghp_subagentrecord12345");
+        subagent.setOutputTailJson("[{\"preview\":\"Authorization: Bearer ghp_subagenttail12345\"}]");
+        subagent.setError("password=subagent-error-secret");
+        subagent.setStartedAt(System.currentTimeMillis());
+        fixture.agentRunRepository.saveSubagentRun(subagent);
+
+        RunRecoveryRecord recovery = new RunRecoveryRecord();
+        recovery.setRecoveryId("recovery-record-redaction-1");
+        recovery.setRunId(run.getRunId());
+        recovery.setSessionId(run.getSessionId());
+        recovery.setSourceKey(run.getSourceKey());
+        recovery.setRecoveryType("manual");
+        recovery.setStatus("recoverable");
+        recovery.setSummary("recover token=ghp_recoverysummary12345");
+        recovery.setPayloadJson("{\"api_key\":\"sk-recoverypayload-secret\"}");
+        recovery.setCreatedAt(System.currentTimeMillis());
+        fixture.agentRunRepository.saveRecovery(recovery);
+
+        List<SubagentRunRecord> subagents =
+                fixture.agentRunRepository.listSubagents(run.getRunId());
+        assertThat(subagents).hasSize(1);
+        String subagentPayload =
+                subagents.get(0).getGoalPreview()
+                        + "\n"
+                        + subagents.get(0).getOutputTailJson()
+                        + "\n"
+                        + subagents.get(0).getError();
+        assertThat(subagentPayload)
+                .contains("token=***")
+                .contains("Bearer ***")
+                .contains("password=***")
+                .doesNotContain("ghp_subagentrecord12345")
+                .doesNotContain("ghp_subagenttail12345")
+                .doesNotContain("subagent-error-secret");
+
+        List<RunRecoveryRecord> recoveries =
+                fixture.agentRunRepository.listRecoveries(run.getRunId());
+        assertThat(recoveries).hasSize(1);
+        String recoveryPayload =
+                recoveries.get(0).getSummary() + "\n" + recoveries.get(0).getPayloadJson();
+        assertThat(recoveryPayload)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_recoverysummary12345")
+                .doesNotContain("sk-recoverypayload-secret");
     }
 
     @Test

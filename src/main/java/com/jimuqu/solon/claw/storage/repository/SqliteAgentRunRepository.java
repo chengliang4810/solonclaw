@@ -641,14 +641,14 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(5, record.getChildSourceKey());
             statement.setString(6, record.getSessionId());
             statement.setString(7, record.getName());
-            statement.setString(8, record.getGoalPreview());
+            statement.setString(8, redact(record.getGoalPreview(), 1000));
             statement.setString(9, record.getStatus());
             statement.setInt(10, record.isActive() ? 1 : 0);
             statement.setInt(11, record.isInterruptRequested() ? 1 : 0);
             statement.setInt(12, record.getDepth());
             statement.setInt(13, record.getTaskIndex());
-            statement.setString(14, record.getOutputTailJson());
-            statement.setString(15, record.getError());
+            statement.setString(14, redact(record.getOutputTailJson(), 4000));
+            statement.setString(15, redact(record.getError(), 2000));
             statement.setLong(16, record.getStartedAt());
             statement.setLong(17, record.getFinishedAt());
             statement.setLong(18, record.getHeartbeatAt());
@@ -696,8 +696,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(4, record.getSourceKey());
             statement.setString(5, record.getRecoveryType());
             statement.setString(6, record.getStatus());
-            statement.setString(7, record.getSummary());
-            statement.setString(8, record.getPayloadJson());
+            statement.setString(7, redact(record.getSummary(), 2000));
+            statement.setString(8, redact(record.getPayloadJson(), 4000));
             statement.setLong(9, record.getCreatedAt());
             statement.setLong(10, record.getResolvedAt());
             statement.executeUpdate();
