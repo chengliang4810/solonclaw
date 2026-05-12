@@ -74,6 +74,32 @@ public class McpPackageSecurityService {
         }
     }
 
+    public Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("enabledForTransport", "stdio");
+        summary.put("checkedLaunchers", java.util.Arrays.asList("npx", "uvx", "pipx"));
+        summary.put("supportedEcosystems", java.util.Arrays.asList("npm", "PyPI"));
+        summary.put("endpointUrlSafetyChecked", Boolean.valueOf(securityPolicyService != null));
+        summary.put("defaultEndpoint", DEFAULT_OSV_ENDPOINT);
+        summary.put("endpointOverrideEnvironment", "OSV_ENDPOINT");
+        summary.put("malwareAdvisoryPrefix", "MAL-");
+        summary.put("nonMalwareVulnerabilitiesIgnored", Boolean.TRUE);
+        summary.put("malwareBlocksSaveAndCheck", Boolean.TRUE);
+        summary.put("requestFailureFailsOpen", Boolean.TRUE);
+        summary.put("unsafeEndpointBlocksBeforeNetwork", Boolean.TRUE);
+        summary.put("packageVersionParsed", Boolean.TRUE);
+        summary.put("scopedNpmPackageParsed", Boolean.TRUE);
+        summary.put("pypiExtrasIgnored", Boolean.TRUE);
+        summary.put("jsonArgsSupported", Boolean.TRUE);
+        summary.put("advisoryMessageLimit", Integer.valueOf(3));
+        summary.put("messageRedacted", Boolean.TRUE);
+        summary.put("endpointRedacted", Boolean.TRUE);
+        summary.put(
+                "description",
+                "MCP stdio package launchers are checked against OSV malware advisories before save/check; unsafe OSV endpoints are blocked before network access and advisory messages are redacted.");
+        return summary;
+    }
+
     private String inferEcosystem(String command) {
         String base = StrUtil.nullToEmpty(command).trim();
         if (StrUtil.isBlank(base)) {

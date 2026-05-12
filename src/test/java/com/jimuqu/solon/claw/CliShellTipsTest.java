@@ -51,6 +51,7 @@ public class CliShellTipsTest {
                         "/security lifecycle",
                         "/security mcp",
                         "/security mcp-oauth",
+                        "/security mcp-package",
                         "/security schema",
                         "/security attachments",
                         "/security terminal-paste",
@@ -114,6 +115,7 @@ public class CliShellTipsTest {
                 .contains("/security approval-audit")
                 .contains("/security mcp-reload")
                 .contains("/security mcp-oauth")
+                .contains("/security mcp-package")
                 .contains("/security skill-credentials")
                 .contains("/security code-execution")
                 .contains("/security process");
@@ -159,6 +161,8 @@ public class CliShellTipsTest {
                 .contains("toolNotice=true")
                 .contains("MCP OAuth")
                 .contains("pkce=true")
+                .contains("MCP 包安全")
+                .contains("malwareBlocks=true")
                 .contains("审计工具")
                 .contains("executesCommand=false")
                 .contains("技能凭据")
@@ -243,6 +247,11 @@ public class CliShellTipsTest {
                 .contains("pkceS256=true")
                 .contains("accessRedacted=true")
                 .contains("handle401=true");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security mcp-package"))
+                .contains("MCP 包安全策略摘要")
+                .contains("launchers=[npx, uvx, pipx]")
+                .contains("malwarePrefix=MAL-")
+                .contains("failOpen=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security audit-tool"))
                 .contains("安全审计工具策略摘要")
                 .contains("executesCommand=false")

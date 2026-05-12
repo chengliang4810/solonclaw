@@ -148,6 +148,17 @@ public class McpPackageSecurityServiceTest {
         assertThat(String.valueOf(listed)).doesNotContain("secret-mcp-osv");
     }
 
+    @Test
+    void shouldDescribeMcpPackageSecurityPolicy() {
+        Map<String, Object> summary = new McpPackageSecurityService(new FakeOsvHttpClient("{}")).policySummary();
+
+        assertThat(summary)
+                .containsEntry("malwareBlocksSaveAndCheck", Boolean.TRUE)
+                .containsEntry("requestFailureFailsOpen", Boolean.TRUE)
+                .containsEntry("messageRedacted", Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("checkedLaunchers"))).contains("npx").contains("uvx").contains("pipx");
+    }
+
     private Map<String, Object> tool(String name) {
         Map<String, Object> tool = new LinkedHashMap<String, Object>();
         tool.put("name", name);

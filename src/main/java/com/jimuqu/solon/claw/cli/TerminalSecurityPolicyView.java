@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import java.util.Map;
 
 /** Read-only security policy summary for local terminal commands. */
@@ -100,6 +101,9 @@ public final class TerminalSecurityPolicyView {
         }
         if ("mcp-oauth".equals(mode)) {
             return renderMcpOAuthPolicy(DashboardMcpService.oauthPolicySummary());
+        }
+        if ("mcp-package".equals(mode)) {
+            return renderMcpPackagePolicy(new McpPackageSecurityService(null).policySummary());
         }
         if ("audit-tool".equals(mode)) {
             return renderAuditToolPolicy(SecurityAuditTools.readOnlyAuditPolicySummary());
@@ -212,6 +216,9 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("mcp-oauth")) {
             return "mcp-oauth";
         }
+        if (rest.startsWith("mcp-package") || rest.startsWith("mcp-osv")) {
+            return "mcp-package";
+        }
         if (rest.startsWith("mcp")) {
             return "mcp";
         }
@@ -316,7 +323,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security audit-tool、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security audit-tool、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security mcp-package、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -407,6 +414,14 @@ public final class TerminalSecurityPolicyView {
                 .append(value(oauth, "pkceS256Required"))
                 .append(" tokenRedacted=")
                 .append(value(oauth, "accessTokenRedacted"));
+        Map<String, Object> mcpPackage = new McpPackageSecurityService(null).policySummary();
+        buffer.append('\n')
+                .append("- MCP 包安全：launchers=")
+                .append(value(mcpPackage, "checkedLaunchers"))
+                .append(" malwareBlocks=")
+                .append(value(mcpPackage, "malwareBlocksSaveAndCheck"))
+                .append(" failOpen=")
+                .append(value(mcpPackage, "requestFailureFailsOpen"));
         Map<String, Object> auditTool = SecurityAuditTools.readOnlyAuditPolicySummary();
         buffer.append('\n')
                 .append("- 审计工具：executesCommand=")
@@ -1095,6 +1110,43 @@ public final class TerminalSecurityPolicyView {
                 .append(value(oauth, "tokenErrorsRedacted"))
                 .append(" handle401=")
                 .append(value(oauth, "handle401RefreshThenReauth"));
+        return buffer.toString();
+    }
+
+    private static String renderMcpPackagePolicy(Map<String, Object> mcpPackage) {
+        StringBuilder buffer = new StringBuilder("MCP 包安全策略摘要：");
+        buffer.append('\n')
+                .append("- 范围：transport=")
+                .append(value(mcpPackage, "enabledForTransport"))
+                .append(" launchers=")
+                .append(value(mcpPackage, "checkedLaunchers"))
+                .append(" ecosystems=")
+                .append(value(mcpPackage, "supportedEcosystems"));
+        buffer.append('\n')
+                .append("- OSV：endpointSafe=")
+                .append(value(mcpPackage, "endpointUrlSafetyChecked"))
+                .append(" env=")
+                .append(value(mcpPackage, "endpointOverrideEnvironment"))
+                .append(" unsafeBlocksBeforeNetwork=")
+                .append(value(mcpPackage, "unsafeEndpointBlocksBeforeNetwork"));
+        buffer.append('\n')
+                .append("- 判定：malwarePrefix=")
+                .append(value(mcpPackage, "malwareAdvisoryPrefix"))
+                .append(" ignoreNonMalware=")
+                .append(value(mcpPackage, "nonMalwareVulnerabilitiesIgnored"))
+                .append(" malwareBlocks=")
+                .append(value(mcpPackage, "malwareBlocksSaveAndCheck"))
+                .append(" failOpen=")
+                .append(value(mcpPackage, "requestFailureFailsOpen"));
+        buffer.append('\n')
+                .append("- 解析和脱敏：versionParsed=")
+                .append(value(mcpPackage, "packageVersionParsed"))
+                .append(" jsonArgs=")
+                .append(value(mcpPackage, "jsonArgsSupported"))
+                .append(" messageRedacted=")
+                .append(value(mcpPackage, "messageRedacted"))
+                .append(" endpointRedacted=")
+                .append(value(mcpPackage, "endpointRedacted"));
         return buffer.toString();
     }
 
