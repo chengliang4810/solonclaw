@@ -1422,6 +1422,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "powershellStartProcessRequiresWait");
             copyPolicyValue(summary, safe, "powershellStartProcessNoNewWindowNotEnough");
             copyPolicyValue(summary, safe, "powershellStartProcessPassThruNotEnough");
+            copyPolicyValue(summary, safe, "codeToolShellExtractionCovered");
+            copyPolicyValue(summary, safe, "codeToolShellSources");
             copyPolicyValue(summary, safe, "foregroundMaxTimeoutSeconds");
             copyPolicyValue(summary, safe, "foregroundMaxRetries");
             copyPolicyValue(summary, safe, "foregroundRetryBaseDelaySeconds");

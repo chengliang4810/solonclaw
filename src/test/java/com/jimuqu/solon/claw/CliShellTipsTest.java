@@ -230,6 +230,8 @@ public class CliShellTipsTest {
                 .contains("requiresWait=true")
                 .contains("noNewWindowNotEnough=true")
                 .contains("passThruNotEnough=true")
+                .contains("shellExtraction=true")
+                .contains("execute_python")
                 .contains("credentialPath")
                 .contains("systemDns")
                 .contains("systemProxy");

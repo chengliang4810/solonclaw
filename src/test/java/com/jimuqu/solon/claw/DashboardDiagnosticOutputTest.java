@@ -409,6 +409,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("sudoPasswordRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(terminalGuardrailPolicy.get("codeToolShellSources")))
+                .contains("execute_python")
+                .contains("execute_js");
         Map<String, Object> credentialMountPolicyDetails =
                 (Map<String, Object>) coverage.get("credentialMountPolicyDetails");
         assertThat(credentialMountPolicyDetails.get("runtimeRelativeOnly")).isEqualTo(Boolean.TRUE);

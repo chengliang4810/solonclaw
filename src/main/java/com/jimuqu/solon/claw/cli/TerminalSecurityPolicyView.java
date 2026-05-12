@@ -762,6 +762,11 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "systemDnsCommandPrechecked"))
                 .append(" systemProxy=")
                 .append(value(guardrail, "systemProxyCommandPrechecked"));
+        buffer.append('\n')
+                .append("- 代码工具：shellExtraction=")
+                .append(value(guardrail, "codeToolShellExtractionCovered"))
+                .append(" sources=")
+                .append(value(guardrail, "codeToolShellSources"));
         return buffer.toString();
     }
 
