@@ -297,6 +297,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> subprocessEnvironment = findProbe(items, "subprocess_environment");
         Map<String, Object> toolResultStorage = findProbe(items, "tool_result_storage");
+        Map<String, Object> attachmentDownloadUrl = findProbe(items, "attachment_download_url");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -344,6 +345,13 @@ public class DashboardDiagnosticOutputTest {
         assertThat(toolResultStorage.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(toolResultStorage.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(toolResultStorage.get("skipped")).isNull();
+        assertThat(attachmentDownloadUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentDownloadUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentDownloadUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(attachmentDownloadUrl))
+                .contains("169.254.169.254")
+                .contains("token=***")
+                .doesNotContain("dashboard-probe-secret");
         assertThat(credentialUpload.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);

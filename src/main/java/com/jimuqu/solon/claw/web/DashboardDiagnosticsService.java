@@ -2329,6 +2329,11 @@ public class DashboardDiagnosticsService {
                         "tool_result_storage",
                         "工具输出结果存储"));
         items.add(
+                attachmentDownloadUrlProbe(
+                        "attachment_download_url",
+                        "附件下载 URL 安全检查",
+                        "http://169.254.169.254/latest/meta-data/?token=dashboard-probe-secret"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2756,6 +2761,26 @@ public class DashboardDiagnosticsService {
             builder.append(value);
         }
         return builder.toString();
+    }
+
+    private Map<String, Object> attachmentDownloadUrlProbe(
+            String key, String label, String url) {
+        boolean allowed = true;
+        String message = "";
+        try {
+            BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
+        } catch (IllegalArgumentException e) {
+            allowed = false;
+            message = StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
+        }
+        return policyProbeItem(
+                key,
+                label,
+                "attachment_download_url",
+                false,
+                allowed,
+                SecretRedactor.maskUrl(url),
+                StrUtil.blankToDefault(message, allowed ? "附件下载 URL 未被阻断。" : "附件下载 URL 已被阻断。"));
     }
 
     private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
