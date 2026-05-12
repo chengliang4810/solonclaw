@@ -185,6 +185,15 @@ export interface UpdateJobRequest {
   deliver_thread_id?: string | null
   skills?: string[]
   skill?: string
+  add_skill?: string
+  add_skills?: string[]
+  remove_skill?: string
+  remove_skills?: string[]
+  clear_skills?: boolean
+  skills_delta?: {
+    add?: string[]
+    remove?: string[]
+  }
   repeat?: number | null
   enabled?: boolean
   state?: string
@@ -386,6 +395,12 @@ export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<
       deliver_thread_id: data.deliver_thread_id,
       skills: data.skills,
       skill: data.skill,
+      add_skill: data.add_skill,
+      add_skills: data.add_skills,
+      remove_skill: data.remove_skill,
+      remove_skills: data.remove_skills,
+      clear_skills: data.clear_skills,
+      skills_delta: data.skills_delta,
       repeat: data.repeat,
       enabled: data.enabled,
       state: data.state,

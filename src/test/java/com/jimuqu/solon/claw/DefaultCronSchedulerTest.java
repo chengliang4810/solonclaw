@@ -4354,6 +4354,28 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldPatchCronSkillsIncrementallyFromDashboardApi() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        DashboardCronService dashboardCronService = new DashboardCronService(service, null);
+        CronJobRecord job = service.create("MEMORY:cron:user", cronBody("dashboard-skills", "alpha,beta"));
+
+        Map<String, Object> patch = new LinkedHashMap<String, Object>();
+        patch.put("add_skill", "gamma");
+        patch.put("add_skills", java.util.Arrays.asList("delta", "gamma"));
+        patch.put("remove_skill", "alpha");
+        Map<String, Object> updated = dashboardCronService.apiPatch(job.getJobId(), patch);
+
+        assertThat(updated.get("skills")).isEqualTo(java.util.Arrays.asList("beta", "gamma", "delta"));
+
+        Map<String, Object> clear = new LinkedHashMap<String, Object>();
+        clear.put("clear_skills", Boolean.TRUE);
+        Map<String, Object> cleared = dashboardCronService.apiPatch(job.getJobId(), clear);
+
+        assertThat(cleared.get("skills")).isEqualTo(java.util.Collections.emptyList());
+    }
+
+    @Test
     void shouldRecordDashboardCronRunAndRetryTriggerTypes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

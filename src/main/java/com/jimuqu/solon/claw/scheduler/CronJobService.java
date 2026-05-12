@@ -151,9 +151,11 @@ public class CronJobService {
         if (body.containsKey("deliver_thread_id") || body.containsKey("deliverThreadId")) {
             record.setDeliverThreadId(string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
         }
-        if (body.containsKey("skills") || body.containsKey("skill")) {
+        if (clearSkills(body)) {
+            record.setSkillsJson(json(new ArrayList<String>()));
+        } else if (body.containsKey("skills") || body.containsKey("skill")) {
             record.setSkillsJson(json(canonicalSkills(body)));
-        } else if (body.containsKey("skills_delta") || body.containsKey("skillsDelta")) {
+        } else if (hasSkillsDelta(body)) {
             record.setSkillsJson(json(applySkillsDelta(parseList(record.getSkillsJson()), body)));
         }
         if (body.containsKey("repeat")) {
@@ -1469,16 +1471,46 @@ public class CronJobService {
     private List<String> applySkillsDelta(List<String> current, Map<String, Object> body) {
         List<String> result = normalizedList(current);
         Object raw = body.containsKey("skills_delta") ? body.get("skills_delta") : body.get("skillsDelta");
-        if (!(raw instanceof Map)) {
-            return result;
-        }
-        Map<?, ?> delta = (Map<?, ?>) raw;
-        List<String> remove = stringList(firstPresent(delta, "remove", "remove_skill", "remove_skills", "removeSkill", "removeSkills"));
+        Map<?, ?> delta = raw instanceof Map ? (Map<?, ?>) raw : body;
+        List<String> remove = mergedStringList(delta, "remove", "remove_skill", "remove_skills", "removeSkill", "removeSkills");
         if (!remove.isEmpty()) {
             result.removeAll(remove);
         }
-        for (String item : stringList(firstPresent(delta, "add", "add_skill", "add_skills", "addSkill", "addSkills"))) {
+        for (String item : mergedStringList(delta, "add", "add_skill", "add_skills", "addSkill", "addSkills")) {
             addString(result, item);
+        }
+        return result;
+    }
+
+    private boolean hasSkillsDelta(Map<String, Object> body) {
+        return body.containsKey("skills_delta")
+                || body.containsKey("skillsDelta")
+                || body.containsKey("add_skill")
+                || body.containsKey("addSkill")
+                || body.containsKey("add_skills")
+                || body.containsKey("addSkills")
+                || body.containsKey("remove_skill")
+                || body.containsKey("removeSkill")
+                || body.containsKey("remove_skills")
+                || body.containsKey("removeSkills");
+    }
+
+    private boolean clearSkills(Map<String, Object> body) {
+        return Boolean.TRUE.equals(body.get("clear_skills")) || Boolean.TRUE.equals(body.get("clearSkills"));
+    }
+
+    private List<String> mergedStringList(Map<?, ?> map, String... keys) {
+        List<String> result = new ArrayList<String>();
+        if (map == null || keys == null) {
+            return result;
+        }
+        for (String key : keys) {
+            if (!map.containsKey(key)) {
+                continue;
+            }
+            for (String item : stringList(map.get(key))) {
+                addString(result, item);
+            }
         }
         return result;
     }

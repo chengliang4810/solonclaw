@@ -388,6 +388,18 @@ public class DashboardCronService {
         copyIfPresent(body, result, "origin");
         copyIfPresent(body, result, "skill");
         copyIfPresent(body, result, "skills");
+        copyIfPresent(body, result, "add_skill");
+        copyIfPresent(body, result, "addSkill");
+        copyIfPresent(body, result, "add_skills");
+        copyIfPresent(body, result, "addSkills");
+        copyIfPresent(body, result, "remove_skill");
+        copyIfPresent(body, result, "removeSkill");
+        copyIfPresent(body, result, "remove_skills");
+        copyIfPresent(body, result, "removeSkills");
+        copyIfPresent(body, result, "clear_skills");
+        copyIfPresent(body, result, "clearSkills");
+        copyIfPresent(body, result, "skills_delta");
+        copyIfPresent(body, result, "skillsDelta");
         copyIfPresent(body, result, "repeat");
         copyIfPresent(body, result, "script");
         copyIfPresent(body, result, "workdir");
