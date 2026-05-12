@@ -93,6 +93,9 @@ class SecretRedactorTest {
         assertThat(schemeless)
                 .isEqualTo("alice:***@example.com/private")
                 .doesNotContain("schemeless-password");
+
+        assertThat(SecretRedactor.maskUrl("ftp://example.com/file.txt"))
+                .isEqualTo("ftp://example.com/file.txt");
     }
 
     @Test

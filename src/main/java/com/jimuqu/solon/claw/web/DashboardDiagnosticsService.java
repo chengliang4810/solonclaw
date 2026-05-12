@@ -2510,6 +2510,21 @@ public class DashboardDiagnosticsService {
                         "websocat wss://169.254.169.254/latest"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_unsupported_ftp_url_policy",
+                        "命令 FTP URL 前置策略检查",
+                        "curl ftp://example.test/file.txt"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_unsupported_sftp_url_policy",
+                        "命令 SFTP URL 前置策略检查",
+                        "curl sftp://example.test/file.txt"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_unsupported_scp_url_policy",
+                        "命令 SCP URL 前置策略检查",
+                        "curl scp://example.test/file.txt"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_userinfo_url_policy",
                         "命令 userinfo URL 前置策略检查",
                         "curl https://alice:dashboard-password@example.test/private"));

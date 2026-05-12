@@ -341,6 +341,12 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "tool_result_redirect_target");
         Map<String, Object> commandWebsocketUrlPolicy =
                 findProbe(items, "command_websocket_url_policy");
+        Map<String, Object> commandUnsupportedFtpUrlPolicy =
+                findProbe(items, "command_unsupported_ftp_url_policy");
+        Map<String, Object> commandUnsupportedSftpUrlPolicy =
+                findProbe(items, "command_unsupported_sftp_url_policy");
+        Map<String, Object> commandUnsupportedScpUrlPolicy =
+                findProbe(items, "command_unsupported_scp_url_policy");
         Map<String, Object> commandUserinfoUrlPolicy =
                 findProbe(items, "command_userinfo_url_policy");
         Map<String, Object> commandSchemelessUserinfoUrlPolicy =
@@ -688,6 +694,24 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandWebsocketUrlPolicy))
                 .contains("websocat")
                 .contains("169.254.169.254");
+        assertThat(commandUnsupportedFtpUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUnsupportedFtpUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUnsupportedFtpUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUnsupportedFtpUrlPolicy))
+                .contains("ftp://example.test")
+                .contains("仅允许");
+        assertThat(commandUnsupportedSftpUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUnsupportedSftpUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUnsupportedSftpUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUnsupportedSftpUrlPolicy))
+                .contains("sftp://example.test")
+                .contains("仅允许");
+        assertThat(commandUnsupportedScpUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUnsupportedScpUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUnsupportedScpUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUnsupportedScpUrlPolicy))
+                .contains("scp://example.test")
+                .contains("仅允许");
         assertThat(commandUserinfoUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUserinfoUrlPolicy.get("skipped")).isNull();

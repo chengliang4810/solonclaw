@@ -26,7 +26,7 @@ public final class SecretRedactor {
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(%(?:25){0,3}3a)([^/?#\\s@]+)@");
     private static final Pattern SCHEMELESS_URL_USERINFO =
             Pattern.compile(
-                    "(?i)(?<![A-Za-z0-9_./:-])([A-Za-z0-9._~+%-]{1,80}):([^\\s/@?#]+)@([A-Za-z0-9._~%-]+(?:\\:[0-9]{1,5})?(?:[/#?]|\\b))");
+                    "(?i)(?<![A-Za-z0-9_./:-])([A-Za-z0-9._~+%-]{1,80}):(?!//)([^\\s/@?#]+)@([A-Za-z0-9._~%-]+(?:\\:[0-9]{1,5})?(?:[/#?]|\\b))");
     private static final Pattern SENSITIVE_URL_USERINFO =
             Pattern.compile("(?i)\\b(?:https?|wss?|ftp)://[^/?#\\s:@]+:[^/?#\\s@]+@[^\\s]+");
     private static final Pattern DB_CONNSTR =
