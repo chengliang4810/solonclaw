@@ -388,6 +388,16 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_local_management_socket");
         Map<String, Object> commandLocalManagementPipe =
                 findProbe(items, "command_local_management_pipe");
+        Map<String, Object> commandLocalManagementEncodedPipe =
+                findProbe(items, "command_local_management_encoded_pipe");
+        Map<String, Object> commandLocalManagementEntityPipe =
+                findProbe(items, "command_local_management_entity_pipe");
+        Map<String, Object> commandLocalManagementPowershellPipe =
+                findProbe(items, "command_local_management_powershell_pipe");
+        Map<String, Object> commandLocalManagementPowershellSocket =
+                findProbe(items, "command_local_management_powershell_socket");
+        Map<String, Object> commandLocalManagementPodmanSocket =
+                findProbe(items, "command_local_management_podman_socket");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
         Map<String, Object> fileToolEntityCredentialPath =
                 findProbe(items, "file_tool_entity_credential_path");
@@ -776,6 +786,32 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandLocalManagementPipe))
                 .contains("DOCKER_HOST")
                 .contains("docker_engine");
+        assertThat(commandLocalManagementEncodedPipe.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementEncodedPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementEncodedPipe.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementEncodedPipe)).contains("docker%255fengine");
+        assertThat(commandLocalManagementEntityPipe.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementEntityPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementEntityPipe.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementEntityPipe)).contains("docker&#95;engine");
+        assertThat(commandLocalManagementPowershellPipe.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPowershellPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPowershellPipe.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementPowershellPipe))
+                .contains("SetEnvironmentVariable")
+                .contains("docker_engine");
+        assertThat(commandLocalManagementPowershellSocket.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPowershellSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPowershellSocket.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementPowershellSocket))
+                .contains("DOCKER_HOST")
+                .contains("/var/run/docker.sock");
+        assertThat(commandLocalManagementPodmanSocket.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPodmanSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPodmanSocket.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementPodmanSocket))
+                .contains("CONTAINER_HOST")
+                .contains("/run/podman/podman.sock");
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();

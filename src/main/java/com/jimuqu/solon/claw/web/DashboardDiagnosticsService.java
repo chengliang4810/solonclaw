@@ -2591,6 +2591,31 @@ public class DashboardDiagnosticsService {
                         "命令本地管理命名管道阻断",
                         "DOCKER_HOST=npipe:////./pipe/docker_engine docker ps"));
         items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_encoded_pipe",
+                        "命令编码本地管理命名管道阻断",
+                        "curl npipe:////./pipe/docker%255fengine/containers/json"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_entity_pipe",
+                        "命令实体编码本地管理命名管道阻断",
+                        "DOCKER_HOST=npipe:////./pipe/docker&#95;engine docker ps"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_powershell_pipe",
+                        "命令 PowerShell 本地管理命名管道阻断",
+                        "[Environment]::SetEnvironmentVariable('DOCKER_HOST','npipe:////./pipe/docker_engine')"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_powershell_socket",
+                        "命令 PowerShell 本地管理套接字阻断",
+                        "$env:DOCKER_HOST='unix:///var/run/docker.sock'; docker ps"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_podman_socket",
+                        "命令 Podman 本地管理套接字阻断",
+                        "CONTAINER_HOST=unix:///run/podman/podman.sock podman ps"));
+        items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_credential_path",
                         "文件工具凭据路径参数检查",
