@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import cn.hutool.core.util.StrUtil;
 import java.lang.reflect.Array;
 import java.net.URLDecoder;
+import java.util.Date;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -136,6 +137,11 @@ public class SolonClawWebTools {
             for (Object item : ((Map<?, ?>) value).values()) {
                 checkReturnedUrls(securityPolicyService, item, visited);
             }
+            return;
+        }
+        Object structured = structuredPojoValue(value);
+        if (structured != value) {
+            checkReturnedUrls(securityPolicyService, structured, visited);
         }
     }
 
@@ -504,7 +510,37 @@ public class SolonClawWebTools {
             }
             return safe;
         }
+        Object structured = structuredPojoValue(value);
+        if (structured != value) {
+            return safeValue(structured);
+        }
         return value;
+    }
+
+    private static Object structuredPojoValue(Object value) {
+        if (!shouldStructurePojo(value)) {
+            return value;
+        }
+        try {
+            return ONode.deserialize(ONode.serialize(value), Object.class);
+        } catch (Throwable ignored) {
+            return value;
+        }
+    }
+
+    private static boolean shouldStructurePojo(Object value) {
+        if (value == null
+                || value instanceof CharSequence
+                || value instanceof Number
+                || value instanceof Boolean
+                || value instanceof Character
+                || value instanceof Date
+                || value instanceof Enum) {
+            return false;
+        }
+        Package pkg = value.getClass().getPackage();
+        String packageName = pkg == null ? "" : pkg.getName();
+        return !(packageName.startsWith("java.") || packageName.startsWith("javax."));
     }
 }
 

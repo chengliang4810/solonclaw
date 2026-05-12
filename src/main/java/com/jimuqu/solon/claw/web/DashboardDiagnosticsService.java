@@ -1670,6 +1670,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "returnedSchemelessUrlChecked");
             copyPolicyValue(summary, safe, "returnedDocumentContentChecked");
             copyPolicyValue(summary, safe, "returnedDocumentMetadataUrlChecked");
+            copyPolicyValue(summary, safe, "returnedPojoUrlChecked");
             copyPolicyValue(summary, safe, "recursivePathExtraction");
             copyPolicyValue(summary, safe, "encodedUrlParameterPolicyInherited");
             copyPolicyValue(summary, safe, "rawPathControlCharacterPolicyInherited");

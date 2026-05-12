@@ -1195,6 +1195,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedDocumentMetadataUrlChecked").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedPojoUrlChecked").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("encodedUrlParameterPolicyInherited").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("rawPathControlCharacterPolicyInherited").getBoolean())
@@ -3558,6 +3560,72 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardCodesearchReturnedPojoUrlFields() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        policy,
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                return new ReturnedPojo(
+                                        "blocked code result",
+                                        "https://blocked.example/code?token=secret123");
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
+    void shouldRedactCodesearchReturnedPojoFields() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        policy,
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                return new ReturnedPojo(
+                                        "token=ghp_pojoresult12345",
+                                        "https://example.com/code");
+                            }
+                        });
+
+        Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
+
+        assertThat(result).isInstanceOf(Map.class);
+        assertThat(String.valueOf(result))
+                .contains("example.com")
+                .doesNotContain("ghp_pojoresult12345");
+    }
+
+    @Test
     void shouldGuardCodeExecutionToolsBeforeDelegatingToSolonAiSkills() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -4699,5 +4767,23 @@ public class ToolRegistryExposureTest {
         Method method = ProcessTools.class.getDeclaredMethod("stdinExecutionToolName", String.class);
         method.setAccessible(true);
         return String.valueOf(method.invoke(tools, command));
+    }
+
+    public static class ReturnedPojo {
+        private final String title;
+        private final String finalUrl;
+
+        public ReturnedPojo(String title, String finalUrl) {
+            this.title = title;
+            this.finalUrl = finalUrl;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public String getFinalUrl() {
+            return finalUrl;
+        }
     }
 }
