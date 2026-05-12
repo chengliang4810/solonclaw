@@ -34,6 +34,57 @@ public class McpPackageSecurityServiceTest {
     }
 
     @Test
+    void shouldParseMcpPackageOptionsBeforeToolCommand() throws Exception {
+        FakeOsvHttpClient http =
+                new FakeOsvHttpClient(
+                        "{\"vulns\":[{\"id\":\"MAL-2026-0002\",\"summary\":\"bad npx package\"}]}");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("npx.cmd", Arrays.asList("-y", "--package=@scope/server@2.0.0", "server-cli"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(http.lastBody).contains("\"name\":\"@scope/server\"");
+        assertThat(http.lastBody).contains("\"version\":\"2.0.0\"");
+        assertThat(http.lastBody).doesNotContain("server-cli");
+    }
+
+    @Test
+    void shouldParsePipxRunPackageAfterSubcommand() throws Exception {
+        FakeOsvHttpClient http =
+                new FakeOsvHttpClient(
+                        "{\"vulns\":[{\"id\":\"MAL-2026-0003\",\"summary\":\"bad pip package\"}]}");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("pipx.cmd", Arrays.asList("run", "demo-mcp[stdio]==0.2.0", "--flag"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(http.lastBody).contains("\"name\":\"demo-mcp\"");
+        assertThat(http.lastBody).contains("\"ecosystem\":\"PyPI\"");
+        assertThat(http.lastBody).contains("\"version\":\"0.2.0\"");
+    }
+
+    @Test
+    void shouldParsePypiSourceOptionsBeforeCommand() throws Exception {
+        FakeOsvHttpClient http =
+                new FakeOsvHttpClient(
+                        "{\"vulns\":[{\"id\":\"MAL-2026-0004\",\"summary\":\"bad uvx source\"}]}");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("uvx", Arrays.asList("--from", "demo-source==1.0.0", "demo-command"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(http.lastBody).contains("\"name\":\"demo-source\"");
+        assertThat(http.lastBody).contains("\"version\":\"1.0.0\"");
+        assertThat(http.lastBody).doesNotContain("demo-command");
+    }
+
+    @Test
     void shouldRedactMcpMalwareAdvisoryMessages() throws Exception {
         FakeOsvHttpClient http =
                 new FakeOsvHttpClient(
@@ -155,7 +206,10 @@ public class McpPackageSecurityServiceTest {
         assertThat(summary)
                 .containsEntry("malwareBlocksSaveAndCheck", Boolean.TRUE)
                 .containsEntry("requestFailureFailsOpen", Boolean.TRUE)
-                .containsEntry("messageRedacted", Boolean.TRUE);
+                .containsEntry("messageRedacted", Boolean.TRUE)
+                .containsEntry("npxPackageOptionParsed", Boolean.TRUE)
+                .containsEntry("pipxRunSubcommandSkipped", Boolean.TRUE)
+                .containsEntry("pypiSourceOptionParsed", Boolean.TRUE);
         assertThat(String.valueOf(summary.get("checkedLaunchers"))).contains("npx").contains("uvx").contains("pipx");
     }
 

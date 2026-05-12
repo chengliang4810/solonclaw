@@ -46,11 +46,12 @@ public class McpPackageSecurityService {
     }
 
     public SecurityVerdict check(String command, Object argsValue) {
-        String ecosystem = inferEcosystem(command);
+        String launcher = launcherName(command);
+        String ecosystem = inferEcosystem(launcher);
         if (StrUtil.isBlank(ecosystem)) {
             return SecurityVerdict.allow();
         }
-        PackageRef packageRef = parsePackage(argsValue, ecosystem);
+        PackageRef packageRef = parsePackage(argsValue, ecosystem, launcher);
         if (packageRef == null || StrUtil.isBlank(packageRef.name)) {
             return SecurityVerdict.allow();
         }
@@ -89,6 +90,9 @@ public class McpPackageSecurityService {
         summary.put("unsafeEndpointBlocksBeforeNetwork", Boolean.TRUE);
         summary.put("packageVersionParsed", Boolean.TRUE);
         summary.put("scopedNpmPackageParsed", Boolean.TRUE);
+        summary.put("npxPackageOptionParsed", Boolean.TRUE);
+        summary.put("pipxRunSubcommandSkipped", Boolean.TRUE);
+        summary.put("pypiSourceOptionParsed", Boolean.TRUE);
         summary.put("pypiExtrasIgnored", Boolean.TRUE);
         summary.put("jsonArgsSupported", Boolean.TRUE);
         summary.put("advisoryMessageLimit", Integer.valueOf(3));
@@ -101,25 +105,44 @@ public class McpPackageSecurityService {
     }
 
     private String inferEcosystem(String command) {
-        String base = StrUtil.nullToEmpty(command).trim();
-        if (StrUtil.isBlank(base)) {
+        String launcher = StrUtil.nullToEmpty(command).trim().toLowerCase(Locale.ROOT);
+        if (StrUtil.isBlank(launcher)) {
             return null;
         }
-        base = FileUtil.getName(base).toLowerCase(Locale.ROOT);
-        if ("npx".equals(base) || "npx.cmd".equals(base)) {
+        if ("npx".equals(launcher) || "npx.cmd".equals(launcher)) {
             return "npm";
         }
-        if ("uvx".equals(base) || "uvx.cmd".equals(base) || "pipx".equals(base)) {
+        if ("uvx".equals(launcher)
+                || "uvx.cmd".equals(launcher)
+                || "pipx".equals(launcher)
+                || "pipx.cmd".equals(launcher)) {
             return "PyPI";
         }
         return null;
     }
 
-    private PackageRef parsePackage(Object argsValue, String ecosystem) {
+    private String launcherName(String command) {
+        String base = StrUtil.nullToEmpty(command).trim();
+        if (StrUtil.isBlank(base)) {
+            return "";
+        }
+        return FileUtil.getName(base).toLowerCase(Locale.ROOT);
+    }
+
+    private PackageRef parsePackage(Object argsValue, String ecosystem, String launcher) {
         List<String> args = normalizeArgs(argsValue);
         String token = null;
-        for (String arg : args) {
+        for (int i = 0; i < args.size(); i++) {
+            String arg = args.get(i);
             if (StrUtil.isBlank(arg) || arg.startsWith("-")) {
+                String optionValue = packageOptionValue(args, i, arg, ecosystem);
+                if (StrUtil.isNotBlank(optionValue)) {
+                    token = optionValue;
+                    break;
+                }
+                continue;
+            }
+            if (isPipxSubcommand(launcher, arg)) {
                 continue;
             }
             token = arg.trim();
@@ -135,6 +158,49 @@ public class McpPackageSecurityService {
             return parsePypi(token);
         }
         return new PackageRef(token, null);
+    }
+
+    private String packageOptionValue(List<String> args, int index, String arg, String ecosystem) {
+        String value = StrUtil.nullToEmpty(arg).trim();
+        if ("npm".equals(ecosystem)) {
+            if ("--package".equals(value) || "-p".equals(value)) {
+                return nextArg(args, index);
+            }
+            if (value.startsWith("--package=")) {
+                return value.substring("--package=".length()).trim();
+            }
+            if (value.startsWith("-p=")) {
+                return value.substring("-p=".length()).trim();
+            }
+        }
+        if ("PyPI".equals(ecosystem)) {
+            if ("--from".equals(value) || "--spec".equals(value)) {
+                return nextArg(args, index);
+            }
+            if (value.startsWith("--from=")) {
+                return value.substring("--from=".length()).trim();
+            }
+            if (value.startsWith("--spec=")) {
+                return value.substring("--spec=".length()).trim();
+            }
+        }
+        return null;
+    }
+
+    private String nextArg(List<String> args, int index) {
+        for (int i = index + 1; i < args.size(); i++) {
+            String next = StrUtil.nullToEmpty(args.get(i)).trim();
+            if (StrUtil.isNotBlank(next)) {
+                return next;
+            }
+        }
+        return null;
+    }
+
+    private boolean isPipxSubcommand(String launcher, String arg) {
+        String value = StrUtil.nullToEmpty(arg).trim().toLowerCase(Locale.ROOT);
+        return ("pipx".equals(launcher) || "pipx.cmd".equals(launcher))
+                && ("run".equals(value) || "runpip".equals(value));
     }
 
     private List<String> normalizeArgs(Object argsValue) {
