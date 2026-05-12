@@ -119,6 +119,8 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellCredentialFileHttpDisclosureDetection"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("configuredCredentialCommandPathDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("privateUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("credentialUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
@@ -157,6 +159,33 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/reload-mcp")
                 .contains("toolChangeNoticeInjected");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldDetectConfiguredCredentialFilesForCommandApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("runtime/upload/payload.bin"));
+        String runtimePath =
+                new File(env.appConfig.getRuntime().getHome(), "runtime/upload/payload.bin")
+                        .getAbsolutePath();
+
+        DangerousCommandApprovalService.DetectionResult relative =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat runtime/upload/payload.bin");
+        DangerousCommandApprovalService.DetectionResult absolute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "type " + runtimePath);
+        DangerousCommandApprovalService.DetectionResult safeSibling =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat runtime/upload/payload-notes.md");
+
+        assertThat(relative).isNotNull();
+        assertThat(relative.getPatternKey()).isEqualTo("credential_command_path_access");
+        assertThat(relative.getDescription()).contains("凭据");
+        assertThat(relative.isHardline()).isFalse();
+        assertThat(absolute).isNotNull();
+        assertThat(absolute.getPatternKey()).isEqualTo("credential_command_path_access");
+        assertThat(safeSibling).isNull();
     }
 
     @Test

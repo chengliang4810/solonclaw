@@ -2287,7 +2287,40 @@ public class DangerousCommandApprovalService {
             return result;
         }
 
+        DetectionResult blockedPath = detectCommandPathForApproval(toolName, normalized);
+        if (blockedPath != null) {
+            return blockedPath;
+        }
+
         return null;
+    }
+
+    private DetectionResult detectCommandPathForApproval(String toolName, String normalized) {
+        if (!isCommandSecurityTool(toolName)) {
+            return null;
+        }
+        if (securityPolicyService == null) {
+            return null;
+        }
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkConfiguredCredentialCommandPaths(normalized);
+        if (verdict.isAllowed()) {
+            return null;
+        }
+        DetectionResult result = new DetectionResult();
+        result.setPatternKey("credential_command_path_access");
+        result.setPatternKeys(Collections.singletonList("credential_command_path_access"));
+        result.setDescription(
+                StrUtil.blankToDefault(verdict.getMessage(), "命令访问敏感凭据路径"));
+        result.setNormalizedCode(normalized);
+        return result;
+    }
+
+    private boolean isCommandSecurityTool(String toolName) {
+        return ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                || ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
+                || ToolNameConstants.EXECUTE_JS.equals(toolName)
+                || ToolNameConstants.EXECUTE_CODE.equals(toolName);
     }
 
     public DetectionResult detectHardline(String toolName, String code) {
@@ -2469,6 +2502,7 @@ public class DangerousCommandApprovalService {
         summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialFileVariableDisclosureDetection", Boolean.TRUE);
         summary.put("powershellCredentialFileHttpDisclosureDetection", Boolean.TRUE);
+        summary.put("configuredCredentialCommandPathDetection", Boolean.TRUE);
         summary.put("urlPolicyPrechecked", Boolean.TRUE);
         summary.put("privateUrlPolicyPrechecked", Boolean.TRUE);
         summary.put("credentialUrlPolicyPrechecked", Boolean.TRUE);

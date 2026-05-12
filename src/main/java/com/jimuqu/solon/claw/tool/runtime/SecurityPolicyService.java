@@ -818,6 +818,21 @@ public class SecurityPolicyService {
         return checkCommandPathsCandidate(code);
     }
 
+    public FileVerdict checkConfiguredCredentialCommandPaths(String command) {
+        String code = StrUtil.nullToEmpty(command);
+        if (code.length() == 0) {
+            return FileVerdict.allow();
+        }
+        String normalizedCode = normalizePathScanText(code);
+        if (!normalizedCode.equals(code)) {
+            FileVerdict normalizedVerdict = checkConfiguredCredentialReferences(normalizedCode);
+            if (!normalizedVerdict.allowed) {
+                return normalizedVerdict;
+            }
+        }
+        return checkConfiguredCredentialReferences(code);
+    }
+
     private FileVerdict checkCommandPathsCandidate(String code) {
         FileVerdict compactOutputVerdict = checkCompactOutputOptionCredentialPaths(code);
         if (!compactOutputVerdict.allowed) {
