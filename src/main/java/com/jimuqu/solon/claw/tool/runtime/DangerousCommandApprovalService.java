@@ -2688,6 +2688,7 @@ public class DangerousCommandApprovalService {
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
         summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
+        summary.put("approvalKeySelectorHidden", Boolean.TRUE);
         summary.put("pendingListUsesSafeSelector", Boolean.TRUE);
         summary.put("pendingListShowsPatternKey", Boolean.TRUE);
         summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
@@ -4247,10 +4248,8 @@ public class DangerousCommandApprovalService {
         String approvalKey = item.approvalKey();
         String opaqueSelector = approvalSelector(item);
         return (StrUtil.isNotBlank(safeApprovalId) && value.equals(safeApprovalId))
-                || value.equals(approvalKey)
                 || value.equals(opaqueSelector)
                 || (StrUtil.isNotBlank(safeApprovalId) && safeApprovalId.startsWith(value))
-                || (approvalKey != null && approvalKey.startsWith(value))
                 || (StrUtil.isNotBlank(opaqueSelector)
                         && value.length() >= 8
                         && opaqueSelector.startsWith(value));

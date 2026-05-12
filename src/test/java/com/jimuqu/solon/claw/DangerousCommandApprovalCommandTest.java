@@ -121,15 +121,15 @@ public class DangerousCommandApprovalCommandTest {
                 "git reset --hard origin/main");
 
         GatewayReply list = env.send("room-queue", "user-queue", "/approve list");
-        String secondApprovalKey =
-                env.dangerousCommandApprovalService
-                        .listPendingApprovals(agentSession)
-                        .get(1)
-                        .approvalKey();
+        DangerousCommandApprovalService.PendingApproval secondPending =
+                env.dangerousCommandApprovalService.listPendingApprovals(agentSession).get(1);
+        String secondApprovalKey = secondPending.approvalKey();
+        String secondSelector = DangerousCommandApprovalService.approvalSelector(secondPending);
         assertThat(list.getContent())
                 .contains("pending=2")
                 .contains("#1")
                 .contains("#2")
+                .contains("#2 " + secondSelector)
                 .contains("pattern=recursive_delete")
                 .contains("command_preview=rm -rf runtime/cache")
                 .contains("scopes=once,session,always")
@@ -142,11 +142,21 @@ public class DangerousCommandApprovalCommandTest {
                 .doesNotContain(" key=")
                 .doesNotContain(secondApprovalKey);
 
-        GatewayReply approved = env.send("room-queue", "user-queue", "/approve " + secondApprovalKey + " session");
+        GatewayReply rawKeyRejected =
+                env.send("room-queue", "user-queue", "/approve " + secondApprovalKey + " session");
+        GatewayReply rawKeyPrefixRejected =
+                env.send(
+                        "room-queue",
+                        "user-queue",
+                        "/approve " + secondApprovalKey.substring(0, 16) + " session");
+        GatewayReply approved =
+                env.send("room-queue", "user-queue", "/approve " + secondSelector + " session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
         SqliteAgentSession updatedAgentSession =
                 new SqliteAgentSession(updated, env.sessionRepository);
 
+        assertThat(rawKeyRejected.isError()).isTrue();
+        assertThat(rawKeyPrefixRejected.isError()).isTrue();
         assertThat(approved.getContent()).isEqualTo("echo:resume");
         assertThat(env.dangerousCommandApprovalService.listPendingApprovals(updatedAgentSession))
                 .hasSize(1);

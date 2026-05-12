@@ -497,6 +497,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("defaultScope")).isEqualTo("once");
         assertThat(summary.get("pendingQueueSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pendingListHidesApprovalKey")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalKeySelectorHidden")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pendingListUsesSafeSelector")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pendingListShowsPatternKey")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sessionApprovalListShowsCountOnly")).isEqualTo(Boolean.TRUE);
