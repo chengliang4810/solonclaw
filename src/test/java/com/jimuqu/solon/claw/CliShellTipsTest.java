@@ -30,6 +30,9 @@ public class CliShellTipsTest {
                         "/security policy",
                         "/security approvals",
                         "/security slash-confirm",
+                        "/security approval-card",
+                        "/security approval-audit",
+                        "/security mcp-reload",
                         "/security hardline",
                         "/security terminal-guardrails",
                         "/security tirith",
@@ -104,6 +107,9 @@ public class CliShellTipsTest {
                 .contains("/security cron-approvals")
                 .contains("/security subagent-approvals")
                 .contains("/security smart-approval")
+                .contains("/security approval-card")
+                .contains("/security approval-audit")
+                .contains("/security mcp-reload")
                 .contains("/security skill-credentials")
                 .contains("/security code-execution")
                 .contains("/security process");
@@ -141,6 +147,12 @@ public class CliShellTipsTest {
                 .contains("私有 URL")
                 .contains("网站策略")
                 .contains("Slash 确认")
+                .contains("审批卡")
+                .contains("platforms=[FEISHU, QQBOT]")
+                .contains("审批审计")
+                .contains("keyRedacted=true")
+                .contains("MCP 重载审批")
+                .contains("toolNotice=true")
                 .contains("技能凭据")
                 .contains("traversalRejected=true")
                 .contains("审批生命周期")
@@ -165,6 +177,21 @@ public class CliShellTipsTest {
                 .contains("Slash 确认策略摘要")
                 .contains("approveAll")
                 .contains("metadataRedacted");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security approval-card"))
+                .contains("审批卡策略摘要")
+                .contains("platforms=[FEISHU, QQBOT]")
+                .contains("outboundSanitized=true")
+                .contains("rawCommand=true");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security approval-audit"))
+                .contains("审批审计策略摘要")
+                .contains("repositoryBacked=true")
+                .contains("approvalKey=true")
+                .contains("revocationAudited=true");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security mcp-reload"))
+                .contains("MCP 重载审批策略摘要")
+                .contains("command=/reload-mcp")
+                .contains("slashConfirm=true")
+                .contains("oauthUrlSafe=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security lifecycle"))
                 .contains("审批生命周期策略摘要")
                 .contains("approveAll=true")

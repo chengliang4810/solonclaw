@@ -20,6 +20,7 @@ public final class TerminalCommandCatalog {
                 "/deny list", "/deny status", "/deny all", "/always", "/cancel",
                 "/security audit", "/security policy", "/security approvals", "/security urls",
                 "/security private-urls", "/security website", "/security slash-confirm",
+                "/security approval-card", "/security approval-audit", "/security mcp-reload",
                 "/security lifecycle", "/security hardline", "/security terminal-guardrails", "/security tirith",
                 "/security tirith-approval", "/security cron-approvals",
                 "/security subagent-approvals", "/security smart-approval",

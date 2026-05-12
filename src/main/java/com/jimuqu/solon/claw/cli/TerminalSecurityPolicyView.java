@@ -48,6 +48,15 @@ public final class TerminalSecurityPolicyView {
         if ("slash-confirm".equals(mode)) {
             return renderSlashConfirmPolicy(approvalService.slashConfirmPolicySummary());
         }
+        if ("approval-card".equals(mode)) {
+            return renderApprovalCardPolicy(approvalService.approvalCardPolicySummary());
+        }
+        if ("approval-audit".equals(mode)) {
+            return renderApprovalAuditPolicy(approvalService.approvalAuditPolicySummary());
+        }
+        if ("mcp-reload".equals(mode)) {
+            return renderMcpReloadApprovalPolicy(approvalService.mcpReloadPolicySummary());
+        }
         if ("lifecycle".equals(mode)) {
             return renderApprovalLifecyclePolicy(approvalService.approvalLifecyclePolicySummary());
         }
@@ -141,11 +150,20 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("website") || rest.startsWith("site")) {
             return "website";
         }
-        if (rest.startsWith("approval")) {
-            return "approvals";
-        }
         if (rest.startsWith("slash-confirm") || rest.startsWith("confirm")) {
             return "slash-confirm";
+        }
+        if (rest.startsWith("approval-card") || rest.startsWith("card-approval")) {
+            return "approval-card";
+        }
+        if (rest.startsWith("approval-audit") || rest.startsWith("audit-log")) {
+            return "approval-audit";
+        }
+        if (rest.startsWith("mcp-reload")) {
+            return "mcp-reload";
+        }
+        if (rest.startsWith("approval")) {
+            return "approvals";
         }
         if (rest.startsWith("lifecycle") || rest.startsWith("approval-lifecycle")) {
             return "lifecycle";
@@ -284,7 +302,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -343,6 +361,30 @@ public final class TerminalSecurityPolicyView {
                 .append(value(slash, "denyAllSupported"))
                 .append(" scopes=")
                 .append(value(slash, "scopes"));
+        Map<String, Object> card = approvalService.approvalCardPolicySummary();
+        buffer.append('\n')
+                .append("- 审批卡：mode=")
+                .append(value(card, "deliveryMode"))
+                .append(" platforms=")
+                .append(value(card, "supportedPlatforms"))
+                .append(" redacted=")
+                .append(value(card, "commandPreviewRedacted"));
+        Map<String, Object> audit = approvalService.approvalAuditPolicySummary();
+        buffer.append('\n')
+                .append("- 审批审计：request=")
+                .append(value(audit, "requestEvents"))
+                .append(" response=")
+                .append(value(audit, "responseEvents"))
+                .append(" keyRedacted=")
+                .append(value(audit, "approvalKeyRedacted"));
+        Map<String, Object> mcpReload = approvalService.mcpReloadPolicySummary();
+        buffer.append('\n')
+                .append("- MCP 重载审批：confirm=")
+                .append(value(mcpReload, "confirmRequired"))
+                .append(" persistentDisable=")
+                .append(value(mcpReload, "persistentDisableSupported"))
+                .append(" toolNotice=")
+                .append(value(mcpReload, "toolChangeNoticeInjected"));
         Map<String, Object> lifecycle = approvalService.approvalLifecyclePolicySummary();
         buffer.append('\n')
                 .append("- 审批生命周期：approveAll=")
@@ -436,6 +478,111 @@ public final class TerminalSecurityPolicyView {
                 .append(value(slash, "commandPreviewRedacted"))
                 .append(" metadataRedacted=")
                 .append(value(slash, "approvalMetadataRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderApprovalCardPolicy(Map<String, Object> card) {
+        StringBuilder buffer = new StringBuilder("审批卡策略摘要：");
+        buffer.append('\n')
+                .append("- 投递：mode=")
+                .append(value(card, "deliveryMode"))
+                .append(" platforms=")
+                .append(value(card, "supportedPlatforms"))
+                .append(" unsupportedEmpty=")
+                .append(value(card, "unsupportedPlatformsReturnEmptyExtras"));
+        buffer.append('\n')
+                .append("- 动作：approve=")
+                .append(value(card, "approveAction"))
+                .append(" deny=")
+                .append(value(card, "denyAction"))
+                .append(" scopes=")
+                .append(value(card, "scopeOptions"))
+                .append(" default=")
+                .append(value(card, "defaultScope"));
+        buffer.append('\n')
+                .append("- 选择器：idSelector=")
+                .append(value(card, "approvalIdSelectorSupported"))
+                .append(" unsafeRejected=")
+                .append(value(card, "unsafeSelectorRejected"))
+                .append(" outboundSanitized=")
+                .append(value(card, "outboundApprovalIdSanitized"));
+        buffer.append('\n')
+                .append("- 脱敏：command=")
+                .append(value(card, "commandPreviewRedacted"))
+                .append(" description=")
+                .append(value(card, "descriptionPreviewRedacted"))
+                .append(" rawCommand=")
+                .append(value(card, "rawCommandRedactedInExtras"));
+        return buffer.toString();
+    }
+
+    private static String renderApprovalAuditPolicy(Map<String, Object> audit) {
+        StringBuilder buffer = new StringBuilder("审批审计策略摘要：");
+        buffer.append('\n')
+                .append("- 事件：request=")
+                .append(value(audit, "requestEvents"))
+                .append(" response=")
+                .append(value(audit, "responseEvents"))
+                .append(" observers=")
+                .append(value(audit, "observerCount"))
+                .append(" isolated=")
+                .append(value(audit, "observerFailureIsolated"));
+        buffer.append('\n')
+                .append("- 存储：repositoryBacked=")
+                .append(value(audit, "repositoryBackedWhenConfigured"))
+                .append(" commandHash=")
+                .append(value(audit, "commandHashStored"))
+                .append(" patternKeys=")
+                .append(value(audit, "patternKeysStored"))
+                .append(" timestamps=")
+                .append(value(audit, "timestampsStored"));
+        buffer.append('\n')
+                .append("- 脱敏：approver=")
+                .append(value(audit, "approverRedacted"))
+                .append(" command=")
+                .append(value(audit, "commandPreviewRedacted"))
+                .append(" approvalKey=")
+                .append(value(audit, "approvalKeyRedacted"));
+        buffer.append('\n')
+                .append("- 查询：recentDashboard=")
+                .append(value(audit, "recentDashboardViewSupported"))
+                .append(" revocationAudited=")
+                .append(value(audit, "manualRevocationAudited"));
+        return buffer.toString();
+    }
+
+    private static String renderMcpReloadApprovalPolicy(Map<String, Object> reload) {
+        StringBuilder buffer = new StringBuilder("MCP 重载审批策略摘要：");
+        buffer.append('\n')
+                .append("- 命令：command=")
+                .append(value(reload, "command"))
+                .append(" confirmRequired=")
+                .append(value(reload, "confirmRequired"))
+                .append(" configKey=")
+                .append(value(reload, "configKey"));
+        buffer.append('\n')
+                .append("- 确认：slashConfirm=")
+                .append(value(reload, "slashConfirmBacked"))
+                .append(" directAlias=")
+                .append(value(reload, "directRunAlias"))
+                .append(" alwaysAlias=")
+                .append(value(reload, "alwaysConfirmAlias"))
+                .append(" persisted=")
+                .append(value(reload, "runtimeConfigPersisted"));
+        buffer.append('\n')
+                .append("- 变更：toolNotice=")
+                .append(value(reload, "toolChangeNoticeInjected"))
+                .append(" serverSummary=")
+                .append(value(reload, "changedServerSummary"))
+                .append(" toolCount=")
+                .append(value(reload, "toolCountSummary"));
+        buffer.append('\n')
+                .append("- 安全：oauthUrlSafe=")
+                .append(value(reload, "oauthUrlSafetyCovered"))
+                .append(" encodedRedacted=")
+                .append(value(reload, "encodedUrlParameterRedacted"))
+                .append(" historyRedacted=")
+                .append(value(reload, "reloadHistoryNoticeRedacted"));
         return buffer.toString();
     }
 
