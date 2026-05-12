@@ -276,6 +276,11 @@ export default {
     historyDeliveryAttachments: 'Attachments',
     upcomingTitle: 'Upcoming Runs',
     upcomingCount: '{count} jobs',
+    guideTriggerSources: 'Trigger Sources',
+    guideManualTriggerSource: 'Manual runs record sources',
+    guideRetryTriggerSource: 'Retry runs record sources',
+    guideQueuedTriggerSource: 'Queued triggers are persisted',
+    guideTriggerFields: 'Fields',
     status: {
       running: 'Running',
       paused: 'Paused',

@@ -69,6 +69,18 @@ const guideAutomation = computed(() => {
   ].filter(Boolean)
 })
 
+const guideTriggerSources = computed(() => {
+  const policy = jobsStore.policy
+  return [
+    policy?.custom_manual_trigger_supported ? t('jobs.guideManualTriggerSource') : '',
+    policy?.custom_retry_trigger_supported ? t('jobs.guideRetryTriggerSource') : '',
+    policy?.queued_trigger_type_persisted ? t('jobs.guideQueuedTriggerSource') : '',
+    Array.isArray(policy?.trigger_type_fields) && policy.trigger_type_fields.length
+      ? `${t('jobs.guideTriggerFields')}: ${policy.trigger_type_fields.join(', ')}`
+      : '',
+  ].filter(Boolean)
+})
+
 onMounted(() => {
   if (!jobsStore.guide && !jobsStore.guideLoading) {
     jobsStore.fetchGuideAndPolicy()
@@ -121,6 +133,11 @@ onMounted(() => {
           <span class="guide-block-title">{{ t('jobs.guideDelivery') }}</span>
           <span v-for="item in guideDeliveries" :key="item" class="guide-chip">{{ item }}</span>
           <span v-if="!guideDeliveries.length" class="guide-muted">{{ t('common.noData') }}</span>
+        </div>
+        <div class="guide-block">
+          <span class="guide-block-title">{{ t('jobs.guideTriggerSources') }}</span>
+          <span v-for="item in guideTriggerSources" :key="item" class="guide-chip">{{ item }}</span>
+          <span v-if="!guideTriggerSources.length" class="guide-muted">{{ t('common.noData') }}</span>
         </div>
         <div class="guide-block">
           <span class="guide-block-title">{{ t('jobs.guideActions') }}</span>

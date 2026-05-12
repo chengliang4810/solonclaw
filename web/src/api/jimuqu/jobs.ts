@@ -126,6 +126,10 @@ export interface CronPolicy {
   freshSessionRuns: boolean
   selfContainedPromptRequired: boolean
   recursiveCronCreationDiscouraged: boolean
+  trigger_type_fields?: string[]
+  custom_manual_trigger_supported?: boolean
+  custom_retry_trigger_supported?: boolean
+  queued_trigger_type_persisted?: boolean
   update_fields: string[]
   clear_fields: string[]
   status_fields: string[]
