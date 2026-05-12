@@ -704,6 +704,9 @@ onMounted(load)
             <p v-if="approvalHistoryMeta?.available === false" class="approval-note">
               {{ approvalHistoryMeta.message || '审批历史服务尚未启用。' }}
             </p>
+            <p v-else-if="approvalHistoryMeta?.truncated" class="approval-note">
+              当前只显示最近 {{ approvalHistoryMeta.count || historyCount }} 条审批历史。
+            </p>
             <div v-if="approvalHistory.length" class="approval-list">
               <article v-for="item in approvalHistory" :key="item.event_id" class="approval-item">
                 <div class="approval-head">
@@ -737,6 +740,9 @@ onMounted(load)
           <NSpin :show="alwaysLoading">
             <p v-if="alwaysApprovalMeta?.available === false" class="approval-note">
               {{ alwaysApprovalMeta.message || '审批服务尚未启用。' }}
+            </p>
+            <p v-else-if="alwaysApprovalMeta?.truncated" class="approval-note">
+              当前只显示前 {{ alwaysApprovalMeta.count || alwaysCount }} 个长期授权。
             </p>
             <div v-if="alwaysApprovals.length" class="approval-list">
               <article v-for="item in alwaysApprovals" :key="item.approval_id || `${item.tool_name}:${item.pattern_key}`" class="approval-item">
@@ -776,6 +782,9 @@ onMounted(load)
           <NSpin :show="confirmsLoading">
             <p v-if="slashConfirmMeta?.available === false" class="approval-note">
               {{ slashConfirmMeta.message || 'Slash 确认服务尚未启用。' }}
+            </p>
+            <p v-else-if="slashConfirmMeta?.truncated" class="approval-note">
+              当前只显示前 {{ slashConfirmMeta.count || slashConfirmCount }} 个待确认 Slash 命令。
             </p>
             <div v-if="pendingSlashConfirms.length" class="approval-list">
               <article v-for="item in pendingSlashConfirms" :key="item.confirm_id" class="approval-item">

@@ -263,12 +263,18 @@ public class DashboardDiagnosticsService {
             return disabledList(
                     items, "approval_history_unavailable", "审批历史服务尚未启用。");
         }
-        for (ApprovalAuditEvent event : approvalAuditRepository.listRecent(effectiveLimit)) {
+        boolean truncated = false;
+        for (ApprovalAuditEvent event : approvalAuditRepository.listRecent(effectiveLimit + 1)) {
+            if (items.size() >= effectiveLimit) {
+                truncated = true;
+                break;
+            }
             items.add(approvalAuditItem(event));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("count", Integer.valueOf(items.size()));
         result.put("items", items);
+        result.put("truncated", Boolean.valueOf(truncated));
         return result;
     }
 
@@ -278,15 +284,18 @@ public class DashboardDiagnosticsService {
         if (approvalService == null) {
             return disabledList(items, "approval_unavailable", "审批服务尚未启用。");
         }
+        boolean truncated = false;
         for (String approval : approvalService.listAlwaysApprovals()) {
-            items.add(alwaysApprovalItem(approval));
             if (items.size() >= effectiveLimit) {
+                truncated = true;
                 break;
             }
+            items.add(alwaysApprovalItem(approval));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("count", Integer.valueOf(items.size()));
         result.put("items", items);
+        result.put("truncated", Boolean.valueOf(truncated));
         return result;
     }
 
@@ -315,15 +324,18 @@ public class DashboardDiagnosticsService {
         if (slashConfirmService == null) {
             return disabledList(items, "slash_confirm_unavailable", "Slash 确认服务尚未启用。");
         }
+        boolean truncated = false;
         for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
-            items.add(slashConfirmItem(pending));
             if (items.size() >= effectiveLimit) {
+                truncated = true;
                 break;
             }
+            items.add(slashConfirmItem(pending));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("count", Integer.valueOf(items.size()));
         result.put("items", items);
+        result.put("truncated", Boolean.valueOf(truncated));
         return result;
     }
 

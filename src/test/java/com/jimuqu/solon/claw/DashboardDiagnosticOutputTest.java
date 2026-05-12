@@ -731,6 +731,94 @@ public class DashboardDiagnosticOutputTest {
     }
 
     @Test
+    void shouldMarkApprovalHistoryTruncatedOnlyWhenMoreItemsExist() throws Exception {
+        AppConfig config = new AppConfig();
+        ApprovalAuditEvent first = new ApprovalAuditEvent();
+        first.setEventId("history-truncated-1");
+        first.setCreatedAt(1700000000001L);
+        ApprovalAuditEvent second = new ApprovalAuditEvent();
+        second.setEventId("history-truncated-2");
+        second.setCreatedAt(1700000000002L);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        new FixedApprovalAuditRepository(Arrays.asList(first, second)),
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.approvalHistory(1);
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    void shouldMarkAlwaysApprovalListTruncatedOnlyWhenMoreItemsExist() throws Exception {
+        AppConfig config = new AppConfig();
+        MemoryGlobalSettingRepository globalSettings = new MemoryGlobalSettingRepository();
+        globalSettings.set(
+                "dangerous_command_always_patterns",
+                ONode.serialize(Arrays.asList("execute_shell:first", "execute_shell:second")));
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        globalSettings, config, new SecurityPolicyService(config));
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.alwaysApprovals(1);
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    void shouldMarkSlashConfirmListTruncatedOnlyWhenMoreItemsExist() {
+        AppConfig config = new AppConfig();
+        SlashConfirmService slashConfirmService = new SlashConfirmService(null);
+        slashConfirmService.register("source-slash-1", "/reload-mcp one", "确认一", false);
+        slashConfirmService.register("source-slash-2", "/reload-mcp two", "确认二", false);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        slashConfirmService,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingSlashConfirms(1);
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void shouldRedactPendingApprovalDiagnosticOutput() throws Exception {
         AppConfig config = new AppConfig();
