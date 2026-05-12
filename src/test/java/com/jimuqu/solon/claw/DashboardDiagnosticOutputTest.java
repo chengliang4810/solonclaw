@@ -313,6 +313,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_websocket_url_policy");
         Map<String, Object> commandUserinfoUrlPolicy =
                 findProbe(items, "command_userinfo_url_policy");
+        Map<String, Object> commandProtocolRelativeUrlPolicy =
+                findProbe(items, "command_protocol_relative_url_policy");
+        Map<String, Object> commandEncodedHostUrlPolicy =
+                findProbe(items, "command_encoded_host_url_policy");
         Map<String, Object> commandPreproxyUrlPolicy =
                 findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandProxyEnvPolicy =
@@ -462,6 +466,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandUserinfoUrlPolicy))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("dashboard-password");
+        assertThat(commandProtocolRelativeUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProtocolRelativeUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProtocolRelativeUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProtocolRelativeUrlPolicy))
+                .contains("//169.254.169.254");
+        assertThat(commandEncodedHostUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandEncodedHostUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandEncodedHostUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandEncodedHostUrlPolicy)).contains("%31%36%39.254.169.254");
         assertThat(commandPreproxyUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPreproxyUrlPolicy.get("skipped")).isNull();

@@ -2379,6 +2379,16 @@ public class DashboardDiagnosticsService {
                         "curl https://alice:dashboard-password@example.test/private"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_protocol_relative_url_policy",
+                        "命令协议相对 URL 前置策略检查",
+                        "curl //169.254.169.254/latest/meta-data/"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_encoded_host_url_policy",
+                        "命令编码主机 URL 前置策略检查",
+                        "curl http://%31%36%39.254.169.254/latest/meta-data/"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_preproxy_url_policy",
                         "命令 preproxy URL 前置策略检查",
                         "curl --preproxy socks5://127.0.0.1:1080 https://example.test"));
