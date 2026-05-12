@@ -6195,6 +6195,15 @@ public class DangerousCommandApprovalServiceTest {
         String cmdStartWait =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "cmd /c start \"app\" /WAIT npm run build");
+        String directStart =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "start \"app\" /B npm run dev");
+        String directStartDetached =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "start \"app\" npm run dev");
+        String directStartWait =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "start \"app\" /WAIT npm run build");
         String server =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "python -m http.server 8000");
@@ -6221,6 +6230,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cmdStart).contains("脱离当前终端").contains("start /B");
         assertThat(cmdStartDetached).contains("脱离当前终端").contains("start");
         assertThat(cmdStartWait).isNull();
+        assertThat(directStart).contains("脱离当前终端").contains("start");
+        assertThat(directStartDetached).contains("脱离当前终端").contains("start");
+        assertThat(directStartWait).isNull();
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
     }
