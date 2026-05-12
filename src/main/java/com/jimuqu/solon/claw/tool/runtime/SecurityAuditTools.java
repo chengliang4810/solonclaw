@@ -80,7 +80,7 @@ public class SecurityAuditTools {
         String mode = StrUtil.blankToDefault(action, "command").trim().toLowerCase(Locale.ROOT);
         AuditResult result;
         if ("policy".equals(mode) || "status".equals(mode)) {
-            result = auditPolicy();
+            result = auditPolicy(mode);
         } else if ("url".equals(mode)) {
             result = auditUrl(url);
         } else if ("path".equals(mode)) {
@@ -98,8 +98,9 @@ public class SecurityAuditTools {
         return ONode.serialize(result.toMap());
     }
 
-    private AuditResult auditPolicy() {
-        AuditResult result = new AuditResult("policy");
+    private AuditResult auditPolicy(String mode) {
+        String action = "status".equals(mode) ? "status" : "policy";
+        AuditResult result = new AuditResult(action);
         if (appConfig == null) {
             result.success = false;
             result.decision = "error";

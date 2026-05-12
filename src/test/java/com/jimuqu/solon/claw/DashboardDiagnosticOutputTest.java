@@ -248,6 +248,55 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldExposeStatusActionAsReadOnlyPolicyAuditAlias() throws Exception {
+        AppConfig config = new AppConfig();
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("action", "status");
+        body.put("command", "echo token=ghp_statusaliassecret123");
+        body.put("url", "http://127.0.0.1/latest/meta-data?token=status-secret");
+        body.put("path", "target/token=sk-status-alias-secret.txt");
+
+        Map<String, Object> result = diagnosticsService.securityAudit(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("action")).isEqualTo("status");
+        assertThat(result.get("decision")).isEqualTo("allow");
+        assertThat(result.get("approval_required")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("blocking")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("summary")).isEqualTo("Security policy status is available without exposing secret values.");
+        Map<String, Object> policy = (Map<String, Object>) result.get("policy");
+        Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        Map<String, Object> readOnlyAuditPolicy =
+                (Map<String, Object>) coverage.get("readOnlyAuditPolicy");
+        assertThat(readOnlyAuditPolicy.get("executesCommand")).isEqualTo(Boolean.FALSE);
+        assertThat(readOnlyAuditPolicy.get("opensNetworkConnection")).isEqualTo(Boolean.FALSE);
+        assertThat(readOnlyAuditPolicy.get("readsTargetUrl")).isEqualTo(Boolean.FALSE);
+        assertThat(readOnlyAuditPolicy.get("writesFile")).isEqualTo(Boolean.FALSE);
+        assertThat(readOnlyAuditPolicy.get("storesAuditInput")).isEqualTo(Boolean.FALSE);
+        String json = ONode.serialize(result);
+        assertThat(json)
+                .doesNotContain("ghp_statusaliassecret123")
+                .doesNotContain("status-secret")
+                .doesNotContain("sk-status-alias-secret");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() throws Exception {
         AppConfig config = new AppConfig();
         File runtimeHome = new File("target/dashboard-security-probes").getAbsoluteFile();

@@ -1758,6 +1758,8 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(result, safe, "success");
         copyPolicyValue(result, safe, "action");
         copyPolicyValue(result, safe, "decision");
+        copyPolicyValue(result, safe, "blocking");
+        copyPolicyValue(result, safe, "approval_required");
         copyPolicyValue(result, safe, "summary");
         copyPolicyValue(result, safe, "timestamp");
         Object policy = result.get("policy");
