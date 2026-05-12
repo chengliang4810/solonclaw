@@ -1336,6 +1336,8 @@ public class ToolRegistryExposureTest {
                                 .get("mcpRuntimePolicyAuditable")
                                 .getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("mcpPackageSecurity").getBoolean())
+                .isTrue();
         ONode mcpRuntimePolicy =
                 policyStatus.get("policy").get("coverage").get("mcpRuntimePolicy");
         assertThat(mcpRuntimePolicy.get("remoteEndpointUrlSafety").getBoolean()).isTrue();
@@ -1438,6 +1440,7 @@ public class ToolRegistryExposureTest {
                 .contains("hardlineCommand")
                 .contains("terminalGuardrails")
                 .contains("urlSafety")
+                .contains("privateUrlPolicy")
                 .contains("websitePolicy")
                 .contains("credentialFilePolicy")
                 .contains("credentialMountPolicy")
@@ -1451,6 +1454,7 @@ public class ToolRegistryExposureTest {
                 .contains("mcpRuntimePolicy")
                 .contains("mcpOauthUrlSafety")
                 .contains("mcpOauthPolicy")
+                .contains("mcpPackageSecurity")
                 .contains("mcpReloadConfirmation")
                 .contains("mcpToolChangeNotice")
                 .contains("attachmentPolicy")

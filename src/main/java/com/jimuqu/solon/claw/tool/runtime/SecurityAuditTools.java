@@ -315,6 +315,7 @@ public class SecurityAuditTools {
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));
         coverage.put("mcpToolChangeNotice", Boolean.TRUE);
         coverage.put("mcpRuntimePolicyAuditable", Boolean.TRUE);
+        coverage.put("mcpPackageSecurity", Boolean.TRUE);
         coverage.put("attachmentUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("attachmentCachePathSafety", Boolean.TRUE);
         coverage.put("attachmentDisplayNameRedaction", Boolean.TRUE);
@@ -342,6 +343,7 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "sudoRewrite", true);
         addSurface(activeSurfaces, "backgroundProcess", true);
         addSurface(activeSurfaces, "urlSafety", securityPolicyService != null);
+        addSurface(activeSurfaces, "privateUrlPolicy", securityPolicyService != null);
         addSurface(activeSurfaces, "websitePolicy", securityPolicyService != null);
         addSurface(activeSurfaces, "credentialFilePolicy", securityPolicyService != null);
         addSurface(activeSurfaces, "credentialMountPolicy", true);

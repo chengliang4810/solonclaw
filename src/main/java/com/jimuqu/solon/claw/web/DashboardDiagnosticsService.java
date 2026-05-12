@@ -2115,6 +2115,7 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(source, target, "mcpReloadConfirmation");
         copyPolicyValue(source, target, "mcpToolChangeNotice");
         copyPolicyValue(source, target, "mcpRuntimePolicyAuditable");
+        copyPolicyValue(source, target, "mcpPackageSecurity");
         copyPolicyValue(source, target, "attachmentUrlSafety");
         copyPolicyValue(source, target, "attachmentCachePathSafety");
         copyPolicyValue(source, target, "attachmentDisplayNameRedaction");
