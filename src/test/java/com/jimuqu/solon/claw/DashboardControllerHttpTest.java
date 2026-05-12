@@ -660,6 +660,34 @@ public class DashboardControllerHttpTest {
         assertThat(policyAuditReadOnlyAudit.get("storesAuditInput").getBoolean()).isFalse();
         assertThat(policyAuditReadOnlyAudit.get("secretRedactionApplied").getBoolean()).isTrue();
 
+        HttpResult statusAudit =
+                request(
+                        "POST",
+                        "/api/diagnostics/security-audit",
+                        "{\"action\":\"status\",\"command\":\"echo token=ghp_httpstatus12345\",\"url\":\"http://127.0.0.1/callback?token=http-status-secret\",\"path\":\"target/sk-http-status-secret.txt\"}",
+                        token);
+        assertThat(statusAudit.status).isEqualTo(200);
+        assertThat(statusAudit.body)
+                .contains("\"action\":\"status\"")
+                .contains("\"blocking\":false")
+                .contains("\"approval_required\":false")
+                .contains("\"summary\":\"Security policy status is available without exposing secret values.\"")
+                .contains("\"coverage\"")
+                .contains("\"readOnlyAuditPolicy\"")
+                .contains("\"supportsActions\":\"command,url,path,tool_args,policy,status\"")
+                .doesNotContain("ghp_httpstatus12345")
+                .doesNotContain("http-status-secret")
+                .doesNotContain("sk-http-status-secret");
+        ONode statusAuditReadOnlyAudit =
+                ONode.ofJson(statusAudit.body)
+                        .get("data")
+                        .get("policy")
+                        .get("coverage")
+                        .get("readOnlyAuditPolicy");
+        assertThat(statusAuditReadOnlyAudit.get("executesCommand").getBoolean()).isFalse();
+        assertThat(statusAuditReadOnlyAudit.get("writesFile").getBoolean()).isFalse();
+        assertThat(statusAuditReadOnlyAudit.get("secretRedactionApplied").getBoolean()).isTrue();
+
         HttpResult urlAudit =
                 request(
                         "POST",
