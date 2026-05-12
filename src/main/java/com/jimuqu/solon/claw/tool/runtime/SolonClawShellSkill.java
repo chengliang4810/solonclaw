@@ -486,6 +486,11 @@ public class SolonClawShellSkill extends ShellSkill {
     public static Map<String, Object> terminalOutputPolicySummary(AppConfig appConfig) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("ansiStripped", Boolean.TRUE);
+        summary.put("ecma48SequencesStripped", Boolean.TRUE);
+        summary.put("oscSequencesStripped", Boolean.TRUE);
+        summary.put("eightBitC1ControlsStripped", Boolean.TRUE);
+        summary.put("displayControlCharsStripped", Boolean.TRUE);
+        summary.put("bidiControlsStripped", Boolean.TRUE);
         summary.put("secretRedactionApplied", Boolean.TRUE);
         summary.put("maxInlineChars", Integer.valueOf(resolveToolOutputInlineLimit(appConfig)));
         summary.put("headTailTruncation", Boolean.TRUE);

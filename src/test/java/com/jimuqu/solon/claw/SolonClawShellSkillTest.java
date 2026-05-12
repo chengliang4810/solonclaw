@@ -820,6 +820,11 @@ public class SolonClawShellSkillTest {
         Map<String, Object> summary = SolonClawShellSkill.terminalOutputPolicySummary(config);
 
         assertThat(summary.get("exitCodeSemanticsAvailable")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("ecma48SequencesStripped")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("oscSequencesStripped")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("eightBitC1ControlsStripped")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("displayControlCharsStripped")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("bidiControlsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("exitCodeSemantics")))
                 .contains("grepNoMatchExitOneInformational")
                 .contains("gitDiffExitOneInformational")

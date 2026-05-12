@@ -1234,6 +1234,11 @@ public class DashboardDiagnosticsService {
             Map<String, Object> summary = SolonClawShellSkill.terminalOutputPolicySummary(appConfig);
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
             copyPolicyValue(summary, safe, "ansiStripped");
+            copyPolicyValue(summary, safe, "ecma48SequencesStripped");
+            copyPolicyValue(summary, safe, "oscSequencesStripped");
+            copyPolicyValue(summary, safe, "eightBitC1ControlsStripped");
+            copyPolicyValue(summary, safe, "displayControlCharsStripped");
+            copyPolicyValue(summary, safe, "bidiControlsStripped");
             copyPolicyValue(summary, safe, "secretRedactionApplied");
             copyPolicyValue(summary, safe, "maxInlineChars");
             copyPolicyValue(summary, safe, "headTailTruncation");

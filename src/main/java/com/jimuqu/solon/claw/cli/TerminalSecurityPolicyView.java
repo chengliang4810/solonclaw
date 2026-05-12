@@ -1413,6 +1413,17 @@ public final class TerminalSecurityPolicyView {
                 .append(" maxInlineChars=")
                 .append(value(output, "maxInlineChars"));
         buffer.append('\n')
+                .append("- 控制序列：ecma48=")
+                .append(value(output, "ecma48SequencesStripped"))
+                .append(" osc=")
+                .append(value(output, "oscSequencesStripped"))
+                .append(" c1=")
+                .append(value(output, "eightBitC1ControlsStripped"))
+                .append(" displayControls=")
+                .append(value(output, "displayControlCharsStripped"))
+                .append(" bidi=")
+                .append(value(output, "bidiControlsStripped"));
+        buffer.append('\n')
                 .append("- 截断：headTail=")
                 .append(value(output, "headTailTruncation"))
                 .append(" notice=")

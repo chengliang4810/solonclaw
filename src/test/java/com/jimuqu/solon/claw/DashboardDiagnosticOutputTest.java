@@ -431,6 +431,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> terminalOutputPolicy =
                 (Map<String, Object>) coverage.get("terminalOutputPolicy");
         assertThat(terminalOutputPolicy.get("emptySuccessMessage")).isEqualTo("执行成功");
+        assertThat(terminalOutputPolicy.get("oscSequencesStripped")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalOutputPolicy.get("bidiControlsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(terminalOutputPolicy.get("exitCodeSemanticsAvailable")).isEqualTo(Boolean.TRUE);
         Map<String, Object> backgroundProcessPolicy =
                 (Map<String, Object>) coverage.get("backgroundProcessPolicy");

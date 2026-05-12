@@ -992,6 +992,8 @@ public class ToolRegistryExposureTest {
         ONode terminalOutputPolicy =
                 policyStatus.get("policy").get("coverage").get("terminalOutputPolicy");
         assertThat(terminalOutputPolicy.get("ansiStripped").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("oscSequencesStripped").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("bidiControlsStripped").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("maxInlineChars").getInt()).isEqualTo(50000);
         assertThat(terminalOutputPolicy.get("headTailTruncation").getBoolean()).isTrue();
