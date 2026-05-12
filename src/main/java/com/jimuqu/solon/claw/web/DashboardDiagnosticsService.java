@@ -2258,6 +2258,11 @@ public class DashboardDiagnosticsService {
                         "云元数据 URL 阻断",
                         "http://169.254.169.254/latest/meta-data/"));
         items.add(
+                privateUrlProbe(
+                        "private_url",
+                        "内网 URL 默认阻断",
+                        "http://10.0.0.5/internal"));
+        items.add(
                 urlProbe(
                         "sensitive_query",
                         "敏感 URL 参数阻断",
@@ -2342,6 +2347,37 @@ public class DashboardDiagnosticsService {
                 verdict.isAllowed(),
                 SecretRedactor.maskUrl(url),
                 verdict.getMessage());
+    }
+
+    private Map<String, Object> privateUrlProbe(String key, String label, String url) {
+        if (privateUrlsAllowedByPolicy()) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "private_url",
+                    SecretRedactor.maskUrl(url),
+                    "当前策略允许访问内网 URL，跳过默认阻断探针。");
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        return policyProbeItem(
+                key,
+                label,
+                "private_url",
+                false,
+                verdict.isAllowed(),
+                SecretRedactor.maskUrl(url),
+                verdict.getMessage());
+    }
+
+    private boolean privateUrlsAllowedByPolicy() {
+        try {
+            Map<String, Object> summary = securityPolicyService.privateUrlPolicySummary();
+            return Boolean.TRUE.equals(summary.get("allowPrivateUrls"));
+        } catch (Exception ignored) {
+            return appConfig != null
+                    && appConfig.getSecurity() != null
+                    && appConfig.getSecurity().isAllowPrivateUrls();
+        }
     }
 
     private Map<String, Object> websitePolicyProbe(String key, String label) {

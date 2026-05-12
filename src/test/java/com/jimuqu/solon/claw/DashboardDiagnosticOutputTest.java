@@ -284,6 +284,7 @@ public class DashboardDiagnosticOutputTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
+        Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -296,6 +297,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
+        assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(privateUrl.get("skipped")).isNull();
         assertThat(credentialUpload.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
@@ -348,6 +352,44 @@ public class DashboardDiagnosticOutputTest {
         assertThat(websitePolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicy.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(websitePolicy.get("skipped")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSkipPrivateUrlProbeWhenPrivateUrlsAreAllowed() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        File runtimeHome = new File("target/dashboard-private-url-probes-skip").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+
+        Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
+        Map<String, Object> probes = (Map<String, Object>) security.get("probes");
+        assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
+        Map<String, Object> privateUrl = findProbe(items, "private_url");
+        assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(privateUrl.get("skipped")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
