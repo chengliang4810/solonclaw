@@ -170,6 +170,9 @@ public class DashboardDiagnosticsService {
             disabled.put("session_scan_limit", Integer.valueOf(sessionScanLimit));
             disabled.put("scanned_sessions", Integer.valueOf(0));
             disabled.put("truncated", Boolean.FALSE);
+            disabled.put("available", Boolean.FALSE);
+            disabled.put("code", "approval_unavailable");
+            disabled.put("message", "审批服务尚未启用。");
             return disabled;
         }
 
@@ -1359,6 +1362,10 @@ public class DashboardDiagnosticsService {
     }
 
     private Map<String, Object> safeBackgroundProcessPolicySummary() {
+        return safeBackgroundProcessPolicySummary(false);
+    }
+
+    private Map<String, Object> safeBackgroundProcessPolicySummary(boolean includeWrapperFamilies) {
         try {
             Map<String, Object> summary = ProcessTools.backgroundProcessPolicySummary(appConfig);
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -1381,6 +1388,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "stdinPrivilegeWrapperDetection");
             if (summary.containsKey("stdinWrapperFamilies")) {
                 safe.put("stdinPrivilegeWrapperFamilyCount", Integer.valueOf(listSize(summary.get("stdinWrapperFamilies"))));
+                if (includeWrapperFamilies) {
+                    copyPolicyValue(summary, safe, "stdinWrapperFamilies");
+                }
             }
             copyPolicyValue(summary, safe, "waitTimeoutClamped");
             copyPolicyValue(summary, safe, "processWaitTimeoutSeconds");
@@ -1938,7 +1948,7 @@ public class DashboardDiagnosticsService {
             safe.put("terminalOutputPolicy", safeTerminalOutputPolicySummary());
         }
         if (coverage.get("backgroundProcessPolicy") instanceof Map) {
-            safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary());
+            safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary(true));
         }
         if (coverage.get("tirithPolicy") instanceof Map) {
             safe.put("tirithPolicy", safeTirithPolicySummary());

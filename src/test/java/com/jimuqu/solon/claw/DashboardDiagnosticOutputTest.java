@@ -561,6 +561,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(missingApprovalResult.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(missingApprovalResult.get("code")).isEqualTo("approval_unavailable");
         assertThat(String.valueOf(missingApprovalResult.get("message"))).contains("审批服务");
+
+        Map<String, Object> pendingResult = missingApprovalService.pendingApprovals(10);
+        assertThat(pendingResult.get("count")).isEqualTo(Integer.valueOf(0));
+        assertThat(pendingResult.get("available")).isEqualTo(Boolean.FALSE);
+        assertThat(pendingResult.get("code")).isEqualTo("approval_unavailable");
+        assertThat(String.valueOf(pendingResult.get("message"))).contains("审批服务");
     }
 
     @Test
