@@ -227,6 +227,15 @@ const surfaceLabels: Record<string, string> = {
   codeExecution: '代码执行',
   mcpOauthUrlSafety: 'MCP OAuth URL',
   tirithSecurity: '内容扫描',
+  url: 'URL',
+  path_read: '路径读取',
+  path_write: '路径写入',
+  tool_args: '工具参数',
+  hardline_command: '硬阻断',
+  terminal_guardrail: '终端守卫',
+  approval_detection: '审批检测',
+  approval_selector: '审批选择器',
+  slash_confirm_selector: 'Slash 确认编号',
 }
 const auditActionOptions = [
   { label: '命令', value: 'command' },
@@ -723,7 +732,7 @@ onMounted(load)
                   </NTag>
                 </div>
                 <div class="probe-meta">
-                  <span>{{ probe.surface || '-' }}</span>
+                  <span>{{ surfaceLabel(probe.surface || '') }}</span>
                   <span>{{ probe.skipped ? '未检查' : probe.blocked ? '已阻断' : '已放行' }}</span>
                 </div>
                 <p>{{ probe.message || '-' }}</p>
