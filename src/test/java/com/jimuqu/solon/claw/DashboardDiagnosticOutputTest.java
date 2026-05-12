@@ -342,6 +342,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_download_output_path");
         Map<String, Object> commandUploadSourcePath =
                 findProbe(items, "command_upload_source_path");
+        Map<String, Object> commandArchiveCredentialPath =
+                findProbe(items, "command_archive_credential_path");
+        Map<String, Object> commandCredentialOptionPath =
+                findProbe(items, "command_credential_option_path");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
@@ -553,6 +557,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandUploadSourcePath))
                 .contains("upload-file")
                 .contains("[REDACTED_PATH]");
+        assertThat(commandArchiveCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandArchiveCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandArchiveCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandArchiveCredentialPath))
+                .contains("tar")
+                .contains("[REDACTED_PATH]");
+        assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCredentialOptionPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCredentialOptionPath))
+                .contains("ssh")
+                .contains("deploy_key");
         assertThat(schemaSanitizer.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);
