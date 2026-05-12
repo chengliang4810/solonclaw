@@ -150,7 +150,13 @@ public class CliShellTipsTest {
                 .contains("required_credential_files");
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-args"))
                 .contains("工具参数安全策略摘要")
-                .contains("patchTarget");
+                .contains("patchTarget")
+                .contains("downloadOutput=true")
+                .contains("detachedOutput=true")
+                .contains("uploadSource=true")
+                .contains("credentialOnlyBlocked=true")
+                .contains("setx=true")
+                .contains("registry=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security policy"))
                 .contains("MCP")
                 .contains("oauthReauth")
