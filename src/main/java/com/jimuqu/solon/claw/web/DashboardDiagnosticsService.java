@@ -38,6 +38,8 @@ import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -2334,6 +2336,10 @@ public class DashboardDiagnosticsService {
                         "附件下载 URL 安全检查",
                         "http://169.254.169.254/latest/meta-data/?token=dashboard-probe-secret"));
         items.add(
+                patchParserPathProbe(
+                        "patch_parser_path",
+                        "补丁解析路径安全检查"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2781,6 +2787,60 @@ public class DashboardDiagnosticsService {
                 allowed,
                 SecretRedactor.maskUrl(url),
                 StrUtil.blankToDefault(message, allowed ? "附件下载 URL 未被阻断。" : "附件下载 URL 已被阻断。"));
+    }
+
+    private Map<String, Object> patchParserPathProbe(String key, String label) {
+        Path dir = null;
+        try {
+            dir = Files.createTempDirectory("dashboard-patch-probe");
+            SolonClawPatchTools tools =
+                    new SolonClawPatchTools(
+                            dir.toString(),
+                            securityPolicyService);
+            String patch =
+                    "*** Begin Patch\n"
+                            + "*** Add File: ../dashboard-patch-escape.txt\n"
+                            + "+blocked\n"
+                            + "*** End Patch";
+            ONode parsed =
+                    ONode.ofJson(tools.patch("patch", null, null, null, null, patch));
+            Boolean success = parsed.get("success").getBoolean();
+            String error = parsed.get("error").getString();
+            boolean blocked =
+                    !Boolean.TRUE.equals(success)
+                            && StrUtil.isNotBlank(error)
+                            && !Files.exists(dir.getParent().resolve("dashboard-patch-escape.txt"));
+            return policyProbeItem(
+                    key,
+                    label,
+                    "patch_parser_path",
+                    false,
+                    !blocked,
+                    "../dashboard-patch-escape.txt",
+                    blocked ? "补丁路径穿越已在写入前阻断。" : "补丁路径穿越未被阻断。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "patch_parser_path",
+                    false,
+                    true,
+                    "../dashboard-patch-escape.txt",
+                    "补丁解析路径探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        } finally {
+            deleteProbeDirectory(dir);
+        }
+    }
+
+    private void deleteProbeDirectory(Path dir) {
+        if (dir == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(dir);
+        } catch (Exception ignored) {
+        }
     }
 
     private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
