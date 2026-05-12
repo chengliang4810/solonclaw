@@ -3423,6 +3423,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminalOutputPolicy.get("oscSequencesStripped")).isEqualTo(Boolean.TRUE);
         assertThat(terminalOutputPolicy.get("bidiControlsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(terminalOutputPolicy.get("exitCodeSemanticsAvailable")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalOutputPolicy.get("exitCodeMeaningReturned")).isEqualTo(Boolean.TRUE);
         Map<String, Object> backgroundProcessPolicy =
                 (Map<String, Object>) coverage.get("backgroundProcessPolicy");
         assertThat(backgroundProcessPolicy.get("startHardlineBlocked")).isEqualTo(Boolean.TRUE);

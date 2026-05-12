@@ -825,6 +825,7 @@ public class SolonClawShellSkillTest {
         assertThat(summary.get("eightBitC1ControlsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("displayControlCharsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("bidiControlsStripped")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("exitCodeMeaningReturned")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("exitCodeSemantics")))
                 .contains("grepNoMatchExitOneInformational")
                 .contains("gitDiffExitOneInformational")

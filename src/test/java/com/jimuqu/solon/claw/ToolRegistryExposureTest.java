@@ -1029,6 +1029,7 @@ public class ToolRegistryExposureTest {
         assertThat(terminalOutputPolicy.get("outputTransformersSupported").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("transformerFailureIsolated").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("exitCodeSemanticsAvailable").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("exitCodeMeaningReturned").getBoolean()).isTrue();
         assertThat(String.valueOf(terminalOutputPolicy))
                 .contains("执行成功")
                 .doesNotContain("secret-sudo");

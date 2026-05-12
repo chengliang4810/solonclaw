@@ -501,6 +501,7 @@ public class SolonClawShellSkill extends ShellSkill {
         summary.put("outputTransformersSupported", Boolean.TRUE);
         summary.put("transformerFailureIsolated", Boolean.TRUE);
         summary.put("exitCodeSemanticsAvailable", Boolean.TRUE);
+        summary.put("exitCodeMeaningReturned", Boolean.TRUE);
         summary.put("exitCodeSemantics", TerminalExitCodeSemantics.policySummary());
         summary.put("foregroundRetryErrorsInterpreted", Boolean.TRUE);
         summary.put("description", "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail truncation notice, and enriched with timeout, sudo, and exit-code guidance before it is returned.");

@@ -1308,6 +1308,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "outputTransformersSupported");
             copyPolicyValue(summary, safe, "transformerFailureIsolated");
             copyPolicyValue(summary, safe, "exitCodeSemanticsAvailable");
+            copyPolicyValue(summary, safe, "exitCodeMeaningReturned");
             if (summary.get("exitCodeSemantics") instanceof Map) {
                 safe.put(
                         "exitCodeSemantics",
