@@ -3438,6 +3438,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("sudoPasswordRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("managedBackgroundProcessRequired"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("processRegistryBacked")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("powershellStartProcessRequiresWait"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("powershellStartProcessNoNewWindowNotEnough"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("powershellStartProcessPassThruNotEnough"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(terminalGuardrailPolicy.get("codeToolShellSources")))
                 .contains("execute_python")
