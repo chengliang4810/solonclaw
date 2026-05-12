@@ -600,6 +600,15 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> helmRepositoryChange = findProbe(items, "helm_repository_change");
         Map<String, Object> infrastructureAutoApproveApply =
                 findProbe(items, "infrastructure_auto_approve_apply");
+        Map<String, Object> packageManagerSourceChange =
+                findProbe(items, "package_manager_source_change");
+        Map<String, Object> packageManagerScriptPolicyChange =
+                findProbe(items, "package_manager_script_policy_change");
+        Map<String, Object> packageManagerRemoteExecute =
+                findProbe(items, "package_manager_remote_execute");
+        Map<String, Object> systemConfigCopy = findProbe(items, "system_config_copy");
+        Map<String, Object> systemConfigInplaceEdit =
+                findProbe(items, "system_config_inplace_edit");
         Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
@@ -1616,6 +1625,26 @@ public class DashboardDiagnosticOutputTest {
         assertThat(infrastructureAutoApproveApply.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(infrastructureAutoApproveApply.get("skipped")).isNull();
         assertThat(String.valueOf(infrastructureAutoApproveApply)).contains("-auto-approve");
+        assertThat(packageManagerSourceChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerSourceChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerSourceChange.get("skipped")).isNull();
+        assertThat(String.valueOf(packageManagerSourceChange)).contains("index-url");
+        assertThat(packageManagerScriptPolicyChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerScriptPolicyChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerScriptPolicyChange.get("skipped")).isNull();
+        assertThat(String.valueOf(packageManagerScriptPolicyChange)).contains("ignore-scripts");
+        assertThat(packageManagerRemoteExecute.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerRemoteExecute.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerRemoteExecute.get("skipped")).isNull();
+        assertThat(String.valueOf(packageManagerRemoteExecute)).contains("npx create-vite");
+        assertThat(systemConfigCopy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(systemConfigCopy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(systemConfigCopy.get("skipped")).isNull();
+        assertThat(String.valueOf(systemConfigCopy)).contains("/etc/hosts");
+        assertThat(systemConfigInplaceEdit.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(systemConfigInplaceEdit.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(systemConfigInplaceEdit.get("skipped")).isNull();
+        assertThat(String.valueOf(systemConfigInplaceEdit)).contains("sed -i");
         assertThat(codeExecutionSandbox.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("blocked")).isEqualTo(Boolean.FALSE);

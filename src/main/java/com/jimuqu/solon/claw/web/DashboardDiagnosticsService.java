@@ -3277,6 +3277,41 @@ public class DashboardDiagnosticsService {
                         "terraform apply -auto-approve",
                         "terraform_auto_approve_apply"));
         items.add(
+                approvalDetectionProbe(
+                        "package_manager_source_change",
+                        "包管理器源配置变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "pip config set global.index-url https://packages.example.test/simple",
+                        "package_manager_source_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "package_manager_script_policy_change",
+                        "包管理器脚本策略变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "npm config set ignore-scripts false",
+                        "package_manager_script_policy_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "package_manager_remote_execute",
+                        "包管理器远程执行审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "npx create-vite",
+                        "package_manager_remote_execute"));
+        items.add(
+                approvalDetectionProbe(
+                        "system_config_copy",
+                        "系统配置目录写入审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cp hosts /etc/hosts",
+                        "copy_into_etc"));
+        items.add(
+                approvalDetectionProbe(
+                        "system_config_inplace_edit",
+                        "系统配置原地编辑审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "sed -i 's/a/b/' /etc/hosts",
+                        "sed_inplace_etc"));
+        items.add(
                 codeExecutionSandboxProbe(
                         "code_execution_sandbox",
                         "代码执行沙箱安全检查"));
