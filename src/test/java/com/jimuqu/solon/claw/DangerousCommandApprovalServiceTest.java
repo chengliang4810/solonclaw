@@ -1810,6 +1810,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_firewall");
         assertDangerPattern(
                 env,
+                "New-NetFirewallRule -DisplayName DevServer -Direction Inbound -Action Allow -LocalPort 3000 -Protocol TCP",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall firewall add rule name=DevServer dir=in action=allow protocol=TCP localport=3000",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -DisableRealtimeMonitoring $true",
                 "windows_disable_defender");
         assertDangerPattern(

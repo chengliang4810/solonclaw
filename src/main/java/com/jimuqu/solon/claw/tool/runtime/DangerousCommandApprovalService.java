@@ -1539,6 +1539,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:netsh\\s+advfirewall\\s+set\\s+(?:allprofiles|currentprofile|domainprofile|privateprofile|publicprofile)\\s+state\\s+off|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b[^\\n]*\\bnew\\s+enable\\s*=\\s*no\\b|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_firewall_inbound_allow",
+                                    "Windows inbound firewall allow rule added",
+                                    pattern(
+                                            "\\b(?:New-NetFirewallRule\\b(?=[^\\n]*-Direction\\s+Inbound\\b)(?=[^\\n]*-Action\\s+Allow\\b)|netsh\\s+advfirewall\\s+firewall\\s+add\\s+rule\\b(?=[^\\n]*\\bdir\\s*=\\s*in\\b)(?=[^\\n]*\\baction\\s*=\\s*allow\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_disable_defender",
                                     "Windows Defender protection disabled",
                                     pattern(
