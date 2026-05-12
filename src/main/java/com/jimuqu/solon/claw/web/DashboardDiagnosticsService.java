@@ -2404,6 +2404,10 @@ public class DashboardDiagnosticsService {
                         "pyperclip.copy(open('.env').read())",
                         "python_credential_file_clipboard_export"));
         items.add(
+                codeExecutionSandboxProbe(
+                        "code_execution_sandbox",
+                        "代码执行沙箱安全检查"));
+        items.add(
                 approvalSelectorProbe(
                         "approval_selector",
                         "审批选择器安全检查"));
@@ -3432,6 +3436,108 @@ public class DashboardDiagnosticsService {
                 !matched,
                 safeAuditPreview(command, 400),
                 message);
+    }
+
+    private Map<String, Object> codeExecutionSandboxProbe(String key, String label) {
+        File runtimeHome = null;
+        try {
+            runtimeHome = Files.createTempDirectory("dashboard-code-sandbox-probe").toFile();
+            AppConfig probeConfig = new AppConfig();
+            probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
+            probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            SecurityPolicyService policy = new SecurityPolicyService(probeConfig);
+            SolonClawCodeExecutionSkills.SafePythonSkill python =
+                    new SolonClawCodeExecutionSkills.SafePythonSkill(
+                            runtimeHome.getAbsolutePath(), "python", policy);
+            SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
+                    new SolonClawCodeExecutionSkills.SafeNodejsSkill(
+                            runtimeHome.getAbsolutePath(), policy);
+            String secret = "sk-dashboardcodesandboxprobe12345";
+            boolean fileBlocked =
+                    rejectsCode(python, "open('.env').read()", "文件安全策略", ".env", secret);
+            boolean urlBlocked =
+                    rejectsCode(
+                            nodejs,
+                            "fetch('http://169.254.169.254/latest/meta-data/?token="
+                                    + secret
+                                    + "')",
+                            "URL 安全策略",
+                            null,
+                            secret);
+            boolean shellBlocked =
+                    rejectsCode(
+                            nodejs,
+                            "require('child_process').execSync('whoami')",
+                            "危险命令安全规则",
+                            null,
+                            secret);
+            Map<String, Object> summary =
+                    SolonClawCodeExecutionSkills.codeExecutionPolicySummary(probeConfig);
+            boolean policyAdvertised =
+                    Boolean.TRUE.equals(summary.get("scriptPreflightPathPolicy"))
+                            && Boolean.TRUE.equals(summary.get("scriptPreflightUrlPolicy"))
+                            && Boolean.TRUE.equals(summary.get("dangerousCommandRulesApplied"))
+                            && Boolean.TRUE.equals(summary.get("sandboxEnvironmentSanitized"));
+            boolean passed = fileBlocked && urlBlocked && shellBlocked && policyAdvertised;
+            return policyProbeItem(
+                    key,
+                    label,
+                    "code_execution_sandbox",
+                    true,
+                    passed,
+                    "execute_python, execute_js, .env, private URL, child_process",
+                    passed
+                            ? "代码执行入口已在执行前复用文件、URL、危险命令和沙箱环境安全策略。"
+                            : "代码执行预检、危险命令或沙箱环境策略检查未通过。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "code_execution_sandbox",
+                    true,
+                    false,
+                    "execute_python, execute_js, .env, private URL, child_process",
+                    "代码执行沙箱探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        } finally {
+            deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
+        }
+    }
+
+    private boolean rejectsCode(
+            SolonClawCodeExecutionSkills.SafePythonSkill skill,
+            String code,
+            String expected,
+            String forbidden,
+            String secret) {
+        try {
+            skill.execute(code, Integer.valueOf(1000));
+            return false;
+        } catch (IllegalArgumentException e) {
+            return rejectedMessageSafe(e, expected, forbidden, secret);
+        }
+    }
+
+    private boolean rejectsCode(
+            SolonClawCodeExecutionSkills.SafeNodejsSkill skill,
+            String code,
+            String expected,
+            String forbidden,
+            String secret) {
+        try {
+            skill.execute(code, Integer.valueOf(1000));
+            return false;
+        } catch (IllegalArgumentException e) {
+            return rejectedMessageSafe(e, expected, forbidden, secret);
+        }
+    }
+
+    private boolean rejectedMessageSafe(
+            Exception e, String expected, String forbidden, String secret) {
+        String message = StrUtil.nullToEmpty(e.getMessage());
+        return StrUtil.contains(message, expected)
+                && (StrUtil.isBlank(forbidden) || !StrUtil.contains(message, forbidden))
+                && (StrUtil.isBlank(secret) || !StrUtil.contains(message, secret));
     }
 
     private Map<String, Object> approvalSelectorProbe(String key, String label) {
