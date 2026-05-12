@@ -658,15 +658,29 @@ public class SecurityAuditTools {
             return;
         }
         if (value instanceof Iterable) {
-            for (Object item : (Iterable<?>) value) {
-                collectCommandLikeArguments(item, commands, commandValue);
+            if (commandValue) {
+                String command = commandValueToString(value);
+                if (StrUtil.isNotBlank(command)) {
+                    commands.add(command);
+                }
+            } else {
+                for (Object item : (Iterable<?>) value) {
+                    collectCommandLikeArguments(item, commands, false);
+                }
             }
             return;
         }
         if (value.getClass().isArray()) {
-            Object[] items = (Object[]) value;
-            for (Object item : items) {
-                collectCommandLikeArguments(item, commands, commandValue);
+            if (commandValue) {
+                String command = commandValueToString(value);
+                if (StrUtil.isNotBlank(command)) {
+                    commands.add(command);
+                }
+            } else {
+                int length = java.lang.reflect.Array.getLength(value);
+                for (int i = 0; i < length; i++) {
+                    collectCommandLikeArguments(java.lang.reflect.Array.get(value, i), commands, false);
+                }
             }
             return;
         }
@@ -674,6 +688,45 @@ public class SecurityAuditTools {
             String text = StrUtil.nullToEmpty(String.valueOf(value)).trim();
             if (StrUtil.isNotBlank(text)) {
                 commands.add(text);
+            }
+        }
+    }
+
+    private String commandValueToString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof CharSequence || value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        StringBuilder buffer = new StringBuilder();
+        if (value instanceof Iterable) {
+            for (Object item : (Iterable<?>) value) {
+                appendCommandPart(buffer, item);
+            }
+            return buffer.length() == 0 ? null : buffer.toString();
+        }
+        if (value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                appendCommandPart(buffer, java.lang.reflect.Array.get(value, i));
+            }
+            return buffer.length() == 0 ? null : buffer.toString();
+        }
+        return null;
+    }
+
+    private void appendCommandPart(StringBuilder buffer, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof CharSequence || value instanceof Number || value instanceof Boolean) {
+            String part = String.valueOf(value).trim();
+            if (StrUtil.isNotBlank(part)) {
+                if (buffer.length() > 0) {
+                    buffer.append(' ');
+                }
+                buffer.append(part);
             }
         }
     }
@@ -864,6 +917,7 @@ public class SecurityAuditTools {
         policy.put("storesAuditInput", Boolean.FALSE);
         policy.put("secretRedactionApplied", Boolean.TRUE);
         policy.put("toolArgsCommandPolicyInherited", Boolean.TRUE);
+        policy.put("structuredCommandArgumentsJoined", Boolean.TRUE);
         policy.put("toolArgsUrlPolicyInherited", Boolean.TRUE);
         policy.put("toolArgsPathPolicyInherited", Boolean.TRUE);
         policy.put("toolArgsJsonParseErrorsRedacted", Boolean.TRUE);

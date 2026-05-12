@@ -310,6 +310,22 @@ public class ToolRegistryExposureTest {
         assertThat(dangerous.get("blocking").getBoolean()).isFalse();
         assertThat(dangerous.get("approval_required").getBoolean()).isTrue();
         assertThat(String.valueOf(dangerous.get("findings"))).contains("request_approval");
+        ONode structuredCommandArgs =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "execute_shell",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"command\":[\"rm\",\"-rf\",\"runtime/cache\"]}"));
+        assertThat(structuredCommandArgs.get("decision").getString()).isEqualTo("warn");
+        assertThat(structuredCommandArgs.get("blocking").getBoolean()).isFalse();
+        assertThat(structuredCommandArgs.get("approval_required").getBoolean()).isTrue();
+        assertThat(String.valueOf(structuredCommandArgs.get("findings")))
+                .contains("recursive_delete")
+                .contains("request_approval");
 
         assertThat(policyStatus.get("success").getBoolean()).isTrue();
         assertThat(policyStatus.get("summary").getString()).contains("without exposing secret values");
@@ -1239,6 +1255,7 @@ public class ToolRegistryExposureTest {
         assertThat(readOnlyAuditPolicy.get("storesAuditInput").getBoolean()).isFalse();
         assertThat(readOnlyAuditPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("structuredCommandArgumentsJoined").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsUrlPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsPathPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean()).isTrue();
