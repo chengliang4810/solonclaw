@@ -294,6 +294,9 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> loopbackUrl = findProbe(items, "loopback_url");
         Map<String, Object> ipv6LoopbackUrl = findProbe(items, "ipv6_loopback_url");
+        Map<String, Object> numericLoopbackUrl = findProbe(items, "numeric_loopback_url");
+        Map<String, Object> ipv4MappedLoopbackUrl =
+                findProbe(items, "ipv4_mapped_loopback_url");
         Map<String, Object> protocolRelativePrivateUrl =
                 findProbe(items, "protocol_relative_private_url");
         Map<String, Object> unsupportedNetworkScheme =
@@ -380,6 +383,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(ipv6LoopbackUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(ipv6LoopbackUrl.get("skipped")).isNull();
         assertThat(String.valueOf(ipv6LoopbackUrl)).contains("[::1]");
+        assertThat(numericLoopbackUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(numericLoopbackUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(numericLoopbackUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(numericLoopbackUrl)).contains("2130706433");
+        assertThat(ipv4MappedLoopbackUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(ipv4MappedLoopbackUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(ipv4MappedLoopbackUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(ipv4MappedLoopbackUrl)).contains("::ffff:127.0.0.1");
         assertThat(protocolRelativePrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(protocolRelativePrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(protocolRelativePrivateUrl.get("skipped")).isNull();

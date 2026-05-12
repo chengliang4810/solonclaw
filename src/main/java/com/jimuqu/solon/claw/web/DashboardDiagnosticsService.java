@@ -2281,6 +2281,16 @@ public class DashboardDiagnosticsService {
                         "http://[::1]:8080/admin"));
         items.add(
                 privateUrlProbe(
+                        "numeric_loopback_url",
+                        "数字化回环 URL 默认阻断",
+                        "http://2130706433/admin"));
+        items.add(
+                privateUrlProbe(
+                        "ipv4_mapped_loopback_url",
+                        "IPv4 映射 IPv6 回环 URL 默认阻断",
+                        "http://[::ffff:127.0.0.1]/admin"));
+        items.add(
+                privateUrlProbe(
                         "protocol_relative_private_url",
                         "协议相对内网 URL 默认阻断",
                         "//127.0.0.1:8080/admin"));
