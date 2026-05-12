@@ -3466,6 +3466,69 @@ public class DashboardDiagnosticsService {
                         "cmdkey /add:server /user:alice /pass:secret",
                         "windows_credential_manager_change"));
         items.add(
+                approvalDetectionProbe(
+                        "git_reset_hard",
+                        "Git 强制重置审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "git reset --hard HEAD~1",
+                        "git_reset_hard"));
+        items.add(
+                approvalDetectionProbe(
+                        "git_force_push",
+                        "Git 强制推送审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "git push --force origin main",
+                        "git_force_push"));
+        items.add(
+                approvalDetectionProbe(
+                        "git_clean_force",
+                        "Git 强制清理审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "git clean -fd",
+                        "git_clean_force"));
+        items.add(
+                approvalDetectionProbe(
+                        "git_branch_delete",
+                        "Git 分支删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "git branch -D release",
+                        "git_branch_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "sql_delete_no_where",
+                        "SQL 无条件删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "DELETE FROM users",
+                        "sql_delete_no_where"));
+        items.add(
+                approvalDetectionProbe(
+                        "sql_update_no_where",
+                        "SQL 无条件更新审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "UPDATE users SET admin = true",
+                        "sql_update_no_where"));
+        items.add(
+                approvalDetectionProbe(
+                        "sql_truncate",
+                        "SQL TRUNCATE 审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "TRUNCATE TABLE audit_log",
+                        "sql_truncate"));
+        items.add(
+                approvalDetectionProbe(
+                        "sql_drop_statement",
+                        "SQL DROP 审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "DROP TABLE sessions",
+                        "sql_drop_statement"));
+        items.add(
+                approvalDetectionProbe(
+                        "database_dropdb",
+                        "数据库 drop 命令审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "dropdb production",
+                        "database_dropdb"));
+        items.add(
                 codeExecutionSandboxProbe(
                         "code_execution_sandbox",
                         "代码执行沙箱安全检查"));
