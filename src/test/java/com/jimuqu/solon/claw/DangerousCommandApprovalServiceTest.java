@@ -2003,6 +2003,14 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "esentutl.exe /y C:\\Windows\\NTDS\\ntds.dit /d C:\\Temp\\ntds.dit",
                 "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "copy \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\System32\\config\\SAM C:\\Temp\\sam.save",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "Copy-Item \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\NTDS\\ntds.dit C:\\Temp\\ntds.dit",
+                "windows_credential_material_dump");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertDangerPattern(
                 env, "vaultcmd /listcreds:\"Windows Credentials\"", "windows_credential_manager_read");
