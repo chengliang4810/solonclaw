@@ -2711,6 +2711,31 @@ public class DashboardDiagnosticsService {
                         "ssh -i deploy_key host.example"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_curl_config_credential_path",
+                        "命令 curl 配置凭据路径检查",
+                        "curl -K.curlrc https://example.invalid"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_curl_cookie_credential_path",
+                        "命令 curl Cookie 凭据路径检查",
+                        "curl -b cookies.txt https://example.invalid"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_wget_cookie_credential_path",
+                        "命令 wget Cookie 凭据路径检查",
+                        "wget --load-cookies cookies.txt https://example.invalid"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_kubectl_kubeconfig_path",
+                        "命令 kubectl 配置凭据路径检查",
+                        "kubectl --kubeconfig kubeconfig get pods"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_gcloud_key_file_path",
+                        "命令 gcloud 密钥文件路径检查",
+                        "gcloud auth activate-service-account --key-file service.json"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_encoded_path_traversal",
                         "命令编码路径遍历检查",
                         "cat safe/%252e%252e/readme.txt"));
@@ -3146,14 +3171,40 @@ public class DashboardDiagnosticsService {
 
     private Map<String, Object> commandPathPolicyProbe(String key, String label, String command) {
         SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkCommandPaths(command);
+        String target = redactedCommandPathTarget(command, verdict.getPath(), verdict.getMessage());
         return policyProbeItem(
                 key,
                 label,
                 "command_path_policy",
                 false,
                 verdict.isAllowed(),
-                safeAuditPreview(command, 400),
+                safeAuditPreview(target, 400),
                 verdict.getMessage());
+    }
+
+    private String redactedCommandPathTarget(String command, String path, String message) {
+        if (StrUtil.isBlank(path) || !requiresCommandPathRedaction(message)) {
+            return command;
+        }
+        String target = StrUtil.nullToEmpty(command);
+        String normalizedPath = StrUtil.nullToEmpty(path);
+        String redacted = target.replace(" " + normalizedPath, " [REDACTED_PATH]");
+        redacted = redacted.replace("=" + normalizedPath, "=[REDACTED_PATH]");
+        if (redacted.equals(target) && normalizedPath.startsWith("./")) {
+            redacted = target.replace(" " + normalizedPath.substring(2), " [REDACTED_PATH]");
+        }
+        if (redacted.equals(target)) {
+            redacted = target.replace(normalizedPath, "[REDACTED_PATH]");
+        }
+        if (redacted.equals(target)) {
+            redacted = target + " [path=[REDACTED_PATH]]";
+        }
+        return redacted;
+    }
+
+    private boolean requiresCommandPathRedaction(String message) {
+        String value = StrUtil.nullToEmpty(message);
+        return value.contains("凭据") || value.contains("敏感");
     }
 
     private Map<String, Object> commandAlwaysBlockedUrlProbe(String key, String label, String command) {

@@ -423,6 +423,16 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_archive_credential_path");
         Map<String, Object> commandCredentialOptionPath =
                 findProbe(items, "command_credential_option_path");
+        Map<String, Object> commandCurlConfigCredentialPath =
+                findProbe(items, "command_curl_config_credential_path");
+        Map<String, Object> commandCurlCookieCredentialPath =
+                findProbe(items, "command_curl_cookie_credential_path");
+        Map<String, Object> commandWgetCookieCredentialPath =
+                findProbe(items, "command_wget_cookie_credential_path");
+        Map<String, Object> commandKubectlKubeconfigPath =
+                findProbe(items, "command_kubectl_kubeconfig_path");
+        Map<String, Object> commandGcloudKeyFilePath =
+                findProbe(items, "command_gcloud_key_file_path");
         Map<String, Object> commandEncodedPathTraversal =
                 findProbe(items, "command_encoded_path_traversal");
         Map<String, Object> commandBarePackedIpv4Metadata =
@@ -894,9 +904,46 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandCredentialOptionPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandCredentialOptionPath))
+        assertThat(String.valueOf(commandCredentialOptionPath.get("target")))
                 .contains("ssh")
-                .contains("deploy_key");
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("deploy_key");
+        assertThat(commandCurlConfigCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlConfigCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlConfigCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCurlConfigCredentialPath.get("target")))
+                .contains("curl")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".curlrc");
+        assertThat(commandCurlCookieCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlCookieCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCurlCookieCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandCurlCookieCredentialPath.get("target")))
+                .contains("-b")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("cookies.txt");
+        assertThat(commandWgetCookieCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWgetCookieCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWgetCookieCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWgetCookieCredentialPath.get("target")))
+                .contains("load-cookies")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("cookies.txt");
+        assertThat(commandKubectlKubeconfigPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandKubectlKubeconfigPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandKubectlKubeconfigPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandKubectlKubeconfigPath.get("target")))
+                .contains("kubectl")
+                .contains("--kubeconfig")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(" kubeconfig get");
+        assertThat(commandGcloudKeyFilePath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandGcloudKeyFilePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandGcloudKeyFilePath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandGcloudKeyFilePath.get("target")))
+                .contains("gcloud")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("service.json");
         assertThat(commandEncodedPathTraversal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedPathTraversal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedPathTraversal.get("skipped")).isNull();
