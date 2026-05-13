@@ -5410,8 +5410,10 @@ public class DangerousCommandApprovalServiceTest {
                         "cat .env >> ~/.bash_history",
                         "[IO.File]::ReadAllText('.env') >> ConsoleHost_history.txt",
                         "[System.IO.File]::ReadAllLines('credentials.json') | Add-Content PSReadLine",
+                        "[IO.File]::ReadAllBytes('token.json') | Add-Content PSReadLine",
                         "Add-Content ConsoleHost_history.txt -Value (Get-Content credentials.json)",
-                        "Add-Content ConsoleHost_history.txt -Value ([IO.File]::ReadAllText('.env'))");
+                        "Add-Content ConsoleHost_history.txt -Value ([IO.File]::ReadAllText('.env'))",
+                        "Add-Content ConsoleHost_history.txt -Value ([IO.File]::ReadAllBytes('token.json'))");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -5436,6 +5438,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "[IO.File]::ReadAllText('report.txt') >> ConsoleHost_history.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | Add-Content PSReadLine"))
                 .isNull();
     }
 
