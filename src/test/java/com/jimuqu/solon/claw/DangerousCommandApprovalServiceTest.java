@@ -5028,7 +5028,8 @@ public class DangerousCommandApprovalServiceTest {
                         "certutil -encode service-account.json junit.xml",
                         "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String | Out-File test-results.json",
                         "[Convert]::ToBase64String([IO.File]::ReadAllBytes('token.json')) | Out-File trace.txt",
-                        "[IO.File]::WriteAllText('trace.log', [Convert]::ToBase64String([IO.File]::ReadAllBytes('token.json')))");
+                        "[IO.File]::WriteAllText('trace.log', [Convert]::ToBase64String([IO.File]::ReadAllBytes('token.json')))",
+                        "Set-Content -Path trace.log -Value ([Convert]::ToBase64String([IO.File]::ReadAllBytes('token.json')))");
         for (String command : debugArtifactCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -5078,6 +5079,11 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell",
                                 "[IO.File]::WriteAllText('trace.log', [Convert]::ToBase64String([IO.File]::ReadAllBytes('report.txt')))"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell",
+                                "Set-Content -Path trace.log -Value ([Convert]::ToBase64String([IO.File]::ReadAllBytes('report.txt')))"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

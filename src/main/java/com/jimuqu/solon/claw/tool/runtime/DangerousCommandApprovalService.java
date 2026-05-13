@@ -531,6 +531,10 @@ public class DangerousCommandApprovalService {
                                                     + DEBUG_ARTIFACT_OUTPUT_TARGET
                                                     + "[^\\n,]*,\\s*"
                                                     + POWERSHELL_CREDENTIAL_FILE_ENCODE
+                                                    + "|\\b(?:Set-Content|Add-Content|Out-File|Tee-Object)\\b[^\\n|;&]*"
+                                                    + DEBUG_ARTIFACT_OUTPUT_TARGET
+                                                    + "[^\\n|;&]*(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?\\(?\\s*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_ENCODE
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
