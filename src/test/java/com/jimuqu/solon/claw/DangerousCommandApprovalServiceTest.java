@@ -3045,6 +3045,8 @@ public class DangerousCommandApprovalServiceTest {
                         "Get-Item -Path Env:OPENAI_API_KEY",
                         "Get-Content Env:OPENAI_API_KEY",
                         "Get-Content -Path Env:OPENAI_API_KEY",
+                        "gi Env:OPENAI_API_KEY",
+                        "gc Env:JIMUQU_ACCESS_TOKEN",
                         "Write-Host $env:OPENAI_API_KEY",
                         "Write-Output $env:OPENAI_API_KEY",
                         "echo $env:OPENAI_API_KEY",
@@ -3087,6 +3089,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Write-Host $env:PATH"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "gi Env:PATH"))
                 .isNull();
 
         List<String> inlineAssignments =
