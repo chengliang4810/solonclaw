@@ -2181,6 +2181,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Reporting /v DisableEnhancedNotifications /t REG_DWORD /d 1 /f",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\UX Configuration /v UILockdown /t REG_DWORD /d 0x1 /f",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer -Name HideSCAHealth -Value 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
                 "windows_defender_exclusion");
         assertDangerPattern(

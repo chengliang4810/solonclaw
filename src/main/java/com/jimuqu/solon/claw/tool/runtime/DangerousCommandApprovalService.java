@@ -1593,6 +1593,12 @@ public class DangerousCommandApprovalService {
                                             "\\bSet-MpPreference\\b(?=[^\\n]*(?:-(?:DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableIOAVProtection|DisableScriptScanning|DisableIntrusionPreventionSystem|DisableEmailScanning|DisableBlockAtFirstSeen|DisableArchiveScanning|DisableRemovableDriveScanning|DisableScanningMappedNetworkDrivesForFullScan|DisableScanningNetworkFiles|DisableCloudProtection)\\s+(?:\\$?true|1)\\b|-EnableControlledFolderAccess\\s+(?:Disabled|0)\\b|-SubmitSamplesConsent\\s+(?:NeverSend|2)\\b|-PUAProtection\\s+(?:Disabled|0)\\b|-MAPSReporting\\s+(?:Disabled|0)\\b|-AttackSurfaceReductionRules_Action\\s+(?:Disabled|0)\\b|-ThreatIDDefaultAction_Actions\\s+(?:Allow|NoAction)\\b|-(?:Low|Moderate|High|Severe|Unknown)ThreatDefaultAction\\s+(?:Allow|NoAction)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_disable_defender",
+                                    "Windows Defender visibility or notifications disabled",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\\\Reporting\\b[^\\n]*Disable(?:Enhanced)?Notifications\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Windows Defender\\\\UX Configuration\\b[^\\n]*UILockdown\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Explorer\\b[^\\n]*HideSCAHealth\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_defender_exclusion",
                                     "Windows Defender exclusion or protection rule changed",
                                     pattern(
