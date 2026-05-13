@@ -4757,7 +4757,9 @@ public class DangerousCommandApprovalServiceTest {
                         "cat token.json | qrencode -o token.png",
                         "Get-Content .anthropic_oauth.json | qrencode -o oauth.png",
                         "magick label:@client_secret.json client_secret.png",
-                        "convert label:@service-account.json service-account.png");
+                        "convert label:@service-account.json service-account.png",
+                        "[IO.File]::ReadAllText('token.json') | qrencode -o token.png",
+                        "[System.IO.File]::ReadAllText('credentials.json') | magick label:@- credentials.png");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4776,6 +4778,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "magick label:@report.txt report.png"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllText('report.txt') | qrencode -o report.png"))
                 .isNull();
     }
 

@@ -605,6 +605,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:qrencode|magick|convert)\\b|\\b(?:magick|convert)\\b[^\\n|;&]*label:@\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:qrencode|magick|convert)\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
