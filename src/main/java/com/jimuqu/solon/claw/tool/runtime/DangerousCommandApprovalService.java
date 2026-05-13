@@ -1623,6 +1623,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:Enable-PSRemoting\\b|winrm\\s+quickconfig\\b|sc(?:\\.exe)?\\s+config\\s+(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd)\\s+start\\s*=\\s*(?:auto|demand)|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*SYSTEM\\\\CurrentControlSet\\\\Services\\\\(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd)\\b[^\\n]*(?:\\bStart\\b[^\\n]*(?:/d\\s+(?:2|3|0x2|0x3)|-Value\\s+(?:2|3|0x2|0x3)\\b))|Set-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd|\"[^\"]*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^\"]*\"|'[^']*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^']*'))(?=[^\\n]*-StartupType\\s+(?:Automatic|Manual))|Start-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd|\"[^\"]*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^\"]*\"|'[^']*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^']*')))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_remote_auth_weaken",
+                                    "Windows remote management authentication or encryption weakened",
+                                    pattern(
+                                            "\\b(?:winrm\\s+set\\s+winrm/config/(?:service|client)(?:/auth)?\\b(?=[^\\n]*(?:AllowUnencrypted\\s*=\\s*\"?true\"?|Basic\\s*=\\s*\"?true\"?|CredSSP\\s*=\\s*\"?true\"?|TrustedHosts\\s*=\\s*\"?\\*\"?))|Set-Item\\b[^\\n]*WSMan:\\\\localhost\\\\(?:Service|Client)(?:\\\\Auth)?\\\\(?:AllowUnencrypted|Basic|CredSSP|TrustedHosts)\\b[^\\n]*(?:-Value\\s+(?:\\$?true\\b|1\\b|\"?\\*\"?(?:\\s|$))))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_service_privilege_or_recovery_change",
                                     "Windows service privilege or recovery policy changed",
                                     pattern(

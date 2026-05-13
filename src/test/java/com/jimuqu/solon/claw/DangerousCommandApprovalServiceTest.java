@@ -2269,6 +2269,26 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_remote_service_enabled");
         assertDangerPattern(
                 env,
+                "winrm set winrm/config/service @{AllowUnencrypted=\"true\"}",
+                "windows_remote_auth_weaken");
+        assertDangerPattern(
+                env,
+                "winrm set winrm/config/service/auth @{Basic=\"true\"}",
+                "windows_remote_auth_weaken");
+        assertDangerPattern(
+                env,
+                "winrm set winrm/config/client @{TrustedHosts=\"*\"}",
+                "windows_remote_auth_weaken");
+        assertDangerPattern(
+                env,
+                "Set-Item WSMan:\\localhost\\Service\\Auth\\Basic -Value $true",
+                "windows_remote_auth_weaken");
+        assertDangerPattern(
+                env,
+                "Set-Item WSMan:\\localhost\\Client\\TrustedHosts -Value *",
+                "windows_remote_auth_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU /v NoAutoUpdate /t REG_DWORD /d 1 /f",
                 "windows_update_policy_weaken");
         assertDangerPattern(
