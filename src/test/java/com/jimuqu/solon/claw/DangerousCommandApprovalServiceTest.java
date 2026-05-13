@@ -1854,6 +1854,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System /v EnableSmartScreen /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer /v SmartScreenEnabled /t REG_SZ /d Off /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Attachments -Name SaveZoneInformation -Value 1",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance\" /v fAllowToGetHelp /t REG_DWORD /d 1 /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
