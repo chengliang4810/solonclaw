@@ -1902,6 +1902,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v DisableDomainCreds /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon -Name CachedLogonsCount -Value 10",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v FilterAdministratorToken /t REG_DWORD /d 0 /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
