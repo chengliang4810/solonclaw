@@ -2371,6 +2371,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\MpEngine /v MpCloudBlockLevel /t REG_DWORD /d 0 /f",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Signature Updates -Name SignatureDisableUpdateOnStartupWithoutEngine -Value 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access\" /v EnableControlledFolderAccess /t REG_DWORD /d 0 /f",
                 "windows_disable_defender");
         assertDangerPattern(
