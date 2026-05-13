@@ -1683,6 +1683,53 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldAuditToolArgWorkingDirectoriesAsPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode terminal =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "terminal",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"command\":\"echo ok\",\"workdir\":\".ssh\"}"));
+        ONode process =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "process",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"action\":\"start\",\"command\":\"echo ok\",\"cwd\":\"credentials.json\"}"));
+
+        assertThat(terminal.get("decision").getString()).isEqualTo("block");
+        assertThat(terminal.get("blocking").getBoolean()).isTrue();
+        assertThat(terminal.toJson())
+                .contains("file_policy")
+                .contains("敏感系统/凭据文件")
+                .doesNotContain(".ssh");
+        assertThat(process.get("decision").getString()).isEqualTo("block");
+        assertThat(process.get("blocking").getBoolean()).isTrue();
+        assertThat(process.toJson())
+                .contains("file_policy")
+                .contains("敏感系统/凭据文件")
+                .doesNotContain("credentials.json");
+    }
+
+    @Test
     void shouldAuditNestedAndArrayCommandToolArgs() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);

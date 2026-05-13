@@ -444,9 +444,7 @@ public class SecurityAuditTools {
                         "file_policy",
                         "blocked_path",
                         "critical",
-                        fileVerdict.getMessage()
-                                + ": "
-                                + SecretRedactor.redact(fileVerdict.getPath(), 400),
+                        filePolicyFindingMessage(fileVerdict),
                         "block",
                         true,
                         false,
@@ -588,9 +586,7 @@ public class SecurityAuditTools {
                         "file_policy",
                         "blocked_path",
                         "critical",
-                        fileVerdict.getMessage()
-                                + ": "
-                                + SecretRedactor.redact(fileVerdict.getPath(), 400),
+                        filePolicyFindingMessage(fileVerdict),
                         "block",
                         true,
                         false,
@@ -616,6 +612,14 @@ public class SecurityAuditTools {
         }
         result.finish();
         return result;
+    }
+
+    private String filePolicyFindingMessage(SecurityPolicyService.FileVerdict fileVerdict) {
+        if (fileVerdict == null) {
+            return "文件安全策略阻断：[REDACTED_PATH]";
+        }
+        return StrUtil.blankToDefault(fileVerdict.getMessage(), "文件安全策略阻断")
+                + ": [REDACTED_PATH]";
     }
 
     private void applyCommandPolicies(AuditResult result, String effectiveTool, String command) {

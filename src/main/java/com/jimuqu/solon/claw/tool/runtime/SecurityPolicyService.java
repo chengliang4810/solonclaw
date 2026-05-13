@@ -2895,6 +2895,10 @@ public class SecurityPolicyService {
                 || "filepaths".equals(normalized)
                 || "dir".equals(normalized)
                 || "dirs".equals(normalized)
+                || "cwd".equals(normalized)
+                || "workdir".equals(normalized)
+                || "working_dir".equals(normalized)
+                || "workingdirectory".equals(normalized)
                 || "dirname".equals(normalized)
                 || "dirnames".equals(normalized)
                 || "directory".equals(normalized)
@@ -2934,6 +2938,8 @@ public class SecurityPolicyService {
                 "filename",
                 "file_path",
                 "dir",
+                "cwd",
+                "workdir",
                 "directory",
                 "output_file",
                 "destination",
