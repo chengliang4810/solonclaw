@@ -2556,7 +2556,11 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "schtasks /change /tn \"\\Microsoft\\Windows\\Windows Defender\\Windows Defender Scheduled Scan\" /disable",
-                "windows_security_task_disabled");
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Disable-ScheduledTask -TaskPath \"\\Microsoft\\Windows\\Windows Defender\\\" -TaskName \"Windows Defender Cache Maintenance\"",
+                "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "Disable-ScheduledTask -TaskPath \"\\Microsoft\\Windows\\WindowsUpdate\\\" -TaskName \"Scheduled Start\"",
