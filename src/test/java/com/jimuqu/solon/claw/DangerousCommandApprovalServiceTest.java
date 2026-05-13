@@ -6259,6 +6259,7 @@ public class DangerousCommandApprovalServiceTest {
                         "[Environment]::GetEnvironmentVariable('ANTHROPIC_API_KEY') | Set-Clipboard",
                         "Get-Item Env:OPENAI_API_KEY | Set-Clipboard",
                         "Get-Content Env:JIMUQU_ACCESS_TOKEN | scb",
+                        "gi Env:ANTHROPIC_API_KEY | clip.exe",
                         "scb %JIMUQU_ACCESS_TOKEN%");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =

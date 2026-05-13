@@ -422,7 +422,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\}|(?:\\$env:|\\$\\{env:|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?|\\b(?:Get-Item|Get-Content|gi|gc)\\s+Env:)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "(?:['\"]?\\)|\\})?[^\\n|;&]*\\|\\s*(?:Set-Clipboard|scb)\\b)"),
+                                                    + "(?:['\"]?\\)|\\})?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy|Set-Clipboard|scb)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_file_clipboard_export",
