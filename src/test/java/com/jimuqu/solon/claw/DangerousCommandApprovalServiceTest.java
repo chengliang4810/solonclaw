@@ -5605,7 +5605,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "raise Exception(open('.env').read())",
                         "raise RuntimeError(Path('credentials.json').read_text())",
-                        "payload = Path('token.json').read_text()\nraise ValueError(payload)");
+                        "raise RuntimeError(pathlib.Path('credentials.json').read_text())",
+                        "payload = Path('token.json').read_text()\nraise ValueError(payload)",
+                        "payload = pathlib.Path('token.json').read_text()\nraise ValueError(payload)");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
