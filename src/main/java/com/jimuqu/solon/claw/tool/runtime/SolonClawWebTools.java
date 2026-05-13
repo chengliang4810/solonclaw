@@ -64,18 +64,13 @@ public class SolonClawWebTools {
     }
 
     private static void checkUrl(SecurityPolicyService securityPolicyService, String url) {
-        if (securityPolicyService == null || !looksLikeHttpUrl(url)) {
+        if (securityPolicyService == null || StrUtil.isBlank(url)) {
             return;
         }
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(blockedMessage(verdict));
         }
-    }
-
-    private static boolean looksLikeHttpUrl(String url) {
-        String value = StrUtil.nullToEmpty(url).trim().toLowerCase();
-        return value.startsWith("http://") || value.startsWith("https://");
     }
 
     private static void checkFinalDocumentUrls(
