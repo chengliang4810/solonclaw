@@ -2776,6 +2776,38 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRejectManagedProcessCredentialCwd() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File credentialDir = new File(runtimeHome, ".ssh");
+        assertThat(credentialDir.mkdirs() || credentialDir.isDirectory()).isTrue();
+
+        ONode result =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                shortEchoCommand(),
+                                null,
+                                credentialDir.getAbsolutePath(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString())
+                .contains("workdir path")
+                .contains("敏感系统/凭据文件")
+                .doesNotContain(".ssh")
+                .doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
     void shouldDropFileSkillWhenAllFileToolsAreDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.toolRegistry.disableTools(

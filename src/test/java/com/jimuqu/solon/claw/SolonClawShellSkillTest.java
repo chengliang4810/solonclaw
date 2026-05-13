@@ -272,6 +272,49 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRejectForegroundAndBackgroundCredentialWorkdirs() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        Path workdir = Files.createTempDirectory("jimuqu-shell");
+        Path credentialDir = workdir.resolve(".ssh");
+        Files.createDirectories(credentialDir);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(
+                        workdir.toString(), config, new SecurityPolicyService(config), registry);
+
+        ONode foreground =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo blocked",
+                                Boolean.FALSE,
+                                Integer.valueOf(1),
+                                credentialDir.toString(),
+                                Boolean.FALSE));
+        ONode background =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                credentialDir.toString(),
+                                Boolean.FALSE));
+
+        assertThat(foreground.get("success").getBoolean()).isFalse();
+        assertThat(foreground.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(foreground.get("error").getString())
+                .contains("workdir path")
+                .contains("敏感系统/凭据文件")
+                .doesNotContain(".ssh")
+                .doesNotContain(workdir.toString());
+        assertThat(background.get("success").getBoolean()).isFalse();
+        assertThat(background.get("error").getString())
+                .contains("workdir path")
+                .contains("敏感系统/凭据文件")
+                .doesNotContain(".ssh")
+                .doesNotContain(workdir.toString());
+    }
+
+    @Test
     void shouldStripEightBitAnsiFromTerminalOutputLikeJimuqu() throws Exception {
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m"))
                 .isEqualTo("red");

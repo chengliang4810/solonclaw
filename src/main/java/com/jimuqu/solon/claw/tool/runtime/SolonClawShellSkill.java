@@ -1070,6 +1070,15 @@ public class SolonClawShellSkill extends ShellSkill {
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
         }
+        if (securityPolicyService != null) {
+            SecurityPolicyService.FileVerdict pathVerdict =
+                    securityPolicyService.checkPath(value, false);
+            if (!pathVerdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        "Blocked: workdir path is not allowed by path safety policy: "
+                                + pathVerdict.getMessage());
+            }
+        }
         return resolveSafeCwd(value, workPath.toFile());
     }
 
