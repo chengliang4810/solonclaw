@@ -984,6 +984,7 @@ public class SecurityPolicyService {
         return "curl".equalsIgnoreCase(token)
                 || "wget".equalsIgnoreCase(token)
                 || "aria2c".equalsIgnoreCase(token)
+                || "curlie".equalsIgnoreCase(token)
                 || "http".equalsIgnoreCase(token)
                 || "https".equalsIgnoreCase(token)
                 || "httpie".equalsIgnoreCase(token)
