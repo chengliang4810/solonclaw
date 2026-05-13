@@ -1547,6 +1547,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:net(?:\\.exe)?\\s+accounts\\b(?=[^\\n]*(?:(?:/minpwlen\\s*:\\s*[0-7]\\b)|(?:/lockoutthreshold\\s*:\\s*0\\b)|(?:/maxpwage\\s*:\\s*unlimited\\b)))|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Control\\\\Lsa\\b[^\\n]*(?:PasswordComplexity|ClearTextPassword)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_account_policy_weaken",
+                                    "Windows local administrator password rotation weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:Policies\\\\Microsoft Services\\\\AdmPwd|Policies\\\\Microsoft\\\\Windows\\\\LAPS)\\b[^\\n]*(?:(?:AdmPwdEnabled|BackupDirectory|PasswordExpirationProtectionEnabled)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)|(?:PasswordAgeDays\\b[^\\n]*(?:/d\\s+(?:0|[6-9][0-9]|[1-9][0-9]{2,})|/d\\s+0x0|-Value\\s+(?:0\\b|[6-9][0-9]\\b|[1-9][0-9]{2,}\\b|0x0\\b))))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_security_registry_weaken",
                                     "Windows UAC or installer elevation policy weakened",
                                     pattern(

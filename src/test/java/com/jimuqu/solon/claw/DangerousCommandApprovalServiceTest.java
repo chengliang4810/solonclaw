@@ -1956,6 +1956,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_account_policy_weaken");
         assertDangerPattern(
                 env,
+                "reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft Services\\AdmPwd\" /v AdmPwdEnabled /t REG_DWORD /d 0 /f",
+                "windows_account_policy_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\LAPS -Name BackupDirectory -Value 0",
+                "windows_account_policy_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v FilterAdministratorToken /t REG_DWORD /d 0 /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
