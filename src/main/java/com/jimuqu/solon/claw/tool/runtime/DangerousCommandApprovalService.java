@@ -1633,7 +1633,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_delete_shadow_copies",
                                     "Windows shadow copy deletion",
-                                    pattern("\\bvssadmin\\s+(?:delete|create|list)\\s+shadows\\b|\\bwmic(?:\\.exe)?\\s+shadowcopy\\s+(?:call\\s+create|list)\\b"),
+                                    pattern(
+                                            "\\bvssadmin\\s+(?:delete|create|list)\\s+shadows\\b|\\bwmic(?:\\.exe)?\\s+shadowcopy\\s+(?:call\\s+create|list)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_delete_backup",
@@ -1645,7 +1646,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_recovery",
                                     "Windows recovery disabled or boot entry removed",
                                     pattern(
-                                            "\\b(?:reagentc\\s+[-/]disable|bcdedit\\s+[-/](?:delete|deletevalue|set)\\b)"),
+                                            "\\b(?:reagentc\\s+[-/]disable|bcdedit\\s+[-/](?:delete|deletevalue|set)\\b|vssadmin\\s+resize\\s+shadowstorage\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "python_rmtree",

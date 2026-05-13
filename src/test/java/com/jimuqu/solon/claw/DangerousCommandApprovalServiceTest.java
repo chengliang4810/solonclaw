@@ -2124,6 +2124,10 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "wbadmin delete systemstatebackup -keepVersions:0 -quiet",
                 "windows_delete_backup");
+        assertDangerPattern(
+                env,
+                "wbadmin delete backup -keepVersions:0 -quiet",
+                "windows_delete_backup");
         assertDangerPattern(env, "wbadmin delete catalog -quiet", "windows_delete_backup");
         assertDangerPattern(
                 env,
@@ -2142,6 +2146,14 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "bcdedit /set {default} recoveryenabled No",
+                "windows_disable_recovery");
+        assertDangerPattern(
+                env,
+                "bcdedit /set {default} bootstatuspolicy ignoreallfailures",
+                "windows_disable_recovery");
+        assertDangerPattern(
+                env,
+                "vssadmin resize shadowstorage /for=C: /on=C: /maxsize=401MB",
                 "windows_disable_recovery");
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc.exe query Spooler"))
                 .isNull();
