@@ -1770,6 +1770,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance\" /v fAllowToGetHelp /t REG_DWORD /d 1 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance' -Name fAllowToGetHelp -Value 1",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "powershell.exe -NoProfile -EncodedCommand SQBFAFgA",
                 "windows_powershell_encoded_command");
         assertDangerPattern(
