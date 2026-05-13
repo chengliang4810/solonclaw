@@ -938,6 +938,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + ")|\\bStart-BitsTransfer\\b(?=[^\\n|;&]*-(?:TransferType|Type)\\b\\s*(?::|=|\\s+)\\s*Upload\\b)(?=[^\\n|;&]*-(?:Destination|Dest)\\b\\s*(?::|=|\\s+)\\s*[\"']?(?:https?|wss?)://)[^\\n|;&]*-(?:Source|Src)\\b\\s*(?::|=|\\s+)\\s*[\"']?\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?"),
@@ -950,6 +952,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']|(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:Data|String)\\s*\\([^\\n]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n)]*[\"']?\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?|(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:Data|String)\\s*\\([^\\n]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
