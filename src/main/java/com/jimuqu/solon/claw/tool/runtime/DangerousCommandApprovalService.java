@@ -960,7 +960,7 @@ public class DangerousCommandApprovalService {
                                     "tls_certificate_check_disabled",
                                     "TLS certificate verification disabled",
                                     pattern(
-                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:strict-ssl|strictSsl)\\s+false\\b|\\bpip(?:3)?\\b[^\\n]*\\s--trusted-host(?:=|\\s+)\\S+|\\bpoetry\\s+config\\s+certificates\\.[A-Za-z0-9_.-]+\\.cert\\s+false\\b|(?:^|[;&|\\n`])\\s*(?:PYTHONHTTPSVERIFY\\s*=\\s*0|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0)\\b"),
+                                            "\\b(?:curl|wget|aria2c|curlie)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$)|\\s--verify\\s*=\\s*(?:no|false|0)\\b|\\s--verify\\s+(?:no|false|0)\\b)|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:strict-ssl|strictSsl)\\s+false\\b|\\bpip(?:3)?\\b[^\\n]*\\s--trusted-host(?:=|\\s+)\\S+|\\bpoetry\\s+config\\s+certificates\\.[A-Za-z0-9_.-]+\\.cert\\s+false\\b|(?:^|[;&|\\n`])\\s*(?:PYTHONHTTPSVERIFY\\s*=\\s*0|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "git_tls_certificate_check_disabled",

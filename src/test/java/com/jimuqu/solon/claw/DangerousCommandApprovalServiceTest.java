@@ -4507,6 +4507,8 @@ public class DangerousCommandApprovalServiceTest {
                         "wget --no-check-certificate https://example.com/file",
                         "wget --check-certificate=off https://example.com/file",
                         "aria2c --allow-untrusted https://example.com/file",
+                        "curlie --verify=no https://example.com",
+                        "curlie --verify false https://example.com",
                         "npm config set strict-ssl false",
                         "pnpm config set strictSsl false",
                         "yarn config set strict-ssl false",
@@ -4530,6 +4532,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "wget --check-certificate=on https://example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curlie --verify yes https://example.com"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
