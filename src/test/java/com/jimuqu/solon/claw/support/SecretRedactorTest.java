@@ -56,6 +56,22 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactCamelCaseShellCredentialAssignments() {
+        String result =
+                SecretRedactor.redact(
+                        "accessToken=access-secret clientSecret=client-secret privateKey=private-secret ok=value");
+
+        assertThat(result)
+                .contains("accessToken=***")
+                .contains("clientSecret=***")
+                .contains("privateKey=***")
+                .contains("ok=value")
+                .doesNotContain("access-secret")
+                .doesNotContain("client-secret")
+                .doesNotContain("private-secret");
+    }
+
+    @Test
     void shouldRedactUrlsPrivateKeysAndDatabasePasswordsLikeJimuqu() {
         String result =
                 SecretRedactor.redact(

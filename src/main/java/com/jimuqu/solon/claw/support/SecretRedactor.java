@@ -16,7 +16,7 @@ public final class SecretRedactor {
                     "\\b([A-Z0-9_]{0,50}(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Z0-9_]{0,50})(=)(['\"]?)(\\S+)\\3");
     private static final Pattern SHELL_KEY_VALUE =
             Pattern.compile(
-                    "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|client[_-]?secret)(=)([^\\s,;\"'}]+)");
+                    "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|access[_-]?token|refresh[_-]?token|bearer[_-]?token|client[_-]?secret|private[_-]?key)(=)([^\\s,;\"'}]+)");
     private static final Pattern JSON_FIELD =
             Pattern.compile(
                     "(?i)(\"(?:api_?key|token|secret|password|access_?token|refresh_?token|auth_?token|bearer_?token|client_?secret|secret_?value|raw_?secret|secret_?input|key_?material|private_?key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
