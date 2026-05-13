@@ -528,6 +528,11 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\bopenssl\\s+(?:dgst|sha(?:1|224|256|384|512)|md5)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bopenssl\\s+(?:rsa|pkey|pkcs8|pkcs12)\\b(?=[^\\n]*(?:\\s-(?:in|inkey)\\s+|\\s-(?:in|inkey)=)\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")(?=[^\\n]*(?:\\s-text\\b|\\s-noout\\b|\\s-info\\b))"
+                                                    + "|\\bssh-keygen\\s+-l[fE]*\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\bcertutil(?:\\.exe)?\\s+-hashfile\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\bGet-FileHash\\b[^\\n|;&]*"

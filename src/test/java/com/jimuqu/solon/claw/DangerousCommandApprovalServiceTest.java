@@ -4702,6 +4702,10 @@ public class DangerousCommandApprovalServiceTest {
                         "openssl dgst -sha256 client_secret.json",
                         "certutil -hashfile service-account.json SHA256",
                         "Get-FileHash .anthropic_oauth.json",
+                        "openssl rsa -in private-prod.pem -text -noout",
+                        "openssl pkey -in private.key -text -noout",
+                        "openssl pkcs12 -in client_secret.p12 -info -noout",
+                        "ssh-keygen -lf id_rsa",
                         "Get-Item token.json | Get-FileHash",
                         "gi credentials.json | Get-FileHash");
         for (String command : commands) {
@@ -4718,6 +4722,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "openssl dgst -sha256 report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl x509 -in public-cert.pem -text -noout"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh-keygen -lf public-cert.pub"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
