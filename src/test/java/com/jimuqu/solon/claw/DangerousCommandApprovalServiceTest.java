@@ -5061,6 +5061,7 @@ public class DangerousCommandApprovalServiceTest {
                         "Get-Content token.json | Out-File public\\token.txt",
                         "type credentials.json | tee shared/credentials.txt",
                         "[IO.File]::ReadAllText('.env') | Set-Content uploads\\.env",
+                        "[IO.File]::ReadAllBytes('token.json') | Set-Content uploads\\token.bin",
                         "[System.IO.File]::ReadAllLines('credentials.json') >> downloads\\credentials.txt");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -5078,6 +5079,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "[IO.File]::ReadAllText('report.txt') | Set-Content uploads\\report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | Set-Content uploads\\report.bin"))
                 .isNull();
     }
 

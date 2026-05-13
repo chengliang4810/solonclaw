@@ -860,6 +860,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + ")[^\\n|;&]*(?:>>?|\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b)[^\\n|;&]*(?:-(?:FilePath|Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)?)[^\\n|;&]*(?:\\s(?:/tmp|/var/tmp|/private/tmp|/dev/shm|public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
