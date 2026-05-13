@@ -1918,6 +1918,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_powershell_encoded_command");
         assertDangerPattern(
                 env,
+                "powershell -NoProfile -Command \"[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)\"",
+                "windows_powershell_policy_weaken");
+        assertDangerPattern(
+                env,
+                "Set-Item Env:\\__PSLockdownPolicy 0",
+                "windows_powershell_policy_weaken");
+        assertDangerPattern(
+                env,
+                "$ExecutionContext.SessionState.LanguageMode = 'FullLanguage'",
+                "windows_powershell_policy_weaken");
+        assertDangerPattern(
+                env,
                 "Invoke-Expression $payload",
                 "windows_powershell_invoke_expression");
         assertDangerPattern(

@@ -1546,6 +1546,12 @@ public class DangerousCommandApprovalService {
                                             "(?:\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)|\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:-ExecutionPolicy|-ep)\\s+(?:Bypass|Unrestricted)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_powershell_policy_weaken",
+                                    "PowerShell AMSI or language-mode protection weakened",
+                                    pattern(
+                                            "(?:\\b(?:powershell|pwsh)(?:\\.exe)?\\b[^\\n]*(?:AmsiUtils|amsiInitFailed|amsiSession|amsiContext)|\\b(?:Set-Item|Set-ItemProperty|setx)\\b[^\\n]*__PSLockdownPolicy\\b[^\\n]*(?:\\s0\\b|-Value\\s+0\\b)|\\$ExecutionContext\\.SessionState\\.LanguageMode\\s*=\\s*[\"']?FullLanguage[\"']?)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_powershell_encoded_command",
                                     "PowerShell encoded command execution",
                                     pattern(
