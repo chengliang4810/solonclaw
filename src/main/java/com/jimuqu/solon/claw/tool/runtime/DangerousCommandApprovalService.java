@@ -830,7 +830,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:(?:^|[;&|\\n`])\\s*(?:jq|yq)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
-                                                    + "|\\b(?:Get-Content|gc|Import-Clixml)\\b[^\\n|;&]*"
+                                                    + "|\\b(?:cat|type|Get-Content|gc|Import-Clixml)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData)\\b|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
