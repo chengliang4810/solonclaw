@@ -4631,7 +4631,9 @@ public class DangerousCommandApprovalServiceTest {
                         "shasum -a 256 token.json",
                         "openssl dgst -sha256 client_secret.json",
                         "certutil -hashfile service-account.json SHA256",
-                        "Get-FileHash .anthropic_oauth.json");
+                        "Get-FileHash .anthropic_oauth.json",
+                        "Get-Item token.json | Get-FileHash",
+                        "gi credentials.json | Get-FileHash");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);

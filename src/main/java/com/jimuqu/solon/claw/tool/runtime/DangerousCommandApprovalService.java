@@ -464,6 +464,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\bGet-FileHash\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:Get-Item|Get-ChildItem|gi|gci|ls|dir)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*Get-FileHash\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
