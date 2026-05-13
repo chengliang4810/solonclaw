@@ -112,6 +112,20 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldMaskCamelCaseSensitiveUrlQueryNames() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback?accessToken=access-secret&clientSecret=client-secret&privateKey=private-secret&ok=value");
+
+        assertThat(result)
+                .isEqualTo(
+                        "https://example.com/callback?accessToken=***&clientSecret=***&privateKey=***&ok=value")
+                .doesNotContain("access-secret")
+                .doesNotContain("client-secret")
+                .doesNotContain("private-secret");
+    }
+
+    @Test
     void shouldMaskRepeatedlyEncodedSensitiveUrlQueryNames() {
         String result =
                 SecretRedactor.maskUrl(

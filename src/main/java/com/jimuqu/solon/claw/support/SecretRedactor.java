@@ -359,7 +359,10 @@ public final class SecretRedactor {
     }
 
     private static String normalizeSensitiveQueryName(String raw) {
-        String name = StrUtil.nullToEmpty(raw).toLowerCase(Locale.ROOT);
+        String name = StrUtil.nullToEmpty(raw);
+        name = name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2");
+        name = name.replaceAll("([a-z0-9])([A-Z])", "$1_$2");
+        name = name.toLowerCase(Locale.ROOT);
         name = name.replace('-', '_').replace('.', '_');
         return name.replaceAll("\\s+", "_");
     }
