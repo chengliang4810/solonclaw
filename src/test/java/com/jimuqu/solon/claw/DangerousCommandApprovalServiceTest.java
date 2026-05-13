@@ -8551,6 +8551,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldIgnoreInlineCommentsInWebsitePolicyRules() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File shared = new File(env.appConfig.getRuntime().getHome(), "commented-blocklist.txt");
+        FileUtil.writeUtf8String(
+                "shared-commented.example # local note\n*.commented.test\t# shared wildcard\n",
+                shared);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("config-commented.example # config note"));
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("commented-blocklist.txt"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict configured =
+                securityPolicyService.checkUrl("https://config-commented.example/docs");
+        SecurityPolicyService.UrlVerdict sharedExact =
+                securityPolicyService.checkUrl("https://shared-commented.example/docs");
+        SecurityPolicyService.UrlVerdict sharedWildcard =
+                securityPolicyService.checkUrl("https://api.commented.test/docs");
+
+        assertThat(configured.isAllowed()).isFalse();
+        assertThat(configured.getMessage()).contains("config-commented.example");
+        assertThat(sharedExact.isAllowed()).isFalse();
+        assertThat(sharedExact.getMessage()).contains("shared-commented.example");
+        assertThat(sharedWildcard.isAllowed()).isFalse();
+        assertThat(sharedWildcard.getMessage()).contains("*.commented.test");
+    }
+
+    @Test
     void shouldFailOpenWhenWebsiteBlocklistDomainsAreMissingLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);

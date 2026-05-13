@@ -3888,6 +3888,7 @@ public class SecurityPolicyService {
         if (value.length() == 0 || value.startsWith("#")) {
             return "";
         }
+        value = stripInlineRuleComment(value);
         if (value.contains("://")) {
             URI uri = parseUri(value);
             value = uri == null ? value : extractUriHost(uri);
@@ -3899,6 +3900,15 @@ public class SecurityPolicyService {
         value = stripRulePort(value);
         value = normalizeHost(value);
         return value.startsWith("www.") ? value.substring(4) : value;
+    }
+
+    private String stripInlineRuleComment(String value) {
+        for (int i = 1; i < value.length(); i++) {
+            if (value.charAt(i) == '#' && Character.isWhitespace(value.charAt(i - 1))) {
+                return value.substring(0, i).trim();
+            }
+        }
+        return value;
     }
 
     private String stripRulePort(String value) {
