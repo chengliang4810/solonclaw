@@ -1017,6 +1017,11 @@ public class DangerousCommandApprovalService {
                                                     + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b"
                                                     + "|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b[^\\n|;&]*"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:Format-Table|Format-List|Format-Wide)\\b"
+                                                    + "|\\b(?:Format-Table|Format-List|Format-Wide)\\b[^\\n|;&]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
