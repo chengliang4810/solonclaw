@@ -601,7 +601,12 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "=\\S+|(?:Set-Item|New-Item|Set-Content|si|ni|sc)\\s+(?:-[A-Za-z]+\\s+)*Env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+|(?:Remove-Item|Clear-Item|ri|del|erase|clear)\\s+(?:-[A-Za-z]+\\s+)*Env:"
+                                                    + "\\s+\\S+|(?:Set-Item|New-Item|Set-Content|si|ni|sc)\\b(?=[^\\n|;&]*(?:-(?:Path|Name)\\s+Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "|Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "))(?=[^\\n|;&]*-Value\\s+\\S+)[^\\n|;&]*"
+                                                    + "|(?:Remove-Item|Clear-Item|ri|del|erase|clear)\\s+(?:-[A-Za-z]+\\s+)*Env:"
                                                     + SENSITIVE_ENV_NAME
                                                     + "|setx\\s+"
                                                     + SENSITIVE_ENV_NAME
