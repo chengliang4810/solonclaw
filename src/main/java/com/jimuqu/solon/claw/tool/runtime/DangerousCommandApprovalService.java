@@ -100,6 +100,8 @@ public class DangerousCommandApprovalService {
             "(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|\\.credentials\\.json|\\.anthropic_oauth\\.json|oauth_creds\\.json|client_secrets?\\.json|token\\.json|application_default_credentials\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[A-Za-z0-9_.-]*\\.json|authorized_keys|kubeconfig|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))[\"']?(?:\\s|$|:))";
     private static final String NETWORK_CREDENTIAL_FILE_TARGET =
             "(?:\\.env|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|credential|secret|token(?:\\.json)?|auth\\.json|\\.credentials\\.json|\\.anthropic_oauth\\.json|oauth|oauth_creds\\.json|client_secrets?(?:\\.json)?|application_default_credentials\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[A-Za-z0-9_.-]*\\.json|api-?key|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx)|id_(?:rsa|ed25519|ecdsa|dsa))";
+    private static final String DEBUG_ARTIFACT_OUTPUT_TARGET =
+            "[\"']?(?:[^\\s\"'`|;&]*[/\\\\])?(?:debug|trace|junit|test-results|test_result|coverage|diagnostic|diagnostics|artifact|artifacts)[A-Za-z0-9_.-]*\\.(?:log|txt|xml|json|ndjson|out)[\"']?";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -465,6 +467,30 @@ public class DangerousCommandApprovalService {
                                                     + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b))[^\\n|;&]*\\|\\s*(?:(?:curl|wget)\\b[^\\n]*(?:--data(?:-[a-z-]+)?|-d|--post-data|--body-file|--method\\s+POST|-X\\s+POST)\\b|(?:httpie|https?|xh|curlie)\\b[^\\n]*(?:POST|PUT|PATCH|@-)|(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-(?:Body|Method)\\b|Post|Put|Patch)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "credential_file_encoded_debug_artifact_write",
+                                    "write encoded credential file content into debug artifact",
+                                    pattern(
+                                            "(?:(?:\\bbase64\\b(?!(?:[^\\n|;&]*\\s(?:-[^\\s]*d[^\\s]*|--decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bopenssl\\s+(?:base64|enc\\b(?=[^\\n]*-base64\\b)(?![^\\n]*\\s-(?:d|decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bcertutil(?:\\.exe)?\\s+-encode\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b))[^\\n|;&]*(?:>+|\\|\\s*(?:tee|Out-File|Set-Content|Add-Content|Tee-Object)\\b[^\\n|;&]*(?:-(?:FilePath|Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)?)\\s*"
+                                                    + DEBUG_ARTIFACT_OUTPUT_TARGET
+                                                    + "|\\bcertutil(?:\\.exe)?\\s+-encode\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\s+"
+                                                    + DEBUG_ARTIFACT_OUTPUT_TARGET
+                                                    + "|\\bopenssl\\s+(?:base64|enc\\b(?=[^\\n]*-base64\\b)(?![^\\n]*\\s-(?:d|decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*(?:-out\\s+|>+\\s*)"
+                                                    + DEBUG_ARTIFACT_OUTPUT_TARGET
+                                                    + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_encoded_output",

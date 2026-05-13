@@ -4742,6 +4742,21 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("credential_file_encoded_network_send");
         }
 
+        List<String> debugArtifactCommands =
+                Arrays.asList(
+                        "base64 .env > debug.log",
+                        "openssl base64 -in token.json | tee trace.txt",
+                        "certutil -encode service-account.json junit.xml",
+                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String | Out-File test-results.json");
+        for (String command : debugArtifactCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_encoded_debug_artifact_write");
+        }
+
         List<String> commands =
                 Arrays.asList(
                         "base64 .env",
