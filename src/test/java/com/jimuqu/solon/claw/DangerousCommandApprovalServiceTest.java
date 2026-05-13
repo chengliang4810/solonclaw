@@ -1914,6 +1914,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Protocols\\TLS 1.0\\Server\" /v Enabled /t REG_DWORD /d 1 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Protocols\\SSL 3.0\\Client' -Name DisabledByDefault -Value 0",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\.NETFramework\\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System /v EnableSmartScreen /t REG_DWORD /d 0 /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(

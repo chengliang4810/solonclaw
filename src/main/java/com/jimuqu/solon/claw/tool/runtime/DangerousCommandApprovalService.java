@@ -1524,6 +1524,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_security_registry_weaken",
+                                    "Windows TLS or strong crypto registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:SCHANNEL\\\\Protocols\\\\(?:SSL\\s+2\\.0|SSL\\s+3\\.0|TLS\\s+1\\.[01])\\\\(?:Server|Client)\\b[^\\n]*(?:(?:Enabled\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:DisabledByDefault\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))))|(?:\\.NETFramework\\\\v[24]\\.0(?:\\.30319)?\\b[^\\n]*(?:SchUseStrongCrypto|SystemDefaultTlsVersions)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_security_registry_weaken",
                                     "Windows SmartScreen or attachment policy weakened",
                                     pattern(
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Explorer\\b[^\\n]*(?:SmartScreenEnabled|ShellSmartScreenLevel)\\b[^\\n]*(?:/d\\s+(?:Off|0|0x0)|-Value\\s+(?:Off|0\\b|0x0\\b)))|(?:System\\b[^\\n]*EnableSmartScreen\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Attachments\\b[^\\n]*SaveZoneInformation\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
