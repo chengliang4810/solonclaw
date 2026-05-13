@@ -6570,6 +6570,8 @@ public class DangerousCommandApprovalServiceTest {
                         "Set-Clipboard $env:OPENAI_API_KEY",
                         "Set-Clipboard -Value ${env:OPENAI_API_KEY}",
                         "Set-Clipboard -InputObject $env:OPENAI_API_KEY",
+                        "Set-Clipboard -InputObject (Get-Item Env:OPENAI_API_KEY)",
+                        "scb -Value (gc Env:JIMUQU_ACCESS_TOKEN)",
                         "$env:OPENAI_API_KEY | Set-Clipboard",
                         "${env:JIMUQU_ACCESS_TOKEN} | scb",
                         "[Environment]::GetEnvironmentVariable('ANTHROPIC_API_KEY') | Set-Clipboard",
@@ -6622,6 +6624,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Write-Host $env:PATH | Set-Clipboard"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Set-Clipboard -InputObject (Get-Item Env:PATH)"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
