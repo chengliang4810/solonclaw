@@ -5507,7 +5507,8 @@ public class DangerousCommandApprovalServiceTest {
                         "payload = Path('credentials.json').read_text()\nsys.stdout.write(payload)",
                         "body = Path('service-account.json').read_bytes()\nsys.stderr.write(body)",
                         "token = open('oauth_creds.json').read()\nlogging.warning(token)",
-                        "secret = Path('.npmrc').read_text()\nlogger.exception(secret)");
+                        "secret = Path('.npmrc').read_text()\nlogger.exception(secret)",
+                        "payload = pathlib.Path('token.json').read_text()\nprint(payload)");
         for (String command : pythonVariableCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
