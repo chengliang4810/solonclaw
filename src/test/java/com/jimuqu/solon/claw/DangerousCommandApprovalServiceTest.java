@@ -6830,6 +6830,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult quotedCustomHomeEnvTee =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo x | tee \"$JIMUQU_HOME/.env\"");
+        DangerousCommandApprovalService.DetectionResult powershellHomeEnvTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Get-ChildItem Env: | Tee-Object -FilePath ~/.npmrc");
         DangerousCommandApprovalService.DetectionResult envWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat secrets > .env.production");
@@ -6860,6 +6863,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult localEnvrcTee =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "direnv export bash | tee ./.envrc");
+        DangerousCommandApprovalService.DetectionResult localDotenvTeeObject =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Get-ChildItem Env: | Tee-Object -FilePath=.env.local");
+        DangerousCommandApprovalService.DetectionResult reportTeeObject =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Get-Process | Tee-Object -FilePath report.txt");
         DangerousCommandApprovalService.DetectionResult dotenvSourceRedirect =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat .env > backup.txt");
@@ -6998,6 +7007,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(customHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
         assertThat(quotedCustomHomeEnvTee).isNotNull();
         assertThat(quotedCustomHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
+        assertThat(powershellHomeEnvTee).isNotNull();
+        assertThat(powershellHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
         assertThat(envWrite).isNotNull();
         assertThat(envWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(envrcWrite).isNotNull();
@@ -7017,6 +7028,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(localDotenvTee.getPatternKey()).isEqualTo("project_sensitive_tee");
         assertThat(localEnvrcTee).isNotNull();
         assertThat(localEnvrcTee.getPatternKey()).isEqualTo("project_sensitive_tee");
+        assertThat(localDotenvTeeObject).isNotNull();
+        assertThat(localDotenvTeeObject.getPatternKey()).isEqualTo("project_sensitive_tee");
+        assertThat(reportTeeObject).isNull();
         assertThat(dotenvSourceRedirect).isNull();
         assertThat(credentialsJsonRead).isNull();
         SecurityPolicyService.FileVerdict credentialsJsonReadVerdict =

@@ -381,7 +381,9 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "sensitive_tee",
                                     "overwrite system file via tee",
-                                    pattern("\\btee\\b.*[\"']?" + SENSITIVE_WRITE_TARGET),
+                                    pattern(
+                                            "\\b(?:tee|Tee-Object)\\b[^\\n]*(?:-(?:FilePath|Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)?[\"']?"
+                                                    + SENSITIVE_WRITE_TARGET),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_redirection",
@@ -392,7 +394,7 @@ public class DangerousCommandApprovalService {
                                     "project_sensitive_tee",
                                     "overwrite project env/config via tee",
                                     pattern(
-                                            "\\btee\\b.*[\"']?"
+                                            "\\b(?:tee|Tee-Object)\\b[^\\n]*(?:-(?:FilePath|Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)?[\"']?"
                                                     + PROJECT_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"
                                                     + COMMAND_TAIL),
