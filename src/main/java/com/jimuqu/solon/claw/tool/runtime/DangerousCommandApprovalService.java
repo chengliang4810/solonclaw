@@ -1518,6 +1518,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_security_registry_weaken",
+                                    "Windows RDP security registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Terminal Server\\\\WinStations\\\\RDP-Tcp\\b[^\\n]*(?:(?:SecurityLayer|MinEncryptionLevel)\\b[^\\n]*(?:/d\\s+[01]\\b|/d\\s+0x[01]\\b|-Value\\s+[01]\\b|-Value\\s+0x[01]\\b)|(?:fDisable(?:Cdm|Clip|Ccm|Cpm|LPT|PNPRedir)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_security_registry_weaken",
                                     "Windows anonymous access registry policy weakened",
                                     pattern(
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Control\\\\Lsa\\b[^\\n]*(?:(?:RestrictAnonymous(?:SAM)?\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:EveryoneIncludesAnonymous\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:RestrictNullSessAccess\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:NullSession(?:Pipes|Shares)\\b))"),
