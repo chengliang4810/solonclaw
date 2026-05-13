@@ -6551,6 +6551,8 @@ public class DangerousCommandApprovalServiceTest {
                         "printenv ANTHROPIC_API_KEY | xsel --clipboard",
                         "printf %s $OPENAI_API_KEY | wl-copy",
                         "echo %OPENAI_API_KEY% | clip.exe",
+                        "Write-Host $env:OPENAI_API_KEY | Set-Clipboard",
+                        "Write-Output ${env:JIMUQU_ACCESS_TOKEN} | scb",
                         "Set-Clipboard $env:OPENAI_API_KEY",
                         "Set-Clipboard -Value ${env:OPENAI_API_KEY}",
                         "Set-Clipboard -InputObject $env:OPENAI_API_KEY",
@@ -6602,6 +6604,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "echo $HOME | pbcopy"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Write-Host $env:PATH | Set-Clipboard"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

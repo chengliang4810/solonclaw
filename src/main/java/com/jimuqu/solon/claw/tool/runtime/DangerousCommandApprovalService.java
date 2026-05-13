@@ -418,7 +418,9 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$\\{?|%|!)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "(?:\\}|%|!)?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
+                                                    + "(?:\\}|%|!)?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Write-Host|Write-Output)\\b[^\\n|;&]*(?:\\$env:|\\$\\{env:)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "(?:\\})?[^\\n|;&]*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b|\\bprintenv\\s+"
                                                     + SENSITIVE_ENV_NAME
                                                     + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?)(?:\\$env:|%)"
                                                     + SENSITIVE_ENV_NAME
