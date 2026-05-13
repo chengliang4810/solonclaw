@@ -1575,6 +1575,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:Add-MpPreference|Set-MpPreference|Remove-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress|-AttackSurfaceReductionRules_(?:Ids|Actions))\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_defender_exclusion",
+                                    "Windows Defender exclusion registry policy changed",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Windows Defender\\\\Exclusions\\\\(?:Paths|Processes|Extensions|IpAddresses)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_stop_service",
                                     "Windows service stopped or disabled",
                                     pattern(

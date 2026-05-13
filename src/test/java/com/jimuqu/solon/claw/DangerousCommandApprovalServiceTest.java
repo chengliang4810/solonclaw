@@ -2051,6 +2051,18 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Remove-MpPreference -AttackSurfaceReductionRules_Ids 01234567-89ab-cdef-0123-456789abcdef",
                 "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths\" /v \"C:\\Tools\" /t REG_DWORD /d 0 /f",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Processes /v powershell.exe /t REG_DWORD /d 0 /f",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Extensions' -Name ps1 -Value 0",
+                "windows_defender_exclusion");
         assertDangerPattern(env, "sc.exe stop WinDefend", "windows_stop_service");
         assertDangerPattern(
                 env,
