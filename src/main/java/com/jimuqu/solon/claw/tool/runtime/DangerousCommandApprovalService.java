@@ -1499,6 +1499,12 @@ public class DangerousCommandApprovalService {
                                             "\\breg(?:\\.exe)?\\s+add\\b[^\\n]*(?:(?:Windows Defender|DisableAntiSpyware|DisableRealtimeMonitoring|DisableBehaviorMonitoring)|(?:Policies\\\\System\\b[^\\n]*EnableLUA\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0))|(?:Terminal Server\\b[^\\n]*fDenyTSConnections\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0))|(?:PowerShell\\\\\\d+\\\\PowerShellEngine\\b[^\\n]*ExecutionPolicy\\b[^\\n]*(?:Bypass|Unrestricted))|(?:PowerShell\\\\(?:ScriptBlockLogging|Transcription|ModuleLogging)\\b[^\\n]*(?:Enable(?:ScriptBlockLogging|Transcripting|ModuleLogging)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0)))|(?:Policies\\\\Microsoft\\\\Windows\\\\PowerShell\\b[^\\n]*(?:Enable(?:ScriptBlockLogging|Transcripting|ModuleLogging)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0))))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_security_registry_weaken",
+                                    "Windows security registry policy weakened through PowerShell",
+                                    pattern(
+                                            "\\b(?:New|Set)-ItemProperty\\b[^\\n]*(?:(?:Windows Defender|DisableAntiSpyware|DisableRealtimeMonitoring|DisableBehaviorMonitoring)|(?:Policies\\\\System\\b[^\\n]*EnableLUA\\b[^\\n]*(?:-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Terminal Server\\b[^\\n]*fDenyTSConnections\\b[^\\n]*(?:-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:PowerShell\\\\\\d+\\\\PowerShellEngine\\b[^\\n]*ExecutionPolicy\\b[^\\n]*(?:Bypass|Unrestricted))|(?:PowerShell\\\\(?:ScriptBlockLogging|Transcription|ModuleLogging)\\b[^\\n]*(?:Enable(?:ScriptBlockLogging|Transcripting|ModuleLogging)\\b[^\\n]*(?:-Value\\s+0\\b|-Value\\s+0x0\\b)))|(?:Policies\\\\Microsoft\\\\Windows\\\\PowerShell\\b[^\\n]*(?:Enable(?:ScriptBlockLogging|Transcripting|ModuleLogging)\\b[^\\n]*(?:-Value\\s+0\\b|-Value\\s+0x0\\b))))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_take_ownership",
                                     "Windows ownership takeover",
                                     pattern("\\btakeown\\b(?=[^\\n]*(?:[-/]r\\b|[-/]f\\b))"),
