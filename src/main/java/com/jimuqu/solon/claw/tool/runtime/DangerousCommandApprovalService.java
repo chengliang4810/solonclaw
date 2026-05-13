@@ -1524,6 +1524,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_security_registry_weaken",
+                                    "Windows NTLM registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:MSV1_0|Control\\\\Lsa)\\b[^\\n]*(?:(?:NtlmMin(?:Client|Server)Sec\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Restrict(?:Sending|Receiving)NTLMTraffic\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_security_registry_weaken",
                                     "Windows UAC or installer elevation policy weakened",
                                     pattern(
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Policies\\\\System\\b[^\\n]*(?:FilterAdministratorToken|EnableInstallerDetection|ValidateAdminCodeSignatures|EnableSecureUIAPaths|EnableVirtualization)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows\\\\Installer\\b[^\\n]*AlwaysInstallElevated\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
