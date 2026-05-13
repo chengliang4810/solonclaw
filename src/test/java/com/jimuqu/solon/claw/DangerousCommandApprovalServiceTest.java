@@ -8529,6 +8529,28 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNormalizeWebsitePolicyRulesWithPorts() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example:443", "*.blocked.test:8443"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict exact =
+                securityPolicyService.checkUrl("https://blocked.example/docs");
+        SecurityPolicyService.UrlVerdict wildcard =
+                securityPolicyService.checkUrl("https://api.blocked.test/docs");
+
+        assertThat(exact.isAllowed()).isFalse();
+        assertThat(exact.getMessage()).contains("blocked.example");
+        assertThat(wildcard.isAllowed()).isFalse();
+        assertThat(wildcard.getMessage()).contains("*.blocked.test");
+    }
+
+    @Test
     void shouldFailOpenWhenWebsiteBlocklistDomainsAreMissingLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);

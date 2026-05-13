@@ -3896,8 +3896,25 @@ public class SecurityPolicyService {
         if (slash >= 0) {
             value = value.substring(0, slash);
         }
+        value = stripRulePort(value);
         value = normalizeHost(value);
         return value.startsWith("www.") ? value.substring(4) : value;
+    }
+
+    private String stripRulePort(String value) {
+        if (StrUtil.isBlank(value) || value.startsWith("[") || value.indexOf(':') < 0) {
+            return value;
+        }
+        int colon = value.lastIndexOf(':');
+        if (colon <= 0 || value.indexOf(':') != colon || colon + 1 >= value.length()) {
+            return value;
+        }
+        for (int i = colon + 1; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return value;
+            }
+        }
+        return value.substring(0, colon);
     }
 
     private String extractSchemelessHost(String raw) {
