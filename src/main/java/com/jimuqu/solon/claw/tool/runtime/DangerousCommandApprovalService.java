@@ -420,7 +420,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "%?|\\b(?:Set-Clipboard|scb)\\b[^\\n]*\\$\\{env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\}|(?:\\$env:|\\$\\{env:|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)"
+                                                    + "\\}|(?:\\$env:|\\$\\{env:|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?|\\b(?:Get-Item|Get-Content|gi|gc)\\s+Env:)"
                                                     + SENSITIVE_ENV_NAME
                                                     + "(?:['\"]?\\)|\\})?[^\\n|;&]*\\|\\s*(?:Set-Clipboard|scb)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
