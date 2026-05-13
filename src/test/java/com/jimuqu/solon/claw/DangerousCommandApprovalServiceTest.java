@@ -3112,6 +3112,7 @@ public class DangerousCommandApprovalServiceTest {
                         "$env:OPENAI_API_KEY='secret'; node app.js",
                         "Set-Item Env:JIMUQU_ACCESS_TOKEN secret",
                         "New-Item Env:GEMINI_API_KEY -Value secret",
+                        "ni Env:OPENAI_API_KEY secret",
                         "export OPENAI_API_KEY=secret",
                         "declare -x OPENAI_API_KEY=secret",
                         "typeset -x OPENAI_API_KEY=secret",
@@ -3119,8 +3120,11 @@ public class DangerousCommandApprovalServiceTest {
                         "cmd /c set OPENAI_API_KEY=secret",
                         "Set-Content Env:OPENAI_API_KEY secret",
                         "Set-Content -Path Env:OPENAI_API_KEY secret",
+                        "sc Env:JIMUQU_ACCESS_TOKEN secret",
                         "Remove-Item Env:OPENAI_API_KEY",
                         "Remove-Item -Path Env:OPENAI_API_KEY",
+                        "ri Env:GEMINI_API_KEY",
+                        "Clear-Item Env:ANTHROPIC_API_KEY",
                         "setx OPENAI_API_KEY secret",
                         "[Environment]::SetEnvironmentVariable('OPENAI_API_KEY','secret','User')");
         for (String command : inlineAssignments) {

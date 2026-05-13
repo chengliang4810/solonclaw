@@ -593,15 +593,15 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "=\\S+\\s+(?!(?:psql|mysql|redis-cli)\\b)\\S+|\\$env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s*=\\s*\\S+|(?:Set-Item|New-Item)\\s+Env:"
+                                                    + "\\s*=\\s*\\S+|(?:Set-Item|New-Item|si|ni)\\s+Env:"
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\s+\\S+|(?:export|declare\\s+-x|typeset\\s+-x)\\s+"
                                                     + SENSITIVE_ENV_NAME
                                                     + "=\\S+|(?:cmd(?:\\.exe)?\\s+/c\\s+)?set\\s+"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "=\\S+|(?:Set-Item|New-Item|Set-Content)\\s+(?:-[A-Za-z]+\\s+)*Env:"
+                                                    + "=\\S+|(?:Set-Item|New-Item|Set-Content|si|ni|sc)\\s+(?:-[A-Za-z]+\\s+)*Env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+|Remove-Item\\s+(?:-[A-Za-z]+\\s+)*Env:"
+                                                    + "\\s+\\S+|(?:Remove-Item|Clear-Item|ri|del|erase|clear)\\s+(?:-[A-Za-z]+\\s+)*Env:"
                                                     + SENSITIVE_ENV_NAME
                                                     + "|setx\\s+"
                                                     + SENSITIVE_ENV_NAME
