@@ -493,6 +493,20 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_encoded_notification_output",
+                                    "show encoded credential file content in notification",
+                                    pattern(
+                                            "(?:(?:\\bbase64\\b(?!(?:[^\\n|;&]*\\s(?:-[^\\s]*d[^\\s]*|--decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bopenssl\\s+(?:base64|enc\\b(?=[^\\n]*-base64\\b)(?![^\\n]*\\s-(?:d|decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bcertutil(?:\\.exe)?\\s+-encode\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b))[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_encoded_output",
                                     "encode credential file content",
                                     pattern(
@@ -934,6 +948,20 @@ public class DangerousCommandApprovalService {
                                                     + "|\\b(?:Add-Content|Set-Content|Out-File)\\b[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)[^\\n|;&]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "credential_file_notification_output",
+                                    "show credential file content in notification",
+                                    pattern(
+                                            "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b|\\b(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b[^\\n|;&]*(?:\\$\\([^\\n)]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n)]*\\)|`[^`\\n]*(?:cat|type|Get-Content|gc)\\b[^`\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^`\\n]*`|\\(\\s*(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n)]*\\)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_pager_output",

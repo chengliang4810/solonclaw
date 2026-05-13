@@ -4377,6 +4377,50 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileNotificationOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> encodedCommands =
+                Arrays.asList(
+                        "base64 .env | notify-send credentials",
+                        "openssl base64 -in token.json | terminal-notifier -message",
+                        "certutil -encode service-account.json - | New-BurntToastNotification -Text",
+                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String | New-BTNotification");
+        for (String command : encodedCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_encoded_notification_output");
+        }
+
+        List<String> commands =
+                Arrays.asList(
+                        "cat .env | notify-send credentials",
+                        "Get-Content token.json | terminal-notifier -message",
+                        "notify-send \"$(cat credentials.json)\"",
+                        "New-BurntToastNotification -Text (Get-Content service-account.json)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_notification_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat report.txt | notify-send report"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "notify-send ready"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileSubstitutionOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
