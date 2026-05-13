@@ -888,7 +888,12 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n)]*\\)|"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
-                                                    + "))"),
+                                                    + ")|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*(?:>>?|\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Add-Content\\b))[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)"
+                                                    + "|\\b(?:Add-Content|Set-Content|Out-File)\\b[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)[^\\n|;&]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_pager_output",

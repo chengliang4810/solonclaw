@@ -5096,7 +5096,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Add-History (Get-Content .anthropic_oauth.json)",
                         "Add-History (type token.json)",
                         "Add-History (cat credentials.json)",
-                        "Add-History .npmrc");
+                        "Add-History .npmrc",
+                        "cat .env >> ~/.bash_history",
+                        "Add-Content ConsoleHost_history.txt -Value (Get-Content credentials.json)");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
