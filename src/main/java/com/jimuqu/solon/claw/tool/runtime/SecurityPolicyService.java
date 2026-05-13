@@ -316,6 +316,9 @@ public class SecurityPolicyService {
                     "refresh_token",
                     "id_token",
                     "auth_token",
+                    "authorization",
+                    "proxy_authorization",
+                    "bearer_token",
                     "token",
                     "client_secret",
                     "api_key",
@@ -4122,6 +4125,9 @@ public class SecurityPolicyService {
                 || "refresh_token".equals(name)
                 || "id_token".equals(name)
                 || "auth_token".equals(name)
+                || "authorization".equals(name)
+                || "proxy_authorization".equals(name)
+                || "bearer_token".equals(name)
                 || "client_secret".equals(name)
                 || "api_key".equals(name)
                 || "apikey".equals(name)

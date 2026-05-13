@@ -7873,6 +7873,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "https://example.com/callback?access_token=short",
                         "https://example.com/callback?client_secret=abc",
+                        "https://example.com/callback?authorization=Bearer%20abc",
+                        "https://example.com/callback?proxy-authorization=Basic%20abc",
+                        "https://example.com/callback?bearer_token=abc",
                         "https://example.com/callback?password=p",
                         "https://example.com/callback?x-amz-signature=abc",
                         "https://storage.example/object?X-Amz-Credential=abc",
