@@ -1112,6 +1112,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n)]*\\)|\\(\\s*"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "\\s*\\)|\\(\\s*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + "\\s*\\)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(

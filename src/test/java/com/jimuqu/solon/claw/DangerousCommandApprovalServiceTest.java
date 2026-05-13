@@ -4550,7 +4550,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Write-Host (gc .npmrc)",
                         "Write-Output (type token.json)",
                         "Write-Host (cat credentials.json)",
-                        "Write-Host ([System.IO.File]::ReadAllLines('credentials.json'))");
+                        "Write-Host ([System.IO.File]::ReadAllLines('credentials.json'))",
+                        "Write-Output ([IO.File]::ReadAllBytes('token.json'))",
+                        "Write-Host ([System.IO.File]::ReadAllBytes('credentials.json'))");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4571,6 +4573,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Write-Output ([IO.File]::ReadAllText('report.txt'))"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Write-Output ([IO.File]::ReadAllBytes('report.txt'))"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
