@@ -4621,7 +4621,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Get-Content token.json | Select-String token",
                         "type credentials.json | sls secret",
                         "Get-Content credentials.json | Where-Object { $_ -match 'token' }",
-                        "gc token.json | ? { $_ -like '*secret*' }");
+                        "gc token.json | ? { $_ -like '*secret*' }",
+                        "[System.IO.File]::ReadAllLines('credentials.json') | Where-Object { $_ -match 'token' }",
+                        "Select-String -Pattern token -InputObject ([IO.File]::ReadAllText('.env'))");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4646,6 +4648,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Select-String token report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllText('report.txt') | Where-Object { $_ }"))
                 .isNull();
     }
 
