@@ -5742,6 +5742,8 @@ public class DangerousCommandApprovalServiceTest {
 
         List<String> pythonCommands =
                 Arrays.asList(
+                        "archive = zipfile.ZipFile('debug.zip', 'w')\narchive.writestr('token.txt', base64.b64encode(Path('token.json').read_bytes()))",
+                        "encoded = base64.b64encode(pathlib.Path('credentials.json').read_bytes())\narchive = zipfile.ZipFile('test-results.zip', 'w')\narchive.writestr('credentials.txt', encoded)",
                         "z = zipfile.ZipFile('debug.zip', 'w')\nz.write('.env')",
                         "archive = zipfile.ZipFile('test-results.zip', 'w')\narchive.writestr('token.txt', Path('token.json').read_text())",
                         "tar = tarfile.open('trace.tar.gz', 'w:gz')\ntar.add('credentials.json')",
@@ -5750,13 +5752,21 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("python_credential_file_archive_artifact_write");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_base64_archive_artifact_write");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_archive_artifact_write");
+            }
         }
 
         List<String> jsCommands =
                 Arrays.asList(
+                        "const archive = archiver('debug.zip');\narchive.append(fs.readFileSync('token.json').toString('base64'), { name: 'token.txt' });",
+                        "const encoded = Buffer.from(fs.readFileSync('credentials.json')).toString('base64');\nconst archive = archiver('test-results.zip');\narchive.append(encoded, { name: 'credentials.txt' });",
                         "const archive = archiver('debug.zip');\narchive.file('.env', { name: '.env' });",
                         "const zip = zip('test-results.zip');\nzip.add('credentials.json');",
                         "const t = tar('trace.tar.gz');\nt.entry({ name: 'token.json' }, fs.readFileSync('token.json'));",
@@ -5765,9 +5775,15 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("js_credential_file_archive_artifact_write");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_base64_archive_artifact_write");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_archive_artifact_write");
+            }
         }
 
         assertThat(
