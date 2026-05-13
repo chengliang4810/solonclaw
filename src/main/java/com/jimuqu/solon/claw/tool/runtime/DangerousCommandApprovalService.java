@@ -980,7 +980,7 @@ public class DangerousCommandApprovalService {
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
-                                                    + "[^\\n|;&]*\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b|Out-String\\b|Out-Default\\b)"
+                                                    + "[^\\n|;&]*\\|\\s*(?:(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b)(?![^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine))|Out-String\\b|Out-Default\\b)"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
@@ -1000,8 +1000,13 @@ public class DangerousCommandApprovalService {
                                                     + ")|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*(?:>>?|\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Add-Content\\b))[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*(?:>>?|\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Add-Content\\b))[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)"
                                                     + "|\\b(?:Add-Content|Set-Content|Out-File)\\b[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)[^\\n|;&]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:Add-Content|Set-Content|Out-File)\\b[^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine)[^\\n|;&]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
