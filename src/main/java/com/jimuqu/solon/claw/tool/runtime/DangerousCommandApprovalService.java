@@ -543,7 +543,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b)|"
                                                     + POWERSHELL_CREDENTIAL_FILE_ENCODE
-                                                    + ")[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b)"),
+                                                    + ")[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b|\\b(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b[^\\n|;&]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_ENCODE
+                                                    + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_encoded_output",

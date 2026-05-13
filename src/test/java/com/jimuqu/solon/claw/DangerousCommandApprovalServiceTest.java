@@ -4502,7 +4502,8 @@ public class DangerousCommandApprovalServiceTest {
                         "base64 .env | notify-send credentials",
                         "openssl base64 -in token.json | terminal-notifier -message",
                         "certutil -encode service-account.json - | New-BurntToastNotification -Text",
-                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String | New-BTNotification");
+                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String | New-BTNotification",
+                        "New-BTNotification -Text ([Convert]::ToBase64String([IO.File]::ReadAllBytes('token.json')))");
         for (String command : encodedCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4542,6 +4543,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | New-BurntToastNotification -Text"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell",
+                                "New-BTNotification -Text ([Convert]::ToBase64String([IO.File]::ReadAllBytes('report.txt')))"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
