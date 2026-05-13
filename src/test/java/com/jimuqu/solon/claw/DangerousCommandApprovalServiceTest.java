@@ -1798,6 +1798,22 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "sc config AppIDSvc start= disabled",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-Service -Name AppIDSvc -StartupType Disabled",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-AppLockerPolicy -DefaultRule",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Safer\\CodeIdentifiers /v DefaultLevel /t REG_DWORD /d 0x40000 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\PowerShell\\1\\PowerShellEngine /v ExecutionPolicy /d Bypass /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(

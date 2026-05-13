@@ -1523,6 +1523,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:DeviceGuard\\b[^\\n]*(?:EnableVirtualizationBasedSecurity|RequirePlatformSecurityFeatures|HypervisorEnforcedCodeIntegrity)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Policies\\\\Microsoft\\\\Windows\\\\DeviceGuard\\\\Lsa\\b[^\\n]*LsaCfgFlags\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_security_registry_weaken",
+                                    "Windows application control policy weakened",
+                                    pattern(
+                                            "\\b(?:sc(?:\\.exe)?\\s+config\\s+AppIDSvc\\s+start\\s*=\\s*disabled|Set-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:AppIDSvc|\"[^\"]*Application Identity[^\"]*\"|'[^']*Application Identity[^']*'))(?=[^\\n]*-StartupType\\s+Disabled\\b)|Set-AppLockerPolicy\\b(?=[^\\n]*-(?:XMLPolicy|DefaultRule)\\b)|Remove-Item\\b[^\\n]*AppLocker\\\\(?:Executable|Script|Msi|PackagedApp)Rules\\b|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Safer\\\\CodeIdentifiers\\b[^\\n]*DefaultLevel\\b[^\\n]*(?:/d\\s+0x40000|/d\\s+262144|-Value\\s+0x40000\\b|-Value\\s+262144\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_take_ownership",
                                     "Windows ownership takeover",
                                     pattern("\\btakeown\\b(?=[^\\n]*(?:[-/]r\\b|[-/]f\\b))"),
