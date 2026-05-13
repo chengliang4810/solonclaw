@@ -1518,6 +1518,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_security_registry_weaken",
+                                    "Windows anonymous access registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Control\\\\Lsa\\b[^\\n]*(?:(?:RestrictAnonymous(?:SAM)?\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:EveryoneIncludesAnonymous\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_security_registry_weaken",
                                     "Windows credential cache registry policy weakened",
                                     pattern(
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Control\\\\Lsa\\b[^\\n]*DisableDomainCreds\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:CurrentVersion\\\\Winlogon\\b[^\\n]*CachedLogonsCount\\b[^\\n]*(?:/d\\s+(?:[1-9][0-9]*|0x[1-9a-f][0-9a-f]*)|-Value\\s+(?:[1-9][0-9]*\\b|0x[1-9a-f][0-9a-f]*\\b))))"),
