@@ -988,7 +988,8 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
-                                                    + "[^\\n|;&]*\\|\\s*(?:head|tail|less|more|bat|batcat|most|pg|Out-Host|Select-Object|select)\\b)"),
+                                                    + "[^\\n|;&]*\\|\\s*(?:(?:head|tail|less|more|bat|batcat|most|pg|Out-Host|Select-Object|select|ForEach-Object|foreach)\\b|%)"
+                                                    + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_substitution_output",
