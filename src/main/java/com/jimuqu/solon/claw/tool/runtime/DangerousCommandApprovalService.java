@@ -448,7 +448,7 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\bcertutil(?:\\.exe)?\\s+-encode\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "|\\b(?:Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),

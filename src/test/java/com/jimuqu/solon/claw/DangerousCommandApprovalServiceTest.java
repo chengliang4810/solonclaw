@@ -4704,7 +4704,9 @@ public class DangerousCommandApprovalServiceTest {
                         "openssl base64 -in token.json -out token.b64",
                         "openssl enc -base64 -in client_secret.json -out client_secret.b64",
                         "certutil -encode service-account.json service-account.b64",
-                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String");
+                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String",
+                        "type token.json | [Convert]::ToBase64String",
+                        "cat credentials.json | ConvertTo-SecureString");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
