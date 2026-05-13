@@ -976,6 +976,11 @@ public class DangerousCommandApprovalService {
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b"
+                                                    + "|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b[^\\n|;&]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(

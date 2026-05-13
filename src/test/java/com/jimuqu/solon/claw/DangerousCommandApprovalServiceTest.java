@@ -4668,9 +4668,12 @@ public class DangerousCommandApprovalServiceTest {
                         "gc .npmrc | ConvertFrom-StringData",
                         "Get-Content token.json | Format-Table",
                         "Get-Content credentials.json | Format-List",
+                        "[IO.File]::ReadAllText('credentials.json') | ConvertFrom-Json",
+                        "[System.IO.File]::ReadAllLines('.env') | Format-Table",
                         "type token.json | ConvertFrom-Json",
                         "cat credentials.json | ConvertFrom-StringData",
-                        "Import-Clixml service-account.json | ConvertFrom-Json");
+                        "Import-Clixml service-account.json | ConvertFrom-Json",
+                        "ConvertFrom-StringData ([IO.File]::ReadAllText('.npmrc'))");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4691,6 +4694,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ConvertFrom-Json report.json"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllText('report.json') | ConvertFrom-Json"))
                 .isNull();
     }
 
