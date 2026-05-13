@@ -2561,7 +2561,7 @@ public class DangerousCommandApprovalService {
                                     "hardline_windows_shutdown",
                                     "Windows shutdown/reboot",
                                     pattern(
-                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c\\s+)|(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?))?(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer)\\b"),
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:cmd(?:\\.exe)?\\s+/c\\s+)?(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?)?(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer)\\b|\\bStart-Process\\b(?=[^\\n]*(?:powershell|pwsh|shutdown(?:\\.exe)?))(?=[^\\n]*(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer))[^\\n]*)"),
                                     ToolNameConstants.EXECUTE_SHELL)));
     private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES =
             buildApprovalKeyAliases();

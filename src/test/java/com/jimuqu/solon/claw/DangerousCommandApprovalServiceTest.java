@@ -8007,6 +8007,10 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell",
                         "powershell -NoProfile -Command Restart-Computer -Force");
+        DangerousCommandApprovalService.DetectionResult cmdWrappedPowershellRestart =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell",
+                        "cmd /c powershell -NoProfile -Command Restart-Computer -Force");
         DangerousCommandApprovalService.DetectionResult barePowershellRestart =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "powershell Restart-Computer");
@@ -8016,6 +8020,10 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult barePwshStop =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "pwsh Stop-Computer");
+        DangerousCommandApprovalService.DetectionResult startProcessPowershellStop =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell",
+                        "Start-Process powershell -ArgumentList '-NoProfile -Command Stop-Computer -Force'");
         DangerousCommandApprovalService.DetectionResult diskpartClean =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell",
@@ -8058,12 +8066,18 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cmdShutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(powershellRestart).isNotNull();
         assertThat(powershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(cmdWrappedPowershellRestart).isNotNull();
+        assertThat(cmdWrappedPowershellRestart.getPatternKey())
+                .isEqualTo("hardline_windows_shutdown");
         assertThat(barePowershellRestart).isNotNull();
         assertThat(barePowershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(pwshStop).isNotNull();
         assertThat(pwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(barePwshStop).isNotNull();
         assertThat(barePwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(startProcessPowershellStop).isNotNull();
+        assertThat(startProcessPowershellStop.getPatternKey())
+                .isEqualTo("hardline_windows_shutdown");
         assertThat(diskpartClean).isNotNull();
         assertThat(diskpartClean.getPatternKey())
                 .isEqualTo("hardline_windows_diskpart_destructive");
