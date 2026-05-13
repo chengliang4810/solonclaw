@@ -105,7 +105,7 @@ public class DangerousCommandApprovalService {
     private static final String SENSITIVE_HTTP_HEADER_NAME =
             "(?:authorization|proxy[_.-]?authorization|cookie|(?:x[_.-]?)?api[_.-]?(?:key|token)|apikey|(?:x[_.-]?)?access[_.-]?(?:key|token)|x[_.-]?auth[_.-]?token|(?:x[_.-]?)?secret[_.-]?key)";
     private static final String SENSITIVE_REQUEST_FIELD_NAME =
-            "(?:access[_.\\s-]?(?:key|token)|refresh[_.\\s-]?token|id[_.\\s-]?token|auth[_.\\s-]?token|api[_.\\s-]?(?:key|token)|token|secret|secret[_.\\s-]?key|client[_.\\s-]?secret|password|passwd|credential|authorization)";
+            "(?:access[_.\\s-]?(?:key|token)|access(?:Key|Token)|refresh[_.\\s-]?token|refreshToken|id[_.\\s-]?token|idToken|auth[_.\\s-]?token|authToken|bearer[_.\\s-]?token|bearerToken|session[_.\\s-]?token|sessionToken|api[_.\\s-]?(?:key|token)|api(?:Key|Token)|token|secret|secret[_.\\s-]?key|secretKey|client[_.\\s-]?secret|clientSecret|private[_.\\s-]?key|privateKey|password|passwd|credential|authorization)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String BROAD_LISTEN_ADDRESS = "(?:0\\.0\\.0\\.0|\\[?::\\]?|\\*)";
     private static final String HARDLINE_COMMAND_POSITION =
