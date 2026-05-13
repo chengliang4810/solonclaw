@@ -1107,6 +1107,7 @@ public class DangerousCommandApprovalService {
                                                     + EXPLICIT_CREDENTIAL_FILE_TARGET
                                                     + "|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "(?![^\\n|;&]*(?:\\||>|>>))"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
@@ -1133,6 +1134,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\b(?:Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:Measure-Object|measure)\\b"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "[^\\n|;&]*\\|\\s*(?:Measure-Object|measure)\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),

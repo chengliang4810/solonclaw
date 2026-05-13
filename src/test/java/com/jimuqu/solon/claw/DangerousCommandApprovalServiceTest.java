@@ -4255,7 +4255,9 @@ public class DangerousCommandApprovalServiceTest {
                         "ls token.json",
                         "Get-Acl .env",
                         "Get-Content token.json | Measure-Object -Line",
-                        "gc credentials.json | measure -Character");
+                        "gc credentials.json | measure -Character",
+                        "[IO.File]::ReadAllText('token.json') | Measure-Object -Character",
+                        "[System.IO.File]::ReadAllLines('credentials.json') | measure -Line");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4284,6 +4286,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Get-Content report.txt | Measure-Object -Line"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllText('report.txt') | Measure-Object -Line"))
                 .isNull();
     }
 
