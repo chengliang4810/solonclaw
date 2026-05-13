@@ -981,6 +981,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult windowsLocalUserDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "Disable-LocalUser -Name backup");
+        DangerousCommandApprovalService.DetectionResult windowsUserNeverExpires =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "net user backup /expires:never");
+        DangerousCommandApprovalService.DetectionResult windowsUserPasswordNo =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "net user backup /passwordreq:no");
         DangerousCommandApprovalService.DetectionResult windowsRemoteGroup =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
@@ -1438,6 +1444,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsUserDelete.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(windowsLocalUserDisable).isNotNull();
         assertThat(windowsLocalUserDisable.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsUserNeverExpires).isNotNull();
+        assertThat(windowsUserNeverExpires.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsUserPasswordNo).isNotNull();
+        assertThat(windowsUserPasswordNo.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(windowsRemoteGroup).isNotNull();
         assertThat(windowsRemoteGroup.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(windowsRemoteGroupRemove).isNotNull();

@@ -1088,7 +1088,7 @@ public class DangerousCommandApprovalService {
                                     "windows_local_account_change",
                                     "Windows local user account changed",
                                     pattern(
-                                            "\\b(?:net(?:\\.exe)?\\s+user\\s+\\S+\\s+(?:/add|/delete|/active\\s*:\\s*(?:yes|no)|\\S+\\s*/add)\\b|net(?:\\.exe)?\\s+localgroup\\s+(?:\"[^\"]*(?:Remote\\s+Desktop\\s+Users|Remote\\s+Management\\s+Users)[^\"]*\"|'[^']*(?:Remote\\s+Desktop\\s+Users|Remote\\s+Management\\s+Users)[^']*'|(?:RemoteDesktopUsers|RemoteManagementUsers))\\s+\\S+\\s+/(?:add|delete)\\b|(?:New|Set|Enable|Disable|Remove)-LocalUser\\b|(?:Add|Remove)-LocalGroupMember\\b(?=[^\\n]*(?:Administrators|Remote\\s+Desktop\\s+Users|Remote\\s+Management\\s+Users)))"),
+                                            "\\b(?:net(?:\\.exe)?\\s+user\\s+\\S+\\s+(?:/add|/delete|/active\\s*:\\s*(?:yes|no)|/expires\\s*:\\s*never|/passwordchg\\s*:\\s*no|/passwordreq\\s*:\\s*no|\\S+\\s*/add)\\b|net(?:\\.exe)?\\s+localgroup\\s+(?:\"[^\"]*(?:Remote\\s+Desktop\\s+Users|Remote\\s+Management\\s+Users)[^\"]*\"|'[^']*(?:Remote\\s+Desktop\\s+Users|Remote\\s+Management\\s+Users)[^']*'|(?:RemoteDesktopUsers|RemoteManagementUsers))\\s+\\S+\\s+/(?:add|delete)\\b|(?:New|Set|Enable|Disable|Remove)-LocalUser\\b|(?:Add|Remove)-LocalGroupMember\\b(?=[^\\n]*(?:Administrators|Remote\\s+Desktop\\s+Users|Remote\\s+Management\\s+Users)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "system_time_tamper",
