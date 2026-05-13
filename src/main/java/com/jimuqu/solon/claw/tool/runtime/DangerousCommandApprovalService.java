@@ -610,7 +610,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "|setx\\s+"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+|\\[Environment\\]::SetEnvironmentVariable\\(\\s*['\"]?"
+                                                    + "\\s+\\S+|\\[(?:System\\.)?Environment\\]::SetEnvironmentVariable\\(\\s*['\"]?"
                                                     + SENSITIVE_ENV_NAME
                                                     + "['\"]?\\s*,\\s*[^,)]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),

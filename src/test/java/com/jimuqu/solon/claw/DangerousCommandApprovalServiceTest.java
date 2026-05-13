@@ -3129,7 +3129,8 @@ public class DangerousCommandApprovalServiceTest {
                         "ri Env:GEMINI_API_KEY",
                         "Clear-Item Env:ANTHROPIC_API_KEY",
                         "setx OPENAI_API_KEY secret",
-                        "[Environment]::SetEnvironmentVariable('OPENAI_API_KEY','secret','User')");
+                        "[Environment]::SetEnvironmentVariable('OPENAI_API_KEY','secret','User')",
+                        "[System.Environment]::SetEnvironmentVariable(\"JIMUQU_ACCESS_TOKEN\",\"secret\",\"User\")");
         for (String command : inlineAssignments) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
