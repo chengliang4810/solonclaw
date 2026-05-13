@@ -884,7 +884,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?|\\b(?:Get-Content|gc|Get-Item|gi)\\b[^\\n|;&]*[\"']?\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "\\S*[\"']?)"),
+                                                    + "\\S*[\"']?)|\\bStart-BitsTransfer\\b(?=[^\\n|;&]*-(?:TransferType|Type)\\b\\s*(?::|=|\\s+)\\s*Upload\\b)(?=[^\\n|;&]*-(?:Destination|Dest)\\b\\s*(?::|=|\\s+)\\s*[\"']?(?:https?|wss?)://)[^\\n|;&]*-(?:Source|Src)\\b\\s*(?::|=|\\s+)\\s*[\"']?\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_webclient_credential_file_send",
