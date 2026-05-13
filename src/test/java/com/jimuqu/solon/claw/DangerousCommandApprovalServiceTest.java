@@ -4440,6 +4440,8 @@ public class DangerousCommandApprovalServiceTest {
                         "gc .npmrc | Out-Host",
                         "Get-Content credentials.json | ForEach-Object { $_ }",
                         "gc token.json | % { $_ }",
+                        "[IO.File]::ReadAllText('token.json') | Select-Object -First 1",
+                        "[System.IO.File]::ReadAllLines('credentials.json') | Out-Host",
                         "cat token.json | bat --plain");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -4461,6 +4463,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Get-Content report.txt | ForEach-Object { $_ }"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllText('report.txt') | Select-Object -First 1"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

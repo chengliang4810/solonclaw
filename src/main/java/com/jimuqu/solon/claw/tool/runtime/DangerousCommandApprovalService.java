@@ -1078,6 +1078,9 @@ public class DangerousCommandApprovalService {
                                             "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:(?:head|tail|less|more|bat|batcat|most|pg|Out-Host|Select-Object|select|ForEach-Object|foreach)\\b|%)"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:(?:head|tail|less|more|bat|batcat|most|pg|Out-Host|Select-Object|select|ForEach-Object|foreach)\\b|%)"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
