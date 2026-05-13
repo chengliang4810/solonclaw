@@ -1738,6 +1738,30 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet /v SpynetReporting /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet /v SpyNetReporting /t REG_DWORD /d 0x0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet /v SubmitSamplesConsent /t REG_DWORD /d 2 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet /v MAPSReporting /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet -Name SubmitSamplesConsent -Value 0x2",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "New-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet -Name MAPSReporting -Value 0",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\PowerShell\\1\\PowerShellEngine /v ExecutionPolicy /d Bypass /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
