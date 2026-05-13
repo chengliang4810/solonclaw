@@ -4182,7 +4182,8 @@ public class DangerousCommandApprovalServiceTest {
                         "wc -c token.json",
                         "Get-Item .anthropic_oauth.json",
                         "dir credentials.json",
-                        "ls token.json");
+                        "ls token.json",
+                        "Get-Acl .env");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4203,6 +4204,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Get-Item notes.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-Acl notes.txt"))
                 .isNull();
     }
 
