@@ -1974,6 +1974,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_firewall");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\DomainProfile /v EnableFirewall /t REG_DWORD /d 0 /f",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\PublicProfile -Name EnableFirewall -Value 0x0",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
                 "New-NetFirewallRule -DisplayName DevServer -Direction Inbound -Action Allow -LocalPort 3000 -Protocol TCP",
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
