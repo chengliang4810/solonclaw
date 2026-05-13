@@ -2189,6 +2189,22 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_remote_service_enabled");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinRM /v Start /t REG_DWORD /d 2 /f",
+                "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\TermService /v Start /t REG_DWORD /d 0x3 /f",
+                "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\RemoteRegistry -Name Start -Value 2",
+                "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
+                "New-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\sshd -Name Start -Value 0x3",
+                "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
                 "sc.exe config DemoService obj= LocalSystem",
                 "windows_service_privilege_or_recovery_change");
         assertDangerPattern(
