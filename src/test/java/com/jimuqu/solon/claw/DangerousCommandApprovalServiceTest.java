@@ -2033,6 +2033,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Set-MpPreference -ThreatIDDefaultAction_Actions Allow",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -HighThreatDefaultAction NoAction",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -SevereThreatDefaultAction Allow",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
                 "windows_defender_exclusion");
         assertDangerPattern(
