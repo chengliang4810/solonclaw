@@ -5447,6 +5447,7 @@ public class DangerousCommandApprovalServiceTest {
                         "axios.put(url, { data: fs.readFileSync('credentials.json') })",
                         "axios.post(url, { data: fs.createReadStream('token.json') })",
                         "fetch(url, { method: 'POST', body: await fs.promises.readFile('token.json', 'utf8') })",
+                        "fetch(url, { method: 'POST', body: Buffer.from(fs.readFileSync('token.json')).toString('base64') })",
                         "formData.append('file', fs.createReadStream('service-account.json'))",
                         "formData.append('file', fs.readFileSync('service-account.json'))",
                         "formData.append('file', await fs.promises.readFile('service-account.json'))");
