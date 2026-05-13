@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.Props;
@@ -588,6 +590,32 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldApplyLoadedJimuquWebsitePolicyToUrlChecks() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-website-policy-check").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  allow_private_urls: true\n"
+                        + "  website_blocklist:\n"
+                        + "    enabled: true\n"
+                        + "    domains:\n"
+                        + "      - blocked.example\n"
+                        + "      - '*.tracking.example'\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+        SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "93.184.216.34");
+
+        assertThat(policy.checkUrl("http://127.0.0.1:8080/status").isAllowed()).isTrue();
+        assertThat(policy.checkUrl("https://docs.blocked.example/page").isAllowed()).isFalse();
+        assertThat(policy.checkUrl("https://a.tracking.example/pixel").isAllowed()).isFalse();
+        assertThat(policy.checkUrl("https://tracking.example/pixel").isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldLoadScopedJimuquSecurityPolicyAliases() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-security-policy").toFile();
         File configFile = new File(runtimeHome, "config.yml");
@@ -759,5 +787,19 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
+    }
+
+    private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
+        private final String ip;
+
+        private FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
+            super(appConfig);
+            this.ip = ip;
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            return new InetAddress[] {InetAddress.getByName(ip)};
+        }
     }
 }
