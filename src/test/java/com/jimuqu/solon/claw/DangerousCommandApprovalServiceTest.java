@@ -5040,6 +5040,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileWriteToSharedLocationCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "cat .env > /tmp/env-dump.txt",
+                        "Get-Content token.json | Out-File public\\token.txt",
+                        "type credentials.json | tee shared/credentials.txt",
+                        "[IO.File]::ReadAllText('.env') | Set-Content uploads\\.env",
+                        "[System.IO.File]::ReadAllLines('credentials.json') >> downloads\\credentials.txt");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_write_to_shared_location");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat report.txt > /tmp/report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllText('report.txt') | Set-Content uploads\\report.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileArchiveMemberOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

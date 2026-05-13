@@ -847,6 +847,16 @@ public class DangerousCommandApprovalService {
                                                     + ")(?=[^\\n]*(?:[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|\\s(?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_write_to_shared_location",
+                                    "write credential file content to shared or public location",
+                                    pattern(
+                                            "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + ")[^\\n|;&]*(?:>>?|\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b)[^\\n|;&]*(?:-(?:FilePath|Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)?)[^\\n|;&]*(?:\\s(?:/tmp|/var/tmp|/private/tmp|/dev/shm|public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_http_header_send",
                                     "send credential through HTTP header",
                                     pattern(
