@@ -2180,6 +2180,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_firewall");
         assertDangerPattern(
                 env,
+                "Set-NetFirewallProfile -Profile Public -LogBlocked False",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\DomainProfile\\Logging /v LogDroppedPackets /t REG_DWORD /d 0 /f",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
                 "New-NetFirewallRule -DisplayName DevServer -Direction Inbound -Action Allow -LocalPort 3000 -Protocol TCP",
                 "windows_firewall_inbound_allow");
         assertDangerPattern(

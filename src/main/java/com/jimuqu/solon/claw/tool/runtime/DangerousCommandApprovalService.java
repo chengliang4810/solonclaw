@@ -1641,6 +1641,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:netsh\\s+advfirewall\\s+set\\s+(?:allprofiles|currentprofile|domainprofile|privateprofile|publicprofile)\\s+state\\s+off|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b[^\\n]*\\bnew\\s+enable\\s*=\\s*no\\b|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b)|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*FirewallPolicy\\\\(?:DomainProfile|PublicProfile|StandardProfile)\\b[^\\n]*EnableFirewall\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_disable_firewall",
+                                    "Windows firewall logging disabled",
+                                    pattern(
+                                            "\\b(?:Set-NetFirewallProfile\\b(?=[^\\n]*-(?:LogAllowed|LogBlocked)\\s+(?:\\$?false|0)\\b)|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*FirewallPolicy\\\\(?:DomainProfile|PublicProfile|StandardProfile)\\\\Logging\\b[^\\n]*(?:LogDroppedPackets|LogSuccessfulConnections)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_firewall_inbound_allow",
                                     "Windows inbound firewall allow rule added",
                                     pattern(
