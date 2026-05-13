@@ -256,6 +256,12 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandAlwaysBlockedUrls("telnet 169.254.169.254 80");
         SecurityPolicyService.UrlVerdict socat =
                 policy.checkCommandAlwaysBlockedUrls("socat - TCP:169.254.169.254:80");
+        SecurityPolicyService.UrlVerdict websocat =
+                policy.checkCommandAlwaysBlockedUrls("websocat 169.254.169.254:80");
+        SecurityPolicyService.UrlVerdict grpcurl =
+                policy.checkCommandAlwaysBlockedUrls("grpcurl 169.254.169.254:443 list");
+        SecurityPolicyService.UrlVerdict curlie =
+                policy.checkCommandAlwaysBlockedUrls("curlie 2852039166");
         SecurityPolicyService.UrlVerdict openssl =
                 policy.checkCommandAlwaysBlockedUrls(
                         "openssl s_client -connect 169.254.169.254:443");
@@ -282,6 +288,12 @@ public class SecurityPolicyServiceTest {
         assertThat(telnet.getMessage()).contains("元数据");
         assertThat(socat.isAllowed()).isFalse();
         assertThat(socat.getMessage()).contains("元数据");
+        assertThat(websocat.isAllowed()).isFalse();
+        assertThat(websocat.getMessage()).contains("元数据");
+        assertThat(grpcurl.isAllowed()).isFalse();
+        assertThat(grpcurl.getMessage()).contains("元数据");
+        assertThat(curlie.isAllowed()).isFalse();
+        assertThat(curlie.getMessage()).contains("元数据");
         assertThat(openssl.isAllowed()).isFalse();
         assertThat(openssl.getMessage()).contains("元数据");
         assertThat(safeNumber.isAllowed()).isTrue();
