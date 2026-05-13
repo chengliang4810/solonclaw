@@ -5474,6 +5474,20 @@ public class DangerousCommandApprovalServiceTest {
     void shouldDetectCodeCredentialFileStdoutCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
+        List<String> pythonBase64Commands =
+                Arrays.asList(
+                        "print(base64.b64encode(open('.env', 'rb').read()))",
+                        "sys.stdout.write(base64.urlsafe_b64encode(pathlib.Path('token.json').read_bytes()))",
+                        "encoded = base64.b64encode(Path('credentials.json').read_bytes())\nlogger.warning(encoded)");
+        for (String command : pythonBase64Commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_credential_file_base64_stdout");
+        }
+
         List<String> pythonCommands =
                 Arrays.asList(
                         "print(open('.env').read())",

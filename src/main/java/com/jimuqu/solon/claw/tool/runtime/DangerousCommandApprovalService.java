@@ -1936,6 +1936,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']\\s*:"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_credential_file_base64_stdout",
+                                    "Python prints base64-encoded credential file content",
+                                    pattern(
+                                            "(?:\\b(?:print|sys\\.(?:stdout|stderr)\\.write|(?:logging|logger)\\.(?:debug|info|warning|warn|error|exception|critical))\\s*\\([^\\n]*(?:base64\\.(?:b64encode|urlsafe_b64encode|standard_b64encode)\\s*\\(\\s*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|(?:pathlib\\.)?Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\)))|\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*base64\\.(?:b64encode|urlsafe_b64encode|standard_b64encode)\\s*\\(\\s*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|(?:pathlib\\.)?Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))[\\s\\S]{0,1200}\\b(?:print|sys\\.(?:stdout|stderr)\\.write|(?:logging|logger)\\.(?:debug|info|warning|warn|error|exception|critical))\\s*\\([^\\n)]*\\b\\1\\b)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_credential_file_stdout",
                                     "Python prints credential file content",
                                     pattern(
