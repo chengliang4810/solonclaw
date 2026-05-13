@@ -538,7 +538,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "(?:\\}|%|!)?)|"
                                                     + SHELL_COMMAND_START
-                                                    + "(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
+                                                    + "(?:httpie|https?|xh|curlie)\\b[^\\n]*\\s[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:(?!=)\\s*['\"]?[^\\n'\"|;&]*(?:\\$\\{?|\\$env:|%|!)"
                                                     + SENSITIVE_ENV_NAME
@@ -731,7 +731,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--proxy-header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "\\s*:)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
+                                                    + "\\s*:)|\\b(?:httpie|https?|xh|curlie)\\b[^\\n]*\\s[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:(?!=)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\b\\s*(?::|=|\\s+)\\s*@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
@@ -747,8 +747,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")\\S+|\\s--json(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "[\"']?\\s*:\\s*[\"']?\\S+)|\\baria2c\\b[^\\n]*\\s--(?:http-user|http-passwd|ftp-user|ftp-passwd|proxy-user|proxy-passwd)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
-                                                    + "(?:--auth(?:=|\\s+)\\S+|-a(?:=|\\s+)?\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
+                                                    + "[\"']?\\s*:\\s*[\"']?\\S+)|\\baria2c\\b[^\\n]*\\s--(?:http-user|http-passwd|ftp-user|ftp-passwd|proxy-user|proxy-passwd)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh|curlie)\\b[^\\n]*\\s"
+                                                    + "(?:--auth(?:=|\\s+)\\S+|-a(?:=|\\s+)?\\S+)|\\b(?:httpie|https?|xh|curlie)\\b[^\\n]*\\s"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--json)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
@@ -772,7 +772,7 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)\\S*[@<]\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "\\S*[\"']?)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s(?:[^\\s'\"|;&]+@|@)\\S*"
+                                                    + "\\S*[\"']?)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh|curlie)\\b[^\\n]*\\s(?:[^\\s'\"|;&]+@|@)\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
