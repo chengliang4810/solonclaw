@@ -1984,6 +1984,12 @@ public class DangerousCommandApprovalService {
                                             "(?:\\b(?:pyperclip|clipboard)\\.(?:copy|set)\\s*\\([^\\n]*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|(?:pathlib\\.)?Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))|\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|(?:pathlib\\.)?Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))[\\s\\S]{0,1200}\\b(?:pyperclip|clipboard)\\.(?:copy|set)\\s*\\([^\\n)]*\\b\\1\\b)"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_credential_file_base64_notification_output",
+                                    "Python notification exposes base64-encoded credential file content",
+                                    pattern(
+                                            "(?:\\b(?:notify2|plyer\\.notification|notification)\\.(?:notify|Notification)\\s*\\([^\\n]*base64\\.(?:b64encode|urlsafe_b64encode|standard_b64encode)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)|\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*base64\\.(?:b64encode|urlsafe_b64encode|standard_b64encode)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[\\s\\S]{0,1200}\\b(?:notify2|plyer\\.notification|notification)\\.(?:notify|Notification)\\s*\\([^\\n)]*\\b\\1\\b)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_credential_file_notification_output",
                                     "Python notification exposes credential file content",
                                     pattern(
