@@ -5056,6 +5056,8 @@ public class DangerousCommandApprovalServiceTest {
                         "history -s `cat credentials.json`",
                         "history -s token.json",
                         "Add-History (Get-Content .anthropic_oauth.json)",
+                        "Add-History (type token.json)",
+                        "Add-History (cat credentials.json)",
                         "Add-History .npmrc");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =

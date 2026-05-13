@@ -856,7 +856,7 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^`\\n]*`|"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
-                                                    + ")|\\bAdd-History\\b[^\\n|;&]*(?:\\(\\s*(?:Get-Content|gc)\\b[^\\n)]*"
+                                                    + ")|\\bAdd-History\\b[^\\n|;&]*(?:\\(\\s*(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n)]*\\)|"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
