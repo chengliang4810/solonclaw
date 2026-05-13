@@ -7900,7 +7900,9 @@ public class DangerousCommandApprovalServiceTest {
                         "https://example.com/callback;access_token=short",
                         "https://example.com/oauth/;client_secret=abc",
                         "https://example.com/oauth;api%5Fkey=abc/callback",
-                        "https://example.com/callback#refresh_token=short");
+                        "https://example.com/callback#refresh_token=short",
+                        "https://example.com/relay?payload=%7B%22accessToken%22%3A%22abc%22%7D",
+                        "https://example.com/relay?payload=clientSecret%3Dabc");
 
         for (String url : blocked) {
             SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);

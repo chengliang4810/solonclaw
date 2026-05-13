@@ -4098,6 +4098,9 @@ public class SecurityPolicyService {
 
     private boolean containsNestedSensitiveParameterName(String rawValue) {
         String value = decodeUrlComponent(rawValue);
+        if (containsStructuredSensitiveParameterName(value)) {
+            return true;
+        }
         if (value.equals(StrUtil.nullToEmpty(rawValue))) {
             return false;
         }
@@ -4105,6 +4108,17 @@ public class SecurityPolicyService {
             return false;
         }
         return containsSensitiveParameterName(value);
+    }
+
+    private boolean containsStructuredSensitiveParameterName(String value) {
+        Matcher matcher = Pattern.compile("(?iu)[\"']?([A-Za-z][A-Za-z0-9_.-]{2,})[\"']?\\s*[:=]")
+                .matcher(StrUtil.nullToEmpty(value));
+        while (matcher.find()) {
+            if (isSensitiveUrlParameterName(matcher.group(1))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean containsSignedUrlParameterSet(String rawParameters) {
