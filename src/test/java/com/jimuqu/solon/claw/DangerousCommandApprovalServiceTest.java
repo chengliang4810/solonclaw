@@ -6824,6 +6824,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult percentUserProfileSshWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat key >> %USERPROFILE%\\.ssh\\authorized_keys");
+        DangerousCommandApprovalService.DetectionResult numberedSshWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat key 1> ~/.ssh/authorized_keys");
         DangerousCommandApprovalService.DetectionResult customHomeEnvTee =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo x | tee $JIMUQU_HOME/.env");
@@ -6839,6 +6842,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult envrcWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf layout > .envrc");
+        DangerousCommandApprovalService.DetectionResult allStreamsEnvWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Get-ChildItem Env: *> .env.local");
+        DangerousCommandApprovalService.DetectionResult stderrCredentialsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "node app.js 2>> credentials.json");
+        DangerousCommandApprovalService.DetectionResult stderrReportWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "node app.js 2>> report.log");
         DangerousCommandApprovalService.DetectionResult absoluteEnvWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat /opt/data/.env.local > /opt/data/.env");
@@ -7003,6 +7015,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(envUserProfileSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(percentUserProfileSshWrite).isNotNull();
         assertThat(percentUserProfileSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(numberedSshWrite).isNotNull();
+        assertThat(numberedSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(customHomeEnvTee).isNotNull();
         assertThat(customHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
         assertThat(quotedCustomHomeEnvTee).isNotNull();
@@ -7013,6 +7027,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(envWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(envrcWrite).isNotNull();
         assertThat(envrcWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(allStreamsEnvWrite).isNotNull();
+        assertThat(allStreamsEnvWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(stderrCredentialsWrite).isNotNull();
+        assertThat(stderrCredentialsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(stderrReportWrite).isNull();
         assertThat(absoluteEnvWrite).isNotNull();
         assertThat(absoluteEnvWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(absoluteEnvCopy).isNotNull();

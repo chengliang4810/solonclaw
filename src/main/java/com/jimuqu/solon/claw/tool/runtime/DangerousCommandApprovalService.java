@@ -388,7 +388,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "sensitive_redirection",
                                     "overwrite system file via redirection",
-                                    pattern(">>?\\s*[\"']?" + SENSITIVE_WRITE_TARGET),
+                                    pattern("(?:&>>?|(?:\\d|\\*)?>>?)\\s*[\"']?" + SENSITIVE_WRITE_TARGET),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "project_sensitive_tee",
@@ -403,7 +403,7 @@ public class DangerousCommandApprovalService {
                                     "project_sensitive_redirection",
                                     "overwrite project env/config via redirection",
                                     pattern(
-                                            ">>?\\s*[\"']?"
+                                            "(?:&>>?|(?:\\d|\\*)?>>?)\\s*[\"']?"
                                                     + PROJECT_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"
                                                     + COMMAND_TAIL),
