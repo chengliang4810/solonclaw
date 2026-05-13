@@ -2445,7 +2445,7 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access\\ProtectedFolders' -Name 'C:\\Users\\Public' -Value 0",
                 "windows_defender_exclusion");
-        assertDangerPattern(env, "sc.exe stop WinDefend", "windows_stop_service");
+        assertDangerPattern(env, "sc.exe stop WinDefend", "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "sc config Spooler start= disabled",
@@ -2453,7 +2453,11 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "Stop-Service -Name WinDefend -Force",
-                "windows_stop_service");
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-Service -DisplayName \"Microsoft Defender Antivirus Service\" -StartupType Disabled",
+                "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinDefend /v Start /t REG_DWORD /d 4 /f",

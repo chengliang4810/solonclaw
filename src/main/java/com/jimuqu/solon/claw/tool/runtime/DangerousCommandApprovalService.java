@@ -1749,6 +1749,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:schtasks(?:\\.exe)?\\s+/change\\b(?=[^\\n]*/disable\\b)(?=[^\\n]*(?:Windows\\s+Defender|WindowsUpdate|UpdateOrchestrator|WindowsBackup|SystemRestore|BitLocker))|Disable-ScheduledTask\\b(?=[^\\n]*(?:-TaskPath\\s+['\"]?\\\\Microsoft\\\\Windows\\\\(?:Windows\\s+Defender|WindowsUpdate|UpdateOrchestrator|WindowsBackup|SystemRestore|BitLocker)|-TaskName\\s+['\"]?(?:Windows\\s+Defender|WindowsUpdate|Scheduled\\s+Start|SR|BitLocker))))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_disable_defender",
+                                    "Windows Defender service stopped or disabled",
+                                    pattern(
+                                            "\\b(?:(?:sc(?:\\.exe)?\\s+(?:stop|pause|delete)\\s+(?:WinDefend|WdNisSvc|Sense|SecurityHealthService)\\b)|(?:sc(?:\\.exe)?\\s+config\\s+(?:WinDefend|WdNisSvc|Sense|SecurityHealthService)\\s+start\\s*=\\s*disabled)|(?:(?:Stop-Service|Suspend-Service)\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:WinDefend|WdNisSvc|Sense|SecurityHealthService|\"[^\"]*(?:Microsoft Defender|Windows Defender|Security Health)[^\"]*\"|'[^']*(?:Microsoft Defender|Windows Defender|Security Health)[^']*')))|(?:Set-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:WinDefend|WdNisSvc|Sense|SecurityHealthService|\"[^\"]*(?:Microsoft Defender|Windows Defender|Security Health)[^\"]*\"|'[^']*(?:Microsoft Defender|Windows Defender|Security Health)[^']*'))(?=[^\\n]*(?:-StartupType\\s+Disabled\\b|-Status\\s+Stopped\\b))))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_stop_service",
                                     "Windows service stopped or disabled",
                                     pattern(
