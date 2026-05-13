@@ -1665,6 +1665,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\\\Reporting\\b[^\\n]*Disable(?:Enhanced)?Notifications\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Windows Defender\\\\UX Configuration\\b[^\\n]*UILockdown\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Explorer\\b[^\\n]*HideSCAHealth\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_disable_defender",
+                                    "Windows Defender Exploit Guard registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\Controlled Folder Access\\b[^\\n]*EnableControlledFolderAccess\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\ASR\\\\Rules\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_defender_exclusion",
                                     "Windows Defender exclusion or protection rule changed",
                                     pattern(
