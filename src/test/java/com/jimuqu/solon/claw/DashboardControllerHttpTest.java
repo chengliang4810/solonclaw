@@ -2295,6 +2295,42 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldKeepDashboardSlashConfirmResolutionSourceIsolated() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        SlashConfirmService service = bean(SlashConfirmService.class);
+        String sourceA = "MEMORY:dashboard-source-isolated-a:user-a";
+        String sourceB = "MEMORY:dashboard-source-isolated-b:user-token=ghp_sourceisolation12345";
+        SlashConfirmService.PendingConfirm confirmA =
+                service.register(sourceA, "reload-mcp", "确认刷新 A");
+        SlashConfirmService.PendingConfirm confirmB =
+                service.register(sourceB, "reload-mcp", "确认刷新 B");
+
+        HttpResult rejected =
+                request(
+                        "POST",
+                        "/api/diagnostics/slash-confirms/resolve",
+                        "{\"confirmId\":\""
+                                + jsonEscape(confirmA.getConfirmId())
+                                + "\",\"sourceKey\":\""
+                                + jsonEscape(sourceB)
+                                + "\",\"action\":\"deny\"}",
+                        token);
+
+        assertThat(rejected.status).isEqualTo(200);
+        assertThat(rejected.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"confirm_not_found\"")
+                .doesNotContain(sourceA)
+                .doesNotContain("dashboard-source-isolated")
+                .doesNotContain("ghp_sourceisolation12345");
+        assertThat(service.getPending(sourceA).getConfirmId()).isEqualTo(confirmA.getConfirmId());
+        assertThat(service.getPending(sourceB).getConfirmId()).isEqualTo(confirmB.getConfirmId());
+
+        service.resolve(sourceA, confirmA.getConfirmId());
+        service.resolve(sourceB, confirmB.getConfirmId());
+    }
+
+    @Test
     void shouldRedactDashboardCronErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         String leakedToken = "sk-dashboardcron12345";

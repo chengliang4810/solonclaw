@@ -7086,14 +7086,17 @@ public class DashboardDiagnosticsService {
         }
         String expected =
                 SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(confirmId)).trim();
-        for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
-            if (StrUtil.equals(expected, pending.getConfirmId())) {
+        String expectedSource =
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(fallbackSourceKey)).trim();
+        if (StrUtil.isNotBlank(expectedSource)) {
+            SlashConfirmService.PendingConfirm pending = slashConfirmService.getPending(expectedSource);
+            if (pending != null && StrUtil.equals(expected, pending.getConfirmId())) {
                 return pending;
             }
+            return null;
         }
-        if (StrUtil.isNotBlank(fallbackSourceKey)) {
-            SlashConfirmService.PendingConfirm pending = slashConfirmService.getPending(fallbackSourceKey);
-            if (pending != null && StrUtil.equals(expected, pending.getConfirmId())) {
+        for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
+            if (StrUtil.equals(expected, pending.getConfirmId())) {
                 return pending;
             }
         }
