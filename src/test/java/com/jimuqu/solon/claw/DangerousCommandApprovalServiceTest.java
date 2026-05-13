@@ -1986,6 +1986,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "New-NetFirewallRule -DisplayName OpenAdmin -Action Allow -RemoteAddress Any -LocalPort 5985 -Protocol TCP",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "Set-NetFirewallRule -DisplayName OpenAdmin -Action Allow -RemoteAddress 0.0.0.0/0",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "New-NetFirewallRule -DisplayName OpenV6 -Action Allow -RemoteAddress ::/0 -LocalPort 22",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction Allow",
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
