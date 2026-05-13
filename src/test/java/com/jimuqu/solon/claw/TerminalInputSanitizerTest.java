@@ -81,4 +81,18 @@ public class TerminalInputSanitizerTest {
                                 "open \u001B]8;;https://example.invalid\u001B\\link\u001B]8;;\u001B\\ now"))
                 .isEqualTo("open link now");
     }
+
+    @Test
+    void shouldStripBracketedPasteWrappersFromTerminalInput() {
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "\u001B[200~hello\u001B[201~"))
+                .isEqualTo("hello");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "a\u001B[200~b\u001B[201~c"))
+                .isEqualTo("abc");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("^[[200~text^[[201~"))
+                .isEqualTo("text");
+    }
 }
