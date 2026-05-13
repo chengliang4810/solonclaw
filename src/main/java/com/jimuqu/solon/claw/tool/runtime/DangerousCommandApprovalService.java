@@ -1285,6 +1285,16 @@ public class DangerousCommandApprovalService {
                                                     + COMMAND_TAIL),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "delete_sensitive_file",
+                                    "delete sensitive credential file",
+                                    pattern(
+                                            "\\b(?:rm|Remove-Item|ri|del|erase)\\b[^\\n|;&]*\\s[\"']?"
+                                                    + POWERSHELL_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"
+                                                    + "(?:\\s+(?:-[A-Za-z][A-Za-z0-9]*(?::\\$?(?:true|false))?|/[A-Za-z?]+))*"
+                                                    + COMMAND_TAIL),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sed_inplace_etc",
                                     "in-place edit of system config",
                                     pattern("\\bsed\\s+-[^\\s]*i.*\\s/etc/|\\bsed\\s+--in-place\\b.*\\s/etc/"),

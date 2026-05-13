@@ -2806,6 +2806,14 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "copy template.env backup.env /Y"))
                 .isNull();
+        assertDangerPattern(env, "rm .env.local", "delete_sensitive_file");
+        assertDangerPattern(env, "Remove-Item -Path ~/.npmrc -Force", "delete_sensitive_file");
+        assertDangerPattern(env, "ri -LiteralPath credentials.json", "delete_sensitive_file");
+        assertDangerPattern(env, "del .pypirc", "delete_sensitive_file");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "rm report.txt"))
+                .isNull();
         assertDangerPattern(env, "diskpart /s wipe-disk.txt", "windows_diskpart_script");
         assertDangerPattern(env, "diskpart.exe -s .\\partition.txt", "windows_diskpart_script");
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "diskpart /?"))
