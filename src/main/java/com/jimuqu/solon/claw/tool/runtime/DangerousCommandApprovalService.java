@@ -2957,6 +2957,16 @@ public class DangerousCommandApprovalService {
                 }
             }
         }
+        if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
+            String childProcessCommand = extractJavaScriptChildProcessCommand(normalized);
+            if (StrUtil.isNotBlank(childProcessCommand)) {
+                DetectionResult result =
+                        detectHardline(ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
         return null;
     }
 

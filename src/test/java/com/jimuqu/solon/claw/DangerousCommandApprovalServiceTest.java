@@ -11580,6 +11580,25 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldHardBlockExecuteJsChildProcessHardlineLikeJimuqu() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "require('child_process').execSync('sudo reboot')\nconsole.log('after')\n");
+
+        service.buildInterceptor().onAction(trace, "execute_js", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldNotHardBlockExecuteCodePlainStringMentions() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

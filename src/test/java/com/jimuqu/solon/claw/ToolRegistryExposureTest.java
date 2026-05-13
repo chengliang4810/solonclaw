@@ -3873,6 +3873,26 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRejectNodeChildProcessHardlineBeforeRunning() throws Exception {
+        assumeTrue(commandExists("node"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
+                new SolonClawCodeExecutionSkills.SafeNodejsSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        assertThatThrownBy(
+                        () ->
+                                nodejs.execute(
+                                        "require('child_process').execSync('sudo reboot')\nconsole.log('after')",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("硬阻断安全规则")
+                .hasMessageContaining("shutdown")
+                .hasMessageNotContaining("after");
+    }
+
+    @Test
     void shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning()
             throws Exception {
         assumeTrue(commandExists("python"));
