@@ -434,7 +434,7 @@ public class DangerousCommandApprovalService {
                                                     + CREDENTIAL_PERMISSION_TARGET
                                                     + "|\\(\\s*(?:Get-Content|gc)\\b[^\\n|;&)]*"
                                                     + CREDENTIAL_PERMISSION_TARGET
-                                                    + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:Set-Clipboard|scb)\\b)"),
+                                                    + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_encoded_output",

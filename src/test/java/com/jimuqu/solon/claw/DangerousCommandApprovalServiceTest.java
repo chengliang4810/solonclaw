@@ -6273,6 +6273,7 @@ public class DangerousCommandApprovalServiceTest {
                         "Get-Content token.json | Set-Clipboard",
                         "gc service-account.json | scb",
                         "(Get-Content .env) | Set-Clipboard",
+                        "(Get-Content .env) | clip.exe",
                         "(gc ~/.npmrc) | scb",
                         "Set-Clipboard -Path .env.local",
                         "Set-Clipboard -LiteralPath ~/.npmrc");
