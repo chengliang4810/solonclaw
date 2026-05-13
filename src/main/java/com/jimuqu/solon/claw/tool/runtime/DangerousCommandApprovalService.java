@@ -978,6 +978,9 @@ public class DangerousCommandApprovalService {
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "|\\bStart-Transcript\\b[\\s\\S]{0,1200}\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b|Out-String\\b|Out-Default\\b)"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
@@ -1013,7 +1016,11 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^`\\n]*`|\\(\\s*(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "[^\\n)]*\\)))"),
+                                                    + "[^\\n)]*\\)|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + ")|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_pager_output",
