@@ -2010,6 +2010,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\StandardProfile /v DefaultInboundAction /t REG_DWORD /d 2 /f",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\PublicProfile -Name DefaultInboundAction -Value 0x2",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "netsh advfirewall set allprofiles firewallpolicy allowinbound,allowoutbound",
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
