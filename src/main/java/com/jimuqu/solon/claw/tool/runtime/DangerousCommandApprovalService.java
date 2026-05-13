@@ -1067,8 +1067,12 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n)]*\\)|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + ")|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + "[^\\n|;&]*\\|\\s*(?:notify-send|terminal-notifier|osascript\\b[^\\n|;&]*(?:display\\s+notification|display\\s+alert)|New-BurntToastNotification|New-BTNotification)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(

@@ -4505,9 +4505,11 @@ public class DangerousCommandApprovalServiceTest {
                         "cat .env | notify-send credentials",
                         "Get-Content token.json | terminal-notifier -message",
                         "[IO.File]::ReadAllText('.env') | New-BurntToastNotification -Text",
+                        "[IO.File]::ReadAllBytes('token.json') | New-BurntToastNotification -Text",
                         "notify-send \"$(cat credentials.json)\"",
                         "New-BurntToastNotification -Text (Get-Content service-account.json)",
-                        "New-BTNotification -Text ([System.IO.File]::ReadAllText('credentials.json'))");
+                        "New-BTNotification -Text ([System.IO.File]::ReadAllText('credentials.json'))",
+                        "New-BTNotification -Text ([System.IO.File]::ReadAllBytes('credentials.json'))");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4524,6 +4526,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "[IO.File]::ReadAllText('report.txt') | New-BurntToastNotification -Text"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | New-BurntToastNotification -Text"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
