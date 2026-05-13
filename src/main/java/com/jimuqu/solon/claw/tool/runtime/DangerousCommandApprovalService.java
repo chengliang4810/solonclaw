@@ -1514,7 +1514,7 @@ public class DangerousCommandApprovalService {
                                     "windows_security_registry_weaken",
                                     "Windows network logon registry policy weakened",
                                     pattern(
-                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Policies\\\\System\\b[^\\n]*LocalAccountTokenFilterPolicy\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Control\\\\Lsa\\b[^\\n]*(?:(?:LmCompatibilityLevel\\b[^\\n]*(?:/d\\s+[012]\\b|/d\\s+0x[012]\\b|-Value\\s+[012]\\b|-Value\\s+0x[012]\\b))|(?:NoLMHash\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))))"),
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Policies\\\\System\\b[^\\n]*LocalAccountTokenFilterPolicy\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Control\\\\Lsa\\b[^\\n]*(?:(?:LmCompatibilityLevel\\b[^\\n]*(?:/d\\s+[012]\\b|/d\\s+0x[012]\\b|-Value\\s+[012]\\b|-Value\\s+0x[012]\\b))|(?:NoLMHash\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)|DisableRestrictedAdmin\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_security_registry_weaken",
