@@ -1746,6 +1746,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender /v DisableRealtimeMonitoring /t REG_DWORD /d 1 /f",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender -Name DisableBehaviorMonitoring -Value 0x1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet /v SpynetReporting /t REG_DWORD /d 0 /f",
                 "windows_disable_defender");
         assertDangerPattern(

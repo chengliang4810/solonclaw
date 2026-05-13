@@ -1496,7 +1496,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_defender",
                                     "Windows Defender registry policy weakened",
                                     pattern(
-                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\b[^\\n]*(?:DisableAntiSpyware|DisableAntiVirus|DisableRoutinelyTakingAction|DisableSpecialRunningModes)\\b[^\\n]*(?:/d\\s+1\\b|/d\\s+0x1\\b|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Windows Defender\\b[^\\n]*ServiceKeepAlive\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows Defender\\\\Features\\b[^\\n]*TamperProtection\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\b[^\\n]*(?:DisableAntiSpyware|DisableAntiVirus|DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableRoutinelyTakingAction|DisableSpecialRunningModes)\\b[^\\n]*(?:/d\\s+1\\b|/d\\s+0x1\\b|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Windows Defender\\b[^\\n]*ServiceKeepAlive\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows Defender\\\\Features\\b[^\\n]*TamperProtection\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_defender",
