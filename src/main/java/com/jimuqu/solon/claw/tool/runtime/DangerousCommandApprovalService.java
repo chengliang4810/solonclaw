@@ -1025,6 +1025,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|(?:^|[;&|\\n`])\\s*(?:Get-Item|gi|Get-ChildItem|gci|dir|ls|Get-Acl)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:Measure-Object|measure)\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
