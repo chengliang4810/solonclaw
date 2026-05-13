@@ -802,7 +802,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:File|Data|String)\\s*\\([^\\n]*[\"']\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "\\S*[\"']|(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:Data|String)\\s*\\([^\\n]*\\b(?:Get-Content|gc)\\b[^\\n)]*[\"']?\\S*"
+                                                    + "\\S*[\"']|(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:Data|String)\\s*\\([^\\n]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n)]*[\"']?\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
