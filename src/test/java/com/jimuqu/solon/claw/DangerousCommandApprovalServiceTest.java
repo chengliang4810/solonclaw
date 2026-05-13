@@ -6789,8 +6789,10 @@ public class DangerousCommandApprovalServiceTest {
                         "(Get-Content .env) | clip.exe",
                         "(gc ~/.npmrc) | scb",
                         "[IO.File]::ReadAllText('.env') | Set-Clipboard",
+                        "[IO.File]::ReadAllBytes('token.json') | Set-Clipboard",
                         "Set-Clipboard -Value (Get-Content .env)",
                         "Set-Clipboard -Value ([System.IO.File]::ReadAllText('credentials.json'))",
+                        "Set-Clipboard -Value ([System.IO.File]::ReadAllBytes('credentials.json'))",
                         "Set-Clipboard -Value (type token.json)",
                         "scb -InputObject (gc token.json)",
                         "scb -InputObject (cat credentials.json)",
@@ -6834,6 +6836,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "[IO.File]::ReadAllText('report.txt') | Set-Clipboard"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | Set-Clipboard"))
                 .isNull();
     }
 

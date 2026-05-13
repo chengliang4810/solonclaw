@@ -462,6 +462,11 @@ public class DangerousCommandApprovalService {
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "[^\\n|;&]*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "|"
+                                                    + "(?:^|[;&|\\n`])\\s*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
