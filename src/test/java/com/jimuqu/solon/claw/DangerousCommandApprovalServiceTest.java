@@ -1893,6 +1893,14 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Add-MpPreference -ExclusionExtension ps1",
                 "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Remove-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Remove-MpPreference -AttackSurfaceReductionRules_Ids 01234567-89ab-cdef-0123-456789abcdef",
+                "windows_defender_exclusion");
         assertDangerPattern(env, "sc.exe stop WinDefend", "windows_stop_service");
         assertDangerPattern(
                 env,

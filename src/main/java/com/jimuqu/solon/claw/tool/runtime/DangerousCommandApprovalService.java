@@ -1558,9 +1558,9 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_defender_exclusion",
-                                    "Windows Defender exclusion added",
+                                    "Windows Defender exclusion or protection rule changed",
                                     pattern(
-                                            "\\b(?:Add-MpPreference|Set-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress)\\b)"),
+                                            "\\b(?:Add-MpPreference|Set-MpPreference|Remove-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress|-AttackSurfaceReductionRules_(?:Ids|Actions))\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_stop_service",
