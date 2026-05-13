@@ -9347,6 +9347,27 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldInspectPatchTargetsForCommonCredentialJsonFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("mode", "apply_patch");
+        args.put(
+                "patch",
+                "*** Begin Patch\n"
+                        + "*** Add File: config/secrets.json\n"
+                        + "+{\"token\":\"secret\"}\n"
+                        + "*** End Patch");
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("apply_patch", args);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("凭据");
+        assertThat(verdict.getPath()).isEqualTo("config/secrets.json");
+    }
+
+    @Test
     void shouldInspectGitRenamePatchTargetsForCredentialFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
