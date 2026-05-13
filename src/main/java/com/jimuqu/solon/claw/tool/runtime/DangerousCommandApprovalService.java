@@ -1947,10 +1947,10 @@ public class DangerousCommandApprovalService {
                                     "powershell_sensitive_file_write",
                                     "PowerShell write to sensitive credential file",
                                     pattern(
-                                            "(?:\\b(?:Set-Content|Add-Content|Out-File|sc|ac)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
+                                            "(?:\\b(?:Set-Content|Add-Content|Out-File|sc|ac)\\b[^\\n]*(?:-(?:Path|LiteralPath|FilePath)\\b\\s*(?::|=|\\s+)\\s*)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"
-                                                    + "|\\b(?:New-Item|ni)\\b(?=[^\\n|;&]*\\s-Value\\b)[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-Name\\s+)?[\"']?"
+                                                    + "|\\b(?:New-Item|ni)\\b(?=[^\\n|;&]*\\s-Value\\b)[^\\n]*(?:-(?:Path|LiteralPath|Name)\\b\\s*(?::|=|\\s+)\\s*)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"
                                                     + "|\\b(?:New-Item|ni)\\b\\s+[\"']?"
