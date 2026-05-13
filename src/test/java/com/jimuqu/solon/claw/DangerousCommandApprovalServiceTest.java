@@ -4453,7 +4453,9 @@ public class DangerousCommandApprovalServiceTest {
                         "uniq client_secret.json",
                         "findstr token service-account.json",
                         "Select-String token .anthropic_oauth.json",
-                        "sls token .npmrc");
+                        "sls token .npmrc",
+                        "Get-Content token.json | Select-String token",
+                        "type credentials.json | sls secret");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);

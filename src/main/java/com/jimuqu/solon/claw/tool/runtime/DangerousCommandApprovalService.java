@@ -828,6 +828,9 @@ public class DangerousCommandApprovalService {
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "|\\b(?:Select-String|sls)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:Select-String|sls)\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
