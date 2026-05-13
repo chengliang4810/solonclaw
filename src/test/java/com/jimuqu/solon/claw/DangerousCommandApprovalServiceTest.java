@@ -2048,6 +2048,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_powershell_encoded_command");
         assertDangerPattern(
                 env,
+                "pwsh -EncodedArguments SQBFAFgA",
+                "windows_powershell_encoded_command");
+        assertDangerPattern(
+                env,
+                "powershell.exe /EncodedArguments SQBFAFgA",
+                "windows_powershell_encoded_command");
+        assertDangerPattern(
+                env,
                 "powershell -NoProfile -Command \"[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)\"",
                 "windows_powershell_policy_weaken");
         assertDangerPattern(

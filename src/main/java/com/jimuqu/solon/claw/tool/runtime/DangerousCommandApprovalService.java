@@ -1764,7 +1764,7 @@ public class DangerousCommandApprovalService {
                                     "windows_powershell_encoded_command",
                                     "PowerShell encoded command execution",
                                     pattern(
-                                            "\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:[-/](?:EncodedCommand|enc|e))\\b)"),
+                                            "\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:[-/](?:EncodedCommand|EncodedArguments|enc|e))\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_remote_execute",
