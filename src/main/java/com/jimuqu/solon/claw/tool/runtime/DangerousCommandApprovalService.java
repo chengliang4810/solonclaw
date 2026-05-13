@@ -1739,6 +1739,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reagentc\\s+[-/]disable|bcdedit\\s+[-/](?:delete|deletevalue|set)\\b|vssadmin\\s+resize\\s+shadowstorage\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_bitlocker_protection_weaken",
+                                    "Windows BitLocker protection disabled or suspended",
+                                    pattern(
+                                            "\\b(?:Disable-BitLocker|Suspend-BitLocker|Remove-BitLockerKeyProtector|manage-bde(?:\\.exe)?\\s+(?:-(?:off|protectors\\s+-(?:disable|delete))|/(?:off|protectors\\s+/(?:disable|delete))))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "python_rmtree",
                                     "Python recursive delete",
                                     pattern("\\bshutil\\.rmtree\\s*\\("),

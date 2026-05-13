@@ -2652,6 +2652,12 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "vssadmin resize shadowstorage /for=C: /on=C: /maxsize=401MB",
                 "windows_disable_recovery");
+        assertDangerPattern(env, "Disable-BitLocker -MountPoint C:", "windows_bitlocker_protection_weaken");
+        assertDangerPattern(env, "manage-bde -off C:", "windows_bitlocker_protection_weaken");
+        assertDangerPattern(
+                env,
+                "Remove-BitLockerKeyProtector -MountPoint C: -KeyProtectorId '{11111111-1111-1111-1111-111111111111}'",
+                "windows_bitlocker_protection_weaken");
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc.exe query Spooler"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc qc DemoService"))
