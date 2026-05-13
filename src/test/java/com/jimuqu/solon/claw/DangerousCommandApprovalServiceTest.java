@@ -2421,6 +2421,14 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Extensions' -Name ps1 -Value 0",
                 "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access\\AllowedApplications\" /v \"C:\\Tools\\sync.exe\" /t REG_DWORD /d 0 /f",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access\\ProtectedFolders' -Name 'C:\\Users\\Public' -Value 0",
+                "windows_defender_exclusion");
         assertDangerPattern(env, "sc.exe stop WinDefend", "windows_stop_service");
         assertDangerPattern(
                 env,

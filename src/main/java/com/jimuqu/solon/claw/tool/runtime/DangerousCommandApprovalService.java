@@ -1707,6 +1707,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Windows Defender\\\\Exclusions\\\\(?:Paths|Processes|Extensions|IpAddresses)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_defender_exclusion",
+                                    "Windows Defender controlled-folder access allow list changed",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Windows Defender\\\\Windows Defender Exploit Guard\\\\Controlled Folder Access\\\\(?:AllowedApplications|ProtectedFolders)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_update_policy_weaken",
                                     "Windows update policy weakened",
                                     pattern(
