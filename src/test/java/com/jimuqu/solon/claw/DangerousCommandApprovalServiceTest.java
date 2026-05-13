@@ -1735,15 +1735,15 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender /v DisableAntiSpyware /t REG_DWORD /d 1 /f",
-                "windows_security_registry_weaken");
+                "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender /v DisableAntiVirus /t REG_DWORD /d 1 /f",
-                "windows_security_registry_weaken");
+                "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender -Name ServiceKeepAlive -Value 0",
-                "windows_security_registry_weaken");
+                "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet /v SpynetReporting /t REG_DWORD /d 0 /f",
@@ -1771,7 +1771,7 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Features /v TamperProtection /t REG_DWORD /d 0 /f",
-                "windows_security_registry_weaken");
+                "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v RunAsPPL /t REG_DWORD /d 0 /f",
