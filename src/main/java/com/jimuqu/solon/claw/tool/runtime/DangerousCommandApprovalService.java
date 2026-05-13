@@ -527,6 +527,10 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*(?:-out\\s+|>+\\s*)"
                                                     + DEBUG_ARTIFACT_OUTPUT_TARGET
+                                                    + "|\\[(?:IO|System\\.IO)\\.File\\]::WriteAll(?:Text|Bytes)\\s*\\(\\s*"
+                                                    + DEBUG_ARTIFACT_OUTPUT_TARGET
+                                                    + "[^\\n,]*,\\s*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_ENCODE
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
