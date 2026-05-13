@@ -4663,7 +4663,9 @@ public class DangerousCommandApprovalServiceTest {
                         "xxd credentials.json",
                         "hexdump -C token.json",
                         "od -An -tx1 client_secret.json",
-                        "Format-Hex .anthropic_oauth.json");
+                        "Format-Hex .anthropic_oauth.json",
+                        "Get-Content token.json | Format-Hex",
+                        "type credentials.json | Format-Hex");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
