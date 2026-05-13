@@ -217,10 +217,18 @@ public class SecurityPolicyService {
     private static final List<String> CREDENTIAL_PATH_OPTION_NAMES =
             Arrays.asList(
                     "--key",
+                    "--identity-file",
+                    "--ssh-key",
+                    "--ssh-key-file",
                     "--private-key",
+                    "--private-key-file",
                     "--proxy-key",
+                    "--client-key",
+                    "--client-key-file",
                     "--cert",
+                    "--cert-file",
                     "--certificate",
+                    "--certificate-file",
                     "--proxy-cert",
                     "--cacert",
                     "--ca-certificate",
