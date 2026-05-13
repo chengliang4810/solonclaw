@@ -2257,6 +2257,26 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_remote_service_enabled");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU /v NoAutoUpdate /t REG_DWORD /d 1 /f",
+                "windows_update_policy_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate /v DisableWindowsUpdateAccess /t REG_DWORD /d 0x1 /f",
+                "windows_update_policy_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU -Name AUOptions -Value 1",
+                "windows_update_policy_weaken");
+        assertDangerPattern(
+                env,
+                "sc config wuauserv start= disabled",
+                "windows_update_policy_weaken");
+        assertDangerPattern(
+                env,
+                "Set-Service -Name UsoSvc -StartupType Disabled",
+                "windows_update_policy_weaken");
+        assertDangerPattern(
+                env,
                 "sc.exe config DemoService obj= LocalSystem",
                 "windows_service_privilege_or_recovery_change");
         assertDangerPattern(

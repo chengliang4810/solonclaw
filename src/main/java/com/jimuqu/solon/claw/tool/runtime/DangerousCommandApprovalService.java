@@ -1593,6 +1593,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Windows Defender\\\\Exclusions\\\\(?:Paths|Processes|Extensions|IpAddresses)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_update_policy_weaken",
+                                    "Windows update policy weakened",
+                                    pattern(
+                                            "\\b(?:(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:WindowsUpdate\\\\AU\\b[^\\n]*(?:NoAutoUpdate\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)|AUOptions\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:WindowsUpdate\\b[^\\n]*DisableWindowsUpdateAccess\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))))|sc(?:\\.exe)?\\s+config\\s+(?:wuauserv|UsoSvc|bits)\\s+start\\s*=\\s*disabled|Set-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:wuauserv|UsoSvc|bits|\"[^\"]*(?:Windows Update|Update Orchestrator|Background Intelligent Transfer)[^\"]*\"|'[^']*(?:Windows Update|Update Orchestrator|Background Intelligent Transfer)[^']*'))(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_stop_service",
                                     "Windows service stopped or disabled",
                                     pattern(
