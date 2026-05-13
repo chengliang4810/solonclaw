@@ -1499,6 +1499,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\b[^\\n]*(?:DisableAntiSpyware|DisableAntiVirus|DisableRoutinelyTakingAction|DisableSpecialRunningModes)\\b[^\\n]*(?:/d\\s+1\\b|/d\\s+0x1\\b|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Windows Defender\\b[^\\n]*ServiceKeepAlive\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows Defender\\\\Features\\b[^\\n]*TamperProtection\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_disable_defender",
+                                    "Windows Defender cloud sample registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Windows Defender\\\\Spynet\\b[^\\n]*(?:(?:(?:SpyNetReporting|SpynetReporting|MAPSReporting)\\b[^\\n]*(?:/d\\s+0\\b|/d\\s+0x0\\b|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:SubmitSamplesConsent\\b[^\\n]*(?:/d\\s+2\\b|/d\\s+0x2\\b|-Value\\s+2\\b|-Value\\s+0x2\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_security_registry_weaken",
                                     "Windows security registry policy weakened",
                                     pattern(
