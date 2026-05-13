@@ -4208,7 +4208,10 @@ public class SecurityPolicyService {
     }
 
     private String normalizeSensitiveParameterName(String rawName) {
-        String name = decodeUrlComponent(rawName).trim().toLowerCase(Locale.ROOT);
+        String name = decodeUrlComponent(rawName).trim();
+        name = name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2");
+        name = name.replaceAll("([a-z0-9])([A-Z])", "$1_$2");
+        name = name.toLowerCase(Locale.ROOT);
         name = name.replace('-', '_').replace('.', '_');
         name = name.replaceAll("\\s+", "_");
         return name;
