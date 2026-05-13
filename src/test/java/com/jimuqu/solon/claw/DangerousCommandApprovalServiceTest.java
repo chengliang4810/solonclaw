@@ -5796,6 +5796,8 @@ public class DangerousCommandApprovalServiceTest {
 
         List<String> jsCommands =
                 Arrays.asList(
+                        "clipboardy.writeSync(fs.readFileSync('token.json').toString('base64'))",
+                        "const encoded = Buffer.from(fs.readFileSync('credentials.json')).toString('base64');\nnavigator.clipboard.writeText(encoded)",
                         "clipboardy.writeSync(fs.readFileSync('.env', 'utf8'))",
                         "navigator.clipboard.writeText(await fs.promises.readFile('credentials.json', 'utf8'))",
                         "const token = fs.readFileSync('token.json', 'utf8');\nclipboard.write(token);");
@@ -5803,9 +5805,15 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("js_credential_file_clipboard_export");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_base64_clipboard_export");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_clipboard_export");
+            }
         }
 
         assertThat(
