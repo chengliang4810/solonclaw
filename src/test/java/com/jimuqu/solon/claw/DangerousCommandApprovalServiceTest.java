@@ -4923,6 +4923,8 @@ public class DangerousCommandApprovalServiceTest {
                         "bsdtar --create -f backup.tar ~/.config/gcloud/application_default_credentials.json",
                         "zip backup.zip .npmrc",
                         "7z a secrets.7z client_secret.json",
+                        "jar cf secrets.jar credentials.json",
+                        "jar --create --file backup.jar token.json",
                         "Compress-Archive -Path .anthropic_oauth.json -DestinationPath backup.zip");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -4942,6 +4944,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Compress-Archive -Path report.txt -DestinationPath reports.zip"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "jar cf reports.jar report.txt docs/"))
                 .isNull();
     }
 

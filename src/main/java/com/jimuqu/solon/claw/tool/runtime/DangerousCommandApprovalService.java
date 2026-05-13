@@ -768,6 +768,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")|\\bCompress-Archive\\b(?=[^\\n]*(?:-Path\\b|-LiteralPath\\b|\\.zip\\b))(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\bjar\\b(?=[^\\n]*(?:\\s(?:-[A-Za-z]*c[A-Za-z]*|c[A-Za-z]*f?|--create)\\b))(?=[^\\n]*\\.(?:jar|zip)\\b)(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
