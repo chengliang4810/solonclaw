@@ -499,7 +499,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b)|"
                                                     + POWERSHELL_CREDENTIAL_FILE_ENCODE
-                                                    + ")[^\\n|;&]*\\|\\s*(?:(?:curl|wget)\\b[^\\n]*(?:--data(?:-[a-z-]+)?|-d|--post-data|--body-file|--method\\s+POST|-X\\s+POST)\\b|(?:httpie|https?|xh|curlie)\\b[^\\n]*(?:POST|PUT|PATCH|@-)|(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-(?:Body|Method)\\b|Post|Put|Patch)))"),
+                                                    + ")[^\\n|;&]*\\|\\s*(?:(?:curl|wget)\\b[^\\n]*(?:--data(?:-[a-z-]+)?|-d|--post-data|--body-file|--method\\s+POST|-X\\s+POST)\\b|(?:httpie|https?|xh|curlie)\\b[^\\n]*(?:POST|PUT|PATCH|@-)|(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-(?:Body|Method)\\b|Post|Put|Patch))|(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:Data|String)\\s*\\([^\\n]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_ENCODE
+                                                    + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_encoded_debug_artifact_write",
