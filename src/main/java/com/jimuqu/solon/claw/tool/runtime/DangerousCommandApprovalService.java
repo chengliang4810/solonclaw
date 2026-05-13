@@ -1569,6 +1569,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:sc(?:\\.exe)?\\s+(?:stop|pause|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|(?:Stop-Service|Suspend-Service)\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*(?:-StartupType\\s+Disabled\\b|-Status\\s+Stopped\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_remote_service_enabled",
+                                    "Windows remote management service enabled",
+                                    pattern(
+                                            "\\b(?:Enable-PSRemoting\\b|winrm\\s+quickconfig\\b|sc(?:\\.exe)?\\s+config\\s+(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd)\\s+start\\s*=\\s*(?:auto|demand)|Set-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd|\"[^\"]*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^\"]*\"|'[^']*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^']*'))(?=[^\\n]*-StartupType\\s+(?:Automatic|Manual))|Start-Service\\b(?=[^\\n]*-(?:Name|DisplayName)\\s+(?:WinRM|RemoteRegistry|TermService|RemoteAccess|sshd|\"[^\"]*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^\"]*\"|'[^']*(?:WinRM|Remote Registry|Remote Desktop|Routing and Remote Access|OpenSSH)[^']*')))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_service_privilege_or_recovery_change",
                                     "Windows service privilege or recovery policy changed",
                                     pattern(

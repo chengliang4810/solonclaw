@@ -1949,6 +1949,20 @@ public class DangerousCommandApprovalServiceTest {
                 "Suspend-Service -Name Spooler",
                 "windows_stop_service");
         assertDangerPattern(env, "sc pause Spooler", "windows_stop_service");
+        assertDangerPattern(env, "Enable-PSRemoting -Force", "windows_remote_service_enabled");
+        assertDangerPattern(env, "winrm quickconfig -quiet", "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
+                "sc config RemoteRegistry start= auto",
+                "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
+                "Set-Service -Name WinRM -StartupType Automatic",
+                "windows_remote_service_enabled");
+        assertDangerPattern(
+                env,
+                "Start-Service -DisplayName \"OpenSSH SSH Server\"",
+                "windows_remote_service_enabled");
         assertDangerPattern(
                 env,
                 "sc.exe config DemoService obj= LocalSystem",
