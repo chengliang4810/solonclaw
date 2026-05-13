@@ -4574,8 +4574,10 @@ public class DangerousCommandApprovalServiceTest {
                         "fc.exe client_secret.json client_secret.old",
                         "comp service-account.json service-account.old",
                         "Compare-Object (Get-Content .anthropic_oauth.json) (Get-Content old.json)",
+                        "Compare-Object ([IO.File]::ReadAllText('.env')) $old",
                         "Get-Content token.json | Compare-Object -ReferenceObject $old",
-                        "type credentials.json | Compare-Object $old");
+                        "type credentials.json | Compare-Object $old",
+                        "[System.IO.File]::ReadAllLines('credentials.json') | Compare-Object $old");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4596,6 +4598,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Compare-Object report.txt report.old"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Compare-Object ([IO.File]::ReadAllText('report.txt')) $old"))
                 .isNull();
     }
 

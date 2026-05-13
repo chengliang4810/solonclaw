@@ -938,8 +938,13 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\bCompare-Object\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bCompare-Object\\b[^\\n|;&]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*Compare-Object\\b"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "[^\\n|;&]*\\|\\s*Compare-Object\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
