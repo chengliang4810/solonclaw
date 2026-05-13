@@ -1642,6 +1642,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_firewall_inbound_allow",
+                                    "Windows remote administration firewall group enabled",
+                                    pattern(
+                                            "\\b(?:Enable-NetFirewallRule\\b(?=[^\\n]*(?:-DisplayName|-DisplayGroup|-Name|-Group)\\s+(?:\"[^\"]*(?:WMI|Windows\\s+Management\\s+Instrumentation|Remote\\s+Event\\s+Log|Remote\\s+Service\\s+Management)[^\"]*\"|'[^']*(?:WMI|Windows\\s+Management\\s+Instrumentation|Remote\\s+Event\\s+Log|Remote\\s+Service\\s+Management)[^']*'|\\S*(?:WMI|RemoteEventLog|RemoteServiceManagement)\\S*))|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b(?=[^\\n]*(?:\\bgroup\\s*=\\s*\"?[^\"]*(?:Windows\\s+Management\\s+Instrumentation|WMI|Remote\\s+Event\\s+Log|Remote\\s+Service\\s+Management)[^\"]*\"?|\\bname\\s*=\\s*\"?[^\"]*(?:WMI|Remote\\s+Event\\s+Log|Remote\\s+Service\\s+Management)[^\"]*\"?))(?=[^\\n]*\\bnew\\s+enable\\s*=\\s*yes\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_firewall_inbound_allow",
                                     "Windows inbound firewall registry rule added",
                                     pattern(
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*FirewallRules\\b(?=[^\\n]*(?:Action=Allow|Action\\s*=\\s*Allow))(?=[^\\n]*(?:Dir=In|Direction=In|Dir\\s*=\\s*In|Direction\\s*=\\s*In))"),

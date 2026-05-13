@@ -2232,6 +2232,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "Enable-NetFirewallRule -DisplayGroup \"Windows Management Instrumentation (WMI)\"",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall firewall set rule group=\"Remote Event Log Management\" new enable=yes",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -DisableRealtimeMonitoring $true",
                 "windows_disable_defender");
         assertDangerPattern(
