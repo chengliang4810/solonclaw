@@ -4417,7 +4417,9 @@ public class DangerousCommandApprovalServiceTest {
                         "git show HEAD:.npmrc",
                         "fc.exe client_secret.json client_secret.old",
                         "comp service-account.json service-account.old",
-                        "Compare-Object (Get-Content .anthropic_oauth.json) (Get-Content old.json)");
+                        "Compare-Object (Get-Content .anthropic_oauth.json) (Get-Content old.json)",
+                        "Get-Content token.json | Compare-Object -ReferenceObject $old",
+                        "type credentials.json | Compare-Object $old");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
