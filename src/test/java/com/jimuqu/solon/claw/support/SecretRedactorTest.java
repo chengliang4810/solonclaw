@@ -143,6 +143,28 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldMaskApprovalSensitiveUrlQueryAliases() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback?oauth_token=oauth-secret&client_assertion=assertion-secret&proxy_authorization=proxy-secret&access_key=access-key-secret&secret_key=secret-key-secret&session_token=session-secret&ok=value");
+
+        assertThat(result)
+                .contains("oauth_token=***")
+                .contains("client_assertion=***")
+                .contains("proxy_authorization=***")
+                .contains("access_key=***")
+                .contains("secret_key=***")
+                .contains("session_token=***")
+                .contains("ok=value")
+                .doesNotContain("oauth-secret")
+                .doesNotContain("assertion-secret")
+                .doesNotContain("proxy-secret")
+                .doesNotContain("access-key-secret")
+                .doesNotContain("secret-key-secret")
+                .doesNotContain("session-secret");
+    }
+
+    @Test
     void shouldMaskCamelCaseSensitiveUrlQueryNames() {
         String result =
                 SecretRedactor.maskUrl(
