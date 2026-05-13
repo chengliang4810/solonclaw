@@ -2024,6 +2024,18 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "pypykatz lsa minidump lsass.dmp",
                 "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "Copy-Item \"$env:APPDATA\\Microsoft\\Credentials\\*\" C:\\Temp\\creds -Recurse",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "copy \"%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Login Data\" C:\\Temp\\login.db",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "robocopy \"%APPDATA%\\Mozilla\\Firefox\\Profiles\\abc.default\" C:\\Temp\\ff logins.json key4.db",
+                "windows_credential_material_dump");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertDangerPattern(
                 env, "vaultcmd /listcreds:\"Windows Credentials\"", "windows_credential_manager_read");
