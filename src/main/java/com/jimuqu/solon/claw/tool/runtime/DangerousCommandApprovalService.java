@@ -993,8 +993,13 @@ public class DangerousCommandApprovalService {
                                                     + "|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "[^\\n|;&]*\\|\\s*(?:(?:Select-String|sls|Where-Object|where)\\b|\\?)"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:(?:Select-String|sls|Where-Object|where)\\b|\\?)"
                                                     + "|\\b(?:Select-String|sls)\\b[^\\n|;&]*-(?:InputObject|Input)\\b\\s*(?::|=|\\s+)\\s*\\(?\\s*"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "|\\b(?:Select-String|sls)\\b[^\\n|;&]*-(?:InputObject|Input)\\b\\s*(?::|=|\\s+)\\s*\\(?\\s*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
