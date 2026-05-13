@@ -1946,6 +1946,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction Allow",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall set allprofiles firewallpolicy allowinbound,allowoutbound",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "netsh advfirewall firewall set rule name=DevServer new dir=in action=allow",
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
