@@ -4528,9 +4528,11 @@ public class DangerousCommandApprovalServiceTest {
                         "echo \"$(cat .env)\"",
                         "printf '%s' `cat credentials.json`",
                         "Write-Output (Get-Content .anthropic_oauth.json)",
+                        "Write-Output ([IO.File]::ReadAllText('.env'))",
                         "Write-Host (gc .npmrc)",
                         "Write-Output (type token.json)",
-                        "Write-Host (cat credentials.json)");
+                        "Write-Host (cat credentials.json)",
+                        "Write-Host ([System.IO.File]::ReadAllLines('credentials.json'))");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4547,6 +4549,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Write-Output (Get-Content report.txt)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Write-Output ([IO.File]::ReadAllText('report.txt'))"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
