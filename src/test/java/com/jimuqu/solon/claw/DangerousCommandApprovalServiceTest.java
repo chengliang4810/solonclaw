@@ -4520,6 +4520,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "cat .env | tee capture.log",
                         "type credentials.json | tee capture.log",
+                        "Get-Content token.json | Tee-Object capture.log",
+                        "Get-Content .env | Out-File capture.log",
+                        "Get-Content credentials.json | Set-Content capture.log",
                         "Get-Content .anthropic_oauth.json | Out-String",
                         "gc .npmrc | Out-Default",
                         "script -q transcript.log -c 'cat service-account.json'");

@@ -842,7 +842,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
-                                                    + "[^\\n|;&]*\\|\\s*(?:tee\\b|Out-String\\b|Out-Default\\b)|(?:^|[;&|\\n`])\\s*script\\b[^\\n|;&]*\\s-c\\s+[\"'][^\"'\\n]*(?:cat|type|Get-Content|gc)\\b[^\"'\\n]*"
+                                                    + "[^\\n|;&]*\\|\\s*(?:tee\\b|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b|Out-String\\b|Out-Default\\b)|(?:^|[;&|\\n`])\\s*script\\b[^\\n|;&]*\\s-c\\s+[\"'][^\"'\\n]*(?:cat|type|Get-Content|gc)\\b[^\"'\\n]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
