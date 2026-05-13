@@ -5715,7 +5715,8 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "const archive = archiver('debug.zip');\narchive.file('.env', { name: '.env' });",
                         "const zip = zip('test-results.zip');\nzip.add('credentials.json');",
-                        "const t = tar('trace.tar.gz');\nt.entry({ name: 'token.json' }, fs.readFileSync('token.json'));");
+                        "const t = tar('trace.tar.gz');\nt.entry({ name: 'token.json' }, fs.readFileSync('token.json'));",
+                        "const token = fs.readFileSync('token.json');\nconst archive = archiver('debug.zip');\narchive.append(token, { name: 'token.txt' });");
         for (String command : jsCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
