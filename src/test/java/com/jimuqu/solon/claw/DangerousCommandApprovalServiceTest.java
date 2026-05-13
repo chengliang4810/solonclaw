@@ -2017,6 +2017,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_persistence_registration");
         assertDangerPattern(
                 env,
+                "New-CimInstance -Namespace root\\subscription -ClassName __EventFilter -Property @{Name='updater'}",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
+                "Set-WmiInstance -Namespace root\\subscription -Class __FilterToConsumerBinding -Arguments @{Filter=$filter;Consumer=$consumer}",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
                 "copy updater.cmd \"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\updater.cmd\"",
                 "windows_persistence_registration");
         assertDangerPattern(
