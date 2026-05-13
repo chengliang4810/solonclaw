@@ -547,6 +547,8 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react.toolLoopHardStopEnabled",
                     "tool_loop_guardrails.warnings_enabled",
                     "tool_loop_guardrails.hard_stop_enabled",
+                    "jimuqu.security.allowPrivateUrls",
+                    "security.allowPrivateUrls",
                     "jimuqu.security.allow_private_urls",
                     "security.allow_private_urls",
                     "jimuqu.browser.allow_private_urls",

@@ -476,6 +476,7 @@ public class RuntimeConfigResolver {
                 "tool_output.max_line_length",
                 "solonclaw.task.mediaCacheTtlHours",
                 "jimuqu.security.allowPrivateUrls",
+                "security.allowPrivateUrls",
                 "jimuqu.security.allow_private_urls",
                 "security.allow_private_urls",
                 "jimuqu.browser.allow_private_urls",

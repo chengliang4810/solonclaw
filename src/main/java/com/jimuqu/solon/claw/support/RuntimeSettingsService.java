@@ -99,6 +99,7 @@ public class RuntimeSettingsService {
                     "gateway.injectionSecret",
                     "gateway.injectionMaxBodyBytes",
                     "gateway.injectionReplayWindowSeconds",
+                    "security.allowPrivateUrls",
                     "security.allow_private_urls",
                     "browser.allow_private_urls",
                     "security.tirithEnabled",
@@ -440,6 +441,7 @@ public class RuntimeSettingsService {
                 || "rollback.enabled".equals(key)
                 || "skills.curator.enabled".equals(key)
                 || "gateway.allowAllUsers".equals(key)
+                || "security.allowPrivateUrls".equals(key)
                 || "security.allow_private_urls".equals(key)
                 || "browser.allow_private_urls".equals(key)
                 || "security.tirithEnabled".equals(key)

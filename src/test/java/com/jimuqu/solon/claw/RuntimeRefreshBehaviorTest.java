@@ -23,6 +23,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -106,6 +107,44 @@ public class RuntimeRefreshBehaviorTest {
                 .contains("tirithEnabled: false")
                 .contains("tirithTimeoutSeconds: 9")
                 .doesNotContain("solonclaw:\n  security:");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
+    void shouldApplyDashboardWebsitePolicyUpdatesToUrlChecksWithoutReconnectingChannels()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        Map<PlatformType, ChannelAdapter> adapters =
+                new LinkedHashMap<PlatformType, ChannelAdapter>();
+        adapters.put(adapter.platform(), adapter);
+        GatewayRuntimeRefreshService refreshService =
+                new GatewayRuntimeRefreshService(
+                        env.appConfig,
+                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
+                                adapters));
+        DashboardConfigService configService = new DashboardConfigService(env.appConfig, refreshService);
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+
+        updates.put("security.allowPrivateUrls", Boolean.TRUE);
+        updates.put("security.websiteBlocklist.enabled", Boolean.TRUE);
+        updates.put(
+                "security.websiteBlocklist.domains",
+                Arrays.asList("blocked.example", "*.tracking.example"));
+        configService.savePartialFlat(updates, false);
+
+        assertThat(policy.checkUrl("http://127.0.0.1:8080/status").isAllowed()).isTrue();
+        SecurityPolicyService.UrlVerdict blocked =
+                policy.checkUrl("https://docs.blocked.example/page?token=secret");
+        assertThat(blocked.isAllowed()).isFalse();
+        assertThat(blocked.getMessage()).contains("blocked.example").doesNotContain("secret");
+        assertThat(policy.checkUrl("https://pixel.tracking.example/p.gif").isAllowed()).isFalse();
+        assertThat(policy.checkUrl("https://tracking.example/p.gif").isAllowed()).isTrue();
+        assertThat(policy.websitePolicySummary().get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(policy.websitePolicySummary().get("configuredDomainCount")).isEqualTo(2);
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -491,6 +530,20 @@ public class RuntimeRefreshBehaviorTest {
                 return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
             }
             return new InetAddress[] {InetAddress.getByName(host)};
+        }
+    }
+
+    private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
+        private final String ip;
+
+        private FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
+            super(appConfig);
+            this.ip = ip;
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            return new InetAddress[] {InetAddress.getByName(ip)};
         }
     }
 

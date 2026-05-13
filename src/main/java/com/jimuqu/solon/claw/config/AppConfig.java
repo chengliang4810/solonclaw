@@ -2544,20 +2544,24 @@ public class AppConfig {
                 readBoolean(
                         props,
                         overrides,
-                        "jimuqu.security.allow_private_urls",
+                        "security.allowPrivateUrls",
                         readBoolean(
                                 props,
                                 overrides,
-                                "security.allow_private_urls",
+                                "jimuqu.security.allow_private_urls",
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "jimuqu.browser.allow_private_urls",
+                                        "security.allow_private_urls",
                                         readBoolean(
                                                 props,
                                                 overrides,
-                                                "browser.allow_private_urls",
-                                                false)))));
+                                                "jimuqu.browser.allow_private_urls",
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "browser.allow_private_urls",
+                                                        false))))));
     }
 
     private static void applyProviderConfiguration(
