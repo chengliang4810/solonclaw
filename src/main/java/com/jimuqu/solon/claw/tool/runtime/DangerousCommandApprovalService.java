@@ -972,6 +972,11 @@ public class DangerousCommandApprovalService {
                                                     + "|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "[^\\n|;&]*\\|\\s*Compare-Object\\b"
+                                                    + "|\\bCompare-Object\\b[^\\n|;&]*"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "[^\\n|;&]*\\|\\s*Compare-Object\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(

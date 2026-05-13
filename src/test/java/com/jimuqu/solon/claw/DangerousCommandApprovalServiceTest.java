@@ -4601,7 +4601,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Compare-Object ([IO.File]::ReadAllText('.env')) $old",
                         "Get-Content token.json | Compare-Object -ReferenceObject $old",
                         "type credentials.json | Compare-Object $old",
-                        "[System.IO.File]::ReadAllLines('credentials.json') | Compare-Object $old");
+                        "[System.IO.File]::ReadAllLines('credentials.json') | Compare-Object $old",
+                        "Compare-Object ([IO.File]::ReadAllBytes('token.json')) $old",
+                        "[System.IO.File]::ReadAllBytes('credentials.json') | Compare-Object $old");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4626,6 +4628,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Compare-Object ([IO.File]::ReadAllText('report.txt')) $old"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Compare-Object ([IO.File]::ReadAllBytes('report.txt')) $old"))
                 .isNull();
     }
 
