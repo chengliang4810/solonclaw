@@ -969,6 +969,16 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult windowsAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "net localgroup Administrators deploy /add");
+        DangerousCommandApprovalService.DetectionResult windowsUserAdd =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "net user backup P@ssw0rd! /add");
+        DangerousCommandApprovalService.DetectionResult windowsLocalUser =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "New-LocalUser -Name backup -Password $pwd");
+        DangerousCommandApprovalService.DetectionResult windowsRemoteGroup =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Add-LocalGroupMember -Group \"Remote Desktop Users\" -Member backup");
         DangerousCommandApprovalService.DetectionResult macAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "dscl . -append /Groups/admin GroupMembership deploy");
@@ -1404,6 +1414,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(gpasswdDocker.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(windowsAdmin).isNotNull();
         assertThat(windowsAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
+        assertThat(windowsUserAdd).isNotNull();
+        assertThat(windowsUserAdd.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsLocalUser).isNotNull();
+        assertThat(windowsLocalUser.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsRemoteGroup).isNotNull();
+        assertThat(windowsRemoteGroup.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(macAdmin).isNotNull();
         assertThat(macAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(timedateSet).isNotNull();
