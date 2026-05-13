@@ -4180,7 +4180,9 @@ public class DangerousCommandApprovalServiceTest {
                         "file client_secret.json",
                         "du -h service-account.json",
                         "wc -c token.json",
-                        "Get-Item .anthropic_oauth.json");
+                        "Get-Item .anthropic_oauth.json",
+                        "dir credentials.json",
+                        "ls token.json");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);

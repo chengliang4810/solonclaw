@@ -930,7 +930,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:(?:^|[;&|\\n`])\\s*(?:ls|stat|file|du|wc)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "|(?:^|[;&|\\n`])\\s*(?:Get-Item|gi|Get-ChildItem|gci)\\b[^\\n|;&]*"
+                                                    + "|(?:^|[;&|\\n`])\\s*(?:Get-Item|gi|Get-ChildItem|gci|dir|ls)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
