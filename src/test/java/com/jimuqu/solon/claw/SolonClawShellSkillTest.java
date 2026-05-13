@@ -280,6 +280,14 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldStripSevenBitOsc52ClipboardSequencesLikeJimuqu() {
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B]52;c;c2VjcmV0\u0007visible"))
+                .isEqualTo("visible");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B]52;c;c2VjcmV0\u001B\\visible"))
+                .isEqualTo("visible");
+    }
+
+    @Test
     void shouldStripEcma48AnsiSequencesLikeJimuqu() {
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B[38:2:255:0:0mred\u001B[0m"))
                 .isEqualTo("red");
