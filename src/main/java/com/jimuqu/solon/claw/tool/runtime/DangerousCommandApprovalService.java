@@ -1548,7 +1548,7 @@ public class DangerousCommandApprovalService {
                                     "windows_audit_policy_disabled",
                                     "Windows audit policy or event log disabled",
                                     pattern(
-                                            "\\b(?:auditpol(?:\\.exe)?\\s+/(?:clear|remove)\\b|auditpol(?:\\.exe)?\\s+/set\\b(?=[^\\n]*(?:/success\\s*:\\s*disable|/failure\\s*:\\s*disable))|wevtutil(?:\\.exe)?\\s+sl\\s+(?:Security|System|Application)\\b(?=[^\\n]*(?:/e\\s*:\\s*false|/enabled\\s*:\\s*false)))"),
+                                            "\\b(?:auditpol(?:\\.exe)?\\s+/(?:clear|remove)\\b|auditpol(?:\\.exe)?\\s+/set\\b(?=[^\\n]*(?:/success\\s*:\\s*disable|/failure\\s*:\\s*disable))|wevtutil(?:\\.exe)?\\s+sl\\s+(?:Security|System|Application)\\b(?=[^\\n]*(?:/e\\s*:\\s*false|/enabled\\s*:\\s*false|/ms\\s*:\\s*(?:0|[1-9][0-9]{0,4})\\b))|Limit-EventLog\\b(?=[^\\n]*(?:-LogName\\s+(?:Security|System|Application)\\b))(?=[^\\n]*-MaximumSize\\s+(?:\\d{1,4}(?:KB|MB|Bytes)?|0)\\b)|Set-LogProperties\\b(?=[^\\n]*(?:-LogName\\s+(?:Security|System|Application)\\b))(?=[^\\n]*-MaximumSizeInBytes\\s+(?:0|[1-9][0-9]{0,5})\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_firewall",

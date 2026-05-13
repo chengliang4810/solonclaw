@@ -1938,6 +1938,22 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_audit_policy_disabled");
         assertDangerPattern(
                 env,
+                "wevtutil sl Security /ms:0",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "wevtutil.exe sl System /ms:1024",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "Limit-EventLog -LogName Security -MaximumSize 64KB",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "Set-LogProperties -LogName Application -MaximumSizeInBytes 0",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
                 "netsh advfirewall set allprofiles state off",
                 "windows_disable_firewall");
         assertDangerPattern(
