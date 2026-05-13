@@ -5700,7 +5700,8 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "z = zipfile.ZipFile('debug.zip', 'w')\nz.write('.env')",
                         "archive = zipfile.ZipFile('test-results.zip', 'w')\narchive.writestr('token.txt', Path('token.json').read_text())",
-                        "tar = tarfile.open('trace.tar.gz', 'w:gz')\ntar.add('credentials.json')");
+                        "tar = tarfile.open('trace.tar.gz', 'w:gz')\ntar.add('credentials.json')",
+                        "payload = pathlib.Path('token.json').read_text()\narchive = zipfile.ZipFile('debug.zip', 'w')\narchive.writestr('token.txt', payload)");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
