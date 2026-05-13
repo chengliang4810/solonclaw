@@ -5742,7 +5742,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "pyperclip.copy(open('.env').read())",
                         "clipboard.set(Path('credentials.json').read_text())",
-                        "token = Path('token.json').read_text()\npyperclip.copy(token)");
+                        "clipboard.set(pathlib.Path('credentials.json').read_text())",
+                        "token = Path('token.json').read_text()\npyperclip.copy(token)",
+                        "token = pathlib.Path('token.json').read_text()\npyperclip.copy(token)");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
