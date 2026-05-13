@@ -5476,7 +5476,8 @@ public class DangerousCommandApprovalServiceTest {
                         "sys.stderr.write(open('token.json', 'r').read())",
                         "logging.info(open('.npmrc').read())",
                         "logger.error(Path('oauth_creds.json').read_text())",
-                        "print(Path('service-account.json').read_text())");
+                        "print(Path('service-account.json').read_text())",
+                        "print(pathlib.Path('token.json').read_text())");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);

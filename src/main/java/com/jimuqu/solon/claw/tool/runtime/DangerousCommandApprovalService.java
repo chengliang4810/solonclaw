@@ -1939,7 +1939,7 @@ public class DangerousCommandApprovalService {
                                     "python_credential_file_stdout",
                                     "Python prints credential file content",
                                     pattern(
-                                            "\\b(?:print|sys\\.(?:stdout|stderr)\\.write|(?:logging|logger)\\.(?:debug|info|warning|warn|error|exception|critical))\\s*\\([^\\n]*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))"),
+                                            "\\b(?:print|sys\\.(?:stdout|stderr)\\.write|(?:logging|logger)\\.(?:debug|info|warning|warn|error|exception|critical))\\s*\\([^\\n]*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|(?:pathlib\\.)?Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
                                     "python_credential_file_variable_stdout",
