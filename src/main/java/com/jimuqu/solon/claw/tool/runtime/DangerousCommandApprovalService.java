@@ -1562,7 +1562,7 @@ public class DangerousCommandApprovalService {
                                     "windows_security_registry_weaken",
                                     "Windows SmartScreen or attachment policy weakened",
                                     pattern(
-                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Explorer\\b[^\\n]*(?:SmartScreenEnabled|ShellSmartScreenLevel)\\b[^\\n]*(?:/d\\s+(?:Off|0|0x0)|-Value\\s+(?:Off|0\\b|0x0\\b)))|(?:System\\b[^\\n]*EnableSmartScreen\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Attachments\\b[^\\n]*SaveZoneInformation\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Explorer\\b[^\\n]*(?:SmartScreenEnabled|ShellSmartScreenLevel)\\b[^\\n]*(?:/d\\s+(?:Off|Warn|0|0x0)|-Value\\s+(?:Off|Warn|0\\b|0x0\\b)))|(?:System\\b[^\\n]*(?:EnableSmartScreen|ConfigureAppInstallControl)\\b[^\\n]*(?:/d\\s+(?:Anywhere|0|0x0)|-Value\\s+(?:Anywhere|0\\b|0x0\\b)))|(?:Attachments\\b[^\\n]*SaveZoneInformation\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_security_registry_weaken",

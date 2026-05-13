@@ -1988,6 +1988,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer -Name ShellSmartScreenLevel -Value Warn",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System /v ConfigureAppInstallControl /t REG_SZ /d Anywhere /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Attachments -Name SaveZoneInformation -Value 1",
                 "windows_security_registry_weaken");
         assertDangerPattern(
