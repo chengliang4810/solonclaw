@@ -1563,6 +1563,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:(?:New|Set)-NetFirewallRule\\b(?=[^\\n]*-Direction\\s+Inbound\\b)(?=[^\\n]*-Action\\s+Allow\\b)|(?:New|Set)-NetFirewallRule\\b(?=[^\\n]*-Action\\s+Allow\\b)(?=[^\\n]*-RemoteAddress\\s+(?:Any|0\\.0\\.0\\.0/0|::/0)\\b)|Set-NetFirewallProfile\\b(?=[^\\n]*-DefaultInboundAction\\s+Allow\\b)|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*FirewallPolicy\\\\(?:DomainProfile|PublicProfile|StandardProfile)\\b[^\\n]*DefaultInboundAction\\b[^\\n]*(?:/d\\s+2|/d\\s+0x2|-Value\\s+2\\b|-Value\\s+0x2\\b)|Enable-NetFirewallRule\\b(?=[^\\n]*(?:-DisplayName|-Name|-Group)\\s+(?:\"[^\"]*(?:RDP|Remote\\s+Desktop|Remote\\s+Assistance|WinRM|OpenSSH|SSH)[^\"]*\"|'[^']*(?:RDP|Remote\\s+Desktop|Remote\\s+Assistance|WinRM|OpenSSH|SSH)[^']*'|\\S*(?:RDP|RemoteDesktop|RemoteAssistance|WinRM|OpenSSH|SSH)\\S*))|netsh\\s+advfirewall\\s+set\\s+(?:allprofiles|currentprofile|domainprofile|privateprofile|publicprofile)\\s+firewallpolicy\\s+allowinbound\\b|netsh\\s+advfirewall\\s+firewall\\s+add\\s+rule\\b(?=[^\\n]*\\bdir\\s*=\\s*in\\b)(?=[^\\n]*\\baction\\s*=\\s*allow\\b)|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b(?=[^\\n]*\\bnew\\s+dir\\s*=\\s*in\\b)(?=[^\\n]*\\baction\\s*=\\s*allow\\b)|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b(?=[^\\n]*(?:\\bgroup\\s*=\\s*\"?[^\"]*(?:Remote\\s+Desktop|Remote\\s+Assistance|WinRM|OpenSSH|SSH)[^\"]*\"?|\\bname\\s*=\\s*\"?[^\"]*(?:Remote\\s+Desktop|Remote\\s+Assistance|RDP|WinRM|OpenSSH|SSH)[^\"]*\"?))(?=[^\\n]*\\bnew\\s+enable\\s*=\\s*yes\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_firewall_inbound_allow",
+                                    "Windows inbound firewall registry rule added",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*FirewallRules\\b(?=[^\\n]*(?:Action=Allow|Action\\s*=\\s*Allow))(?=[^\\n]*(?:Dir=In|Direction=In|Dir\\s*=\\s*In|Direction\\s*=\\s*In))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_disable_defender",
                                     "Windows Defender protection disabled",
                                     pattern(

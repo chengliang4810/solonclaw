@@ -2026,6 +2026,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules /v OpenAdmin /t REG_SZ /d \"v2.30|Action=Allow|Dir=In|Protocol=6|LPort=5985|\" /f",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules -Name OpenSsh -Value \"v2.30|Action=Allow|Direction=In|Protocol=6|LPort=22|\"",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Enable-NetFirewallRule -DisplayName \"Remote Desktop - User Mode (TCP-In)\"",
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
