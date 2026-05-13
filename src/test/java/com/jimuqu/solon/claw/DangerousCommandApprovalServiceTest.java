@@ -5677,6 +5677,8 @@ public class DangerousCommandApprovalServiceTest {
 
         List<String> pythonCommands =
                 Arrays.asList(
+                        "open('debug.log', 'w').write(base64.b64encode(pathlib.Path('token.json').read_bytes()))",
+                        "encoded = base64.b64encode(Path('credentials.json').read_bytes())\nPath('trace.txt').write_text(encoded)",
                         "open('debug.log', 'w').write(open('.env').read())",
                         "Path('trace.txt').write_text(Path('credentials.json').read_text())",
                         "pathlib.Path('trace.txt').write_text(pathlib.Path('credentials.json').read_text())",
@@ -5686,13 +5688,21 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("python_credential_file_debug_artifact_write");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_base64_debug_artifact_write");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_debug_artifact_write");
+            }
         }
 
         List<String> jsCommands =
                 Arrays.asList(
+                        "fs.writeFileSync('debug.log', fs.readFileSync('token.json').toString('base64'))",
+                        "const encoded = Buffer.from(fs.readFileSync('credentials.json')).toString('base64');\nfs.writeFileSync('trace.txt', encoded);",
                         "fs.writeFileSync('debug.log', fs.readFileSync('.env', 'utf8'))",
                         "fs.appendFileSync('trace.txt', await fs.promises.readFile('credentials.json', 'utf8'))",
                         "const token = fs.readFileSync('token.json', 'utf8');\nfs.writeFileSync('junit.xml', token);");
@@ -5700,9 +5710,15 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("js_credential_file_debug_artifact_write");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_base64_debug_artifact_write");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_debug_artifact_write");
+            }
         }
 
         assertThat(
