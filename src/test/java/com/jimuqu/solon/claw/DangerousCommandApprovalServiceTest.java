@@ -1920,6 +1920,16 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v RestrictSendingNTLMTraffic /t REG_DWORD /d 0 /f",
                 "windows_security_registry_weaken");
+        assertDangerPattern(env, "net accounts /minpwlen:0", "windows_account_policy_weaken");
+        assertDangerPattern(env, "net accounts /lockoutthreshold:0", "windows_account_policy_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v PasswordComplexity /t REG_DWORD /d 0 /f",
+                "windows_account_policy_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa -Name ClearTextPassword -Value 0",
+                "windows_account_policy_weaken");
         assertDangerPattern(
                 env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v FilterAdministratorToken /t REG_DWORD /d 0 /f",

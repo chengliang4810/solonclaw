@@ -1529,6 +1529,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:MSV1_0|Control\\\\Lsa)\\b[^\\n]*(?:(?:NtlmMin(?:Client|Server)Sec\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Restrict(?:Sending|Receiving)NTLMTraffic\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_account_policy_weaken",
+                                    "Windows account password or lockout policy weakened",
+                                    pattern(
+                                            "\\b(?:net(?:\\.exe)?\\s+accounts\\b(?=[^\\n]*(?:(?:/minpwlen\\s*:\\s*[0-7]\\b)|(?:/lockoutthreshold\\s*:\\s*0\\b)|(?:/maxpwage\\s*:\\s*unlimited\\b)))|(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Control\\\\Lsa\\b[^\\n]*(?:PasswordComplexity|ClearTextPassword)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_security_registry_weaken",
                                     "Windows UAC or installer elevation policy weakened",
                                     pattern(
