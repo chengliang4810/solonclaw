@@ -975,6 +975,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult windowsLocalUser =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "New-LocalUser -Name backup -Password $pwd");
+        DangerousCommandApprovalService.DetectionResult windowsUserDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "net user backup /delete");
+        DangerousCommandApprovalService.DetectionResult windowsLocalUserDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Disable-LocalUser -Name backup");
         DangerousCommandApprovalService.DetectionResult windowsRemoteGroup =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
@@ -1418,6 +1424,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsUserAdd.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(windowsLocalUser).isNotNull();
         assertThat(windowsLocalUser.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsUserDelete).isNotNull();
+        assertThat(windowsUserDelete.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsLocalUserDisable).isNotNull();
+        assertThat(windowsLocalUserDisable.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(windowsRemoteGroup).isNotNull();
         assertThat(windowsRemoteGroup.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(macAdmin).isNotNull();
