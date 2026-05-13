@@ -11503,6 +11503,43 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("凭据");
         assertThat(service.getPendingApproval(compactWgetCredentialTrace.session)).isNull();
 
+        Map<String, Object> curlOutputDirCredentialArgs = new LinkedHashMap<String, Object>();
+        curlOutputDirCredentialArgs.put(
+                "command", "curl https://example.invalid/token --output-dir .aws");
+        Map<String, Object> gatewayCurlOutputDirCredential = new LinkedHashMap<String, Object>();
+        gatewayCurlOutputDirCredential.put("tool_name", "terminal_run");
+        gatewayCurlOutputDirCredential.put("tool_args", curlOutputDirCredentialArgs);
+        TestTrace curlOutputDirCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(curlOutputDirCredentialTrace, "call_tool", gatewayCurlOutputDirCredential);
+
+        assertThat(curlOutputDirCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(curlOutputDirCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+        assertThat(service.getPendingApproval(curlOutputDirCredentialTrace.session)).isNull();
+
+        Map<String, Object> wgetDirectoryPrefixCredentialArgs = new LinkedHashMap<String, Object>();
+        wgetDirectoryPrefixCredentialArgs.put(
+                "command", "wget https://example.invalid/token --directory-prefix=.aws");
+        Map<String, Object> gatewayWgetDirectoryPrefixCredential = new LinkedHashMap<String, Object>();
+        gatewayWgetDirectoryPrefixCredential.put("tool_name", "terminal_run");
+        gatewayWgetDirectoryPrefixCredential.put("tool_args", wgetDirectoryPrefixCredentialArgs);
+        TestTrace wgetDirectoryPrefixCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(
+                        wgetDirectoryPrefixCredentialTrace,
+                        "call_tool",
+                        gatewayWgetDirectoryPrefixCredential);
+
+        assertThat(wgetDirectoryPrefixCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(wgetDirectoryPrefixCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+        assertThat(service.getPendingApproval(wgetDirectoryPrefixCredentialTrace.session)).isNull();
+
         Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
         patchArgs.put(
                 "patch",

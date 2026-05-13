@@ -1086,8 +1086,11 @@ public class SecurityPolicyService {
                 || "-d".equals(token)
                 || "--output".equals(token)
                 || "--output-document".equals(token)
+                || "--output-dir".equals(token)
+                || "--directory-prefix".equals(token)
                 || "--out".equals(token)
                 || "--dir".equals(token)
+                || "-P".equals(token)
                 || "-outfile".equalsIgnoreCase(token)
                 || "-destination".equalsIgnoreCase(token);
     }
@@ -1112,11 +1115,20 @@ public class SecurityPolicyService {
         if (token.startsWith("--output-document=")) {
             return token.substring("--output-document=".length());
         }
+        if (token.startsWith("--output-dir=")) {
+            return token.substring("--output-dir=".length());
+        }
+        if (token.startsWith("--directory-prefix=")) {
+            return token.substring("--directory-prefix=".length());
+        }
         if (token.startsWith("--out=")) {
             return token.substring("--out=".length());
         }
         if (token.startsWith("--dir=")) {
             return token.substring("--dir=".length());
+        }
+        if (token.startsWith("-P") && !token.startsWith("--")) {
+            return token.substring(2);
         }
         if (startsWithPowerShellOptionValue(token, "-OutFile")) {
             return token.substring("-OutFile".length() + 1);
