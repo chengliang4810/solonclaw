@@ -1826,7 +1826,7 @@ public class DangerousCommandApprovalService {
                                     "powershell_sensitive_file_copy",
                                     "PowerShell copy or move to sensitive credential file",
                                     pattern(
-                                            "\\b(?:Copy-Item|Move-Item|cp|cpi|mv|mi)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)\\s+)?[\"']?"
+                                            "\\b(?:Copy-Item|Move-Item|cp|cpi|mv|mi)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)(?:\\s+|[:=]))?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"
                                                     + COMMAND_TAIL),

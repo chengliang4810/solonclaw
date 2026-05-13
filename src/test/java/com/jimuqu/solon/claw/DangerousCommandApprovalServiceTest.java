@@ -2775,6 +2775,14 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(env, "mi token.json credentials.json", "powershell_sensitive_file_copy");
         assertDangerPattern(
                 env,
+                "Copy-Item template.env -Destination:.env",
+                "powershell_sensitive_file_copy");
+        assertDangerPattern(
+                env,
+                "Move-Item token.json -Destination=credentials.json",
+                "powershell_sensitive_file_copy");
+        assertDangerPattern(
+                env,
                 "copy template.env .env.local /Y",
                 "windows_sensitive_file_copy");
         assertDangerPattern(
