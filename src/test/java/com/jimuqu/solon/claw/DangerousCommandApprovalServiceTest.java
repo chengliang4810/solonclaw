@@ -10061,8 +10061,10 @@ public class DangerousCommandApprovalServiceTest {
         pending.setCommand(
                 "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz curl "
                         + "'https://api.example.test/run?access_token=sk-proj-abcdefghijklmnopqrstuvwxyz"
+                        + "&accessToken=camel-access-secret"
                         + "&api%255Fkey=encoded-card-secret"
-                        + ";client_secret=semicolon-card-secret#token=fragment-card-secret'");
+                        + ";client_secret=semicolon-card-secret#token=fragment-card-secret' "
+                        + "clientSecret=assignment-card-secret");
         pending.setApprovalId("approval-secret");
 
         Map<String, Object> extras =
@@ -10072,12 +10074,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalCommand").toString()).doesNotContain("sk-proj-abc");
         assertThat(extras.get("approvalCommand").toString()).contains("OPENAI_API_KEY=***");
         assertThat(extras.get("approvalCommand").toString()).contains("access_token=***");
+        assertThat(extras.get("approvalCommand").toString()).contains("accessToken=***");
         assertThat(extras.get("approvalCommand").toString()).contains("api%255Fkey=***");
         assertThat(extras.get("approvalCommand").toString()).contains("client_secret=***");
+        assertThat(extras.get("approvalCommand").toString()).contains("clientSecret=***");
         assertThat(extras.get("approvalCommand").toString()).contains("token=***");
+        assertThat(extras.get("approvalCommand").toString()).doesNotContain("camel-access-secret");
         assertThat(extras.get("approvalCommand").toString()).doesNotContain("encoded-card-secret");
         assertThat(extras.get("approvalCommand").toString()).doesNotContain("semicolon-card-secret");
         assertThat(extras.get("approvalCommand").toString()).doesNotContain("fragment-card-secret");
+        assertThat(extras.get("approvalCommand").toString()).doesNotContain("assignment-card-secret");
         assertThat(extras.get("approvalDescription").toString())
                 .doesNotContain("ghp_abcdefghijklmnop");
         assertThat(pending.getCommand()).contains("sk-proj-abcdefghijklmnopqrstuvwxyz");

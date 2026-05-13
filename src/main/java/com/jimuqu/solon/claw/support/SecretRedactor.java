@@ -16,7 +16,7 @@ public final class SecretRedactor {
                     "\\b([A-Z0-9_]{0,50}(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Z0-9_]{0,50})(=)(['\"]?)(\\S+)\\3");
     private static final Pattern SHELL_KEY_VALUE =
             Pattern.compile(
-                    "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|access[_-]?token|refresh[_-]?token|bearer[_-]?token|client[_-]?secret|private[_-]?key)(=)([^\\s,;\"'}]+)");
+                    "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|access[_-]?token|refresh[_-]?token|bearer[_-]?token|client[_-]?secret|private[_-]?key)(=)([^\\s,;&=\"#'}]+)");
     private static final Pattern JSON_FIELD =
             Pattern.compile(
                     "(?i)(\"(?:api_?key|token|secret|password|access_?token|refresh_?token|auth_?token|bearer_?token|client_?secret|secret_?value|raw_?secret|secret_?input|key_?material|private_?key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
@@ -40,7 +40,8 @@ public final class SecretRedactor {
     private static final String SENSITIVE_QUERY_NAMES =
             "access_token|refresh_token|id_token|auth_token|oauth_token|authorization|proxy_authorization|bearer_token|code_verifier|client_assertion|saml_response|samlresponse|token|access_key|secret_key|session_token|api_key|apikey|client_secret|password|private_key|auth|jwt|session|secret|key|code|signature|security_token|x-amz-signature|x_amz_signature|x_amz_credential|x_amz_security_token|x_goog_signature|x_goog_credential|x_oss_signature|x_oss_security_token|x_cos_signature|x_cos_security_token|x_obs_signature|x_obs_security_token|x_ms_signature";
     private static final Pattern SENSITIVE_QUERY =
-            Pattern.compile("(?i)([?&](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&#\\s]+");
+            Pattern.compile(
+                    "(?i)([?&;](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&;#\\s]+");
     private static final Pattern SENSITIVE_PATH =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_])("
