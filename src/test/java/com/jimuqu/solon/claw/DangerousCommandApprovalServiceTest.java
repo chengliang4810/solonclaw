@@ -2009,6 +2009,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_persistence_registration");
         assertDangerPattern(
                 env,
+                "New-ItemProperty -Path HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run -Name updater -Value payload.exe",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce' -Name updater -Value payload.exe",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
                 "copy updater.cmd \"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\updater.cmd\"",
                 "windows_persistence_registration");
         assertDangerPattern(

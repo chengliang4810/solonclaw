@@ -1590,7 +1590,7 @@ public class DangerousCommandApprovalService {
                                     "windows_persistence_registration",
                                     "Windows scheduled task or startup persistence",
                                     pattern(
-                                            "\\b(?:schtasks(?:\\.exe)?\\s+/create|Register-ScheduledTask\\b|New-ScheduledTask\\b|reg(?:\\.exe)?\\s+(?:add|copy)\\b[^\\n]*(?:\\\\CurrentVersion\\\\Run(?:Once)?\\b|\\\\RunServices(?:Once)?\\b)|(?:copy|xcopy|robocopy|Copy-Item|Set-Content|Add-Content|Out-File)\\b[^\\n]*(?:\\\\Microsoft\\\\Windows\\\\Start\\s+Menu\\\\Programs\\\\Startup\\\\|\\\\Start Menu\\\\Programs\\\\Startup\\\\))"),
+                                            "\\b(?:schtasks(?:\\.exe)?\\s+/create|Register-ScheduledTask\\b|New-ScheduledTask\\b|reg(?:\\.exe)?\\s+(?:add|copy)\\b[^\\n]*(?:\\\\CurrentVersion\\\\Run(?:Once)?\\b|\\\\RunServices(?:Once)?\\b)|(?:New|Set)-ItemProperty\\b[^\\n]*(?:\\\\CurrentVersion\\\\Run(?:Once)?\\b|\\\\RunServices(?:Once)?\\b)|(?:copy|xcopy|robocopy|Copy-Item|Set-Content|Add-Content|Out-File)\\b[^\\n]*(?:\\\\Microsoft\\\\Windows\\\\Start\\s+Menu\\\\Programs\\\\Startup\\\\|\\\\Start Menu\\\\Programs\\\\Startup\\\\))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_export_credentials",
