@@ -1678,6 +1678,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_defender",
+                                    "Windows Defender realtime registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*Windows Defender\\\\Real-Time Protection\\b[^\\n]*(?:Disable(?:RealtimeMonitoring|BehaviorMonitoring|OnAccessProtection|ScanOnRealtimeEnable|IOAVProtection|ScriptScanning|IntrusionPreventionSystem)\\b[^\\n]*(?:/d\\s+1\\b|/d\\s+0x1\\b|-Value\\s+1\\b|-Value\\s+0x1\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_disable_defender",
                                     "Windows Defender visibility or notifications disabled",
                                     pattern(
                                             "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\\\Reporting\\b[^\\n]*Disable(?:Enhanced)?Notifications\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Windows Defender\\\\UX Configuration\\b[^\\n]*UILockdown\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b))|(?:Explorer\\b[^\\n]*HideSCAHealth\\b[^\\n]*(?:/d\\s+1|/d\\s+0x1|-Value\\s+1\\b|-Value\\s+0x1\\b)))"),

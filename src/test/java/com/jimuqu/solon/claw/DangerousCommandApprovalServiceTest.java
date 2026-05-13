@@ -2359,6 +2359,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\" /v DisableOnAccessProtection /t REG_DWORD /d 1 /f",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection' -Name DisableScanOnRealtimeEnable -Value 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Reporting /v DisableEnhancedNotifications /t REG_DWORD /d 1 /f",
                 "windows_disable_defender");
         assertDangerPattern(
