@@ -316,9 +316,14 @@ public class SecurityPolicyService {
                     "refresh_token",
                     "id_token",
                     "auth_token",
+                    "oauth_token",
                     "authorization",
                     "proxy_authorization",
                     "bearer_token",
+                    "code_verifier",
+                    "client_assertion",
+                    "saml_response",
+                    "samlresponse",
                     "token",
                     "access_key",
                     "secret_key",
@@ -4128,9 +4133,14 @@ public class SecurityPolicyService {
                 || "refresh_token".equals(name)
                 || "id_token".equals(name)
                 || "auth_token".equals(name)
+                || "oauth_token".equals(name)
                 || "authorization".equals(name)
                 || "proxy_authorization".equals(name)
                 || "bearer_token".equals(name)
+                || "code_verifier".equals(name)
+                || "client_assertion".equals(name)
+                || "saml_response".equals(name)
+                || "samlresponse".equals(name)
                 || "access_key".equals(name)
                 || "secret_key".equals(name)
                 || "session_token".equals(name)
