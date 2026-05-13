@@ -574,6 +574,9 @@ public class DangerousCommandApprovalService {
                                                     + "|\\b(?:Get-Item|Get-ChildItem|gi|gci|ls|dir)\\b[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n|;&]*\\|\\s*Get-FileHash\\b"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "[^\\n|;&]*\\|\\s*Get-FileHash\\b"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(

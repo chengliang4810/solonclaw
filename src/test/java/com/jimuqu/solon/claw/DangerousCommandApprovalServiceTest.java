@@ -4832,7 +4832,9 @@ public class DangerousCommandApprovalServiceTest {
                         "openssl pkcs12 -in client_secret.p12 -info -noout",
                         "ssh-keygen -lf id_rsa",
                         "Get-Item token.json | Get-FileHash",
-                        "gi credentials.json | Get-FileHash");
+                        "gi credentials.json | Get-FileHash",
+                        "[IO.File]::ReadAllBytes('token.json') | Get-FileHash",
+                        "[System.IO.File]::ReadAllBytes('credentials.json') | Get-FileHash");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4859,6 +4861,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Get-FileHash report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | Get-FileHash"))
                 .isNull();
     }
 
