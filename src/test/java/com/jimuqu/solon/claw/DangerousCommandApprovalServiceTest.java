@@ -1882,6 +1882,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v LmCompatibilityLevel /t REG_DWORD /d 1 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa -Name NoLMHash -Value 0",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System /v EnableSmartScreen /t REG_DWORD /d 0 /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
