@@ -1762,6 +1762,30 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Features /v TamperProtection /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v RunAsPPL /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v LsaCfgFlags /t REG_DWORD /d 0x0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest /v UseLogonCredential /t REG_DWORD /d 1 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa -Name RunAsPPLBoot -Value 0",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest -Name UseLogonCredential -Value 0x1",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add HKLM\\SOFTWARE\\Microsoft\\PowerShell\\1\\PowerShellEngine /v ExecutionPolicy /d Bypass /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
