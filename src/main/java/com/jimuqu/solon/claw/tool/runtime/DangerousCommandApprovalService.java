@@ -2043,6 +2043,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']\\s*\\]\\s*="),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "js_credential_file_base64_stdout",
+                                    "JavaScript prints base64-encoded credential file content",
+                                    pattern(
+                                            "(?:\\b(?:console\\.(?:log|info|warn|error)|process\\.(?:stdout|stderr)\\.write)\\s*\\([^\\n]*(?:Buffer\\.from\\s*\\(\\s*(?:fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)|await\\s+fs\\.promises\\.readFile\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\))\\s*\\)\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\)|fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\))|\\b(?:const|let|var)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:Buffer\\.from\\s*\\(\\s*)?(?:fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)|await\\s+fs\\.promises\\.readFile\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\))(?:\\s*\\))?\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\)[\\s\\S]{0,1200}\\b(?:console\\.(?:log|info|warn|error)|process\\.(?:stdout|stderr)\\.write)\\s*\\([^\\n)]*\\b\\1\\b)"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "js_credential_file_stdout",
                                     "JavaScript prints credential file content",
                                     pattern(

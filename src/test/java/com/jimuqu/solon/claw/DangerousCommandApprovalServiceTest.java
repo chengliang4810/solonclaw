@@ -5508,6 +5508,9 @@ public class DangerousCommandApprovalServiceTest {
 
         List<String> jsCommands =
                 Arrays.asList(
+                        "console.log(fs.readFileSync('.env').toString('base64'))",
+                        "console.error(Buffer.from(await fs.promises.readFile('credentials.json')).toString('base64'))",
+                        "const encoded = fs.readFileSync('token.json').toString('base64');\nprocess.stdout.write(encoded);",
                         "console.log(fs.readFileSync('.env', 'utf8'))",
                         "console.error(fs.readFileSync('credentials.json'))",
                         "console.info(await fs.promises.readFile('token.json', 'utf8'))",
@@ -5517,7 +5520,13 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey()).as(command).isEqualTo("js_credential_file_stdout");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_base64_stdout");
+            } else {
+                assertThat(result.getPatternKey()).as(command).isEqualTo("js_credential_file_stdout");
+            }
         }
 
         List<String> pythonVariableCommands =
