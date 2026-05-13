@@ -41,6 +41,21 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactCamelCaseJsonSecrets() {
+        String result =
+                SecretRedactor.redact(
+                        "{\"accessToken\":\"access-secret\",\"clientSecret\":\"client-secret\",\"privateKey\":\"private-secret\"}");
+
+        assertThat(result)
+                .contains("\"accessToken\":\"***\"")
+                .contains("\"clientSecret\":\"***\"")
+                .contains("\"privateKey\":\"***\"")
+                .doesNotContain("access-secret")
+                .doesNotContain("client-secret")
+                .doesNotContain("private-secret");
+    }
+
+    @Test
     void shouldRedactUrlsPrivateKeysAndDatabasePasswordsLikeJimuqu() {
         String result =
                 SecretRedactor.redact(

@@ -19,7 +19,7 @@ public final class SecretRedactor {
                     "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|client[_-]?secret)(=)([^\\s,;\"'}]+)");
     private static final Pattern JSON_FIELD =
             Pattern.compile(
-                    "(?i)(\"(?:api_?key|token|secret|password|access_token|refresh_token|auth_token|bearer|secret_value|raw_secret|secret_input|key_material|private_key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
+                    "(?i)(\"(?:api_?key|token|secret|password|access_?token|refresh_?token|auth_?token|bearer_?token|client_?secret|secret_?value|raw_?secret|secret_?input|key_?material|private_?key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
     private static final Pattern ENCODED_URL_USERINFO =
