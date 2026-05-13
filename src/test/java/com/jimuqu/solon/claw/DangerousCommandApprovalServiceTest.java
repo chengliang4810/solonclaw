@@ -2015,6 +2015,15 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Copy-Item \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\NTDS\\ntds.dit C:\\Temp\\ntds.dit",
                 "windows_credential_material_dump");
+        assertDangerPattern(env, "mimikatz.exe \"sekurlsa::logonpasswords\"", "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "python secretsdump.py domain/user:pass@dc.example.local",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "pypykatz lsa minidump lsass.dmp",
+                "windows_credential_material_dump");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertDangerPattern(
                 env, "vaultcmd /listcreds:\"Windows Credentials\"", "windows_credential_manager_read");
