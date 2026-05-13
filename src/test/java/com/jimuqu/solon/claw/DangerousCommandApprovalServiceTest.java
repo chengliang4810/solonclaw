@@ -1842,6 +1842,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "Enable-NetFirewallRule -DisplayName \"Remote Desktop - User Mode (TCP-In)\"",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "Enable-NetFirewallRule -Name OpenSSH-Server-In-TCP",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -DisableRealtimeMonitoring $true",
                 "windows_disable_defender");
         assertDangerPattern(
