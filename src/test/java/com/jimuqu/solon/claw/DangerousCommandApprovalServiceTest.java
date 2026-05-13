@@ -4726,6 +4726,8 @@ public class DangerousCommandApprovalServiceTest {
                         "Get-Content .env | Out-File capture.log",
                         "[IO.File]::ReadAllText('.env') | Out-File capture.log",
                         "[System.IO.File]::ReadAllLines('credentials.json') | Out-String",
+                        "[IO.File]::ReadAllBytes('token.json') | Out-File capture.bin",
+                        "[System.IO.File]::ReadAllBytes('credentials.json') | Out-String",
                         "Get-Content credentials.json | Set-Content capture.log",
                         "Get-Content .anthropic_oauth.json | Out-String",
                         "gc .npmrc | Out-Default",
@@ -4751,6 +4753,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "[IO.File]::ReadAllText('report.txt') | Out-File capture.log"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.txt') | Out-String"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

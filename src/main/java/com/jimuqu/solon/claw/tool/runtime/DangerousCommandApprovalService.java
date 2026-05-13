@@ -1017,6 +1017,9 @@ public class DangerousCommandApprovalService {
                                                     + "|"
                                                     + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + "[^\\n|;&]*\\|\\s*(?:(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b)(?![^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine))|Out-String\\b|Out-Default\\b)"
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:(?:tee\\b(?:\\s+-a\\b)?|Tee-Object\\b|Out-File\\b|Set-Content\\b|Add-Content\\b)(?![^\\n|;&]*(?:\\.bash_history|\\.zsh_history|ConsoleHost_history\\.txt|PSReadLine))|Out-String\\b|Out-Default\\b)"
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
