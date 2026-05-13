@@ -4874,7 +4874,9 @@ public class DangerousCommandApprovalServiceTest {
                         "od -An -tx1 client_secret.json",
                         "Format-Hex .anthropic_oauth.json",
                         "Get-Content token.json | Format-Hex",
-                        "type credentials.json | Format-Hex");
+                        "type credentials.json | Format-Hex",
+                        "[IO.File]::ReadAllBytes('token.json') | Format-Hex",
+                        "[System.IO.File]::ReadAllBytes('credentials.json') | Format-Hex");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4897,6 +4899,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Format-Hex report.bin"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "[IO.File]::ReadAllBytes('report.bin') | Format-Hex"))
                 .isNull();
     }
 
