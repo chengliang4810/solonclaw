@@ -1605,6 +1605,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:auditpol(?:\\.exe)?\\s+/(?:clear|remove)\\b|auditpol(?:\\.exe)?\\s+/set\\b(?=[^\\n]*(?:/success\\s*:\\s*disable|/failure\\s*:\\s*disable))|wevtutil(?:\\.exe)?\\s+sl\\s+(?:Security|System|Application)\\b(?=[^\\n]*(?:/e\\s*:\\s*false|/enabled\\s*:\\s*false|/ms\\s*:\\s*(?:0|[1-9][0-9]{0,4})\\b))|Limit-EventLog\\b(?=[^\\n]*(?:-LogName\\s+(?:Security|System|Application)\\b))(?=[^\\n]*-MaximumSize\\s+(?:\\d{1,4}(?:KB|MB|Bytes)?|0)\\b)|Set-LogProperties\\b(?=[^\\n]*(?:-LogName\\s+(?:Security|System|Application)\\b))(?=[^\\n]*-MaximumSizeInBytes\\s+(?:0|[1-9][0-9]{0,5})\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_audit_policy_disabled",
+                                    "Windows audit registry policy weakened",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Policies\\\\System\\\\Audit\\b[^\\n]*SCENoApplyLegacyAuditPolicy\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Control\\\\Lsa\\b[^\\n]*(?:AuditBaseObjects|AuditBaseDirectories|CrashOnAuditFail)\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(

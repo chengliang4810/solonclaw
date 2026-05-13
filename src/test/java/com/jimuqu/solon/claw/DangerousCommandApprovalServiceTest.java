@@ -2086,6 +2086,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_audit_policy_disabled");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa /v AuditBaseObjects /t REG_DWORD /d 0 /f",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa -Name CrashOnAuditFail -Value 0",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Policies\\System\\Audit /v SCENoApplyLegacyAuditPolicy /t REG_DWORD /d 0 /f",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
                 "netsh advfirewall set allprofiles state off",
                 "windows_disable_firewall");
         assertDangerPattern(
