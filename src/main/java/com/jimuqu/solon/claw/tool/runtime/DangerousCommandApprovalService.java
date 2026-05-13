@@ -106,6 +106,10 @@ public class DangerousCommandApprovalService {
             "\\[(?:IO|System\\.IO)\\.File\\]::ReadAllBytes\\s*\\(\\s*[\"']?\\S*"
                     + NETWORK_CREDENTIAL_FILE_TARGET
                     + "\\S*[\"']?\\s*\\)";
+    private static final String POWERSHELL_CREDENTIAL_FILE_TEXT_READ =
+            "\\[(?:IO|System\\.IO)\\.File\\]::ReadAll(?:Text|Lines)\\s*\\(\\s*[\"']?\\S*"
+                    + NETWORK_CREDENTIAL_FILE_TARGET
+                    + "\\S*[\"']?\\s*\\)";
     private static final String POWERSHELL_CREDENTIAL_FILE_ENCODE =
             "\\[Convert\\]::ToBase64String\\s*\\(\\s*"
                     + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
@@ -454,7 +458,11 @@ public class DangerousCommandApprovalService {
                                                     + CREDENTIAL_PERMISSION_TARGET
                                                     + "|\\(\\s*(?:cat|type|Get-Content|gc)\\b[^\\n|;&)]*"
                                                     + CREDENTIAL_PERMISSION_TARGET
-                                                    + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b)"),
+                                                    + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + "[^\\n|;&]*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_encoded_clipboard_export",
@@ -902,7 +910,9 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?|\\b(?:Get-Content|gc|Get-Item|gi)\\b[^\\n|;&]*[\"']?\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "\\S*[\"']?)|\\bStart-BitsTransfer\\b(?=[^\\n|;&]*-(?:TransferType|Type)\\b\\s*(?::|=|\\s+)\\s*Upload\\b)(?=[^\\n|;&]*-(?:Destination|Dest)\\b\\s*(?::|=|\\s+)\\s*[\"']?(?:https?|wss?)://)[^\\n|;&]*-(?:Source|Src)\\b\\s*(?::|=|\\s+)\\s*[\"']?\\S*"
+                                                    + "\\S*[\"']?|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
+                                                    + ")|\\bStart-BitsTransfer\\b(?=[^\\n|;&]*-(?:TransferType|Type)\\b\\s*(?::|=|\\s+)\\s*Upload\\b)(?=[^\\n|;&]*-(?:Destination|Dest)\\b\\s*(?::|=|\\s+)\\s*[\"']?(?:https?|wss?)://)[^\\n|;&]*-(?:Source|Src)\\b\\s*(?::|=|\\s+)\\s*[\"']?\\S*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -1042,6 +1052,8 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "|\\b(?:select-string|sls)\\b(?![^\\n|;&]*(?:\\||>|>>))[^\\n|;&]*"
                                                     + EXPLICIT_CREDENTIAL_FILE_TARGET
+                                                    + "|"
+                                                    + POWERSHELL_CREDENTIAL_FILE_TEXT_READ
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
