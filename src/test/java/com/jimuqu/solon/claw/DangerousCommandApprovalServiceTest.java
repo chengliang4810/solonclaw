@@ -985,6 +985,10 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
                         "Add-LocalGroupMember -Group \"Remote Desktop Users\" -Member backup");
+        DangerousCommandApprovalService.DetectionResult windowsRemoteGroupRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Remove-LocalGroupMember -Group \"Remote Management Users\" -Member backup");
         DangerousCommandApprovalService.DetectionResult macAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "dscl . -append /Groups/admin GroupMembership deploy");
@@ -1430,6 +1434,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsLocalUserDisable.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(windowsRemoteGroup).isNotNull();
         assertThat(windowsRemoteGroup.getPatternKey()).isEqualTo("windows_local_account_change");
+        assertThat(windowsRemoteGroupRemove).isNotNull();
+        assertThat(windowsRemoteGroupRemove.getPatternKey()).isEqualTo("windows_local_account_change");
         assertThat(macAdmin).isNotNull();
         assertThat(macAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(timedateSet).isNotNull();
