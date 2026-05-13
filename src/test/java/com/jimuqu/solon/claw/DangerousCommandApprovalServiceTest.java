@@ -1981,6 +1981,10 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_export_credentials");
         assertDangerPattern(
                 env,
+                "vaultcmd /exportcreds:\"Windows Credentials\" /file:C:\\Temp\\creds.vcrd",
+                "windows_export_credentials");
+        assertDangerPattern(
+                env,
                 "procdump64.exe -ma lsass.exe lsass.dmp",
                 "windows_credential_material_dump");
         assertDangerPattern(

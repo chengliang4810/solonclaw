@@ -1584,7 +1584,7 @@ public class DangerousCommandApprovalService {
                                     "windows_export_credentials",
                                     "Windows credential or certificate export",
                                     pattern(
-                                            "\\b(?:Export-PfxCertificate|ConvertFrom-SecureString|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
+                                            "\\b(?:Export-PfxCertificate|ConvertFrom-SecureString|vaultcmd(?:\\.exe)?\\s+/exportcreds\\b|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_credential_material_dump",
