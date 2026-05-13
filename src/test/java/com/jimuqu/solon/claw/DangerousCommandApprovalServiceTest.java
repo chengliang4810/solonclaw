@@ -3049,6 +3049,10 @@ public class DangerousCommandApprovalServiceTest {
                         "gc Env:JIMUQU_ACCESS_TOKEN",
                         "Write-Host $env:OPENAI_API_KEY",
                         "Write-Output $env:OPENAI_API_KEY",
+                        "Write-Warning $env:OPENAI_API_KEY",
+                        "Write-Error ${env:JIMUQU_ACCESS_TOKEN}",
+                        "Write-Information $env:GEMINI_API_KEY",
+                        "Write-Verbose $env:ANTHROPIC_API_KEY",
                         "echo $env:OPENAI_API_KEY",
                         "Write-Output ${env:OPENAI_API_KEY}",
                         "$env:ANTHROPIC_API_KEY",
@@ -3089,6 +3093,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Write-Host $env:PATH"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Write-Warning $env:PATH"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
