@@ -9470,6 +9470,12 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("type id_ecdsa_sk");
         SecurityPolicyService.FileVerdict serviceAccount =
                 securityPolicyService.checkCommandPaths("cat service_account.json");
+        SecurityPolicyService.FileVerdict secretJson =
+                securityPolicyService.checkCommandPaths("cat secret.json");
+        SecurityPolicyService.FileVerdict secretsJson =
+                securityPolicyService.checkCommandPaths("Get-Content config/secrets.json");
+        SecurityPolicyService.FileVerdict keyringJson =
+                securityPolicyService.checkCommandPaths("type keyring.json");
         SecurityPolicyService.FileVerdict serviceAccountKey =
                 securityPolicyService.checkCommandPaths(
                         "gcloud auth activate-service-account --key-file service-account-key.json");
@@ -9503,6 +9509,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(ecdsaSk.getPath()).isEqualTo("id_ecdsa_sk");
         assertThat(serviceAccount.isAllowed()).isFalse();
         assertThat(serviceAccount.getPath()).isEqualTo("service_account.json");
+        assertThat(secretJson.isAllowed()).isFalse();
+        assertThat(secretJson.getPath()).isEqualTo("secret.json");
+        assertThat(secretsJson.isAllowed()).isFalse();
+        assertThat(secretsJson.getPath()).isEqualTo("config/secrets.json");
+        assertThat(keyringJson.isAllowed()).isFalse();
+        assertThat(keyringJson.getPath()).isEqualTo("keyring.json");
         assertThat(serviceAccountKey.isAllowed()).isFalse();
         assertThat(serviceAccountKey.getPath()).isEqualTo("service-account-key.json");
         assertThat(googleCredentials.isAllowed()).isFalse();
