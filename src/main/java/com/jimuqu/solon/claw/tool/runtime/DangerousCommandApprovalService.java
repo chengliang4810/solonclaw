@@ -432,6 +432,8 @@ public class DangerousCommandApprovalService {
                                                     + CREDENTIAL_PERMISSION_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy|Set-Clipboard|scb)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)"
                                                     + CREDENTIAL_PERMISSION_TARGET
+                                                    + "|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?\\(?\\s*(?:Get-Content|gc)\\b[^\\n)]*"
+                                                    + CREDENTIAL_PERMISSION_TARGET
                                                     + "|\\(\\s*(?:Get-Content|gc)\\b[^\\n|;&)]*"
                                                     + CREDENTIAL_PERMISSION_TARGET
                                                     + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b)"),

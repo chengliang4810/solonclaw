@@ -6275,6 +6275,8 @@ public class DangerousCommandApprovalServiceTest {
                         "(Get-Content .env) | Set-Clipboard",
                         "(Get-Content .env) | clip.exe",
                         "(gc ~/.npmrc) | scb",
+                        "Set-Clipboard -Value (Get-Content .env)",
+                        "scb -InputObject (gc token.json)",
                         "Set-Clipboard -Path .env.local",
                         "Set-Clipboard -LiteralPath ~/.npmrc");
         for (String command : credentialFileCommands) {
