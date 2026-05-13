@@ -5772,6 +5772,8 @@ public class DangerousCommandApprovalServiceTest {
 
         List<String> pythonCommands =
                 Arrays.asList(
+                        "pyperclip.copy(base64.b64encode(pathlib.Path('token.json').read_bytes()))",
+                        "encoded = base64.b64encode(Path('credentials.json').read_bytes())\nclipboard.set(encoded)",
                         "pyperclip.copy(open('.env').read())",
                         "clipboard.set(Path('credentials.json').read_text())",
                         "clipboard.set(pathlib.Path('credentials.json').read_text())",
@@ -5781,9 +5783,15 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("python_credential_file_clipboard_export");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_base64_clipboard_export");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_clipboard_export");
+            }
         }
 
         List<String> jsCommands =
