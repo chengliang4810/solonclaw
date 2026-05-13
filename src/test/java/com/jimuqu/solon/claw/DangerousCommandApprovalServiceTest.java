@@ -1874,8 +1874,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Set-MpPreference -DisableScanningNetworkFiles $true",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -DisableCloudProtection 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -SubmitSamplesConsent NeverSend",
                 "windows_disable_defender");
+        assertDangerPattern(env, "Set-MpPreference -MAPSReporting Disabled", "windows_disable_defender");
+        assertDangerPattern(env, "Set-MpPreference -MAPSReporting 0", "windows_disable_defender");
         assertDangerPattern(
                 env,
                 "Set-MpPreference -PUAProtection Disabled",
