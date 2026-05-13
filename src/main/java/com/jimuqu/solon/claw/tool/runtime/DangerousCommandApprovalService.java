@@ -1954,6 +1954,12 @@ public class DangerousCommandApprovalService {
                                             "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|(?:pathlib\\.)?Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))[\\s\\S]{0,1200}\\b(?:print|sys\\.(?:stdout|stderr)\\.write|(?:logging|logger)\\.(?:debug|info|warning|warn|error|exception|critical))\\s*\\([^\\n)]*\\b\\1\\b"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_credential_file_base64_exception_output",
+                                    "Python exception exposes base64-encoded credential file content",
+                                    pattern(
+                                            "(?:\\braise\\s+[A-Za-z_][A-Za-z0-9_]*\\s*\\([^\\n]*base64\\.(?:b64encode|urlsafe_b64encode|standard_b64encode)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)|\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*base64\\.(?:b64encode|urlsafe_b64encode|standard_b64encode)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[\\s\\S]{0,1200}\\braise\\s+[A-Za-z_][A-Za-z0-9_]*\\s*\\([^\\n)]*\\b\\1\\b)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_credential_file_exception_output",
                                     "Python exception exposes credential file content",
                                     pattern(
@@ -2083,6 +2089,12 @@ public class DangerousCommandApprovalService {
                                     "JavaScript prints credential file content variable",
                                     pattern(
                                             "\\b(?:const|let|var)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)|await\\s+fs\\.promises\\.readFile\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\))[\\s\\S]{0,1200}\\b(?:console\\.(?:log|info|warn|error)|process\\.(?:stdout|stderr)\\.write)\\s*\\([^\\n)]*\\b\\1\\b"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_credential_file_base64_exception_output",
+                                    "JavaScript exception exposes base64-encoded credential file content",
+                                    pattern(
+                                            "(?:\\bthrow\\s+new\\s+Error\\s*\\([^\\n]*(?:Buffer\\.from\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\\n]*\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\)|(?:fs\\.readFileSync|await\\s+fs\\.promises\\.readFile)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\\n]*\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\))|\\b(?:const|let|var)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:Buffer\\.from\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\\n]*\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\)|(?:fs\\.readFileSync|await\\s+fs\\.promises\\.readFile)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\\n]*\\.toString\\s*\\(\\s*[\"']base64[\"']\\s*\\))[\\s\\S]{0,1200}\\bthrow\\s+new\\s+Error\\s*\\([^\\n)]*\\b\\1\\b)"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_credential_file_exception_output",

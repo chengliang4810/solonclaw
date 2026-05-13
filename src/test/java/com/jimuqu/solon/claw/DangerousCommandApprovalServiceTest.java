@@ -5633,6 +5633,8 @@ public class DangerousCommandApprovalServiceTest {
 
         List<String> pythonCommands =
                 Arrays.asList(
+                        "raise RuntimeError(base64.b64encode(pathlib.Path('token.json').read_bytes()))",
+                        "encoded = base64.b64encode(Path('credentials.json').read_bytes())\nraise ValueError(encoded)",
                         "raise Exception(open('.env').read())",
                         "raise RuntimeError(Path('credentials.json').read_text())",
                         "raise RuntimeError(pathlib.Path('credentials.json').read_text())",
@@ -5642,13 +5644,21 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("python_credential_file_exception_output");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_base64_exception_output");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("python_credential_file_exception_output");
+            }
         }
 
         List<String> jsCommands =
                 Arrays.asList(
+                        "throw new Error(fs.readFileSync('token.json').toString('base64'))",
+                        "const encoded = Buffer.from(fs.readFileSync('credentials.json')).toString('base64');\nthrow new Error(encoded);",
                         "throw new Error(fs.readFileSync('.env', 'utf8'))",
                         "throw new Error(await fs.promises.readFile('credentials.json', 'utf8'))",
                         "const token = fs.readFileSync('token.json', 'utf8');\nthrow new Error(token);");
@@ -5656,9 +5666,15 @@ public class DangerousCommandApprovalServiceTest {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
             assertThat(result).as(command).isNotNull();
-            assertThat(result.getPatternKey())
-                    .as(command)
-                    .isEqualTo("js_credential_file_exception_output");
+            if (command.contains("base64")) {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_base64_exception_output");
+            } else {
+                assertThat(result.getPatternKey())
+                        .as(command)
+                        .isEqualTo("js_credential_file_exception_output");
+            }
         }
 
         assertThat(
