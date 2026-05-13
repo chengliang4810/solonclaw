@@ -858,7 +858,7 @@ public class DangerousCommandApprovalService {
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + "|\\b(?:cat|type|Get-Content|gc|Import-Clixml)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
-                                                    + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData)\\b|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData)\\b[^\\n|;&]*"
+                                                    + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData|Format-Table|Format-List|Format-Wide)\\b[^\\n|;&]*"
                                                     + REMOTE_CREDENTIAL_FILE_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),

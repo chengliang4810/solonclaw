@@ -4498,6 +4498,8 @@ public class DangerousCommandApprovalServiceTest {
                         "yq .client_secret client_secret.json",
                         "Get-Content .anthropic_oauth.json | ConvertFrom-Json",
                         "gc .npmrc | ConvertFrom-StringData",
+                        "Get-Content token.json | Format-Table",
+                        "Get-Content credentials.json | Format-List",
                         "type token.json | ConvertFrom-Json",
                         "cat credentials.json | ConvertFrom-StringData",
                         "Import-Clixml service-account.json | ConvertFrom-Json");
