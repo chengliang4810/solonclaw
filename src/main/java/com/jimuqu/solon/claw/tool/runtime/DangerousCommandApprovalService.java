@@ -898,7 +898,7 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n)]*\\)|`[^`\\n]*(?:cat|type|Get-Content|gc)\\b[^`\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + "[^`\\n]*`|\\(\\s*(?:Get-Content|gc)\\b[^\\n)]*"
+                                                    + "[^`\\n]*`|\\(\\s*(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "[^\\n)]*\\)))"),
                                     ToolNameConstants.EXECUTE_SHELL),

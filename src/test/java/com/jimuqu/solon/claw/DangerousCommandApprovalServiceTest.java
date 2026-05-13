@@ -4382,7 +4382,9 @@ public class DangerousCommandApprovalServiceTest {
                         "echo \"$(cat .env)\"",
                         "printf '%s' `cat credentials.json`",
                         "Write-Output (Get-Content .anthropic_oauth.json)",
-                        "Write-Host (gc .npmrc)");
+                        "Write-Host (gc .npmrc)",
+                        "Write-Output (type token.json)",
+                        "Write-Host (cat credentials.json)");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
