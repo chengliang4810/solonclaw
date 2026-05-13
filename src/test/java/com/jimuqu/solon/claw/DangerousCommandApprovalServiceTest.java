@@ -1762,6 +1762,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_security_registry_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System -Name PromptOnSecureDesktop -Value 0",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\" /v fDenyTSConnections /t REG_DWORD /d 0 /f",
                 "windows_security_registry_weaken");
         assertDangerPattern(
