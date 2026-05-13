@@ -1947,9 +1947,15 @@ public class DangerousCommandApprovalService {
                                     "powershell_sensitive_file_write",
                                     "PowerShell write to sensitive credential file",
                                     pattern(
-                                            "\\b(?:Set-Content|Add-Content|Out-File|sc|ac)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
+                                            "(?:\\b(?:Set-Content|Add-Content|Out-File|sc|ac)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
-                                                    + "[\"']?"),
+                                                    + "[\"']?"
+                                                    + "|\\b(?:New-Item|ni)\\b(?=[^\\n|;&]*\\s-Value\\b)[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-Name\\s+)?[\"']?"
+                                                    + POWERSHELL_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"
+                                                    + "|\\b(?:New-Item|ni)\\b\\s+[\"']?"
+                                                    + POWERSHELL_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?\\s+[^\\s|;&]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_sensitive_file_copy",

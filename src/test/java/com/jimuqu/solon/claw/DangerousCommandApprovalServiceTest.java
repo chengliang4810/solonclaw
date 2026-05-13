@@ -2759,6 +2759,16 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(env, "Set-Content -Path ~/.curlrc -Value token", "powershell_sensitive_file_write");
         assertDangerPattern(env, "Set-Content .m2/settings.xml token", "powershell_sensitive_file_write");
         assertDangerPattern(env, "Out-File .config/pip/pip.conf token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "New-Item -Path .env.local -Value TOKEN=value", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "ni ~/.npmrc token", "powershell_sensitive_file_write");
+        assertDangerPattern(
+                env,
+                "New-Item -Value token -Name credentials.json",
+                "powershell_sensitive_file_write");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "New-Item -Path docs/report.txt -Value ok"))
+                .isNull();
         assertDangerPattern(
                 env,
                 "$cred | Export-Clixml -Path credentials",
