@@ -61,4 +61,24 @@ public class TerminalInputSanitizerTest {
                                 "<65;1;49M<35;1;42Mhello<64;1;40m"))
                 .isEqualTo("hello");
     }
+
+    @Test
+    void shouldStripOscResponsesFromTerminalInput() {
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed\u001B]52;c;c2VjcmV0\u0007more"))
+                .isEqualTo("typedmore");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed\u001B]52;c;c2VjcmV0\u001B\\more"))
+                .isEqualTo("typedmore");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed\u009D52;c;c2VjcmV0\u009Cmore"))
+                .isEqualTo("typedmore");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "open \u001B]8;;https://example.invalid\u001B\\link\u001B]8;;\u001B\\ now"))
+                .isEqualTo("open link now");
+    }
 }
