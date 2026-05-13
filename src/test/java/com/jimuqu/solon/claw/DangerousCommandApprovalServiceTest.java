@@ -2086,6 +2086,22 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_stop_service");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinDefend /v Start /t REG_DWORD /d 4 /f",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\wscsvc /v Start /t REG_DWORD /d 0x4 /f",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\mpssvc -Name Start -Value 4",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "New-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\EventLog -Name Start -Value 0x4",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
                 "Set-Service -Name Spooler -StartupType Disabled",
                 "windows_stop_service");
         assertDangerPattern(

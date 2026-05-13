@@ -1587,6 +1587,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:sc(?:\\.exe)?\\s+(?:stop|pause|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|(?:Stop-Service|Suspend-Service)\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*(?:-StartupType\\s+Disabled\\b|-Status\\s+Stopped\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_stop_service",
+                                    "Windows security service disabled through registry",
+                                    pattern(
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*SYSTEM\\\\CurrentControlSet\\\\Services\\\\(?:WinDefend|WdNisSvc|Sense|wscsvc|SecurityHealthService|mpssvc|EventLog)\\b[^\\n]*(?:\\bStart\\b[^\\n]*(?:/d\\s+4|/d\\s+0x4|-Value\\s+4\\b|-Value\\s+0x4\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_remote_service_enabled",
                                     "Windows remote management service enabled",
                                     pattern(
