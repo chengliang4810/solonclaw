@@ -4519,7 +4519,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Select-String token .anthropic_oauth.json",
                         "sls token .npmrc",
                         "Get-Content token.json | Select-String token",
-                        "type credentials.json | sls secret");
+                        "type credentials.json | sls secret",
+                        "Get-Content credentials.json | Where-Object { $_ -match 'token' }",
+                        "gc token.json | ? { $_ -like '*secret*' }");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4532,6 +4534,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "nl report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-Content report.txt | Where-Object { $_ }"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
