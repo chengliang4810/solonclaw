@@ -439,6 +439,20 @@ public class DangerousCommandApprovalService {
                                                     + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:clip(?:\\.exe)?|Set-Clipboard|scb)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_encoded_network_send",
+                                    "send encoded credential file content through network command",
+                                    pattern(
+                                            "(?:(?:\\bbase64\\b(?!(?:[^\\n|;&]*\\s(?:-[^\\s]*d[^\\s]*|--decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bopenssl\\s+(?:base64|enc\\b(?=[^\\n]*-base64\\b)(?![^\\n]*\\s-(?:d|decode)\\b))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bcertutil(?:\\.exe)?\\s+-encode\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b))[^\\n|;&]*\\|\\s*(?:(?:curl|wget)\\b[^\\n]*(?:--data(?:-[a-z-]+)?|-d|--post-data|--body-file|--method\\s+POST|-X\\s+POST)\\b|(?:httpie|https?|xh|curlie)\\b[^\\n]*(?:POST|PUT|PATCH|@-)|(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-(?:Body|Method)\\b|Post|Put|Patch)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_encoded_output",
                                     "encode credential file content",
                                     pattern(
