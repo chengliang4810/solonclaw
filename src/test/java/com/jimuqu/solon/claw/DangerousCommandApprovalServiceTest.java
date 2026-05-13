@@ -5649,7 +5649,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "open('debug.log', 'w').write(open('.env').read())",
                         "Path('trace.txt').write_text(Path('credentials.json').read_text())",
-                        "payload = Path('token.json').read_text()\nopen('junit.xml', 'w').write(payload)");
+                        "pathlib.Path('trace.txt').write_text(pathlib.Path('credentials.json').read_text())",
+                        "payload = Path('token.json').read_text()\nopen('junit.xml', 'w').write(payload)",
+                        "payload = pathlib.Path('token.json').read_text()\npathlib.Path('junit.xml').write_text(payload)");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
