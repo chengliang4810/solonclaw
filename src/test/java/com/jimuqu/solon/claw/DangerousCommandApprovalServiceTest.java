@@ -5787,7 +5787,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "notify2.notify('secret', open('.env').read())",
                         "plyer.notification.notify(message=Path('credentials.json').read_text())",
-                        "token = Path('token.json').read_text()\nnotification.notify(message=token)");
+                        "plyer.notification.notify(message=pathlib.Path('credentials.json').read_text())",
+                        "token = Path('token.json').read_text()\nnotification.notify(message=token)",
+                        "token = pathlib.Path('token.json').read_text()\nnotification.notify(message=token)");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
