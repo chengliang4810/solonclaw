@@ -3045,6 +3045,7 @@ public class DangerousCommandApprovalServiceTest {
                         "Get-Item -Path Env:OPENAI_API_KEY",
                         "Get-Content Env:OPENAI_API_KEY",
                         "Get-Content -Path Env:OPENAI_API_KEY",
+                        "Write-Host $env:OPENAI_API_KEY",
                         "Write-Output $env:OPENAI_API_KEY",
                         "echo $env:OPENAI_API_KEY",
                         "Write-Output ${env:OPENAI_API_KEY}",
@@ -3082,6 +3083,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "coredumpctl list"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "cat /proc/cpuinfo"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Write-Host $env:PATH"))
                 .isNull();
 
         List<String> inlineAssignments =

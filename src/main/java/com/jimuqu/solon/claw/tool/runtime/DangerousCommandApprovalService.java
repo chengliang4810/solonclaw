@@ -637,7 +637,7 @@ public class DangerousCommandApprovalService {
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
-                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$\\{?|\\becho\\s+%|\\becho\\s+!|\\bprintf\\b[^\\n|;&]*(?:\\$\\{?|!)|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+(?:-[A-Za-z]+\\s+)*Env:|\\$\\{env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
+                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$\\{?|\\becho\\s+%|\\becho\\s+!|\\b(?:Write-Host|Write-Output)\\b[^\\n|;&]*(?:\\$env:|\\$\\{env:)|\\bprintf\\b[^\\n|;&]*(?:\\$\\{?|!)|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+(?:-[A-Za-z]+\\s+)*Env:|\\$\\{env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
                                                     + SENSITIVE_ENV_NAME
                                                     + ")(?:%|\\}|!)?"),
                                     ToolNameConstants.EXECUTE_SHELL),
