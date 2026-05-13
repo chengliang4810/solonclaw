@@ -768,7 +768,7 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")|\\bCompress-Archive\\b(?=[^\\n]*(?:-Path\\b|-LiteralPath\\b|\\.zip\\b))(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + ")|\\bjar\\b(?=[^\\n]*(?:\\s(?:-[A-Za-z]*c[A-Za-z]*|c[A-Za-z]*f?|--create)\\b))(?=[^\\n]*\\.(?:jar|zip)\\b)(?=[^\\n]*"
+                                                    + ")|\\bjar\\s+(?:-[A-Za-z]*c[A-Za-z]*|c[A-Za-z]*f?|--create)\\b(?=[^\\n]*\\.(?:jar|zip)\\b)(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -783,6 +783,8 @@ public class DangerousCommandApprovalService {
                                                     + ")|\\bzipinfo\\b(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")|\\b(?:7z|7za)\\s+(?:l|e|x)\\b(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\bjar\\s+(?:-[A-Za-z]*[tx][A-Za-z]*|[tTxX][A-Za-z]*f?|--(?:list|extract))\\b(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + "))"),
                                     ToolNameConstants.EXECUTE_SHELL),

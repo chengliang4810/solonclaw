@@ -4888,7 +4888,9 @@ public class DangerousCommandApprovalServiceTest {
                         "bsdtar --list -f backup.tar client_secret.json",
                         "unzip -p backup.zip token.json",
                         "zipinfo backup.zip .anthropic_oauth.json",
-                        "7z l backup.7z service-account.json");
+                        "7z l backup.7z service-account.json",
+                        "jar tf backup.jar credentials.json",
+                        "jar --extract --file backup.jar token.json");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4909,6 +4911,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "7z l backup.7z report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "jar tf backup.jar report.txt"))
                 .isNull();
     }
 
