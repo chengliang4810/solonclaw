@@ -1934,6 +1934,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_firewall_inbound_allow");
         assertDangerPattern(
                 env,
+                "Enable-NetFirewallRule -DisplayName \"Remote Assistance (DCOM-In)\"",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall firewall set rule group=\"Remote Assistance\" new enable=yes",
+                "windows_firewall_inbound_allow");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -DisableRealtimeMonitoring $true",
                 "windows_disable_defender");
         assertDangerPattern(
