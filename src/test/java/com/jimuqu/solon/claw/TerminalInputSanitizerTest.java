@@ -30,6 +30,8 @@ public class TerminalInputSanitizerTest {
                 .isEqualTo("");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("hello\u001B[53;1Rworld"))
                 .isEqualTo("helloworld");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("hello\u009B53;1Rworld"))
+                .isEqualTo("helloworld");
         assertThat(
                         TerminalInputSanitizer.stripLeakedTerminalResponses(
                                 "a\u001B[53;1Rb\u001B[51;1Rc\u001B[50;9Rd"))
@@ -45,6 +47,8 @@ public class TerminalInputSanitizerTest {
     @Test
     void shouldStripSgrMouseReportsLikeJimuquCli() {
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("abc\u001B[<65;1;49Mdef"))
+                .isEqualTo("abcdef");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("abc\u009B<65;1;49Mdef"))
                 .isEqualTo("abcdef");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("abc^[[<65;1;49Mdef"))
                 .isEqualTo("abcdef");
@@ -92,6 +96,8 @@ public class TerminalInputSanitizerTest {
                         TerminalInputSanitizer.stripLeakedTerminalResponses(
                                 "a\u001B[200~b\u001B[201~c"))
                 .isEqualTo("abc");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("\u009B200~text\u009B201~"))
+                .isEqualTo("text");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("^[[200~text^[[201~"))
                 .isEqualTo("text");
     }
