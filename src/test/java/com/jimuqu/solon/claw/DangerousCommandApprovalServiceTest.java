@@ -2363,6 +2363,10 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Network Protection\" /v EnableNetworkProtection /t REG_DWORD /d 0 /f",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
                 "windows_defender_exclusion");
         assertDangerPattern(

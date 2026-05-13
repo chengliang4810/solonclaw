@@ -1680,7 +1680,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_defender",
                                     "Windows Defender Exploit Guard registry policy weakened",
                                     pattern(
-                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\Controlled Folder Access\\b[^\\n]*EnableControlledFolderAccess\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\ASR\\\\Rules\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
+                                            "\\b(?:reg(?:\\.exe)?\\s+add|(?:New|Set)-ItemProperty\\b)\\b[^\\n]*(?:(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\Controlled Folder Access\\b[^\\n]*EnableControlledFolderAccess\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b))|(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\Network Protection\\b[^\\n]*EnableNetworkProtection\\b[^\\n]*(?:/d\\s+[01]\\b|/d\\s+0x[01]\\b|-Value\\s+[01]\\b|-Value\\s+0x[01]\\b))|(?:Windows Defender\\\\Windows Defender Exploit Guard\\\\ASR\\\\Rules\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0|-Value\\s+0\\b|-Value\\s+0x0\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_defender_exclusion",
