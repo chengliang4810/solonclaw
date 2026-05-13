@@ -883,6 +883,35 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectDestructiveSqlInsideDatabaseCliArguments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Map<String, String> dangerous = new LinkedHashMap<String, String>();
+        dangerous.put("psql -c \"DELETE FROM users\"", "sql_delete_no_where");
+        dangerous.put("mysql -e \"UPDATE users SET role = 'admin'\"", "sql_update_no_where");
+        dangerous.put("sqlite3 app.db \"TRUNCATE TABLE audit_log\"", "sql_truncate");
+        dangerous.put("psql -c \"DROP TABLE IF EXISTS public.users\"", "sql_drop_statement");
+
+        for (Map.Entry<String, String> entry : dangerous.entrySet()) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", entry.getKey());
+
+            assertThat(result).as(entry.getKey()).isNotNull();
+            assertThat(result.getPatternKey()).as(entry.getKey()).isEqualTo(entry.getValue());
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell",
+                                "psql -c \"DELETE FROM users WHERE id = 1\""))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell",
+                                "sqlite3 app.db \"UPDATE users SET role = 'admin' WHERE id = 1\""))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectJimuquApprovalProcessAndGitGuardVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
