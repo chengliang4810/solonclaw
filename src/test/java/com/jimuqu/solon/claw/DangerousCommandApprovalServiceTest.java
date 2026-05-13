@@ -4283,6 +4283,7 @@ public class DangerousCommandApprovalServiceTest {
                         "tail token.json",
                         "grep token .npmrc",
                         "sed -n '1,5p' client_secret.json",
+                        "Get-Content -Tail 5 token.json",
                         "Get-Content .anthropic_oauth.json");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =

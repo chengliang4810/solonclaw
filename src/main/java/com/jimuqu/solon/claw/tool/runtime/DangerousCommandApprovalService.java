@@ -927,7 +927,7 @@ public class DangerousCommandApprovalService {
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(
-                                            "(?:\\b(?:cat|type|head|tail|less|more|sed|awk|grep|Get-Content|gc)\\b(?![^\\n|;&]*(?:\\||>|>>))[^\\n|;&]*"
+                                            "(?:\\b(?:cat|type|head|tail|less|more|sed|awk|grep|Get-Content|gc|select-string|sls)\\b(?![^\\n|;&]*(?:\\||>|>>))[^\\n|;&]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
