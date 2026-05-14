@@ -1782,6 +1782,29 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldRedactLocalManagementCommandUrlMessages() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.UrlVerdict unixSocket =
+                policy.checkCommandUrls(
+                        "curl --unix-socket=/var/run/docker\u202E.sock http://localhost/info");
+        SecurityPolicyService.UrlVerdict namedPipe =
+                policy.checkCommandUrls(
+                        "DOCKER_HOST=\"npipe:////./pipe/docker_engine/ghp_pipeleak12345\\nextra\" docker ps");
+
+        assertThat(unixSocket.isAllowed()).isFalse();
+        assertThat(unixSocket.getMessage())
+                .contains("管理套接字")
+                .doesNotContain("\u202E");
+        assertThat(namedPipe.isAllowed()).isFalse();
+        assertThat(namedPipe.getMessage())
+                .contains("命名管道")
+                .contains("***")
+                .doesNotContain("ghp_pipeleak12345")
+                .doesNotContain("\\nextra");
+    }
+
+    @Test
     void shouldDenySkillHubInternalCacheWrites() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 

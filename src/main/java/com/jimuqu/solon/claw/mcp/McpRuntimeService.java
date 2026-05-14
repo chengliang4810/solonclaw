@@ -129,6 +129,7 @@ public class McpRuntimeService implements Closeable {
         summary.put("remoteEndpointAllowsPrivateByPolicy", Boolean.TRUE);
         summary.put("stdioEndpointSkipped", Boolean.TRUE);
         summary.put("remoteToolArgumentUrlSafety", Boolean.TRUE);
+        summary.put("remoteToolStructuredCredentialArgumentBlocked", Boolean.TRUE);
         summary.put("remoteToolArgumentPathSafety", Boolean.TRUE);
         summary.put("resourceUriUrlSafety", Boolean.TRUE);
         summary.put("resourceUriPathSafety", Boolean.TRUE);
@@ -1776,23 +1777,19 @@ public class McpRuntimeService implements Closeable {
             if (securityPolicyService == null || args == null || args.isEmpty()) {
                 return;
             }
-            List<String> urls = new ArrayList<String>();
-            urls.addAll(securityPolicyService.extractUrlishValues(args));
-            for (String url : urls) {
-                SecurityPolicyService.UrlVerdict verdict =
-                        securityPolicyService.checkUrl(cleanToken(url));
-                if (!verdict.isAllowed()) {
-                    throw new IllegalArgumentException(
-                            "BLOCKED: MCP tool "
-                                    + config.getName()
-                                    + "/"
-                                    + remoteToolName
-                                    + " URL 安全策略阻止访问："
-                                    + verdict.getMessage()
-                                    + "\nURL: "
-                                    + com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
-                                            verdict.getUrl()));
-                }
+            SecurityPolicyService.UrlVerdict verdict =
+                    securityPolicyService.checkToolArgs(remoteToolName, args);
+            if (!verdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        "BLOCKED: MCP tool "
+                                + config.getName()
+                                + "/"
+                                + remoteToolName
+                                + " URL 安全策略阻止访问："
+                                + verdict.getMessage()
+                                + "\nURL: "
+                                + com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
+                                        verdict.getUrl()));
             }
         }
 
@@ -1813,19 +1810,6 @@ public class McpRuntimeService implements Closeable {
                                 + "\n路径："
                                 + SecretRedactor.redact(verdict.getPath(), 400));
             }
-        }
-
-        private String cleanToken(String raw) {
-            String value = StrUtil.nullToEmpty(raw).trim();
-            while (value.endsWith(",")
-                    || value.endsWith(".")
-                    || value.endsWith(";")
-                    || value.endsWith(":")
-                    || value.endsWith("]")
-                    || value.endsWith("}")) {
-                value = value.substring(0, value.length() - 1).trim();
-            }
-            return value;
         }
 
         @SuppressWarnings("unchecked")

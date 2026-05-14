@@ -5623,6 +5623,8 @@ public class DashboardDiagnosticsService {
                             && Boolean.TRUE.equals(summary.get("blockedServersSuppressed"));
             boolean argumentSafety =
                     Boolean.TRUE.equals(summary.get("remoteToolArgumentUrlSafety"))
+                            && Boolean.TRUE.equals(
+                                    summary.get("remoteToolStructuredCredentialArgumentBlocked"))
                             && Boolean.TRUE.equals(summary.get("remoteToolArgumentPathSafety"))
                             && Boolean.TRUE.equals(summary.get("nestedUrlExtraction"));
             boolean resourceSafety =

@@ -589,6 +589,12 @@ public class SecurityPolicyService {
     }
 
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
+        ToolArgCredentialVerdict credentialVerdict = checkStructuredCredentialToolArgs(args);
+        if (!credentialVerdict.allowed) {
+            return UrlVerdict.block(
+                    credentialVerdict.reference,
+                    "工具参数包含敏感凭据字段，禁止通过结构化请求参数发送凭据");
+        }
         List<String> urls = extractUrls(toolName, args);
         for (String url : urls) {
             UrlVerdict verdict = checkUrl(normalizeToolUrlForCheck(toolName, url));
@@ -617,6 +623,152 @@ public class SecurityPolicyService {
             }
         }
         return FileVerdict.allow();
+    }
+
+    private ToolArgCredentialVerdict checkStructuredCredentialToolArgs(Object args) {
+        ToolArgCredentialVerdict verdict = new ToolArgCredentialVerdict();
+        checkStructuredCredentialToolArgs(args, "", false, verdict, 0);
+        return verdict;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkStructuredCredentialToolArgs(
+            Object raw,
+            String key,
+            boolean requestContext,
+            ToolArgCredentialVerdict verdict,
+            int depth) {
+        if (!verdict.allowed || raw == null || depth > 8) {
+            return;
+        }
+        String normalizedKey = normalizeStructuredCredentialKey(key);
+        boolean nextRequestContext =
+                requestContext
+                        || looksLikeRequestContextKey(normalizedKey)
+                        || looksLikeUrlKey(key);
+        if (raw instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                String childKey =
+                        entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                Object value = entry.getValue();
+                String normalizedChildKey = normalizeStructuredCredentialKey(childKey);
+                if (looksLikeSensitiveStructuredCredentialKey(normalizedChildKey)
+                        && hasStructuredCredentialValue(value)) {
+                    verdict.block(childKey, normalizedChildKey);
+                    return;
+                }
+                checkStructuredCredentialToolArgs(
+                        value, childKey, nextRequestContext, verdict, depth + 1);
+                if (!verdict.allowed) {
+                    return;
+                }
+            }
+            return;
+        }
+        if (raw instanceof Collection) {
+            for (Object item : (Collection<Object>) raw) {
+                checkStructuredCredentialToolArgs(
+                        item, key, nextRequestContext, verdict, depth + 1);
+                if (!verdict.allowed) {
+                    return;
+                }
+            }
+            return;
+        }
+        if (raw.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                checkStructuredCredentialToolArgs(
+                        java.lang.reflect.Array.get(raw, i),
+                        key,
+                        nextRequestContext,
+                        verdict,
+                        depth + 1);
+                if (!verdict.allowed) {
+                    return;
+                }
+            }
+            return;
+        }
+        if (requestContext
+                && looksLikeSensitiveStructuredCredentialKey(normalizedKey)
+                && hasStructuredCredentialValue(raw)) {
+            verdict.block(key, normalizedKey);
+        }
+    }
+
+    private boolean looksLikeRequestContextKey(String normalizedKey) {
+        return "headers".equals(normalizedKey)
+                || "header".equals(normalizedKey)
+                || "request_headers".equals(normalizedKey)
+                || "http_headers".equals(normalizedKey)
+                || "params".equals(normalizedKey)
+                || "query".equals(normalizedKey)
+                || "query_params".equals(normalizedKey)
+                || "form".equals(normalizedKey)
+                || "form_data".equals(normalizedKey)
+                || "body".equals(normalizedKey)
+                || "json".equals(normalizedKey)
+                || "payload".equals(normalizedKey)
+                || "data".equals(normalizedKey);
+    }
+
+    private boolean looksLikeSensitiveStructuredCredentialKey(String normalizedKey) {
+        return isStrongSensitiveStructuredCredentialName(normalizedKey)
+                || "token".equals(normalizedKey)
+                || normalizedKey.startsWith("token_")
+                || "secret".equals(normalizedKey)
+                || normalizedKey.startsWith("secret_")
+                || "credential".equals(normalizedKey)
+                || normalizedKey.startsWith("credential_")
+                || "credentials".equals(normalizedKey)
+                || normalizedKey.startsWith("credentials_")
+                || "cookie".equals(normalizedKey)
+                || normalizedKey.startsWith("cookie_")
+                || "x_api_key".equals(normalizedKey)
+                || normalizedKey.startsWith("x_api_key_")
+                || "x_api_token".equals(normalizedKey)
+                || normalizedKey.startsWith("x_api_token_")
+                || "x_auth_token".equals(normalizedKey)
+                || normalizedKey.startsWith("x_auth_token_")
+                || "auth".equals(normalizedKey);
+    }
+
+    private boolean isStrongSensitiveStructuredCredentialName(String normalizedKey) {
+        return isStrongSensitiveUrlParameterName(normalizedKey)
+                || normalizedKey.startsWith("authorization_")
+                || normalizedKey.startsWith("proxy_authorization_")
+                || normalizedKey.startsWith("bearer_token_")
+                || normalizedKey.startsWith("api_key_")
+                || normalizedKey.startsWith("apikey_")
+                || normalizedKey.startsWith("access_token_")
+                || normalizedKey.startsWith("refresh_token_")
+                || normalizedKey.startsWith("id_token_")
+                || normalizedKey.startsWith("auth_token_")
+                || normalizedKey.startsWith("oauth_token_")
+                || normalizedKey.startsWith("client_secret_")
+                || normalizedKey.startsWith("private_key_")
+                || normalizedKey.startsWith("secret_key_")
+                || normalizedKey.startsWith("session_token_")
+                || normalizedKey.startsWith("security_token_");
+    }
+
+    private boolean hasStructuredCredentialValue(Object raw) {
+        if (raw == null) {
+            return false;
+        }
+        if (raw instanceof Map || raw instanceof Collection || raw.getClass().isArray()) {
+            return true;
+        }
+        String value = StrUtil.nullToEmpty(String.valueOf(raw)).trim();
+        if (value.length() == 0) {
+            return false;
+        }
+        return value.length() >= 6 || SecretRedactor.containsSecretLikeToken(value);
+    }
+
+    private String normalizeStructuredCredentialKey(String rawKey) {
+        return normalizeSensitiveParameterName(rawKey);
     }
 
     public Map<String, Object> credentialPolicySummary() {
@@ -1212,16 +1364,25 @@ public class SecurityPolicyService {
             }
             if (StrUtil.isNotBlank(path)) {
                 if (isLocalManagementSocket(path)) {
-                    return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+                    return UrlVerdict.block(
+                            path,
+                            "阻断本地容器/运行时管理套接字访问："
+                                    + localManagementReference(path));
                 }
                 String endpointPipe = localManagementPipeToken(path);
                 if (StrUtil.isNotBlank(endpointPipe)) {
-                    return UrlVerdict.block(endpointPipe, "阻断本地容器/运行时管理命名管道访问：" + endpointPipe);
+                    return UrlVerdict.block(
+                            endpointPipe,
+                            "阻断本地容器/运行时管理命名管道访问："
+                                    + localManagementReference(endpointPipe));
                 }
             }
             String pipe = localManagementPipeToken(token);
             if (StrUtil.isNotBlank(pipe)) {
-                return UrlVerdict.block(pipe, "阻断本地容器/运行时管理命名管道访问：" + pipe);
+                return UrlVerdict.block(
+                        pipe,
+                        "阻断本地容器/运行时管理命名管道访问："
+                                + localManagementReference(pipe));
             }
         }
         return UrlVerdict.allow();
@@ -1236,14 +1397,24 @@ public class SecurityPolicyService {
             }
             String path = localManagementSocketEnvironmentPath(value);
             if (isLocalManagementSocket(path)) {
-                return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+                return UrlVerdict.block(
+                        path,
+                        "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
             }
             String pipe = localManagementPipeToken(path);
             if (StrUtil.isNotBlank(pipe)) {
-                return UrlVerdict.block(pipe, "阻断本地容器/运行时管理命名管道访问：" + pipe);
+                return UrlVerdict.block(
+                        pipe,
+                        "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
             }
         }
         return UrlVerdict.allow();
+    }
+
+    private String localManagementReference(String value) {
+        String text = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
+        text = SecretRedactor.redact(text, 400);
+        return StrUtil.blankToDefault(text, "[REDACTED_PATH]");
     }
 
     private String localManagementSocketEnvironmentValue(String token) {
@@ -4784,6 +4955,96 @@ public class SecurityPolicyService {
 
         public String getMessage() {
             return message;
+        }
+    }
+
+    private static class ToolArgCredentialVerdict {
+        private boolean allowed = true;
+        private String reference = "";
+
+        private void block(String key, String normalizedKey) {
+            this.allowed = false;
+            String safeKey = canonicalStructuredCredentialKey(normalizedKey);
+            if (safeKey.length() == 0) {
+                safeKey = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(key)).trim();
+            }
+            safeKey = safeKey.replaceAll("\\s+", "_");
+            safeKey = SecretRedactor.redact(safeKey, 200);
+            this.reference = safeKey.length() == 0 ? "tool_arg://credential" : "tool_arg://" + safeKey;
+        }
+
+        private static String canonicalStructuredCredentialKey(String normalizedKey) {
+            String key = StrUtil.nullToEmpty(normalizedKey).trim();
+            if (key.startsWith("proxy_authorization")) {
+                return "Proxy-Authorization";
+            }
+            if (key.startsWith("authorization")) {
+                return "Authorization";
+            }
+            if (key.startsWith("x_api_key")) {
+                return "x-api-key";
+            }
+            if (key.startsWith("x_api_token")) {
+                return "x-api-token";
+            }
+            if (key.startsWith("x_auth_token")) {
+                return "x-auth-token";
+            }
+            if (key.startsWith("api_key") || key.startsWith("apikey")) {
+                return "apiKey";
+            }
+            if (key.startsWith("access_token")) {
+                return "access_token";
+            }
+            if (key.startsWith("refresh_token")) {
+                return "refresh_token";
+            }
+            if (key.startsWith("id_token")) {
+                return "id_token";
+            }
+            if (key.startsWith("auth_token")) {
+                return "auth_token";
+            }
+            if (key.startsWith("oauth_token")) {
+                return "oauth_token";
+            }
+            if (key.startsWith("bearer_token")) {
+                return "bearer_token";
+            }
+            if (key.startsWith("client_secret")) {
+                return "client_secret";
+            }
+            if (key.startsWith("private_key")) {
+                return "private_key";
+            }
+            if (key.startsWith("secret_key")) {
+                return "secret_key";
+            }
+            if (key.startsWith("session_token")) {
+                return "session_token";
+            }
+            if (key.startsWith("security_token")) {
+                return "security_token";
+            }
+            if (key.startsWith("credentials")) {
+                return "credentials";
+            }
+            if (key.startsWith("credential")) {
+                return "credential";
+            }
+            if (key.startsWith("cookie")) {
+                return "cookie";
+            }
+            if (key.startsWith("secret")) {
+                return "secret";
+            }
+            if (key.startsWith("token")) {
+                return "token";
+            }
+            if ("auth".equals(key)) {
+                return "auth";
+            }
+            return "";
         }
     }
 
