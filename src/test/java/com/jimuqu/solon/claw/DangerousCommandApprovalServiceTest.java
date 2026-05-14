@@ -12581,6 +12581,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockGatewayNetworkToolsWithStructuredCredentialArgsBeforeApproval()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> headers = new LinkedHashMap<String, Object>();
+        headers.put("Authorization", "Bearer ghp_gatewayheader12345");
+        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
+        toolArgs.put("url", "https://example.com/docs");
+        toolArgs.put("headers", headers);
+        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
+        gatewayWebfetch.put("tool_name", "webfetch");
+        gatewayWebfetch.put("tool_args", toolArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayWebfetch);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("敏感凭据字段")
+                .contains("Authorization")
+                .doesNotContain("ghp_gatewayheader12345");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldBlockGatewayWritesOutsideConfiguredSafeRootBeforeApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");

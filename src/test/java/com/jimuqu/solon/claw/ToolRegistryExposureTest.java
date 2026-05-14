@@ -1730,6 +1730,53 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldAuditStructuredCredentialToolArgsBeforeNetworkTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode header =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "webfetch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"url\":\"https://example.com/docs\",\"headers\":{\"Authorization\":\"Bearer ghp_toolargheader12345\"}}"));
+        ONode body =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "websearch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"query\":\"docs\",\"payload\":{\"apiKey\":\"sk-toolargbody12345\"}}"));
+
+        assertThat(header.get("decision").getString()).isEqualTo("block");
+        assertThat(header.get("blocking").getBoolean()).isTrue();
+        assertThat(header.toJson())
+                .contains("工具参数包含敏感凭据字段")
+                .contains("Authorization")
+                .doesNotContain("ghp_toolargheader12345");
+        assertThat(body.get("decision").getString()).isEqualTo("block");
+        assertThat(body.get("blocking").getBoolean()).isTrue();
+        assertThat(body.toJson())
+                .contains("工具参数包含敏感凭据字段")
+                .contains("apiKey")
+                .doesNotContain("sk-toolargbody12345");
+    }
+
+    @Test
     void shouldAuditNestedAndArrayCommandToolArgs() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
