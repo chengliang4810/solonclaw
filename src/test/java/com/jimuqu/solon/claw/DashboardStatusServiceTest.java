@@ -31,14 +31,18 @@ public class DashboardStatusServiceTest {
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getLlm().setContextWindowTokens(128000);
         config.getLlm().setMaxTokens(4096);
-        config.getModel().setProviderKey("default");
-        config.getModel().setDefault("gpt-test");
+        config.getModel().setProviderKey("default-ghp_statusprovider12345");
+        config.getModel().setDefault("gpt-ghp_statusmodel12345");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
-        provider.setName("Default");
+        provider.setName("Default token=ghp_statuslabel12345");
         provider.setBaseUrl("https://user:secret-pass@example.com/v1?token=base-url-token");
-        provider.setDefaultModel("gpt-test");
+        provider.setDefaultModel("gpt-ghp_statusmodel12345");
         provider.setDialect("openai");
-        config.getProviders().put("default", provider);
+        config.getProviders().put("default-ghp_statusprovider12345", provider);
+        AppConfig.FallbackProviderConfig fallback = new AppConfig.FallbackProviderConfig();
+        fallback.setProvider("fallback-ghp_statusfallback12345");
+        fallback.setModel("fallback-model-ghp_statusfallbackmodel12345");
+        config.getFallbackProviders().add(fallback);
 
         ChannelStatus channelStatus =
                 new ChannelStatus(
@@ -74,8 +78,19 @@ public class DashboardStatusServiceTest {
 
         String modelJson = ONode.serialize(service.getModelInfo(true));
         assertThat(modelJson).contains("https://user:***@example.com/v1?token=***");
+        assertThat(modelJson)
+                .contains("default-ghp_***")
+                .contains("Default token=***")
+                .contains("gpt-ghp_***")
+                .contains("fallback-ghp_***")
+                .contains("fallback-model-ghp_***");
         assertThat(modelJson).doesNotContain("secret-pass");
         assertThat(modelJson).doesNotContain("base-url-token");
+        assertThat(modelJson).doesNotContain("statusprovider12345");
+        assertThat(modelJson).doesNotContain("statuslabel12345");
+        assertThat(modelJson).doesNotContain("statusmodel12345");
+        assertThat(modelJson).doesNotContain("statusfallback12345");
+        assertThat(modelJson).doesNotContain("statusfallbackmodel12345");
     }
 
     private static class FixedDeliveryService implements DeliveryService {
