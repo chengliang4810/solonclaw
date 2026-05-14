@@ -98,7 +98,7 @@ public class DashboardSessionService {
                                         4000));
 
                         Map<String, Object> toolCall = new LinkedHashMap<String, Object>();
-                        toolCall.put("id", call.getId());
+                        toolCall.put("id", safe(call.getId(), 400));
                         toolCall.put("function", function);
                         toolCalls.add(toolCall);
                     }
@@ -108,15 +108,15 @@ public class DashboardSessionService {
 
             if (message instanceof ToolMessage) {
                 ToolMessage toolMessage = (ToolMessage) message;
-                item.put("tool_name", toolMessage.getName());
-                item.put("tool_call_id", toolMessage.getToolCallId());
+                item.put("tool_name", safe(toolMessage.getName(), 400));
+                item.put("tool_call_id", safe(toolMessage.getToolCallId(), 400));
             }
 
             messages.add(item);
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("session_id", sessionId);
+        result.put("session_id", safe(sessionId, 400));
         result.put(
                 "model",
                 safe(
@@ -148,7 +148,7 @@ public class DashboardSessionService {
         result.put("last_compression_at", record.getLastCompressionAt());
         result.put("last_compression_input_tokens", record.getLastCompressionInputTokens());
         result.put("compression_failure_count", record.getCompressionFailureCount());
-        result.put("parent_session_id", record.getParentSessionId());
+        result.put("parent_session_id", safe(record.getParentSessionId(), 400));
         result.put("branch_name", safe(record.getBranchName(), 400));
         result.put("goal_state", goalState(record));
         result.put("messages", messages);
@@ -159,7 +159,7 @@ public class DashboardSessionService {
         SessionRecord record = sessionRepository.findById(sessionId);
         if (record == null) {
             Map<String, Object> empty = new LinkedHashMap<String, Object>();
-            empty.put("session_id", sessionId);
+            empty.put("session_id", safe(sessionId, 400));
             empty.put("entries", Collections.emptyList());
             empty.put("text", "当前会话不存在。");
             return empty;
@@ -172,7 +172,7 @@ public class DashboardSessionService {
         SessionRecord record = sessionRepository.findById(sessionId);
         if (record == null) {
             Map<String, Object> empty = new LinkedHashMap<String, Object>();
-            empty.put("session_id", sessionId);
+            empty.put("session_id", safe(sessionId, 400));
             empty.put("completed", Boolean.valueOf(completed));
             empty.put("conversations", Collections.emptyList());
             return empty;
@@ -185,7 +185,7 @@ public class DashboardSessionService {
         SessionRecord record = sessionRepository.findById(sessionId);
         if (record == null) {
             Map<String, Object> empty = new LinkedHashMap<String, Object>();
-            empty.put("session_id", sessionId);
+            empty.put("session_id", safe(sessionId, 400));
             empty.put("saved", Boolean.FALSE);
             empty.put("error", "当前会话不存在。");
             return empty;
@@ -204,7 +204,7 @@ public class DashboardSessionService {
 
         for (SessionRecord record : sessionRepository.search(query.trim(), 50)) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("session_id", record.getSessionId());
+            item.put("session_id", safe(record.getSessionId(), 400));
             item.put("snippet", safe(buildSnippet(record, query), 2000));
             item.put("role", null);
             item.put("source", parseSource(record.getSourceKey()));
@@ -230,7 +230,7 @@ public class DashboardSessionService {
             throws Exception {
         SessionRecord record = sessionRepository.findById(sessionId);
         if (record == null) {
-            throw new IllegalArgumentException("session not found: " + sessionId);
+            throw new IllegalArgumentException("session not found: " + safe(sessionId, 400));
         }
         if (body == null || !body.containsKey("title")) {
             throw new IllegalArgumentException("title is required");
@@ -254,12 +254,12 @@ public class DashboardSessionService {
         List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
         for (SessionRecord record : lineage) {
             Map<String, Object> node = toSessionInfo(record);
-            node.put("parent_session_id", record.getParentSessionId());
+            node.put("parent_session_id", safe(record.getParentSessionId(), 400));
             node.put("branch_name", safe(record.getBranchName(), 400));
             nodes.add(node);
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("root_session_id", sessionId);
+        result.put("root_session_id", safe(sessionId, 400));
         result.put("nodes", nodes);
         return result;
     }
@@ -268,7 +268,7 @@ public class DashboardSessionService {
         SessionRecord root = sessionRepository.findById(sessionId);
         if (root == null) {
             Map<String, Object> missing = new LinkedHashMap<String, Object>();
-            missing.put("requested_session_id", sessionId);
+            missing.put("requested_session_id", safe(sessionId, 400));
             missing.put("session_id", null);
             missing.put("path", Collections.emptyList());
             missing.put("changed", Boolean.FALSE);
@@ -317,9 +317,9 @@ public class DashboardSessionService {
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("requested_session_id", root.getSessionId());
-        result.put("session_id", current);
-        result.put("path", path);
+        result.put("requested_session_id", safe(root.getSessionId(), 400));
+        result.put("session_id", safe(current, 400));
+        result.put("path", safeList(path, 400));
         result.put("changed", Boolean.valueOf(!root.getSessionId().equals(current)));
         return result;
     }
@@ -412,7 +412,7 @@ public class DashboardSessionService {
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("id", record.getSessionId());
+        result.put("id", safe(record.getSessionId(), 400));
         result.put("source", parseSource(record.getSourceKey()));
         result.put(
                 "model",
@@ -444,7 +444,7 @@ public class DashboardSessionService {
         result.put("total_tokens", record.getCumulativeTotalTokens());
         result.put("last_total_tokens", record.getLastTotalTokens());
         result.put("last_usage_at", record.getLastUsageAt());
-        result.put("parent_session_id", record.getParentSessionId());
+        result.put("parent_session_id", safe(record.getParentSessionId(), 400));
         result.put("branch_name", safe(record.getBranchName(), 400));
         result.put("goal_state", goalState(record));
         result.put(
@@ -484,7 +484,7 @@ public class DashboardSessionService {
 
     private Map<String, Object> toCheckpoint(CheckpointRecord checkpoint) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
-        item.put("checkpoint_id", checkpoint.getCheckpointId());
+        item.put("checkpoint_id", safe(checkpoint.getCheckpointId(), 400));
         item.put("source_key", safe(checkpoint.getSourceKey(), 400));
         item.put("session_id", safe(checkpoint.getSessionId(), 400));
         item.put("created_at", checkpoint.getCreatedAt());
@@ -535,5 +535,16 @@ public class DashboardSessionService {
 
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
+    }
+
+    private List<String> safeList(List<String> values, int maxLength) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            result.add(safe(value, maxLength));
+        }
+        return result;
     }
 }

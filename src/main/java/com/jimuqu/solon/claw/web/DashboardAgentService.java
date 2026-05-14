@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -46,7 +47,7 @@ public class DashboardAgentService {
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("agents", agents);
-        result.put("active_agent_name", active);
+        result.put("active_agent_name", safe(active, 400));
         return result;
     }
 
@@ -62,7 +63,7 @@ public class DashboardAgentService {
         }
         AgentProfile profile = agentProfileService.findByName(normalized);
         if (profile == null) {
-            throw new IllegalArgumentException("未找到 Agent：" + normalized);
+            throw new IllegalArgumentException("未找到 Agent：" + safe(normalized, 400));
         }
         return toDetail(profile, active);
     }
@@ -83,7 +84,7 @@ public class DashboardAgentService {
         agentRuntimeService.rejectDefault(name);
         AgentProfile profile = agentProfileService.findByName(name);
         if (profile == null) {
-            throw new IllegalArgumentException("未找到 Agent：" + name);
+            throw new IllegalArgumentException("未找到 Agent：" + safe(name, 400));
         }
         applyMutableFields(profile, body);
         profile = agentProfileService.save(profile);
@@ -107,10 +108,10 @@ public class DashboardAgentService {
         if (!AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {
             AgentProfile profile = agentProfileService.findByName(normalized);
             if (profile == null) {
-                throw new IllegalArgumentException("未找到 Agent：" + normalized);
+                throw new IllegalArgumentException("未找到 Agent：" + safe(normalized, 400));
             }
             if (!profile.isEnabled()) {
-                throw new IllegalArgumentException("Agent 已停用：" + normalized);
+                throw new IllegalArgumentException("Agent 已停用：" + safe(normalized, 400));
             }
         }
         SessionRecord session = sessionRepository.findById(sessionId);
@@ -129,8 +130,8 @@ public class DashboardAgentService {
                 sessionId, AgentRuntimeScope.DEFAULT_AGENT.equals(normalized) ? null : normalized);
         agentRuntimeService.markUsed(normalized);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("session_id", sessionId);
-        result.put("active_agent_name", normalized);
+        result.put("session_id", safe(sessionId, 400));
+        result.put("active_agent_name", safe(normalized, 400));
         return result;
     }
 
@@ -211,10 +212,10 @@ public class DashboardAgentService {
                     continue;
                 }
                 Map<String, Object> item = new LinkedHashMap<String, Object>();
-                item.put("run_id", run.getRunId());
-                item.put("session_id", run.getSessionId());
+                item.put("run_id", safe(run.getRunId(), 400));
+                item.put("session_id", safe(run.getSessionId(), 400));
                 item.put("status", run.getStatus());
-                item.put("model", run.getModel());
+                item.put("model", safe(run.getModel(), 400));
                 item.put("started_at", run.getStartedAt());
                 item.put("finished_at", run.getFinishedAt());
                 result.add(item);
@@ -269,5 +270,9 @@ public class DashboardAgentService {
     private String string(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 }

@@ -259,7 +259,7 @@ public class DashboardDiagnosticsService {
         Map<String, Object> result =
                 resolveResult(true, "ok", "审批状态已更新。", reply == null ? null : replyMap(reply));
         result.put("action", action);
-        result.put("session_id", session.getSessionId());
+        result.put("session_id", safeAuditPreview(session.getSessionId(), 240));
         result.put("resumed", Boolean.valueOf(reply != null));
         return result;
     }
@@ -2655,7 +2655,7 @@ public class DashboardDiagnosticsService {
                         "curl DNS 服务器地址检查",
                         "curl --dns-servers 169.254.169.254 https://example.test"));
         items.add(
-                commandUrlPolicyProbe(
+                privateUrlCommandPolicyProbe(
                         "command_preproxy_url_policy",
                         "命令 preproxy URL 前置策略检查",
                         "curl --preproxy socks5://127.0.0.1:1080 https://example.test"));
@@ -2740,7 +2740,7 @@ public class DashboardDiagnosticsService {
                         "Windows winhttp 代理 URL 前置策略检查",
                         "netsh winhttp set proxy proxy-server=169.254.169.254:8080 bypass-list=example.com"));
         items.add(
-                commandUrlPolicyProbe(
+                privateUrlCommandPolicyProbe(
                         "command_winhttp_bypass_policy",
                         "Windows winhttp 代理绕过 URL 前置策略检查",
                         "netsh winhttp set proxy proxy-server=proxy.example:8080 bypass-list=localhost"));
@@ -4736,7 +4736,7 @@ public class DashboardDiagnosticsService {
                         "windows_security_registry_weaken",
                         "Windows 安全注册表削弱审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "reg add HKLM\\Software\\Policies\\Microsoft\\Windows Defender /v DisableAntiSpyware /d 1",
+                        "reg add HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v EnableLUA /d 0",
                         "windows_security_registry_weaken"));
         items.add(
                 approvalDetectionProbe(
@@ -5321,6 +5321,19 @@ public class DashboardDiagnosticsService {
                 verdict.isAllowed(),
                 safeAuditPreview(command, 400),
                 verdict.getMessage());
+    }
+
+    private Map<String, Object> privateUrlCommandPolicyProbe(
+            String key, String label, String command) {
+        if (privateUrlsAllowedByPolicy()) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "command_url_policy",
+                    safeAuditPreview(command, 400),
+                    "当前策略允许访问内网 URL，跳过默认阻断探针。");
+        }
+        return commandUrlPolicyProbe(key, label, command);
     }
 
     private Map<String, Object> commandPathPolicyProbe(String key, String label, String command) {
@@ -6932,7 +6945,7 @@ public class DashboardDiagnosticsService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("success", Boolean.valueOf(success));
         result.put("code", code);
-        result.put("message", message);
+        result.put("message", safeAuditPreview(message, 1200));
         if (reply != null) {
             result.put("reply", reply);
         }
@@ -6952,8 +6965,8 @@ public class DashboardDiagnosticsService {
 
     private Map<String, Object> replyMap(GatewayReply reply) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("session_id", reply.getSessionId());
-        map.put("branch_name", reply.getBranchName());
+        map.put("session_id", safeAuditPreview(reply.getSessionId(), 240));
+        map.put("branch_name", safeAuditPreview(reply.getBranchName(), 160));
         map.put("content", SecretRedactor.redact(reply.getContent(), 1200));
         map.put("error", Boolean.valueOf(reply.isError()));
         return map;
