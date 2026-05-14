@@ -56,6 +56,8 @@ public class DashboardRunServiceTest {
         run.setSessionId("session-secret");
         run.setInputPreview("use api_key=sk-test-runinputsecret");
         run.setFinalReplyPreview("done token=ghp_runreplysecret123");
+        run.setProvider("provider-ghp_runprovider12345");
+        run.setModel("model-ghp_runmodel12345");
         run.setAgentSnapshotJson(
                 ONode.serialize(Collections.singletonMap("env", "OPENAI_API_KEY=sk-test-snapshotsecret")));
         run.setRecoveryHint("retry with password=run-password");
@@ -66,6 +68,8 @@ public class DashboardRunServiceTest {
         event.setEventId("event-secret");
         event.setRunId("run-secret");
         event.setSessionId("session-secret");
+        event.setProvider("event-provider-ghp_eventprovider12345");
+        event.setModel("event-model-ghp_eventmodel12345");
         event.setSummary("metadata token=ghp_eventsummary123");
         event.setMetadataJson(
                 ONode.serialize(Collections.singletonMap("url", "https://u:p@example.com/cb?token=event-token")));
@@ -109,6 +113,14 @@ public class DashboardRunServiceTest {
 
         assertThat(response).doesNotContain("sk-test-runinputsecret");
         assertThat(response).doesNotContain("ghp_runreplysecret123");
+        assertThat(response).contains("provider-ghp_***").contains("model-ghp_***");
+        assertThat(response)
+                .contains("event-provider-ghp_***")
+                .contains("event-model-ghp_***");
+        assertThat(response).doesNotContain("runprovider12345");
+        assertThat(response).doesNotContain("runmodel12345");
+        assertThat(response).doesNotContain("eventprovider12345");
+        assertThat(response).doesNotContain("eventmodel12345");
         assertThat(response).doesNotContain("sk-test-snapshotsecret");
         assertThat(response).doesNotContain("run-password");
         assertThat(response).doesNotContain("ghp_runerrorsecret123");

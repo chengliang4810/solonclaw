@@ -201,8 +201,8 @@ public class DashboardRunService {
         map.put("backgrounded", record.isBackgrounded());
         map.put("input_preview", redact(record.getInputPreview(), 8000));
         map.put("final_reply_preview", redact(record.getFinalReplyPreview(), 8000));
-        map.put("provider", record.getProvider());
-        map.put("model", record.getModel());
+        map.put("provider", redact(record.getProvider(), 400));
+        map.put("model", redact(record.getModel(), 400));
         map.put("attempts", record.getAttempts());
         map.put("context_estimate_tokens", record.getContextEstimateTokens());
         map.put("context_window_tokens", record.getContextWindowTokens());
@@ -235,8 +235,8 @@ public class DashboardRunService {
         map.put("phase", record.getPhase());
         map.put("severity", record.getSeverity());
         map.put("attempt_no", record.getAttemptNo());
-        map.put("provider", record.getProvider());
-        map.put("model", record.getModel());
+        map.put("provider", redact(record.getProvider(), 400));
+        map.put("model", redact(record.getModel(), 400));
         map.put("summary", redact(record.getSummary(), 2000));
         map.put("created_at", record.getCreatedAt());
         map.put(
