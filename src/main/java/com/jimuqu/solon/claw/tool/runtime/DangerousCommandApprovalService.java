@@ -6148,7 +6148,7 @@ public class DangerousCommandApprovalService {
         copy.setPatternKeys(redactedTextList(source.getPatternKeys(), 400));
         copy.setDescription(SecretRedactor.redact(source.getDescription(), 1000));
         copy.setCommand(SecretRedactor.redact(source.getCommand(), 3000));
-        copy.setCommandHash(SecretRedactor.stripDisplayControls(source.getCommandHash()));
+        copy.setCommandHash(SecretRedactor.redact(source.getCommandHash(), 200));
         copy.setApprovalKey(SecretRedactor.redact(source.getApprovalKey(), 1000));
         copy.setCreatedAt(source.getCreatedAt());
         copy.setExpiresAt(source.getExpiresAt());
