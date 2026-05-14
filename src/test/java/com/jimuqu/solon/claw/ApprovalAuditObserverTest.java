@@ -148,6 +148,33 @@ public class ApprovalAuditObserverTest {
     }
 
     @Test
+    void shouldRedactSecretLikeApprovalIdInApprovalAuditEvent() throws Exception {
+        CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
+        ApprovalAuditObserver observer = new ApprovalAuditObserver(repository);
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setApprovalId("approval-ghp_auditid12345");
+        pending.setToolName("execute_shell");
+        pending.setPatternKey("recursive_delete");
+        pending.setDescription("recursive delete");
+        pending.setCommand("rm -rf runtime/cache");
+
+        Constructor<DangerousCommandApprovalService.ApprovalRequestEvent> constructor =
+                DangerousCommandApprovalService.ApprovalRequestEvent.class.getDeclaredConstructor(
+                        String.class, DangerousCommandApprovalService.PendingApproval.class);
+        constructor.setAccessible(true);
+        DangerousCommandApprovalService.ApprovalRequestEvent event =
+                constructor.newInstance("session-approval-id", pending);
+
+        observer.onApprovalRequest(event);
+
+        assertThat(repository.events).hasSize(1);
+        assertThat(repository.events.get(0).getApprovalId())
+                .contains("approval-ghp_***")
+                .doesNotContain("ghp_auditid12345");
+    }
+
+    @Test
     void shouldStripDisplayControlsFromApprovalAuditChoice() throws Exception {
         CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
         ApprovalAuditObserver observer = new ApprovalAuditObserver(repository);

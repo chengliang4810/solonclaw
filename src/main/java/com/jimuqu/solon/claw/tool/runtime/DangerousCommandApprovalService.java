@@ -6142,7 +6142,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
         PendingApproval copy = new PendingApproval();
-        copy.setApprovalId(SecretRedactor.stripDisplayControls(source.getApprovalId()));
+        copy.setApprovalId(SecretRedactor.redact(source.getApprovalId(), 200));
         copy.setToolName(SecretRedactor.redact(source.getToolName(), 200));
         copy.setPatternKey(SecretRedactor.redact(source.getPatternKey(), 400));
         copy.setPatternKeys(redactedTextList(source.getPatternKeys(), 400));
