@@ -6094,7 +6094,7 @@ public class DangerousCommandApprovalService {
 
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
             this.sessionId =
-                    SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(sessionId));
+                    SecretRedactor.redact(StrUtil.nullToEmpty(sessionId), 200);
             this.pendingApproval = pendingApproval;
             this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
         }
@@ -6142,13 +6142,13 @@ public class DangerousCommandApprovalService {
             return null;
         }
         PendingApproval copy = new PendingApproval();
-        copy.setApprovalId(SecretRedactor.stripDisplayControls(source.getApprovalId()));
+        copy.setApprovalId(SecretRedactor.redact(source.getApprovalId(), 200));
         copy.setToolName(SecretRedactor.redact(source.getToolName(), 200));
         copy.setPatternKey(SecretRedactor.redact(source.getPatternKey(), 400));
         copy.setPatternKeys(redactedTextList(source.getPatternKeys(), 400));
         copy.setDescription(SecretRedactor.redact(source.getDescription(), 1000));
         copy.setCommand(SecretRedactor.redact(source.getCommand(), 3000));
-        copy.setCommandHash(SecretRedactor.stripDisplayControls(source.getCommandHash()));
+        copy.setCommandHash(SecretRedactor.redact(source.getCommandHash(), 200));
         copy.setApprovalKey(SecretRedactor.redact(source.getApprovalKey(), 1000));
         copy.setCreatedAt(source.getCreatedAt());
         copy.setExpiresAt(source.getExpiresAt());

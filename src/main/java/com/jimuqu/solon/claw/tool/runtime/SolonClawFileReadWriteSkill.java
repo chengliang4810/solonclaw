@@ -75,10 +75,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         clearReadDedup(fileName);
         fileStateTracker.recordWrite(target);
         if (StrUtil.isNotBlank(staleWarning)) {
+            String safeResult = SecretRedactor.redact(result, 1000);
             ToolResultEnvelope envelope =
                     StrUtil.startWith(result, "写入失败")
-                            ? ToolResultEnvelope.error(result)
-                            : ToolResultEnvelope.ok(result);
+                            ? ToolResultEnvelope.error(safeResult)
+                            : ToolResultEnvelope.ok(safeResult);
             return envelope.data("path", safeDisplayPath(fileName))
                     .data("_warning", safeDisplayPath(staleWarning))
                     .toJson();
@@ -208,9 +209,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                         .data("already_read", Integer.valueOf(readStatus.count))
                         .toJson();
             }
+            String displayPath = safeDisplayPath(fileName);
             ToolResultEnvelope envelope =
-                    ToolResultEnvelope.ok("文件读取完成：" + fileName)
-                            .data("path", fileName)
+                    ToolResultEnvelope.ok("文件读取完成：" + displayPath)
+                            .data("path", displayPath)
                             .data("content", content)
                             .data("total_lines", Integer.valueOf(totalLines))
                             .data("file_size", Long.valueOf(Files.size(target)))

@@ -1370,6 +1370,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "previewLength");
             copyPolicyValue(summary, safe, "pinnedInlineTools");
             copyPolicyValue(summary, safe, "pinnedInlineRawObservationAllowed");
+            copyPolicyValue(summary, safe, "pinnedInlineObservationRedacted");
             copyPolicyValue(summary, safe, "pinnedInlinePreviewRedacted");
             copyPolicyValue(summary, safe, "oversizedResultsPersisted");
             copyPolicyValue(summary, safe, "turnBudgetOverflowPersisted");

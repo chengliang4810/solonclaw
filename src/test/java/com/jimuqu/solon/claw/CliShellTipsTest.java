@@ -357,6 +357,7 @@ public class CliShellTipsTest {
                 .contains("工具输出安全策略摘要")
                 .contains("oversizedPersisted")
                 .contains("pinnedRawInline")
+                .contains("pinnedObservationRedacted")
                 .contains("previewOnlyFallback");
         assertThat(TerminalSecurityPolicyView.render(null, "/security patch"))
                 .contains("补丁工具安全策略摘要")

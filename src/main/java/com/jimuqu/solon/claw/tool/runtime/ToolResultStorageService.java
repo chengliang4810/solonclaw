@@ -93,7 +93,8 @@ public class ToolResultStorageService {
         summary.put("turnBudgetBytes", Integer.valueOf(turnBudgetBytes));
         summary.put("previewLength", Integer.valueOf(previewLength));
         summary.put("pinnedInlineTools", pinnedInlineTools());
-        summary.put("pinnedInlineRawObservationAllowed", Boolean.TRUE);
+        summary.put("pinnedInlineRawObservationAllowed", Boolean.FALSE);
+        summary.put("pinnedInlineObservationRedacted", Boolean.TRUE);
         summary.put("pinnedInlinePreviewRedacted", Boolean.TRUE);
         summary.put("oversizedResultsPersisted", Boolean.TRUE);
         summary.put("turnBudgetOverflowPersisted", Boolean.TRUE);
@@ -406,7 +407,7 @@ public class ToolResultStorageService {
 
     private String safeObservation(String toolName, String content) {
         if (isPinnedInline(toolName)) {
-            return StrUtil.nullToEmpty(content);
+            return SecretRedactor.redact(StrUtil.nullToEmpty(content));
         }
         return SecretRedactor.redact(StrUtil.nullToEmpty(content));
     }
