@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
@@ -3857,6 +3858,49 @@ public class DashboardDiagnosticOutputTest {
     }
 
     @Test
+    void shouldRedactResolveSlashConfirmIdentifiersAndReply() throws Exception {
+        AppConfig config = new AppConfig();
+        SlashConfirmService slashConfirmService = new SlashConfirmService(null);
+        SlashConfirmService.PendingConfirm pending =
+                slashConfirmService.register(
+                        "source-slash-redact",
+                        "reload-mcp token=ghp_slashcommand12345",
+                        "confirm token=ghp_slashprompt12345");
+        pending.setConfirmId("confirm-ghp_slashconfirm12345");
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        slashConfirmService,
+                        new RedactingCommandService(),
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("confirmId", pending.getConfirmId());
+        body.put("action", "approve");
+        Map<String, Object> result = diagnosticsService.resolveSlashConfirm(body);
+        String json = ONode.serialize(result);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(json)
+                .contains("\"confirm_id\":\"confirm-ghp_***\"")
+                .contains("\"session_id\":\"session-ghp_***\"")
+                .contains("\"branch_name\":\"branch-token=***\"")
+                .contains("slash result token=***")
+                .doesNotContain("slashconfirm12345")
+                .doesNotContain("slashreplysession12345")
+                .doesNotContain("slashreplybranch12345")
+                .doesNotContain("slashreplycontent12345");
+    }
+
+    @Test
     void shouldMarkApprovalHistoryTruncatedOnlyWhenMoreItemsExist() throws Exception {
         AppConfig config = new AppConfig();
         ApprovalAuditEvent first = new ApprovalAuditEvent();
@@ -4487,6 +4531,21 @@ public class DashboardDiagnosticOutputTest {
                     GatewayReply.ok("resumed token=ghp_resolvereplycontent12345");
             reply.setSessionId("session-ghp_resolvereplysession12345");
             reply.setBranchName("branch-token=ghp_resolvebranch12345");
+            return reply;
+        }
+    }
+
+    private static class RedactingCommandService implements CommandService {
+        @Override
+        public boolean supports(String commandName) {
+            return true;
+        }
+
+        @Override
+        public GatewayReply handle(GatewayMessage message, String commandLine) {
+            GatewayReply reply = GatewayReply.ok("slash result token=ghp_slashreplycontent12345");
+            reply.setSessionId("session-ghp_slashreplysession12345");
+            reply.setBranchName("branch-token=ghp_slashreplybranch12345");
             return reply;
         }
     }

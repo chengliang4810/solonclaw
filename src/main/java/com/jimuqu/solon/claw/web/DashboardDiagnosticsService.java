@@ -375,7 +375,7 @@ public class DashboardDiagnosticsService {
         Map<String, Object> result =
                 resolveResult(!reply.isError(), reply.isError() ? "error" : "ok", reply.getContent(), replyMap(reply));
         result.put("action", action);
-        result.put("confirm_id", pending.getConfirmId());
+        result.put("confirm_id", safeAuditPreview(pending.getConfirmId(), 160));
         result.put("confirm_ref", shortId(pending.getConfirmId()));
         return result;
     }
