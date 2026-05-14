@@ -34,7 +34,8 @@ public class ToolResultStorageServiceTest {
         assertThat(cacheSummary.get("turnBudgetBytes")).isEqualTo(Integer.valueOf(600));
         assertThat(cacheSummary.get("previewLength")).isEqualTo(Integer.valueOf(300));
         assertThat(cacheSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.FALSE);
-        assertThat(cacheSummary.get("pinnedInlineRawObservationAllowed")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("pinnedInlineRawObservationAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(cacheSummary.get("pinnedInlineObservationRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(cacheSummary.get("pinnedInlinePreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(cacheSummary.get("describedPreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(cacheSummary))
@@ -289,7 +290,7 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
-    void shouldKeepPinnedReadFileInlineRawForExplicitFileReads() {
+    void shouldRedactPinnedReadFileObservationWhenContentContainsSecretLikeToken() {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
         String large = "read token=ghp_readinline12345\n" + repeat("read\n", 200);
@@ -297,7 +298,9 @@ public class ToolResultStorageServiceTest {
         ToolResultStorageService.StoredResult result =
                 service.observe("read_file", large, "run-read-inline", "call-read-inline");
 
-        assertThat(result.getObservation()).contains("ghp_readinline12345");
+        assertThat(result.getObservation())
+                .contains("token=***")
+                .doesNotContain("ghp_readinline12345");
         assertThat(result.getPreview()).contains("token=***").doesNotContain("ghp_readinline12345");
         assertThat(result.getResultRef()).isNull();
         assertThat(result.isTruncated()).isFalse();

@@ -1367,9 +1367,9 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("coverage")
-                .get("toolResultStoragePolicy")
-                .get("fullOutputSavedRaw")
-                .getBoolean())
+                                .get("toolResultStoragePolicy")
+                                .get("fullOutputSavedRaw")
+                                .getBoolean())
                 .isFalse();
         assertThat(
                         policyStatus
@@ -1377,6 +1377,14 @@ public class ToolRegistryExposureTest {
                                 .get("coverage")
                                 .get("toolResultStoragePolicy")
                                 .get("pinnedInlineRawObservationAllowed")
+                                .getBoolean())
+                .isFalse();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("pinnedInlineObservationRedacted")
                                 .getBoolean())
                 .isTrue();
         assertThat(

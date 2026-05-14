@@ -1468,6 +1468,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(toolResults, "describedPreviewRedacted"))
                 .append(" pinnedPreviewRedacted=")
                 .append(value(toolResults, "pinnedInlinePreviewRedacted"))
+                .append(" pinnedObservationRedacted=")
+                .append(value(toolResults, "pinnedInlineObservationRedacted"))
                 .append(" persistedRedacted=")
                 .append(value(toolResults, "persistedOutputRedacted"))
                 .append(" rawSaved=")
