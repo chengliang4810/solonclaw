@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -175,14 +176,14 @@ public class DashboardStatusService {
         LlmProviderService.ResolvedProvider resolved =
                 llmProviderService.resolveEffectiveProvider(null);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("model", resolved.getModel());
-        result.put("provider", resolved.getProviderKey());
-        result.put("providerKey", resolved.getProviderKey());
-        result.put("providerLabel", resolved.getLabel());
-        result.put("dialect", resolved.getDialect());
+        result.put("model", safeText(resolved.getModel(), 200));
+        result.put("provider", safeText(resolved.getProviderKey(), 160));
+        result.put("providerKey", safeText(resolved.getProviderKey(), 160));
+        result.put("providerLabel", safeText(resolved.getLabel(), 200));
+        result.put("dialect", safeText(resolved.getDialect(), 80));
         if (detailed) {
             result.put("baseUrl", SecretRedactor.maskUrl(resolved.getBaseUrl()));
-            result.put("fallbackProviders", appConfig.getFallbackProviders());
+            result.put("fallbackProviders", safeFallbackProviders());
         }
         result.put("auto_context_length", appConfig.getLlm().getContextWindowTokens());
         result.put("config_context_length", appConfig.getLlm().getContextWindowTokens());
@@ -194,9 +195,26 @@ public class DashboardStatusService {
         capabilities.put("supports_reasoning", true);
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
         capabilities.put("max_output_tokens", appConfig.getLlm().getMaxTokens());
-        capabilities.put("model_family", resolved.getDialect());
+        capabilities.put("model_family", safeText(resolved.getDialect(), 80));
         result.put("capabilities", capabilities);
         return result;
+    }
+
+    private List<Map<String, Object>> safeFallbackProviders() {
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        if (appConfig.getFallbackProviders() == null) {
+            return items;
+        }
+        for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
+            if (fallback == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("provider", safeText(fallback.getProvider(), 160));
+            item.put("model", safeText(fallback.getModel(), 200));
+            items.add(item);
+        }
+        return items;
     }
 
     private String publicDetail(ChannelStatus status) {
@@ -271,6 +289,10 @@ public class DashboardStatusService {
 
     private String redact(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
+    }
+
+    private String safeText(String value, int maxLength) {
+        return StrUtil.nullToEmpty(SecretRedactor.redact(value, maxLength));
     }
 
     private int configVersion() {
