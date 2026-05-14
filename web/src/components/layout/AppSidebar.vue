@@ -170,6 +170,15 @@ function handleLogout() {
         <span>{{ t("sidebar.models") }}</span>
       </button>
 
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.tui' }" @click="handleNav('Jimuqu.tui')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M7 8l3 3-3 3" />
+          <path d="M12 14h5" />
+        </svg>
+        <span>Agent 终端</span>
+      </button>
+
       <!-- Persona -->
       <div class="nav-group">
         <div class="nav-group-label" @click="toggleGroup('persona')">

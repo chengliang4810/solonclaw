@@ -1,0 +1,825 @@
+package com.jimuqu.solon.claw.tui;
+
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.core.service.CommandService;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.gateway.feedback.ToolPreviewSupport;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import org.noear.solon.ai.chat.message.ChatMessage;
+
+/** Agent terminal gateway service. */
+public class TuiGatewayService {
+    private static final int MAX_HISTORY_EVENTS = 400;
+    private static final int MAX_SESSION_LIST = 50;
+    private static final String DEFAULT_BUSY_MODE = "interrupt";
+
+    private final AppConfig appConfig;
+    private final SessionRepository sessionRepository;
+    private final ConversationOrchestrator conversationOrchestrator;
+    private final CommandService commandService;
+    private final AgentRunControlService agentRunControlService;
+    private final LlmProviderService llmProviderService;
+    private final ExecutorService executor;
+    private final ConcurrentMap<String, TuiSessionState> states =
+            new ConcurrentHashMap<String, TuiSessionState>();
+
+    public TuiGatewayService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            CommandService commandService,
+            AgentRunControlService agentRunControlService,
+            LlmProviderService llmProviderService) {
+        this.appConfig = appConfig;
+        this.sessionRepository = sessionRepository;
+        this.conversationOrchestrator = conversationOrchestrator;
+        this.commandService = commandService;
+        this.agentRunControlService = agentRunControlService;
+        this.llmProviderService = llmProviderService;
+        this.executor = BoundedExecutorFactory.fixed("tui-gateway", 4, 128);
+    }
+
+    public void shutdown() {
+        executor.shutdownNow();
+    }
+
+    public void onOpen(TuiConnection connection) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("connection_id", safe(connection.id(), 120));
+        payload.put("commands", TerminalCommandCatalog.slashCommands());
+        payload.put("busy_modes", java.util.Arrays.asList("queue", "steer", "interrupt"));
+        payload.put("status", "ready");
+        connection.sendEvent("gateway.ready", null, payload);
+        try {
+            connection.sendResult(null, null, statusPayload());
+        } catch (Exception e) {
+            connection.sendError(null, null, "STATUS_FAILED", safeError(e));
+        }
+    }
+
+    public void handle(TuiConnection connection, TuiEnvelope envelope) {
+        String method = StrUtil.nullToEmpty(envelope.getMethod()).trim();
+        try {
+            if ("client.ready".equals(method)) {
+                connection.sendResult(envelope.getId(), connection.getActiveSessionId(), statusPayload());
+            } else if ("session.start".equals(method)) {
+                Map<String, Object> result = startSession(connection, envelope.getParams());
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
+            } else if ("session.resume".equals(method)) {
+                Map<String, Object> result = resumeSession(connection, envelope.getSessionId(), envelope.getParams());
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
+            } else if ("session.list".equals(method)) {
+                connection.sendResult(envelope.getId(), connection.getActiveSessionId(), listSessions());
+            } else if ("session.delete".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), deleteSession(envelope.getSessionId()));
+            } else if ("session.branch".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), branchSession(connection, envelope));
+            } else if ("session.compress".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/compact"));
+            } else if ("input.send".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), submitInput(connection, envelope, "interrupt"));
+            } else if ("input.queue".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), submitInput(connection, envelope, "queue"));
+            } else if ("input.steer".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), submitInput(connection, envelope, "steer"));
+            } else if ("input.interrupt".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), interrupt(connection, envelope.getSessionId()));
+            } else if ("slash.run".equals(method) || "slash.confirm".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), submitSlash(connection, envelope));
+            } else if ("model.options".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), modelOptions());
+            } else if ("model.switch".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), switchModel(connection, envelope));
+            } else if ("approval.approve".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, approvalCommand(envelope, true)));
+            } else if ("approval.deny".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, approvalCommand(envelope, false)));
+            } else if ("mcp.reload".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/reload-mcp"));
+            } else if ("cron.list".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/cron list"));
+            } else if ("cron.run".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/cron run " + textParam(envelope, "job_id", "")));
+            } else if ("kanban.open".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/kanban show " + textParam(envelope, "task_id", "")));
+            } else if ("acp.status".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/acp status"));
+            } else if ("terminal.resize".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), resize(envelope));
+            } else {
+                connection.sendError(envelope.getId(), envelope.getSessionId(), "UNKNOWN_METHOD", "Unsupported TUI method: " + safe(method, 120));
+            }
+        } catch (Exception e) {
+            connection.sendError(envelope.getId(), envelope.getSessionId(), "TUI_FAILED", safeError(e));
+        }
+    }
+
+    private Map<String, Object> startSession(TuiConnection connection, Map<String, Object> params)
+            throws Exception {
+        String requestedId = stringValue(params.get("session_id"));
+        String sessionId = StrUtil.isBlank(requestedId) ? IdSupport.newId() : requestedId;
+        String sourceKey = sourceKey(sessionId);
+        SessionRecord session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            session = new SessionRecord();
+            session.setSessionId(sessionId);
+            session.setSourceKey(sourceKey);
+            session.setBranchName("main");
+            session.setTitle(titleFrom(params, "新的终端会话"));
+            session.setNdjson("");
+            session.setCreatedAt(System.currentTimeMillis());
+            session.setUpdatedAt(System.currentTimeMillis());
+            String model = stringValue(params.get("model"));
+            if (StrUtil.isNotBlank(model)) {
+                session.setModelOverride(model);
+            }
+            sessionRepository.save(session);
+        }
+        sessionRepository.bindSource(sourceKey, sessionId);
+        connection.setActiveSessionId(sessionId);
+        TuiSessionState state = state(sessionId);
+        state.busyMode = textParam(params, "busy_mode", defaultBusyMode());
+        Map<String, Object> result = sessionPayload(sessionRepository.findById(sessionId));
+        result.put("busy_mode", state.busyMode);
+        replay(connection, sessionId, Long.valueOf(0L));
+        connection.sendEvent("session.created", sessionId, result);
+        return result;
+    }
+
+    private Map<String, Object> resumeSession(
+            TuiConnection connection, String sessionId, Map<String, Object> params)
+            throws Exception {
+        String sid = StrUtil.blankToDefault(sessionId, stringValue(params.get("session_id")));
+        if (StrUtil.isBlank(sid)) {
+            throw new IllegalArgumentException("session_id is required");
+        }
+        SessionRecord session = sessionRepository.findById(sid);
+        if (session == null) {
+            throw new IllegalArgumentException("session not found: " + sid);
+        }
+        sessionRepository.bindSource(sourceKey(sid), sid);
+        connection.setActiveSessionId(sid);
+        TuiSessionState state = state(sid);
+        String busyMode = stringValue(params.get("busy_mode"));
+        if (StrUtil.isNotBlank(busyMode)) {
+            state.busyMode = normalizeBusyMode(busyMode);
+        }
+        Long afterSeq = longParam(params.get("after_seq"));
+        if (afterSeq == null) {
+            afterSeq = Long.valueOf(0L);
+        }
+        Map<String, Object> result = sessionPayload(session);
+        result.put("busy_mode", state.busyMode);
+        result.put("queued_count", Integer.valueOf(state.queue.size()));
+        replay(connection, sid, afterSeq);
+        connection.sendEvent("session.resumed", sid, result);
+        return result;
+    }
+
+    private Map<String, Object> listSessions() throws Exception {
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        for (SessionRecord record : sessionRepository.listRecent(MAX_SESSION_LIST, 0)) {
+            items.add(sessionPayload(record));
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("sessions", items);
+        result.put("limit", Integer.valueOf(MAX_SESSION_LIST));
+        return result;
+    }
+
+    private Map<String, Object> deleteSession(String sessionId) throws Exception {
+        if (StrUtil.isBlank(sessionId)) {
+            throw new IllegalArgumentException("session_id is required");
+        }
+        sessionRepository.delete(sessionId);
+        states.remove(sessionId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.TRUE);
+        result.put("session_id", safe(sessionId, 120));
+        return result;
+    }
+
+    private Map<String, Object> branchSession(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        String branchName = textParam(envelope, "branch_name", "branch-" + System.currentTimeMillis());
+        SessionRecord branched = sessionRepository.cloneSession(sourceKey(sid), sid, branchName);
+        connection.setActiveSessionId(branched.getSessionId());
+        Map<String, Object> payload = sessionPayload(branched);
+        connection.sendEvent("session.created", branched.getSessionId(), payload);
+        return payload;
+    }
+
+    private Map<String, Object> submitInput(TuiConnection connection, TuiEnvelope envelope, String fallbackMode)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        String input = textParam(envelope, "input", "");
+        if (StrUtil.isBlank(input)) {
+            throw new IllegalArgumentException("input is required");
+        }
+        String requestedMode = textParam(envelope, "busy_mode", fallbackMode);
+        final TuiSessionState state = state(sid);
+        String mode = normalizeBusyMode(StrUtil.blankToDefault(requestedMode, state.busyMode));
+        state.busyMode = mode;
+
+        if (state.running) {
+            if ("queue".equals(mode)) {
+                TuiQueuedInput queued = new TuiQueuedInput(input, textParam(envelope, "model", ""));
+                state.queue.addLast(queued);
+                Map<String, Object> payload = runStatePayload(state);
+                payload.put("queued_input", safe(input, 400));
+                emit(state, connection, "run.queued", sid, payload);
+                return payload;
+            }
+            if ("steer".equals(mode)) {
+                state.steerInstruction = input;
+                Map<String, Object> payload = runStatePayload(state);
+                payload.put("steer", safe(input, 1000));
+                emit(state, connection, "run.busy", sid, payload);
+                return payload;
+            }
+            interrupt(connection, sid);
+        }
+
+        startRun(connection, sid, input, textParam(envelope, "model", ""));
+        return runStatePayload(state);
+    }
+
+    private Map<String, Object> submitSlash(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String command = textParam(envelope, "command", textParam(envelope, "input", ""));
+        if (StrUtil.isBlank(command)) {
+            throw new IllegalArgumentException("command is required");
+        }
+        if (!command.trim().startsWith("/")) {
+            command = "/" + command.trim();
+        }
+        return runSlash(connection, envelope, command);
+    }
+
+    private Map<String, Object> runSlash(TuiConnection connection, TuiEnvelope envelope, String command)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        startRun(connection, sid, command, textParam(envelope, "model", ""));
+        Map<String, Object> result = runStatePayload(state(sid));
+        result.put("command", safe(command, 400));
+        return result;
+    }
+
+    private void startRun(
+            final TuiConnection connection, final String sessionId, final String input, final String model) {
+        final TuiSessionState state = state(sessionId);
+        state.running = true;
+        state.finalEmitted = false;
+        state.failed = false;
+        state.currentRunId = IdSupport.newId();
+        state.currentAssistant.setLength(0);
+
+        Map<String, Object> started = runStatePayload(state);
+        started.put("input", safe(input, 1000));
+        emit(state, connection, "run.busy", sessionId, started);
+        emit(state, connection, "user.message", sessionId, singleton("content", safe(input, 8000)));
+
+        executor.submit(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        executeRun(connection, state, sessionId, input, model);
+                    }
+                });
+    }
+
+    private void executeRun(
+            TuiConnection connection,
+            TuiSessionState state,
+            String sessionId,
+            String input,
+            String model) {
+        TuiEventSink eventSink = new TuiEventSink(connection, state, sessionId);
+        try {
+            SessionRecord session = prepareSession(sessionId, input, model);
+            GatewayMessage message = buildMessage(session.getSessionId(), input, model);
+            GatewayReply reply;
+            if (input.trim().startsWith("/")) {
+                reply = commandService.handle(message, input.trim(), eventSink);
+            } else {
+                reply = conversationOrchestrator.handleIncoming(message, eventSink);
+            }
+            if (reply != null && reply.isError()) {
+                eventSink.onRunFailed(session.getSessionId(), new IllegalStateException(reply.getContent()));
+            } else {
+                String finalReply = reply == null ? state.currentAssistant.toString() : StrUtil.nullToEmpty(reply.getContent());
+                if (!state.finalEmitted) {
+                    eventSink.onRunCompleted(session.getSessionId(), finalReply, null);
+                }
+            }
+        } catch (Throwable e) {
+            eventSink.onRunFailed(sessionId, e);
+        } finally {
+            state.running = false;
+            state.currentRunId = null;
+            if (!state.failed) {
+                emit(state, connection, "run.completed", sessionId, runStatePayload(state));
+            }
+            drainQueue(connection, state, sessionId);
+        }
+    }
+
+    private void drainQueue(TuiConnection connection, TuiSessionState state, String sessionId) {
+        TuiQueuedInput next = state.queue.pollFirst();
+        if (next == null) {
+            emit(state, connection, "run.idle", sessionId, runStatePayload(state));
+            return;
+        }
+        emit(state, connection, "run.queued", sessionId, runStatePayload(state));
+        startRun(connection, sessionId, next.input, next.model);
+    }
+
+    private Map<String, Object> interrupt(TuiConnection connection, String sessionId) {
+        String sid = StrUtil.blankToDefault(sessionId, connection.getActiveSessionId());
+        if (StrUtil.isBlank(sid)) {
+            throw new IllegalArgumentException("session_id is required");
+        }
+        String sourceKey = sourceKey(sid);
+        AgentRunStopResult result =
+                agentRunControlService == null ? null : agentRunControlService.stop(sourceKey);
+        TuiSessionState state = state(sid);
+        state.queue.clear();
+        Map<String, Object> payload = runStatePayload(state);
+        payload.put("stop_requested", Boolean.TRUE);
+        if (result != null) {
+            payload.put("active_run", Boolean.valueOf(result.isActiveRun()));
+            payload.put("interrupted", Boolean.valueOf(result.isInterruptSent()));
+            payload.put("agent_run_id", safe(result.getRunId(), 120));
+            payload.put("started_at", Long.valueOf(result.getStartedAt()));
+        }
+        emit(state, connection, "run.interrupted", sid, payload);
+        return payload;
+    }
+
+    private Map<String, Object> switchModel(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        String model = textParam(envelope, "model", "");
+        if (StrUtil.isBlank(model)) {
+            throw new IllegalArgumentException("model is required");
+        }
+        sessionRepository.setModelOverride(sid, model);
+        Map<String, Object> payload = sessionPayload(sessionRepository.findById(sid));
+        payload.put("model", safe(model, 400));
+        connection.sendEvent("model.changed", sid, payload);
+        return payload;
+    }
+
+    private Map<String, Object> modelOptions() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> providers = new ArrayList<Map<String, Object>>();
+        for (Map.Entry<String, AppConfig.ProviderConfig> entry : llmProviderService.providers().entrySet()) {
+            AppConfig.ProviderConfig provider = entry.getValue();
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("provider", safe(entry.getKey(), 120));
+            item.put("label", safe(provider == null ? entry.getKey() : provider.getName(), 120));
+            item.put("dialect", safe(provider == null ? "" : provider.getDialect(), 120));
+            item.put("default_model", safe(provider == null ? "" : provider.getDefaultModel(), 400));
+            providers.add(item);
+        }
+        result.put("providers", providers);
+        return result;
+    }
+
+    private Map<String, Object> resize(TuiEnvelope envelope) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("cols", envelope.getParams().get("cols"));
+        payload.put("rows", envelope.getParams().get("rows"));
+        payload.put("ok", Boolean.TRUE);
+        return payload;
+    }
+
+    private Map<String, Object> statusPayload() throws Exception {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("status", "ready");
+        result.put("commands", TerminalCommandCatalog.slashCommands());
+        result.put("running_count", Integer.valueOf(runningCount()));
+        result.put("sessions", listSessions().get("sessions"));
+        result.put("models", modelOptions().get("providers"));
+        return result;
+    }
+
+    private int runningCount() {
+        int count = 0;
+        for (TuiSessionState state : states.values()) {
+            if (state.running) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private SessionRecord prepareSession(String sessionId, String input, String model) throws Exception {
+        SessionRecord session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            session = new SessionRecord();
+            session.setSessionId(sessionId);
+            session.setSourceKey(sourceKey(sessionId));
+            session.setBranchName("main");
+            session.setTitle(trimTitle(input));
+            session.setNdjson("");
+            session.setCreatedAt(System.currentTimeMillis());
+            session.setUpdatedAt(System.currentTimeMillis());
+            if (StrUtil.isNotBlank(model)) {
+                session.setModelOverride(model);
+            }
+            sessionRepository.save(session);
+        }
+        if (StrUtil.isNotBlank(model)) {
+            sessionRepository.setModelOverride(sessionId, model);
+        }
+        sessionRepository.bindSource(sourceKey(sessionId), sessionId);
+        return sessionRepository.findById(sessionId);
+    }
+
+    private GatewayMessage buildMessage(String sessionId, String input, String model) {
+        GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "tui", sessionId, input);
+        message.setChatType("dm");
+        message.setChatName("Agent Terminal");
+        message.setUserName("dashboard");
+        message.setSourceKeyOverride(sourceKey(sessionId));
+        if (StrUtil.isNotBlank(model)) {
+            message.setModelOverride(model);
+        }
+        return message;
+    }
+
+    private Map<String, Object> sessionPayload(SessionRecord record) throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        if (record == null) {
+            return payload;
+        }
+        List<ChatMessage> messages = MessageSupport.loadMessages(record.getNdjson());
+        payload.put("session_id", safe(record.getSessionId(), 120));
+        payload.put("id", safe(record.getSessionId(), 120));
+        payload.put("title", safe(StrUtil.blankToDefault(record.getTitle(), "未命名会话"), 400));
+        payload.put("branch_name", safe(StrUtil.blankToDefault(record.getBranchName(), "main"), 120));
+        payload.put("parent_session_id", safe(record.getParentSessionId(), 120));
+        payload.put("model", safe(StrUtil.blankToDefault(record.getLastResolvedModel(), record.getModelOverride()), 400));
+        payload.put("provider", safe(record.getLastResolvedProvider(), 120));
+        payload.put("message_count", Integer.valueOf(messages.size()));
+        payload.put("total_tokens", Long.valueOf(record.getCumulativeTotalTokens()));
+        payload.put("last_active", Long.valueOf(record.getUpdatedAt()));
+        payload.put("started_at", Long.valueOf(record.getCreatedAt()));
+        payload.put("preview", safe(StrUtil.blankToDefault(MessageSupport.getLastUserMessage(record.getNdjson()), record.getCompressedSummary()), 280));
+        return payload;
+    }
+
+    private Map<String, Object> runStatePayload(TuiSessionState state) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("running", Boolean.valueOf(state.running));
+        payload.put("busy_mode", state.busyMode);
+        payload.put("run_id", safe(state.currentRunId, 120));
+        payload.put("queued_count", Integer.valueOf(state.queue.size()));
+        payload.put("has_steer", Boolean.valueOf(StrUtil.isNotBlank(state.steerInstruction)));
+        return payload;
+    }
+
+    private void replay(TuiConnection connection, String sessionId, Long afterSeq) {
+        TuiSessionState state = state(sessionId);
+        long from = afterSeq == null ? 0L : afterSeq.longValue();
+        synchronized (state.history) {
+            for (Map<String, Object> event : state.history) {
+                Object seq = event.get("seq");
+                if (seq instanceof Number && ((Number) seq).longValue() <= from) {
+                    continue;
+                }
+                connection.sendEvent(
+                        stringValue(event.get("type")),
+                        sessionId,
+                        castPayload(event.get("payload")));
+            }
+        }
+    }
+
+    private void emit(
+            TuiSessionState state,
+            TuiConnection connection,
+            String type,
+            String sessionId,
+            Map<String, Object> payload) {
+        Map<String, Object> safePayload =
+                payload == null ? new LinkedHashMap<String, Object>() : payload;
+        Map<String, Object> historyEvent = new LinkedHashMap<String, Object>();
+        historyEvent.put("type", type);
+        historyEvent.put("seq", Long.valueOf(++state.lastSeq));
+        historyEvent.put("payload", safePayload);
+        synchronized (state.history) {
+            state.history.addLast(historyEvent);
+            while (state.history.size() > MAX_HISTORY_EVENTS) {
+                state.history.removeFirst();
+            }
+        }
+        connection.sendEvent(type, sessionId, safePayload);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castPayload(Object value) {
+        if (value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        return new LinkedHashMap<String, Object>();
+    }
+
+    private String requireSessionId(TuiConnection connection, TuiEnvelope envelope) {
+        String sid = StrUtil.blankToDefault(envelope.getSessionId(), connection.getActiveSessionId());
+        if (StrUtil.isBlank(sid)) {
+            throw new IllegalArgumentException("session_id is required");
+        }
+        connection.setActiveSessionId(sid);
+        return sid;
+    }
+
+    private TuiSessionState state(String sessionId) {
+        TuiSessionState current = states.get(sessionId);
+        if (current != null) {
+            return current;
+        }
+        TuiSessionState created = new TuiSessionState();
+        created.busyMode = defaultBusyMode();
+        TuiSessionState existing = states.putIfAbsent(sessionId, created);
+        return existing == null ? created : existing;
+    }
+
+    private String sourceKey(String sessionId) {
+        return "MEMORY:tui:" + StrUtil.blankToDefault(sessionId, "");
+    }
+
+    private String defaultBusyMode() {
+        String configured =
+                appConfig == null || appConfig.getTask() == null
+                        ? ""
+                        : StrUtil.nullToEmpty(appConfig.getTask().getBusyPolicy());
+        return normalizeBusyMode(StrUtil.blankToDefault(configured, DEFAULT_BUSY_MODE));
+    }
+
+    private String normalizeBusyMode(String value) {
+        String normalized = StrUtil.blankToDefault(value, DEFAULT_BUSY_MODE).trim().toLowerCase(Locale.ROOT);
+        if ("queue".equals(normalized) || "steer".equals(normalized) || "interrupt".equals(normalized)) {
+            return normalized;
+        }
+        return DEFAULT_BUSY_MODE;
+    }
+
+    private String approvalCommand(TuiEnvelope envelope, boolean approve) {
+        String selector = textParam(envelope, "selector", "");
+        String scope = textParam(envelope, "scope", "");
+        String base = approve ? "/approve" : "/deny";
+        if (approve && StrUtil.isNotBlank(scope)) {
+            base += " " + scope;
+        }
+        if (StrUtil.isNotBlank(selector)) {
+            base += " " + selector;
+        }
+        return base;
+    }
+
+    private String textParam(TuiEnvelope envelope, String key, String fallback) {
+        return textParam(envelope.getParams(), key, fallback);
+    }
+
+    private String textParam(Map<String, Object> params, String key, String fallback) {
+        Object value = params == null ? null : params.get(key);
+        String text = stringValue(value);
+        return StrUtil.isBlank(text) ? fallback : text;
+    }
+
+    private Long longParam(Object value) {
+        if (value instanceof Number) {
+            return Long.valueOf(((Number) value).longValue());
+        }
+        String text = stringValue(value);
+        if (StrUtil.isBlank(text)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(Long.parseLong(text));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String titleFrom(Map<String, Object> params, String fallback) {
+        String title = textParam(params, "title", fallback);
+        return trimTitle(title);
+    }
+
+    private String trimTitle(String text) {
+        String normalized = StrUtil.blankToDefault(text, "新的终端会话").replace('\r', ' ').replace('\n', ' ').trim();
+        if (normalized.length() <= CompressionConstants.MAX_TITLE_LENGTH) {
+            return normalized;
+        }
+        return normalized.substring(0, CompressionConstants.MAX_TITLE_LENGTH) + "...";
+    }
+
+    private Map<String, Object> singleton(String key, Object value) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put(key, value);
+        return payload;
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "未知错误 / Unknown error";
+        }
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()), 1000);
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private final class TuiEventSink implements ConversationEventSink {
+        private final TuiConnection connection;
+        private final TuiSessionState state;
+        private final String sessionId;
+
+        private TuiEventSink(TuiConnection connection, TuiSessionState state, String sessionId) {
+            this.connection = connection;
+            this.state = state;
+            this.sessionId = sessionId;
+        }
+
+        @Override
+        public void onRunStarted(String sessionId) {
+            Map<String, Object> payload = runStatePayload(state);
+            payload.put("session_id", safe(sessionId, 120));
+            emit(state, connection, "run.busy", this.sessionId, payload);
+        }
+
+        @Override
+        public void onAssistantDelta(String delta) {
+            if (StrUtil.isBlank(delta)) {
+                return;
+            }
+            state.currentAssistant.append(delta);
+            emit(state, connection, "assistant.delta", sessionId, singleton("delta", safe(delta, 8000)));
+        }
+
+        @Override
+        public void onReasoningDelta(String delta) {
+            if (StrUtil.isBlank(delta)) {
+                return;
+            }
+            emit(state, connection, "assistant.reasoning", sessionId, singleton("delta", safe(delta, 4000)));
+        }
+
+        @Override
+        public void onToolStarted(String toolName, Map<String, Object> args) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("tool", safe(toolName, 120));
+            payload.put("preview", safe(ToolPreviewSupport.buildPreview(toolName, args, 80, false), 400));
+            emit(state, connection, "tool.started", sessionId, payload);
+        }
+
+        @Override
+        public void onToolCompleted(String toolName, String result, long durationMs) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("tool", safe(toolName, 120));
+            payload.put("duration_ms", Long.valueOf(durationMs));
+            payload.put("preview", safe(result, 1000));
+            emit(state, connection, "tool.completed", sessionId, payload);
+        }
+
+        @Override
+        public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("agent_run_id", safe(runId, 120));
+            payload.put("attempt_no", Integer.valueOf(attemptNo));
+            payload.put("provider", safe(provider, 120));
+            payload.put("model", safe(model, 400));
+            emit(state, connection, "attempt.started", sessionId, payload);
+        }
+
+        @Override
+        public void onAttemptCompleted(String runId, int attemptNo, String status, String reason) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("agent_run_id", safe(runId, 120));
+            payload.put("attempt_no", Integer.valueOf(attemptNo));
+            payload.put("status", safe(status, 120));
+            payload.put("reason", safe(reason, 1000));
+            emit(state, connection, "attempt.completed", sessionId, payload);
+        }
+
+        @Override
+        public void onCompressionDecision(
+                String runId,
+                boolean compressed,
+                String reason,
+                int estimatedTokens,
+                int thresholdTokens) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("agent_run_id", safe(runId, 120));
+            payload.put("compressed", Boolean.valueOf(compressed));
+            payload.put("reason", safe(reason, 1000));
+            payload.put("estimated_tokens", Integer.valueOf(estimatedTokens));
+            payload.put("threshold_tokens", Integer.valueOf(thresholdTokens));
+            emit(state, connection, "compression.decision", sessionId, payload);
+        }
+
+        @Override
+        public void onRecoveryStarted(String runId, String recoveryType) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("agent_run_id", safe(runId, 120));
+            payload.put("recovery_type", safe(recoveryType, 240));
+            emit(state, connection, "recovery.started", sessionId, payload);
+        }
+
+        @Override
+        public void onFallback(String runId, String fromProvider, String toProvider, String reason) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("agent_run_id", safe(runId, 120));
+            payload.put("from_provider", safe(fromProvider, 120));
+            payload.put("to_provider", safe(toProvider, 120));
+            payload.put("reason", safe(reason, 1000));
+            emit(state, connection, "fallback", sessionId, payload);
+        }
+
+        @Override
+        public void onRunCompleted(String sessionId, String finalReply, LlmResult result) {
+            state.finalEmitted = true;
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put(
+                    "content",
+                    safe(
+                            StrUtil.blankToDefault(finalReply, state.currentAssistant.toString()),
+                            12000));
+            if (result != null) {
+                Map<String, Object> usage = new LinkedHashMap<String, Object>();
+                usage.put("input_tokens", Long.valueOf(result.getInputTokens()));
+                usage.put("output_tokens", Long.valueOf(result.getOutputTokens()));
+                usage.put("reasoning_tokens", Long.valueOf(result.getReasoningTokens()));
+                usage.put("total_tokens", Long.valueOf(result.getTotalTokens()));
+                payload.put("usage", usage);
+            }
+            emit(state, connection, "assistant.final", this.sessionId, payload);
+        }
+
+        @Override
+        public void onRunFailed(String sessionId, Throwable error) {
+            state.failed = true;
+            emit(state, connection, "run.failed", this.sessionId, singleton("error", safeError(error)));
+        }
+    }
+
+    private static class TuiSessionState {
+        private volatile boolean running;
+        private volatile String currentRunId;
+        private volatile String busyMode;
+        private volatile String steerInstruction;
+        private volatile boolean finalEmitted;
+        private volatile boolean failed;
+        private volatile long lastSeq;
+        private final StringBuilder currentAssistant = new StringBuilder();
+        private final Deque<TuiQueuedInput> queue = new ArrayDeque<TuiQueuedInput>();
+        private final Deque<Map<String, Object>> history = new ArrayDeque<Map<String, Object>>();
+    }
+
+    private static class TuiQueuedInput {
+        private final String input;
+        private final String model;
+
+        private TuiQueuedInput(String input, String model) {
+            this.input = input;
+            this.model = model;
+        }
+    }
+}

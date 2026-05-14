@@ -27,6 +27,7 @@ public class SolonClawApp {
                 SolonClawApp.class,
                 args,
                 app -> {
+                    app.enableWebSocket(true);
                     if (cliMode.isConsoleMode()) {
                         app.enableHttp(false);
                     }

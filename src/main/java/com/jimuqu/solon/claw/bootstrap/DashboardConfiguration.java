@@ -41,6 +41,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.tui.TuiGatewayService;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardAuthFilter;
@@ -119,6 +120,23 @@ public class DashboardConfiguration {
             AgentRunControlService agentRunControlService,
             com.jimuqu.solon.claw.core.service.DelegationService delegationService) {
         return new DashboardRunService(agentRunRepository, agentRunControlService, delegationService);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public TuiGatewayService tuiGatewayService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            CommandService commandService,
+            AgentRunControlService agentRunControlService,
+            LlmProviderService llmProviderService) {
+        return new TuiGatewayService(
+                appConfig,
+                sessionRepository,
+                conversationOrchestrator,
+                commandService,
+                agentRunControlService,
+                llmProviderService);
     }
 
     @Bean
