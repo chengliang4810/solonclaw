@@ -329,6 +329,18 @@ public class McpRuntimeServiceTest {
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageNotContaining("secret123");
 
+        Map<String, Object> headers = new LinkedHashMap<String, Object>();
+        headers.put("Authorization", "Bearer ghp_mcpheader12345");
+        Map<String, Object> structuredCredentials = new LinkedHashMap<String, Object>();
+        structuredCredentials.put("url", "https://example.com/docs");
+        structuredCredentials.put("headers", headers);
+        assertThatThrownBy(() -> docsFetch.handle(structuredCredentials))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MCP tool")
+                .hasMessageContaining("敏感凭据字段")
+                .hasMessageContaining("Authorization")
+                .hasMessageNotContaining("ghp_mcpheader12345");
+
         Map<String, Object> unsafePath = new LinkedHashMap<String, Object>();
         unsafePath.put("file_path", ".env");
         assertThatThrownBy(() -> docsFetch.handle(unsafePath))
