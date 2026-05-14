@@ -6094,7 +6094,7 @@ public class DangerousCommandApprovalService {
 
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
             this.sessionId =
-                    SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(sessionId));
+                    SecretRedactor.redact(StrUtil.nullToEmpty(sessionId), 200);
             this.pendingApproval = pendingApproval;
             this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
         }
