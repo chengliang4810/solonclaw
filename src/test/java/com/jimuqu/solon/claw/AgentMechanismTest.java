@@ -258,6 +258,48 @@ public class AgentMechanismTest {
     }
 
     @Test
+    void shouldRedactSecretLikeDashboardAgentRunIdentifiers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.agentProfileService.createAgent("coder", "你是代码助手。");
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("session-ghp_agentdashsession12345");
+        session.setSourceKey("MEMORY:agent-dash:user");
+        session.setBranchName("main");
+        session.setNdjson("");
+        session.setCreatedAt(100L);
+        session.setUpdatedAt(100L);
+        env.sessionRepository.save(session);
+
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-ghp_agentdashrun12345");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey(session.getSourceKey());
+        run.setAgentName("coder");
+        run.setStatus("running");
+        run.setModel("model-token=ghp_agentdashmodel12345");
+        run.setStartedAt(100L);
+        env.agentRunRepository.saveRun(run);
+
+        DashboardAgentService service = dashboardAgentService(env);
+        String detailText = String.valueOf(service.get("coder", null));
+
+        Map<String, Object> activate = new LinkedHashMap<String, Object>();
+        activate.put("session_id", "session-ghp_agentactivate12345");
+        String activateText = String.valueOf(service.activate("coder", activate));
+
+        assertThat(detailText)
+                .contains("run_id=run-ghp_***")
+                .contains("session_id=session-ghp_***")
+                .contains("model=model-token=***")
+                .doesNotContain("agentdashrun12345")
+                .doesNotContain("agentdashsession12345")
+                .doesNotContain("agentdashmodel12345");
+        assertThat(activateText)
+                .contains("session_id=session-ghp_***")
+                .doesNotContain("agentactivate12345");
+    }
+
+    @Test
     void dashboardListShouldHideBuiltinDefaultAgent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("coder", "你是代码助手。");
