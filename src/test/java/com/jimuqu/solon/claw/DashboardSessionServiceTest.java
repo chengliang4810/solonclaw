@@ -134,6 +134,56 @@ public class DashboardSessionServiceTest {
     }
 
     @Test
+    void shouldRedactSecretLikeSessionIdentifiersFromDashboardResponses() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord root = new SessionRecord();
+        root.setSessionId("session-ghp_dashsessionid12345");
+        root.setSourceKey("MEMORY:dash-id-root:user");
+        root.setBranchName("main");
+        root.setTitle("root");
+        root.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("needle token=ghp_dashmessage12345"))));
+        root.setCreatedAt(100L);
+        root.setUpdatedAt(100L);
+        env.sessionRepository.save(root);
+
+        SessionRecord child = new SessionRecord();
+        child.setSessionId("session-ghp_dashchildid12345");
+        child.setSourceKey("MEMORY:dash-id-child:user");
+        child.setParentSessionId(root.getSessionId());
+        child.setBranchName("child");
+        child.setTitle("child");
+        child.setNdjson("");
+        child.setCreatedAt(200L);
+        child.setUpdatedAt(200L);
+        env.sessionRepository.save(child);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+
+        String listText = String.valueOf(service.getSessions(10, 0));
+        String detailText = String.valueOf(service.getSessionMessages(root.getSessionId()));
+        String searchText = String.valueOf(service.searchSessions("needle"));
+        String treeText = String.valueOf(service.sessionTree(root.getSessionId()));
+        String latestText = String.valueOf(service.latestDescendant(root.getSessionId()));
+        String missingText = String.valueOf(service.recap("missing-ghp_dashmissingid12345", 10));
+
+        assertThat(listText).contains("session-ghp_***");
+        assertThat(detailText).contains("session_id=session-ghp_***").contains("token=***");
+        assertThat(searchText).contains("session_id=session-ghp_***").contains("token=***");
+        assertThat(treeText).contains("parent_session_id=session-ghp_***");
+        assertThat(latestText)
+                .contains("requested_session_id=session-ghp_***")
+                .contains("session_id=session-ghp_***");
+        assertThat(missingText).contains("session_id=missing-ghp_***");
+        assertThat(listText + detailText + searchText + treeText + latestText + missingText)
+                .doesNotContain("dashsessionid12345")
+                .doesNotContain("dashchildid12345")
+                .doesNotContain("dashmessage12345")
+                .doesNotContain("dashmissingid12345");
+    }
+
+    @Test
     void shouldRedactSecretsFromDashboardCheckpointList() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String sourceKey = "MEMORY:dash-checkpoint:ghp_dashboardcheckpointsource";
