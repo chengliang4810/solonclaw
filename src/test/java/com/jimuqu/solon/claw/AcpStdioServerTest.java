@@ -558,6 +558,68 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromAcpModelMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AppConfig.ProviderConfig defaultProvider = env.appConfig.getProviders().get("default");
+        defaultProvider.setName("Default api_key=sk-test-acpmodelprovider12345");
+        defaultProvider.setDefaultModel("gpt-token=ghp_acpmodeldefault12345");
+        AppConfig.ProviderConfig fallbackProvider = new AppConfig.ProviderConfig();
+        fallbackProvider.setName("Backup token=ghp_acpmodelbackupname12345");
+        fallbackProvider.setBaseUrl("https://api.openai.com");
+        fallbackProvider.setApiKey("");
+        fallbackProvider.setDefaultModel("backup-token=ghp_acpmodelbackup12345");
+        fallbackProvider.setDialect("openai");
+        env.appConfig.getProviders().put("backup", fallbackProvider);
+        AppConfig.FallbackProviderConfig fallback = new AppConfig.FallbackProviderConfig();
+        fallback.setProvider("backup");
+        env.appConfig.getFallbackProviders().add(fallback);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService,
+                        env.appConfig);
+
+        String created = newAcpSession(server, 72);
+        assertThat(created)
+                .contains("\"id\":72")
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain("ghp_acpmodeldefault12345")
+                .doesNotContain("sk-test-acpmodelprovider12345")
+                .doesNotContain("ghp_acpmodelbackupname12345")
+                .doesNotContain("ghp_acpmodelbackup12345");
+
+        String sessionId = extractSessionId(created);
+        String model =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":73,\"method\":\"set_session_model\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"model_id\":\"default:session-token=ghp_acpmodelsession12345\"}}");
+        assertThat(model)
+                .contains("\"id\":73")
+                .contains("session-token=***")
+                .doesNotContain("ghp_acpmodelsession12345");
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":74,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\"}}");
+        assertThat(loaded)
+                .contains("\"id\":74")
+                .contains("session-token=***")
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain("ghp_acpmodelsession12345")
+                .doesNotContain("ghp_acpmodeldefault12345")
+                .doesNotContain("sk-test-acpmodelprovider12345")
+                .doesNotContain("ghp_acpmodelbackupname12345")
+                .doesNotContain("ghp_acpmodelbackup12345");
+    }
+
+    @Test
     void shouldApplyAcpSessionModelToFollowingPrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withLlm(new ModelEchoGateway());
         AcpStdioServer server =

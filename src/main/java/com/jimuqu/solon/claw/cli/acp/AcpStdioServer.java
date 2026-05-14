@@ -587,8 +587,8 @@ public class AcpStdioServer {
         addFallbackModelInfos(availableModels, currentModelId);
         result.put("available_models", availableModels);
         result.put("availableModels", availableModels);
-        result.put("current_model_id", currentModelId);
-        result.put("currentModelId", currentModelId);
+        result.put("current_model_id", safeAcpText(currentModelId));
+        result.put("currentModelId", safeAcpText(currentModelId));
         return result;
     }
 
@@ -620,14 +620,15 @@ public class AcpStdioServer {
             return;
         }
         Map<String, Object> modelInfo = new LinkedHashMap<String, Object>();
-        modelInfo.put("model_id", modelId);
-        modelInfo.put("modelId", modelId);
-        modelInfo.put("name", StrUtil.blankToDefault(provider.getModel(), modelId));
+        modelInfo.put("model_id", safeAcpText(modelId));
+        modelInfo.put("modelId", safeAcpText(modelId));
+        modelInfo.put("name", safeAcpText(StrUtil.blankToDefault(provider.getModel(), modelId)));
         modelInfo.put(
                 "description",
-                "Provider: "
-                        + StrUtil.blankToDefault(provider.getLabel(), provider.getProviderKey())
-                        + (current ? " - current" : ""));
+                safeAcpText(
+                        "Provider: "
+                                + StrUtil.blankToDefault(provider.getLabel(), provider.getProviderKey())
+                                + (current ? " - current" : "")));
         availableModels.add(modelInfo);
     }
 
@@ -674,8 +675,8 @@ public class AcpStdioServer {
         result.put("ok", true);
         result.put("session_id", state.getSessionId());
         result.put("sessionId", state.getSessionId());
-        result.put("model_id", state.getModelId());
-        result.put("modelId", state.getModelId());
+        result.put("model_id", safeAcpText(state.getModelId()));
+        result.put("modelId", safeAcpText(state.getModelId()));
         return result;
     }
 
