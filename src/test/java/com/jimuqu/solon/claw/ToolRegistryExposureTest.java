@@ -4509,6 +4509,33 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromFileReadSuccessPath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.createDirectories(workspace.resolve("logs"));
+        Files.write(
+                workspace.resolve("logs/token-ghp_filereadsuccess12345.txt"),
+                Arrays.asList("public=true"),
+                StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result =
+                ONode.ofJson(fileSkill.read("logs/token-ghp_filereadsuccess12345.txt", 1, 5));
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("summary").getString())
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filereadsuccess12345");
+        assertThat(result.get("path").getString())
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filereadsuccess12345");
+        assertThat(result.toJson()).doesNotContain("ghp_filereadsuccess12345");
+    }
+
+    @Test
     void shouldRedactSecretsFromFileWriteListAndDeleteResultsOnly() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawFileReadWriteSkill fileSkill =
@@ -4868,6 +4895,30 @@ public class ToolRegistryExposureTest {
                 .contains("stale-write.txt");
         assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8)).contains("agent2");
         assertThat(plainWrite).contains("文件保存成功").doesNotContain("_warning");
+    }
+
+    @Test
+    void shouldRedactSecretsFromFileWriteStaleWarningResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path file = workspace.resolve("stale-token-ghp_stalewrite12345.txt");
+        Files.write(file, Arrays.asList("alpha"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode read = ONode.ofJson(fileSkill.read("stale-token-ghp_stalewrite12345.txt", 1, 2));
+        Files.write(file, Arrays.asList("external"), StandardCharsets.UTF_8);
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 5000L));
+        ONode staleWrite =
+                ONode.ofJson(fileSkill.write("stale-token-ghp_stalewrite12345.txt", "agent\n"));
+
+        assertThat(read.get("success").getBoolean()).isTrue();
+        assertThat(staleWrite.get("success").getBoolean()).isTrue();
+        assertThat(staleWrite.toJson())
+                .contains("stale-token-ghp_***")
+                .doesNotContain("ghp_stalewrite12345");
     }
 
     @Test
