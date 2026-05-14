@@ -488,6 +488,47 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromAcpAuthMethodMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String providerKey = "token=ghp_acpauthprovider12345";
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Auth Provider");
+        provider.setBaseUrl("https://api.openai.com");
+        provider.setApiKey("sk-test-acpauthsecret12345");
+        provider.setDefaultModel("gpt-auth");
+        provider.setDialect("openai");
+        env.appConfig.getProviders().put(providerKey, provider);
+        env.appConfig.getModel().setProviderKey(providerKey);
+        env.appConfig.getLlm().setProvider(providerKey);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.appConfig);
+
+        String init =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":75,\"method\":\"initialize\",\"params\":{\"protocolVersion\":1}}");
+        assertThat(init)
+                .contains("\"id\":75")
+                .contains("token=***")
+                .doesNotContain("ghp_acpauthprovider12345");
+
+        String authenticated =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":76,\"method\":\"authenticate\",\"params\":{\"method_id\":\""
+                                + providerKey
+                                + "\"}}");
+        assertThat(authenticated)
+                .contains("\"id\":76")
+                .contains("\"ok\":true")
+                .contains("\"authenticated\":true")
+                .contains("token=***")
+                .doesNotContain("ghp_acpauthprovider12345");
+    }
+
+    @Test
     void shouldAcceptJimuquEditorSessionModelModeAndConfigMethods() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AppConfig.ProviderConfig fallbackProvider = new AppConfig.ProviderConfig();

@@ -321,8 +321,8 @@ public class AcpStdioServer {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("ok", true);
             result.put("authenticated", true);
-            result.put("method_id", provider);
-            result.put("methodId", provider);
+            result.put("method_id", safeAcpText(provider));
+            result.put("methodId", safeAcpText(provider));
             return result;
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -341,13 +341,14 @@ public class AcpStdioServer {
             return result;
         }
         Map<String, Object> method = new LinkedHashMap<String, Object>();
-        method.put("id", provider);
-        method.put("name", provider + " runtime credentials");
+        method.put("id", safeAcpText(provider));
+        method.put("name", safeAcpText(provider + " runtime credentials"));
         method.put(
                 "description",
-                "Authenticate jimuqu-agent using the currently configured "
-                        + provider
-                        + " runtime credentials.");
+                safeAcpText(
+                        "Authenticate jimuqu-agent using the currently configured "
+                                + provider
+                                + " runtime credentials."));
         result.add(method);
         return result;
     }
