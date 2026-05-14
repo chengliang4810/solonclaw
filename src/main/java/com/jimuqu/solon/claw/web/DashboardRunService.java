@@ -128,7 +128,7 @@ public class DashboardRunService {
         }
         String normalized = command == null ? "" : command.trim().toLowerCase(java.util.Locale.ROOT);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("run_id", runId);
+        result.put("run_id", safeId(runId));
         result.put("command", normalized);
         if (agentRunControlService != null) {
             return agentRunControlService.controlRun(runId, normalized, payload);
@@ -181,12 +181,12 @@ public class DashboardRunService {
 
     private Map<String, Object> toRun(AgentRunRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("run_id", record.getRunId());
-        map.put("session_id", record.getSessionId());
-        map.put("source_key", record.getSourceKey());
+        map.put("run_id", safeId(record.getRunId()));
+        map.put("session_id", safeId(record.getSessionId()));
+        map.put("source_key", safeId(record.getSourceKey()));
         map.put("run_kind", record.getRunKind());
-        map.put("parent_run_id", record.getParentRunId());
-        map.put("agent_name", record.getAgentName());
+        map.put("parent_run_id", safeId(record.getParentRunId()));
+        map.put("agent_name", safeId(record.getAgentName()));
         map.put(
                 "agent_snapshot",
                 redactParsed(
@@ -227,10 +227,10 @@ public class DashboardRunService {
 
     private Map<String, Object> toEvent(AgentRunEventRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("event_id", record.getEventId());
-        map.put("run_id", record.getRunId());
-        map.put("session_id", record.getSessionId());
-        map.put("source_key", record.getSourceKey());
+        map.put("event_id", safeId(record.getEventId()));
+        map.put("run_id", safeId(record.getRunId()));
+        map.put("session_id", safeId(record.getSessionId()));
+        map.put("source_key", safeId(record.getSourceKey()));
         map.put("event_type", record.getEventType());
         map.put("phase", record.getPhase());
         map.put("severity", record.getSeverity());
@@ -252,10 +252,10 @@ public class DashboardRunService {
 
     private Map<String, Object> toToolCall(ToolCallRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("tool_call_id", record.getToolCallId());
-        map.put("run_id", record.getRunId());
-        map.put("session_id", record.getSessionId());
-        map.put("source_key", record.getSourceKey());
+        map.put("tool_call_id", safeId(record.getToolCallId()));
+        map.put("run_id", safeId(record.getRunId()));
+        map.put("session_id", safeId(record.getSessionId()));
+        map.put("source_key", safeId(record.getSourceKey()));
         map.put("tool_name", record.getToolName());
         map.put("status", record.getStatus());
         map.put("args_preview", redact(record.getArgsPreview(), 8000));
@@ -277,13 +277,13 @@ public class DashboardRunService {
 
     private Map<String, Object> toSubagent(SubagentRunRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("subagent_id", record.getSubagentId());
-        map.put("parent_run_id", record.getParentRunId());
-        map.put("child_run_id", record.getChildRunId());
-        map.put("parent_source_key", record.getParentSourceKey());
-        map.put("child_source_key", record.getChildSourceKey());
-        map.put("session_id", record.getSessionId());
-        map.put("name", record.getName());
+        map.put("subagent_id", safeId(record.getSubagentId()));
+        map.put("parent_run_id", safeId(record.getParentRunId()));
+        map.put("child_run_id", safeId(record.getChildRunId()));
+        map.put("parent_source_key", safeId(record.getParentSourceKey()));
+        map.put("child_source_key", safeId(record.getChildSourceKey()));
+        map.put("session_id", safeId(record.getSessionId()));
+        map.put("name", safeId(record.getName()));
         map.put("goal_preview", redact(record.getGoalPreview(), 8000));
         map.put("status", record.getStatus());
         map.put("active", record.isActive());
@@ -307,9 +307,9 @@ public class DashboardRunService {
 
     private Map<String, Object> toCommand(RunControlCommand record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("command_id", record.getCommandId());
-        map.put("run_id", record.getRunId());
-        map.put("source_key", record.getSourceKey());
+        map.put("command_id", safeId(record.getCommandId()));
+        map.put("run_id", safeId(record.getRunId()));
+        map.put("source_key", safeId(record.getSourceKey()));
         map.put("command", redact(record.getCommand(), 400));
         map.put("status", record.getStatus());
         map.put("created_at", record.getCreatedAt());
@@ -324,10 +324,10 @@ public class DashboardRunService {
 
     private Map<String, Object> toRecovery(RunRecoveryRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("recovery_id", record.getRecoveryId());
-        map.put("run_id", record.getRunId());
-        map.put("session_id", record.getSessionId());
-        map.put("source_key", record.getSourceKey());
+        map.put("recovery_id", safeId(record.getRecoveryId()));
+        map.put("run_id", safeId(record.getRunId()));
+        map.put("session_id", safeId(record.getSessionId()));
+        map.put("source_key", safeId(record.getSourceKey()));
         map.put("recovery_type", record.getRecoveryType());
         map.put("status", record.getStatus());
         map.put("summary", redact(record.getSummary(), 2000));
@@ -354,10 +354,10 @@ public class DashboardRunService {
             fallback.put("message", redact(e.getMessage(), 1000));
             fallback.put("raw", redact(truncate(json, 4000), 4000));
             if (runId != null) {
-                fallback.put("run_id", runId);
+                fallback.put("run_id", safeId(runId));
             }
             if (eventId != null) {
-                fallback.put("event_id", eventId);
+                fallback.put("event_id", safeId(eventId));
             }
             return fallback;
         }
@@ -387,6 +387,10 @@ public class DashboardRunService {
 
     private String redact(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
+    }
+
+    private String safeId(String value) {
+        return SecretRedactor.redact(value, 400);
     }
 
     private String truncate(String value, int maxLength) {

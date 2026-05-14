@@ -127,6 +127,89 @@ public class DashboardRunServiceTest {
     }
 
     @Test
+    void shouldRedactSecretLikeRunIdentifiersFromDashboardDetails() throws Exception {
+        FakeAgentRunRepository repository = new FakeAgentRunRepository();
+        String runSecret = "ghp_runidsecret12345";
+        String sessionSecret = "ghp_sessionidsecret12345";
+        String sourceSecret = "ghp_sourcekeysecret12345";
+        String eventSecret = "ghp_eventidsecret12345";
+        String toolSecret = "ghp_toolcallidsecret12345";
+        String subagentSecret = "ghp_subagentidsecret12345";
+        String childRunSecret = "ghp_childrunsecret12345";
+        String recoverySecret = "ghp_recoveryidsecret12345";
+        String commandSecret = "ghp_commandidsecret12345";
+
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-" + runSecret);
+        run.setSessionId("session-" + sessionSecret);
+        run.setSourceKey("MEMORY:room-" + sourceSecret + ":user");
+        run.setParentRunId("parent-" + childRunSecret);
+        run.setAgentName("agent-" + subagentSecret);
+        repository.runs.add(run);
+
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId("event-" + eventSecret);
+        event.setRunId(run.getRunId());
+        event.setSessionId(run.getSessionId());
+        event.setSourceKey(run.getSourceKey());
+        event.setMetadataJson("{\"broken\":\"ghp_eventmetafallback12345\"");
+        repository.events.add(event);
+
+        ToolCallRecord tool = new ToolCallRecord();
+        tool.setToolCallId("tool-" + toolSecret);
+        tool.setRunId(run.getRunId());
+        tool.setSessionId(run.getSessionId());
+        tool.setSourceKey(run.getSourceKey());
+        repository.tools.add(tool);
+
+        SubagentRunRecord subagent = new SubagentRunRecord();
+        subagent.setSubagentId("subagent-" + subagentSecret);
+        subagent.setParentRunId(run.getRunId());
+        subagent.setChildRunId("child-" + childRunSecret);
+        subagent.setParentSourceKey(run.getSourceKey());
+        subagent.setChildSourceKey("MEMORY:child-" + sourceSecret + ":user");
+        subagent.setSessionId(run.getSessionId());
+        subagent.setName("agent-" + subagentSecret);
+        repository.subagents.add(subagent);
+
+        RunRecoveryRecord recovery = new RunRecoveryRecord();
+        recovery.setRecoveryId("recovery-" + recoverySecret);
+        recovery.setRunId(run.getRunId());
+        recovery.setSessionId(run.getSessionId());
+        recovery.setSourceKey(run.getSourceKey());
+        repository.recoveries.add(recovery);
+
+        RunControlCommand command = new RunControlCommand();
+        command.setCommandId("command-" + commandSecret);
+        command.setRunId(run.getRunId());
+        command.setSourceKey(run.getSourceKey());
+        repository.commands.add(command);
+
+        DashboardRunService service = new DashboardRunService(repository);
+        String response = ONode.serialize(service.detail(run.getRunId()));
+
+        assertThat(response)
+                .contains("run-ghp_***")
+                .contains("session-ghp_***")
+                .contains("event-ghp_***")
+                .contains("tool-ghp_***")
+                .contains("subagent-ghp_***")
+                .contains("recovery-ghp_***")
+                .contains("command-ghp_***");
+        assertThat(response)
+                .doesNotContain(runSecret)
+                .doesNotContain(sessionSecret)
+                .doesNotContain(sourceSecret)
+                .doesNotContain(eventSecret)
+                .doesNotContain(toolSecret)
+                .doesNotContain(subagentSecret)
+                .doesNotContain(childRunSecret)
+                .doesNotContain(recoverySecret)
+                .doesNotContain(commandSecret)
+                .doesNotContain("ghp_eventmetafallback12345");
+    }
+
+    @Test
     void shouldRedactControlPayloadWhenRunControlIsUnavailable() throws Exception {
         FakeAgentRunRepository repository = new FakeAgentRunRepository();
         AgentRunRecord run = new AgentRunRecord();
