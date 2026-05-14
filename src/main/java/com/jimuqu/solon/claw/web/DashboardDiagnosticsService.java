@@ -396,11 +396,11 @@ public class DashboardDiagnosticsService {
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
                 llmProviderService.providers().entrySet()) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("provider", entry.getKey());
-            item.put("name", entry.getValue().getName());
-            item.put("dialect", entry.getValue().getDialect());
+            item.put("provider", safeAuditPreview(entry.getKey(), 160));
+            item.put("name", safeAuditPreview(entry.getValue().getName(), 200));
+            item.put("dialect", safeAuditPreview(entry.getValue().getDialect(), 80));
             item.put("base_url", SecretRedactor.maskUrl(entry.getValue().getBaseUrl()));
-            item.put("default_model", entry.getValue().getDefaultModel());
+            item.put("default_model", safeAuditPreview(entry.getValue().getDefaultModel(), 200));
             item.put("has_api_key", StrUtil.isNotBlank(entry.getValue().getApiKey()));
             items.add(item);
         }

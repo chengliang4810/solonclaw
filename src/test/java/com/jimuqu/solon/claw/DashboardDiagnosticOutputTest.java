@@ -63,6 +63,14 @@ public class DashboardDiagnosticOutputTest {
         provider.setDialect("openai");
         provider.setApiKey("sk-test-providersecret");
         config.getProviders().put("default", provider);
+        AppConfig.ProviderConfig secretNamedProvider = new AppConfig.ProviderConfig();
+        secretNamedProvider.setName("Provider token=ghp_providername12345");
+        secretNamedProvider.setBaseUrl(
+                "https://api.example.com/v1?access_token=provider-named-token");
+        secretNamedProvider.setDefaultModel("model-ghp_providermodel12345");
+        secretNamedProvider.setDialect("openai");
+        secretNamedProvider.setApiKey("sk-test-providersecret2");
+        config.getProviders().put("secret-ghp_providerkey12345", secretNamedProvider);
 
         ChannelStatus channelStatus =
                 new ChannelStatus(
@@ -133,6 +141,13 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("https://user:***@example.com/v1?token=***");
         assertThat(diagnosticsJson).doesNotContain("provider-pass");
         assertThat(diagnosticsJson).doesNotContain("provider-token");
+        assertThat(diagnosticsJson).contains("secret-ghp_***");
+        assertThat(diagnosticsJson).contains("Provider token=***");
+        assertThat(diagnosticsJson).contains("model-ghp_***");
+        assertThat(diagnosticsJson).doesNotContain("providerkey12345");
+        assertThat(diagnosticsJson).doesNotContain("providername12345");
+        assertThat(diagnosticsJson).doesNotContain("providermodel12345");
+        assertThat(diagnosticsJson).doesNotContain("provider-named-token");
         assertThat(diagnosticsJson).doesNotContain("sk-test-providersecret");
         assertThat(diagnosticsJson).doesNotContain("sk-dashboard-probe-secret");
         assertThat(diagnosticsJson).doesNotContain("dashboard-probe-password");
