@@ -1364,16 +1364,25 @@ public class SecurityPolicyService {
             }
             if (StrUtil.isNotBlank(path)) {
                 if (isLocalManagementSocket(path)) {
-                    return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+                    return UrlVerdict.block(
+                            path,
+                            "阻断本地容器/运行时管理套接字访问："
+                                    + localManagementReference(path));
                 }
                 String endpointPipe = localManagementPipeToken(path);
                 if (StrUtil.isNotBlank(endpointPipe)) {
-                    return UrlVerdict.block(endpointPipe, "阻断本地容器/运行时管理命名管道访问：" + endpointPipe);
+                    return UrlVerdict.block(
+                            endpointPipe,
+                            "阻断本地容器/运行时管理命名管道访问："
+                                    + localManagementReference(endpointPipe));
                 }
             }
             String pipe = localManagementPipeToken(token);
             if (StrUtil.isNotBlank(pipe)) {
-                return UrlVerdict.block(pipe, "阻断本地容器/运行时管理命名管道访问：" + pipe);
+                return UrlVerdict.block(
+                        pipe,
+                        "阻断本地容器/运行时管理命名管道访问："
+                                + localManagementReference(pipe));
             }
         }
         return UrlVerdict.allow();
@@ -1388,14 +1397,24 @@ public class SecurityPolicyService {
             }
             String path = localManagementSocketEnvironmentPath(value);
             if (isLocalManagementSocket(path)) {
-                return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+                return UrlVerdict.block(
+                        path,
+                        "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
             }
             String pipe = localManagementPipeToken(path);
             if (StrUtil.isNotBlank(pipe)) {
-                return UrlVerdict.block(pipe, "阻断本地容器/运行时管理命名管道访问：" + pipe);
+                return UrlVerdict.block(
+                        pipe,
+                        "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
             }
         }
         return UrlVerdict.allow();
+    }
+
+    private String localManagementReference(String value) {
+        String text = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
+        text = SecretRedactor.redact(text, 400);
+        return StrUtil.blankToDefault(text, "[REDACTED_PATH]");
     }
 
     private String localManagementSocketEnvironmentValue(String token) {
