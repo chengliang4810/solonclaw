@@ -8,9 +8,12 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
@@ -2916,7 +2919,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(windowsSecurityRegistryWeaken.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(windowsSecurityRegistryWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsSecurityRegistryWeaken.get("skipped")).isNull();
-        assertThat(String.valueOf(windowsSecurityRegistryWeaken)).contains("DisableAntiSpyware");
+        assertThat(String.valueOf(windowsSecurityRegistryWeaken)).contains("EnableLUA");
         assertThat(windowsExecutionPolicyWeaken.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(windowsExecutionPolicyWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsExecutionPolicyWeaken.get("skipped")).isNull();
@@ -3210,6 +3213,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "tool_args_nested_endpoint_private_url");
         Map<String, Object> hostTarget =
                 findProbe(items, "tool_args_host_target_private_url");
+        Map<String, Object> commandPreproxy =
+                findProbe(items, "command_preproxy_url_policy");
+        Map<String, Object> commandWinhttpBypass =
+                findProbe(items, "command_winhttp_bypass_policy");
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(privateUrl.get("skipped")).isEqualTo(Boolean.TRUE);
@@ -3219,6 +3226,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hostTarget.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hostTarget.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(hostTarget.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPreproxy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPreproxy.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(commandPreproxy.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWinhttpBypass.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWinhttpBypass.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(commandWinhttpBypass.get("skipped")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
@@ -4144,6 +4157,60 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldRedactResolveApprovalIdentifiersAndResumeReply() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-ghp_resolveapproval12345");
+        record.setSourceKey("source-resolve-approval");
+        record.setTitle("resolve approval");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "resolve approval",
+                "rm -rf runtime/cache");
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(Collections.singletonList(record)),
+                        new RedactingResumeOrchestrator(),
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> pending = diagnosticsService.pendingApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) pending.get("items");
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("sessionId", record.getSessionId());
+        body.put("approvalId", String.valueOf(items.get(0).get("selector")));
+        body.put("action", "approve");
+        Map<String, Object> resolve = diagnosticsService.resolveApproval(body);
+        String json = ONode.serialize(resolve);
+
+        assertThat(resolve.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(json)
+                .contains("\"session_id\":\"session-ghp_***\"")
+                .contains("\"branch_name\":\"branch-token=***\"")
+                .contains("\"content\":\"resumed token=***\"")
+                .doesNotContain("resolveapproval12345")
+                .doesNotContain("resolvereplysession12345")
+                .doesNotContain("resolvebranch12345")
+                .doesNotContain("resolvereplycontent12345");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldRedactApprovalHistoryOutput() throws Exception {
         AppConfig config = new AppConfig();
         ApprovalAuditEvent event = new ApprovalAuditEvent();
@@ -4401,6 +4468,27 @@ public class DashboardDiagnosticOutputTest {
             }
         }
         throw new AssertionError("approval item not found: " + sessionId);
+    }
+
+    private static class RedactingResumeOrchestrator implements ConversationOrchestrator {
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            GatewayReply reply =
+                    GatewayReply.ok("resumed token=ghp_resolvereplycontent12345");
+            reply.setSessionId("session-ghp_resolvereplysession12345");
+            reply.setBranchName("branch-token=ghp_resolvebranch12345");
+            return reply;
+        }
     }
 
     private static Map<String, Object> findProbe(
