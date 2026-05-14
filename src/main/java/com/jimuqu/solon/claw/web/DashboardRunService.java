@@ -80,7 +80,7 @@ public class DashboardRunService {
                 "subagents",
                 delegationService == null
                         ? Collections.emptyList()
-                        : delegationService.activeSubagents());
+                        : redactParsed(delegationService.activeSubagents()));
         map.put(
                 "spawn_paused",
                 delegationService != null && delegationService.isSpawnPaused());

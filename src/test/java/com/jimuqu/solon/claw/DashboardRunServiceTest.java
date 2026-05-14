@@ -4,12 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.DelegationResult;
+import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -232,6 +235,45 @@ public class DashboardRunServiceTest {
                 .doesNotContain("sk-controlpayload-secret");
     }
 
+    @Test
+    void shouldRedactSecretLikeActiveSubagentFields() {
+        FakeAgentRunRepository repository = new FakeAgentRunRepository();
+        FakeDelegationService delegationService = new FakeDelegationService();
+        Map<String, Object> active = new LinkedHashMap<String, Object>();
+        active.put("subagent_id", "subagent-ghp_activesubagent12345");
+        active.put("parent_run_id", "parent-ghp_activeparent12345");
+        active.put("child_run_id", "child-ghp_activechild12345");
+        active.put("source_key", "MEMORY:room-token=ghp_activesource12345:user");
+        active.put("status", "running");
+        active.put("depth", Integer.valueOf(1));
+        active.put(
+                "output_tail",
+                "stdout api_key=sk-activesubagent-secret token=ghp_activetail12345");
+        active.put(
+                "nested",
+                Collections.singletonMap("authorization", "Bearer ghp_activenested12345"));
+        delegationService.active.add(active);
+
+        DashboardRunService service =
+                new DashboardRunService(repository, null, delegationService);
+        String response = ONode.serialize(service.activeSubagents());
+
+        assertThat(response)
+                .contains("subagent-ghp_***")
+                .contains("parent-ghp_***")
+                .contains("child-ghp_***")
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("Bearer ***")
+                .doesNotContain("activesubagent12345")
+                .doesNotContain("activeparent12345")
+                .doesNotContain("activechild12345")
+                .doesNotContain("activesource12345")
+                .doesNotContain("sk-activesubagent-secret")
+                .doesNotContain("activetail12345")
+                .doesNotContain("activenested12345");
+    }
+
     private static class FakeAgentRunRepository implements AgentRunRepository {
         private final List<AgentRunEventRecord> events = new ArrayList<AgentRunEventRecord>();
         private final List<AgentRunRecord> runs = new ArrayList<AgentRunRecord>();
@@ -369,5 +411,25 @@ public class DashboardRunServiceTest {
 
         @Override
         public void pruneBefore(long beforeEpochMillis) {}
+    }
+
+    private static class FakeDelegationService implements DelegationService {
+        private final List<Map<String, Object>> active =
+                new ArrayList<Map<String, Object>>();
+
+        @Override
+        public DelegationResult delegateSingle(String sourceKey, String prompt, String context) {
+            return null;
+        }
+
+        @Override
+        public List<DelegationResult> delegateBatch(String sourceKey, List<DelegationTask> tasks) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<Map<String, Object>> activeSubagents() {
+            return active;
+        }
     }
 }
