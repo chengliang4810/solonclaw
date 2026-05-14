@@ -1777,6 +1777,36 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactStructuredCredentialToolArgFieldReference() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "webfetch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"url\":\"https://example.com/docs\",\"headers\":{\"Authorization\\nBearer ghp_toolargfield12345\":\"secret-value\"}}"));
+
+        assertThat(result.get("decision").getString()).isEqualTo("block");
+        assertThat(result.toJson())
+                .contains("tool_arg://Authorization")
+                .doesNotContain("ghp_toolargfield12345")
+                .doesNotContain("Authorization\\nBearer");
+    }
+
+    @Test
     void shouldAuditNestedAndArrayCommandToolArgs() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);

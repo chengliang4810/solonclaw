@@ -654,7 +654,7 @@ public class SecurityPolicyService {
                 String normalizedChildKey = normalizeStructuredCredentialKey(childKey);
                 if (looksLikeSensitiveStructuredCredentialKey(normalizedChildKey)
                         && hasStructuredCredentialValue(value)) {
-                    verdict.block(childKey);
+                    verdict.block(childKey, normalizedChildKey);
                     return;
                 }
                 checkStructuredCredentialToolArgs(
@@ -693,7 +693,7 @@ public class SecurityPolicyService {
         if (requestContext
                 && looksLikeSensitiveStructuredCredentialKey(normalizedKey)
                 && hasStructuredCredentialValue(raw)) {
-            verdict.block(key);
+            verdict.block(key, normalizedKey);
         }
     }
 
@@ -714,16 +714,43 @@ public class SecurityPolicyService {
     }
 
     private boolean looksLikeSensitiveStructuredCredentialKey(String normalizedKey) {
-        return isStrongSensitiveUrlParameterName(normalizedKey)
+        return isStrongSensitiveStructuredCredentialName(normalizedKey)
                 || "token".equals(normalizedKey)
+                || normalizedKey.startsWith("token_")
                 || "secret".equals(normalizedKey)
+                || normalizedKey.startsWith("secret_")
                 || "credential".equals(normalizedKey)
+                || normalizedKey.startsWith("credential_")
                 || "credentials".equals(normalizedKey)
+                || normalizedKey.startsWith("credentials_")
                 || "cookie".equals(normalizedKey)
+                || normalizedKey.startsWith("cookie_")
                 || "x_api_key".equals(normalizedKey)
+                || normalizedKey.startsWith("x_api_key_")
                 || "x_api_token".equals(normalizedKey)
+                || normalizedKey.startsWith("x_api_token_")
                 || "x_auth_token".equals(normalizedKey)
+                || normalizedKey.startsWith("x_auth_token_")
                 || "auth".equals(normalizedKey);
+    }
+
+    private boolean isStrongSensitiveStructuredCredentialName(String normalizedKey) {
+        return isStrongSensitiveUrlParameterName(normalizedKey)
+                || normalizedKey.startsWith("authorization_")
+                || normalizedKey.startsWith("proxy_authorization_")
+                || normalizedKey.startsWith("bearer_token_")
+                || normalizedKey.startsWith("api_key_")
+                || normalizedKey.startsWith("apikey_")
+                || normalizedKey.startsWith("access_token_")
+                || normalizedKey.startsWith("refresh_token_")
+                || normalizedKey.startsWith("id_token_")
+                || normalizedKey.startsWith("auth_token_")
+                || normalizedKey.startsWith("oauth_token_")
+                || normalizedKey.startsWith("client_secret_")
+                || normalizedKey.startsWith("private_key_")
+                || normalizedKey.startsWith("secret_key_")
+                || normalizedKey.startsWith("session_token_")
+                || normalizedKey.startsWith("security_token_");
     }
 
     private boolean hasStructuredCredentialValue(Object raw) {
@@ -4916,10 +4943,89 @@ public class SecurityPolicyService {
         private boolean allowed = true;
         private String reference = "";
 
-        private void block(String key) {
+        private void block(String key, String normalizedKey) {
             this.allowed = false;
-            String safeKey = StrUtil.nullToEmpty(key).trim();
+            String safeKey = canonicalStructuredCredentialKey(normalizedKey);
+            if (safeKey.length() == 0) {
+                safeKey = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(key)).trim();
+            }
+            safeKey = safeKey.replaceAll("\\s+", "_");
+            safeKey = SecretRedactor.redact(safeKey, 200);
             this.reference = safeKey.length() == 0 ? "tool_arg://credential" : "tool_arg://" + safeKey;
+        }
+
+        private static String canonicalStructuredCredentialKey(String normalizedKey) {
+            String key = StrUtil.nullToEmpty(normalizedKey).trim();
+            if (key.startsWith("proxy_authorization")) {
+                return "Proxy-Authorization";
+            }
+            if (key.startsWith("authorization")) {
+                return "Authorization";
+            }
+            if (key.startsWith("x_api_key")) {
+                return "x-api-key";
+            }
+            if (key.startsWith("x_api_token")) {
+                return "x-api-token";
+            }
+            if (key.startsWith("x_auth_token")) {
+                return "x-auth-token";
+            }
+            if (key.startsWith("api_key") || key.startsWith("apikey")) {
+                return "apiKey";
+            }
+            if (key.startsWith("access_token")) {
+                return "access_token";
+            }
+            if (key.startsWith("refresh_token")) {
+                return "refresh_token";
+            }
+            if (key.startsWith("id_token")) {
+                return "id_token";
+            }
+            if (key.startsWith("auth_token")) {
+                return "auth_token";
+            }
+            if (key.startsWith("oauth_token")) {
+                return "oauth_token";
+            }
+            if (key.startsWith("bearer_token")) {
+                return "bearer_token";
+            }
+            if (key.startsWith("client_secret")) {
+                return "client_secret";
+            }
+            if (key.startsWith("private_key")) {
+                return "private_key";
+            }
+            if (key.startsWith("secret_key")) {
+                return "secret_key";
+            }
+            if (key.startsWith("session_token")) {
+                return "session_token";
+            }
+            if (key.startsWith("security_token")) {
+                return "security_token";
+            }
+            if (key.startsWith("credentials")) {
+                return "credentials";
+            }
+            if (key.startsWith("credential")) {
+                return "credential";
+            }
+            if (key.startsWith("cookie")) {
+                return "cookie";
+            }
+            if (key.startsWith("secret")) {
+                return "secret";
+            }
+            if (key.startsWith("token")) {
+                return "token";
+            }
+            if ("auth".equals(key)) {
+                return "auth";
+            }
+            return "";
         }
     }
 
