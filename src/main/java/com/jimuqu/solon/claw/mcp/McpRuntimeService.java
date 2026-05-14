@@ -129,6 +129,7 @@ public class McpRuntimeService implements Closeable {
         summary.put("remoteEndpointAllowsPrivateByPolicy", Boolean.TRUE);
         summary.put("stdioEndpointSkipped", Boolean.TRUE);
         summary.put("remoteToolArgumentUrlSafety", Boolean.TRUE);
+        summary.put("remoteToolStructuredCredentialArgumentBlocked", Boolean.TRUE);
         summary.put("remoteToolArgumentPathSafety", Boolean.TRUE);
         summary.put("resourceUriUrlSafety", Boolean.TRUE);
         summary.put("resourceUriPathSafety", Boolean.TRUE);

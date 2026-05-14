@@ -1418,6 +1418,8 @@ public class ToolRegistryExposureTest {
                 policyStatus.get("policy").get("coverage").get("mcpRuntimePolicy");
         assertThat(mcpRuntimePolicy.get("remoteEndpointUrlSafety").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("remoteToolArgumentUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("remoteToolStructuredCredentialArgumentBlocked").getBoolean())
+                .isTrue();
         assertThat(mcpRuntimePolicy.get("remoteToolArgumentPathSafety").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("resourceUriUrlSafety").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("toolsChangeNotificationPersisted").getBoolean()).isTrue();

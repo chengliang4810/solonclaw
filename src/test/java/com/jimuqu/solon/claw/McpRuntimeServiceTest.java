@@ -59,6 +59,8 @@ public class McpRuntimeServiceTest {
         assertThat(summary.get("enabled")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("remoteEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("remoteToolArgumentUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("remoteToolStructuredCredentialArgumentBlocked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("remoteToolArgumentPathSafety")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("resourceUriUrlSafety")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("resourceUriPathSafety")).isEqualTo(Boolean.TRUE);
