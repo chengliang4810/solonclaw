@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -23,6 +24,9 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.web.DashboardCronService;
+import com.jimuqu.solon.claw.web.DashboardKanbanService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +55,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
     private final LlmProviderService llmProviderService;
     private final TuiRunProjector runProjector;
     private final TuiApprovalProjector approvalProjector;
+    private final TuiExtensionProjector extensionProjector;
     private final ExecutorService executor;
     private final ConcurrentMap<String, TuiSessionState> states =
             new ConcurrentHashMap<String, TuiSessionState>();
@@ -66,6 +71,10 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             CommandService commandService,
             AgentRunControlService agentRunControlService,
             LlmProviderService llmProviderService,
+            DashboardCronService cronService,
+            DashboardKanbanService kanbanService,
+            DashboardMcpService mcpService,
+            CliRuntime cliRuntime,
             DangerousCommandApprovalService approvalService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
@@ -75,6 +84,15 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         this.llmProviderService = llmProviderService;
         this.runProjector = new TuiRunProjector(agentRunRepository);
         this.approvalProjector = new TuiApprovalProjector(sessionRepository, approvalService, this);
+        this.extensionProjector =
+                new TuiExtensionProjector(
+                        cronService,
+                        kanbanService,
+                        mcpService,
+                        cliRuntime,
+                        sessionRepository,
+                        approvalService,
+                        appConfig);
         if (approvalService != null) {
             approvalService.addApprovalObserver(this.approvalProjector);
         }
@@ -95,6 +113,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         connection.sendEvent("gateway.ready", null, payload);
         try {
             connection.sendResult(null, null, statusPayload());
+            pushExtensionSnapshots(connection, null);
         } catch (Exception e) {
             connection.sendError(null, null, "STATUS_FAILED", safeError(e));
         }
@@ -130,6 +149,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         try {
             if ("client.ready".equals(method)) {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), statusPayload());
+                pushExtensionSnapshots(connection, connection.getActiveSessionId());
             } else if ("session.start".equals(method)) {
                 Map<String, Object> result = startSession(connection, envelope.getParams());
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
@@ -174,6 +194,16 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), resolveApproval(connection, envelope, true));
             } else if ("approval.deny".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), resolveApproval(connection, envelope, false));
+            } else if ("integration.snapshot".equals(method) || "status.snapshot".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), integrationSnapshot(connection, envelope));
+            } else if ("cron.snapshot".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), extensionSnapshot(connection, envelope, "cron"));
+            } else if ("kanban.snapshot".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), extensionSnapshot(connection, envelope, "kanban"));
+            } else if ("mcp.snapshot".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), extensionSnapshot(connection, envelope, "mcp"));
+            } else if ("acp.snapshot".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), extensionSnapshot(connection, envelope, "acp"));
             } else if ("mcp.reload".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/reload-mcp"));
             } else if ("cron.list".equals(method)) {
@@ -224,6 +254,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         replay(connection, sessionId, Long.valueOf(0L));
         replayProjected(connection, sessionId, 0L);
         connection.sendEvent("approval.snapshot", sessionId, approvalProjector.pendingSnapshot(sessionId));
+        pushExtensionSnapshots(connection, sessionId);
         connection.sendEvent("session.created", sessionId, result);
         return result;
     }
@@ -256,6 +287,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         replay(connection, sid, afterSeq);
         replayProjected(connection, sid, afterSeq.longValue());
         connection.sendEvent("approval.snapshot", sid, approvalProjector.pendingSnapshot(sid));
+        pushExtensionSnapshots(connection, sid);
         connection.sendEvent("session.resumed", sid, result);
         return result;
     }
@@ -517,6 +549,26 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         return payload;
     }
 
+    private Map<String, Object> integrationSnapshot(TuiConnection connection, TuiEnvelope envelope) {
+        String sid = StrUtil.blankToDefault(envelope.getSessionId(), connection.getActiveSessionId());
+        Map<String, Object> payload = extensionProjector.snapshot();
+        pushExtensionSnapshots(connection, sid);
+        return payload;
+    }
+
+    private Map<String, Object> extensionSnapshot(TuiConnection connection, TuiEnvelope envelope, String kind) {
+        String sid = StrUtil.blankToDefault(envelope.getSessionId(), connection.getActiveSessionId());
+        TuiEvent event = extensionProjector.snapshotEvent(sid, kind);
+        connection.sendEvent(event);
+        return event.getPayload();
+    }
+
+    private void pushExtensionSnapshots(TuiConnection connection, String sessionId) {
+        for (TuiEvent event : extensionProjector.snapshotEvents(sessionId)) {
+            connection.sendEvent(event);
+        }
+    }
+
     private Map<String, Object> controlRun(TuiConnection connection, TuiEnvelope envelope)
             throws Exception {
         String sid = requireSessionId(connection, envelope);
@@ -581,6 +633,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         result.put("running_count", Integer.valueOf(runningCount()));
         result.put("sessions", listSessions().get("sessions"));
         result.put("models", modelOptions().get("providers"));
+        result.put("integrations", extensionProjector.snapshot());
         return result;
     }
 

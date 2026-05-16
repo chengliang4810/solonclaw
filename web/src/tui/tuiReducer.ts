@@ -1,4 +1,4 @@
-import type { TuiApproval, TuiCommand, TuiEvent, TuiModelOption, TuiRunTimelineItem, TuiSession, TuiState, VirtualHistoryItem } from './tuiTypes'
+import type { TuiApproval, TuiCommand, TuiEvent, TuiIntegrationItem, TuiIntegrationKind, TuiIntegrationSnapshot, TuiModelOption, TuiRunTimelineItem, TuiSession, TuiState, VirtualHistoryItem } from './tuiTypes'
 import { extractSafeUrls } from './tuiSafety'
 
 const HISTORY_LIMIT = 600
@@ -45,6 +45,7 @@ export const initialTuiState: TuiState = {
   ],
   approvals: [],
   timeline: [],
+  integrations: {},
   queuedInputs: [],
   commands: defaultCommands,
   models: defaultModels,
@@ -72,6 +73,8 @@ export function tuiReducer(state: TuiState, event: TuiEvent): TuiState {
       return reduceModel(state, event.payload)
     case 'command':
       return reduceCommand(state, event.payload)
+    case 'integration':
+      return reduceIntegration(state, event.payload)
     case 'notice':
       return appendNotice(state, event.payload)
     case 'clear':
@@ -216,6 +219,29 @@ function reduceCommand(state: TuiState, payload: unknown): TuiState {
   return { ...state, commands, recentCommands: recent }
 }
 
+function reduceIntegration(state: TuiState, payload: unknown): TuiState {
+  const data = objectPayload(payload)
+  const snapshots = integrationSnapshots(data)
+  if (snapshots.length === 0) return state
+  const integrations = { ...state.integrations }
+  let timeline = state.timeline
+  for (const snapshot of snapshots) {
+    integrations[snapshot.kind] = snapshot
+    timeline = appendTimelineItem(timeline, {
+      id: `integration-${snapshot.kind}-${snapshot.updatedAt}-${snapshot.status}`,
+      kind: 'event',
+      title: `${snapshot.title} ${statusLabel(snapshot.status)}`,
+      detail: snapshot.summary,
+      status: snapshot.status,
+      severity: snapshot.status === 'error' || snapshot.status === 'attention' ? 'warn' : 'info',
+      sessionId: state.activeSessionId,
+      createdAt: snapshot.updatedAt,
+      seq: numberValue(data.seq, 0) || undefined,
+    })
+  }
+  return { ...state, integrations, timeline }
+}
+
 function normalizeHistory(payload: unknown, fallbackSessionId: string): VirtualHistoryItem {
   const data = objectPayload(payload)
   const role = stringValue(data.role, 'assistant') as VirtualHistoryItem['role']
@@ -307,6 +333,83 @@ function normalizeCommand(payload: unknown): TuiCommand | null {
     description: stringValue(data.description, ''),
     hotkey: typeof data.hotkey === 'string' ? data.hotkey : undefined,
   }
+}
+
+function integrationSnapshots(data: Record<string, unknown>): TuiIntegrationSnapshot[] {
+  const result: TuiIntegrationSnapshot[] = []
+  for (const kind of ['cron', 'kanban', 'mcp', 'acp'] as TuiIntegrationKind[]) {
+    if (data.kind === kind || data.gatewayType === `${kind}.snapshot`) {
+      const snapshot = normalizeIntegration({ ...data, kind })
+      if (snapshot) result.push(snapshot)
+    } else if (data[kind]) {
+      const snapshot = normalizeIntegration({ ...objectPayload(data[kind]), kind })
+      if (snapshot) result.push(snapshot)
+    }
+  }
+  return result
+}
+
+function normalizeIntegration(payload: unknown): TuiIntegrationSnapshot | null {
+  const data = objectPayload(payload)
+  const kind = stringValue(data.kind, '') as TuiIntegrationKind
+  if (!kind) return null
+  const metrics = objectPayload(data.metrics)
+  return {
+    kind,
+    title: stringValue(data.title, integrationTitle(kind)),
+    status: stringValue(data.status, 'unknown'),
+    available: typeof data.available === 'boolean' ? data.available : false,
+    summary: stringValue(data.summary, ''),
+    metrics: normalizeMetrics(metrics),
+    items: Array.isArray(data.items) ? data.items.map((item) => normalizeIntegrationItem(item)).filter(Boolean) as TuiIntegrationItem[] : [],
+    updatedAt: numberValue(data.updated_at || data.updatedAt, Date.now()),
+    error: stringValue(data.error, '') || undefined,
+  }
+}
+
+function normalizeIntegrationItem(payload: unknown): TuiIntegrationItem | null {
+  const data = objectPayload(payload)
+  const id = stringValue(data.id, stringValue(data.title, ''))
+  if (!id) return null
+  return {
+    id,
+    title: stringValue(data.title, id),
+    status: stringValue(data.status, ''),
+    meta: stringValue(data.meta, '') || undefined,
+    time: typeof data.time === 'number' || typeof data.time === 'string' ? data.time : undefined,
+    enabled: typeof data.enabled === 'boolean' ? data.enabled : undefined,
+    toolCount: numberValue(data.tool_count || data.toolCount, 0) || undefined,
+  }
+}
+
+function normalizeMetrics(metrics: Record<string, unknown>): Record<string, number | string | boolean | null> {
+  const result: Record<string, number | string | boolean | null> = {}
+  for (const [key, value] of Object.entries(metrics)) {
+    if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null) {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+function integrationTitle(kind: TuiIntegrationKind): string {
+  if (kind === 'cron') return '定时任务'
+  if (kind === 'kanban') return '看板'
+  if (kind === 'mcp') return 'MCP'
+  return 'ACP'
+}
+
+function statusLabel(status: string): string {
+  if (status === 'ready') return '就绪'
+  if (status === 'running') return '运行中'
+  if (status === 'active') return '活跃'
+  if (status === 'attention') return '需关注'
+  if (status === 'disabled') return '未启用'
+  if (status === 'error') return '错误'
+  if (status === 'due') return '待触发'
+  if (status === 'idle') return '空闲'
+  if (status === 'unavailable') return '不可用'
+  return status
 }
 
 function objectPayload(payload: unknown): Record<string, unknown> {

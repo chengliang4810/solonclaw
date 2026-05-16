@@ -230,6 +230,11 @@ function mapGatewayEvent(message: JsonRpcResponse): TuiEvent {
     case 'run.control':
     case 'session.controls':
       return { type: 'notice', payload: { timeline: timelinePayload(message.type, payload) } }
+    case 'cron.snapshot':
+    case 'kanban.snapshot':
+    case 'mcp.snapshot':
+    case 'acp.snapshot':
+      return { type: 'integration', payload }
     case 'approval.snapshot':
       return { type: 'approval', payload: { approvals: Array.isArray(payload.approvals) ? payload.approvals : [], sessionId: payload.sessionId, replace: true } }
     case 'approval.request':
@@ -267,6 +272,9 @@ function mapRpcResult(payload: Record<string, unknown>): TuiEvent {
   }
   if (Array.isArray(payload.commands)) {
     return { type: 'command', payload: { commands: commandOptions(payload.commands) } }
+  }
+  if (payload.integrations || payload.cron || payload.kanban || payload.mcp || payload.acp) {
+    return { type: 'integration', payload: payload.integrations || payload }
   }
   return { type: 'notice', payload: { text: '' } }
 }

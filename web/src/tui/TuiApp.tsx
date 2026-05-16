@@ -4,13 +4,13 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { TuiJsonRpcClient } from './tuiClient'
 import { createHistoryItem, initialTuiState, tuiReducer } from './tuiReducer'
 import { handleOsc52, openSafeUrl, readClipboard, sanitizeInputForDisplay, writeClipboard } from './tuiSafety'
-import type { BusyPolicy, TuiApproval, TuiRunTimelineItem, TuiSession, VirtualHistoryItem } from './tuiTypes'
+import type { BusyPolicy, TuiApproval, TuiIntegrationKind, TuiIntegrationSnapshot, TuiRunTimelineItem, TuiSession, VirtualHistoryItem } from './tuiTypes'
 import './tui.css'
 
 export function TuiApp() {
   const [state, dispatch] = useReducer(tuiReducer, initialTuiState)
   const [input, setInput] = useState('')
-  const [activePanel, setActivePanel] = useState<'model' | 'session' | 'command' | null>(null)
+  const [activePanel, setActivePanel] = useState<'model' | 'session' | 'command' | 'integration' | null>(null)
   const [panelSearch, setPanelSearch] = useState('')
   const [toast, setToast] = useState('')
   const clientRef = useRef<TuiJsonRpcClient | null>(null)
@@ -58,6 +58,9 @@ export function TuiApp() {
       } else if (key === 'l') {
         event.preventDefault()
         dispatch({ type: 'clear' })
+      } else if (key === 'i') {
+        event.preventDefault()
+        openPanel('integration')
       } else if (event.shiftKey && key === 'c') {
         event.preventDefault()
         void copyLastReply()
@@ -72,6 +75,7 @@ export function TuiApp() {
     const afterSeq = state.lastSeqBySession[state.activeSessionId] || 0
     void clientRef.current?.request('run.replay', { sessionId: state.activeSessionId, after_seq: afterSeq })
     void clientRef.current?.request('approval.list', { sessionId: state.activeSessionId })
+    void clientRef.current?.request('integration.snapshot', { sessionId: state.activeSessionId })
   }, [state.connection, state.activeSessionId])
 
   function submitInput(event?: FormEvent) {
@@ -151,7 +155,7 @@ export function TuiApp() {
     }
   }
 
-  function openPanel(panel: 'model' | 'session' | 'command') {
+  function openPanel(panel: 'model' | 'session' | 'command' | 'integration') {
     setPanelSearch('')
     setActivePanel(panel)
   }
@@ -272,6 +276,7 @@ export function TuiApp() {
           <PanelButton active={activePanel === 'session'} label="会话" shortcut="Ctrl+N" onClick={() => activePanel === 'session' ? setActivePanel(null) : openPanel('session')} />
           <PanelButton active={activePanel === 'model'} label="模型" shortcut="Ctrl+M" onClick={() => activePanel === 'model' ? setActivePanel(null) : openPanel('model')} />
           <PanelButton active={activePanel === 'command'} label="命令" shortcut="Ctrl+K" onClick={() => activePanel === 'command' ? setActivePanel(null) : openPanel('command')} />
+          <PanelButton active={activePanel === 'integration'} label="状态" shortcut="Ctrl+I" onClick={() => activePanel === 'integration' ? setActivePanel(null) : openPanel('integration')} />
           <div className="tui-policy">
             <span>忙碌输入</span>
             <select value={state.busyPolicy} onChange={(event) => setBusyPolicy(event.currentTarget.value as BusyPolicy)}>
@@ -346,6 +351,13 @@ export function TuiApp() {
             {activePanel === 'command' ? (
               <CommandPanel search={panelSearch} setSearch={setPanelSearch} commands={state.commands} recentCommands={state.recentCommands} onRun={runCommand} />
             ) : null}
+            {activePanel === 'integration' ? (
+              <IntegrationPanel
+                snapshots={state.integrations}
+                onRefresh={(kind) => void clientRef.current?.request(`${kind}.snapshot`, { sessionId: state.activeSessionId })}
+                onRefreshAll={() => void clientRef.current?.request('integration.snapshot', { sessionId: state.activeSessionId })}
+              />
+            ) : null}
             <TimelinePanel items={state.timeline.slice(-12)} />
           </aside>
         ) : null}
@@ -356,6 +368,7 @@ export function TuiApp() {
         <span>{state.queuedInputs.length > 0 ? `队列 ${state.queuedInputs.length}` : '队列空'}</span>
         <span>{activeSession?.cwd || 'workspace'}</span>
         <span>Ctrl+K 命令面板</span>
+        <span>Ctrl+I 集成状态</span>
         <span>Ctrl+Shift+C 复制最近回复</span>
       </footer>
 
@@ -496,6 +509,59 @@ function CommandPanel(props: { search: string; setSearch: (value: string) => voi
   )
 }
 
+function IntegrationPanel(props: { snapshots: Record<string, TuiIntegrationSnapshot>; onRefresh: (kind: TuiIntegrationKind) => void; onRefreshAll: () => void }) {
+  const kinds: TuiIntegrationKind[] = ['cron', 'kanban', 'mcp', 'acp']
+  return (
+    <>
+      <PanelHeader title="集成状态" action="刷新" onAction={props.onRefreshAll} />
+      <div className="tui-integration-grid">
+        {kinds.map((kind) => {
+          const snapshot = props.snapshots[kind] || emptyIntegration(kind)
+          return (
+            <article className={`tui-integration-card ${snapshot.status}`} key={kind}>
+              <header>
+                <div>
+                  <h3>{snapshot.title}</h3>
+                  <small>{statusText(snapshot.status)} · {formatTime(snapshot.updatedAt)}</small>
+                </div>
+                <button type="button" onClick={() => props.onRefresh(kind)}>刷新</button>
+              </header>
+              <p>{snapshot.summary || '等待网关推送状态'}</p>
+              <MetricStrip metrics={snapshot.metrics} />
+              {snapshot.error ? <p className="tui-integration-error">{snapshot.error}</p> : null}
+              {snapshot.items.length > 0 ? (
+                <div className="tui-integration-items">
+                  {snapshot.items.slice(0, 6).map((item) => (
+                    <div className="tui-integration-item" key={`${kind}-${item.id}`}>
+                      <span>{item.title}</span>
+                      <small>{[item.status, item.meta, typeof item.toolCount === 'number' ? `工具 ${item.toolCount}` : ''].filter(Boolean).join(' · ')}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+function MetricStrip(props: { metrics: Record<string, number | string | boolean | null> }) {
+  const entries = Object.entries(props.metrics).filter(([, value]) => value !== null && value !== '')
+  if (entries.length === 0) return null
+  return (
+    <dl className="tui-metrics">
+      {entries.slice(0, 6).map(([key, value]) => (
+        <div key={key}>
+          <dt>{metricLabel(key)}</dt>
+          <dd>{String(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 function TimelinePanel(props: { items: TuiRunTimelineItem[] }) {
   if (props.items.length === 0) return null
   return (
@@ -556,6 +622,60 @@ function busyPlaceholder(policy: BusyPolicy): string {
   if (policy === 'queue') return '当前忙碌：新输入会进入队列'
   if (policy === 'steer') return '当前忙碌：发送会作为转向指令'
   return '当前忙碌：发送会先打断当前任务'
+}
+
+function emptyIntegration(kind: TuiIntegrationKind): TuiIntegrationSnapshot {
+  return {
+    kind,
+    title: integrationTitle(kind),
+    status: 'unknown',
+    available: false,
+    summary: '',
+    metrics: {},
+    items: [],
+    updatedAt: Date.now(),
+  }
+}
+
+function integrationTitle(kind: TuiIntegrationKind): string {
+  if (kind === 'cron') return '定时任务'
+  if (kind === 'kanban') return '看板'
+  if (kind === 'mcp') return 'MCP'
+  return 'ACP'
+}
+
+function statusText(status: string): string {
+  if (status === 'ready') return '就绪'
+  if (status === 'running') return '运行中'
+  if (status === 'active') return '活跃'
+  if (status === 'attention') return '需关注'
+  if (status === 'disabled') return '未启用'
+  if (status === 'error') return '错误'
+  if (status === 'due') return '待触发'
+  if (status === 'idle') return '空闲'
+  if (status === 'unavailable') return '不可用'
+  return status || '未知'
+}
+
+function metricLabel(key: string): string {
+  const labels: Record<string, string> = {
+    total: '总数',
+    active: '活跃',
+    paused: '暂停',
+    completed: '完成',
+    due: '待触发',
+    ready: '就绪',
+    running: '运行',
+    blocked: '阻塞',
+    done: '完成',
+    servers: '服务',
+    enabled_servers: '启用',
+    tool_count: '工具',
+    method_count: '方法',
+    command_count: '命令',
+    error: '错误',
+  }
+  return labels[key] || key.replace(/_/g, ' ')
 }
 
 function splitMarkdown(text: string): { text: string; code: boolean; language?: string }[] {

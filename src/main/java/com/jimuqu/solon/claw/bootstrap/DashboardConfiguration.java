@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
+import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -131,6 +132,10 @@ public class DashboardConfiguration {
             CommandService commandService,
             AgentRunControlService agentRunControlService,
             LlmProviderService llmProviderService,
+            DashboardCronService dashboardCronService,
+            DashboardKanbanService dashboardKanbanService,
+            DashboardMcpService dashboardMcpService,
+            CliRuntime cliRuntime,
             com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService
                     dangerousCommandApprovalService) {
         return new TuiGatewayService(
@@ -141,6 +146,10 @@ public class DashboardConfiguration {
                 commandService,
                 agentRunControlService,
                 llmProviderService,
+                dashboardCronService,
+                dashboardKanbanService,
+                dashboardMcpService,
+                cliRuntime,
                 dangerousCommandApprovalService);
     }
 

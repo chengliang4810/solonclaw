@@ -64,6 +64,30 @@ export interface TuiRunTimelineItem {
   seq?: number
 }
 
+export type TuiIntegrationKind = 'cron' | 'kanban' | 'mcp' | 'acp'
+
+export interface TuiIntegrationItem {
+  id: string
+  title: string
+  status: string
+  meta?: string
+  time?: number | string
+  enabled?: boolean
+  toolCount?: number
+}
+
+export interface TuiIntegrationSnapshot {
+  kind: TuiIntegrationKind
+  title: string
+  status: string
+  available: boolean
+  summary: string
+  metrics: Record<string, number | string | boolean | null>
+  items: TuiIntegrationItem[]
+  updatedAt: number
+  error?: string
+}
+
 export interface TuiCommand {
   name: string
   description: string
@@ -87,6 +111,7 @@ export interface TuiEvent {
     | 'approval'
     | 'model'
     | 'command'
+    | 'integration'
     | 'notice'
     | 'clear'
   payload?: unknown
@@ -103,6 +128,7 @@ export interface TuiState {
   history: VirtualHistoryItem[]
   approvals: TuiApproval[]
   timeline: TuiRunTimelineItem[]
+  integrations: Record<string, TuiIntegrationSnapshot>
   queuedInputs: string[]
   commands: TuiCommand[]
   models: TuiModelOption[]
