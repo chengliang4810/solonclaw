@@ -96,6 +96,11 @@ const router = createRouter({
       component: () => import('@/views/jimuqu/TerminalView.vue'),
     },
     {
+      path: '/jimuqu/tui',
+      name: 'Jimuqu.tui',
+      component: () => import('@/views/jimuqu/TuiView.vue'),
+    },
+    {
       path: '/jimuqu/mcp',
       name: 'Jimuqu.mcp',
       component: () => import('@/views/jimuqu/McpView.vue'),
