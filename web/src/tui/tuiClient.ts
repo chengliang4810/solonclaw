@@ -228,8 +228,9 @@ function mapGatewayEvent(message: JsonRpcResponse): TuiEvent {
     case 'subagent.updated':
     case 'recovery.updated':
     case 'run.control':
-    case 'session.controls':
       return { type: 'notice', payload: { timeline: timelinePayload(message.type, payload) } }
+    case 'session.controls':
+      return { type: 'sessionControl', payload }
     case 'cron.snapshot':
     case 'kanban.snapshot':
     case 'mcp.snapshot':
@@ -272,6 +273,9 @@ function mapRpcResult(payload: Record<string, unknown>): TuiEvent {
   }
   if (Array.isArray(payload.commands)) {
     return { type: 'command', payload: { commands: commandOptions(payload.commands) } }
+  }
+  if (Array.isArray(payload.controls) || typeof payload.compressed === 'boolean') {
+    return { type: 'sessionControl', payload }
   }
   if (payload.integrations || payload.cron || payload.kanban || payload.mcp || payload.acp) {
     return { type: 'integration', payload: payload.integrations || payload }

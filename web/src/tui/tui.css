@@ -476,6 +476,65 @@
   font: inherit;
 }
 
+.tui-session-controls {
+  display: grid;
+  gap: 8px;
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--tui-border);
+  border-left: 3px solid var(--tui-accent);
+  background: var(--tui-soft);
+}
+
+.tui-session-control-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--tui-secondary);
+  font-size: 12px;
+}
+
+.tui-session-control-summary strong {
+  color: var(--tui-text);
+  font-weight: 650;
+}
+
+.tui-session-controls p {
+  margin: 0;
+  color: var(--tui-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.tui-session-control-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tui-session-control-actions button {
+  min-height: 30px;
+  border: 1px solid var(--tui-border);
+  border-radius: 6px;
+  background: var(--tui-surface);
+  color: var(--tui-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.tui-session-control-actions button:hover:not(:disabled) {
+  background: var(--tui-soft);
+  border-color: var(--tui-secondary);
+}
+
+.tui-session-control-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .tui-panel-list {
   display: grid;
   gap: 6px;

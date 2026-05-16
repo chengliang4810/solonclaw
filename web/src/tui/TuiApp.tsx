@@ -4,7 +4,7 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { TuiJsonRpcClient } from './tuiClient'
 import { createHistoryItem, initialTuiState, tuiReducer } from './tuiReducer'
 import { handleOsc52, openSafeUrl, readClipboard, sanitizeInputForDisplay, writeClipboard } from './tuiSafety'
-import type { BusyPolicy, TuiApproval, TuiIntegrationKind, TuiIntegrationSnapshot, TuiRunTimelineItem, TuiSession, VirtualHistoryItem } from './tuiTypes'
+import type { BusyPolicy, TuiApproval, TuiIntegrationKind, TuiIntegrationSnapshot, TuiRunTimelineItem, TuiSession, TuiSessionControls, VirtualHistoryItem } from './tuiTypes'
 import './tui.css'
 
 export function TuiApp() {
@@ -76,6 +76,7 @@ export function TuiApp() {
     void clientRef.current?.request('run.replay', { sessionId: state.activeSessionId, after_seq: afterSeq })
     void clientRef.current?.request('approval.list', { sessionId: state.activeSessionId })
     void clientRef.current?.request('integration.snapshot', { sessionId: state.activeSessionId })
+    void clientRef.current?.request('session.controls', { sessionId: state.activeSessionId })
   }, [state.connection, state.activeSessionId])
 
   function submitInput(event?: FormEvent) {
@@ -196,6 +197,7 @@ export function TuiApp() {
     setActivePanel(null)
     const afterSeq = state.lastSeqBySession[sessionId] || 0
     void clientRef.current?.request('session.resume', { sessionId, after_seq: afterSeq })
+    void clientRef.current?.request('session.controls', { sessionId })
   }
 
   function switchModel(modelId: string) {
@@ -209,6 +211,34 @@ export function TuiApp() {
     setInput(command)
     setActivePanel(null)
     inputRef.current?.focus()
+  }
+
+  function runSessionControl(action: 'retry' | 'undo' | 'branch' | 'compress' | 'refresh') {
+    const sessionId = state.activeSessionId
+    if (!sessionId) return
+    if (action === 'refresh') {
+      void clientRef.current?.request('session.controls', { sessionId }).then(() => showToast('会话控制已刷新')).catch(showRequestError)
+      return
+    }
+    if (action === 'branch') {
+      const branchName = `branch-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`
+      void clientRef.current?.request('session.branch', { sessionId, branch_name: branchName })
+        .then((result) => {
+          dispatch({ type: 'history', payload: createHistoryItem('system', `已创建分支：${branchName}`, sessionId) })
+          const nextSessionId = stringFromResult(result, 'session_id') || stringFromResult(result, 'id')
+          if (nextSessionId) void clientRef.current?.request('session.controls', { sessionId: nextSessionId })
+        })
+        .catch(showRequestError)
+      return
+    }
+    const method = action === 'retry' ? 'session.retry' : action === 'undo' ? 'session.undo' : 'session.compress'
+    void clientRef.current?.request(method, { sessionId })
+      .then(() => {
+        const label = action === 'retry' ? '重试已发送' : action === 'undo' ? '撤销已发送' : '压缩已发送'
+        dispatch({ type: 'history', payload: createHistoryItem('system', label, sessionId) })
+        void clientRef.current?.request('session.controls', { sessionId })
+      })
+      .catch(showRequestError)
   }
 
   function setBusyPolicy(policy: BusyPolicy) {
@@ -254,6 +284,10 @@ export function TuiApp() {
   function showToast(text: string) {
     setToast(text)
     window.setTimeout(() => setToast(''), 2200)
+  }
+
+  function showRequestError(error: unknown) {
+    showToast(error instanceof Error ? error.message : String(error))
   }
 
   return (
@@ -343,7 +377,18 @@ export function TuiApp() {
         {activePanel ? (
           <aside className="tui-panel">
             {activePanel === 'session' ? (
-              <SessionPanel search={panelSearch} setSearch={setPanelSearch} sessions={state.sessions} recentSessions={state.recentSessions} activeSessionId={state.activeSessionId} onSwitch={switchSession} onCreate={createSession} />
+              <SessionPanel
+                search={panelSearch}
+                setSearch={setPanelSearch}
+                sessions={state.sessions}
+                recentSessions={state.recentSessions}
+                activeSessionId={state.activeSessionId}
+                controls={state.sessionControls[state.activeSessionId]}
+                busy={state.busy}
+                onSwitch={switchSession}
+                onCreate={createSession}
+                onControl={runSessionControl}
+              />
             ) : null}
             {activePanel === 'model' ? (
               <ModelPanel search={panelSearch} setSearch={setPanelSearch} models={state.models} recentModels={state.recentModels} activeModelId={state.activeModelId} onSwitch={switchModel} />
@@ -455,11 +500,12 @@ function CodeBlock(props: { language?: string; code: string; onCopy: (text: stri
   )
 }
 
-function SessionPanel(props: { search: string; setSearch: (value: string) => void; sessions: TuiSession[]; recentSessions: string[]; activeSessionId: string; onSwitch: (id: string) => void; onCreate: () => void }) {
+function SessionPanel(props: { search: string; setSearch: (value: string) => void; sessions: TuiSession[]; recentSessions: string[]; activeSessionId: string; controls?: TuiSessionControls; busy: boolean; onSwitch: (id: string) => void; onCreate: () => void; onControl: (action: 'retry' | 'undo' | 'branch' | 'compress' | 'refresh') => void }) {
   const sessions = filterSessions(props.sessions, props.search, props.recentSessions)
   return (
     <>
       <PanelHeader title="会话面板" action="新建" onAction={props.onCreate} />
+      <SessionControlPanel controls={props.controls} busy={props.busy} onControl={props.onControl} />
       <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索会话、分支或模型" />
       <div className="tui-panel-list">
         {sessions.map((session) => (
@@ -470,6 +516,27 @@ function SessionPanel(props: { search: string; setSearch: (value: string) => voi
         ))}
       </div>
     </>
+  )
+}
+
+function SessionControlPanel(props: { controls?: TuiSessionControls; busy: boolean; onControl: (action: 'retry' | 'undo' | 'branch' | 'compress' | 'refresh') => void }) {
+  const controls = props.controls
+  return (
+    <section className="tui-session-controls">
+      <div className="tui-session-control-summary">
+        <span>{controls?.branchName || 'main'}</span>
+        <strong>{controls?.compressed ? '已压缩' : '未压缩'}</strong>
+      </div>
+      {controls?.parentSessionId ? <p>父会话：{controls.parentSessionId}</p> : null}
+      {controls?.compressedSummary ? <p>{controls.compressedSummary}</p> : null}
+      <div className="tui-session-control-actions">
+        <button type="button" onClick={() => props.onControl('refresh')}>刷新</button>
+        <button type="button" disabled={props.busy} onClick={() => props.onControl('retry')}>重试</button>
+        <button type="button" disabled={props.busy} onClick={() => props.onControl('undo')}>撤销</button>
+        <button type="button" disabled={props.busy} onClick={() => props.onControl('branch')}>分支</button>
+        <button type="button" disabled={props.busy || Boolean(controls?.compressed)} onClick={() => props.onControl('compress')}>压缩</button>
+      </div>
+    </section>
   )
 }
 
@@ -738,6 +805,12 @@ function recentScore(item: { id?: string; name?: string }, recent: string[]): nu
   const key = item.id || item.name || ''
   const index = recent.indexOf(key)
   return index < 0 ? -100 : 100 - index
+}
+
+function stringFromResult(result: unknown, key: string): string {
+  if (!result || typeof result !== 'object') return ''
+  const value = (result as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : ''
 }
 
 function looksLikePath(text: string): boolean {

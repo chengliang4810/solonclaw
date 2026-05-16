@@ -1,4 +1,4 @@
-import type { TuiApproval, TuiCommand, TuiEvent, TuiIntegrationItem, TuiIntegrationKind, TuiIntegrationSnapshot, TuiModelOption, TuiRunTimelineItem, TuiSession, TuiState, VirtualHistoryItem } from './tuiTypes'
+import type { TuiApproval, TuiCommand, TuiEvent, TuiIntegrationItem, TuiIntegrationKind, TuiIntegrationSnapshot, TuiModelOption, TuiRunTimelineItem, TuiSession, TuiSessionControls, TuiState, VirtualHistoryItem } from './tuiTypes'
 import { extractSafeUrls } from './tuiSafety'
 
 const HISTORY_LIMIT = 600
@@ -46,6 +46,7 @@ export const initialTuiState: TuiState = {
   approvals: [],
   timeline: [],
   integrations: {},
+  sessionControls: {},
   queuedInputs: [],
   commands: defaultCommands,
   models: defaultModels,
@@ -75,6 +76,8 @@ export function tuiReducer(state: TuiState, event: TuiEvent): TuiState {
       return reduceCommand(state, event.payload)
     case 'integration':
       return reduceIntegration(state, event.payload)
+    case 'sessionControl':
+      return reduceSessionControl(state, event.payload)
     case 'notice':
       return appendNotice(state, event.payload)
     case 'clear':
@@ -242,6 +245,26 @@ function reduceIntegration(state: TuiState, payload: unknown): TuiState {
   return { ...state, integrations, timeline }
 }
 
+function reduceSessionControl(state: TuiState, payload: unknown): TuiState {
+  const control = normalizeSessionControl(payload, state.activeSessionId)
+  if (!control.sessionId) return state
+  const timeline = appendTimelineItem(state.timeline, {
+    id: `session-control-${control.sessionId}-${control.updatedAt}`,
+    kind: 'checkpoint',
+    title: control.compressed ? '会话已压缩' : '会话控制已同步',
+    detail: control.compressedSummary || control.controls.join(' · '),
+    status: control.branchName || 'main',
+    severity: 'info',
+    sessionId: control.sessionId,
+    createdAt: control.updatedAt,
+  })
+  return {
+    ...state,
+    sessionControls: { ...state.sessionControls, [control.sessionId]: control },
+    timeline,
+  }
+}
+
 function normalizeHistory(payload: unknown, fallbackSessionId: string): VirtualHistoryItem {
   const data = objectPayload(payload)
   const role = stringValue(data.role, 'assistant') as VirtualHistoryItem['role']
@@ -270,6 +293,21 @@ function normalizeSession(payload: unknown): TuiSession | null {
     branch: stringValue(data.branch, stringValue(data.branch_name, '')) || undefined,
     createdAt: numberValue(data.createdAt, numberValue(data.started_at, Date.now())),
     active: Boolean(data.active),
+  }
+}
+
+function normalizeSessionControl(payload: unknown, fallbackSessionId: string): TuiSessionControls {
+  const data = objectPayload(payload)
+  const sessionId = stringValue(data.session_id || data.id || data.sessionId, fallbackSessionId)
+  return {
+    sessionId,
+    title: stringValue(data.title, sessionId || '未命名会话'),
+    branchName: stringValue(data.branch_name || data.branchName, 'main'),
+    parentSessionId: stringValue(data.parent_session_id || data.parentSessionId, '') || undefined,
+    compressed: Boolean(data.compressed),
+    compressedSummary: stringValue(data.compressed_summary || data.compressedSummary, '') || undefined,
+    controls: Array.isArray(data.controls) ? data.controls.filter((item): item is string => typeof item === 'string') : [],
+    updatedAt: Date.now(),
   }
 }
 

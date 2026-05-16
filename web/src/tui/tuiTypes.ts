@@ -35,6 +35,17 @@ export interface TuiSession {
   active: boolean
 }
 
+export interface TuiSessionControls {
+  sessionId: string
+  title: string
+  branchName: string
+  parentSessionId?: string
+  compressed: boolean
+  compressedSummary?: string
+  controls: string[]
+  updatedAt: number
+}
+
 export interface TuiApproval {
   id: string
   approvalId?: string
@@ -112,6 +123,7 @@ export interface TuiEvent {
     | 'model'
     | 'command'
     | 'integration'
+    | 'sessionControl'
     | 'notice'
     | 'clear'
   payload?: unknown
@@ -129,6 +141,7 @@ export interface TuiState {
   approvals: TuiApproval[]
   timeline: TuiRunTimelineItem[]
   integrations: Record<string, TuiIntegrationSnapshot>
+  sessionControls: Record<string, TuiSessionControls>
   queuedInputs: string[]
   commands: TuiCommand[]
   models: TuiModelOption[]
