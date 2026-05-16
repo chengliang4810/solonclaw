@@ -234,6 +234,87 @@
   line-height: 1.55;
 }
 
+.tui-markdown {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tui-markdown p,
+.tui-markdown h2,
+.tui-markdown h3,
+.tui-markdown h4 {
+  margin: 0;
+}
+
+.tui-markdown h2 {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.tui-markdown h3,
+.tui-markdown h4 {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.tui-markdown code {
+  padding: 1px 4px;
+  border: 1px solid var(--tui-border);
+  border-radius: 4px;
+  background: var(--tui-soft);
+  font-family: var(--font-mono, Consolas, monospace);
+  font-size: 12px;
+}
+
+.tui-md-list {
+  padding-left: 10px;
+}
+
+.tui-code-block {
+  display: grid;
+  margin: 0;
+  border: 1px solid var(--tui-border);
+  border-radius: 8px;
+  background: var(--bg-code, var(--tui-soft));
+  overflow: hidden;
+}
+
+.tui-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--tui-border);
+  color: var(--tui-muted);
+  font-size: 12px;
+}
+
+.tui-code-header button {
+  border: 1px solid var(--tui-border);
+  border-radius: 5px;
+  background: var(--tui-surface);
+  color: var(--tui-text);
+  font: inherit;
+  min-height: 24px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+
+.tui-code-block code {
+  display: block;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  white-space: pre;
+  color: var(--tui-text);
+}
+
 .tui-url-row {
   display: flex;
   gap: 8px;
@@ -383,6 +464,18 @@
   padding: 0 10px;
 }
 
+.tui-panel-search {
+  width: calc(100% - 20px);
+  min-height: 34px;
+  margin: 10px 10px 0;
+  border: 1px solid var(--tui-border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--tui-text);
+  padding: 0 10px;
+  font: inherit;
+}
+
 .tui-panel-list {
   display: grid;
   gap: 6px;
@@ -406,6 +499,53 @@
 .tui-panel-list small {
   color: var(--tui-muted);
   line-height: 1.35;
+}
+
+.tui-timeline {
+  display: grid;
+  gap: 8px;
+  padding: 12px 10px 16px;
+  border-top: 1px solid var(--tui-border);
+}
+
+.tui-timeline h2 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  color: var(--tui-secondary);
+}
+
+.tui-timeline-item {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--tui-border);
+  background: var(--tui-soft);
+}
+
+.tui-timeline-item.warn {
+  border-left-color: var(--tui-yellow);
+}
+
+.tui-timeline-item.error {
+  border-left-color: var(--tui-red);
+}
+
+.tui-timeline-item strong {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.tui-timeline-item small {
+  color: var(--tui-muted);
+}
+
+.tui-timeline-item p {
+  margin: 0;
+  color: var(--tui-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .tui-statusbar {

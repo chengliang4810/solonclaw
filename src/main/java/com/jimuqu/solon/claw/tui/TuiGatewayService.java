@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -21,6 +22,7 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,10 +34,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** Agent terminal gateway service. */
-public class TuiGatewayService {
+public class TuiGatewayService implements TuiGatewayEventSink {
     private static final int MAX_HISTORY_EVENTS = 400;
     private static final int MAX_SESSION_LIST = 50;
     private static final String DEFAULT_BUSY_MODE = "interrupt";
@@ -46,23 +49,35 @@ public class TuiGatewayService {
     private final CommandService commandService;
     private final AgentRunControlService agentRunControlService;
     private final LlmProviderService llmProviderService;
+    private final TuiRunProjector runProjector;
+    private final TuiApprovalProjector approvalProjector;
     private final ExecutorService executor;
     private final ConcurrentMap<String, TuiSessionState> states =
             new ConcurrentHashMap<String, TuiSessionState>();
+    private final ConcurrentMap<String, TuiConnection> connections =
+            new ConcurrentHashMap<String, TuiConnection>();
+    private final AtomicLong fallbackSeq = new AtomicLong(System.currentTimeMillis() * 1000L);
 
     public TuiGatewayService(
             AppConfig appConfig,
             SessionRepository sessionRepository,
+            AgentRunRepository agentRunRepository,
             ConversationOrchestrator conversationOrchestrator,
             CommandService commandService,
             AgentRunControlService agentRunControlService,
-            LlmProviderService llmProviderService) {
+            LlmProviderService llmProviderService,
+            DangerousCommandApprovalService approvalService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.conversationOrchestrator = conversationOrchestrator;
         this.commandService = commandService;
         this.agentRunControlService = agentRunControlService;
         this.llmProviderService = llmProviderService;
+        this.runProjector = new TuiRunProjector(agentRunRepository);
+        this.approvalProjector = new TuiApprovalProjector(sessionRepository, approvalService, this);
+        if (approvalService != null) {
+            approvalService.addApprovalObserver(this.approvalProjector);
+        }
         this.executor = BoundedExecutorFactory.fixed("tui-gateway", 4, 128);
     }
 
@@ -71,6 +86,7 @@ public class TuiGatewayService {
     }
 
     public void onOpen(TuiConnection connection) {
+        connections.put(connection.id(), connection);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("connection_id", safe(connection.id(), 120));
         payload.put("commands", TerminalCommandCatalog.slashCommands());
@@ -81,6 +97,31 @@ public class TuiGatewayService {
             connection.sendResult(null, null, statusPayload());
         } catch (Exception e) {
             connection.sendError(null, null, "STATUS_FAILED", safeError(e));
+        }
+    }
+
+    public void onClose(TuiConnection connection) {
+        if (connection != null) {
+            connections.remove(connection.id());
+        }
+    }
+
+    @Override
+    public void publish(TuiEvent event) {
+        if (event == null) {
+            return;
+        }
+        String sessionId = event.getSessionId();
+        if (StrUtil.isNotBlank(sessionId)) {
+            TuiSessionState state = state(sessionId);
+            remember(state, event);
+        }
+        for (TuiConnection connection : connections.values()) {
+            if (StrUtil.isBlank(sessionId)
+                    || StrUtil.isBlank(connection.getActiveSessionId())
+                    || sessionId.equals(connection.getActiveSessionId())) {
+                connection.sendEvent(event);
+            }
         }
     }
 
@@ -103,6 +144,16 @@ public class TuiGatewayService {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), branchSession(connection, envelope));
             } else if ("session.compress".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/compact"));
+            } else if ("session.retry".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/retry"));
+            } else if ("session.undo".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/undo"));
+            } else if ("session.controls".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), sessionControls(connection, envelope));
+            } else if ("run.replay".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), replayRuns(connection, envelope));
+            } else if ("run.control".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), controlRun(connection, envelope));
             } else if ("input.send".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), submitInput(connection, envelope, "interrupt"));
             } else if ("input.queue".equals(method)) {
@@ -117,10 +168,12 @@ public class TuiGatewayService {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), modelOptions());
             } else if ("model.switch".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), switchModel(connection, envelope));
+            } else if ("approval.list".equals(method)) {
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), approvalSnapshot(connection, envelope));
             } else if ("approval.approve".equals(method)) {
-                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, approvalCommand(envelope, true)));
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), resolveApproval(connection, envelope, true));
             } else if ("approval.deny".equals(method)) {
-                connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, approvalCommand(envelope, false)));
+                connection.sendResult(envelope.getId(), envelope.getSessionId(), resolveApproval(connection, envelope, false));
             } else if ("mcp.reload".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), runSlash(connection, envelope, "/reload-mcp"));
             } else if ("cron.list".equals(method)) {
@@ -169,6 +222,8 @@ public class TuiGatewayService {
         Map<String, Object> result = sessionPayload(sessionRepository.findById(sessionId));
         result.put("busy_mode", state.busyMode);
         replay(connection, sessionId, Long.valueOf(0L));
+        replayProjected(connection, sessionId, 0L);
+        connection.sendEvent("approval.snapshot", sessionId, approvalProjector.pendingSnapshot(sessionId));
         connection.sendEvent("session.created", sessionId, result);
         return result;
     }
@@ -199,6 +254,8 @@ public class TuiGatewayService {
         result.put("busy_mode", state.busyMode);
         result.put("queued_count", Integer.valueOf(state.queue.size()));
         replay(connection, sid, afterSeq);
+        replayProjected(connection, sid, afterSeq.longValue());
+        connection.sendEvent("approval.snapshot", sid, approvalProjector.pendingSnapshot(sid));
         connection.sendEvent("session.resumed", sid, result);
         return result;
     }
@@ -339,6 +396,11 @@ public class TuiGatewayService {
                 if (!state.finalEmitted) {
                     eventSink.onRunCompleted(session.getSessionId(), finalReply, null);
                 }
+                Object runId = reply == null ? null : reply.getRuntimeMetadata().get("run_id");
+                if (runId != null) {
+                    state.currentAgentRunId = String.valueOf(runId);
+                    emitProjected(connection, state, runProjector.projectRun(session.getSessionId(), String.valueOf(runId), state.lastSeq));
+                }
             }
         } catch (Throwable e) {
             eventSink.onRunFailed(sessionId, e);
@@ -395,6 +457,96 @@ public class TuiGatewayService {
         Map<String, Object> payload = sessionPayload(sessionRepository.findById(sid));
         payload.put("model", safe(model, 400));
         connection.sendEvent("model.changed", sid, payload);
+        return payload;
+    }
+
+    private Map<String, Object> approvalSnapshot(TuiConnection connection, TuiEnvelope envelope) {
+        String sid = requireSessionId(connection, envelope);
+        Map<String, Object> payload = approvalProjector.pendingSnapshot(sid);
+        connection.sendEvent("approval.snapshot", sid, payload);
+        return payload;
+    }
+
+    private Map<String, Object> resolveApproval(
+            TuiConnection connection, TuiEnvelope envelope, boolean approve) throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        Map<String, Object> payload =
+                approvalProjector.resolve(
+                        sid,
+                        textParam(envelope, "selector", textParam(envelope, "approval_id", "")),
+                        textParam(envelope, "scope", "once"),
+                        approve,
+                        "tui");
+        connection.sendEvent("approval.snapshot", sid, payload);
+        if (Boolean.TRUE.equals(payload.get("ok"))) {
+            resumePendingAfterApproval(connection, sid);
+        }
+        return payload;
+    }
+
+    private void resumePendingAfterApproval(final TuiConnection connection, final String sessionId) {
+        executor.submit(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        TuiSessionState state = state(sessionId);
+                        TuiEventSink eventSink = new TuiEventSink(connection, state, sessionId);
+                        try {
+                            GatewayReply reply =
+                                    conversationOrchestrator.resumePending(
+                                            sourceKey(sessionId), eventSink);
+                            if (reply != null && reply.isError()) {
+                                eventSink.onRunFailed(
+                                        sessionId, new IllegalStateException(reply.getContent()));
+                            }
+                        } catch (Throwable e) {
+                            eventSink.onRunFailed(sessionId, e);
+                        }
+                    }
+                });
+    }
+
+    private Map<String, Object> replayRuns(TuiConnection connection, TuiEnvelope envelope) {
+        String sid = requireSessionId(connection, envelope);
+        Long afterSeq = longParam(envelope.getParams().get("after_seq"));
+        replayProjected(connection, sid, afterSeq == null ? 0L : afterSeq.longValue());
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("ok", Boolean.TRUE);
+        payload.put("session_id", safe(sid, 160));
+        payload.put("after_seq", Long.valueOf(afterSeq == null ? 0L : afterSeq.longValue()));
+        return payload;
+    }
+
+    private Map<String, Object> controlRun(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        String runId = textParam(envelope, "run_id", state(sid).currentAgentRunId);
+        String command = textParam(envelope, "command", "");
+        if (StrUtil.isBlank(runId)) {
+            throw new IllegalArgumentException("run_id is required");
+        }
+        if (StrUtil.isBlank(command)) {
+            throw new IllegalArgumentException("command is required");
+        }
+        Map<String, Object> payload =
+                agentRunControlService == null
+                        ? new LinkedHashMap<String, Object>()
+                        : agentRunControlService.controlRun(runId, command, envelope.getParams());
+        emitProjected(connection, state(sid), runProjector.projectRun(sid, runId, 0L));
+        return payload;
+    }
+
+    private Map<String, Object> sessionControls(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        SessionRecord session = sessionRepository.findById(sid);
+        Map<String, Object> payload = sessionPayload(session);
+        payload.put("controls", java.util.Arrays.asList("/retry", "/undo", "/branch", "/resume", "/compact"));
+        payload.put("compressed", Boolean.valueOf(session != null && StrUtil.isNotBlank(session.getCompressedSummary())));
+        payload.put("compressed_summary", safe(session == null ? "" : session.getCompressedSummary(), 2000));
+        payload.put("parent_session_id", safe(session == null ? "" : session.getParentSessionId(), 160));
+        payload.put("branch_name", safe(session == null ? "" : session.getBranchName(), 160));
+        connection.sendEvent("session.controls", sid, payload);
         return payload;
     }
 
@@ -503,6 +655,7 @@ public class TuiGatewayService {
         payload.put("running", Boolean.valueOf(state.running));
         payload.put("busy_mode", state.busyMode);
         payload.put("run_id", safe(state.currentRunId, 120));
+        payload.put("agent_run_id", safe(state.currentAgentRunId, 120));
         payload.put("queued_count", Integer.valueOf(state.queue.size()));
         payload.put("has_steer", Boolean.valueOf(StrUtil.isNotBlank(state.steerInstruction)));
         return payload;
@@ -525,25 +678,66 @@ public class TuiGatewayService {
         }
     }
 
+    private void replayProjected(TuiConnection connection, String sessionId, long afterSeq) {
+        for (TuiEvent event : runProjector.replaySession(sessionId, sourceKey(sessionId), afterSeq)) {
+            state(sessionId).lastSeq = Math.max(state(sessionId).lastSeq, event.getSeq());
+            connection.sendEvent(event);
+        }
+    }
+
+    private void emitProjected(
+            TuiConnection connection, TuiSessionState state, List<TuiEvent> events) {
+        if (events == null || events.isEmpty()) {
+            return;
+        }
+        for (TuiEvent event : events) {
+            remember(state, event);
+            connection.sendEvent(event);
+        }
+    }
+
     private void emit(
             TuiSessionState state,
             TuiConnection connection,
             String type,
             String sessionId,
             Map<String, Object> payload) {
+        long seq = nextSeq(state);
+        TuiEvent event = new TuiEvent(type, sessionId, seq, seq, payload);
+        remember(state, event);
+        connection.sendEvent(event);
+    }
+
+    private void remember(TuiSessionState state, TuiEvent event) {
+        if (state == null || event == null) {
+            return;
+        }
         Map<String, Object> safePayload =
-                payload == null ? new LinkedHashMap<String, Object>() : payload;
+                event.getPayload() == null ? new LinkedHashMap<String, Object>() : event.getPayload();
         Map<String, Object> historyEvent = new LinkedHashMap<String, Object>();
-        historyEvent.put("type", type);
-        historyEvent.put("seq", Long.valueOf(++state.lastSeq));
+        historyEvent.put("type", event.getType());
+        historyEvent.put("seq", Long.valueOf(event.getSeq()));
         historyEvent.put("payload", safePayload);
+        state.lastSeq = Math.max(state.lastSeq, event.getSeq());
         synchronized (state.history) {
             state.history.addLast(historyEvent);
             while (state.history.size() > MAX_HISTORY_EVENTS) {
                 state.history.removeFirst();
             }
         }
-        connection.sendEvent(type, sessionId, safePayload);
+    }
+
+    private long nextSeq(TuiSessionState state) {
+        long next = fallbackSeq.incrementAndGet();
+        if (state == null) {
+            return next;
+        }
+        long stateNext = state.lastSeq + 1L;
+        if (stateNext > next) {
+            fallbackSeq.set(stateNext);
+            return stateNext;
+        }
+        return next;
     }
 
     @SuppressWarnings("unchecked")
@@ -592,19 +786,6 @@ public class TuiGatewayService {
             return normalized;
         }
         return DEFAULT_BUSY_MODE;
-    }
-
-    private String approvalCommand(TuiEnvelope envelope, boolean approve) {
-        String selector = textParam(envelope, "selector", "");
-        String scope = textParam(envelope, "scope", "");
-        String base = approve ? "/approve" : "/deny";
-        if (approve && StrUtil.isNotBlank(scope)) {
-            base += " " + scope;
-        }
-        if (StrUtil.isNotBlank(selector)) {
-            base += " " + selector;
-        }
-        return base;
     }
 
     private String textParam(TuiEnvelope envelope, String key, String fallback) {
@@ -721,6 +902,7 @@ public class TuiGatewayService {
 
         @Override
         public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
+            state.currentAgentRunId = runId;
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
             payload.put("agent_run_id", safe(runId, 120));
             payload.put("attempt_no", Integer.valueOf(attemptNo));
@@ -808,6 +990,7 @@ public class TuiGatewayService {
         private volatile boolean finalEmitted;
         private volatile boolean failed;
         private volatile long lastSeq;
+        private volatile String currentAgentRunId;
         private final StringBuilder currentAssistant = new StringBuilder();
         private final Deque<TuiQueuedInput> queue = new ArrayDeque<TuiQueuedInput>();
         private final Deque<Map<String, Object>> history = new ArrayDeque<Map<String, Object>>();

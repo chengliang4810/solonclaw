@@ -4,6 +4,16 @@ export type BusyPolicy = 'queue' | 'steer' | 'interrupt'
 
 export type HistoryRole = 'user' | 'assistant' | 'system' | 'tool' | 'approval'
 
+export type RunTimelineKind =
+  | 'run'
+  | 'event'
+  | 'tool'
+  | 'approval'
+  | 'subagent'
+  | 'recovery'
+  | 'control'
+  | 'checkpoint'
+
 export interface VirtualHistoryItem {
   id: string
   role: HistoryRole
@@ -27,6 +37,8 @@ export interface TuiSession {
 
 export interface TuiApproval {
   id: string
+  approvalId?: string
+  selector?: string
   title: string
   command: string
   reason: string
@@ -34,6 +46,22 @@ export interface TuiApproval {
   createdAt: number
   expiresAt?: number
   status: 'pending' | 'approved' | 'denied'
+  toolName?: string
+  choice?: string
+  permanentAllowed?: boolean
+}
+
+export interface TuiRunTimelineItem {
+  id: string
+  kind: RunTimelineKind
+  title: string
+  detail: string
+  status?: string
+  severity?: 'info' | 'warn' | 'error'
+  runId?: string
+  sessionId?: string
+  createdAt: number
+  seq?: number
 }
 
 export interface TuiCommand {
@@ -74,9 +102,14 @@ export interface TuiState {
   sessions: TuiSession[]
   history: VirtualHistoryItem[]
   approvals: TuiApproval[]
+  timeline: TuiRunTimelineItem[]
   queuedInputs: string[]
   commands: TuiCommand[]
   models: TuiModelOption[]
+  recentCommands: string[]
+  recentModels: string[]
+  recentSessions: string[]
+  lastSeqBySession: Record<string, number>
   lastError?: string
 }
 

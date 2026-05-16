@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { TuiJsonRpcClient } from './tuiClient'
 import { createHistoryItem, initialTuiState, tuiReducer } from './tuiReducer'
 import { handleOsc52, openSafeUrl, readClipboard, sanitizeInputForDisplay, writeClipboard } from './tuiSafety'
-import type { BusyPolicy, TuiApproval, TuiSession } from './tuiTypes'
+import type { BusyPolicy, TuiApproval, TuiRunTimelineItem, TuiSession, VirtualHistoryItem } from './tuiTypes'
 import './tui.css'
 
 export function TuiApp() {
   const [state, dispatch] = useReducer(tuiReducer, initialTuiState)
   const [input, setInput] = useState('')
   const [activePanel, setActivePanel] = useState<'model' | 'session' | 'command' | null>(null)
+  const [panelSearch, setPanelSearch] = useState('')
   const [toast, setToast] = useState('')
   const clientRef = useRef<TuiJsonRpcClient | null>(null)
   const historyRef = useRef<HTMLDivElement | null>(null)
@@ -46,10 +48,10 @@ export function TuiApp() {
       const key = event.key.toLowerCase()
       if (key === 'k') {
         event.preventDefault()
-        setActivePanel('command')
+        openPanel('command')
       } else if (key === 'm') {
         event.preventDefault()
-        setActivePanel('model')
+        openPanel('model')
       } else if (key === 'n') {
         event.preventDefault()
         createSession()
@@ -64,6 +66,13 @@ export function TuiApp() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   })
+
+  useEffect(() => {
+    if (state.connection !== 'connected' || !state.activeSessionId) return
+    const afterSeq = state.lastSeqBySession[state.activeSessionId] || 0
+    void clientRef.current?.request('run.replay', { sessionId: state.activeSessionId, after_seq: afterSeq })
+    void clientRef.current?.request('approval.list', { sessionId: state.activeSessionId })
+  }, [state.connection, state.activeSessionId])
 
   function submitInput(event?: FormEvent) {
     event?.preventDefault()
@@ -109,7 +118,14 @@ export function TuiApp() {
       input: text,
       busy_mode: state.busyPolicy,
     }
-    void clientRef.current?.request(method, payload)
+    if (text.startsWith('/')) dispatch({ type: 'command', payload: { recentCommand: text.split(/\s+/, 1)[0] } })
+    void clientRef.current?.request(method, payload).catch((error) => {
+      dispatch({
+        type: 'history',
+        payload: createHistoryItem('system', `发送失败：${error instanceof Error ? error.message : String(error)}`, state.activeSessionId),
+      })
+      dispatch({ type: 'busy', payload: { busy: false } })
+    })
 
     if (!clientRef.current?.isConnected()) {
       window.setTimeout(() => {
@@ -125,7 +141,19 @@ export function TuiApp() {
   function onInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       submitInput()
+      return
     }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+      const text = input.trim()
+      if (looksLikePath(text)) {
+        showToast('检测到路径文本；可直接发送，或换行补充说明')
+      }
+    }
+  }
+
+  function openPanel(panel: 'model' | 'session' | 'command') {
+    setPanelSearch('')
+    setActivePanel(panel)
   }
 
   function createSession() {
@@ -162,7 +190,8 @@ export function TuiApp() {
       },
     })
     setActivePanel(null)
-    void clientRef.current?.request('session.resume', { sessionId, after_seq: 0 })
+    const afterSeq = state.lastSeqBySession[sessionId] || 0
+    void clientRef.current?.request('session.resume', { sessionId, after_seq: afterSeq })
   }
 
   function switchModel(modelId: string) {
@@ -172,6 +201,7 @@ export function TuiApp() {
   }
 
   function runCommand(command: string) {
+    dispatch({ type: 'command', payload: { recentCommand: command } })
     setInput(command)
     setActivePanel(null)
     inputRef.current?.focus()
@@ -188,7 +218,7 @@ export function TuiApp() {
       sessionId: state.activeSessionId,
       selector: approval.id,
       scope: 'once',
-    })
+    }).catch((error) => showToast(error instanceof Error ? error.message : String(error)))
   }
 
   async function copyLastReply() {
@@ -207,6 +237,9 @@ export function TuiApp() {
       return
     }
     setInput((value) => `${value}${value ? '\n' : ''}${text}`)
+    if (looksLikePath(text)) {
+      showToast('已粘贴路径文本')
+    }
   }
 
   async function copyOsc52() {
@@ -236,9 +269,9 @@ export function TuiApp() {
 
       <div className="tui-workspace">
         <aside className="tui-sidebar">
-          <PanelButton active={activePanel === 'session'} label="会话" shortcut="Ctrl+N" onClick={() => setActivePanel(activePanel === 'session' ? null : 'session')} />
-          <PanelButton active={activePanel === 'model'} label="模型" shortcut="Ctrl+M" onClick={() => setActivePanel(activePanel === 'model' ? null : 'model')} />
-          <PanelButton active={activePanel === 'command'} label="命令" shortcut="Ctrl+K" onClick={() => setActivePanel(activePanel === 'command' ? null : 'command')} />
+          <PanelButton active={activePanel === 'session'} label="会话" shortcut="Ctrl+N" onClick={() => activePanel === 'session' ? setActivePanel(null) : openPanel('session')} />
+          <PanelButton active={activePanel === 'model'} label="模型" shortcut="Ctrl+M" onClick={() => activePanel === 'model' ? setActivePanel(null) : openPanel('model')} />
+          <PanelButton active={activePanel === 'command'} label="命令" shortcut="Ctrl+K" onClick={() => activePanel === 'command' ? setActivePanel(null) : openPanel('command')} />
           <div className="tui-policy">
             <span>忙碌输入</span>
             <select value={state.busyPolicy} onChange={(event) => setBusyPolicy(event.currentTarget.value as BusyPolicy)}>
@@ -260,7 +293,7 @@ export function TuiApp() {
                   <span>{roleLabel(item.role)}</span>
                   <time>{formatTime(item.createdAt)}</time>
                 </div>
-                <pre>{item.text}</pre>
+                <MessageBody item={item} onCopy={showToast} />
                 {item.urls && item.urls.length > 0 ? (
                   <div className="tui-url-row">
                     {item.urls.map((url) => (
@@ -305,14 +338,15 @@ export function TuiApp() {
         {activePanel ? (
           <aside className="tui-panel">
             {activePanel === 'session' ? (
-              <SessionPanel sessions={state.sessions} activeSessionId={state.activeSessionId} onSwitch={switchSession} onCreate={createSession} />
+              <SessionPanel search={panelSearch} setSearch={setPanelSearch} sessions={state.sessions} recentSessions={state.recentSessions} activeSessionId={state.activeSessionId} onSwitch={switchSession} onCreate={createSession} />
             ) : null}
             {activePanel === 'model' ? (
-              <ModelPanel models={state.models} activeModelId={state.activeModelId} onSwitch={switchModel} />
+              <ModelPanel search={panelSearch} setSearch={setPanelSearch} models={state.models} recentModels={state.recentModels} activeModelId={state.activeModelId} onSwitch={switchModel} />
             ) : null}
             {activePanel === 'command' ? (
-              <CommandPanel commands={state.commands} onRun={runCommand} />
+              <CommandPanel search={panelSearch} setSearch={setPanelSearch} commands={state.commands} recentCommands={state.recentCommands} onRun={runCommand} />
             ) : null}
+            <TimelinePanel items={state.timeline.slice(-12)} />
           </aside>
         ) : null}
       </div>
@@ -365,15 +399,60 @@ function ApprovalCard(props: { approval: TuiApproval; onResolve: (approval: TuiA
   )
 }
 
-function SessionPanel(props: { sessions: TuiSession[]; activeSessionId: string; onSwitch: (id: string) => void; onCreate: () => void }) {
+function MessageBody(props: { item: VirtualHistoryItem; onCopy: (text: string) => void }) {
+  const parts = splitMarkdown(props.item.text)
+  return (
+    <div className="tui-markdown">
+      {parts.map((part, index) => part.code ? (
+        <CodeBlock key={`${props.item.id}-${index}`} language={part.language} code={part.text} onCopy={props.onCopy} />
+      ) : (
+        <MarkdownText key={`${props.item.id}-${index}`} text={part.text} />
+      ))}
+    </div>
+  )
+}
+
+function MarkdownText(props: { text: string }) {
+  const lines = props.text.split('\n')
+  return (
+    <>
+      {lines.map((line, index) => {
+        const key = `${index}-${line}`
+        if (line.startsWith('### ')) return <h4 key={key}>{line.slice(4)}</h4>
+        if (line.startsWith('## ')) return <h3 key={key}>{line.slice(3)}</h3>
+        if (line.startsWith('# ')) return <h2 key={key}>{line.slice(2)}</h2>
+        if (/^\s*[-*]\s+/.test(line)) return <p className="tui-md-list" key={key}>{line.replace(/^\s*[-*]\s+/, '• ')}</p>
+        if (/^\s*\d+\.\s+/.test(line)) return <p className="tui-md-list" key={key}>{line.trim()}</p>
+        if (!line.trim()) return <br key={key} />
+        return <p key={key}>{renderInlineMarkdown(line)}</p>
+      })}
+    </>
+  )
+}
+
+function CodeBlock(props: { language?: string; code: string; onCopy: (text: string) => void }) {
+  return (
+    <pre className="tui-code-block">
+      <div className="tui-code-header">
+        <span>{props.language || 'text'}</span>
+        <button type="button" onClick={() => void writeClipboard(props.code).then((ok) => props.onCopy(ok ? '代码已复制' : '浏览器不允许写入剪贴板'))}>复制</button>
+      </div>
+      <code>{props.code}</code>
+    </pre>
+  )
+}
+
+function SessionPanel(props: { search: string; setSearch: (value: string) => void; sessions: TuiSession[]; recentSessions: string[]; activeSessionId: string; onSwitch: (id: string) => void; onCreate: () => void }) {
+  const sessions = filterSessions(props.sessions, props.search, props.recentSessions)
   return (
     <>
       <PanelHeader title="会话面板" action="新建" onAction={props.onCreate} />
+      <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索会话、分支或模型" />
       <div className="tui-panel-list">
-        {props.sessions.map((session) => (
+        {sessions.map((session) => (
           <button className={session.id === props.activeSessionId ? 'active' : ''} type="button" key={session.id} onClick={() => props.onSwitch(session.id)}>
             <span>{session.title}</span>
-            <small>{session.cwd}</small>
+            <small>{session.branch || 'main'} · {session.model || 'default'} · {session.cwd}</small>
           </button>
         ))}
       </div>
@@ -381,15 +460,17 @@ function SessionPanel(props: { sessions: TuiSession[]; activeSessionId: string; 
   )
 }
 
-function ModelPanel(props: { models: { id: string; label: string; provider: string; context: string }[]; activeModelId: string; onSwitch: (id: string) => void }) {
+function ModelPanel(props: { search: string; setSearch: (value: string) => void; models: { id: string; label: string; provider: string; context: string }[]; recentModels: string[]; activeModelId: string; onSwitch: (id: string) => void }) {
+  const models = filterModels(props.models, props.search, props.recentModels)
   return (
     <>
       <PanelHeader title="模型面板" />
+      <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索模型、提供方或协议" />
       <div className="tui-panel-list">
-        {props.models.map((model) => (
+        {models.map((model) => (
           <button className={model.id === props.activeModelId ? 'active' : ''} type="button" key={model.id} onClick={() => props.onSwitch(model.id)}>
             <span>{model.label}</span>
-            <small>{model.provider} · {model.context}</small>
+            <small>{model.provider} · {model.context || '运行时默认'}{props.recentModels.includes(model.id) ? ' · 最近使用' : ''}</small>
           </button>
         ))}
       </div>
@@ -397,19 +478,48 @@ function ModelPanel(props: { models: { id: string; label: string; provider: stri
   )
 }
 
-function CommandPanel(props: { commands: { name: string; description: string; hotkey?: string }[]; onRun: (command: string) => void }) {
+function CommandPanel(props: { search: string; setSearch: (value: string) => void; commands: { name: string; description: string; hotkey?: string }[]; recentCommands: string[]; onRun: (command: string) => void }) {
+  const commands = filterCommands(props.commands, props.search, props.recentCommands)
   return (
     <>
       <PanelHeader title="命令面板" />
+      <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索命令或说明" />
       <div className="tui-panel-list">
-        {props.commands.map((command) => (
+        {commands.map((command) => (
           <button type="button" key={command.name} onClick={() => props.onRun(command.name)}>
             <span>{command.name}</span>
-            <small>{command.description}{command.hotkey ? ` · ${command.hotkey}` : ''}</small>
+            <small>{command.description}{command.hotkey ? ` · ${command.hotkey}` : ''}{props.recentCommands.includes(command.name) ? ' · 最近使用' : ''}</small>
           </button>
         ))}
       </div>
     </>
+  )
+}
+
+function TimelinePanel(props: { items: TuiRunTimelineItem[] }) {
+  if (props.items.length === 0) return null
+  return (
+    <section className="tui-timeline">
+      <h2>运行事件</h2>
+      {props.items.map((item) => (
+        <article className={`tui-timeline-item ${item.severity || 'info'}`} key={`${item.id}-${item.seq || ''}`}>
+          <strong>{item.title}</strong>
+          <small>{item.status || item.kind} · {formatTime(item.createdAt)}</small>
+          {item.detail ? <p>{item.detail}</p> : null}
+        </article>
+      ))}
+    </section>
+  )
+}
+
+function PanelSearch(props: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <input
+      className="tui-panel-search"
+      value={props.value}
+      onChange={(event) => props.onChange(event.currentTarget.value)}
+      placeholder={props.placeholder}
+    />
   )
 }
 
@@ -446,4 +556,74 @@ function busyPlaceholder(policy: BusyPolicy): string {
   if (policy === 'queue') return '当前忙碌：新输入会进入队列'
   if (policy === 'steer') return '当前忙碌：发送会作为转向指令'
   return '当前忙碌：发送会先打断当前任务'
+}
+
+function splitMarkdown(text: string): { text: string; code: boolean; language?: string }[] {
+  const parts: { text: string; code: boolean; language?: string }[] = []
+  const pattern = /```([A-Za-z0-9_+.-]*)\n?([\s\S]*?)```/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, match.index), code: false })
+    }
+    parts.push({ text: match[2] || '', code: true, language: match[1] || 'text' })
+    lastIndex = pattern.lastIndex
+  }
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), code: false })
+  }
+  return parts.length ? parts : [{ text, code: false }]
+}
+
+function renderInlineMarkdown(line: string): Array<string | JSX.Element> {
+  const parts: Array<string | JSX.Element> = []
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index > lastIndex) parts.push(line.slice(lastIndex, match.index))
+    const token = match[0]
+    if (token.startsWith('`')) {
+      parts.push(<code key={`${match.index}-${token}`}>{token.slice(1, -1)}</code>)
+    } else {
+      parts.push(<strong key={`${match.index}-${token}`}>{token.slice(2, -2)}</strong>)
+    }
+    lastIndex = pattern.lastIndex
+  }
+  if (lastIndex < line.length) parts.push(line.slice(lastIndex))
+  return parts
+}
+
+function filterSessions(sessions: TuiSession[], search: string, recent: string[]): TuiSession[] {
+  return rankAndFilter(sessions, search, recent, (session) => `${session.title} ${session.id} ${session.branch || ''} ${session.model} ${session.cwd}`)
+}
+
+function filterModels<T extends { id: string; label: string; provider: string; context: string }>(models: T[], search: string, recent: string[]): T[] {
+  return rankAndFilter(models, search, recent, (model) => `${model.id} ${model.label} ${model.provider} ${model.context}`)
+}
+
+function filterCommands<T extends { name: string; description: string }>(commands: T[], search: string, recent: string[]): T[] {
+  return rankAndFilter(commands, search, recent, (command) => `${command.name} ${command.description}`)
+}
+
+function rankAndFilter<T extends { id?: string; name?: string }>(items: T[], search: string, recent: string[], text: (item: T) => string): T[] {
+  const query = search.trim().toLowerCase()
+  return [...items]
+    .filter((item) => !query || text(item).toLowerCase().includes(query))
+    .sort((left, right) => recentScore(right, recent) - recentScore(left, recent))
+}
+
+function recentScore(item: { id?: string; name?: string }, recent: string[]): number {
+  const key = item.id || item.name || ''
+  const index = recent.indexOf(key)
+  return index < 0 ? -100 : 100 - index
+}
+
+function looksLikePath(text: string): boolean {
+  const value = text.trim()
+  return /^[A-Za-z]:[\\/]/.test(value)
+    || /^~[\\/]/.test(value)
+    || /^\.{1,2}[\\/]/.test(value)
+    || /^\/[\w.-]/.test(value)
 }

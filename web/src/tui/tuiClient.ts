@@ -222,6 +222,20 @@ function mapGatewayEvent(message: JsonRpcResponse): TuiEvent {
       return { type: 'history', payload: { role: 'tool', text: `开始工具 ${payload.tool}\n${payload.preview || ''}`, sessionId: payload.sessionId, status: 'pending' } }
     case 'tool.completed':
       return { type: 'history', payload: { role: 'tool', text: `完成工具 ${payload.tool} (${payload.duration_ms || 0}ms)\n${payload.preview || ''}`, sessionId: payload.sessionId } }
+    case 'run.snapshot':
+    case 'run.event':
+    case 'tool.call':
+    case 'subagent.updated':
+    case 'recovery.updated':
+    case 'run.control':
+    case 'session.controls':
+      return { type: 'notice', payload: { timeline: timelinePayload(message.type, payload) } }
+    case 'approval.snapshot':
+      return { type: 'approval', payload: { approvals: Array.isArray(payload.approvals) ? payload.approvals : [], sessionId: payload.sessionId, replace: true } }
+    case 'approval.request':
+      return { type: 'approval', payload: { ...payload, status: 'pending' } }
+    case 'approval.response':
+      return { type: 'approval', payload: { ...payload, status: payload.status || (payload.choice === 'deny' ? 'denied' : 'approved') } }
     case 'run.busy':
     case 'run.queued':
     case 'run.interrupted':
@@ -247,6 +261,9 @@ function mapRpcResult(payload: Record<string, unknown>): TuiEvent {
   }
   if (Array.isArray(payload.providers)) {
     return { type: 'model', payload: modelPayload(payload) }
+  }
+  if (Array.isArray(payload.approvals)) {
+    return { type: 'approval', payload: { approvals: payload.approvals, replace: true } }
   }
   if (Array.isArray(payload.commands)) {
     return { type: 'command', payload: { commands: commandOptions(payload.commands) } }
@@ -291,7 +308,61 @@ function busyPayload(payload: Record<string, unknown>): Record<string, unknown> 
     busy: Boolean(payload.running),
     policy: stringValue(payload.busy_mode) || 'queue',
     queuedInputs: payload.queued_count ? new Array(Number(payload.queued_count)).fill('queued') : [],
+    activeRun: payload.active_run,
+    runId: payload.run_id || payload.agent_run_id,
   }
+}
+
+function timelinePayload(type: string, payload: Record<string, unknown>): Record<string, unknown> {
+  const title = timelineTitle(type, payload)
+  return {
+    id: stringValue(payload.event_id || payload.tool_call_id || payload.subagent_id || payload.recovery_id || payload.command_id || payload.run_id || payload.event_seq) || `${type}-${Date.now()}`,
+    kind: timelineKind(type),
+    title,
+    detail: timelineDetail(type, payload),
+    status: stringValue(payload.status || payload.phase || payload.event_type),
+    severity: stringValue(payload.severity) || (stringValue(payload.error) ? 'error' : 'info'),
+    runId: stringValue(payload.run_id),
+    sessionId: stringValue(payload.session_id || payload.sessionId),
+    createdAt: numberValue(payload.created_at || payload.started_at || payload.last_activity_at || payload.event_seq, Date.now()),
+    seq: numberValue(payload.event_seq || payload.seq, 0),
+  }
+}
+
+function timelineKind(type: string): string {
+  if (type === 'run.snapshot') return 'run'
+  if (type === 'run.event') return 'event'
+  if (type === 'tool.call') return 'tool'
+  if (type === 'subagent.updated') return 'subagent'
+  if (type === 'recovery.updated') return 'recovery'
+  if (type === 'run.control') return 'control'
+  return 'event'
+}
+
+function timelineTitle(type: string, payload: Record<string, unknown>): string {
+  if (type === 'run.snapshot') return `运行 ${stringValue(payload.status || payload.phase) || 'snapshot'}`
+  if (type === 'run.event') return stringValue(payload.event_type) || '运行事件'
+  if (type === 'tool.call') return `工具 ${stringValue(payload.tool_name) || ''}`.trim()
+  if (type === 'subagent.updated') return `子 Agent ${stringValue(payload.name) || stringValue(payload.status)}`
+  if (type === 'recovery.updated') return `恢复 ${stringValue(payload.recovery_type) || stringValue(payload.status)}`
+  if (type === 'run.control') return `控制 ${stringValue(payload.command) || stringValue(payload.status)}`
+  return type
+}
+
+function timelineDetail(type: string, payload: Record<string, unknown>): string {
+  if (type === 'run.snapshot') {
+    return [
+      stringValue(payload.input_preview),
+      stringValue(payload.recovery_hint),
+      stringValue(payload.error),
+    ].filter(Boolean).join('\n')
+  }
+  if (type === 'run.event') return stringValue(payload.summary)
+  if (type === 'tool.call') return [stringValue(payload.args_preview), stringValue(payload.result_preview), stringValue(payload.error)].filter(Boolean).join('\n')
+  if (type === 'subagent.updated') return [stringValue(payload.goal_preview), stringValue(payload.error)].filter(Boolean).join('\n')
+  if (type === 'recovery.updated') return stringValue(payload.summary)
+  if (type === 'run.control') return JSON.stringify(payload.payload || {})
+  return JSON.stringify(payload)
 }
 
 function commandOptions(value: unknown): { name: string; description: string }[] {

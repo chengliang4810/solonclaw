@@ -126,17 +126,22 @@ public class DashboardConfiguration {
     public TuiGatewayService tuiGatewayService(
             AppConfig appConfig,
             SessionRepository sessionRepository,
+            AgentRunRepository agentRunRepository,
             ConversationOrchestrator conversationOrchestrator,
             CommandService commandService,
             AgentRunControlService agentRunControlService,
-            LlmProviderService llmProviderService) {
+            LlmProviderService llmProviderService,
+            com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService
+                    dangerousCommandApprovalService) {
         return new TuiGatewayService(
                 appConfig,
                 sessionRepository,
+                agentRunRepository,
                 conversationOrchestrator,
                 commandService,
                 agentRunControlService,
-                llmProviderService);
+                llmProviderService,
+                dangerousCommandApprovalService);
     }
 
     @Bean

@@ -53,6 +53,12 @@ public class TuiGatewayEndpoint extends SimpleWebSocketListener {
         }
     }
 
+    @Override
+    public void onClose(WebSocket socket) {
+        TuiConnection connection = socket == null ? null : socket.attr("tui.connection");
+        gatewayService.onClose(connection);
+    }
+
     private boolean authorized(WebSocket socket) {
         if (authService == null) {
             return false;

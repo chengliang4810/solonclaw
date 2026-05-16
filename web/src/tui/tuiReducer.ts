@@ -1,7 +1,8 @@
-import type { TuiApproval, TuiCommand, TuiEvent, TuiModelOption, TuiSession, TuiState, VirtualHistoryItem } from './tuiTypes'
+import type { TuiApproval, TuiCommand, TuiEvent, TuiModelOption, TuiRunTimelineItem, TuiSession, TuiState, VirtualHistoryItem } from './tuiTypes'
 import { extractSafeUrls } from './tuiSafety'
 
 const HISTORY_LIMIT = 600
+const TIMELINE_LIMIT = 500
 
 export const defaultCommands: TuiCommand[] = [
   { name: '/new', description: '新建会话', hotkey: 'Ctrl+N' },
@@ -43,9 +44,14 @@ export const initialTuiState: TuiState = {
     createHistoryItem('system', 'React 终端 UI 已就绪。连接可用时会通过 WebSocket JSON-RPC 同步事件，离线时保留本地虚拟历史。', 'local'),
   ],
   approvals: [],
+  timeline: [],
   queuedInputs: [],
   commands: defaultCommands,
   models: defaultModels,
+  recentCommands: [],
+  recentModels: [],
+  recentSessions: ['local'],
+  lastSeqBySession: {},
 }
 
 export function tuiReducer(state: TuiState, event: TuiEvent): TuiState {
@@ -108,6 +114,7 @@ function reduceSession(state: TuiState, payload: unknown): TuiState {
   return {
     ...state,
     activeSessionId,
+    recentSessions: rememberRecent(state.recentSessions, activeSessionId),
     sessions: mergedSessions.map((session) => ({ ...session, active: session.id === activeSessionId })),
   }
 }
@@ -121,6 +128,10 @@ function appendHistory(state: TuiState, item: VirtualHistoryItem): TuiState {
 
 function appendNotice(state: TuiState, payload: unknown): TuiState {
   const data = objectPayload(payload)
+  const timeline = normalizeTimeline(data.timeline)
+  if (timeline) {
+    return appendTimeline(state, timeline)
+  }
   const text = textFromPayload(data.text || payload)
   if (!text || text === '{}' || text === '{"text":""}') return state
   return appendHistory(state, createHistoryItem('system', text, state.activeSessionId))
@@ -150,14 +161,31 @@ function reduceBusy(state: TuiState, payload: unknown): TuiState {
 
 function reduceApproval(state: TuiState, payload: unknown): TuiState {
   const data = objectPayload(payload)
+  if (Array.isArray(data.approvals)) {
+    const approvals = data.approvals.map((item) => normalizeApproval(item)).filter(Boolean) as TuiApproval[]
+    return {
+      ...state,
+      approvals: Boolean(data.replace) ? approvals : mergeApprovals(state.approvals, approvals),
+    }
+  }
   const approval = normalizeApproval(data)
   if (!approval) return state
   const exists = state.approvals.some((item) => item.id === approval.id)
   return {
     ...state,
     approvals: exists
-      ? state.approvals.map((item) => (item.id === approval.id ? approval : item))
+      ? state.approvals.map((item) => (item.id === approval.id ? { ...item, ...approval } : item))
       : [approval, ...state.approvals].slice(0, 20),
+    timeline: appendTimelineItem(state.timeline, {
+      id: `approval-${approval.id}-${approval.status}`,
+      kind: 'approval',
+      title: approval.title,
+      detail: approval.command || approval.reason,
+      status: approval.status,
+      severity: approval.status === 'denied' ? 'warn' : approval.risk === 'high' ? 'error' : 'info',
+      sessionId: state.activeSessionId,
+      createdAt: approval.createdAt,
+    }),
     history: exists ? state.history : [...state.history, createHistoryItem('approval', `${approval.title}\n${approval.command}`, state.activeSessionId)].slice(-HISTORY_LIMIT),
   }
 }
@@ -172,6 +200,7 @@ function reduceModel(state: TuiState, payload: unknown): TuiState {
     ...state,
     activeModelId,
     models,
+    recentModels: activeModelId ? rememberRecent(state.recentModels, activeModelId) : state.recentModels,
     sessions: state.sessions.map((session) =>
       session.id === state.activeSessionId ? { ...session, model: activeModelId } : session,
     ),
@@ -183,7 +212,8 @@ function reduceCommand(state: TuiState, payload: unknown): TuiState {
   const commands = Array.isArray(data.commands)
     ? data.commands.map((item) => normalizeCommand(item)).filter(Boolean) as TuiCommand[]
     : state.commands
-  return { ...state, commands }
+  const recent = typeof data.recentCommand === 'string' ? rememberRecent(state.recentCommands, data.recentCommand) : state.recentCommands
+  return { ...state, commands, recentCommands: recent }
 }
 
 function normalizeHistory(payload: unknown, fallbackSessionId: string): VirtualHistoryItem {
@@ -219,17 +249,40 @@ function normalizeSession(payload: unknown): TuiSession | null {
 
 function normalizeApproval(payload: unknown): TuiApproval | null {
   const data = objectPayload(payload)
-  const id = stringValue(data.id || data.approvalId, '')
+  const id = stringValue(data.id || data.selector || data.approvalId || data.approval_id, '')
   if (!id) return null
   return {
     id,
+    approvalId: stringValue(data.approvalId || data.approval_id, '') || undefined,
+    selector: stringValue(data.selector, '') || id,
     title: stringValue(data.title, '需要审批'),
     command: stringValue(data.command, ''),
-    reason: stringValue(data.reason, '该操作需要人工确认'),
+    reason: stringValue(data.reason || data.description, '该操作需要人工确认'),
     risk: stringValue(data.risk, 'medium') as TuiApproval['risk'],
-    createdAt: numberValue(data.createdAt, Date.now()),
-    expiresAt: typeof data.expiresAt === 'number' ? data.expiresAt : undefined,
+    createdAt: numberValue(data.createdAt || data.created_at, Date.now()),
+    expiresAt: typeof data.expiresAt === 'number' ? data.expiresAt : typeof data.expires_at === 'number' ? data.expires_at : undefined,
     status: stringValue(data.status, 'pending') as TuiApproval['status'],
+    toolName: stringValue(data.toolName || data.tool_name, '') || undefined,
+    choice: stringValue(data.choice, '') || undefined,
+    permanentAllowed: typeof data.permanent_allowed === 'boolean' ? data.permanent_allowed : undefined,
+  }
+}
+
+function normalizeTimeline(payload: unknown): TuiRunTimelineItem | null {
+  const data = objectPayload(payload)
+  const id = stringValue(data.id, '')
+  if (!id) return null
+  return {
+    id,
+    kind: stringValue(data.kind, 'event') as TuiRunTimelineItem['kind'],
+    title: stringValue(data.title, '运行事件'),
+    detail: stringValue(data.detail, ''),
+    status: stringValue(data.status, '') || undefined,
+    severity: stringValue(data.severity, 'info') as TuiRunTimelineItem['severity'],
+    runId: stringValue(data.runId, '') || undefined,
+    sessionId: stringValue(data.sessionId, '') || undefined,
+    createdAt: numberValue(data.createdAt, Date.now()),
+    seq: numberValue(data.seq, 0) || undefined,
   }
 }
 
@@ -277,4 +330,36 @@ function mergeSessions(existing: TuiSession[], incoming: TuiSession[]): TuiSessi
   for (const session of existing) byId.set(session.id, session)
   for (const session of incoming) byId.set(session.id, { ...byId.get(session.id), ...session })
   return Array.from(byId.values())
+}
+
+function mergeApprovals(existing: TuiApproval[], incoming: TuiApproval[]): TuiApproval[] {
+  const byId = new Map<string, TuiApproval>()
+  for (const approval of existing) byId.set(approval.id, approval)
+  for (const approval of incoming) byId.set(approval.id, { ...byId.get(approval.id), ...approval })
+  return Array.from(byId.values()).slice(0, 50)
+}
+
+function appendTimeline(state: TuiState, item: TuiRunTimelineItem): TuiState {
+  const timeline = appendTimelineItem(state.timeline, item)
+  const sessionId = item.sessionId || state.activeSessionId
+  const seq = item.seq || 0
+  return {
+    ...state,
+    timeline,
+    lastSeqBySession: seq > 0 ? { ...state.lastSeqBySession, [sessionId]: Math.max(state.lastSeqBySession[sessionId] || 0, seq) } : state.lastSeqBySession,
+  }
+}
+
+function appendTimelineItem(existing: TuiRunTimelineItem[], item: TuiRunTimelineItem): TuiRunTimelineItem[] {
+  if (existing.some((entry) => entry.id === item.id && entry.status === item.status && entry.seq === item.seq)) {
+    return existing
+  }
+  return [...existing, item]
+    .sort((left, right) => left.createdAt - right.createdAt)
+    .slice(-TIMELINE_LIMIT)
+}
+
+function rememberRecent(existing: string[], value: string): string[] {
+  if (!value) return existing
+  return [value, ...existing.filter((item) => item !== value)].slice(0, 8)
 }

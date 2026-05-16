@@ -31,8 +31,15 @@ public class TuiConnection {
         }
     }
 
+    public void sendEvent(TuiEvent event) {
+        socket.send(ONode.serialize(event.toMap()));
+        seq.updateAndGet(
+                current -> Math.max(current, event == null ? current : event.getTransportSeq()));
+    }
+
     public void sendEvent(String type, String sessionId, Map<String, Object> payload) {
-        socket.send(ONode.serialize(new TuiEvent(type, sessionId, seq.incrementAndGet(), payload).toMap()));
+        long next = seq.incrementAndGet();
+        socket.send(ONode.serialize(new TuiEvent(type, sessionId, next, next, payload).toMap()));
     }
 
     public void sendResult(String id, String sessionId, Object result) {
