@@ -1052,6 +1052,8 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.gateway.injectionReplayWindowSeconds",
                                         300)));
+        config.getGateway()
+                .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
                 .setAccessToken(
                         resolveSecret(
@@ -1881,6 +1883,7 @@ public class AppConfig {
         this.gateway.setInjectionMaxBodyBytes(other.getGateway().getInjectionMaxBodyBytes());
         this.gateway.setInjectionReplayWindowSeconds(
                 other.getGateway().getInjectionReplayWindowSeconds());
+        this.gateway.setPlatforms(cloneGatewayPlatforms(other.getGateway().getPlatforms()));
         this.dashboard.setAccessToken(other.getDashboard().getAccessToken());
         this.agent.setPersonalities(clonePersonalities(other.getAgent().getPersonalities()));
         this.agent
@@ -2097,6 +2100,12 @@ public class AppConfig {
 
     private void copyMcp(McpConfig other) {
         this.mcp.setEnabled(other.isEnabled());
+        if (other.getOauth() != null) {
+            this.mcp.getOauth().setClientId(other.getOauth().getClientId());
+            this.mcp.getOauth().setClientSecret(other.getOauth().getClientSecret());
+            this.mcp.getOauth().setTokenUrl(other.getOauth().getTokenUrl());
+            this.mcp.getOauth().setScope(other.getOauth().getScope());
+        }
     }
 
     private void copyChannel(ChannelConfig target, ChannelConfig source) {
@@ -2494,6 +2503,113 @@ public class AppConfig {
             } else if ("style".equals(field)) {
                 personality.setStyle(value);
             }
+        }
+        return result;
+    }
+
+    /** 解析 gateway.platforms 配置映射。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, PlatformConfig> loadGatewayPlatforms(
+            Props props, Map<String, Object> overrides, Map<String, Object> structuredOverrides) {
+        Map<String, PlatformConfig> result = new LinkedHashMap<String, PlatformConfig>();
+
+        // 从扁平化 overrides 中解析 solonclaw.gateway.platforms.<platform>.<field>
+        String prefix = "solonclaw.gateway.platforms.";
+        for (Map.Entry<String, Object> entry : overrides.entrySet()) {
+            String key = entry.getKey();
+            if (!key.startsWith(prefix)) {
+                continue;
+            }
+            String suffix = key.substring(prefix.length());
+            int dot = suffix.indexOf('.');
+            if (dot <= 0 || dot >= suffix.length() - 1) {
+                continue;
+            }
+            String platform = suffix.substring(0, dot).trim().toUpperCase();
+            String field = suffix.substring(dot + 1).trim();
+            if (platform.length() == 0 || field.length() == 0) {
+                continue;
+            }
+            PlatformConfig pc = result.get(platform);
+            if (pc == null) {
+                pc = new PlatformConfig();
+                result.put(platform, pc);
+            }
+            applyPlatformConfigField(pc, field, entry.getValue());
+        }
+
+        // 从结构化 overrides 中解析 solonclaw.gateway.platforms 块
+        Object solonclawNode = structuredOverrides.get("solonclaw");
+        if (solonclawNode instanceof Map) {
+            Object gatewayNode = ((Map<String, Object>) solonclawNode).get("gateway");
+            if (gatewayNode instanceof Map) {
+                Object platformsNode = ((Map<String, Object>) gatewayNode).get("platforms");
+                if (platformsNode instanceof Map) {
+                    for (Map.Entry<?, ?> entry : ((Map<?, ?>) platformsNode).entrySet()) {
+                        if (entry.getKey() == null || !(entry.getValue() instanceof Map)) {
+                            continue;
+                        }
+                        String platform = String.valueOf(entry.getKey()).trim().toUpperCase();
+                        if (platform.length() == 0) {
+                            continue;
+                        }
+                        PlatformConfig pc = result.get(platform);
+                        if (pc == null) {
+                            pc = new PlatformConfig();
+                            result.put(platform, pc);
+                        }
+                        Map<?, ?> fields = (Map<?, ?>) entry.getValue();
+                        for (Map.Entry<?, ?> fieldEntry : fields.entrySet()) {
+                            if (fieldEntry.getKey() == null) {
+                                continue;
+                            }
+                            applyPlatformConfigField(
+                                    pc,
+                                    String.valueOf(fieldEntry.getKey()).trim(),
+                                    fieldEntry.getValue());
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /** 将单个字段值应用到 PlatformConfig。 */
+    private static void applyPlatformConfigField(PlatformConfig pc, String field, Object value) {
+        if ("enabledToolsets".equals(field)) {
+            pc.setEnabledToolsets(splitObjectList(value));
+        } else if ("disabledToolsets".equals(field)) {
+            pc.setDisabledToolsets(splitObjectList(value));
+        } else if ("approvalRequired".equals(field)) {
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                pc.setApprovalRequired(
+                        "true".equalsIgnoreCase(text)
+                                || "1".equals(text)
+                                || "yes".equalsIgnoreCase(text));
+            }
+        }
+    }
+
+    /** 深拷贝 gateway platforms 配置。 */
+    private static Map<String, PlatformConfig> cloneGatewayPlatforms(
+            Map<String, PlatformConfig> source) {
+        Map<String, PlatformConfig> result = new LinkedHashMap<String, PlatformConfig>();
+        if (source == null) {
+            return result;
+        }
+        for (Map.Entry<String, PlatformConfig> entry : source.entrySet()) {
+            PlatformConfig src = entry.getValue();
+            if (src == null) {
+                continue;
+            }
+            PlatformConfig copy = new PlatformConfig();
+            copy.setEnabledToolsets(new ArrayList<String>(src.getEnabledToolsets()));
+            copy.setDisabledToolsets(new ArrayList<String>(src.getDisabledToolsets()));
+            copy.setApprovalRequired(src.isApprovalRequired());
+            result.put(entry.getKey(), copy);
         }
         return result;
     }
@@ -3557,6 +3673,27 @@ public class AppConfig {
     public static class McpConfig {
         /** MCP 工具适配默认关闭。 */
         private boolean enabled = false;
+
+        /** MCP 服务器 OAuth 认证配置。 */
+        private McpOAuth oauth = new McpOAuth();
+    }
+
+    /** MCP 服务器 OAuth 认证配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class McpOAuth {
+        /** OAuth 客户端 ID。 */
+        private String clientId;
+
+        /** OAuth 客户端密钥。 */
+        private String clientSecret;
+
+        /** OAuth token 端点 URL。 */
+        private String tokenUrl;
+
+        /** OAuth 请求的 scope。 */
+        private String scope;
     }
 
     /** 单个人格定义。 */
@@ -3766,6 +3903,24 @@ public class AppConfig {
 
         /** Replay window in seconds for signed gateway injection requests. */
         private int injectionReplayWindowSeconds = 300;
+
+        /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
+        private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();
+    }
+
+    /** 单平台工具集权限配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class PlatformConfig {
+        /** 该平台允许使用的工具集列表；空列表表示不限制（使用全局默认）。 */
+        private List<String> enabledToolsets = new ArrayList<String>();
+
+        /** 该平台禁用的工具集列表；优先级高于 enabledToolsets。 */
+        private List<String> disabledToolsets = new ArrayList<String>();
+
+        /** 该平台是否强制要求审批。 */
+        private boolean approvalRequired = false;
     }
 
     /** Dashboard and API access configuration. */
