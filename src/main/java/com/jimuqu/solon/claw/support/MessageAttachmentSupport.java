@@ -76,7 +76,14 @@ public final class MessageAttachmentSupport {
     }
 
     private static String safeAttachmentName(String name) {
-        String value = safeInline(name);
+        String raw = StrUtil.nullToEmpty(name).replace('\r', ' ').replace('\n', ' ').trim();
+        // Check sensitive file name on raw value before any redaction
+        if (isSensitiveFileName(raw)) {
+            return "[redacted-sensitive-name]";
+        }
+        String value = raw.length() > 300 ? raw.substring(0, 300) : raw;
+        value = SecretRedactor.redact(value, 300);
+        // Re-check after redaction in case the redacted form is still sensitive
         if (isSensitiveFileName(value)) {
             return "[redacted-sensitive-name]";
         }
@@ -84,19 +91,22 @@ public final class MessageAttachmentSupport {
     }
 
     private static String safeAttachmentPath(String localPath, boolean asReference) {
-        String value = safeInline(localPath);
-        if (value.length() == 0) {
+        String raw = StrUtil.nullToEmpty(localPath).replace('\r', ' ').replace('\n', ' ').trim();
+        if (raw.length() == 0) {
             return "";
         }
-        String normalized = value.replace('\\', '/');
+        // Check sensitive path patterns on the raw value before any redaction
+        String normalized = raw.replace('\\', '/');
         if (containsSensitivePath(normalized)) {
             return "[redacted-sensitive-path]";
         }
-        while (normalized.endsWith("/") && normalized.length() > 1) {
-            normalized = normalized.substring(0, normalized.length() - 1);
+        // Check if the path segment (filename) is sensitive before redaction
+        String trimmed = normalized;
+        while (trimmed.endsWith("/") && trimmed.length() > 1) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
-        int slash = normalized.lastIndexOf('/');
-        String name = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+        int slash = trimmed.lastIndexOf('/');
+        String name = slash >= 0 ? trimmed.substring(slash + 1) : trimmed;
         int drive = name.indexOf(':');
         if (drive >= 0) {
             name = name.substring(drive + 1);
@@ -107,7 +117,39 @@ public final class MessageAttachmentSupport {
         if (isSensitiveFileName(name)) {
             return "[redacted-sensitive-path]";
         }
-        return asReference ? "path://" + SecretRedactor.redact(name, 200) : name;
+        // Check if the path contains token-like segments (e.g. token=xxx/...)
+        if (containsTokenSegment(normalized)) {
+            return "[redacted-sensitive-path]";
+        }
+        // Safe to apply length limit and secret redaction now
+        String value = raw.length() > 300 ? raw.substring(0, 300) : raw;
+        value = SecretRedactor.redact(value, 300);
+        // Re-extract name after redaction for the reference path
+        String redactedNorm = value.replace('\\', '/');
+        while (redactedNorm.endsWith("/") && redactedNorm.length() > 1) {
+            redactedNorm = redactedNorm.substring(0, redactedNorm.length() - 1);
+        }
+        int slash2 = redactedNorm.lastIndexOf('/');
+        String safeName = slash2 >= 0 ? redactedNorm.substring(slash2 + 1) : redactedNorm;
+        int drive2 = safeName.indexOf(':');
+        if (drive2 >= 0) {
+            safeName = safeName.substring(drive2 + 1);
+        }
+        if (StrUtil.isBlank(safeName)) {
+            return "[redacted-path]";
+        }
+        return asReference ? "path://" + safeName : safeName;
+    }
+
+    private static boolean containsTokenSegment(String normalizedPath) {
+        String lower = StrUtil.nullToEmpty(normalizedPath).toLowerCase(Locale.ROOT);
+        // Match path segments that look like token=value or key=value
+        for (String segment : lower.split("/")) {
+            if (segment.contains("token=") || segment.contains("key=") || segment.contains("secret=")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean containsSensitivePath(String value) {

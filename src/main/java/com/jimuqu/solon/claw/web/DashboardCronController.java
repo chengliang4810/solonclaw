@@ -1,5 +1,8 @@
 package com.jimuqu.solon.claw.web;
 
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,9 +18,11 @@ import org.noear.solon.core.handle.MethodType;
 @Controller
 public class DashboardCronController {
     private final DashboardCronService cronService;
+    private final AppConfig appConfig;
 
-    public DashboardCronController(DashboardCronService cronService) {
+    public DashboardCronController(DashboardCronService cronService, AppConfig appConfig) {
         this.cronService = cronService;
+        this.appConfig = appConfig;
     }
 
     @Mapping(value = "/api/cron/jobs", method = MethodType.GET)
@@ -570,7 +575,27 @@ public class DashboardCronController {
         } else {
             message = e.getMessage();
         }
+        message = SecretRedactor.redact(redactHostPaths(message), 1000);
         return DashboardResponse.error(code, message);
+    }
+
+    private String redactHostPaths(String message) {
+        if (StrUtil.isBlank(message) || appConfig == null || appConfig.getRuntime() == null) {
+            return message;
+        }
+        String home = StrUtil.nullToEmpty(appConfig.getRuntime().getHome()).trim();
+        if (StrUtil.isBlank(home)) {
+            return message;
+        }
+        try {
+            String canonical = new File(home).getCanonicalPath();
+            if (!StrUtil.isBlank(canonical)) {
+                message = message.replace(canonical, "[REDACTED_PATH]");
+            }
+        } catch (Exception ignored) {
+        }
+        message = message.replace(home, "[REDACTED_PATH]");
+        return message;
     }
 
     private void validateApiJobId(String id) {

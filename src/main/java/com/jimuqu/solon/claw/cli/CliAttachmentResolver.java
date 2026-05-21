@@ -35,6 +35,8 @@ public class CliAttachmentResolver {
     private static final Pattern POSIX_PATH_TOKEN =
             Pattern.compile(
                     "(?<![\\p{L}\\p{N}_./\\\\-])(?:~?/[A-Za-z0-9._+@%=-][^\\s'\"<>|]*)");
+    private static final Pattern ABSOLUTE_PATH_IN_MESSAGE =
+            Pattern.compile("(?:(?<=\\s)|(?<=^)|(?<==)|(?<=:))(/[A-Za-z0-9._+@%-][^\\s'\"<>|;,]*)");
 
     private final AttachmentCacheService attachmentCacheService;
     private final SecurityPolicyService securityPolicyService;
@@ -322,7 +324,10 @@ public class CliAttachmentResolver {
     }
 
     private static String safeMessage(String value) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
+        String result = SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
+        // Redact any remaining file paths in the message (e.g. path=/some/absolute/path)
+        result = ABSOLUTE_PATH_IN_MESSAGE.matcher(result).replaceAll("[REDACTED_PATH]");
+        return result;
     }
 
     private static String safeName(String value) {

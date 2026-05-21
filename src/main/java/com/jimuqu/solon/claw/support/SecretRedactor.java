@@ -162,6 +162,25 @@ public final class SecretRedactor {
         return result;
     }
 
+    /** Redacts only token-like values (prefix secrets, JWTs) without redacting file/path names. */
+    public static String redactTokensOnly(String text, int maxLength) {
+        if (text == null) {
+            return null;
+        }
+        String result = stripDisplayControls(text);
+        result = PREFIX_SECRET.matcher(result).replaceAll("***");
+        result = EMBEDDED_PREFIX_SECRET.matcher(result).replaceAll("$1***");
+        result = JWT.matcher(result).replaceAll("***");
+        int limit = Math.max(128, maxLength);
+        if (result.length() > limit) {
+            return result.substring(0, limit)
+                    + "\n...[truncated, totalLength="
+                    + result.length()
+                    + "]";
+        }
+        return result;
+    }
+
     public static Object redactObject(Object value) {
         if (value instanceof String) {
             return redact((String) value);

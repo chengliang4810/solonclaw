@@ -145,6 +145,37 @@ public class RuntimePathGuard {
         if (StrUtil.isBlank(name)) {
             name = file.getPath();
         }
-        return SecretRedactor.redact(name, 400);
+        // Redact credential/secret file names entirely
+        if (isCredentialFileName(name)) {
+            return "[REDACTED_PATH]";
+        }
+        // Redact token-like values in the name but preserve the filename itself
+        return SecretRedactor.redactTokensOnly(name, 400);
+    }
+
+    private boolean isCredentialFileName(String name) {
+        String lower = StrUtil.nullToEmpty(name).toLowerCase(java.util.Locale.ROOT).trim();
+        // Strip extension for pattern matching
+        int dot = lower.lastIndexOf('.');
+        String base = dot > 0 ? lower.substring(0, dot) : lower;
+        return "credentials".equals(base)
+                || "credential".equals(base)
+                || "secrets".equals(base)
+                || "password".equals(base)
+                || "passwd".equals(base)
+                || base.startsWith("id_rsa")
+                || base.startsWith("id_ed25519")
+                || base.startsWith("id_dsa")
+                || base.startsWith("id_ecdsa")
+                || ".env".equals(lower)
+                || lower.startsWith(".env.")
+                || ".netrc".equals(lower)
+                || ".pgpass".equals(lower)
+                || "authorized_keys".equals(lower)
+                || lower.contains("credential")
+                || lower.contains("_secret")
+                || lower.contains("-secret")
+                || lower.contains("_password")
+                || lower.contains("-password");
     }
 }

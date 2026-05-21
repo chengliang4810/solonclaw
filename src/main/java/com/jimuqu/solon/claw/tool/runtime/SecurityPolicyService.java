@@ -1571,6 +1571,9 @@ public class SecurityPolicyService {
                             ? "写入敏感系统/凭据文件被阻断"
                             : "读取敏感系统/凭据文件被阻断");
         }
+        if (writeLike && isOutsideSafeWriteRoot(path)) {
+            return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
+        }
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
@@ -1587,9 +1590,6 @@ public class SecurityPolicyService {
                     writeLike
                             ? "写入本地容器/运行时管理命名管道被阻断"
                             : "访问本地容器/运行时管理命名管道被阻断");
-        }
-        if (writeLike && isOutsideSafeWriteRoot(path)) {
-            return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
         }
         return FileVerdict.allow();
     }
@@ -3753,13 +3753,21 @@ public class SecurityPolicyService {
 
     private boolean matchesWriteDeniedPath(String normalized) {
         String path = stripKnownPrefix(normalized);
+        boolean underUserHome = startsWithUserHome(normalized);
+        if (underUserHome) {
+            String homeRelative = userHomeRelativePath(normalized);
+            if (WRITE_DENIED_HOME_FILE_NAMES.contains(lastPathPart(homeRelative))) {
+                return true;
+            }
+            path = homeRelative;
+        }
         for (String exact : WRITE_DENIED_EXACT_PATHS) {
             if (path.equals(exact.substring(1)) || normalized.equals(exact)) {
                 return true;
             }
         }
         for (String prefix : WRITE_DENIED_PREFIXES) {
-            if (normalized.startsWith(prefix)
+            if ((normalized.startsWith(prefix) && !(underUserHome && prefix.startsWith("/private/var/")))
                     || path.startsWith(prefix.substring(1))) {
                 return true;
             }
@@ -3770,7 +3778,7 @@ public class SecurityPolicyService {
             }
         }
         if (WRITE_DENIED_HOME_FILE_NAMES.contains(lastPathPart(path))) {
-            return startsWithHomeLikePrefix(normalized) || startsWithUserHome(normalized);
+            return startsWithHomeLikePrefix(normalized) || underUserHome;
         }
         return false;
     }
@@ -3796,6 +3804,46 @@ public class SecurityPolicyService {
             normalizedHome = normalizedHome.substring(0, normalizedHome.length() - 1);
         }
         return normalized.startsWith(normalizedHome + "/");
+    }
+
+    private String userHomeRelativePath(String normalized) {
+        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
+        if (StrUtil.isBlank(home)) {
+            return normalized;
+        }
+        String normalizedHome = normalizePathText(home);
+        if (normalizedHome.endsWith("/") && normalizedHome.length() > 1) {
+            normalizedHome = normalizedHome.substring(0, normalizedHome.length() - 1);
+        }
+        if (normalized.equals(normalizedHome)) {
+            return "";
+        }
+        if (normalized.startsWith(normalizedHome + "/")) {
+            return normalized.substring(normalizedHome.length() + 1);
+        }
+        return normalized;
+    }
+
+    private boolean isInsideSafeWriteRoot(String rawPath) {
+        String safeRoot = "";
+        if (appConfig != null && appConfig.getTerminal() != null) {
+            safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
+        }
+        if (StrUtil.isBlank(safeRoot)) {
+            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+        }
+        if (StrUtil.isBlank(safeRoot)) {
+            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+        }
+        if (StrUtil.isBlank(safeRoot)) {
+            return false;
+        }
+        File root = resolveComparablePath(safeRoot);
+        File target = resolveComparablePath(rawPath);
+        if (root == null || target == null) {
+            return false;
+        }
+        return isInside(target, root);
     }
 
     private boolean isOutsideSafeWriteRoot(String rawPath) {
@@ -3857,6 +3905,10 @@ public class SecurityPolicyService {
         String value = normalized;
         if (value.startsWith("~/")) {
             return value.substring(2);
+        }
+        String homeRelative = userHomeRelativePath(value);
+        if (!value.equals(homeRelative)) {
+            return homeRelative;
         }
         if (value.startsWith("$home/")) {
             return value.substring("$home/".length());

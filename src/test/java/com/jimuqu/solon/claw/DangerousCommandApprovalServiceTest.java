@@ -31,6 +31,64 @@ import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandApprovalServiceTest {
     @Test
+    void shouldKeepSessionAndAlwaysApprovalsIsolated() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        InMemoryAgentSession sessionA = new InMemoryAgentSession("session-a");
+        InMemoryAgentSession sessionB = new InMemoryAgentSession("session-b");
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                sessionA,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                sessionA,
+                                DangerousCommandApprovalService.ApprovalScope.SESSION,
+                                "tester"))
+                .isTrue();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                sessionA,
+                "execute_shell",
+                "safe_echo",
+                "safe echo",
+                "echo hi");
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                sessionA,
+                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
+                                "tester"))
+                .isTrue();
+
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                sessionA, "recursive_delete"))
+                .isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                sessionB, "recursive_delete"))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("safe_echo"))
+                .isTrue();
+
+        env.dangerousCommandApprovalService.clearSessionApprovals(sessionA);
+
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                sessionA, "recursive_delete"))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("safe_echo"))
+                .isTrue();
+
+        env.dangerousCommandApprovalService.clearAlwaysApprovals();
+
+        assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("safe_echo"))
+                .isFalse();
+    }
+
+    @Test
     void shouldDetectDangerousShellCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -9907,7 +9965,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(write.getMessage()).contains("安全写入根");
         assertThat(write.getPath()).isEqualTo("D:/workspace/other/file.txt");
         assertThat(patch.isAllowed()).isFalse();
-        assertThat(patch.getMessage()).contains("敏感系统");
+        assertThat(patch.getMessage()).contains("安全写入根");
         assertThat(patch.getPath()).isEqualTo("/etc/systemd/evil.service");
         assertThat(read.isAllowed()).isTrue();
         assertThat(toolNameWrite.isAllowed()).isFalse();
