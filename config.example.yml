@@ -132,6 +132,21 @@ solonclaw:
     # 设为 false 后，/reload-mcp 将直接执行。
     mcpReloadConfirm: true
 
+  # MCP 工具适配配置。
+  mcp:
+    # 是否启用 MCP 工具适配。
+    enabled: false
+    # MCP 服务器 OAuth 认证配置（全局默认，可被单个服务器的 oauth_json 覆盖）。
+    oauth:
+      # OAuth 客户端 ID。
+      clientId: ""
+      # OAuth 客户端密钥；建议通过环境变量注入，不要明文写入配置文件。
+      clientSecret: ""
+      # OAuth token 端点 URL，例如 https://auth.example.com/oauth/token。
+      tokenUrl: ""
+      # OAuth 请求的 scope，多个 scope 用空格分隔。
+      scope: ""
+
   # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；可选 brave-free 或 ddgs。
   web:
     # 搜索后端：solon-ai / brave-free / ddgs。兼容 web.search_backend 与 web.backend。
@@ -571,6 +586,19 @@ solonclaw:
     injectionMaxBodyBytes: 65536
     # 外部注入消息防重放窗口，单位秒。
     injectionReplayWindowSeconds: 300
+    # 各平台工具集权限配置；键为平台名称（大写），值为该平台的工具集策略。
+    # 未配置的平台使用全局默认工具集，不受限制。
+    platforms:
+      # 飞书平台：只允许 web 和 file 工具集。
+      FEISHU:
+        enabledToolsets: [web, file]
+        disabledToolsets: []
+        approvalRequired: false
+      # 钉钉平台：允许 web、terminal 和 file 工具集。
+      DINGTALK:
+        enabledToolsets: [web, terminal, file]
+        disabledToolsets: []
+        approvalRequired: false
 
   # 应用更新检查配置。
   update:
