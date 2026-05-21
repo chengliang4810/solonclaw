@@ -15,6 +15,7 @@ public class SessionSearchQuery {
     private String toolName;
     private String channel;
     private String query;
+    private String aroundMessageId;
     private long timeFrom;
     private long timeTo;
     private boolean summarize;

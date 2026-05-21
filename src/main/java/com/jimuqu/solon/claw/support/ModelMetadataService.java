@@ -20,20 +20,30 @@ public class ModelMetadataService {
         String dialect =
                 LlmProviderSupport.normalizeDialect(provider == null ? null : provider.getDialect());
         String model = StrUtil.nullToEmpty(provider == null ? null : provider.getDefaultModel()).trim();
+        String normalizedModel = normalizedModelName(model);
         ModelMetadata metadata = new ModelMetadata();
         metadata.setProvider(StrUtil.nullToEmpty(providerKey).trim());
         metadata.setModel(model);
         metadata.setDialect(dialect);
-        metadata.setAliases(aliases(model));
-        metadata.setContextWindow(resolveContextWindow(dialect, model));
+        metadata.setAliases(aliases(normalizedModel));
+        metadata.setContextWindow(resolveContextWindow(dialect, normalizedModel));
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setSupportsTools(resolveSupportsTools(dialect));
-        metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, model));
+        metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
         metadata.setDefaultModel(StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         metadata.setSupported(LlmProviderSupport.isSupportedDialect(dialect));
         return metadata;
+    }
+
+    private String normalizedModelName(String model) {
+        String value = StrUtil.nullToEmpty(model).trim();
+        int slash = value.indexOf('/');
+        if (slash >= 0 && slash + 1 < value.length()) {
+            return value.substring(slash + 1).trim();
+        }
+        return value;
     }
 
     private List<String> aliases(String model) {
@@ -88,7 +98,7 @@ public class ModelMetadataService {
         if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
             return 32768;
         }
-        return 128000;
+        return 64000;
     }
 
     private boolean resolveSupportsTools(String dialect) {

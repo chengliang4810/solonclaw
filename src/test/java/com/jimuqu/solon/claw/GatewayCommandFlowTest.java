@@ -66,6 +66,22 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldRenderRegistryCommandsInHelpAndResolveAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-registry", "user-registry", "hello");
+        env.send("room-registry", "user-registry", "/pairing claim-admin");
+
+        GatewayReply helpReply = env.send("room-registry", "user-registry", "/help");
+        assertThat(helpReply.getContent()).contains("/footer - 管理 TUI 底部栏显示");
+
+        GatewayReply aliasReply = env.send("room-registry", "user-registry", "/status-bar");
+        assertThat(aliasReply.isError()).isTrue();
+        assertThat(aliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "statusbar");
+    }
+    @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-resume-a", "user-resume", "hello"));

@@ -4621,6 +4621,10 @@ public class DangerousCommandApprovalService {
     }
 
     private void markCurrentThreadApproval(String toolName, String command) {
+        grantCurrentThreadApproval(toolName, command);
+    }
+
+    public static void grantCurrentThreadApproval(String toolName, String command) {
         if (StrUtil.hasBlank(toolName, command)) {
             return;
         }

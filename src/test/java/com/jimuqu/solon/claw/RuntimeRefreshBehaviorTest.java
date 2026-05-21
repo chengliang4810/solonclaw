@@ -112,6 +112,32 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldPersistPromptCacheDashboardConfigWithoutReconnectingChannels() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        Map<PlatformType, ChannelAdapter> adapters = new LinkedHashMap<PlatformType, ChannelAdapter>();
+        adapters.put(adapter.platform(), adapter);
+        GatewayRuntimeRefreshService refreshService =
+                new GatewayRuntimeRefreshService(
+                        env.appConfig,
+                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(adapters));
+        DashboardConfigService configService = new DashboardConfigService(env.appConfig, refreshService);
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+        updates.put("llm.promptCache.enabled", Boolean.TRUE);
+        updates.put("llm.promptCache.ttl", "1h");
+        updates.put("llm.promptCache.layout", "system_and_3");
+
+        configService.savePartialFlat(updates, false);
+
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(config).contains("promptCache:").contains("enabled: true").contains("ttl: 1h");
+        assertThat(env.appConfig.getLlm().getPromptCache().isEnabled()).isTrue();
+        assertThat(env.appConfig.getLlm().getPromptCache().getTtl()).isEqualTo("1h");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
     void shouldApplyDashboardWebsitePolicyUpdatesToUrlChecksWithoutReconnectingChannels()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -522,6 +548,14 @@ public class RuntimeRefreshBehaviorTest {
             extends SecurityPolicyService {
         private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
             super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrl(url);
         }
 
         @Override

@@ -271,11 +271,14 @@ public class SkillCredentialFileService {
     }
 
     private boolean containsSymlink(File root) {
-        if (root == null || !root.exists()) {
+        if (root == null) {
             return false;
         }
         if (isSymbolicLink(root)) {
             return true;
+        }
+        if (!root.exists()) {
+            return false;
         }
         File[] children = root.listFiles();
         if (children == null) {

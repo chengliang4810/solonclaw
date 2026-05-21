@@ -1585,6 +1585,21 @@ public class CommandEnhancementTest {
                 .doesNotContain("确认编号");
     }
 
+    @Test
+    void shouldReturnStructuredUnsupportedReplyForRegisteredCommandsWithoutHandlers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "/footer compact");
+
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("命令已登记但当前运行时未启用或不支持：/footer");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "footer");
+    }
+
+
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
         env.send("admin-chat", "admin-user", "hello");
         env.send("admin-chat", "admin-user", "/pairing claim-admin");

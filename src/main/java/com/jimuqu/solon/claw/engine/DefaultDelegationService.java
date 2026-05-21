@@ -106,7 +106,8 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    ToolNameConstants.SECURITY_AUDIT);
+                    ToolNameConstants.SECURITY_AUDIT,
+                    ToolNameConstants.CLARIFY);
 
     /** 对话编排器。 */
     private final ConversationOrchestratorHolder conversationHolder;

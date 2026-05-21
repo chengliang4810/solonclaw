@@ -28,6 +28,9 @@ solonclaw.llm.reasoningEffort: medium
 solonclaw.llm.temperature: 0.2
 solonclaw.llm.maxTokens: 4096
 solonclaw.llm.contextWindowTokens: 128000
+solonclaw.llm.promptCache.enabled: false
+solonclaw.llm.promptCache.ttl: 5m
+solonclaw.llm.promptCache.layout: system_and_3
 
 # 定时任务调度
 solonclaw.scheduler.enabled: true

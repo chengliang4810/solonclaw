@@ -17,6 +17,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import org.noear.solon.ai.chat.content.ImageBlock;
 import java.util.Collections;
+import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.message.UserMessage;
@@ -25,6 +26,21 @@ import org.slf4j.LoggerFactory;
 
 /** 校验 LLM provider 配置的前置失败逻辑。 */
 public class SolonAiLlmGatewayConfigTest {
+    @Test
+    void shouldLoadPromptCacheConfig() {
+        Properties props = new Properties();
+        props.setProperty("solonclaw.runtime.home", "target/test-runtime/prompt-cache-config");
+        props.setProperty("solonclaw.llm.promptCache.enabled", "true");
+        props.setProperty("solonclaw.llm.promptCache.ttl", "1h");
+        props.setProperty("solonclaw.llm.promptCache.layout", "system_and_3");
+
+        AppConfig config = AppConfig.load(org.noear.solon.core.Props.from(props));
+
+        assertThat(config.getLlm().getPromptCache().isEnabled()).isTrue();
+        assertThat(config.getLlm().getPromptCache().getTtl()).isEqualTo("1h");
+        assertThat(config.getLlm().getPromptCache().getLayout()).isEqualTo("system_and_3");
+    }
+
     @Test
     void shouldFailFastForUnsupportedProvider() {
         AppConfig config = new AppConfig();

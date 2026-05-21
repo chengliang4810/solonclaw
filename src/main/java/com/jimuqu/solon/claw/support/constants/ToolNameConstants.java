@@ -53,4 +53,6 @@ public interface ToolNameConstants {
     String WEBSEARCH = "websearch";
     String WEBFETCH = "webfetch";
     String SECURITY_AUDIT = "security_audit";
+    String CLARIFY = "clarify";
 }
+

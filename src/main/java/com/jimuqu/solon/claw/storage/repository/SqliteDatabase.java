@@ -124,6 +124,8 @@ public class SqliteDatabase {
                             + "parent_session_id text,"
                             + "model_override text,"
                             + "active_agent_name text,"
+                            + "platform_message_id text,"
+                            + "metadata_json text,"
                             + "ndjson text,"
                             + "title text,"
                             + "compressed_summary text,"
@@ -169,6 +171,8 @@ public class SqliteDatabase {
                 statement.execute("alter table sessions add column active_agent_name text");
             } catch (Exception ignored) {
             }
+            addColumn(statement, "sessions", "platform_message_id text");
+            addColumn(statement, "sessions", "metadata_json text");
             try {
                 statement.execute("alter table sessions add column ndjson text");
             } catch (Exception ignored) {

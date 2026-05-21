@@ -124,6 +124,13 @@ public class DashboardConfigService {
         addField(new FieldDefinition("llm.maxTokens", "number", "general", "最大输出 token"));
         addField(
                 new FieldDefinition("llm.contextWindowTokens", "number", "general", "上下文窗口 token"));
+        addField(new FieldDefinition("llm.promptCache.enabled", "boolean", "general", "启用提示词缓存策略"));
+        addField(
+                new FieldDefinition("llm.promptCache.ttl", "select", "general", "提示词缓存 TTL")
+                        .options("5m", "1h"));
+        addField(
+                new FieldDefinition("llm.promptCache.layout", "select", "general", "提示词缓存布局")
+                        .options("system_and_3"));
         addField(
                 new FieldDefinition("display.toolProgress", "select", "general", "默认工具进度模式")
                         .options("off", "new", "all", "verbose"));

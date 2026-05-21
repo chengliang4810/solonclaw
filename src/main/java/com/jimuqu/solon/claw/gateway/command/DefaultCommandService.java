@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.gateway.command;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.command.CommandDescriptor;
+import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -618,49 +620,7 @@ public class DefaultCommandService implements CommandService {
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
-        return Arrays.asList(
-                        GatewayCommandConstants.COMMAND_NEW,
-                        GatewayCommandConstants.COMMAND_RESET,
-                        GatewayCommandConstants.COMMAND_RETRY,
-                        GatewayCommandConstants.COMMAND_UNDO,
-                        GatewayCommandConstants.COMMAND_BRANCH,
-                        GatewayCommandConstants.COMMAND_RESUME,
-                        GatewayCommandConstants.COMMAND_TITLE,
-                        GatewayCommandConstants.COMMAND_STATUS,
-                        GatewayCommandConstants.COMMAND_USAGE,
-                        GatewayCommandConstants.COMMAND_BUSY,
-                        GatewayCommandConstants.COMMAND_QUEUE,
-                        GatewayCommandConstants.COMMAND_STEER,
-                        GatewayCommandConstants.COMMAND_RESTART,
-                        GatewayCommandConstants.COMMAND_REASONING,
-                        GatewayCommandConstants.COMMAND_STOP,
-                        GatewayCommandConstants.COMMAND_YOLO,
-                        GatewayCommandConstants.COMMAND_PERSONALITY,
-                        GatewayCommandConstants.COMMAND_VERSION,
-                        GatewayCommandConstants.COMMAND_MODEL,
-                        GatewayCommandConstants.COMMAND_TOOLS,
-                        GatewayCommandConstants.COMMAND_SKILLS,
-                        GatewayCommandConstants.COMMAND_RELOAD_MCP,
-                        GatewayCommandConstants.COMMAND_ACP,
-                        GatewayCommandConstants.COMMAND_CRON,
-                        GatewayCommandConstants.COMMAND_KANBAN,
-                        GatewayCommandConstants.COMMAND_GOAL,
-                        GatewayCommandConstants.COMMAND_RECAP,
-                        GatewayCommandConstants.COMMAND_TRAJECTORY,
-                        GatewayCommandConstants.COMMAND_PLATFORMS,
-                        GatewayCommandConstants.COMMAND_COMPRESS,
-                        GatewayCommandConstants.COMMAND_COMPACT,
-                        GatewayCommandConstants.COMMAND_ROLLBACK,
-                        GatewayCommandConstants.COMMAND_SETHOME,
-                        GatewayCommandConstants.COMMAND_PAIRING,
-                        GatewayCommandConstants.COMMAND_APPROVE,
-                        GatewayCommandConstants.COMMAND_DENY,
-                        GatewayCommandConstants.COMMAND_ALWAYS,
-                        GatewayCommandConstants.COMMAND_CANCEL,
-                        GatewayCommandConstants.COMMAND_CONFIRM,
-                        GatewayCommandConstants.COMMAND_AGENT,
-                        GatewayCommandConstants.COMMAND_HELP)
-                .contains(commandName);
+        return CommandRegistry.resolve(commandName) != null;
     }
 
     /** 处理单条 slash 命令。 */
@@ -668,7 +628,8 @@ public class DefaultCommandService implements CommandService {
     public GatewayReply handle(GatewayMessage message, String commandLine) throws Exception {
         String withoutSlash = commandLine.substring(1).trim();
         String[] parts = withoutSlash.split("\\s+", 2);
-        String command = parts[0].toLowerCase();
+        CommandDescriptor descriptor = CommandRegistry.resolve(parts[0]);
+        String command = descriptor == null ? parts[0].toLowerCase() : descriptor.getName();
         String args = parts.length > 1 ? parts[1].trim() : "";
         recordSlashCommand(message, command, args);
 
@@ -1060,6 +1021,14 @@ public class DefaultCommandService implements CommandService {
                     gatewayAuthorizationService.formatPlatformStatus(deliveryService.statuses()));
         }
 
+        if (GatewayCommandConstants.COMMAND_HELP.equals(command)) {
+            return GatewayReply.ok(helpText());
+        }
+
+        CommandDescriptor unresolvedRegistered = CommandRegistry.get(command);
+        if (unresolvedRegistered != null) {
+            return registeredUnimplementedReply(unresolvedRegistered);
+        }
         return GatewayReply.ok(helpText());
     }
 
@@ -1073,7 +1042,8 @@ public class DefaultCommandService implements CommandService {
 
         String withoutSlash = commandLine.substring(1).trim();
         String[] parts = withoutSlash.split("\\s+", 2);
-        String command = parts[0].toLowerCase();
+        CommandDescriptor descriptor = CommandRegistry.resolve(parts[0]);
+        String command = descriptor == null ? parts[0].toLowerCase() : descriptor.getName();
         String args = parts.length > 1 ? parts[1].trim() : "";
 
         if (GatewayCommandConstants.COMMAND_RETRY.equals(command)) {
@@ -3939,6 +3909,14 @@ public class DefaultCommandService implements CommandService {
     }
 
     /** 生成帮助文本。 */
+    private GatewayReply registeredUnimplementedReply(CommandDescriptor descriptor) {
+        GatewayReply reply =
+                GatewayReply.error("命令已登记但当前运行时未启用或不支持：" + descriptor.slashName());
+        reply.getRuntimeMetadata().put("command_status", "registered_unimplemented");
+        reply.getRuntimeMetadata().put("command", descriptor.getName());
+        return reply;
+    }
+
     private String helpText() {
         return String.join(
                 "\n",
@@ -4042,7 +4020,21 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_DENY + " list|status|all",
                                 "查看或批量拒绝待审批命令"),
                         helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"),
-                        helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息")));
+                        helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息"),
+                        registryHelpLine("background"),
+                        registryHelpLine("tasks"),
+                        registryHelpLine("statusbar"),
+                        registryHelpLine("footer"),
+                        registryHelpLine("copy"),
+                        registryHelpLine("paste"),
+                        registryHelpLine("image"),
+                        registryHelpLine("handoff"),
+                        registryHelpLine("subgoal")));
+    }
+
+    private String registryHelpLine(String commandName) {
+        CommandDescriptor descriptor = CommandRegistry.get(commandName);
+        return helpLine(descriptor.slashName(), descriptor.getDescription());
     }
 
     private String helpLine(String usage, String description) {

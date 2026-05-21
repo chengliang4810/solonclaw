@@ -401,6 +401,100 @@ public class SessionSearchServiceTest {
         assertRedactedSearchResponse(response);
     }
 
+    @Test
+    void shouldReturnAnchoredWindowForScrollMode() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:scroll-room:user");
+        session.setTitle("scroll session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("first message").addMetadata("platformMessageId", "pm-1"),
+                                ChatMessage.ofAssistant("second message").addMetadata("platformMessageId", "pm-2"),
+                                ChatMessage.ofUser("third message").addMetadata("platformMessageId", "pm-3"))));
+        env.sessionRepository.save(session);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setSessionId(session.getSessionId());
+        query.setAroundMessageId("pm-2");
+        query.setLimit(3);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(3);
+        assertThat(entries).extracting(SessionSearchEntry::getMode).containsOnly("scroll");
+        assertThat(entries).extracting(SessionSearchEntry::getMessageId).containsExactly("pm-1", "pm-2", "pm-3");
+        assertThat(entries.get(1).isAnchor()).isTrue();
+        assertThat(entries.get(1).getMatchPreview()).contains("second message");
+    }
+
+    @Test
+    void shouldBrowseRecentSessionsWhenStructuredQueryHasNoQueryOrAnchor() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord older = env.sessionRepository.bindNewSession("MEMORY:browse-old:user");
+        older.setTitle("older browse");
+        older.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("old"))));
+        older.setUpdatedAt(System.currentTimeMillis() - 10_000L);
+        env.sessionRepository.save(older);
+        SessionRecord newer = env.sessionRepository.bindNewSession("MEMORY:browse-new:user");
+        newer.setTitle("newer browse");
+        newer.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("new"))));
+        env.sessionRepository.save(newer);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setLimit(2);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(2);
+        assertThat(entries).extracting(SessionSearchEntry::getMode).containsOnly("browse");
+        assertThat(entries).extracting(SessionSearchEntry::getTitle).contains("newer browse", "older browse");
+    }
+
+    @Test
+    void shouldExposeDiscoveryModeAndSnippetForQuerySearch() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:discover-room:user");
+        session.setTitle("discover session");
+        session.setPlatformMessageId("pm-discover-session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("alpha target snippet omega")
+                                        .addMetadata("platformMessageId", "pm-discover-message"))));
+        env.sessionRepository.save(session);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setQuery("target");
+        query.setLimit(3);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getMode()).isEqualTo("discovery");
+        assertThat(entries.get(0).getSnippet()).contains("target snippet");
+        assertThat(entries.get(0).getMessageId()).isEqualTo("pm-discover-message");
+        assertThat(entries.get(0).getPlatformMessageId()).isEqualTo("pm-discover-session");
+    }
+
+    @Test
+    void shouldPassScrollParametersThroughSessionSearchTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-scroll:user");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("before").addMetadata("platformMessageId", "pm-before"),
+                                ChatMessage.ofAssistant("anchor").addMetadata("platformMessageId", "pm-anchor"))));
+        env.sessionRepository.save(session);
+        SessionSearchTools tools = new SessionSearchTools(env.sessionSearchService, "MEMORY:tool-scroll:user");
+
+        String response = tools.sessionSearch(null, session.getSessionId(), "pm-anchor", Integer.valueOf(2));
+
+        assertThat(response).contains("\"mode\":\"scroll\"");
+        assertThat(response).contains("pm-anchor");
+    }
+
     private AssistantMessage assistantWithToolCall(String name, String arguments) {
         Map<String, Object> function = new LinkedHashMap<String, Object>();
         function.put("name", name);

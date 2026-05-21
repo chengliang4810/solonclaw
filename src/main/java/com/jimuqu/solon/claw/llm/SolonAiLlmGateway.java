@@ -1226,6 +1226,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         copy.setTemperature(source.getTemperature());
         copy.setMaxTokens(source.getMaxTokens());
         copy.setContextWindowTokens(source.getContextWindowTokens());
+        copy.getPromptCache().setEnabled(source.getPromptCache().isEnabled());
+        copy.getPromptCache().setTtl(source.getPromptCache().getTtl());
+        copy.getPromptCache().setLayout(source.getPromptCache().getLayout());
         return copy;
     }
 

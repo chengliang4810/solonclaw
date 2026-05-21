@@ -327,10 +327,17 @@ public class SolonClawShellSkill extends ShellSkill {
                     .data("background", Boolean.TRUE)
                     .toJson();
         }
+        SudoTransform transform = transformSudoCommand(command);
+        String executableCommand = transform.isChanged() ? transform.getCommand() : command;
+        if (transform.isChanged()) {
+            DangerousCommandApprovalService.grantCurrentThreadApproval(
+                    com.jimuqu.solon.claw.support.constants.ToolNameConstants.TERMINAL,
+                    executableCommand);
+        }
         SolonClawCodeExecutionSkills.assertSafeForManagedBackgroundWithApprovalTool(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.TERMINAL,
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
-                command,
+                executableCommand,
                 securityPolicyService);
         File dir = resolveBackgroundWorkdir(workdir);
         String ptyNote = ptyDisabledNote(command, pty);
@@ -342,8 +349,6 @@ public class SolonClawShellSkill extends ShellSkill {
                             + "these two flags produce duplicate notifications when combined";
             normalizedWatchPatterns = Collections.emptyList();
         }
-        SudoTransform transform = transformSudoCommand(command);
-        String executableCommand = transform.isChanged() ? transform.getCommand() : command;
         ProcessRegistry.ManagedProcess managed =
                 processRegistry.start(
                         executableCommand,

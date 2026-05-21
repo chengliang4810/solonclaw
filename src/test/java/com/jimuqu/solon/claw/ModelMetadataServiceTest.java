@@ -9,6 +9,36 @@ import org.junit.jupiter.api.Test;
 
 public class ModelMetadataServiceTest {
     @Test
+    void shouldStripProviderPrefixWhenResolvingAliasesAndContextWindow() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setMaxTokens(4096);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("openai/gpt-5.4");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.getModel()).isEqualTo("openai/gpt-5.4");
+        assertThat(metadata.getAliases()).contains("gpt");
+        assertThat(metadata.getContextWindow()).isEqualTo(1000000);
+    }
+
+    @Test
+    void shouldUseConservativeFallbackContextTierForUnknownModels() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setMaxTokens(4096);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("custom/unknown-small-model");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.getContextWindow()).isEqualTo(64000);
+    }
+
+    @Test
     void shouldResolveJimuquModelCapabilitiesFromProviderConfig() {
         AppConfig config = new AppConfig();
         config.getModel().setProviderKey("anthropic-main");

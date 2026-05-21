@@ -64,6 +64,11 @@ solonclaw:
     maxTokens: 4096
     # 模型上下文窗口 token 估算值。
     contextWindowTokens: 128000
+    # 提示词缓存配置；当前仅声明本地策略与用量统计承载，具体 provider 支持由协议适配决定。
+    promptCache:
+      enabled: false
+      ttl: 5m
+      layout: system_and_3
 
   # 定时任务调度器配置。
   scheduler:

@@ -45,6 +45,10 @@ final class TerminalPathSupport {
         if (StrUtil.isBlank(cwd)) {
             return fallbackDir.getAbsoluteFile();
         }
+        // UNC paths are unreachable on non-Windows; fall back immediately.
+        if (!windows && cwd.startsWith("\\\\")) {
+            return fallbackDir.getAbsoluteFile();
+        }
         File candidate = new File(toProcessCwd(cwd, windows)).getAbsoluteFile();
         if (candidate.isDirectory()) {
             return candidate;

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
@@ -380,7 +381,7 @@ public class SecurityAuditTools {
                 canonicalCommandAuditTool(toolName);
         AuditResult result = new AuditResult("command");
         result.toolName = effectiveTool;
-        result.commandPreview = SecretRedactor.redact(StrUtil.nullToEmpty(command).trim(), 400);
+        result.commandPreview = SecretRedactor.redact(HtmlUtil.unescape(StrUtil.nullToEmpty(command).trim()), 400);
 
         if (StrUtil.isBlank(command)) {
             result.success = false;

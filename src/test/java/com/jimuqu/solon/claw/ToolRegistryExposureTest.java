@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.ClarifyTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileStateTracker;
@@ -55,6 +56,7 @@ public class ToolRegistryExposureTest {
                         "websearch",
                         "webfetch",
                         "security_audit",
+                        "clarify",
                         "file_read",
                         "file_write",
                         "file_list",
@@ -101,6 +103,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeWebsearchTool");
         assertThat(joined).contains("SafeWebfetchTool");
         assertThat(joined).contains("SecurityAuditTools");
+        assertThat(joined).contains("ClarifyTools");
         assertThat(joined).contains("SolonClawFileReadWriteSkill");
         assertThat(joined).contains("SolonClawPatchTools");
         assertThat(joined).contains("ShellSkill");

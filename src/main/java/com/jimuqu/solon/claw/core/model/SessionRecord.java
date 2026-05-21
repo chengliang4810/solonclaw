@@ -36,6 +36,12 @@ public class SessionRecord {
     /** 当前会话后续消息使用的 Agent；空或 default 表示 runtime 根目录默认 Agent。 */
     private String activeAgentName;
 
+    /** 平台侧会话/消息锚点 ID。 */
+    private String platformMessageId;
+
+    /** 会话扩展元数据 JSON。 */
+    private String metadataJson;
+
     /** 会话消息 NDJSON。 */
     private String ndjson;
 

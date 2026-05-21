@@ -501,7 +501,17 @@ public class SecurityPolicyService {
                         && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
 
         int[] hostIpv4 = parseIpv4HostLiteral(host);
-        boolean isStandardIpv4 = hostIpv4 != null && isStandardDecimalIpv4(host);
+
+        // Check parsed IP literal for always-blocked and private addresses
+        if (hostIpv4 != null) {
+            String ip = formatIpv4(hostIpv4);
+            if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+                return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
+            }
+            if (!allowPrivate && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+                return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
+            }
+        }
 
         try {
             InetAddress[] addresses = resolveHost(host);
@@ -516,61 +526,14 @@ public class SecurityPolicyService {
                     return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
                 }
             }
-            // If host is standard decimal IPv4 and resolveHost returned a different
-            // (non-blocked) address, trust the override (subclass hook)
-            if (isStandardIpv4 && addresses.length > 0
-                    && !formatIpv4(hostIpv4).equals(addresses[0].getHostAddress())) {
-                return UrlVerdict.allow();
-            }
         } catch (Exception e) {
-            // DNS resolution failed; fall back to parsed IP literal if available
             if (hostIpv4 != null) {
-                String ip = formatIpv4(hostIpv4);
-                if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-                    return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
-                }
-                if (!allowPrivate
-                        && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-                    return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
-                }
+                return UrlVerdict.block(raw, "DNS 解析失败或 URL 安全检查失败：" + host);
             }
             return UrlVerdict.block(raw, "DNS 解析失败或 URL 安全检查失败：" + host);
         }
 
-        // Check parsed literal for obfuscation attacks (octal, hex, etc.)
-        if (hostIpv4 != null) {
-            String ip = formatIpv4(hostIpv4);
-            if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-                return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
-            }
-            if (!allowPrivate
-                    && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-                return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
-            }
-        }
-
         return UrlVerdict.allow();
-    }
-
-    private boolean isStandardDecimalIpv4(String host) {
-        String value = StrUtil.nullToEmpty(host).trim();
-        String[] parts = value.split("\\.");
-        if (parts.length != 4) {
-            return false;
-        }
-        for (String part : parts) {
-            if (part.length() == 0 || part.length() > 3) {
-                return false;
-            }
-            // No leading zeros (octal), no hex prefix
-            if (part.length() > 1 && part.charAt(0) == '0') {
-                return false;
-            }
-            if (!part.matches("\\d{1,3}")) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private UrlVerdict checkStaticHostPolicy(String raw, String host) {

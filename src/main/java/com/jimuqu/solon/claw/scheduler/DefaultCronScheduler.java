@@ -625,7 +625,9 @@ public class DefaultCronScheduler {
             deliveryError = deliveryReport.errorSummary();
             deliveryResultJson = deliveryReport.toJson();
             recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
-            throw e;
+            if (!isCronScriptPathBlock(e)) {
+                throw e;
+            }
         }
     }
 
@@ -651,6 +653,12 @@ public class DefaultCronScheduler {
     private boolean isCronScriptSecurityBlock(Exception error) {
         String message = error == null ? null : error.getMessage();
         return StrUtil.isNotBlank(message) && message.startsWith("BLOCKED");
+    }
+
+    private boolean isCronScriptPathBlock(Exception error) {
+        String message = error == null ? null : error.getMessage();
+        return StrUtil.isNotBlank(message)
+                && message.startsWith("Cron script not found under runtime/scripts");
     }
 
     private boolean isCronPromptSecurityBlock(String error) {

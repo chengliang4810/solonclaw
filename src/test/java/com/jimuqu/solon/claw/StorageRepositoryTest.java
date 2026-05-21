@@ -29,6 +29,8 @@ public class StorageRepositoryTest {
         session.setCumulativeTotalTokens(69);
         session.setLastResolvedProvider("openai-responses");
         session.setLastResolvedModel("gpt-5.4");
+        session.setPlatformMessageId("pm-storage-1");
+        session.setMetadataJson("{\"topic\":\"canonical\"}");
         env.sessionRepository.save(session);
 
         SessionRecord stored = env.sessionRepository.findById(session.getSessionId());
@@ -45,6 +47,8 @@ public class StorageRepositoryTest {
         assertThat(stored.getCumulativeTotalTokens()).isEqualTo(69);
         assertThat(stored.getLastResolvedProvider()).isEqualTo("openai-responses");
         assertThat(stored.getLastResolvedModel()).isEqualTo("gpt-5.4");
+        assertThat(stored.getPlatformMessageId()).isEqualTo("pm-storage-1");
+        assertThat(stored.getMetadataJson()).contains("canonical");
         assertThat(env.sessionRepository.search("hello", 10)).hasSize(1);
         assertThat(env.sessionRepository.search("alpha", 10)).hasSize(1);
         assertThat(env.sessionRepository.search("beta", 10)).hasSize(1);

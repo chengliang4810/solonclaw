@@ -90,7 +90,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    ToolNameConstants.SECURITY_AUDIT);
+                    ToolNameConstants.SECURITY_AUDIT,
+                    ToolNameConstants.CLARIFY);
+
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -490,6 +492,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(codeSearchTool);
             } else if (ToolNameConstants.SECURITY_AUDIT.equals(toolName)) {
                 tools.add(securityAuditTools);
+            } else if (ToolNameConstants.CLARIFY.equals(toolName)) {
+                tools.add(new ClarifyTools());
             }
         }
         if (isGatewayEnabled(sourceKey, agentScope)) {

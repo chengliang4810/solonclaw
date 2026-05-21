@@ -193,6 +193,33 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.llm.contextWindowTokens",
                                         RuntimePathConstants.DEFAULT_CONTEXT_WINDOW_TOKENS)));
+        config.getLlm()
+                .getPromptCache()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.llm.promptCache.enabled",
+                                        false)));
+        config.getLlm()
+                .getPromptCache()
+                .setTtl(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.llm.promptCache.ttl",
+                                        "5m")));
+        config.getLlm()
+                .getPromptCache()
+                .setLayout(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.llm.promptCache.layout",
+                                        "system_and_3")));
         applyProviderConfiguration(config, props, overrides, structuredOverrides);
 
         config.getScheduler()
@@ -1882,6 +1909,9 @@ public class AppConfig {
         this.llm.setTemperature(other.getTemperature());
         this.llm.setMaxTokens(other.getMaxTokens());
         this.llm.setContextWindowTokens(other.getContextWindowTokens());
+        this.llm.getPromptCache().setEnabled(other.getPromptCache().isEnabled());
+        this.llm.getPromptCache().setTtl(other.getPromptCache().getTtl());
+        this.llm.getPromptCache().setLayout(other.getPromptCache().getLayout());
     }
 
     private void copyProviders(Map<String, ProviderConfig> other) {
@@ -3032,6 +3062,19 @@ public class AppConfig {
 
         /** 模型上下文窗口大小，用于自动压缩阈值计算。 */
         private int contextWindowTokens;
+
+        /** 提示词缓存配置。 */
+        private PromptCacheConfig promptCache = new PromptCacheConfig();
+    }
+
+    /** 提示词缓存配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class PromptCacheConfig {
+        private boolean enabled;
+        private String ttl = "5m";
+        private String layout = "system_and_3";
     }
 
     /** 命名 provider 配置。 */
