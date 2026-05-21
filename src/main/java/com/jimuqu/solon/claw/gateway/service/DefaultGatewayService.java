@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -242,6 +243,35 @@ public class DefaultGatewayService {
         }
         Object value = reply.getRuntimeMetadata().get(key);
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /**
+     * 向指定渠道投递系统通知消息。
+     *
+     * @param platform 目标平台
+     * @param chatId 目标会话 ID
+     * @param threadId 目标线程 ID（可为空）
+     * @param text 通知文本
+     */
+    public void deliverSystemNotification(
+            PlatformType platform, String chatId, String threadId, String text) {
+        if (platform == null || StrUtil.isBlank(chatId) || StrUtil.isBlank(text)) {
+            return;
+        }
+        try {
+            DeliveryRequest request = new DeliveryRequest();
+            request.setPlatform(platform);
+            request.setChatId(chatId);
+            request.setThreadId(threadId);
+            request.setText(text);
+            deliveryService.deliver(request);
+        } catch (Exception e) {
+            log.warn(
+                    "System notification delivery failed: platform={}, chatId={}, error={}",
+                    platform,
+                    chatId,
+                    safeMessage(e));
+        }
     }
 
     /** 安全投递当前回复，不让渠道发送失败打断主链。 */

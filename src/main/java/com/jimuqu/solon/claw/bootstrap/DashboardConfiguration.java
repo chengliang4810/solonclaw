@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
+import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
@@ -32,6 +33,7 @@ import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
@@ -45,6 +47,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tui.TuiGatewayService;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardAuthFilter;
 import com.jimuqu.solon.claw.web.DashboardAuthService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
@@ -52,6 +55,7 @@ import com.jimuqu.solon.claw.web.DashboardCronService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -337,5 +341,23 @@ public class DashboardConfiguration {
             RuntimePathGuard runtimePathGuard,
             AttachmentCacheService attachmentCacheService) {
         return new DashboardMediaService(sqliteDatabase, runtimePathGuard, attachmentCacheService);
+    }
+
+    @Bean
+    public SkillUsageTracker skillUsageTracker(AppConfig appConfig) {
+        return new SkillUsageTracker(appConfig);
+    }
+
+    @Bean
+    public DashboardInsightsService dashboardInsightsService(
+            AppConfig appConfig,
+            SkillUsageTracker skillUsageTracker,
+            SqliteSessionRepository sessionRepository) {
+        return new DashboardInsightsService(appConfig, skillUsageTracker, sessionRepository);
+    }
+
+    @Bean
+    public DashboardApprovalEventsService dashboardApprovalEventsService(AppConfig appConfig) {
+        return new DashboardApprovalEventsService(appConfig);
     }
 }
