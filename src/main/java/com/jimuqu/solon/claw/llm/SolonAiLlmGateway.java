@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.gateway.feedback.ToolPreviewSupport;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
+import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
@@ -100,6 +101,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final ToolCallLoopGuardrailService toolCallLoopGuardrailService;
     private final SecurityPolicyService securityPolicyService;
     private volatile PdfSkill pdfSkill;
+    private HookBridgeInterceptor hookBridgeInterceptor;
 
     public SolonAiLlmGateway(AppConfig appConfig) {
         this(appConfig, null, null, null);
@@ -190,6 +192,10 @@ public class SolonAiLlmGateway implements LlmGateway {
             this.dangerousCommandApprovalService.setSmartApprovalJudge(
                     new SolonAiSmartApprovalJudge());
         }
+    }
+
+    public void setHookBridgeInterceptor(HookBridgeInterceptor hookBridgeInterceptor) {
+        this.hookBridgeInterceptor = hookBridgeInterceptor;
     }
 
     @Override
@@ -1077,6 +1083,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         if (usageCollector != null) {
             builder.defaultInterceptorAdd(new UsageCollectingInterceptor(usageCollector));
+        }
+        if (hookBridgeInterceptor != null) {
+            builder.defaultInterceptorAdd(hookBridgeInterceptor);
         }
 
         for (Object toolObject : toolObjects) {

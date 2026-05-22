@@ -24,6 +24,8 @@ import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.gateway.feedback.GatewayConversationFeedbackSink;
 import com.jimuqu.solon.claw.goal.GoalDecision;
 import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.plugin.AgentHookName;
+import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -84,6 +86,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private final GoalService goalService;
     private final ConcurrentMap<String, Object> sourceLocks =
             new ConcurrentHashMap<String, Object>();
+    private AgentHookRegistry hookRegistry;
 
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
@@ -352,6 +355,22 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    public void setHookRegistry(AgentHookRegistry hookRegistry) {
+        this.hookRegistry = hookRegistry;
+    }
+
+    private void invokeHook(String hookName, String sessionId, String message) {
+        if (hookRegistry == null) {
+            return;
+        }
+        java.util.Map<String, Object> args = new java.util.HashMap<>();
+        args.put("session_id", sessionId);
+        if (message != null) {
+            args.put("message", message);
+        }
+        hookRegistry.invoke(hookName, args);
+    }
+
     private Object lockFor(String sourceKey) {
         String key = StrUtil.blankToDefault(sourceKey, "__default__");
         Object existing = sourceLocks.get(key);
@@ -423,6 +442,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             session.setSystemPromptSnapshot(systemPrompt);
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
+            invokeHook(AgentHookName.PRE_LLM_CALL, session.getSessionId(), effectiveUserText);
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
                             session,
@@ -443,6 +463,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             }
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
+            invokeHook(AgentHookName.POST_LLM_CALL, session.getSessionId(), finalReply);
+            invokeHook(AgentHookName.ON_SESSION_END, session.getSessionId(), null);
             syncMemory(message.sourceKey(), effectiveUserText, finalReply);
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());

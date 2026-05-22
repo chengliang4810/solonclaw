@@ -186,6 +186,7 @@ public class SolonClawWebTools {
         private final SecurityPolicyService securityPolicyService;
         private final WebsearchTool delegate;
         private final AppConfig appConfig;
+        private List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> webSearchProviders;
 
         public SafeWebsearchTool(SecurityPolicyService securityPolicyService) {
             this(securityPolicyService, WebsearchTool.getInstance(), null);
@@ -204,6 +205,10 @@ public class SolonClawWebTools {
             this.appConfig = appConfig;
         }
 
+        public void setWebSearchProviders(List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> providers) {
+            this.webSearchProviders = providers;
+        }
+
         @ToolMapping(name = "websearch", description = "执行实时web搜索")
         public Document websearch(
                 @Param(name = "query", description = "查询关键字") String query,
@@ -215,12 +220,19 @@ public class SolonClawWebTools {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("query", query);
             check(securityPolicyService, ToolNameConstants.WEBSEARCH, args);
-            if (BRAVE_FREE_BACKEND.equals(normalizedSearchBackend())) {
+            int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
+            String backend = normalizedSearchBackend();
+            Document pluginResult = tryPluginProvider(backend, query, limit);
+            if (pluginResult != null) {
+                checkReturnedUrls(securityPolicyService, pluginResult);
+                return safeDocument(pluginResult);
+            }
+            if (BRAVE_FREE_BACKEND.equals(backend)) {
                 Document document = braveSearch(query, numResults);
                 checkReturnedUrls(securityPolicyService, document);
                 return safeDocument(document);
             }
-            if (DDGS_BACKEND.equals(normalizedSearchBackend())) {
+            if (DDGS_BACKEND.equals(backend)) {
                 Document document = ddgsSearch(query, numResults);
                 checkReturnedUrls(securityPolicyService, document);
                 return safeDocument(document);
@@ -229,6 +241,42 @@ public class SolonClawWebTools {
                     delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
+        }
+
+        private Document tryPluginProvider(String backend, String query, int limit) {
+            if (webSearchProviders == null || webSearchProviders.isEmpty() || StrUtil.isBlank(backend)) {
+                return null;
+            }
+            for (com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider : webSearchProviders) {
+                if (provider.name().equals(backend) && provider.isAvailable()) {
+                    List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult> results =
+                            provider.search(query, limit);
+                    return toProviderDocument(results, query, backend);
+                }
+            }
+            return null;
+        }
+
+        private Document toProviderDocument(
+                List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult> results,
+                String query, String backend) {
+            List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
+            int pos = 1;
+            for (com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult r : results) {
+                Map<String, Object> item = new LinkedHashMap<String, Object>();
+                item.put("title", r.getTitle());
+                item.put("url", r.getUrl());
+                item.put("description", r.getDescription());
+                item.put("position", Integer.valueOf(pos++));
+                web.add(item);
+            }
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("web", web);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("success", Boolean.TRUE);
+            result.put("data", data);
+            result.put("provider", backend);
+            return new Document(ONode.serialize(result)).title("Web search: " + query);
         }
 
         private String normalizedSearchBackend() {

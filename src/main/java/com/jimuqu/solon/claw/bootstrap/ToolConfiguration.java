@@ -30,6 +30,8 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
+import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -225,8 +227,9 @@ public class ToolConfiguration {
             LlmProviderService llmProviderService,
             ToolResultTransformService toolResultTransformService,
             ToolCallLoopGuardrailService toolCallLoopGuardrailService,
-            SecurityPolicyService securityPolicyService) {
-        return new SolonAiLlmGateway(
+            SecurityPolicyService securityPolicyService,
+            HookBridgeInterceptor hookBridgeInterceptor) {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(
                 appConfig,
                 sessionRepository,
                 dangerousCommandApprovalService,
@@ -234,6 +237,8 @@ public class ToolConfiguration {
                 toolResultTransformService,
                 toolCallLoopGuardrailService,
                 securityPolicyService);
+        gateway.setHookBridgeInterceptor(hookBridgeInterceptor);
+        return gateway;
     }
 
     @Bean
@@ -271,8 +276,9 @@ public class ToolConfiguration {
             RuntimeFooterService runtimeFooterService,
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager,
-            GoalService goalService) {
-        ConversationOrchestrator orchestrator =
+            GoalService goalService,
+            AgentHookRegistry agentHookRegistry) {
+        DefaultConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
                         contextService,
@@ -288,6 +294,7 @@ public class ToolConfiguration {
                         agentRuntimeService,
                         memoryManager,
                         goalService);
+        orchestrator.setHookRegistry(agentHookRegistry);
         holder.set(orchestrator);
         return orchestrator;
     }

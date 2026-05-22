@@ -38,6 +38,11 @@ public class PluginConfiguration implements PluginRegistrationSink {
     }
 
     @Bean
+    public HookBridgeInterceptor hookBridgeInterceptor() {
+        return new HookBridgeInterceptor(hookRegistry);
+    }
+
+    @Bean
     public AgentPluginManager agentPluginManager() {
         Set<String> enabled = Collections.emptySet();
         Set<String> disabled = Collections.emptySet();
