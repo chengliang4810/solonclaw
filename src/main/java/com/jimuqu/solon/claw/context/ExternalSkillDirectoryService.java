@@ -36,6 +36,9 @@ public class ExternalSkillDirectoryService {
                 continue;
             }
             for (File file : files) {
+                if (!isUnderDirectory(file, dir)) {
+                    continue;
+                }
                 if (file.isDirectory()) {
                     SkillDescriptor skill = loadSkillFromDir(file, dir);
                     if (skill != null) {
@@ -141,6 +144,17 @@ public class ExternalSkillDirectoryService {
             return System.getProperty("user.home") + path.substring(1);
         }
         return path;
+    }
+
+    private boolean isUnderDirectory(File file, File dir) {
+        try {
+            String canonicalFile = file.getCanonicalPath();
+            String canonicalDir = dir.getCanonicalPath();
+            return canonicalFile.startsWith(canonicalDir + File.separator)
+                    || canonicalFile.equals(canonicalDir);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String stripExtension(String name) {

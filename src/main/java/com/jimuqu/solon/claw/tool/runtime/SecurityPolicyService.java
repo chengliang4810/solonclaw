@@ -3827,28 +3827,6 @@ public class SecurityPolicyService {
         return normalized;
     }
 
-    private boolean isInsideSafeWriteRoot(String rawPath) {
-        String safeRoot = "";
-        if (appConfig != null && appConfig.getTerminal() != null) {
-            safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_WRITE_SAFE_ROOT")).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
-            return false;
-        }
-        File root = resolveComparablePath(safeRoot);
-        File target = resolveComparablePath(rawPath);
-        if (root == null || target == null) {
-            return false;
-        }
-        return isInside(target, root);
-    }
-
     private boolean isOutsideSafeWriteRoot(String rawPath) {
         String safeRoot = "";
         if (appConfig != null && appConfig.getTerminal() != null) {
