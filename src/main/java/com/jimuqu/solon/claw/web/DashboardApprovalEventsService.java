@@ -2,24 +2,23 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /** Dashboard approval events service for tracking tool approval history. */
 public class DashboardApprovalEventsService {
     private final AppConfig appConfig;
-    private final List<Map<String, Object>> events = new CopyOnWriteArrayList<Map<String, Object>>();
+    private final LinkedList<Map<String, Object>> events = new LinkedList<Map<String, Object>>();
     private static final int MAX_EVENTS = 500;
 
     public DashboardApprovalEventsService(AppConfig appConfig) {
         this.appConfig = appConfig;
     }
 
-    public void recordApprovalEvent(String toolName, String decision, String sourceKey,
+    public synchronized void recordApprovalEvent(String toolName, String decision, String sourceKey,
             String summary, Map<String, Object> details) {
         Map<String, Object> event = new LinkedHashMap<String, Object>();
         event.put("timestamp", Long.valueOf(System.currentTimeMillis()));
@@ -30,13 +29,13 @@ public class DashboardApprovalEventsService {
         if (details != null && !details.isEmpty()) {
             event.put("details", details);
         }
-        events.add(event);
+        events.addLast(event);
         while (events.size() > MAX_EVENTS) {
-            events.remove(0);
+            events.removeFirst();
         }
     }
 
-    public List<Map<String, Object>> recentEvents(int limit) {
+    public synchronized List<Map<String, Object>> recentEvents(int limit) {
         int size = events.size();
         int from = Math.max(0, size - Math.min(limit, MAX_EVENTS));
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -46,7 +45,7 @@ public class DashboardApprovalEventsService {
         return result;
     }
 
-    public Map<String, Object> stats() {
+    public synchronized Map<String, Object> stats() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("totalEvents", Integer.valueOf(events.size()));
         int approved = 0;
@@ -68,7 +67,7 @@ public class DashboardApprovalEventsService {
         return result;
     }
 
-    public void clear() {
+    public synchronized void clear() {
         events.clear();
     }
 }

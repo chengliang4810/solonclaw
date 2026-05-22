@@ -527,9 +527,6 @@ public class SecurityPolicyService {
                 }
             }
         } catch (Exception e) {
-            if (hostIpv4 != null) {
-                return UrlVerdict.block(raw, "DNS 解析失败或 URL 安全检查失败：" + host);
-            }
             return UrlVerdict.block(raw, "DNS 解析失败或 URL 安全检查失败：" + host);
         }
 
@@ -3839,7 +3836,7 @@ public class SecurityPolicyService {
             safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+            safeRoot = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
             return false;
@@ -3861,7 +3858,7 @@ public class SecurityPolicyService {
             safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+            safeRoot = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
             return false;

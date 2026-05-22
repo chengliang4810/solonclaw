@@ -62,6 +62,11 @@ public class McpKeepaliveService implements Closeable {
     public void close() {
         stop();
         scheduler.shutdownNow();
+        try {
+            scheduler.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** Returns the configured keepalive interval in seconds. */

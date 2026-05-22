@@ -2,9 +2,9 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Process lifecycle event tracking.
@@ -13,7 +13,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ProcessLifecycleTracker {
     public enum EventType { STARTED, COMPLETED, FAILED, KILLED }
 
-    private final List<ProcessEvent> events = new CopyOnWriteArrayList<ProcessEvent>();
+    private final LinkedList<ProcessEvent> events = new LinkedList<ProcessEvent>();
     private final int maxEvents;
 
     public ProcessLifecycleTracker() {
@@ -24,29 +24,29 @@ public class ProcessLifecycleTracker {
         this.maxEvents = maxEvents;
     }
 
-    public void recordStarted(String processId, String command, String workDir) {
+    public synchronized void recordStarted(String processId, String command, String workDir) {
         record(new ProcessEvent(EventType.STARTED, processId, command, workDir, 0, null));
     }
 
-    public void recordCompleted(String processId, String command, int exitCode) {
+    public synchronized void recordCompleted(String processId, String command, int exitCode) {
         record(new ProcessEvent(EventType.COMPLETED, processId, command, null, exitCode, null));
     }
 
-    public void recordFailed(String processId, String command, String error) {
+    public synchronized void recordFailed(String processId, String command, String error) {
         record(new ProcessEvent(EventType.FAILED, processId, command, null, -1, error));
     }
 
-    public void recordKilled(String processId, String command) {
+    public synchronized void recordKilled(String processId, String command) {
         record(new ProcessEvent(EventType.KILLED, processId, command, null, -1, "killed by user"));
     }
 
-    public List<ProcessEvent> recentEvents(int limit) {
+    public synchronized List<ProcessEvent> recentEvents(int limit) {
         int size = events.size();
         int from = Math.max(0, size - limit);
         return new ArrayList<ProcessEvent>(events.subList(from, size));
     }
 
-    public List<Map<String, Object>> recentEventsAsMap(int limit) {
+    public synchronized List<Map<String, Object>> recentEventsAsMap(int limit) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (ProcessEvent event : recentEvents(limit)) {
             result.add(event.toMap());
@@ -54,14 +54,14 @@ public class ProcessLifecycleTracker {
         return result;
     }
 
-    public int totalEvents() {
+    public synchronized int totalEvents() {
         return events.size();
     }
 
     private void record(ProcessEvent event) {
-        events.add(event);
+        events.addLast(event);
         while (events.size() > maxEvents) {
-            events.remove(0);
+            events.removeFirst();
         }
     }
 
