@@ -111,6 +111,11 @@
             <version>${sqlite.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.noear</groupId>
+            <artifactId>liquor</artifactId>
+            <version>1.6.8</version>
+        </dependency>
+        <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
             <version>4.12.0</version>

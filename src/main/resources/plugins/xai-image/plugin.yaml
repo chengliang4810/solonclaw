@@ -1,0 +1,5 @@
+name: xai-image
+version: 1.0.0
+description: "Image generation via xAI Grok-2 Image API"
+author: jimuqu
+kind: backend

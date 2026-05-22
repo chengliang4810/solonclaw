@@ -1,0 +1,10 @@
+name: firecrawl
+version: 1.0.0
+description: Firecrawl search and scrape API web search provider
+author: jimuqu
+kind: backend
+source: FirecrawlPlugin.java
+requiresEnv:
+  - name: FIRECRAWL_API_KEY
+    description: Firecrawl API key
+    secret: true

@@ -1,0 +1,5 @@
+name: browser-use
+version: 1.0.0
+description: "Browser automation via Browser Use cloud API"
+author: jimuqu
+kind: backend
