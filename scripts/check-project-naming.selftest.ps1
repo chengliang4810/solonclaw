@@ -320,7 +320,8 @@ try {
 
         $rangeOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseRangeScriptPath `
             -HeadSha $head `
-            -CleanNamingBase $cleanBase 2>&1
+            -CleanNamingBase $cleanBase `
+            -GithubOutputPath "" 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "Release range resolver failed with an older polluted tag: $($rangeOutput | Out-String)"
         }
