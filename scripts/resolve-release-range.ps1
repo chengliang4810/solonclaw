@@ -84,8 +84,6 @@ if (-not [string]::IsNullOrWhiteSpace($GithubOutputPath)) {
     Add-Content -LiteralPath $GithubOutputPath -Value ("git_range={0}" -f $gitRange)
     Add-Content -LiteralPath $GithubOutputPath -Value ("display_range={0}" -f $displayRange)
 } else {
-    [PSCustomObject]@{
-        git_range = $gitRange
-        display_range = $displayRange
-    }
+    Write-Output ("git_range={0}" -f $gitRange)
+    Write-Output ("display_range={0}" -f $displayRange)
 }
