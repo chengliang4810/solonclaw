@@ -92,6 +92,20 @@ try {
         exit 1
     }
 
+    function Resolve-GitRange {
+        param([string] $Range)
+
+        $value = [string] $Range
+        if ($value -match '^([0-9a-fA-F]{7,40})\^\.\.\1$') {
+            $head = $matches[1]
+            & git rev-parse -q --verify "$head^" 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                return $head
+            }
+        }
+        return $value
+    }
+
     $blockedPatterns = Get-BlockedPatterns
     $regex = [Regex]::new(
         ($blockedPatterns -join "|"),
@@ -274,6 +288,7 @@ try {
         } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
+        $range = Resolve-GitRange -Range $range
 
         $subjectMatches = New-Object System.Collections.Generic.List[string]
         if ($skipRangeCheck) {
@@ -360,6 +375,7 @@ try {
         } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
+        $range = Resolve-GitRange -Range $range
 
         if ($skipRangeCheck) {
             $commits = @()

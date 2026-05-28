@@ -271,6 +271,10 @@ try {
     if ($defaultRangeClean.ExitCode -ne 0) {
         throw "Naming check should keep explicit clean ranges independent from other refs, but failed: $($defaultRangeClean.Output)"
     }
+    $headOnlyRangeClean = Invoke-GitNamingCheck -Range "HEAD^..HEAD" -WithExtraFixture
+    if ($headOnlyRangeClean.ExitCode -ne 0) {
+        throw "Naming check should keep explicit single-commit subject ranges independent from other refs, but failed: $($headOnlyRangeClean.Output)"
+    }
     $allRefsBlocked = Invoke-GitNamingCheck -WithExtraFixture -CheckObjectText -CheckAllGitRefs
     if ($allRefsBlocked.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in all reachable git refs."
