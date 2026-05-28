@@ -617,3 +617,5 @@ try {
         Remove-Item -LiteralPath $sandbox -Recurse -Force
     }
 }
+
+exit 0
