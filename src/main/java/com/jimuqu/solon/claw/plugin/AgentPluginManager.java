@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.plugin;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -182,7 +182,7 @@ public class AgentPluginManager {
             loadedPlugins.put(manifest.getName(), new LoadedPlugin(manifest, pluginInstance, ctx));
             log.info("Loaded plugin: {} v{} [{}]", manifest.getName(), manifest.getVersion(), manifest.getKind());
         } catch (Exception e) {
-            log.error("Failed to load plugin '{}': {}", manifest.getName(), e.getMessage(), e);
+            log.error("Failed to load plugin '{}': {}", manifest.getName(), safeError(e));
         }
     }
 
@@ -209,6 +209,16 @@ public class AgentPluginManager {
         }
         loadedPlugins.clear();
         hookRegistry.clear();
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown error";
+        }
+        String message = error.getMessage();
+        String value = error.getClass().getSimpleName()
+                + (StrUtil.isBlank(message) ? "" : ": " + message);
+        return SecretRedactor.redact(value, 1000);
     }
 
     private static class LoadedPlugin {
