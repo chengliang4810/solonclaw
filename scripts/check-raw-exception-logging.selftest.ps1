@@ -1,4 +1,6 @@
 $ErrorActionPreference = "Stop"
+$originalNativeCommandUseErrorActionPreference = $PSNativeCommandUseErrorActionPreference
+$PSNativeCommandUseErrorActionPreference = $false
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $scriptPath = Join-Path $repoRoot "scripts\check-raw-exception-logging.ps1"
@@ -92,4 +94,6 @@ class GoodThrow {
     if (Test-Path -LiteralPath $sandbox) {
         Remove-Item -LiteralPath $sandbox -Recurse -Force
     }
+    $PSNativeCommandUseErrorActionPreference = $originalNativeCommandUseErrorActionPreference
+    $global:LASTEXITCODE = 0
 }

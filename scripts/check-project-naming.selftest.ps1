@@ -1,4 +1,6 @@
 $ErrorActionPreference = "Stop"
+$originalNativeCommandUseErrorActionPreference = $PSNativeCommandUseErrorActionPreference
+$PSNativeCommandUseErrorActionPreference = $false
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
@@ -620,6 +622,6 @@ try {
     if (Test-Path -LiteralPath $sandbox) {
         Remove-Item -LiteralPath $sandbox -Recurse -Force
     }
+    $PSNativeCommandUseErrorActionPreference = $originalNativeCommandUseErrorActionPreference
+    $global:LASTEXITCODE = 0
 }
-
-exit 0
