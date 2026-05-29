@@ -1,7 +1,7 @@
 export default {
   // Login
   login: {
-    title: 'Hermes Web UI',
+    title: 'SolonClaw Web UI',
     description: 'Entrez votre jeton d\'acces pour continuer. Retrouvez-le dans les journaux de demarrage du serveur.',
     placeholder: 'Jeton d\'acces',
     submit: 'Connexion',
@@ -81,7 +81,7 @@ export default {
     settings: 'Parametres',
     connected: 'Connecte',
     disconnected: 'Deconnecte',
-    updateTip: 'Executez "hermes-web-ui update" dans le terminal pour mettre a jour',
+    updateTip: 'Executez "jimuqu-web-ui update" dans le terminal pour mettre a jour',
     updateVersion: 'Mettre a jour vers v{version}',
     updating: 'Mise a jour...',
     updateSuccess: 'Mise a jour terminee, veuillez redemarrer le serveur',
@@ -94,7 +94,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'restant',
-    emptyState: 'Demarrer une conversation avec Hermes Agent',
+    emptyState: 'Demarrer une conversation avec SolonClaw Agent',
     inputPlaceholder: 'Tapez un message... (Entree pour envoyer, Shift+Entree pour un saut de ligne)',
     attachFiles: 'Joindre des fichiers',
     stop: 'Arreter',
@@ -463,7 +463,7 @@ export default {
     waEnabled: 'Activer WhatsApp',
     waEnabledHint: 'Activer WhatsApp via appairage par code QR',
     weixinToken: 'Jeton Weixin',
-    weixinTokenHint: 'Depuis la connexion QR de la CLI weixin (hermes weixin)',
+    weixinTokenHint: 'Depuis la connexion QR de la CLI weixin (Jimuqu weixin)',
     accountId: 'ID de compte',
     accountIdHint: 'ID du compte Weixin',
     qrLogin: 'Connexion QR',

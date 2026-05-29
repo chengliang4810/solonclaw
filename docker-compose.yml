@@ -8,5 +8,6 @@ services:
     environment:
       SOLONCLAW_UID: "${SOLONCLAW_UID:-10000}"
       SOLONCLAW_GID: "${SOLONCLAW_GID:-10000}"
+      SOLONCLAW_OFFICIAL_DOCKER_IMAGE: "1"
     volumes:
       - ./runtime:/app/runtime

@@ -26,7 +26,7 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select platform, chat_id, chat_name, updated_at from home_channels where platform = ?");
+                            "select platform, chat_id, thread_id, chat_name, updated_at from home_channels where platform = ?");
             statement.setString(1, key(platform));
             ResultSet resultSet = statement.executeQuery();
             try {
@@ -40,16 +40,39 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    public List<HomeChannelRecord> listHomeChannels() throws Exception {
+        List<HomeChannelRecord> records = new ArrayList<HomeChannelRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select platform, chat_id, thread_id, chat_name, updated_at from home_channels order by platform asc");
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    records.add(mapHome(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return records;
+    }
+
     public void saveHomeChannel(HomeChannelRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into home_channels (platform, chat_id, chat_name, updated_at) values (?, ?, ?, ?)");
+                            "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, updated_at) values (?, ?, ?, ?, ?)");
             statement.setString(1, key(record.getPlatform()));
             statement.setString(2, record.getChatId());
-            statement.setString(3, record.getChatName());
-            statement.setLong(4, record.getUpdatedAt());
+            statement.setString(3, record.getThreadId());
+            statement.setString(4, record.getChatName());
+            statement.setLong(5, record.getUpdatedAt());
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -388,6 +411,7 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         HomeChannelRecord record = new HomeChannelRecord();
         record.setPlatform(PlatformType.fromName(resultSet.getString("platform")));
         record.setChatId(resultSet.getString("chat_id"));
+        record.setThreadId(resultSet.getString("thread_id"));
         record.setChatName(resultSet.getString("chat_name"));
         record.setUpdatedAt(resultSet.getLong("updated_at"));
         return record;

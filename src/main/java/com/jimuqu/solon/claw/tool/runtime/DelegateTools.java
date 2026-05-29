@@ -1,9 +1,12 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
+import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -33,29 +36,36 @@ public class DelegateTools {
             @Param(name = "context", description = "委托补充上下文", required = false) String context,
             @Param(name = "allowedTools", description = "允许子代理使用的工具名 JSON 数组", required = false)
                     String allowedTools,
+            @Param(name = "toolsets", description = "允许子代理使用的工具集 JSON 数组或逗号列表，例如 web、terminal、file", required = false)
+                    String toolsets,
             @Param(name = "expectedOutput", description = "期望输出格式", required = false)
                     String expectedOutput,
             @Param(name = "writeScope", description = "可写入范围", required = false) String writeScope)
             throws Exception {
         if (delegationService == null) {
-            return "Delegate tool is not ready";
+            return error("Delegate tool is not ready");
         }
 
-        if ("batch".equalsIgnoreCase(mode)) {
-            List<DelegationTask> items = parseTasks(tasks);
-            List<DelegationResult> results = delegationService.delegateBatch(sourceKey, items);
-            return ONode.serialize(results);
-        }
+        try {
+            if ("batch".equalsIgnoreCase(mode)) {
+                List<DelegationTask> items = parseTasks(tasks);
+                List<DelegationResult> results = delegationService.delegateBatch(sourceKey, items);
+                return SecretRedactor.redact(ONode.serialize(results), 20000);
+            }
 
-        DelegationTask task = new DelegationTask();
-        task.setName("delegate");
-        task.setPrompt(prompt);
-        task.setContext(context);
-        task.setAllowedTools(parseStringArray(allowedTools));
-        task.setExpectedOutput(expectedOutput);
-        task.setWriteScope(writeScope);
-        DelegationResult result = delegationService.delegateSingle(sourceKey, task);
-        return result.getContent();
+            DelegationTask task = new DelegationTask();
+            task.setName("delegate");
+            task.setPrompt(prompt);
+            task.setContext(context);
+            task.setAllowedTools(parseStringArray(allowedTools));
+            task.setToolsets(parseStringArray(toolsets));
+            task.setExpectedOutput(expectedOutput);
+            task.setWriteScope(writeScope);
+            DelegationResult result = delegationService.delegateSingle(sourceKey, task);
+            return SecretRedactor.redact(result == null ? null : result.getContent(), 20000);
+        } catch (Exception e) {
+            return error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        }
     }
 
     /** 解析批量任务 JSON。 */
@@ -77,26 +87,23 @@ public class DelegateTools {
             task.setExpectedOutput(item.get("expectedOutput").getString());
             task.setWriteScope(item.get("writeScope").getString());
             task.setAllowedTools(parseStringArray(item.get("allowedTools").toJson()));
+            task.setToolsets(parseStringArray(item.get("toolsets").toJson()));
             items.add(task);
         }
         return items;
     }
 
     private List<String> parseStringArray(String json) {
-        List<String> values = new ArrayList<String>();
-        if (StrUtil.isBlank(json)) {
-            return values;
+        if (StrUtil.isBlank(json) || "null".equalsIgnoreCase(json.trim())) {
+            return new ArrayList<String>();
         }
-        ONode node = ONode.ofJson(json);
-        if (!node.isArray()) {
-            return values;
-        }
-        for (int i = 0; i < node.size(); i++) {
-            String value = node.get(i).getString();
-            if (StrUtil.isNotBlank(value)) {
-                values.add(value.trim());
-            }
-        }
-        return values;
+        return AgentRuntimePolicy.parseStringList(json);
+    }
+
+    private String error(String message) {
+        return ToolResultEnvelope.error(
+                        SecretRedactor.redact(
+                                StrUtil.blankToDefault(message, "delegate failed"), 1000))
+                .toJson();
     }
 }

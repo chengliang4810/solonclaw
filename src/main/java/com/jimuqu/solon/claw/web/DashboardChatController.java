@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.Collections;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
@@ -24,23 +23,46 @@ public class DashboardChatController {
             return chatService.uploads(file);
         } catch (IllegalArgumentException e) {
             context.status(400);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return DashboardResponse.error("CHAT_BAD_REQUEST", e.getMessage());
         } catch (Exception e) {
             context.status(500);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return DashboardResponse.error("CHAT_FAILED", e.getMessage());
         }
     }
 
     @Mapping(value = "/api/chat/runs", method = MethodType.POST)
     public Map<String, Object> startRun(Context context) {
         try {
-            return chatService.startRun(ONode.ofJson(context.body()));
+            return chatService.startRun(body(context));
         } catch (IllegalArgumentException e) {
             context.status(400);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return DashboardResponse.error("CHAT_BAD_REQUEST", e.getMessage());
         } catch (Exception e) {
             context.status(500);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return DashboardResponse.error("CHAT_FAILED", e.getMessage());
+        }
+    }
+
+    private ONode body(Context context) {
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (raw == null || raw.trim().length() == 0) {
+            return new ONode();
+        }
+        try {
+            ONode node = ONode.ofJson(raw);
+            if (node.toData() instanceof Map) {
+                return node;
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 
@@ -55,7 +77,7 @@ public class DashboardChatController {
             return chatService.cancelRun(runId);
         } catch (IllegalArgumentException e) {
             context.status(404);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return DashboardResponse.error("CHAT_NOT_FOUND", e.getMessage());
         }
     }
 }

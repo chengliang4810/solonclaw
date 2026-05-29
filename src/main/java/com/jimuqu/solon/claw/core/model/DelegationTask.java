@@ -21,6 +21,9 @@ public class DelegationTask {
     /** 允许子代理使用的工具名列表。 */
     private java.util.List<String> allowedTools;
 
+    /** 允许子代理使用的工具集选择器，例如 web、terminal、file。 */
+    private java.util.List<String> toolsets;
+
     /** 期望输出格式说明。 */
     private String expectedOutput;
 

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.llm.dialect;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -90,16 +91,16 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
             return delegate.parseResponseJson(config, resp, respJson) || parsed;
         } catch (RuntimeException e) {
             log.warn(
-                    "Failed to parse llm raw response: dialect={}, provider={}, model={}, apiUrl={}, stream={}, bodyLength={}, bodyHexHead={}, body={}",
+                    "Failed to parse llm raw response: dialect={}, provider={}, model={}, apiUrl={}, stream={}, bodyLength={}, bodyHexHead={}, body={}, error={}",
                     dialectName,
                     StrUtil.blankToDefault(config.getProvider(), ""),
                     StrUtil.blankToDefault(config.getModel(), ""),
-                    StrUtil.blankToDefault(config.getApiUrl(), ""),
+                    SecretRedactor.maskUrl(StrUtil.blankToDefault(config.getApiUrl(), "")),
                     resp != null && resp.isStream(),
                     respJson == null ? 0 : respJson.length(),
                     RawResponseLogSupport.hexHead(respJson),
                     RawResponseLogSupport.preview(respJson),
-                    e);
+                    safeError(e));
             throw e;
         }
     }
@@ -107,6 +108,15 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
     @Override
     public List<AssistantMessage> parseAssistantMessage(ChatResponseDefault resp, ONode oMessage) {
         return delegate.parseAssistantMessage(resp, oMessage);
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 
     public ChatDialect getDelegate() {

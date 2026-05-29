@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Dashboard/Hermes search 过滤条件。 */
+/** Dashboard/jimuqu search 过滤条件。 */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,6 +15,7 @@ public class SessionSearchQuery {
     private String toolName;
     private String channel;
     private String query;
+    private String aroundMessageId;
     private long timeFrom;
     private long timeTo;
     private boolean summarize;

@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -92,9 +93,11 @@ public class DashboardChatService {
                                 null,
                                 file.getContentAsBytes());
                 Map<String, Object> item = new LinkedHashMap<String, Object>();
+                String reference = attachmentCacheService.mediaReference(attachment);
                 item.put("name", attachment.getOriginalName());
-                item.put("path", attachment.getLocalPath());
-                item.put("local_path", attachment.getLocalPath());
+                item.put("path", reference);
+                item.put("local_path", reference);
+                item.put("reference", reference);
                 item.put("kind", attachment.getKind());
                 item.put("mime_type", attachment.getMimeType());
                 item.put("size", file.getContentSize());
@@ -120,6 +123,7 @@ public class DashboardChatService {
         if (StrUtil.isBlank(request.sessionId)) {
             request.sessionId = IdSupport.newId();
         }
+        request.resolvedAttachments = resolveAttachments(request.attachments);
 
         final String runId = IdSupport.newId();
         final ChatRunState state = new ChatRunState(runId, request.sessionId);
@@ -285,20 +289,33 @@ public class DashboardChatService {
         message.setUserName("dashboard");
         message.setSourceKeyOverride(sourceKey(sessionId));
         if (request.attachments != null && !request.attachments.isEmpty()) {
-            List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
-            for (AttachmentInput item : request.attachments) {
-                MessageAttachment attachment =
-                        attachmentCacheService.fromMediaCacheFile(
-                                PlatformType.MEMORY,
-                                new java.io.File(item.localPath),
-                                item.kind,
-                                false,
-                                null);
-                attachments.add(attachment);
-            }
-            message.setAttachments(attachments);
+            message.setAttachments(
+                    request.resolvedAttachments == null
+                            ? resolveAttachments(request.attachments)
+                            : request.resolvedAttachments);
         }
         return message;
+    }
+
+    private List<MessageAttachment> resolveAttachments(List<AttachmentInput> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
+        for (AttachmentInput item : inputs) {
+            if (item == null) {
+                continue;
+            }
+            MessageAttachment attachment =
+                    attachmentCacheService.fromMediaCacheFile(
+                            PlatformType.MEMORY,
+                            attachmentCacheService.resolveMediaReference(item.localPath),
+                            item.kind,
+                            false,
+                            null);
+            attachments.add(attachment);
+        }
+        return attachments;
     }
 
     private String historyToNdjson(List<HistoryItem> history) throws IOException {
@@ -413,7 +430,7 @@ public class DashboardChatService {
                 return;
             }
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("delta", delta);
+            payload.put("delta", safeText(delta, 4000));
             enqueue(state, "reasoning.delta", payload);
         }
 
@@ -423,8 +440,10 @@ public class DashboardChatService {
                 return;
             }
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("tool", toolName);
-            payload.put("preview", ToolPreviewSupport.buildPreview(toolName, args, 60, false));
+            payload.put("tool", safeText(toolName, 120));
+            payload.put(
+                    "preview",
+                    safeText(ToolPreviewSupport.buildPreview(toolName, args, 60, false), 240));
             enqueue(state, "tool.started", payload);
         }
 
@@ -434,10 +453,10 @@ public class DashboardChatService {
                 return;
             }
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("tool", toolName);
+            payload.put("tool", safeText(toolName, 120));
             payload.put("duration_ms", durationMs);
             if (StrUtil.isNotBlank(result)) {
-                payload.put("preview", truncateInline(result, 80));
+                payload.put("preview", truncateInline(safeText(result, 1000), 80));
             }
             enqueue(state, "tool.completed", payload);
         }
@@ -445,20 +464,20 @@ public class DashboardChatService {
         @Override
         public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", runId);
+            payload.put("agent_run_id", safeText(runId, 120));
             payload.put("attempt_no", attemptNo);
-            payload.put("provider", provider);
-            payload.put("model", model);
+            payload.put("provider", safeText(provider, 120));
+            payload.put("model", safeText(model, 120));
             enqueue(state, "attempt.started", payload);
         }
 
         @Override
         public void onAttemptCompleted(String runId, int attemptNo, String status, String reason) {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", runId);
+            payload.put("agent_run_id", safeText(runId, 120));
             payload.put("attempt_no", attemptNo);
-            payload.put("status", status);
-            payload.put("reason", reason);
+            payload.put("status", safeText(status, 120));
+            payload.put("reason", safeText(reason, 1000));
             enqueue(state, "attempt.completed", payload);
         }
 
@@ -470,9 +489,9 @@ public class DashboardChatService {
                 int estimatedTokens,
                 int thresholdTokens) {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", runId);
+            payload.put("agent_run_id", safeText(runId, 120));
             payload.put("compressed", compressed);
-            payload.put("reason", reason);
+            payload.put("reason", safeText(reason, 1000));
             payload.put("estimated_tokens", estimatedTokens);
             payload.put("threshold_tokens", thresholdTokens);
             enqueue(state, "compression.decision", payload);
@@ -481,8 +500,8 @@ public class DashboardChatService {
         @Override
         public void onRecoveryStarted(String runId, String recoveryType) {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", runId);
-            payload.put("recovery_type", recoveryType);
+            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("recovery_type", safeText(recoveryType, 240));
             enqueue(state, "recovery.started", payload);
         }
 
@@ -490,10 +509,10 @@ public class DashboardChatService {
         public void onFallback(
                 String runId, String fromProvider, String toProvider, String reason) {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", runId);
-            payload.put("from_provider", fromProvider);
-            payload.put("to_provider", toProvider);
-            payload.put("reason", reason);
+            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("from_provider", safeText(fromProvider, 120));
+            payload.put("to_provider", safeText(toProvider, 120));
+            payload.put("reason", safeText(reason, 1000));
             enqueue(state, "fallback", payload);
         }
 
@@ -513,7 +532,7 @@ public class DashboardChatService {
                 usage.put("total_tokens", result.getTotalTokens());
                 payload.put("usage", usage);
                 if (StrUtil.isNotBlank(result.getReasoningText())) {
-                    payload.put("reasoning", result.getReasoningText());
+                    payload.put("reasoning", safeText(result.getReasoningText(), 4000));
                 }
             }
             enqueue(state, "run.completed", payload);
@@ -529,10 +548,12 @@ public class DashboardChatService {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
             payload.put(
                     "error",
-                    error == null
-                            ? "Run failed"
-                            : StrUtil.blankToDefault(
-                                    error.getMessage(), error.getClass().getSimpleName()));
+                    SecretRedactor.redact(
+                            error == null
+                                    ? "Run failed"
+                                    : StrUtil.blankToDefault(
+                                            error.getMessage(), error.getClass().getSimpleName()),
+                            1000));
             enqueue(state, "run.failed", payload);
         }
 
@@ -543,6 +564,12 @@ public class DashboardChatService {
                 return normalized;
             }
             return normalized.substring(0, Math.max(0, limit - 3)) + "...";
+        }
+
+        private String safeText(String text, int maxLength) {
+            String normalized =
+                    StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
+            return SecretRedactor.redact(normalized, maxLength);
         }
     }
 
@@ -579,6 +606,7 @@ public class DashboardChatService {
         private String model;
         private List<HistoryItem> conversationHistory;
         private List<AttachmentInput> attachments;
+        private List<MessageAttachment> resolvedAttachments;
 
         private static ChatRunRequest from(ONode body) {
             ChatRunRequest request = new ChatRunRequest();

@@ -1,7 +1,7 @@
 export default {
   // 로그인
   login: {
-    title: 'Hermes Web UI',
+    title: 'SolonClaw Web UI',
     description: '계속하려면 액세스 토큰을 입력하세요. 서버 시작 로그에서 확인할 수 있습니다.',
     placeholder: '액세스 토큰',
     submit: '로그인',
@@ -81,7 +81,7 @@ export default {
     settings: '설정',
     connected: '연결됨',
     disconnected: '연결 끊김',
-    updateTip: '터미널에서 "hermes-web-ui update"를 실행하여 업데이트하세요',
+    updateTip: '터미널에서 "jimuqu-web-ui update"를 실행하여 업데이트하세요',
     updateVersion: 'v{version}(으)로 업그레이드',
     updating: '업데이트 중...',
     updateSuccess: '업데이트 완료, 서버를 재시작해 주세요',
@@ -94,7 +94,7 @@ export default {
   // 채팅
   chat: {
     contextRemaining: '남음',
-    emptyState: 'Hermes Agent와 대화를 시작하세요',
+    emptyState: 'SolonClaw Agent와 대화를 시작하세요',
     inputPlaceholder: '메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)',
     attachFiles: '파일 첨부',
     stop: '중지',
@@ -463,7 +463,7 @@ export default {
     waEnabled: 'WhatsApp 활성화',
     waEnabledHint: 'QR 코드 페어링으로 WhatsApp 활성화',
     weixinToken: 'Weixin Token',
-    weixinTokenHint: 'weixin CLI QR 로그인에서 가져오기 (hermes weixin)',
+    weixinTokenHint: 'weixin CLI QR 로그인에서 가져오기 (Jimuqu weixin)',
     accountId: 'Account ID',
     accountIdHint: 'Weixin Account ID',
     qrLogin: 'QR 로그인',

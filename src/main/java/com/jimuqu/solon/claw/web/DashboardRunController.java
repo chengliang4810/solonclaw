@@ -22,8 +22,8 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.run(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}", method = MethodType.GET)
-    public Map<String, Object> hermesRun(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}", method = MethodType.GET)
+    public Map<String, Object> JimuquRun(String runId) throws Exception {
         return run(runId);
     }
 
@@ -32,8 +32,8 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.detail(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/detail", method = MethodType.GET)
-    public Map<String, Object> hermesDetail(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/detail", method = MethodType.GET)
+    public Map<String, Object> JimuquDetail(String runId) throws Exception {
         return detail(runId);
     }
 
@@ -42,8 +42,8 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.events(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/events", method = MethodType.GET)
-    public Map<String, Object> hermesEvents(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/events", method = MethodType.GET)
+    public Map<String, Object> JimuquEvents(String runId) throws Exception {
         return events(runId);
     }
 
@@ -52,8 +52,8 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.toolCalls(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/tools", method = MethodType.GET)
-    public Map<String, Object> hermesTools(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/tools", method = MethodType.GET)
+    public Map<String, Object> JimuquTools(String runId) throws Exception {
         return tools(runId);
     }
 
@@ -62,8 +62,8 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.subagents(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/subagents", method = MethodType.GET)
-    public Map<String, Object> hermesSubagents(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/subagents", method = MethodType.GET)
+    public Map<String, Object> JimuquSubagents(String runId) throws Exception {
         return subagents(runId);
     }
 
@@ -72,8 +72,8 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.recoveries(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/recoveries", method = MethodType.GET)
-    public Map<String, Object> hermesRecoveries(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/recoveries", method = MethodType.GET)
+    public Map<String, Object> JimuquRecoveries(String runId) throws Exception {
         return recoveries(runId);
     }
 
@@ -82,23 +82,29 @@ public class DashboardRunController {
         return DashboardResponse.ok(dashboardRunService.commands(runId));
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/commands", method = MethodType.GET)
-    public Map<String, Object> hermesCommands(String runId) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/commands", method = MethodType.GET)
+    public Map<String, Object> JimuquCommands(String runId) throws Exception {
         return commands(runId);
     }
 
     @Mapping(value = "/api/runs/{runId}/control", method = MethodType.POST)
     public Map<String, Object> control(String runId, Context context) throws Exception {
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(
-                dashboardRunService.control(
-                        runId,
-                        body.get("command").getString(),
-                        ONode.deserialize(body.toJson(), LinkedHashMap.class)));
+        return safeRun(
+                context,
+                new RunAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        ONode body = body(context);
+                        return dashboardRunService.control(
+                                runId,
+                                body.get("command").getString(),
+                                ONode.deserialize(body.toJson(), LinkedHashMap.class));
+                    }
+                });
     }
 
-    @Mapping(value = "/api/hermes/runs/{runId}/control", method = MethodType.POST)
-    public Map<String, Object> hermesControl(String runId, Context context) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/{runId}/control", method = MethodType.POST)
+    public Map<String, Object> JimuquControl(String runId, Context context) throws Exception {
         return control(runId, context);
     }
 
@@ -108,8 +114,8 @@ public class DashboardRunController {
                 dashboardRunService.sessionRuns(sessionId, context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/hermes/runs", method = MethodType.GET)
-    public Map<String, Object> hermesRuns(Context context) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs", method = MethodType.GET)
+    public Map<String, Object> JimuquRuns(Context context) throws Exception {
         String sessionId = context.param("sessionId");
         if (sessionId == null || sessionId.trim().length() == 0) {
             sessionId = context.param("session_id");
@@ -127,20 +133,67 @@ public class DashboardRunController {
                 dashboardRunService.recoverable(context.paramAsInt("limit", 50)));
     }
 
-    @Mapping(value = "/api/hermes/runs/recoverable", method = MethodType.GET)
-    public Map<String, Object> hermesRecoverable(Context context) throws Exception {
+    @Mapping(value = "/api/jimuqu/runs/recoverable", method = MethodType.GET)
+    public Map<String, Object> JimuquRecoverable(Context context) throws Exception {
         return recoverable(context);
     }
 
-    @Mapping(value = "/api/hermes/runs/subagents/active", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/runs/subagents/active", method = MethodType.GET)
     public Map<String, Object> activeSubagents() {
         return DashboardResponse.ok(dashboardRunService.activeSubagents());
     }
 
-    @Mapping(value = "/api/hermes/runs/subagents/{subagentId}/control", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/runs/subagents/{subagentId}/control", method = MethodType.POST)
     public Map<String, Object> controlSubagent(String subagentId, Context context) throws Exception {
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(
-                dashboardRunService.controlSubagent(subagentId, body.get("command").getString()));
+        return safeRun(
+                context,
+                new RunAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        ONode body = body(context);
+                        return dashboardRunService.controlSubagent(
+                                subagentId, body.get("command").getString());
+                    }
+                });
+    }
+
+    private Map<String, Object> safeRun(Context context, RunAction action) throws Exception {
+        try {
+            return DashboardResponse.ok(action.run());
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUN_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUN_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private ONode body(Context context) {
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (raw == null || raw.trim().length() == 0) {
+            return new ONode();
+        }
+        try {
+            ONode node = ONode.ofJson(raw);
+            Object data = node.toData();
+            if (data instanceof Map) {
+                return node;
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
+        }
+    }
+
+    private interface RunAction {
+        Map<String, Object> run() throws Exception;
     }
 }

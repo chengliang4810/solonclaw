@@ -1,6 +1,6 @@
 /**
  * Provider registry — single source of truth for both frontend and backend.
- * Synced from hermes-agent hermes_cli/models.py _PROVIDER_MODELS.
+ * Default provider metadata for the dashboard model picker.
  */
 
 export interface ProviderPreset {

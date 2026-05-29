@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,6 +33,7 @@ public class MessagingTools {
     public String sendMessage(
             @Param(name = "platform", description = "目标平台名", required = false) String platform,
             @Param(name = "chatId", description = "目标聊天 ID", required = false) String chatId,
+            @Param(name = "threadId", description = "目标线程或话题 ID", required = false) String threadId,
             @Param(name = "text", description = "要发送的文本") String text,
             @Param(
                             name = "mediaPaths",
@@ -60,12 +62,27 @@ public class MessagingTools {
             return error("invalid target platform: " + platform);
         }
         String targetChatId = StrUtil.isBlank(chatId) ? parts[1] : chatId;
+        CronAutoDeliveryContext.Target autoTarget =
+                CronAutoDeliveryContext.matchingTarget(targetPlatform, targetChatId, threadId);
+        if (autoTarget != null) {
+            return ToolResultEnvelope.ok("Skipped duplicate cron auto-delivery target")
+                    .data("skipped", Boolean.TRUE)
+                    .data("reason", "cron_auto_delivery_duplicate_target")
+                    .data("target", safeResult(autoTarget.label(), 400))
+                    .data(
+                            "note",
+                            "This cron job will already auto-deliver its final response to that same target.")
+                    .preview("Skipped duplicate cron send_message")
+                    .metadata("sourceKey", safeResult(sourceKey, 400))
+                    .toJson();
+        }
         String targetUserId = parts.length > 2 ? parts[2] : null;
         List<MessageAttachment> attachments = resolveAttachments(targetPlatform, mediaPaths);
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(targetPlatform);
         request.setChatId(targetChatId);
         request.setUserId(targetUserId);
+        request.setThreadId(StrUtil.blankToDefault(threadId, null));
         request.setText(text);
         request.setAttachments(attachments);
         request.setChannelExtras(parseChannelExtras(channelExtrasJson));
@@ -80,15 +97,29 @@ public class MessagingTools {
                 attachments != null && !attachments.isEmpty());
         return ToolResultEnvelope.ok("Message delivered")
                 .data("platform", targetPlatform.name())
-                .data("chatId", targetChatId)
+                .data("chatId", safeResult(targetChatId, 400))
                 .data("attachmentCount", Integer.valueOf(attachments.size()))
-                .preview(text)
-                .metadata("sourceKey", sourceKey)
+                .preview(safeResult(text, 1000))
+                .metadata("sourceKey", safeResult(sourceKey, 400))
                 .toJson();
     }
 
+    public String sendMessage(
+            String platform,
+            String chatId,
+            String text,
+            List<String> mediaPaths,
+            String channelExtrasJson)
+            throws Exception {
+        return sendMessage(platform, chatId, null, text, mediaPaths, channelExtrasJson);
+    }
+
     private String error(String message) {
-        return ToolResultEnvelope.error(message).toJson();
+        return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
+    }
+
+    private String safeResult(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private List<MessageAttachment> resolveAttachments(

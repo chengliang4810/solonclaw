@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-solon-claw is a single-instance Agent service built with Java, Solon, and Solon AI. The project aims to reproduce the core behavior and capabilities of Hermes Agent in the Java / Solon ecosystem, with a focus on the Agent loop, tool calling, sessions, memory, skills, scheduled tasks, Chinese messaging channels, and a dashboard-first setup and diagnostics experience.
+solon-claw is a single-instance Agent service built with Java, Solon, and Solon AI. The project aims to reproduce the core behavior and capabilities of 参考 Agent in the Java / Solon ecosystem, with a focus on the Agent loop, tool calling, sessions, memory, skills, scheduled tasks, Chinese messaging channels, and a dashboard-first setup and diagnostics experience.
 
 > The project is under active development. APIs and configuration keys may change as the implementation evolves. Feedback and contributions are welcome.
 

@@ -12,8 +12,13 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import com.lark.oapi.Client;
 import com.lark.oapi.core.request.EventReq;
 import com.lark.oapi.event.CustomEventHandler;
@@ -64,6 +69,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private final AppConfig.ChannelConfig config;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private volatile String tenantAccessToken;
     private volatile long tokenExpireAt;
     private volatile com.lark.oapi.ws.Client wsClient;
@@ -71,9 +77,17 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     public FeishuChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
+        this(config, attachmentCacheService, null);
+    }
+
+    public FeishuChannelAdapter(
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.FEISHU, config);
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         setConnectionMode("websocket");
         setFeatures(
                 "text", "attachments", "post-media", "group-mention", "card-action", "reactions");
@@ -85,6 +99,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!isEnabled()) {
             setSetupState("disabled");
             setDetail("disabled");
+            return false;
+        }
+        if (rejectWeakCredentials(
+                "feishu_weak_credentials",
+                credentialField("solonclaw.channels.feishu.appId", config.getAppId()),
+                credentialField("solonclaw.channels.feishu.appSecret", config.getAppSecret()),
+                credentialField("solonclaw.channels.feishu.botOpenId", config.getBotOpenId()),
+                credentialField("solonclaw.channels.feishu.botUserId", config.getBotUserId()))) {
             return false;
         }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
@@ -127,9 +149,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                                         event.getEvent());
                                                             } catch (Exception e) {
                                                                 log.warn(
-                                                                        "[FEISHU] websocket inbound dispatch failed: {}",
-                                                                        e.getMessage(),
-                                                                        e);
+                                                                        "[FEISHU] websocket inbound dispatch failed: errorType={}, error={}",
+                                                                        errorType(e),
+                                                                        safeError(e));
                                                             }
                                                         }
                                                     });
@@ -186,9 +208,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         } catch (Exception e) {
             setConnected(false);
             setSetupState("error");
-            setLastError("feishu_connect_failed", e.getMessage());
-            setDetail("connect failed: " + e.getMessage());
-            log.warn("[FEISHU] connect failed: {}", e.getMessage());
+            setLastError("feishu_connect_failed", safeError(e));
+            setDetail("connect failed: " + safeError(e));
+            log.warn("[FEISHU] connect failed: errorType={}, error={}", errorType(e), safeError(e));
             return false;
         }
     }
@@ -321,7 +343,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 inboundMessageHandler().handle(message);
                             }
                         } catch (Exception e) {
-                            log.warn("[FEISHU-COMMENT] dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[FEISHU-COMMENT] dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -507,7 +532,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return result;
             }
         } catch (Exception e) {
-            log.debug("[FEISHU-COMMENT] pairing file load failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU-COMMENT] pairing file load failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
         return new LinkedHashMap<String, List<String>>();
     }
@@ -877,12 +905,20 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private ONode fetchMessageMeta(String messageId) {
         refreshTenantTokenIfNecessary();
-        String response =
-                HttpRequest.get("https://open.feishu.cn/open-apis/im/v1/messages/" + messageId)
+        String url = "https://open.feishu.cn/open-apis/im/v1/messages/" + messageId;
+        assertSafeUrl(url, "Feishu message lookup URL");
+        HttpResponse httpResponse =
+                HttpRequest.get(url)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .timeout(15000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu message lookup");
+        } finally {
+            httpResponse.close();
+        }
         return ensureOk(response, "Feishu message lookup failed");
     }
 
@@ -901,7 +937,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             }
         } catch (Exception e) {
-            log.debug("[FEISHU] application info discovery failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU] application info discovery failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
         try {
             Map<String, String> botInfo = fetchBotInfo();
@@ -920,7 +959,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             }
         } catch (Exception e) {
-            log.debug("[FEISHU] bot info discovery failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU] bot info discovery failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -942,12 +984,19 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     protected Map<String, String> fetchBotInfo() {
         refreshTenantTokenIfNecessary();
-        String response =
+        assertSafeUrl(BOT_INFO_URL, "Feishu bot info URL");
+        HttpResponse httpResponse =
                 HttpRequest.get(BOT_INFO_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .timeout(15000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu bot info");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ONode.ofJson(response);
         if (node.get("code").getInt(-1) != 0) {
             return null;
@@ -982,35 +1031,29 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         refreshTenantTokenIfNecessary();
         String url = String.format(MESSAGE_RESOURCE_URL, messageId, fileKey, resourceType);
-        HttpResponse response =
-                HttpRequest.get(url)
-                        .header("Authorization", "Bearer " + tenantAccessToken)
-                        .timeout(30000)
-                        .execute();
-        try {
-            if (response.getStatus() >= 400) {
-                throw new IllegalStateException(
-                        "Feishu resource download failed: " + response.body());
-            }
-            String fileName = fallbackName;
-            if (StrUtil.isBlank(fileName)) {
-                fileName = fileKey;
-            }
-            String mimeType =
-                    AttachmentCacheService.normalizeMimeType(
-                            response.header("Content-Type"), fileName);
-            return attachmentCacheService.cacheBytes(
-                    PlatformType.FEISHU,
-                    AttachmentCacheService.normalizeKind(resourceType, fileName, mimeType),
-                    fileName,
-                    mimeType,
-                    false,
-                    null,
-                    BoundedAttachmentIO.readHutoolResponse(
-                            response, BoundedAttachmentIO.DEFAULT_MAX_BYTES));
-        } finally {
-            response.close();
+        Map<String, String> headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + tenantAccessToken);
+        BoundedAttachmentIO.HutoolDownloadResult result =
+                BoundedAttachmentIO.downloadHutoolResult(
+                        url,
+                        30000,
+                        BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                        securityPolicyService,
+                        headers);
+        String fileName = fallbackName;
+        if (StrUtil.isBlank(fileName)) {
+            fileName = fileKey;
         }
+        String mimeType =
+                AttachmentCacheService.normalizeMimeType(result.getContentType(), fileName);
+        return attachmentCacheService.cacheBytes(
+                PlatformType.FEISHU,
+                AttachmentCacheService.normalizeKind(resourceType, fileName, mimeType),
+                fileName,
+                mimeType,
+                false,
+                null,
+                result.getData());
     }
 
     private void sendText(String chatId, String text) {
@@ -1111,7 +1154,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         "Feishu whole comment fallback failed");
             } else if (code != 0) {
                 throw new IllegalStateException(
-                        "Feishu comment reply failed: " + response.get("msg").getString());
+                        "Feishu comment reply failed: "
+                                + safePlatformMessage(response.get("msg").getString()));
             }
         }
     }
@@ -1149,7 +1193,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
-                    "Feishu attachment file not found: " + attachment.getLocalPath());
+                    MessageAttachmentSupport.fileNotFoundMessage("Feishu", attachment));
         }
 
         String kind =
@@ -1189,12 +1233,25 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private void sendDangerousApprovalCard(DeliveryRequest request) {
+        ONode card = buildDangerousApprovalCard(request);
+
+        String body =
+                new ONode()
+                        .set("receive_id", request.getChatId())
+                        .set("msg_type", "interactive")
+                        .set("content", card.toJson())
+                        .toJson();
+        ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
+    }
+
+    protected ONode buildDangerousApprovalCard(DeliveryRequest request) {
         Map<String, Object> extras =
                 request.getChannelExtras() == null
                         ? new LinkedHashMap<String, Object>()
                         : request.getChannelExtras();
-        String command = stringValue(extras.get("approvalCommand"));
-        String description = stringValue(extras.get("approvalDescription"));
+        String command = approvalCardText(extras.get("approvalCommand"), 3000);
+        String description = approvalCardText(extras.get("approvalDescription"), 1000);
+        String approvalId = approvalCardSelector(extras.get("approvalId"));
         String preview = command;
         if (preview.length() > 3000) {
             preview = preview.substring(0, 3000) + "...";
@@ -1203,26 +1260,32 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         List<Object> actions = new ArrayList<Object>();
         actions.add(
                 cardButton(
-                        "✅ Allow Once",
+                        "✅ 允许一次",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                        approvalId,
                         "once",
                         "primary"));
         actions.add(
                 cardButton(
-                        "✅ Session",
+                        "✅ 本会话允许",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                        approvalId,
                         "session",
                         "default"));
+        if (approvalCardAllowAlways(extras)) {
+            actions.add(
+                    cardButton(
+                            "✅ 始终允许",
+                            DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                            approvalId,
+                            "always",
+                            "default"));
+        }
         actions.add(
                 cardButton(
-                        "✅ Always",
-                        DangerousCommandApprovalService.CARD_ACTION_APPROVE,
-                        "always",
-                        "default"));
-        actions.add(
-                cardButton(
-                        "❌ Deny",
+                        "❌ 拒绝",
                         DangerousCommandApprovalService.CARD_ACTION_DENY,
+                        approvalId,
                         "deny",
                         "danger"));
 
@@ -1234,58 +1297,65 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 "content",
                                 "```\n"
                                         + preview
-                                        + "\n```\n**Reason:** "
-                                        + StrUtil.blankToDefault(description, "dangerous command"))
+                                        + "\n```\n**原因：** "
+                                        + StrUtil.blankToDefault(description, "危险命令"))
                         .toData());
         elements.add(new ONode().set("tag", "action").set("actions", actions).toData());
 
-        ONode card =
-                new ONode()
-                        .getOrNew("config")
-                        .set("wide_screen_mode", true)
-                        .parent()
-                        .getOrNew("header")
-                        .getOrNew("title")
-                        .set("content", "⚠️ Dangerous Command Approval")
-                        .set("tag", "plain_text")
-                        .parent()
-                        .set("template", "orange")
-                        .parent()
-                        .set("elements", elements);
-
-        String body =
-                new ONode()
-                        .set("receive_id", request.getChatId())
-                        .set("msg_type", "interactive")
-                        .set("content", card.toJson())
-                        .toJson();
-        ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
+        ONode card = new ONode();
+        card.getOrNew("config").set("wide_screen_mode", true);
+        ONode header = card.getOrNew("header");
+        header.getOrNew("title")
+                .set("content", "⚠️ 危险命令审批")
+                .set("tag", "plain_text");
+        header.set("template", "orange");
+        card.set("elements", elements);
+        return card;
     }
 
-    private Object cardButton(String label, String action, String scope, String type) {
-        return new ONode()
-                .set("tag", "button")
-                .getOrNew("text")
-                .set("tag", "plain_text")
-                .set("content", label)
-                .parent()
-                .set("type", type)
-                .getOrNew("value")
+    private Object cardButton(
+            String label, String action, String approvalId, String scope, String type) {
+        ONode root = new ONode();
+        root.set("tag", "button");
+        root.getOrNew("text").set("tag", "plain_text").set("content", label);
+        root.set("type", type);
+        root.getOrNew("value")
                 .set(DangerousCommandApprovalService.CARD_ACTION_KEY, action)
                 .set(DangerousCommandApprovalService.CARD_SCOPE_KEY, scope)
-                .parent()
-                .toData();
+                .set(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, approvalId);
+        return root.toData();
+    }
+
+    private String approvalCardText(Object value, int maxLength) {
+        return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
+    }
+
+    private String approvalCardSelector(Object value) {
+        String selector = DangerousCommandApprovalService.safeApprovalSelectorToken(value);
+        return selector == null ? "" : selector;
+    }
+
+    private boolean approvalCardAllowAlways(Map<String, Object> extras) {
+        Object value = extras == null ? null : extras.get("approvalAllowAlways");
+        return value == null || Boolean.parseBoolean(stringValue(value));
     }
 
     private String uploadImage(File file) {
-        String response =
+        assertSafeUrl(IMAGE_UPLOAD_URL, "Feishu image upload URL");
+        HttpResponse httpResponse =
                 HttpRequest.post(IMAGE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .form("image_type", "message")
                         .form("image", file)
                         .timeout(30000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu image upload");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ensureOk(response, "Feishu image upload failed");
         String imageKey = node.get("data").get("image_key").getString();
         if (StrUtil.isBlank(imageKey)) {
@@ -1295,15 +1365,22 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String uploadFile(File file, String uploadType) {
-        String response =
+        assertSafeUrl(FILE_UPLOAD_URL, "Feishu file upload URL");
+        HttpResponse httpResponse =
                 HttpRequest.post(FILE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .form("file_type", uploadType)
                         .form("file_name", file.getName())
                         .form("file", file)
                         .timeout(30000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu file upload");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ensureOk(response, "Feishu file upload failed");
         String fileKey = node.get("data").get("file_key").getString();
         if (StrUtil.isBlank(fileKey)) {
@@ -1357,20 +1434,28 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String postJson(String url, String body) {
-        return HttpRequest.post(url)
-                .contentType(ContentType.JSON.toString())
-                .header("Authorization", "Bearer " + tenantAccessToken)
-                .body(body)
-                .timeout(15000)
-                .execute()
-                .body();
+        assertSafeUrl(url, "Feishu API URL");
+        HttpResponse response =
+                HttpRequest.post(url)
+                        .contentType(ContentType.JSON.toString())
+                        .header("Authorization", "Bearer " + tenantAccessToken)
+                        .body(body)
+                        .timeout(15000)
+                        .setFollowRedirects(false)
+                        .execute();
+        try {
+            return guardedResponseBody(response, "Feishu API request");
+        } finally {
+            response.close();
+        }
     }
 
-    private ONode ensureOk(String response, String defaultMessage) {
+    protected ONode ensureOk(String response, String defaultMessage) {
         ONode node = ONode.ofJson(response);
         int code = node.get("code").getInt(0);
         if (code != 0) {
-            throw new IllegalStateException(defaultMessage + ": " + node.get("msg").getString());
+            throw new IllegalStateException(
+                    defaultMessage + ": " + safePlatformMessage(node.get("msg").getString()));
         }
         return node;
     }
@@ -1385,18 +1470,26 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("app_id", config.getAppId())
                         .set("app_secret", config.getAppSecret())
                         .toJson();
-        String response =
+        assertSafeUrl(TOKEN_URL, "Feishu token URL");
+        HttpResponse httpResponse =
                 HttpRequest.post(TOKEN_URL)
                         .contentType(ContentType.JSON.toString())
                         .body(body)
                         .timeout(15000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu token request");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ONode.ofJson(response);
         int code = node.get("code").getInt(0);
         if (code != 0) {
             throw new IllegalStateException(
-                    "Fetch tenant token failed: " + node.get("msg").getString());
+                    "Fetch tenant token failed: "
+                            + safePlatformMessage(node.get("msg").getString()));
         }
         tenantAccessToken = node.get("tenant_access_token").getString();
         long expire = node.get("expire").getLong(7200L);
@@ -1424,10 +1517,48 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 ((ExecutorService) executor).shutdownNow();
             }
         } catch (Exception e) {
-            log.debug("[FEISHU] websocket shutdown cleanup failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU] websocket shutdown cleanup failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         } finally {
             wsClient = null;
         }
+    }
+
+    private String guardedResponseBody(HttpResponse response, String purpose) {
+        int status = response.getStatus();
+        if (status >= 300 && status < 400) {
+            throw new IllegalStateException(
+                    purpose
+                            + " blocked redirect: HTTP "
+                            + status
+                            + " -> "
+                            + SecretRedactor.maskUrl(response.header("Location")));
+        }
+        if (status >= 400) {
+            throw new IllegalStateException(HutoolHttpErrorFormatter.failure(purpose, response));
+        }
+        return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
+    }
+
+    protected String safePlatformMessage(String value) {
+        return SecretRedactor.redact(value, 1000);
     }
 
     @RequiredArgsConstructor

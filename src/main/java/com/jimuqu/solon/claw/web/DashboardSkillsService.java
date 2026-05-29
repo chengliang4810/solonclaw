@@ -75,6 +75,8 @@ public class DashboardSkillsService {
                         "官方 Shell/Python/Node.js、文件读写与代码搜索能力",
                         Arrays.asList(
                                 ToolNameConstants.EXECUTE_SHELL,
+                                ToolNameConstants.PROCESS,
+                                ToolNameConstants.EXECUTE_CODE,
                                 ToolNameConstants.EXECUTE_PYTHON,
                                 ToolNameConstants.EXECUTE_JS,
                                 ToolNameConstants.GET_CURRENT_TIME,
@@ -82,6 +84,7 @@ public class DashboardSkillsService {
                                 ToolNameConstants.FILE_WRITE,
                                 ToolNameConstants.FILE_LIST,
                                 ToolNameConstants.FILE_DELETE,
+                                ToolNameConstants.PATCH,
                                 ToolNameConstants.CODESEARCH)));
         result.add(
                 toolset(
@@ -135,6 +138,12 @@ public class DashboardSkillsService {
                                 ToolNameConstants.CONFIG_SET,
                                 ToolNameConstants.CONFIG_SET_SECRET,
                                 ToolNameConstants.CONFIG_REFRESH)));
+        result.add(
+                toolset(
+                        "gateway",
+                        "工具网关",
+                        "基于 Solon AI ToolGateway 的工具发现、详情查看与按名调用能力",
+                        Collections.singletonList(ToolNameConstants.TOOL_GATEWAY)));
         return result;
     }
 

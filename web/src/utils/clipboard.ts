@@ -9,3 +9,14 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
   return false
 }
+
+export async function readFromClipboard(): Promise<string | null> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+    try {
+      return await navigator.clipboard.readText()
+    } catch {
+      return null
+    }
+  }
+  return null
+}

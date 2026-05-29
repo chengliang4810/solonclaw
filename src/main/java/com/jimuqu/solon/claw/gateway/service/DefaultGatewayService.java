@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -12,6 +13,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -94,7 +96,10 @@ public class DefaultGatewayService {
 
             if (reply != null) {
                 safeDeliver(message, reply);
+                safeDeliverGoalNotice(message, reply);
                 safeScheduleLearning(message, reply);
+                safeScheduleGoalKickoff(message, reply);
+                safeScheduleGoalContinuation(message, reply);
             }
             return reply;
         } catch (Exception e) {
@@ -110,17 +115,162 @@ public class DefaultGatewayService {
                 return cancelledReply;
             }
             log.warn(
-                    "Gateway handle failed: platform={}, chatId={}, userId={}, text={}",
+                    "Gateway handle failed: platform={}, chatId={}, userId={}, text={}, errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getUserId(),
-                    message.getText(),
-                    e);
+                    SecretRedactor.redact(message.getText(), 1000),
+                    errorType(e),
+                    safeMessage(e));
             GatewayReply errorReply = GatewayReply.error("处理消息失败：" + safeMessage(e));
             if (authorized) {
                 safeDeliver(message, errorReply);
             }
             return errorReply;
+        }
+    }
+
+    private void safeDeliverGoalNotice(GatewayMessage message, GatewayReply reply) {
+        if (reply == null
+                || reply.getRuntimeMetadata() == null
+                || !hasTextMetadata(reply, "goal_message")) {
+            return;
+        }
+        GatewayReply notice = GatewayReply.ok(textMetadata(reply, "goal_message"));
+        safeDeliver(message, notice);
+    }
+
+    private void safeScheduleGoalKickoff(final GatewayMessage message, GatewayReply reply) {
+        if (reply == null
+                || reply.getRuntimeMetadata() == null
+                || !hasTextMetadata(reply, "goal_kickoff")) {
+            return;
+        }
+        final String kickoff = textMetadata(reply, "goal_kickoff");
+        Thread thread =
+                new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    GatewayMessage kickoffMessage =
+                                            new GatewayMessage(
+                                                    message.getPlatform(),
+                                                    message.getChatId(),
+                                                    message.getUserId(),
+                                                    kickoff);
+                                    kickoffMessage.setThreadId(message.getThreadId());
+                                    kickoffMessage.setChatType(message.getChatType());
+                                    kickoffMessage.setChatName(message.getChatName());
+                                    kickoffMessage.setUserName(message.getUserName());
+                                    kickoffMessage.setSourceKeyOverride(message.sourceKey());
+                                    GatewayReply next = conversationOrchestrator.runScheduled(kickoffMessage);
+                                    if (next != null) {
+                                        safeDeliver(kickoffMessage, next);
+                                        safeDeliverGoalNotice(kickoffMessage, next);
+                                        safeScheduleLearning(kickoffMessage, next);
+                                        safeScheduleGoalContinuation(kickoffMessage, next);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn(
+                                            "Goal kickoff dispatch failed: sourceKey={}, errorType={}, error={}",
+                                            message.sourceKey(),
+                                            errorType(e),
+                                            safeMessage(e));
+                                }
+                            }
+                        },
+                        "jimuqu-goal-kickoff");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void safeScheduleGoalContinuation(final GatewayMessage message, GatewayReply reply) {
+        if (reply == null
+                || reply.getRuntimeMetadata() == null
+                || !Boolean.TRUE.equals(reply.getRuntimeMetadata().get("goal_should_continue"))) {
+            return;
+        }
+        final String prompt = textMetadata(reply, "goal_continuation_prompt");
+        if (StrUtil.isBlank(prompt)) {
+            return;
+        }
+        Thread thread =
+                new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    GatewayMessage continuation =
+                                            new GatewayMessage(
+                                                    message.getPlatform(),
+                                                    message.getChatId(),
+                                                    message.getUserId(),
+                                                    prompt);
+                                    continuation.setThreadId(message.getThreadId());
+                                    continuation.setChatType(message.getChatType());
+                                    continuation.setChatName(message.getChatName());
+                                    continuation.setUserName(message.getUserName());
+                                    continuation.setSourceKeyOverride(message.sourceKey());
+                                    GatewayReply next = conversationOrchestrator.runScheduled(continuation);
+                                    if (next != null) {
+                                        safeDeliver(continuation, next);
+                                        safeDeliverGoalNotice(continuation, next);
+                                        safeScheduleLearning(continuation, next);
+                                        safeScheduleGoalContinuation(continuation, next);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn(
+                                            "Goal continuation dispatch failed: sourceKey={}, errorType={}, error={}",
+                                            message.sourceKey(),
+                                            errorType(e),
+                                            safeMessage(e));
+                                }
+                            }
+                        },
+                        "jimuqu-goal-continuation");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private boolean hasTextMetadata(GatewayReply reply, String key) {
+        return StrUtil.isNotBlank(textMetadata(reply, key));
+    }
+
+    private String textMetadata(GatewayReply reply, String key) {
+        if (reply == null || reply.getRuntimeMetadata() == null) {
+            return "";
+        }
+        Object value = reply.getRuntimeMetadata().get(key);
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /**
+     * 向指定渠道投递系统通知消息。
+     *
+     * @param platform 目标平台
+     * @param chatId 目标会话 ID
+     * @param threadId 目标线程 ID（可为空）
+     * @param text 通知文本
+     */
+    public void deliverSystemNotification(
+            PlatformType platform, String chatId, String threadId, String text) {
+        if (platform == null || StrUtil.isBlank(chatId) || StrUtil.isBlank(text)) {
+            return;
+        }
+        try {
+            DeliveryRequest request = new DeliveryRequest();
+            request.setPlatform(platform);
+            request.setChatId(chatId);
+            request.setThreadId(threadId);
+            request.setText(text);
+            deliveryService.deliver(request);
+        } catch (Exception e) {
+            log.warn(
+                    "System notification delivery failed: platform={}, chatId={}, error={}",
+                    platform,
+                    chatId,
+                    safeMessage(e));
         }
     }
 
@@ -146,11 +296,12 @@ public class DefaultGatewayService {
             deliveryService.deliver(request);
         } catch (Exception e) {
             log.warn(
-                    "Gateway delivery failed: platform={}, chatId={}, userId={}",
+                    "Gateway delivery failed: platform={}, chatId={}, userId={}, errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getUserId(),
-                    e);
+                    errorType(e),
+                    safeMessage(e));
         }
     }
 
@@ -168,7 +319,11 @@ public class DefaultGatewayService {
                 skillLearningService.schedulePostReplyLearning(session, message, reply);
             }
         } catch (Exception e) {
-            log.warn("Post-reply learning schedule failed: sessionId={}", reply.getSessionId(), e);
+            log.warn(
+                    "Post-reply learning schedule failed: sessionId={}, errorType={}, error={}",
+                    reply.getSessionId(),
+                    errorType(e),
+                    safeMessage(e));
         }
     }
 
@@ -217,7 +372,8 @@ public class DefaultGatewayService {
         if (StrUtil.isBlank(message)) {
             message = e.getMessage();
         }
-        return StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        return SecretRedactor.redact(safe, 1000);
     }
 
     private Throwable rootCause(Throwable throwable) {
@@ -226,5 +382,10 @@ public class DefaultGatewayService {
             current = current.getCause();
         }
         return current;
+    }
+
+    private String errorType(Throwable throwable) {
+        Throwable cause = rootCause(throwable);
+        return cause == null ? "Throwable" : cause.getClass().getSimpleName();
     }
 }

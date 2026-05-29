@@ -9,7 +9,10 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -42,6 +45,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private final AppConfig.ChannelConfig config;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final OkHttpClient client;
     private final ConcurrentMap<String, CompletableFuture<ONode>> pendingResponses =
             new ConcurrentHashMap<String, CompletableFuture<ONode>>();
@@ -52,10 +56,23 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     public WeComChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
+        this(config, attachmentCacheService, null);
+    }
+
+    public WeComChannelAdapter(
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.WECOM, config);
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
-        this.client = new OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build();
+        this.securityPolicyService = securityPolicyService;
+        this.client =
+                new OkHttpClient.Builder()
+                        .readTimeout(0, TimeUnit.MILLISECONDS)
+                        .followRedirects(false)
+                        .followSslRedirects(false)
+                        .build();
         setConnectionMode("websocket");
         setFeatures("text", "attachments", "quoted-media", "reply-mode", "aes-media");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
@@ -66,6 +83,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!isEnabled()) {
             setSetupState("disabled");
             setDetail("disabled");
+            return false;
+        }
+        if (rejectWeakCredentials(
+                "wecom_weak_credentials",
+                credentialField("solonclaw.channels.wecom.botId", config.getBotId()),
+                credentialField("solonclaw.channels.wecom.secret", config.getSecret()))) {
             return false;
         }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
@@ -85,12 +108,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
 
-        String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
-        callbackExecutor = Executors.newSingleThreadExecutor();
-        CountDownLatch latch = new CountDownLatch(1);
-        Request request = new Request.Builder().url(wsUrl).build();
-        webSocket = client.newWebSocket(request, new Listener(latch));
         try {
+            String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL).trim();
+            assertSafeUrl(wsUrl, "WeCom websocket URL");
+            callbackExecutor = Executors.newSingleThreadExecutor();
+            CountDownLatch latch = new CountDownLatch(1);
+            Request request = new Request.Builder().url(wsUrl).build();
+            webSocket = client.newWebSocket(request, new Listener(latch));
             if (!latch.await(10, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("WeCom websocket open timeout");
             }
@@ -104,7 +128,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                             15);
             int ret = auth.get("ret").getInt(0);
             if (ret != 0) {
-                throw new IllegalStateException("WeCom subscribe failed: " + auth.toJson());
+                throw new IllegalStateException(
+                        "WeCom subscribe failed: " + safeJson(auth));
             }
             setConnected(true);
             setSetupState("connected");
@@ -119,8 +144,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             webSocket = null;
             setConnected(false);
             setSetupState("error");
-            setLastError("wecom_connect_failed", e.getMessage());
-            setDetail("connect failed: " + e.getMessage());
+            setLastError("wecom_connect_failed", safeError(e));
+            setDetail("connect failed: " + safeError(e));
             throw new IllegalStateException("WeCom connect failed", e);
         }
     }
@@ -149,7 +174,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                     sendTextMessage(request.getChatId(), request.getText(), request.getThreadId());
             int ret = response.get("ret").getInt(0);
             if (ret != 0) {
-                throw new IllegalStateException("WeCom send failed: " + response.toJson());
+                throw new IllegalStateException("WeCom send failed: " + safeJson(response));
             }
         }
         if (request.getAttachments() != null) {
@@ -223,10 +248,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             WeComChannelAdapter.this.webSocket = null;
             setConnected(false);
             setSetupState("error");
-            setLastError("wecom_websocket_failure", t == null ? "unknown" : t.getMessage());
+            setLastError("wecom_websocket_failure", safeError(t));
             setDetail("websocket disconnected");
             openLatch.countDown();
-            log.warn("[WECOM] websocket failure: {}", t.getMessage());
+            log.warn(
+                    "[WECOM] websocket failure: errorType={}, error={}",
+                    errorType(t),
+                    safeError(t));
         }
 
         @Override
@@ -253,7 +281,10 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 inboundMessageHandler().handle(message);
                             }
                         } catch (Exception e) {
-                            log.warn("[WECOM] inbound dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[WECOM] inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -380,15 +411,21 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private byte[] downloadBytes(String url, long maxBytes) throws Exception {
-        Request request = new Request.Builder().url(url).build();
-        Response response = client.newCall(request).execute();
-        try {
-            if (!response.isSuccessful()) {
-                throw new IllegalStateException("WeCom download failed: " + response.code());
-            }
-            return BoundedAttachmentIO.readOkHttpResponse(response, maxBytes);
-        } finally {
-            response.close();
+        return BoundedAttachmentIO.downloadOkHttp(client, url, maxBytes, securityPolicyService);
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
         }
     }
 
@@ -397,7 +434,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
-                    "WeCom attachment file not found: " + attachment.getLocalPath());
+                    MessageAttachmentSupport.fileNotFoundMessage("WeCom", attachment));
         }
 
         byte[] bytes = cn.hutool.core.io.FileUtil.readBytes(file);
@@ -414,7 +451,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode response = sendByMode(body, chatId, replyToMessageId, mediaType, 30);
         int errCode = response.get("errcode").getInt(0);
         if (errCode != 0) {
-            throw new IllegalStateException("WeCom media send failed: " + response.toJson());
+            throw new IllegalStateException("WeCom media send failed: " + safeJson(response));
         }
     }
 
@@ -655,7 +692,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         String uploadId = init.get("body").get("upload_id").getString();
         if (StrUtil.isBlank(uploadId)) {
             throw new IllegalStateException(
-                    "WeCom media upload init missing upload_id: " + init.toJson());
+                    "WeCom media upload init missing upload_id: " + safeJson(init));
         }
 
         for (int index = 0; index < totalChunks; index++) {
@@ -681,9 +718,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         String mediaId = finish.get("body").get("media_id").getString();
         if (StrUtil.isBlank(mediaId)) {
             throw new IllegalStateException(
-                    "WeCom media upload finish missing media_id: " + finish.toJson());
+                    "WeCom media upload finish missing media_id: " + safeJson(finish));
         }
         return mediaId;
+    }
+
+    private String safeJson(ONode value) {
+        return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
     private byte[] decryptFileBytes(byte[] encryptedData, String aesKeyBase64) throws Exception {

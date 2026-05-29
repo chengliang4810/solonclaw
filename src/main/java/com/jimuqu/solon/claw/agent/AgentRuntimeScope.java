@@ -17,6 +17,7 @@ public class AgentRuntimeScope {
     private String memory;
     private String agentHomeDir;
     private String workspaceDir;
+    private boolean workspaceDirOverride;
     private String skillsDir;
     private String cacheDir;
     private String agentFilePath;
@@ -125,6 +126,14 @@ public class AgentRuntimeScope {
 
     public void setWorkspaceDir(String workspaceDir) {
         this.workspaceDir = workspaceDir;
+    }
+
+    public boolean isWorkspaceDirOverride() {
+        return workspaceDirOverride;
+    }
+
+    public void setWorkspaceDirOverride(boolean workspaceDirOverride) {
+        this.workspaceDirOverride = workspaceDirOverride;
     }
 
     public String getSkillsDir() {

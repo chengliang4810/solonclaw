@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -8,30 +9,54 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
+import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
+import com.jimuqu.solon.claw.kanban.KanbanNotificationService;
+import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
 /** scheduler bean configuration. */
 @Configuration
 public class SchedulerConfiguration {
+    @Bean
+    public CronJobService cronJobService(AppConfig appConfig, CronJobRepository cronJobRepository) {
+        return new CronJobService(appConfig, cronJobRepository);
+    }
+
     @Bean(destroyMethod = "shutdown")
     public DefaultCronScheduler defaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
             ConversationOrchestrator conversationOrchestrator,
             DeliveryService deliveryService,
-            GatewayPolicyRepository gatewayPolicyRepository) {
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AttachmentCacheService attachmentCacheService,
+            LocalSkillService localSkillService,
+            AgentRunControlService agentRunControlService,
+            McpRuntimeService mcpRuntimeService) {
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         appConfig,
                         cronJobRepository,
+                        cronJobService,
                         conversationOrchestrator,
                         deliveryService,
-                        gatewayPolicyRepository);
+                        gatewayPolicyRepository,
+                        dangerousCommandApprovalService,
+                        attachmentCacheService,
+                        localSkillService,
+                        agentRunControlService,
+                        mcpRuntimeService);
         scheduler.start();
         return scheduler;
     }
@@ -65,11 +90,32 @@ public class SchedulerConfiguration {
         return scheduler;
     }
 
+    @Bean(destroyMethod = "shutdown")
+    public KanbanNotificationScheduler kanbanNotificationScheduler(
+            AppConfig appConfig, KanbanNotificationService kanbanNotificationService) {
+        KanbanNotificationScheduler scheduler =
+                new KanbanNotificationScheduler(appConfig, kanbanNotificationService);
+        scheduler.start();
+        return scheduler;
+    }
+
     @Bean
     public Object staleRunRecoveryBootstrap(
-            AppConfig appConfig, AgentRunSupervisor agentRunSupervisor) {
+            AppConfig appConfig,
+            AgentRunSupervisor agentRunSupervisor,
+            PendingSessionRecoveryService pendingSessionRecoveryService) {
         long staleAfterMinutes = Math.max(1, appConfig.getTask().getStaleAfterMinutes());
         agentRunSupervisor.recoverStaleRuns(staleAfterMinutes * 60L * 1000L);
+        pendingSessionRecoveryService.recoverRecentPendingSessions();
         return new Object();
+    }
+
+    @Bean
+    public PendingSessionRecoveryService pendingSessionRecoveryService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.core.repository.SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator) {
+        return new PendingSessionRecoveryService(
+                appConfig, sessionRepository, conversationOrchestrator);
     }
 }

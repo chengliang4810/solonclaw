@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import com.jimuqu.solon.claw.core.service.SkillHubService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -19,7 +20,7 @@ public class SkillHubTools {
             @Param(name = "source", description = "来源过滤，可选", required = false) String source,
             @Param(name = "limit", description = "结果条数，默认 10", required = false) Integer limit)
             throws Exception {
-        return ONode.serialize(
+        return safeResult(
                 skillHubService.search(
                         query,
                         source == null ? "all" : source,
@@ -31,7 +32,7 @@ public class SkillHubTools {
             description = "Inspect a remote skill identifier without installing it.")
     public String inspect(@Param(name = "identifier", description = "来源标识符") String identifier)
             throws Exception {
-        return ONode.serialize(skillHubService.inspect(identifier));
+        return safeResult(skillHubService.inspect(identifier));
     }
 
     @ToolMapping(
@@ -43,14 +44,14 @@ public class SkillHubTools {
             @Param(name = "category", description = "可选安装分类", required = false) String category,
             @Param(name = "force", description = "是否强制安装", required = false) Boolean force)
             throws Exception {
-        return ONode.serialize(
+        return safeResult(
                 skillHubService.install(
                         identifier, category, force != null && force.booleanValue()));
     }
 
     @ToolMapping(name = "skills_hub_list", description = "List hub-installed skills.")
     public String list() throws Exception {
-        return ONode.serialize(skillHubService.listInstalled());
+        return safeResult(skillHubService.listInstalled());
     }
 
     @ToolMapping(
@@ -58,7 +59,7 @@ public class SkillHubTools {
             description = "Check hub-installed skills for upstream updates.")
     public String check(@Param(name = "name", description = "可选技能名", required = false) String name)
             throws Exception {
-        return ONode.serialize(skillHubService.check(name));
+        return safeResult(skillHubService.check(name));
     }
 
     @ToolMapping(
@@ -69,7 +70,7 @@ public class SkillHubTools {
             @Param(name = "force", description = "是否允许覆盖 caution 安装限制", required = false)
                     Boolean force)
             throws Exception {
-        return ONode.serialize(skillHubService.update(name, force != null && force.booleanValue()));
+        return safeResult(skillHubService.update(name, force != null && force.booleanValue()));
     }
 
     @ToolMapping(
@@ -77,13 +78,13 @@ public class SkillHubTools {
             description = "Audit installed hub skills with the local skills guard.")
     public String audit(@Param(name = "name", description = "可选技能名", required = false) String name)
             throws Exception {
-        return ONode.serialize(skillHubService.audit(name));
+        return safeResult(skillHubService.audit(name));
     }
 
     @ToolMapping(name = "skills_hub_uninstall", description = "Uninstall a hub-installed skill.")
     public String uninstall(@Param(name = "name", description = "技能名") String name)
             throws Exception {
-        return ONode.serialize(
+        return safeResult(
                 java.util.Collections.singletonMap("message", skillHubService.uninstall(name)));
     }
 
@@ -97,18 +98,24 @@ public class SkillHubTools {
                     String path)
             throws Exception {
         if ("list".equalsIgnoreCase(action)) {
-            return ONode.serialize(skillHubService.listTaps());
+            return safeResult(skillHubService.listTaps());
         }
         if ("add".equalsIgnoreCase(action)) {
-            return ONode.serialize(
+            return safeResult(
                     java.util.Collections.singletonMap(
                             "message", skillHubService.addTap(repo, path)));
         }
         if ("remove".equalsIgnoreCase(action)) {
-            return ONode.serialize(
+            return safeResult(
                     java.util.Collections.singletonMap("message", skillHubService.removeTap(repo)));
         }
-        return new ONode().set("success", false).set("error", "Unsupported tap action").toJson();
+        return SecretRedactor.redact(
+                new ONode().set("success", false).set("error", "Unsupported tap action").toJson(),
+                1000);
+    }
+
+    private String safeResult(Object value) {
+        return SecretRedactor.redact(ONode.serialize(value), 20000);
     }
 
     @RequiredArgsConstructor

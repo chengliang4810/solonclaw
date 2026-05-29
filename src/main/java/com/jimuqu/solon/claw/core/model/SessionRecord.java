@@ -24,8 +24,23 @@ public class SessionRecord {
     /** 模型覆盖配置。 */
     private String modelOverride;
 
+    /** 本轮运行临时 provider 覆盖，不写入持久化存储。 */
+    private transient String transientProviderOverride;
+
+    /** 本轮运行临时模型覆盖，不写入持久化存储。 */
+    private transient String transientModelOverride;
+
+    /** 本轮运行临时 base URL 覆盖，不写入持久化存储。 */
+    private transient String transientBaseUrlOverride;
+
     /** 当前会话后续消息使用的 Agent；空或 default 表示 runtime 根目录默认 Agent。 */
     private String activeAgentName;
+
+    /** 平台侧会话/消息锚点 ID。 */
+    private String platformMessageId;
+
+    /** 会话扩展元数据 JSON。 */
+    private String metadataJson;
 
     /** 会话消息 NDJSON。 */
     private String ndjson;
@@ -41,6 +56,9 @@ public class SessionRecord {
 
     /** ReAct/AgentSession 的 FlowContext 快照 JSON。 */
     private String agentSnapshotJson;
+
+    /** Jimuqu /goal 长目标循环状态 JSON。 */
+    private String goalStateJson;
 
     /** 最近一次学习闭环执行时间。 */
     private long lastLearningAt;

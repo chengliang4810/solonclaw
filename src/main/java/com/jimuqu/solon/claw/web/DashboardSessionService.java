@@ -7,7 +7,9 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import com.jimuqu.solon.claw.goal.GoalState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -24,6 +26,7 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 public class DashboardSessionService {
     private final SessionRepository sessionRepository;
     private final CheckpointService checkpointService;
+    private final SessionArtifactService sessionArtifactService;
 
     public DashboardSessionService(SessionRepository sessionRepository) {
         this(sessionRepository, null);
@@ -31,8 +34,17 @@ public class DashboardSessionService {
 
     public DashboardSessionService(
             SessionRepository sessionRepository, CheckpointService checkpointService) {
+        this(sessionRepository, checkpointService, new SessionArtifactService());
+    }
+
+    public DashboardSessionService(
+            SessionRepository sessionRepository,
+            CheckpointService checkpointService,
+            SessionArtifactService sessionArtifactService) {
         this.sessionRepository = sessionRepository;
         this.checkpointService = checkpointService;
+        this.sessionArtifactService =
+                sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
     }
 
     public Map<String, Object> getSessions(int limit, int offset) throws Exception {
@@ -86,7 +98,7 @@ public class DashboardSessionService {
                                         4000));
 
                         Map<String, Object> toolCall = new LinkedHashMap<String, Object>();
-                        toolCall.put("id", call.getId());
+                        toolCall.put("id", safe(call.getId(), 400));
                         toolCall.put("function", function);
                         toolCalls.add(toolCall);
                     }
@@ -96,24 +108,28 @@ public class DashboardSessionService {
 
             if (message instanceof ToolMessage) {
                 ToolMessage toolMessage = (ToolMessage) message;
-                item.put("tool_name", toolMessage.getName());
-                item.put("tool_call_id", toolMessage.getToolCallId());
+                item.put("tool_name", safe(toolMessage.getName(), 400));
+                item.put("tool_call_id", safe(toolMessage.getToolCallId(), 400));
             }
 
             messages.add(item);
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("session_id", sessionId);
+        result.put("session_id", safe(sessionId, 400));
         result.put(
                 "model",
-                StrUtil.blankToDefault(
-                        record.getLastResolvedModel(),
-                        StrUtil.blankToDefault(record.getModelOverride(), null)));
-        result.put("provider", StrUtil.blankToDefault(record.getLastResolvedProvider(), null));
+                safe(
+                        StrUtil.blankToDefault(
+                                record.getLastResolvedModel(),
+                                StrUtil.blankToDefault(record.getModelOverride(), null)),
+                        400));
+        result.put(
+                "provider",
+                safe(StrUtil.blankToDefault(record.getLastResolvedProvider(), null), 400));
         result.put(
                 "active_agent_name",
-                StrUtil.blankToDefault(record.getActiveAgentName(), "default"));
+                safe(StrUtil.blankToDefault(record.getActiveAgentName(), "default"), 400));
         result.put("input_tokens", record.getCumulativeInputTokens());
         result.put("output_tokens", record.getCumulativeOutputTokens());
         result.put("reasoning_tokens", record.getCumulativeReasoningTokens());
@@ -132,10 +148,52 @@ public class DashboardSessionService {
         result.put("last_compression_at", record.getLastCompressionAt());
         result.put("last_compression_input_tokens", record.getLastCompressionInputTokens());
         result.put("compression_failure_count", record.getCompressionFailureCount());
-        result.put("parent_session_id", record.getParentSessionId());
-        result.put("branch_name", record.getBranchName());
+        result.put("parent_session_id", safe(record.getParentSessionId(), 400));
+        result.put("branch_name", safe(record.getBranchName(), 400));
+        result.put("goal_state", goalState(record));
         result.put("messages", messages);
         return result;
+    }
+
+    public Map<String, Object> recap(String sessionId, int maxExchanges) throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("session_id", safe(sessionId, 400));
+            empty.put("entries", Collections.emptyList());
+            empty.put("text", "当前会话不存在。");
+            return empty;
+        }
+        return sessionArtifactService.recap(record, maxExchanges);
+    }
+
+    public Map<String, Object> trajectory(String sessionId, String userQuery, boolean completed)
+            throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("session_id", safe(sessionId, 400));
+            empty.put("completed", Boolean.valueOf(completed));
+            empty.put("conversations", Collections.emptyList());
+            return empty;
+        }
+        return sessionArtifactService.trajectory(record, userQuery, completed);
+    }
+
+    public Map<String, Object> saveTrajectory(String sessionId, String userQuery, boolean completed)
+            throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("session_id", safe(sessionId, 400));
+            empty.put("saved", Boolean.FALSE);
+            empty.put("error", "当前会话不存在。");
+            return empty;
+        }
+        Map<String, Object> saved =
+                sessionArtifactService.saveTrajectory(record, userQuery, completed);
+        saved.put("saved", Boolean.TRUE);
+        return saved;
     }
 
     public Map<String, Object> searchSessions(String query) throws Exception {
@@ -146,14 +204,16 @@ public class DashboardSessionService {
 
         for (SessionRecord record : sessionRepository.search(query.trim(), 50)) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("session_id", record.getSessionId());
-            item.put("snippet", buildSnippet(record, query));
+            item.put("session_id", safe(record.getSessionId(), 400));
+            item.put("snippet", safe(buildSnippet(record, query), 2000));
             item.put("role", null);
             item.put("source", parseSource(record.getSourceKey()));
             item.put(
                     "model",
-                    StrUtil.blankToDefault(
-                            record.getLastResolvedModel(), record.getModelOverride()));
+                    safe(
+                            StrUtil.blankToDefault(
+                                    record.getLastResolvedModel(), record.getModelOverride()),
+                            400));
             item.put("session_started", record.getCreatedAt());
             results.add(item);
         }
@@ -166,6 +226,25 @@ public class DashboardSessionService {
         return Collections.singletonMap("ok", true);
     }
 
+    public Map<String, Object> updateSession(String sessionId, Map<String, Object> body)
+            throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            throw new IllegalArgumentException("session not found: " + safe(sessionId, 400));
+        }
+        if (body == null || !body.containsKey("title")) {
+            throw new IllegalArgumentException("title is required");
+        }
+        String title = StrUtil.nullToEmpty(String.valueOf(body.get("title"))).trim();
+        if (title.length() > 120) {
+            title = title.substring(0, 120);
+        }
+        record.setTitle(title);
+        record.setUpdatedAt(System.currentTimeMillis());
+        sessionRepository.save(record);
+        return toSessionInfo(sessionRepository.findById(sessionId));
+    }
+
     public Map<String, Object> sessionTree(String sessionId) throws Exception {
         SessionRecord root = sessionRepository.findById(sessionId);
         if (root == null) {
@@ -175,13 +254,73 @@ public class DashboardSessionService {
         List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
         for (SessionRecord record : lineage) {
             Map<String, Object> node = toSessionInfo(record);
-            node.put("parent_session_id", record.getParentSessionId());
-            node.put("branch_name", record.getBranchName());
+            node.put("parent_session_id", safe(record.getParentSessionId(), 400));
+            node.put("branch_name", safe(record.getBranchName(), 400));
             nodes.add(node);
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("root_session_id", sessionId);
+        result.put("root_session_id", safe(sessionId, 400));
         result.put("nodes", nodes);
+        return result;
+    }
+
+    public Map<String, Object> latestDescendant(String sessionId) throws Exception {
+        SessionRecord root = sessionRepository.findById(sessionId);
+        if (root == null) {
+            Map<String, Object> missing = new LinkedHashMap<String, Object>();
+            missing.put("requested_session_id", safe(sessionId, 400));
+            missing.put("session_id", null);
+            missing.put("path", Collections.emptyList());
+            missing.put("changed", Boolean.FALSE);
+            return missing;
+        }
+
+        List<SessionRecord> records = lineageRecords(root);
+        Map<String, List<SessionRecord>> childrenByParent =
+                new LinkedHashMap<String, List<SessionRecord>>();
+        for (SessionRecord record : records) {
+            String parent = record.getParentSessionId();
+            if (StrUtil.isBlank(parent)) {
+                continue;
+            }
+            List<SessionRecord> children = childrenByParent.get(parent);
+            if (children == null) {
+                children = new ArrayList<SessionRecord>();
+                childrenByParent.put(parent, children);
+            }
+            children.add(record);
+        }
+
+        List<String> path = new ArrayList<String>();
+        String current = root.getSessionId();
+        path.add(current);
+        java.util.HashSet<String> seen = new java.util.HashSet<String>();
+        seen.add(current);
+
+        while (childrenByParent.containsKey(current)) {
+            List<SessionRecord> children = childrenByParent.get(current);
+            SessionRecord newest = null;
+            for (SessionRecord candidate : children) {
+                if (seen.contains(candidate.getSessionId())) {
+                    continue;
+                }
+                if (newest == null || candidate.getCreatedAt() > newest.getCreatedAt()) {
+                    newest = candidate;
+                }
+            }
+            if (newest == null) {
+                break;
+            }
+            current = newest.getSessionId();
+            path.add(current);
+            seen.add(current);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("requested_session_id", safe(root.getSessionId(), 400));
+        result.put("session_id", safe(current, 400));
+        result.put("path", safeList(path, 400));
+        result.put("changed", Boolean.valueOf(!root.getSessionId().equals(current)));
         return result;
     }
 
@@ -273,18 +412,22 @@ public class DashboardSessionService {
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("id", record.getSessionId());
+        result.put("id", safe(record.getSessionId(), 400));
         result.put("source", parseSource(record.getSourceKey()));
         result.put(
                 "model",
-                StrUtil.blankToDefault(
-                        record.getLastResolvedModel(),
-                        StrUtil.blankToDefault(record.getModelOverride(), null)));
-        result.put("provider", StrUtil.blankToDefault(record.getLastResolvedProvider(), null));
+                safe(
+                        StrUtil.blankToDefault(
+                                record.getLastResolvedModel(),
+                                StrUtil.blankToDefault(record.getModelOverride(), null)),
+                        400));
+        result.put(
+                "provider",
+                safe(StrUtil.blankToDefault(record.getLastResolvedProvider(), null), 400));
         result.put(
                 "active_agent_name",
-                StrUtil.blankToDefault(record.getActiveAgentName(), "default"));
-        result.put("title", record.getTitle());
+                safe(StrUtil.blankToDefault(record.getActiveAgentName(), "default"), 400));
+        result.put("title", safe(record.getTitle(), 400));
         result.put("started_at", record.getCreatedAt());
         result.put("ended_at", null);
         result.put("last_active", record.getUpdatedAt());
@@ -301,8 +444,9 @@ public class DashboardSessionService {
         result.put("total_tokens", record.getCumulativeTotalTokens());
         result.put("last_total_tokens", record.getLastTotalTokens());
         result.put("last_usage_at", record.getLastUsageAt());
-        result.put("parent_session_id", record.getParentSessionId());
-        result.put("branch_name", record.getBranchName());
+        result.put("parent_session_id", safe(record.getParentSessionId(), 400));
+        result.put("branch_name", safe(record.getBranchName(), 400));
+        result.put("goal_state", goalState(record));
         result.put(
                 "compressed_summary", SecretRedactor.redact(record.getCompressedSummary(), 8000));
         result.put("last_compression_at", record.getLastCompressionAt());
@@ -310,19 +454,39 @@ public class DashboardSessionService {
         result.put("compression_failure_count", record.getCompressionFailureCount());
         result.put(
                 "preview",
-                trim(
-                        StrUtil.blankToDefault(
-                                MessageSupport.getLastUserMessage(record.getNdjson()),
-                                record.getCompressedSummary()),
+                safe(
+                        trim(
+                                StrUtil.blankToDefault(
+                                        MessageSupport.getLastUserMessage(record.getNdjson()),
+                                        record.getCompressedSummary()),
+                                160),
                         160));
+        return result;
+    }
+
+    private Map<String, Object> goalState(SessionRecord record) {
+        GoalState state = GoalState.fromJson(record.getGoalStateJson());
+        if (state == null || GoalState.STATUS_CLEARED.equals(state.getStatus())) {
+            return null;
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("goal", SecretRedactor.redact(state.getGoal(), 2000));
+        result.put("status", state.getStatus());
+        result.put("turns_used", state.getTurnsUsed());
+        result.put("max_turns", state.getMaxTurns());
+        result.put("created_at", state.getCreatedAt());
+        result.put("last_turn_at", state.getLastTurnAt());
+        result.put("last_verdict", state.getLastVerdict());
+        result.put("last_reason", SecretRedactor.redact(state.getLastReason(), 2000));
+        result.put("paused_reason", SecretRedactor.redact(state.getPausedReason(), 1000));
         return result;
     }
 
     private Map<String, Object> toCheckpoint(CheckpointRecord checkpoint) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
-        item.put("checkpoint_id", checkpoint.getCheckpointId());
-        item.put("source_key", checkpoint.getSourceKey());
-        item.put("session_id", checkpoint.getSessionId());
+        item.put("checkpoint_id", safe(checkpoint.getCheckpointId(), 400));
+        item.put("source_key", safe(checkpoint.getSourceKey(), 400));
+        item.put("session_id", safe(checkpoint.getSessionId(), 400));
         item.put("created_at", checkpoint.getCreatedAt());
         item.put("restored_at", checkpoint.getRestoredAt());
         return item;
@@ -367,5 +531,20 @@ public class DashboardSessionService {
             return normalized;
         }
         return normalized.substring(0, limit) + "...";
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
+    }
+
+    private List<String> safeList(List<String> values, int maxLength) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            result.add(safe(value, maxLength));
+        }
+        return result;
     }
 }

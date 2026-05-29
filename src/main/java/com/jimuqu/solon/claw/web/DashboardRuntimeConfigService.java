@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -130,6 +131,48 @@ public class DashboardRuntimeConfigService {
                                 false,
                                 true,
                                 "llm"),
+                        item(
+                                "solonclaw.scheduler.wrapResponse",
+                                "默认包装 Cron 投递回复",
+                                "runtime",
+                                false,
+                                false,
+                                "cron"),
+                        item(
+                                "solonclaw.task.busyPolicy",
+                                "运行中输入策略：queue / steer / interrupt / reject",
+                                "runtime",
+                                false,
+                                false,
+                                "agent"),
+                        item(
+                                "tool_output.max_bytes",
+                                "工具输出内联字节上限",
+                                "runtime",
+                                false,
+                                true,
+                                "agent"),
+                        item(
+                                "tool_output.turn_budget_bytes",
+                                "单轮工具输出累计预算字节",
+                                "runtime",
+                                false,
+                                true,
+                                "agent"),
+                        item(
+                                "tool_output.max_lines",
+                                "工具文件读取最大行数",
+                                "runtime",
+                                false,
+                                true,
+                                "agent"),
+                        item(
+                                "tool_output.max_line_length",
+                                "工具输出单行最大长度",
+                                "runtime",
+                                false,
+                                true,
+                                "agent"),
                         item(
                                 "solonclaw.compression.summaryModel",
                                 "压缩/工作记忆摘要模型",
@@ -444,7 +487,10 @@ public class DashboardRuntimeConfigService {
     }
 
     public Map<String, Object> set(String key, String value, boolean reconnectChannels) {
-        ensureSupported(key);
+        ConfigItemDefinition definition = requireSupported(key);
+        if (definition.password && SecretValueGuard.isPlaceholderSecret(value)) {
+            throw new IllegalArgumentException(key + " 不能使用示例或占位符密钥。");
+        }
         configResolver.setFileValue(key, value);
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();

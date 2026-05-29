@@ -25,4 +25,13 @@ public interface CheckpointService {
 
     /** 预览指定 checkpoint 的文件清单。 */
     Map<String, Object> preview(String checkpointId) throws Exception;
+
+    /** 查看 checkpoint 存储状态。 */
+    Map<String, Object> status(String sourceKey) throws Exception;
+
+    /** 清理当前来源键多余或失效的 checkpoint。 */
+    Map<String, Object> prune(String sourceKey) throws Exception;
+
+    /** 删除当前来源键的全部 checkpoint。 */
+    Map<String, Object> clear(String sourceKey) throws Exception;
 }

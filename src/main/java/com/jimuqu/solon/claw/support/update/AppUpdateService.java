@@ -10,8 +10,8 @@ import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
-import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.util.ArrayList;
@@ -23,17 +23,30 @@ import org.noear.snack4.ONode;
 /** 版本检查与在线更新服务。 */
 public class AppUpdateService {
     private static final long CACHE_TTL_MILLIS = 60L * 60L * 1000L;
+    private static final int MAX_GITHUB_JSON_REDIRECTS = 5;
 
     private final AppConfig appConfig;
     private final AppVersionService versionService;
+    private final SecurityPolicyService securityPolicyService;
     private final ScheduledExecutorService exitExecutor =
             BoundedExecutorFactory.scheduled("self-update-exit", 1);
     private volatile String lastErrorMessage;
     private volatile long lastErrorAt;
 
     public AppUpdateService(AppConfig appConfig, AppVersionService versionService) {
+        this(appConfig, versionService, null);
+    }
+
+    public AppUpdateService(
+            AppConfig appConfig,
+            AppVersionService versionService,
+            SecurityPolicyService securityPolicyService) {
         this.appConfig = appConfig;
         this.versionService = versionService;
+        this.securityPolicyService =
+                securityPolicyService == null
+                        ? new SecurityPolicyService(appConfig)
+                        : securityPolicyService;
     }
 
     public VersionStatus getVersionStatus(boolean forceRefresh) {
@@ -189,7 +202,7 @@ public class AppUpdateService {
 
             return UpdateResult.ok("已开始在线升级到 " + status.getLatestTag() + "，应用将在几秒后自动重启。");
         } catch (Exception e) {
-            return UpdateResult.error("启动在线升级失败：" + e.getMessage());
+            return UpdateResult.error("启动在线升级失败：" + safeError(e));
         }
     }
 
@@ -273,10 +286,18 @@ public class AppUpdateService {
     protected void downloadAsset(String assetUrl, File target) {
         ensureTrustedUpdateAssetUrl(assetUrl);
         BoundedAttachmentIO.downloadHutoolToFile(
-                assetUrl, target, 60000, BoundedAttachmentIO.UPDATE_JAR_MAX_BYTES);
+                assetUrl,
+                target,
+                60000,
+                BoundedAttachmentIO.UPDATE_JAR_MAX_BYTES,
+                updateAssetSecurityPolicy());
     }
 
-    private void ensureTrustedUpdateAssetUrl(String assetUrl) {
+    protected SecurityPolicyService updateAssetSecurityPolicy() {
+        return new TrustedUpdateAssetSecurityPolicyService(appConfig);
+    }
+
+    protected void ensureTrustedUpdateAssetUrl(String assetUrl) {
         try {
             URI uri = URI.create(assetUrl);
             String scheme = uri.getScheme();
@@ -285,10 +306,7 @@ public class AppUpdateService {
                 throw new IllegalArgumentException("Update asset URL must be HTTPS");
             }
             String normalizedHost = host.toLowerCase();
-            if (!("github.com".equals(normalizedHost)
-                    || "api.github.com".equals(normalizedHost)
-                    || "objects.githubusercontent.com".equals(normalizedHost)
-                    || normalizedHost.endsWith(".githubusercontent.com"))) {
+            if (!isTrustedUpdateAssetHost(normalizedHost)) {
                 throw new IllegalArgumentException(
                         "Update asset URL host is not trusted: " + normalizedHost);
             }
@@ -296,6 +314,45 @@ public class AppUpdateService {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid update asset URL");
+        }
+    }
+
+    protected boolean isTrustedUpdateAssetHost(String normalizedHost) {
+        return "github.com".equals(normalizedHost)
+                || "api.github.com".equals(normalizedHost)
+                || "objects.githubusercontent.com".equals(normalizedHost)
+                || "release-assets.githubusercontent.com".equals(normalizedHost)
+                || "github-releases.githubusercontent.com".equals(normalizedHost)
+                || normalizedHost.endsWith(".githubusercontent.com");
+    }
+
+    private class TrustedUpdateAssetSecurityPolicyService extends SecurityPolicyService {
+        private TrustedUpdateAssetSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            UrlVerdict verdict = super.checkUrl(url);
+            if (!verdict.isAllowed()) {
+                return verdict;
+            }
+            try {
+                URI uri = URI.create(url);
+                String scheme = uri.getScheme();
+                String host = uri.getHost();
+                if (!"https".equalsIgnoreCase(scheme) || StrUtil.isBlank(host)) {
+                    return UrlVerdict.block(url, "Update asset URL must be HTTPS");
+                }
+                String normalizedHost = host.toLowerCase();
+                if (!isTrustedUpdateAssetHost(normalizedHost)) {
+                    return UrlVerdict.block(
+                            url, "Update asset URL host is not trusted: " + normalizedHost);
+                }
+                return UrlVerdict.allow();
+            } catch (Exception e) {
+                return UrlVerdict.block(url, "Invalid update asset URL");
+            }
         }
     }
 
@@ -314,14 +371,27 @@ public class AppUpdateService {
     }
 
     protected ApiFetchResult executeGithubJson(String url) {
+        return executeGithubJson(url, 0, url);
+    }
+
+    private ApiFetchResult executeGithubJson(String url, int redirectCount, String initialUrl) {
         ApiFetchResult result = new ApiFetchResult();
         result.setUrl(url);
         try {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            if (!verdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        "GitHub API URL blocked: "
+                                + SecretRedactor.maskUrl(url)
+                                + "，"
+                                + verdict.getMessage());
+            }
             HttpRequest request =
                     HttpRequest.get(url)
                             .header(Header.ACCEPT, "application/vnd.github+json")
                             .header(Header.USER_AGENT, "solon-claw")
-                            .timeout(5000);
+                            .timeout(5000)
+                            .setFollowRedirects(false);
             Proxy proxy = resolveProxy();
             if (proxy != null) {
                 request.setProxy(proxy);
@@ -331,11 +401,23 @@ public class AppUpdateService {
                             RuntimeConfigResolver.getValue("solonclaw.integrations.github.token"),
                             RuntimeConfigResolver.getValue(
                                     "solonclaw.integrations.github.cliToken"));
-            if (StrUtil.isNotBlank(token)) {
+            if (StrUtil.isNotBlank(token) && sameOrigin(initialUrl, url)) {
                 request.header(Header.AUTHORIZATION, "Bearer " + token.trim());
             }
             HttpResponse response = request.execute();
             try {
+                if (isRedirect(response.getStatus())) {
+                    if (redirectCount >= MAX_GITHUB_JSON_REDIRECTS) {
+                        throw new IllegalStateException("GitHub API redirect count exceeds limit");
+                    }
+                    String location = response.header("Location");
+                    if (StrUtil.isBlank(location)) {
+                        throw new IllegalStateException("GitHub API redirect missing Location");
+                    }
+                    String redirectUrl = resolveRedirectUrl(url, location);
+                    response.close();
+                    return executeGithubJson(redirectUrl, redirectCount + 1, initialUrl);
+                }
                 result.setStatusCode(response.getStatus());
                 result.setBody(
                         BoundedAttachmentIO.readHutoolText(
@@ -349,6 +431,44 @@ public class AppUpdateService {
                     e.getClass().getSimpleName() + ": " + SecretRedactor.redact(e.getMessage()));
         }
         return result;
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private String resolveRedirectUrl(String baseUrl, String location) {
+        try {
+            return URI.create(baseUrl).resolve(location.trim()).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "GitHub API redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
+        }
+    }
+
+    private boolean sameOrigin(String initialUrl, String url) {
+        try {
+            URI initial = URI.create(initialUrl);
+            URI current = URI.create(url);
+            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
+                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
+                    && effectivePort(initial) == effectivePort(current);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
     }
 
     protected ReleaseInfo parseReleaseInfo(String body) {
@@ -379,7 +499,7 @@ public class AppUpdateService {
             }
             return releaseInfo;
         } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+            setLastError(e.getClass().getSimpleName() + ": " + safeError(e));
             return null;
         }
     }
@@ -405,7 +525,7 @@ public class AppUpdateService {
             releaseInfo.setSource("tag");
             return releaseInfo;
         } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+            setLastError(e.getClass().getSimpleName() + ": " + safeError(e));
             return null;
         }
     }
@@ -418,9 +538,22 @@ public class AppUpdateService {
             return prefix + "，" + result.getErrorMessage();
         }
         if (result.getStatusCode() > 0) {
-            return prefix + "，HTTP " + result.getStatusCode();
+            String body = safeErrorBody(result.getBody());
+            return prefix
+                    + "，HTTP "
+                    + result.getStatusCode()
+                    + (StrUtil.isBlank(body) ? "" : " " + body);
         }
         return prefix + "，未知错误";
+    }
+
+    private String safeErrorBody(String body) {
+        String text =
+                SecretRedactor.redact(StrUtil.nullToEmpty(body), 1000)
+                        .replace('\n', ' ')
+                        .replace('\r', ' ')
+                        .trim();
+        return text.length() > 240 ? text.substring(0, 240) + "..." : text;
     }
 
     private Proxy resolveProxy() {
@@ -429,23 +562,23 @@ public class AppUpdateService {
             return null;
         }
         try {
-            URI uri = URI.create(proxyUrl);
-            String host = uri.getHost();
-            int port = uri.getPort();
-            if (StrUtil.isBlank(host) || port <= 0) {
-                setLastError("更新代理地址无效: " + proxyUrl);
-                return null;
-            }
-            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, port));
+            return ProxyUrlSupport.parseProxy(proxyUrl);
         } catch (Exception e) {
-            setLastError("更新代理地址解析失败: " + proxyUrl);
+            setLastError("更新代理地址解析失败: " + SecretRedactor.maskUrl(proxyUrl) + "，" + safeError(e));
             return null;
         }
     }
 
     private void setLastError(String message) {
-        this.lastErrorMessage = StrUtil.nullToEmpty(message).trim();
+        this.lastErrorMessage = SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000).trim();
         this.lastErrorAt = System.currentTimeMillis();
+    }
+
+    private String safeError(Exception e) {
+        if (e == null) {
+            return "Exception";
+        }
+        return SecretRedactor.redact(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     private void clearLastError() {
@@ -479,7 +612,7 @@ public class AppUpdateService {
         }
 
         public static UpdateResult error(String message) {
-            return new UpdateResult(true, message);
+            return new UpdateResult(true, SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
         }
 
         public boolean isError() {

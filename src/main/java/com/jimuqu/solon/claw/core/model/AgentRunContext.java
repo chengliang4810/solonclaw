@@ -17,9 +17,12 @@ public class AgentRunContext {
     private final String sourceKey;
     private String workspaceDir;
     private String phase;
+    private String runKind;
+    private String parentRunId;
     private int attemptNo;
     private String provider;
     private String model;
+    private java.util.List<MessageAttachment> userAttachments;
 
     public AgentRunContext(
             AgentRunRepository repository, String runId, String sessionId, String sourceKey) {
@@ -77,6 +80,36 @@ public class AgentRunContext {
 
     public void setPhase(String phase) {
         this.phase = phase;
+    }
+
+    public String getRunKind() {
+        return runKind;
+    }
+
+    public void setRunKind(String runKind) {
+        this.runKind = runKind;
+    }
+
+    public String getParentRunId() {
+        return parentRunId;
+    }
+
+    public void setParentRunId(String parentRunId) {
+        this.parentRunId = parentRunId;
+    }
+
+    public java.util.List<MessageAttachment> getUserAttachments() {
+        return userAttachments == null
+                ? java.util.Collections.<MessageAttachment>emptyList()
+                : userAttachments;
+    }
+
+    public void setUserAttachments(java.util.List<MessageAttachment> userAttachments) {
+        if (userAttachments == null || userAttachments.isEmpty()) {
+            this.userAttachments = null;
+        } else {
+            this.userAttachments = new java.util.ArrayList<MessageAttachment>(userAttachments);
+        }
     }
 
     public void event(String eventType, String summary) {

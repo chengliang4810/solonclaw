@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
@@ -18,9 +19,11 @@ import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +50,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS);
 
@@ -57,22 +61,53 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.FILE_WRITE,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
+                    ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.TERMINAL,
+                    ToolNameConstants.PROCESS,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
                     ToolNameConstants.TODO,
+                    ToolNameConstants.AGENT_MANAGE,
                     ToolNameConstants.DELEGATE_TASK,
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SESSION_SEARCH,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
+                    ToolNameConstants.SKILLS_HUB_SEARCH,
+                    ToolNameConstants.SKILLS_HUB_INSPECT,
+                    ToolNameConstants.SKILLS_HUB_INSTALL,
+                    ToolNameConstants.SKILLS_HUB_LIST,
+                    ToolNameConstants.SKILLS_HUB_CHECK,
+                    ToolNameConstants.SKILLS_HUB_UPDATE,
+                    ToolNameConstants.SKILLS_HUB_AUDIT,
+                    ToolNameConstants.SKILLS_HUB_UNINSTALL,
+                    ToolNameConstants.SKILLS_HUB_TAP,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
+                    ToolNameConstants.KANBAN_SHOW,
+                    ToolNameConstants.KANBAN_COMPLETE,
+                    ToolNameConstants.KANBAN_BLOCK,
+                    ToolNameConstants.KANBAN_HEARTBEAT,
+                    ToolNameConstants.KANBAN_STEP,
+                    ToolNameConstants.KANBAN_COMMENT,
+                    ToolNameConstants.KANBAN_CREATE,
+                    ToolNameConstants.KANBAN_LINK,
+                    ToolNameConstants.KANBAN_UNLINK,
+                    ToolNameConstants.CONFIG_GET,
+                    ToolNameConstants.CONFIG_SET,
+                    ToolNameConstants.CONFIG_SET_SECRET,
+                    ToolNameConstants.CONFIG_REFRESH,
+                    ToolNameConstants.TOOL_GATEWAY,
+                    ToolNameConstants.MCP,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
-                    ToolNameConstants.WEBFETCH);
+                    ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.SECURITY_AUDIT,
+                    ToolNameConstants.CLARIFY);
 
     /** 对话编排器。 */
     private final ConversationOrchestratorHolder conversationHolder;
@@ -95,7 +130,7 @@ public class DefaultDelegationService implements DelegationService {
 
     private final Semaphore concurrencyLimiter;
 
-    /** Hermes 风格暂停新子代理 spawn。 */
+    /** Jimuqu 风格暂停新子代理 spawn。 */
     private volatile boolean spawnPaused;
 
     public DefaultDelegationService(
@@ -186,7 +221,11 @@ public class DefaultDelegationService implements DelegationService {
             String subagentId = "sa-" + IdSupport.newId();
             String childSourceKey = sourceKey + ":delegate:" + IdSupport.newId();
             cloneToolVisibility(sourceKey, childSourceKey);
-            applyAllowedTools(childSourceKey, task == null ? null : task.getAllowedTools());
+            applyAllowedTools(
+                    sourceKey,
+                    childSourceKey,
+                    task == null ? null : task.getAllowedTools(),
+                    task == null ? null : task.getToolsets());
             applyBlockedTools(childSourceKey);
             prepareChildSession(childSourceKey, parentSession);
 
@@ -218,7 +257,11 @@ public class DefaultDelegationService implements DelegationService {
             }
             return result;
         } catch (Exception e) {
-            log.warn("delegateSingle failed: sourceKey={}, prompt={}", sourceKey, prompt, e);
+            log.warn(
+                    "delegateSingle failed: sourceKey={}, prompt={}, error={}",
+                    sourceKey,
+                    SecretRedactor.redact(prompt, 1000),
+                    safeError(e));
             return failureResult("delegate", e.getMessage());
         } finally {
             concurrencyLimiter.release();
@@ -304,7 +347,10 @@ public class DefaultDelegationService implements DelegationService {
                 try {
                     results.add(future.get());
                 } catch (Exception e) {
-                    log.warn("delegateBatch child failed: sourceKey={}", sourceKey, e);
+                    log.warn(
+                            "delegateBatch child failed: sourceKey={}, error={}",
+                            sourceKey,
+                            safeError(e));
                     results.add(failureResult("delegate", e.getMessage()));
                 }
             }
@@ -330,17 +376,31 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
-    private void applyAllowedTools(String childSourceKey, List<String> allowedTools)
+    private void applyAllowedTools(
+            String parentSourceKey,
+            String childSourceKey,
+            List<String> allowedTools,
+            List<String> toolsets)
             throws Exception {
-        if (allowedTools == null || allowedTools.isEmpty()) {
+        LinkedHashSet<String> requested = new LinkedHashSet<String>();
+        if (allowedTools != null) {
+            for (String toolName : allowedTools) {
+                if (StrUtil.isNotBlank(toolName)) {
+                    requested.add(toolName.trim());
+                }
+            }
+        }
+        requested.addAll(AgentRuntimePolicy.expandToolSelectors(toolsets));
+        if (requested.isEmpty()) {
             return;
         }
         for (String toolName : ALL_TOOLS) {
             preferenceStore.setToolEnabled(childSourceKey, toolName, false);
         }
-        for (String toolName : allowedTools) {
-            if (toolName != null && ALL_TOOLS.contains(toolName.trim())) {
-                preferenceStore.setToolEnabled(childSourceKey, toolName.trim(), true);
+        for (String toolName : requested) {
+            String normalized = StrUtil.nullToEmpty(toolName).trim();
+            if (ALL_TOOLS.contains(normalized) && preferenceStore.isToolEnabled(parentSourceKey, normalized)) {
+                preferenceStore.setToolEnabled(childSourceKey, normalized, true);
             }
         }
     }
@@ -386,8 +446,19 @@ public class DefaultDelegationService implements DelegationService {
         DelegationResult result = new DelegationResult();
         result.setName(StrUtil.blankToDefault(name, "delegate"));
         result.setError(true);
-        result.setContent(StrUtil.blankToDefault(message, "delegation failed"));
+        result.setContent(
+                SecretRedactor.redact(
+                        StrUtil.blankToDefault(message, "delegation failed"), 1000));
         return result;
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()),
+                1000);
     }
 
     private SubagentRunRecord startSubagent(

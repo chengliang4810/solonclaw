@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.ContextBudgetDecision;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
@@ -27,9 +28,13 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -46,7 +51,7 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** OpenClaw 风格的外层 Agent run 状态机。 */
+/** SolonClaw 风格的外层 Agent run 状态机。 */
 @RequiredArgsConstructor
 public class AgentRunSupervisor implements AgentRunControlService {
     private static final Logger log = LoggerFactory.getLogger(AgentRunSupervisor.class);
@@ -92,6 +97,71 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     @Override
+    public Map<String, Object> activeRunSummary(String sourceKey) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null) {
+            return null;
+        }
+        try {
+            AgentRunRecord record = agentRunRepository.findRun(handle.runId);
+            if (record == null) {
+                return null;
+            }
+            long now = System.currentTimeMillis();
+            long lastActivityAt =
+                    record.getLastActivityAt() > 0 ? record.getLastActivityAt() : record.getStartedAt();
+            Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+            summary.put("run_id", record.getRunId());
+            summary.put("session_id", record.getSessionId());
+            summary.put("source_key", record.getSourceKey());
+            summary.put("status", record.getStatus());
+            summary.put("phase", record.getPhase());
+            summary.put("last_activity_at", Long.valueOf(lastActivityAt));
+            summary.put(
+                    "seconds_since_activity",
+                    Long.valueOf(Math.max(0L, (now - lastActivityAt) / 1000L)));
+            summary.put("last_activity_desc", lastActivityDescription(record));
+            summary.put("tool_call_count", Integer.valueOf(record.getToolCallCount()));
+            summary.put("attempts", Integer.valueOf(record.getAttempts()));
+            return summary;
+        } catch (Exception e) {
+            log.debug("activeRunSummary failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            return null;
+        }
+    }
+
+    @Override
+    public int stopAllRunningRuns() {
+        return stopAllRunningRuns(null);
+    }
+
+    @Override
+    public int stopAllRunningRuns(String resumeReason) {
+        int stopped = 0;
+        for (String sourceKey : new ArrayList<String>(runningRuns.keySet())) {
+            if (StrUtil.isNotBlank(resumeReason)) {
+                markSessionResumePending(sourceKey, resumeReason);
+            }
+            if (stop(sourceKey).isActiveRun()) {
+                stopped++;
+            }
+        }
+        return stopped;
+    }
+
+    private String lastActivityDescription(AgentRunRecord record) {
+        if (record == null) {
+            return "unknown";
+        }
+        String phase = StrUtil.blankToDefault(record.getPhase(), "running");
+        if (StrUtil.isNotBlank(record.getModel())) {
+            return phase + " " + record.getProvider() + "/" + record.getModel();
+        }
+        return phase;
+    }
+
+    @Override
     public RunBusyDecision coordinateIncoming(
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
         String key = normalizeSourceKey(sourceKey);
@@ -103,6 +173,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
         AgentRunRecord runningRecord = agentRunRepository.findRun(handle.runId);
         if (runningRecord != null && runningRecord.isBackgrounded()) {
             return RunBusyDecision.runNow(policy);
+        }
+        if (message != null && message.isHeartbeat()) {
+            if (runningRecord != null) {
+                heartbeat(runningRecord);
+                agentRunRepository.saveRun(runningRecord);
+                appendRunEvent(
+                        runningRecord,
+                        "run.heartbeat",
+                        "收到 heartbeat，当前 run 保持活跃，不按 busy 策略打断或排队",
+                        null);
+            }
+            RunBusyDecision decision = new RunBusyDecision();
+            decision.setPolicy(policy);
+            decision.setStatus("heartbeat");
+            decision.setRunId(handle.runId);
+            decision.setMessage("HEARTBEAT_OK");
+            return decision;
         }
         if ("interrupt".equals(policy)) {
             AgentRunRecord active = runningRecord;
@@ -158,6 +245,52 @@ public class AgentRunSupervisor implements AgentRunControlService {
         decision.setQueueId(queued.getQueueId());
         decision.setQueued(true);
         decision.setMessage("当前会话已有任务在运行，新消息已排队。");
+        return decision;
+    }
+
+    @Override
+    public RunBusyDecision queueIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        String key = normalizeSourceKey(sourceKey);
+        QueuedRunMessage queued = queueMessage(key, sessionId, message, "queue");
+        RunBusyDecision decision = new RunBusyDecision();
+        decision.setPolicy("queue");
+        decision.setStatus("queued");
+        decision.setRunId(queued.getRunId());
+        decision.setQueueId(queued.getQueueId());
+        decision.setQueued(true);
+        decision.setMessage("已加入下一轮队列。");
+        return decision;
+    }
+
+    @Override
+    public RunBusyDecision steerIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null || handle.cancelled.get()) {
+            return RunBusyDecision.runNow("steer");
+        }
+        AgentRunRecord runningRecord = agentRunRepository.findRun(handle.runId);
+        if (runningRecord != null && runningRecord.isBackgrounded()) {
+            return RunBusyDecision.runNow("steer");
+        }
+        String text = message == null ? "" : message.getText();
+        recordCommand(
+                handle.runId,
+                key,
+                "steer",
+                "{\"instruction\":\"" + escapeJson(AgentRunContext.safe(text, 2000)) + "\"}",
+                "pending");
+        AgentRunRecord active = agentRunRepository.findRun(handle.runId);
+        if (active != null) {
+            appendRunEvent(active, "run.steer", "收到 /steer 指令，下一轮模型调用前注入", null);
+        }
+        RunBusyDecision decision = new RunBusyDecision();
+        decision.setPolicy("steer");
+        decision.setStatus("steered");
+        decision.setRunId(handle.runId);
+        decision.setMessage("已将 steer 指令注入当前任务。");
         return decision;
     }
 
@@ -282,6 +415,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     @Override
+    public int runningRunCount() {
+        return runningRuns.size();
+    }
+
+    @Override
     public long lastRunFinishedAt() {
         return lastRunFinishedAt;
     }
@@ -308,6 +446,29 @@ public class AgentRunSupervisor implements AgentRunControlService {
             ConversationEventSink eventSink,
             boolean resume,
             AgentRuntimeScope agentScope)
+            throws Exception {
+        return run(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                Collections.<MessageAttachment>emptyList());
+    }
+
+    public AgentRunOutcome run(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments)
             throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
@@ -337,7 +498,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runRecord.setAgentSnapshotJson(agentScope.getSnapshotJson());
         runRecord.setStatus("running");
         runRecord.setPhase("queued");
-        runRecord.setBusyPolicy("queue");
+        runRecord.setBusyPolicy(normalizeBusyPolicy(appConfig.getTask().getBusyPolicy()));
         runRecord.setInputPreview(AgentRunContext.safe(userMessage, 1000));
         if (runRecord.getQueuedAt() <= 0) {
             runRecord.setQueuedAt(now);
@@ -353,6 +514,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         runRecord.getRunId(),
                         session.getSessionId(),
                         session.getSourceKey());
+        runContext.setRunKind(runRecord.getRunKind());
+        runContext.setParentRunId(runRecord.getParentRunId());
+        runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
         RunHandle runHandle =
                 registerRun(
@@ -470,8 +634,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             eventSink,
                                             runContext);
                             checkCancellation(session.getSourceKey());
-                            if (recovered != null) {
+                            if (hasUsableRecoveryReply(recovered)) {
                                 mergeUsage(result, recovered);
+                                applyRecoveredTranscript(result, recovered);
                                 result = recovered;
                                 currentReply = extractText(recovered.getAssistantMessage());
                             }
@@ -495,6 +660,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             checkCancellation(session.getSourceKey());
                             if (hasUsableRecoveryReply(recovered)) {
                                 mergeUsage(result, recovered);
+                                applyRecoveredTranscript(result, recovered);
                                 result = recovered;
                                 currentReply = extractText(recovered.getAssistantMessage());
                             } else {
@@ -530,11 +696,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         }
                         updateRunPhase(runRecord, "retry");
                         lastError = e;
+                        String errorMessage = safeError(e);
                         eventSink.onAttemptCompleted(
-                                runRecord.getRunId(), attemptNo, "error", e.getMessage());
+                                runRecord.getRunId(), attemptNo, "error", errorMessage);
                         runContext.event(
                                 "attempt.error",
-                                "第 " + attemptNo + " 次尝试失败：" + e.getMessage(),
+                                "第 " + attemptNo + " 次尝试失败：" + errorMessage,
                                 errorMetadata(e, resolved, attemptNo, candidateIndex));
                         if (classifyRetryable(e) && attempt < maxAttempts) {
                             continue;
@@ -555,7 +722,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             runRecord.getRunId(),
                             previousProvider,
                             next.getProvider(),
-                            lastError == null ? "empty response" : lastError.getMessage());
+                            lastError == null ? "empty response" : safeError(lastError));
                     runContext.event(
                             "fallback",
                             "切换 fallback provider："
@@ -572,7 +739,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 runRecord.setExitReason("failed");
                 runRecord.setFinishedAt(System.currentTimeMillis());
                 runRecord.setError(
-                        lastError == null ? "LLM execution failed" : lastError.getMessage());
+                        lastError == null ? "LLM execution failed" : safeError(lastError));
                 agentRunRepository.saveRun(runRecord);
                 runContext.event("run.failed", runRecord.getError());
                 if (lastError instanceof Exception) {
@@ -619,12 +786,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runRecord.setPhase("cancelled");
             runRecord.setExitReason("cancelled");
             runRecord.setFinishedAt(System.currentTimeMillis());
-            runRecord.setError(e.getMessage());
+            runRecord.setError(safeError(e));
             heartbeat(runRecord);
             agentRunRepository.saveRun(runRecord);
-            runContext.event("run.cancelled", e.getMessage());
+            runContext.event("run.cancelled", safeError(e));
             throw e;
         } finally {
+            SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
             unregisterRun(session.getSourceKey(), runHandle);
             AgentRunContext.setCurrent(previousContext);
             if (runHandle.cancelled.get()) {
@@ -714,7 +882,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             AgentRunContext runContext) {
+        java.util.List<MessageAttachment> previousAttachments =
+                runContext == null
+                        ? Collections.<MessageAttachment>emptyList()
+                        : runContext.getUserAttachments();
         try {
+            if (runContext != null) {
+                runContext.setUserAttachments(Collections.<MessageAttachment>emptyList());
+            }
             return llmGateway.executeOnce(
                     session,
                     systemPrompt,
@@ -726,9 +901,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     resolved,
                     runContext);
         } catch (Exception e) {
-            runContext.event("recovery.error", e.getMessage());
-            log.warn("Agent recovery failed: sessionId={}", session.getSessionId(), e);
+            String error = safeError(e);
+            runContext.event("recovery.error", error);
+            log.warn("Agent recovery failed: sessionId={}, error={}", session.getSessionId(), error);
             return null;
+        } finally {
+            if (runContext != null) {
+                runContext.setUserAttachments(previousAttachments);
+            }
         }
     }
 
@@ -853,6 +1033,38 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return StrUtil.isNotBlank(text) && !isMaxStepsReply(text);
     }
 
+    private void applyRecoveredTranscript(LlmResult base, LlmResult recovered) {
+        if (base == null || recovered == null || recovered.getAssistantMessage() == null) {
+            return;
+        }
+        try {
+            List<ChatMessage> messages = MessageSupport.loadMessages(base.getNdjson());
+            dropTransientAssistantTail(messages);
+            MessageSupport.repairMessageSequence(messages);
+            messages.add(ChatMessage.ofAssistant(extractText(recovered.getAssistantMessage())));
+            recovered.setNdjson(MessageSupport.toNdjson(messages));
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to sanitize recovery transcript; using model transcript: error={}",
+                    safeError(e));
+        }
+    }
+
+    private void dropTransientAssistantTail(List<ChatMessage> messages) {
+        while (!messages.isEmpty()) {
+            ChatMessage message = messages.get(messages.size() - 1);
+            if (message.getRole() != ChatRole.ASSISTANT) {
+                return;
+            }
+            String content = StrUtil.nullToEmpty(message.getContent());
+            if (StrUtil.isBlank(content) || isMaxStepsReply(content)) {
+                messages.remove(messages.size() - 1);
+                continue;
+            }
+            return;
+        }
+    }
+
     private boolean isMaxStepsReply(String replyText) {
         if (StrUtil.isBlank(replyText)) {
             return false;
@@ -888,7 +1100,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         metadata.put("retryable", Boolean.valueOf(classified.isRetryable()));
         metadata.put("should_fallback", Boolean.valueOf(classified.isShouldFallback()));
         metadata.put("should_compress", Boolean.valueOf(classified.isShouldCompress()));
-        metadata.put("error", error == null ? "" : error.getMessage());
+        metadata.put("error", safeError(error));
         return metadata;
     }
 
@@ -904,7 +1116,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         metadata.put("status_code", Integer.valueOf(classified.getStatusCode()));
         metadata.put("retryable", Boolean.valueOf(classified.isRetryable()));
         metadata.put("should_compress", Boolean.valueOf(classified.isShouldCompress()));
-        metadata.put("error", lastError == null ? "empty response" : lastError.getMessage());
+        metadata.put("error", lastError == null ? "empty response" : safeError(lastError));
         return metadata;
     }
 
@@ -980,6 +1192,24 @@ public class AgentRunSupervisor implements AgentRunControlService {
         lastRunFinishedAt = System.currentTimeMillis();
     }
 
+    private void markSessionResumePending(String sourceKey, String resumeReason) {
+        if (StrUtil.isBlank(sourceKey) || StrUtil.isBlank(resumeReason)) {
+            return;
+        }
+        try {
+            SessionRecord session = sessionRepository.getBoundSession(sourceKey);
+            if (session == null) {
+                return;
+            }
+            SqliteAgentSession agentSession =
+                    new SqliteAgentSession(session, sessionRepository);
+            agentSession.pending(true, resumeReason);
+            agentSession.updateSnapshot();
+        } catch (Exception e) {
+            log.warn("mark resume pending failed: sourceKey={}, error={}", sourceKey, safeError(e));
+        }
+    }
+
     public void recoverStaleRuns(long staleAfterMillis) {
         if (agentRunRepository == null) {
             return;
@@ -989,7 +1219,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         try {
             agentRunRepository.markStaleRuns(before, now);
         } catch (Exception e) {
-            log.warn("recoverStaleRuns failed", e);
+            log.warn("recoverStaleRuns failed: error={}", safeError(e));
         }
     }
 
@@ -1131,7 +1361,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             try {
                 queued = agentRunRepository.findNextQueuedMessage(sourceKey, sessionId);
             } catch (Exception e) {
-                log.warn("find queued run failed: sourceKey={}", sourceKey, e);
+                log.warn("find queued run failed: sourceKey={}, error={}", sourceKey, safeError(e));
                 return;
             }
             if (queued == null) {
@@ -1140,17 +1370,74 @@ public class AgentRunSupervisor implements AgentRunControlService {
             try {
                 agentRunRepository.markQueuedMessage(
                         queued.getQueueId(), "running", System.currentTimeMillis(), null);
-                runner.apply(deserializeMessage(queued));
+                markQueuedRunStarted(queued);
+                GatewayReply reply = runner.apply(deserializeMessage(queued));
                 agentRunRepository.markQueuedMessage(
                         queued.getQueueId(), "success", System.currentTimeMillis(), null);
+                markQueuedRunFinished(queued, "success", reply == null ? null : reply.getContent(), null);
             } catch (Exception e) {
                 try {
                     agentRunRepository.markQueuedMessage(
-                            queued.getQueueId(), "failed", System.currentTimeMillis(), e.getMessage());
+                            queued.getQueueId(), "failed", System.currentTimeMillis(), safeError(e));
                 } catch (Exception ignored) {
                 }
-                log.warn("queued run failed: queueId={}", queued.getQueueId(), e);
+                markQueuedRunFinished(queued, "failed", null, safeError(e));
+                log.warn("queued run failed: queueId={}, error={}", queued.getQueueId(), safeError(e));
             }
+        }
+    }
+
+    private void markQueuedRunStarted(QueuedRunMessage queued) {
+        try {
+            AgentRunRecord record =
+                    queued == null || StrUtil.isBlank(queued.getRunId())
+                            ? null
+                            : agentRunRepository.findRun(queued.getRunId());
+            if (record == null) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            record.setStatus("running");
+            record.setPhase("running");
+            record.setStartedAt(now);
+            record.setHeartbeatAt(now);
+            record.setLastActivityAt(now);
+            record.setExitReason(null);
+            record.setError(null);
+            agentRunRepository.saveRun(record);
+            appendRunEvent(record, "run.queue.start", "开始执行 busy 队列消息", null);
+        } catch (Exception e) {
+            log.warn("mark queued run start failed: error={}", safeError(e));
+        }
+    }
+
+    private void markQueuedRunFinished(
+            QueuedRunMessage queued, String status, String finalReply, String error) {
+        try {
+            AgentRunRecord record =
+                    queued == null || StrUtil.isBlank(queued.getRunId())
+                            ? null
+                            : agentRunRepository.findRun(queued.getRunId());
+            if (record == null) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            boolean success = "success".equals(status);
+            record.setStatus(success ? "success" : "failed");
+            record.setPhase(success ? "completed" : "failed");
+            record.setFinishedAt(now);
+            record.setLastActivityAt(now);
+            record.setExitReason(status);
+            record.setFinalReplyPreview(AgentRunContext.safe(finalReply, 1000));
+            record.setError(error);
+            agentRunRepository.saveRun(record);
+            appendRunEvent(
+                    record,
+                    success ? "run.queue.success" : "run.queue.failed",
+                    success ? "busy 队列消息执行完成" : "busy 队列消息执行失败",
+                    null);
+        } catch (Exception e) {
+            log.warn("mark queued run finish failed: error={}", safeError(e));
         }
     }
 
@@ -1196,8 +1483,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             event.setEventType(eventType);
             event.setPhase(record.getPhase());
             event.setSeverity(eventType != null && eventType.contains("reject") ? "warn" : "info");
-            event.setSummary(AgentRunContext.safe(summary, 1000));
-            event.setMetadataJson(metadataJson);
+            event.setSummary(safeText(summary));
+            event.setMetadataJson(
+                    metadataJson == null ? null : SecretRedactor.redact(metadataJson, 4000));
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
         } catch (Exception ignored) {
@@ -1209,6 +1497,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "";
+        }
+        return safeText(StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()));
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(AgentRunContext.safe(value, 1000), 1000);
     }
 
     private String extractQueuedMarker(String text, String key) {

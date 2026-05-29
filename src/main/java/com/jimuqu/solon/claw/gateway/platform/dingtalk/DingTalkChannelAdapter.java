@@ -51,7 +51,11 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,6 +78,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final Client oauthClient;
     private final com.aliyun.dingtalkrobot_1_0.Client robotClient;
     private final com.aliyun.dingtalkconv_file_1_0.Client convFileClient;
@@ -94,10 +99,19 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
             AttachmentCacheService attachmentCacheService) {
+        this(config, channelStateRepository, attachmentCacheService, null);
+    }
+
+    public DingTalkChannelAdapter(
+            AppConfig.ChannelConfig config,
+            ChannelStateRepository channelStateRepository,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.DINGTALK, config);
         this.config = config;
         this.channelStateRepository = channelStateRepository;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         try {
             com.aliyun.teaopenapi.models.Config teaConfig =
                     new com.aliyun.teaopenapi.models.Config();
@@ -133,6 +147,14 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 !isBlank(config.getRobotCode()));
         if (!isEnabled()) {
             setSetupState("disabled");
+            return false;
+        }
+        if (rejectWeakCredentials(
+                "dingtalk_weak_credentials",
+                credentialField("solonclaw.channels.dingtalk.clientId", config.getClientId()),
+                credentialField(
+                        "solonclaw.channels.dingtalk.clientSecret", config.getClientSecret()),
+                credentialField("solonclaw.channels.dingtalk.robotCode", config.getRobotCode()))) {
             return false;
         }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
@@ -201,9 +223,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         } catch (Exception e) {
             setConnected(false);
             setSetupState("error");
-            setLastError("dingtalk_stream_connect_failed", e.getMessage());
-            setDetail("stream mode connect failed: " + e.getMessage());
-            log.warn("[DINGTALK] Stream mode connect failed", e);
+            setLastError("dingtalk_stream_connect_failed", safeError(e));
+            setDetail("stream mode connect failed: " + safeError(e));
+            log.warn(
+                    "[DINGTALK] Stream mode connect failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
             return false;
         }
     }
@@ -215,7 +240,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 streamClient.stop();
             }
         } catch (Exception e) {
-            log.warn("[DINGTALK] Stream mode disconnect failed", e);
+            log.warn(
+                    "[DINGTALK] Stream mode disconnect failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         } finally {
             if (callbackExecutor != null) {
                 callbackExecutor.shutdownNow();
@@ -320,7 +348,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             gatewayMessage.setAttachments(attachments);
                             inboundMessageHandler().handle(gatewayMessage);
                         } catch (Exception e) {
-                            log.warn("[DINGTALK] inbound dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[DINGTALK] inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -341,9 +372,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             }
                         } catch (Exception e) {
                             log.warn(
-                                    "[DINGTALK] card callback dispatch failed: {}",
-                                    e.getMessage(),
-                                    e);
+                                    "[DINGTALK] card callback dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -505,7 +536,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             String downloadUrl = resolveDownloadUrl(downloadCode);
             byte[] data =
                     BoundedAttachmentIO.downloadHutool(
-                            downloadUrl, 30000, BoundedAttachmentIO.DEFAULT_MAX_BYTES);
+                            downloadUrl,
+                            30000,
+                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                            securityPolicyService);
             attachments.add(
                     attachmentCacheService.cacheBytes(
                             PlatformType.DINGTALK,
@@ -572,11 +606,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         response.getBody().getProcessQueryKey());
             } catch (TeaException e) {
                 log.warn(
-                        "[DINGTALK] group send failed: code={}, message={}, data={}",
+                        "[DINGTALK] group send failed: code={}, message={}, data={}, error={}",
                         e.getCode(),
-                        e.getMessage(),
-                        e.getData(),
-                        e);
+                        SecretRedactor.redact(e.getMessage(), 1000),
+                        SecretRedactor.redact(String.valueOf(e.getData()), 1000),
+                        safeError(e));
                 throw e;
             }
         } else {
@@ -615,11 +649,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         response.getBody().toMap());
             } catch (TeaException e) {
                 log.warn(
-                        "[DINGTALK] private send failed: code={}, message={}, data={}",
+                        "[DINGTALK] private send failed: code={}, message={}, data={}, error={}",
                         e.getCode(),
-                        e.getMessage(),
-                        e.getData(),
-                        e);
+                        SecretRedactor.redact(e.getMessage(), 1000),
+                        SecretRedactor.redact(String.valueOf(e.getData()), 1000),
+                        safeError(e));
                 throw e;
             }
         }
@@ -784,7 +818,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
-                    "DingTalk attachment file not found: " + attachment.getLocalPath());
+                    MessageAttachmentSupport.fileNotFoundMessage("DingTalk", attachment));
         }
         String kind =
                 AttachmentCacheService.normalizeKind(
@@ -792,13 +826,20 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         attachment.getOriginalName(),
                         attachment.getMimeType());
         String type = "image".equals(kind) ? "image" : ("voice".equals(kind) ? "voice" : "file");
-        String response =
-                HttpRequest.post(
-                                MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type)
+        String uploadUrl = MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type;
+        assertSafeUrl(uploadUrl, "DingTalk media upload URL");
+        HttpResponse uploadResponse =
+                HttpRequest.post(uploadUrl)
                         .form("media", file)
                         .timeout(30000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(uploadResponse, "DingTalk media upload");
+        } finally {
+            uploadResponse.close();
+        }
         ONode node = ONode.ofJson(response);
         int errCode = node.get("errcode").getInt(0);
         if (errCode != 0) {
@@ -861,6 +902,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private boolean allowInbound(
             ChatbotMessage message, String conversationId, String chatType, String userId) {
         if ("group".equals(chatType)) {
+            if (!config.getAllowedChats().isEmpty()
+                    && !contains(config.getAllowedChats(), conversationId)) {
+                return false;
+            }
             if (!Boolean.TRUE.equals(message.getInAtList())) {
                 return false;
             }
@@ -1069,7 +1114,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException("DingTalk upload info missing signed resource url");
         }
         String uploadUrl = body.getHeaderSignatureInfo().getResourceUrls().get(0);
-        HttpRequest request = HttpRequest.put(uploadUrl).timeout(120000).body(data);
+        assertSafeUrl(uploadUrl, "DingTalk signed upload URL");
+        HttpRequest request =
+                HttpRequest.put(uploadUrl).timeout(120000).setFollowRedirects(false).body(data);
         Map<String, String> headers = body.getHeaderSignatureInfo().getHeaders();
         if (headers != null) {
             for (Map.Entry<String, String> entry : headers.entrySet()) {
@@ -1078,9 +1125,16 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         HttpResponse response = request.execute();
         try {
+            if (response.getStatus() >= 300 && response.getStatus() < 400) {
+                throw new IllegalStateException(
+                        "DingTalk upload bytes blocked redirect: HTTP "
+                                + response.getStatus()
+                                + " -> "
+                                + SecretRedactor.maskUrl(response.header("Location")));
+            }
             if (response.getStatus() >= 400) {
                 throw new IllegalStateException(
-                        "DingTalk upload bytes failed: HTTP " + response.getStatus());
+                        HutoolHttpErrorFormatter.failure("DingTalk upload bytes", response));
             }
         } finally {
             response.close();
@@ -1140,6 +1194,37 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private boolean notBlank(String value) {
         return !isBlank(value);
+    }
+
+    private String guardedResponseBody(HttpResponse response, String purpose) {
+        int status = response.getStatus();
+        if (status >= 300 && status < 400) {
+            throw new IllegalStateException(
+                    purpose
+                            + " blocked redirect: HTTP "
+                            + status
+                            + " -> "
+                            + SecretRedactor.maskUrl(response.header("Location")));
+        }
+        if (status >= 400) {
+            throw new IllegalStateException(HutoolHttpErrorFormatter.failure(purpose, response));
+        }
+        return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
     }
 
     private String resolveMarkdownTitle(String content) {

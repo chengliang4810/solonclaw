@@ -27,31 +27,86 @@ public class DashboardRuntimeConfigController {
 
     @Mapping(value = "/api/runtime-config", method = MethodType.PUT)
     public Map<String, Object> set(Context context) throws Exception {
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(
-                runtimeConfigService.set(
-                        body.get("key").getString(), body.get("value").getString()));
+        try {
+            ONode body = body(context);
+            return DashboardResponse.ok(
+                    runtimeConfigService.set(
+                            body.get("key").getString(), body.get("value").getString()));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/runtime-config", method = MethodType.DELETE)
     public Map<String, Object> remove(Context context) throws Exception {
         String key = context.param("key");
-        if (StrUtil.isBlank(key) && StrUtil.isNotBlank(context.body())) {
-            ONode body = ONode.ofJson(context.body());
-            key = body.get("key").getString();
+        try {
+            if (StrUtil.isBlank(key) && StrUtil.isNotBlank(context.body())) {
+                ONode body = body(context);
+                key = body.get("key").getString();
+            }
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
         }
         if (StrUtil.isBlank(key)) {
-            throw new IllegalArgumentException("配置项 key 不能为空");
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", "配置项 key 不能为空");
         }
-        return DashboardResponse.ok(runtimeConfigService.remove(key));
+        try {
+            return DashboardResponse.ok(runtimeConfigService.remove(key));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/runtime-config/reveal", method = MethodType.POST)
     public Map<String, Object> reveal(Context context) throws Exception {
         if (!authService.allowReveal()) {
-            throw new IllegalStateException("Reveal rate limit exceeded");
+            context.status(429);
+            return DashboardResponse.error("RUNTIME_CONFIG_RATE_LIMITED", "Reveal rate limit exceeded");
         }
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(runtimeConfigService.reveal(body.get("key").getString()));
+        try {
+            ONode body = body(context);
+            return DashboardResponse.ok(runtimeConfigService.reveal(body.get("key").getString()));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private ONode body(Context context) {
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (StrUtil.isBlank(raw)) {
+            return new ONode();
+        }
+        try {
+            ONode node = ONode.ofJson(raw);
+            Object data = node.toData();
+            if (data instanceof Map) {
+                return node;
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
+        }
     }
 }

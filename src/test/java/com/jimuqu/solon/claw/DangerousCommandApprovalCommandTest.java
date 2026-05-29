@@ -6,6 +6,9 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DangerousCommandApprovalCommandTest {
@@ -85,6 +88,560 @@ public class DangerousCommandApprovalCommandTest {
     }
 
     @Test
+    void shouldListAndApproveSelectedPendingDangerousCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-queue", "user-queue", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-queue", "user-queue", "/pairing claim-admin"));
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-queue:user-queue");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "temporary_session_pattern",
+                "temporary session approval",
+                "echo temp");
+        env.dangerousCommandApprovalService.approve(
+                agentSession,
+                "",
+                com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService.ApprovalScope.SESSION,
+                "tester");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply list = env.send("room-queue", "user-queue", "/approve list");
+        DangerousCommandApprovalService.PendingApproval secondPending =
+                env.dangerousCommandApprovalService.listPendingApprovals(agentSession).get(1);
+        String secondApprovalKey = secondPending.approvalKey();
+        String secondSelector = DangerousCommandApprovalService.approvalSelector(secondPending);
+        assertThat(list.getContent())
+                .contains("pending=2")
+                .contains("#1")
+                .contains("#2")
+                .contains("#2 " + secondSelector)
+                .contains("pattern=recursive_delete")
+                .contains("command_preview=rm -rf runtime/cache")
+                .contains("scopes=once,session,always")
+                .contains("expires_in=")
+                .contains("expired=false")
+                .contains("session_approvals_count=1")
+                .contains("always_approvals_count=")
+                .doesNotContain("session_approvals=[")
+                .doesNotContain("always_approvals=[")
+                .doesNotContain(" key=")
+                .doesNotContain(secondApprovalKey);
+
+        GatewayReply rawKeyRejected =
+                env.send("room-queue", "user-queue", "/approve " + secondApprovalKey + " session");
+        GatewayReply rawKeyPrefixRejected =
+                env.send(
+                        "room-queue",
+                        "user-queue",
+                        "/approve " + secondApprovalKey.substring(0, 16) + " session");
+        GatewayReply shortIdPrefixRejected =
+                env.send(
+                        "room-queue",
+                        "user-queue",
+                        "/approve " + secondSelector.substring(0, 7) + " session");
+        GatewayReply longIdPrefixApproved =
+                env.send(
+                        "room-queue",
+                        "user-queue",
+                        "/approve " + secondSelector.substring(0, 8) + " session");
+        GatewayReply approved =
+                env.send("room-queue", "user-queue", "/approve " + secondSelector + " session");
+        SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(rawKeyRejected.isError()).isTrue();
+        assertThat(rawKeyPrefixRejected.isError()).isTrue();
+        assertThat(shortIdPrefixRejected.isError()).isTrue();
+        assertThat(longIdPrefixApproved.getContent()).isEqualTo("echo:resume");
+        assertThat(approved.isError()).isTrue();
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(updatedAgentSession))
+                .hasSize(1);
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession).getPatternKey())
+                .isEqualTo("recursive_delete");
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "git_reset_hard"))
+                .isTrue();
+    }
+
+    @Test
+    void shouldListPendingDangerousCommandsThroughDenyCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-deny-list", "user-deny-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-deny-list", "user-deny-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-deny-list:user-deny-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply list = env.send("room-deny-list", "user-deny-list", "/deny list");
+        GatewayReply status = env.send("room-deny-list", "user-deny-list", "/deny status");
+
+        assertThat(list.getContent())
+                .contains("pending=2")
+                .contains("#1")
+                .contains("#2")
+                .contains("recursive_delete")
+                .contains("git_reset_hard");
+        assertThat(status.getContent()).isEqualTo(list.getContent());
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(agentSession))
+                .hasSize(2);
+    }
+
+    @Test
+    void shouldRedactApproveListSensitiveText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-redact-list", "user-redact-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-redact-list", "user-redact-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-redact-list:user-redact-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "Security scan token=ghp_reasonsecret123",
+                "rm -rf runtime/cache --token ghp_commandsecret123");
+
+        GatewayReply list = env.send("room-redact-list", "user-redact-list", "/approve list");
+
+        assertThat(list.getContent())
+                .contains("token=***")
+                .contains("command_preview=rm -rf runtime/cache --token ***")
+                .doesNotContain("ghp_reasonsecret123")
+                .doesNotContain("ghp_commandsecret123");
+    }
+
+    @Test
+    void shouldRedactApproveListEncodedSensitiveText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-redact-encoded-list", "user-redact-encoded-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message(
+                        "room-redact-encoded-list",
+                        "user-redact-encoded-list",
+                        "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-redact-encoded-list:user-redact-encoded-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "url_policy?api%255Fkey=list-secret",
+                "encoded list https://example.test/callback?api%255Fkey=list-secret",
+                "curl https://example.test/callback?api%255Fkey=list-secret");
+
+        GatewayReply list =
+                env.send("room-redact-encoded-list", "user-redact-encoded-list", "/approve list");
+
+        assertThat(list.getContent())
+                .contains("pattern=url_policy?api%255Fkey=***")
+                .contains("reason=encoded list https://example.test/callback?api%255Fkey=***")
+                .contains("command_preview=curl https://example.test/callback?api%255Fkey=***")
+                .doesNotContain("list-secret");
+    }
+
+    @Test
+    void shouldStripDisplayControlsFromApprovalListAndSelector() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-control-list", "user-control-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-control-list", "user-control-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-control-list:user-control-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell\u202E",
+                "recursive_delete",
+                "Security scan\u202E reason",
+                "rm -rf runtime/cache\u202E --token ghp_commandsecret123");
+
+        GatewayReply list = env.send("room-control-list", "user-control-list", "/approve list");
+        String approvalId =
+                env.dangerousCommandApprovalService
+                        .getPendingApproval(agentSession)
+                        .getApprovalId();
+        String disguisedApprovalId =
+                approvalId.substring(0, 8) + "\u202E" + approvalId.substring(8);
+        GatewayReply approved =
+                env.send("room-control-list", "user-control-list", "/approve " + disguisedApprovalId);
+
+        assertThat(list.getContent())
+                .contains("tool=execute_shell")
+                .contains("reason=Security scan reason")
+                .contains("command_preview=rm -rf runtime/cache --token ***")
+                .doesNotContain("\u202E")
+                .doesNotContain("ghp_commandsecret123");
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldShowSafeSelectorForUnsafeApprovalIdInApprovalList() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-list-selector", "user-list-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-list-selector", "user-list-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-list-selector:user-list-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-list-selector:user-list-selector"),
+                        env.sessionRepository);
+        String safeSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                restoredAgentSession));
+        GatewayReply list =
+                env.send("room-list-selector", "user-list-selector", "/approve list");
+
+        assertThat(safeSelector).startsWith("key_");
+        assertThat(list.getContent()).contains("#1 " + safeSelector);
+        assertThat(list.getContent()).doesNotContain("approval-unsafe always");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldApproveUnsafeApprovalIdThroughSafeKeySelector() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-key-selector", "user-key-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-key-selector", "user-key-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-key-selector:user-key-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-key-selector:user-key-selector"),
+                        env.sessionRepository);
+        DangerousCommandApprovalService.PendingApproval pending =
+                env.dangerousCommandApprovalService.getPendingApproval(restoredAgentSession);
+        String safeSelector = DangerousCommandApprovalService.approvalSelector(pending);
+
+        assertThat(safeSelector).startsWith("key_");
+        GatewayReply approved =
+                env.send(
+                        "room-key-selector",
+                        "user-key-selector",
+                        "/approve " + safeSelector + " session");
+        SessionRecord updated =
+                env.sessionRepository.getBoundSession("MEMORY:room-key-selector:user-key-selector");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldHideSecretLikeApprovalIdInApprovalListAndApproveThroughSafeKeySelector()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-secret-selector", "user-secret-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-secret-selector", "user-secret-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-secret-selector:user-secret-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-ghp_selectorsecret123456");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-secret-selector:user-secret-selector"),
+                        env.sessionRepository);
+        String safeSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                restoredAgentSession));
+
+        GatewayReply list =
+                env.send("room-secret-selector", "user-secret-selector", "/approve list");
+        GatewayReply rawRejected =
+                env.send(
+                        "room-secret-selector",
+                        "user-secret-selector",
+                        "/approve approval-ghp_selectorsecret123456 session");
+        GatewayReply prefixRejected =
+                env.send(
+                        "room-secret-selector",
+                        "user-secret-selector",
+                        "/approve approval-ghp_select session");
+        GatewayReply approved =
+                env.send(
+                        "room-secret-selector",
+                        "user-secret-selector",
+                        "/approve " + safeSelector + " session");
+
+        assertThat(safeSelector).startsWith("key_");
+        assertThat(list.getContent())
+                .contains("#1 " + safeSelector)
+                .doesNotContain("approval-ghp_selectorsecret123456")
+                .doesNotContain("selectorsecret123456");
+        assertThat(rawRejected.isError()).isTrue();
+        assertThat(prefixRejected.isError()).isTrue();
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                new SqliteAgentSession(
+                                        env.sessionRepository.getBoundSession(
+                                                "MEMORY:room-secret-selector:user-secret-selector"),
+                                        env.sessionRepository)))
+                .isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectShortKeySelectorPrefix() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-short-selector", "user-short-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-short-selector", "user-short-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-short-selector:user-short-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-short-selector:user-short-selector"),
+                        env.sessionRepository);
+        String safeSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                restoredAgentSession));
+
+        GatewayReply rejected =
+                env.send(
+                        "room-short-selector",
+                        "user-short-selector",
+                        "/approve " + safeSelector.substring(0, 7) + " session");
+
+        assertThat(rejected.isError()).isTrue();
+        assertThat(rejected.getContent()).contains("待审批的危险命令");
+        assertThat(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                new SqliteAgentSession(
+                                        env.sessionRepository.getBoundSession(
+                                                "MEMORY:room-short-selector:user-short-selector"),
+                                        env.sessionRepository)))
+                .isNotNull();
+    }
+
+    @Test
+    void shouldListTirithPendingApprovalWithoutAlwaysScope() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-tirith-list", "user-tirith-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-tirith-list", "user-tirith-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-tirith-list:user-tirith-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "tirith:shortened_url",
+                "Security scan: shortened URL",
+                "echo hello");
+
+        GatewayReply list = env.send("room-tirith-list", "user-tirith-list", "/approve list");
+
+        assertThat(list.getContent())
+                .contains("pending=1")
+                .contains("tirith:shortened_url")
+                .contains("scopes=once,session")
+                .contains("expires_in=")
+                .contains("expired=false")
+                .doesNotContain("scopes=once,session,always");
+    }
+
+    @Test
+    void shouldApproveAllPendingDangerousCommandsAndResumeOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-all", "user-all", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-all", "user-all", "/pairing claim-admin"));
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-all:user-all");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply approved = env.send("room-all", "user-all", "/approve all session");
+        SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-all:user-all");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(updatedAgentSession))
+                .isEmpty();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "git_reset_hard"))
+                .isTrue();
+    }
+
+    @Test
+    void shouldDenyAllPendingDangerousCommandsAndResumeOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-deny-all", "user-deny-all", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-deny-all", "user-deny-all", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-deny-all:user-deny-all");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply denied = env.send("room-deny-all", "user-deny-all", "/deny all");
+        SessionRecord updated =
+                env.sessionRepository.getBoundSession("MEMORY:room-deny-all:user-deny-all");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(denied.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(updatedAgentSession))
+                .isEmpty();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isFalse();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "git_reset_hard"))
+                .isFalse();
+    }
+
+    @Test
     void shouldSkipNewRunWhenDangerousApprovalIsPending() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-4", "user-4", "hello"));
@@ -133,5 +690,105 @@ public class DangerousCommandApprovalCommandTest {
 
         assertThat(reply.getContent()).contains("待审批的危险命令");
         assertThat(reply.getContent()).doesNotContain("???");
+    }
+
+    @Test
+    void shouldToggleYoloOnlyForCurrentSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-yolo-a", "user-yolo", "hello"));
+        env.gatewayService.handle(env.message("room-yolo-b", "user-yolo", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-yolo-a", "user-yolo", "/pairing claim-admin"));
+
+        SessionRecord sessionA = env.sessionRepository.bindNewSession("MEMORY:room-yolo-a:user-yolo");
+        SessionRecord sessionB = env.sessionRepository.bindNewSession("MEMORY:room-yolo-b:user-yolo");
+
+        GatewayReply enabled = env.send("room-yolo-a", "user-yolo", "/yolo");
+
+        SessionRecord updatedA =
+                env.sessionRepository.getBoundSession("MEMORY:room-yolo-a:user-yolo");
+        SessionRecord updatedB =
+                env.sessionRepository.getBoundSession("MEMORY:room-yolo-b:user-yolo");
+        SqliteAgentSession agentSessionA =
+                new SqliteAgentSession(updatedA, env.sessionRepository);
+        SqliteAgentSession agentSessionB =
+                new SqliteAgentSession(updatedB, env.sessionRepository);
+
+        assertThat(enabled.getContent()).contains("YOLO 已开启");
+        assertThat(updatedA.getSessionId()).isEqualTo(sessionA.getSessionId());
+        assertThat(updatedB.getSessionId()).isEqualTo(sessionB.getSessionId());
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionA))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+                .isFalse();
+
+        GatewayReply disabled = env.send("room-yolo-a", "user-yolo", "/yolo");
+        SessionRecord disabledA =
+                env.sessionRepository.getBoundSession("MEMORY:room-yolo-a:user-yolo");
+        assertThat(disabled.getContent()).contains("YOLO 已关闭");
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                                new SqliteAgentSession(disabledA, env.sessionRepository)))
+                .isFalse();
+    }
+
+    @Test
+    void shouldSupportExplicitYoloStatusOnOffForCurrentSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-yolo-explicit-a", "user-yolo", "hello"));
+        env.gatewayService.handle(env.message("room-yolo-explicit-b", "user-yolo", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-yolo-explicit-a", "user-yolo", "/pairing claim-admin"));
+
+        SessionRecord sessionA =
+                env.sessionRepository.bindNewSession("MEMORY:room-yolo-explicit-a:user-yolo");
+        SessionRecord sessionB =
+                env.sessionRepository.bindNewSession("MEMORY:room-yolo-explicit-b:user-yolo");
+        SqliteAgentSession agentSessionA =
+                new SqliteAgentSession(sessionA, env.sessionRepository);
+        SqliteAgentSession agentSessionB =
+                new SqliteAgentSession(sessionB, env.sessionRepository);
+
+        GatewayReply initialStatus = env.send("room-yolo-explicit-a", "user-yolo", "/yolo status");
+        assertThat(initialStatus.getContent()).contains("YOLO 已关闭");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isFalse();
+
+        GatewayReply enabled = env.send("room-yolo-explicit-a", "user-yolo", "/yolo on");
+        GatewayReply enabledAgain = env.send("room-yolo-explicit-a", "user-yolo", "/yolo enable");
+        assertThat(enabled.getContent()).contains("YOLO 已开启");
+        assertThat(enabledAgain.getContent()).contains("YOLO 已开启");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+                .isFalse();
+
+        GatewayReply status = env.send("room-yolo-explicit-a", "user-yolo", "/yolo status");
+        assertThat(status.getContent()).contains("YOLO 已开启");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isTrue();
+
+        GatewayReply disabled = env.send("room-yolo-explicit-a", "user-yolo", "/yolo off");
+        GatewayReply disabledAgain = env.send("room-yolo-explicit-a", "user-yolo", "/yolo disable");
+        assertThat(disabled.getContent()).contains("YOLO 已关闭");
+        assertThat(disabledAgain.getContent()).contains("YOLO 已关闭");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+                .isFalse();
+
+        GatewayReply invalid = env.send("room-yolo-explicit-a", "user-yolo", "/yolo maybe");
+        assertThat(invalid.isError()).isTrue();
+        assertThat(invalid.getContent()).contains("用法：/yolo [status|on|off]");
+    }
+
+    private SqliteAgentSession yoloSession(TestEnvironment env, String chatId) throws Exception {
+        SessionRecord session =
+                env.sessionRepository.getBoundSession("MEMORY:" + chatId + ":user-yolo");
+        return new SqliteAgentSession(session, env.sessionRepository);
     }
 }

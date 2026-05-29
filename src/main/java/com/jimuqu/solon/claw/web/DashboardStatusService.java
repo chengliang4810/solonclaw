@@ -7,10 +7,13 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -74,7 +77,7 @@ public class DashboardStatusService {
             if (status.isConnected()) {
                 anyConnected = true;
             }
-            String detail = StrUtil.nullToEmpty(status.getDetail());
+            String detail = redact(status.getDetail(), 1000);
             boolean fatal =
                     status.isEnabled()
                             && !status.isConnected()
@@ -101,7 +104,10 @@ public class DashboardStatusService {
             item.put(
                     "error_message",
                     detailed && fatal
-                            ? StrUtil.blankToDefault(status.getLastErrorMessage(), detail)
+                            ? redact(
+                                    StrUtil.blankToDefault(
+                                            status.getLastErrorMessage(), detail),
+                                    1000)
                             : null);
             item.put(
                     "error_code",
@@ -123,10 +129,12 @@ public class DashboardStatusService {
 
         result.put("active_sessions", activeSessions);
         if (detailed) {
-            result.put("config_path", appConfig.getRuntime().getConfigFile());
+            result.put("config_path", runtimeReference(appConfig.getRuntime().getConfigFile()));
         }
         result.put("config_version", configVersion());
-        result.put("gateway_exit_reason", detailed && anyFatal ? firstFatalDetail(statuses) : null);
+        result.put(
+                "gateway_exit_reason",
+                detailed && anyFatal ? redact(firstFatalDetail(statuses), 1000) : null);
         if (detailed) {
             result.put("gateway_pid", parsePid());
         }
@@ -135,7 +143,7 @@ public class DashboardStatusService {
         result.put("gateway_state", gatewayState);
         result.put("gateway_updated_at", isoNow());
         if (detailed) {
-            result.put("solonclaw_home", appConfig.getRuntime().getHome());
+            result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
         }
         result.put("latest_config_version", configVersion());
         result.put("release_date", new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
@@ -147,9 +155,12 @@ public class DashboardStatusService {
         result.put("latest_tag", versionStatus.getLatestTag());
         result.put("update_available", versionStatus.isUpdateAvailable());
         if (detailed) {
-            result.put("release_url", versionStatus.getReleaseUrl());
-            result.put("release_api_url", versionStatus.getReleaseApiUrl());
-            result.put("update_error_message", versionStatus.getUpdateErrorMessage());
+            result.put("release_url", SecretRedactor.maskUrl(versionStatus.getReleaseUrl()));
+            result.put(
+                    "release_api_url", SecretRedactor.maskUrl(versionStatus.getReleaseApiUrl()));
+            result.put(
+                    "update_error_message",
+                    redact(versionStatus.getUpdateErrorMessage(), 1000));
         }
         result.put(
                 "update_error_at",
@@ -165,14 +176,14 @@ public class DashboardStatusService {
         LlmProviderService.ResolvedProvider resolved =
                 llmProviderService.resolveEffectiveProvider(null);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("model", resolved.getModel());
-        result.put("provider", resolved.getProviderKey());
-        result.put("providerKey", resolved.getProviderKey());
-        result.put("providerLabel", resolved.getLabel());
-        result.put("dialect", resolved.getDialect());
+        result.put("model", safeText(resolved.getModel(), 200));
+        result.put("provider", safeText(resolved.getProviderKey(), 160));
+        result.put("providerKey", safeText(resolved.getProviderKey(), 160));
+        result.put("providerLabel", safeText(resolved.getLabel(), 200));
+        result.put("dialect", safeText(resolved.getDialect(), 80));
         if (detailed) {
-            result.put("baseUrl", resolved.getBaseUrl());
-            result.put("fallbackProviders", appConfig.getFallbackProviders());
+            result.put("baseUrl", SecretRedactor.maskUrl(resolved.getBaseUrl()));
+            result.put("fallbackProviders", safeFallbackProviders());
         }
         result.put("auto_context_length", appConfig.getLlm().getContextWindowTokens());
         result.put("config_context_length", appConfig.getLlm().getContextWindowTokens());
@@ -184,9 +195,26 @@ public class DashboardStatusService {
         capabilities.put("supports_reasoning", true);
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
         capabilities.put("max_output_tokens", appConfig.getLlm().getMaxTokens());
-        capabilities.put("model_family", resolved.getDialect());
+        capabilities.put("model_family", safeText(resolved.getDialect(), 80));
         result.put("capabilities", capabilities);
         return result;
+    }
+
+    private List<Map<String, Object>> safeFallbackProviders() {
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        if (appConfig.getFallbackProviders() == null) {
+            return items;
+        }
+        for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
+            if (fallback == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("provider", safeText(fallback.getProvider(), 160));
+            item.put("model", safeText(fallback.getModel(), 200));
+            items.add(item);
+        }
+        return items;
     }
 
     private String publicDetail(ChannelStatus status) {
@@ -217,6 +245,54 @@ public class DashboardStatusService {
             }
         }
         return null;
+    }
+
+    private String runtimeReference(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (StrUtil.isBlank(text)) {
+            return text;
+        }
+        File runtimeHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+        File file = new File(text).getAbsoluteFile();
+        try {
+            runtimeHome = runtimeHome.getCanonicalFile();
+            file = file.getCanonicalFile();
+        } catch (Exception ignored) {
+        }
+        String homePath = normalized(runtimeHome);
+        String filePath = normalized(file);
+        if (filePath.equals(homePath)) {
+            return "runtime://";
+        }
+        if (filePath.startsWith(homePath + File.separator)) {
+            String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
+            return "runtime://" + relative;
+        }
+        return externalPathReference(text);
+    }
+
+    private String externalPathReference(String value) {
+        String name = new File(StrUtil.nullToEmpty(value)).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "external";
+        }
+        return "path://" + redact(name, 200);
+    }
+
+    private String normalized(File file) {
+        String path = file.getAbsolutePath();
+        if (File.separatorChar == '\\') {
+            return path.toLowerCase(java.util.Locale.ROOT);
+        }
+        return path;
+    }
+
+    private String redact(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
+    }
+
+    private String safeText(String value, int maxLength) {
+        return StrUtil.nullToEmpty(SecretRedactor.redact(value, maxLength));
     }
 
     private int configVersion() {

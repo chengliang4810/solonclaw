@@ -13,6 +13,11 @@ public interface GatewayPolicyRepository {
     /** 读取平台 home channel。 */
     HomeChannelRecord getHomeChannel(PlatformType platform) throws Exception;
 
+    /** 列出全部 home channel。 */
+    default List<HomeChannelRecord> listHomeChannels() throws Exception {
+        return java.util.Collections.emptyList();
+    }
+
     /** 保存平台 home channel。 */
     void saveHomeChannel(HomeChannelRecord record) throws Exception;
 

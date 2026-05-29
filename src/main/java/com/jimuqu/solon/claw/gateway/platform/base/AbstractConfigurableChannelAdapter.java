@@ -7,11 +7,14 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,7 +145,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
 
     /** 更新详情。 */
     protected void setDetail(String detail) {
-        this.detail = detail;
+        this.detail = safeStatusText(detail);
     }
 
     /** 标记渠道连接模式。 */
@@ -203,6 +206,72 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     /** 记录最近一次错误。 */
     protected void setLastError(String code, String message) {
         this.lastErrorCode = code;
-        this.lastErrorMessage = message;
+        this.lastErrorMessage = safeStatusText(message);
+    }
+
+    private String safeStatusText(String value) {
+        return value == null ? null : SecretRedactor.redact(value, 1000);
+    }
+
+    protected String safeError(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown";
+        }
+        String message = throwable.getMessage();
+        if (StrUtil.isBlank(message)) {
+            message = throwable.getClass().getSimpleName();
+        }
+        return safeStatusText(message);
+    }
+
+    protected String errorType(Throwable throwable) {
+        return throwable == null ? "Throwable" : throwable.getClass().getSimpleName();
+    }
+
+    /** 拦截示例/占位凭据，避免已启用渠道带弱凭据反复连接外部平台。 */
+    protected boolean rejectWeakCredentials(String errorCode, CredentialField... fields) {
+        if (!isEnabled() || fields == null) {
+            return false;
+        }
+        List<String> weakFields = new ArrayList<String>();
+        for (CredentialField field : fields) {
+            if (field != null && isWeakCredentialPlaceholder(field.value)) {
+                weakFields.add(field.path);
+            }
+        }
+        if (weakFields.isEmpty()) {
+            return false;
+        }
+        channelConfig.setEnabled(false);
+        setConnected(false);
+        setSetupState("weak_credentials");
+        setMissingConfig(new String[0]);
+        setLastError(
+                StrUtil.blankToDefault(errorCode, "channel_weak_credentials"),
+                "placeholder credential: " + weakFields);
+        setDetail("disabled weak placeholder credentials: " + weakFields);
+        log.error(
+                "[{}] disabled because placeholder credentials were configured: {}",
+                platformType,
+                weakFields);
+        return true;
+    }
+
+    protected CredentialField credentialField(String path, String value) {
+        return new CredentialField(path, value);
+    }
+
+    protected static boolean isWeakCredentialPlaceholder(String value) {
+        return SecretValueGuard.isPlaceholderSecret(value);
+    }
+
+    protected static class CredentialField {
+        private final String path;
+        private final String value;
+
+        private CredentialField(String path, String value) {
+            this.path = path == null ? "" : path.trim();
+            this.value = value;
+        }
     }
 }

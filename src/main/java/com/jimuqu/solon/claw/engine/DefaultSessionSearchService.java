@@ -98,7 +98,11 @@ public class DefaultSessionSearchService implements SessionSearchService {
                             display.getBranchName(), representative.getBranchName()));
             entry.setTitle(resolveTitle(display, representative));
             entry.setUpdatedAt(Math.max(display.getUpdatedAt(), representative.getUpdatedAt()));
+            entry.setPlatformMessageId(display.getPlatformMessageId());
+            entry.setMode(StrUtil.isBlank(query) ? "browse" : "discovery");
             entry.setMatchPreview(buildPreview(representative, query));
+            entry.setSnippet(entry.getMatchPreview());
+            entry.setMessageId(findPreviewMessageId(representative, query));
             if (StrUtil.isBlank(query)) {
                 entry.setSummary(entry.getMatchPreview());
             } else {
@@ -118,6 +122,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
         }
         if (shouldSearchRuns(query)) {
             return searchRunScope(query);
+        }
+        if (StrUtil.isNotBlank(query.getSessionId()) && StrUtil.isNotBlank(query.getAroundMessageId())) {
+            return scroll(query);
         }
         List<SessionSearchEntry> entries =
                 search(query.getSourceKey(), query.getQuery(), query.getLimit());
@@ -195,6 +202,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 StrUtil.blankToDefault(
                         session == null ? null : session.getTitle(), "run-" + run.getRunId()));
         entry.setUpdatedAt(Math.max(run.getLastActivityAt(), run.getStartedAt()));
+        entry.setMode("discovery");
+        entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
         entry.setMatchPreview(
                 firstNonBlank(
                         run.getFinalReplyPreview(),
@@ -202,6 +211,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         run.getError(),
                         run.getStatus()));
         entry.setSummary(entry.getMatchPreview());
+        entry.setSnippet(entry.getMatchPreview());
         entry.setRunId(run.getRunId());
         entry.setChannel(run.getSourceKey());
         return entry;
@@ -219,6 +229,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 StrUtil.blankToDefault(
                         session == null ? null : session.getTitle(), "run-" + record.getRunId()));
         entry.setUpdatedAt(Math.max(record.getFinishedAt(), record.getStartedAt()));
+        entry.setMode("discovery");
+        entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
         entry.setMatchPreview(
                 firstNonBlank(
                         record.getResultPreview(),
@@ -226,6 +238,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         record.getError(),
                         record.getToolName()));
         entry.setSummary(entry.getMatchPreview());
+        entry.setSnippet(entry.getMatchPreview());
         entry.setRunId(record.getRunId());
         entry.setToolName(record.getToolName());
         entry.setChannel(record.getSourceKey());
@@ -328,6 +341,86 @@ public class DefaultSessionSearchService implements SessionSearchService {
             buffer.append(roleLabel(message.getRole())).append(": ").append(trim(content, 400));
         }
         return trim(buffer.toString(), 4000);
+    }
+
+    private List<SessionSearchEntry> scroll(SessionSearchQuery query) throws Exception {
+        int limit = Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
+        SessionRecord session = sessionRepository.findById(query.getSessionId());
+        if (session == null) {
+            return Collections.emptyList();
+        }
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        if (messages.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int anchorIndex = findMessageIndex(messages, query.getAroundMessageId());
+        if (anchorIndex < 0) {
+            return Collections.emptyList();
+        }
+        int start = Math.max(0, anchorIndex - ((limit - 1) / 2));
+        int end = Math.min(messages.size(), start + limit);
+        start = Math.max(0, end - limit);
+        List<SessionSearchEntry> results = new ArrayList<SessionSearchEntry>();
+        for (int i = start; i < end; i++) {
+            ChatMessage message = messages.get(i);
+            String content = StrUtil.nullToEmpty(message.getContent()).trim();
+            SessionSearchEntry entry = new SessionSearchEntry();
+            entry.setMode("scroll");
+            entry.setSessionId(session.getSessionId());
+            entry.setBranchName(session.getBranchName());
+            entry.setTitle(resolveTitle(session, session));
+            entry.setUpdatedAt(session.getUpdatedAt());
+            entry.setPlatformMessageId(session.getPlatformMessageId());
+            entry.setMessageId(resolveMessageId(message, i));
+            entry.setAnchor(i == anchorIndex);
+            entry.setMatchPreview(trim(content, 220));
+            entry.setSnippet(entry.getMatchPreview());
+            entry.setSummary(entry.getMatchPreview());
+            results.add(entry);
+        }
+        return results;
+    }
+
+    private int findMessageIndex(List<ChatMessage> messages, String aroundMessageId) {
+        for (int i = 0; i < messages.size(); i++) {
+            if (aroundMessageId.equals(resolveMessageId(messages.get(i), i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String findPreviewMessageId(SessionRecord session, String query) throws Exception {
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            String content = StrUtil.nullToEmpty(message.getContent()).trim();
+            if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
+                continue;
+            }
+            if (normalizedQuery.length() == 0
+                    || content.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+                return resolveMessageId(message, i);
+            }
+        }
+        return null;
+    }
+
+    private String resolveMessageId(ChatMessage message, int index) {
+        if (message != null && message.getMetadata() != null) {
+            Object value = message.getMetadata().get("platformMessageId");
+            if (value == null) {
+                value = message.getMetadata().get("messageId");
+            }
+            if (value == null) {
+                value = message.getMetadata().get("id");
+            }
+            if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+                return String.valueOf(value);
+            }
+        }
+        return "message-" + index;
     }
 
     private String buildPreview(SessionRecord session, String query) throws Exception {

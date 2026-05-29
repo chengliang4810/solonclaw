@@ -2,7 +2,7 @@
 
 [English](README_EN.md) | 简体中文
 
-solon-claw 是一个基于 Java、Solon 与 Solon AI 的单实例 Agent 服务。项目目标是以 Java / Solon 生态复刻 Hermes Agent 的核心行为与能力，重点覆盖 Agent 主循环、工具调用、会话/记忆、技能、定时任务、国内消息渠道接入，以及 Dashboard-first 的配置与诊断体验。
+solon-claw 是一个基于 Java、Solon 与 Solon AI 的单实例 Agent 服务。项目目标是以 Java / Solon 生态复刻 参考 Agent 的核心行为与能力，重点覆盖 Agent 主循环、工具调用、会话/记忆、技能、定时任务、国内消息渠道接入，以及 Dashboard-first 的配置与诊断体验。
 
 > 当前项目仍处于快速迭代阶段，接口和配置项可能继续调整。欢迎试用、反馈问题和参与贡献。
 
@@ -80,6 +80,8 @@ sudo chown -R 10000:10000 runtime
 sudo chmod -R u+rwX runtime
 docker compose up -d
 ```
+
+不要覆盖镜像 entrypoint 后直接以 root 启动 `java -jar /app/solon-claw.jar`。官方镜像的 `/app/docker-entrypoint.sh` 会先把进程降权到 `solonclaw` 用户，再启动服务；如果绕过这一步，程序会默认拒绝启动，避免在 `/app/runtime` 留下 root 拥有的状态文件。只有明确接受这个风险时，才设置 `SOLONCLAW_ALLOW_ROOT_GATEWAY=1`。
 
 如果你希望容器内用户匹配宿主机当前用户，也可以在启动前设置：
 

@@ -14,8 +14,10 @@ import com.jimuqu.solon.claw.skillhub.model.SkillSetupState;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -25,8 +27,9 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.noear.snack4.ONode;
 
-/** 本地技能目录服务，支持 Hermes 风格分类目录与渐进披露读取。 */
+/** 本地技能目录服务，支持 Jimuqu 风格分类目录与渐进披露读取。 */
 public class LocalSkillService implements SkillCatalogService {
     /** 技能名允许字符。 */
     private static final String VALID_NAME_PATTERN = "^[a-z0-9][a-z0-9._-]*$";
@@ -43,6 +46,9 @@ public class LocalSkillService implements SkillCatalogService {
     /** Hub 状态存储。 */
     private final SkillHubStateStore hubStateStore;
 
+    /** 技能目录解析器。 */
+    private final SkillDirectoryResolver skillDirectoryResolver;
+
     /** 构造本地技能服务。 */
     public LocalSkillService(AppConfig appConfig, SqlitePreferenceStore preferenceStore) {
         this(appConfig, preferenceStore, null, null);
@@ -56,6 +62,7 @@ public class LocalSkillService implements SkillCatalogService {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.skillImportService = skillImportService;
+        this.skillDirectoryResolver = new SkillDirectoryResolver(appConfig);
         this.hubStateStore =
                 hubStateStore == null
                         ? new SkillHubStateStore(
@@ -106,25 +113,47 @@ public class LocalSkillService implements SkillCatalogService {
     @Override
     public List<SkillDescriptor> listSkills(String category) throws Exception {
         processPendingImportsQuietly();
-        return listSkillsFromRoot(FileUtil.file(appConfig.getRuntime().getSkillsDir()), category);
+        return filterCategory(listConfiguredSkills(null), category);
     }
 
     public List<SkillDescriptor> listSkills(String category, AgentRuntimeScope agentScope)
             throws Exception {
         processPendingImportsQuietly();
-        List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
-        skills.addAll(
-                listSkillsFromRoot(FileUtil.file(appConfig.getRuntime().getSkillsDir()), null));
+        List<SkillDescriptor> skills = listConfiguredSkills(null);
         if (agentScope != null
                 && !agentScope.isDefaultAgentName()
                 && StrUtil.isNotBlank(agentScope.getSkillsDir())) {
-            skills.addAll(listSkillsFromRoot(FileUtil.file(agentScope.getSkillsDir()), null));
+            addUniqueSkills(
+                    skills,
+                    listSkillsFromRoot(
+                            FileUtil.file(agentScope.getSkillsDir()),
+                            null,
+                            "local",
+                            "agent-created"));
         }
         skills.sort(skillComparator());
         skills = filterAgentSkills(skills, agentScope);
+        return filterCategory(skills, category);
+    }
+
+    private List<SkillDescriptor> listSkillsFromRoot(File root, String category) throws Exception {
+        return listSkillsFromRoot(root, category, "local", "agent-created");
+    }
+
+    private List<SkillDescriptor> listSkillsFromRoot(
+            File root, String category, String source, String trustLevel) throws Exception {
+        if (!root.exists()) {
+            return Collections.emptyList();
+        }
+
+        List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
+        collectSkills(root, skills, source, trustLevel);
+        skills.sort(skillComparator());
+
         if (StrUtil.isBlank(category)) {
             return skills;
         }
+
         List<SkillDescriptor> filtered = new ArrayList<SkillDescriptor>();
         for (SkillDescriptor descriptor : skills) {
             if (category.equals(descriptor.getCategory())) {
@@ -134,19 +163,40 @@ public class LocalSkillService implements SkillCatalogService {
         return filtered;
     }
 
-    private List<SkillDescriptor> listSkillsFromRoot(File root, String category) throws Exception {
-        if (!root.exists()) {
-            return Collections.emptyList();
-        }
-
+    private List<SkillDescriptor> listConfiguredSkills(String category) throws Exception {
         List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
-        collectSkills(root, skills);
+        addUniqueSkills(
+                skills,
+                listSkillsFromRoot(
+                        skillDirectoryResolver.localSkillsDir(), null, "local", "agent-created"));
+        for (File externalDir : skillDirectoryResolver.externalSkillsDirs()) {
+            addUniqueSkills(
+                    skills,
+                    listSkillsFromRoot(externalDir, null, "external", "external"));
+        }
         skills.sort(skillComparator());
+        return filterCategory(skills, category);
+    }
 
+    private void addUniqueSkills(List<SkillDescriptor> target, List<SkillDescriptor> incoming) {
+        for (SkillDescriptor descriptor : incoming) {
+            boolean exists = false;
+            for (SkillDescriptor current : target) {
+                if (current.canonicalName().equals(descriptor.canonicalName())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                target.add(descriptor);
+            }
+        }
+    }
+
+    private List<SkillDescriptor> filterCategory(List<SkillDescriptor> skills, String category) {
         if (StrUtil.isBlank(category)) {
             return skills;
         }
-
         List<SkillDescriptor> filtered = new ArrayList<SkillDescriptor>();
         for (SkillDescriptor descriptor : skills) {
             if (category.equals(descriptor.getCategory())) {
@@ -186,7 +236,8 @@ public class LocalSkillService implements SkillCatalogService {
 
         File target = resolveSkillFile(descriptor, filePath);
         if (!target.exists()) {
-            throw new IllegalStateException("Skill file not found: " + target.getAbsolutePath());
+            throw new IllegalStateException(
+                    "Skill file not found: " + safeSkillFilePath(descriptor, target));
         }
 
         SkillView view = new SkillView();
@@ -195,6 +246,37 @@ public class LocalSkillService implements SkillCatalogService {
         view.setContent(FileUtil.readUtf8String(target));
         view.setLinkedFiles(new ArrayList<String>(descriptor.getLinkedFiles()));
         return view;
+    }
+
+    public synchronized void bumpUsage(String nameOrPath, String kind) {
+        try {
+            SkillDescriptor descriptor = findDescriptor(nameOrPath);
+            if (descriptor == null) {
+                return;
+            }
+            File stateFile = FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state");
+            Map<String, Object> state = readMap(stateFile);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> skills =
+                    state.get("skills") instanceof Map
+                            ? (Map<String, Object>) state.get("skills")
+                            : new LinkedHashMap<String, Object>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> record =
+                    skills.get(descriptor.canonicalName()) instanceof Map
+                            ? (Map<String, Object>) skills.get(descriptor.canonicalName())
+                            : new LinkedHashMap<String, Object>();
+            String counter =
+                    "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind)) ? "callCount" : "loadCount";
+            record.put(counter, Long.valueOf(asLong(record.get(counter)) + 1L));
+            record.put("lastActivityAt", Long.valueOf(System.currentTimeMillis()));
+            skills.put(descriptor.canonicalName(), record);
+            state.put("skills", skills);
+            FileUtil.mkParentDirs(stateFile);
+            FileUtil.writeUtf8String(ONode.serialize(state), stateFile);
+        } catch (Exception ignored) {
+            // Usage counters are advisory for curator decisions and must not break skill loading.
+        }
     }
 
     @Override
@@ -269,7 +351,8 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException(
                     "Skill already exists: " + canonicalName(category, name));
         }
-        writeSkillMainFile(skillDir, content);
+        writeSkillMainFile(
+                skillDir, content, canonicalName(normalizeCategory(category), name) + "/SKILL.md");
         return buildDescriptor(skillDir, normalizeCategory(category));
     }
 
@@ -281,7 +364,10 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Skill not found: " + nameOrPath);
         }
         ensureWritable(descriptor);
-        writeSkillMainFile(FileUtil.file(descriptor.getSkillDir()), content);
+        writeSkillMainFile(
+                FileUtil.file(descriptor.getSkillDir()),
+                content,
+                descriptor.canonicalName() + "/SKILL.md");
         return buildDescriptor(FileUtil.file(descriptor.getSkillDir()), descriptor.getCategory());
     }
 
@@ -293,10 +379,15 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Patch target not found.");
         }
         ensureWritable(view.getDescriptor());
+        if (StrUtil.isNotBlank(filePath)) {
+            validateSupportFilePath(filePath, true);
+        }
         File target = resolveSkillFile(view.getDescriptor(), filePath);
         writeTextAtomically(
-                target, view.getContent().replace(oldText, StrUtil.nullToEmpty(newText)));
-        return "Patched skill file: " + target.getAbsolutePath();
+                target,
+                view.getContent().replace(oldText, StrUtil.nullToEmpty(newText)),
+                safeSkillFilePath(view.getDescriptor(), target));
+        return "Patched skill file: " + safeSkillFilePath(view.getDescriptor(), target);
     }
 
     /** 删除技能目录。 */
@@ -321,10 +412,11 @@ public class LocalSkillService implements SkillCatalogService {
         if ("SKILL.md".equalsIgnoreCase(StrUtil.nullToEmpty(filePath).trim().replace('\\', '/'))) {
             return editSkill(nameOrPath, fileContent).canonicalName();
         }
-        validateSupportFilePath(filePath);
+        validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
-        writeTextAtomically(target, StrUtil.nullToEmpty(fileContent));
-        return "Wrote skill file: " + target.getAbsolutePath();
+        writeTextAtomically(
+                target, StrUtil.nullToEmpty(fileContent), safeSkillFilePath(descriptor, target));
+        return "Wrote skill file: " + safeSkillFilePath(descriptor, target);
     }
 
     /** 删除技能支持文件。 */
@@ -334,13 +426,14 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Skill not found: " + nameOrPath);
         }
         ensureWritable(descriptor);
-        validateSupportFilePath(filePath);
+        validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
         if (!target.exists()) {
-            throw new IllegalStateException("Skill file not found: " + target.getAbsolutePath());
+            throw new IllegalStateException(
+                    "Skill file not found: " + safeSkillFilePath(descriptor, target));
         }
         FileUtil.del(target);
-        return "Removed skill file: " + target.getAbsolutePath();
+        return "Removed skill file: " + safeSkillFilePath(descriptor, target);
     }
 
     /** 预测新技能主文件路径。 */
@@ -351,7 +444,7 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 递归扫描根目录与单层分类目录中的技能。 */
-    private void collectSkills(File root, List<SkillDescriptor> output) {
+    private void collectSkills(File root, List<SkillDescriptor> output, String source, String trustLevel) {
         File[] children = root.listFiles();
         if (children == null) {
             return;
@@ -364,7 +457,7 @@ public class LocalSkillService implements SkillCatalogService {
 
             File directSkill = FileUtil.file(child, SkillConstants.SKILL_FILE_NAME);
             if (directSkill.exists()) {
-                output.add(buildDescriptor(child, null));
+                output.add(buildDescriptor(child, null, source, trustLevel));
                 continue;
             }
 
@@ -375,7 +468,7 @@ public class LocalSkillService implements SkillCatalogService {
             for (File nested : nestedChildren) {
                 if (nested.isDirectory()
                         && FileUtil.file(nested, SkillConstants.SKILL_FILE_NAME).exists()) {
-                    output.add(buildDescriptor(nested, child.getName()));
+                    output.add(buildDescriptor(nested, child.getName(), source, trustLevel));
                 }
             }
         }
@@ -383,6 +476,11 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 构建技能元数据。 */
     private SkillDescriptor buildDescriptor(File skillDir, String category) {
+        return buildDescriptor(skillDir, category, "local", "agent-created");
+    }
+
+    private SkillDescriptor buildDescriptor(
+            File skillDir, String category, String defaultSource, String defaultTrustLevel) {
         File skillFile = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
         String content = FileUtil.readUtf8String(skillFile);
         Map<String, Object> frontmatter = SkillFrontmatterSupport.parseFrontmatter(content);
@@ -399,6 +497,14 @@ public class LocalSkillService implements SkillCatalogService {
                 new ArrayList<String>(
                         SkillFrontmatterSupport.parseStringList(frontmatter.get("platforms"))));
         descriptor.setMetadata(new LinkedHashMap<String, Object>(frontmatter));
+        Object credentialFiles = frontmatter.get("required_credential_files");
+        SkillCredentialFileService.CredentialFilePlan credentialFilePlan =
+                new SkillCredentialFileService(appConfig).plan(credentialFiles);
+        if (!credentialFilePlan.getMounts().isEmpty()
+                || !credentialFilePlan.getMissing().isEmpty()
+                || !credentialFilePlan.getRejected().isEmpty()) {
+            descriptor.getMetadata().put("credential_files", credentialFilePlan.toMetadata());
+        }
         descriptor.setSetupState(SkillFrontmatterSupport.resolveSetupState(frontmatter).name());
 
         HubInstallRecord hubRecord = findHubRecord(category, skillDir.getName());
@@ -408,9 +514,12 @@ public class LocalSkillService implements SkillCatalogService {
             descriptor.setTrustLevel(hubRecord.getTrustLevel());
             descriptor.getMetadata().put("hub", hubRecord.getMetadata());
         } else {
-            descriptor.setSource("local");
+            descriptor.setSource(defaultSource);
             descriptor.setIdentifier(descriptor.canonicalName());
-            descriptor.setTrustLevel("agent-created");
+            descriptor.setTrustLevel(defaultTrustLevel);
+            if ("external".equals(defaultSource)) {
+                descriptor.getMetadata().put("external", Boolean.TRUE);
+            }
         }
         return descriptor;
     }
@@ -528,10 +637,10 @@ public class LocalSkillService implements SkillCatalogService {
                 pinned = pinned || asBoolean(((Map<String, Object>) curator).get("pinned"));
                 readOnly = readOnly || asBoolean(((Map<String, Object>) curator).get("readonly"));
             }
-            Object hermes = metadata.get("hermes");
-            if (hermes instanceof Map) {
-                pinned = pinned || asBoolean(((Map<String, Object>) hermes).get("pinned"));
-                readOnly = readOnly || asBoolean(((Map<String, Object>) hermes).get("readonly"));
+            Object Jimuqu = metadata.get("Jimuqu");
+            if (Jimuqu instanceof Map) {
+                pinned = pinned || asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
+                readOnly = readOnly || asBoolean(((Map<String, Object>) Jimuqu).get("readonly"));
             }
         }
         if (pinned || readOnly || !"agent-created".equals(descriptor.getTrustLevel())) {
@@ -547,6 +656,32 @@ public class LocalSkillService implements SkillCatalogService {
         }
         String text = value == null ? "" : String.valueOf(value).trim();
         return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readMap(File file) {
+        if (file == null || !file.isFile()) {
+            return new LinkedHashMap<String, Object>();
+        }
+        try {
+            Object parsed = ONode.deserialize(FileUtil.readUtf8String(file), Object.class);
+            if (parsed instanceof Map) {
+                return (Map<String, Object>) parsed;
+            }
+        } catch (Exception ignored) {
+        }
+        return new LinkedHashMap<String, Object>();
+    }
+
+    private long asLong(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     /** 解析技能目录。 */
@@ -568,7 +703,7 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 写技能主文件并创建默认目录结构。 */
-    private void writeSkillMainFile(File skillDir, String content) {
+    private void writeSkillMainFile(File skillDir, String content, String displayPath) {
         FileUtil.mkdir(skillDir);
         FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.REFERENCES_DIR));
         FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.TEMPLATES_DIR));
@@ -576,7 +711,8 @@ public class LocalSkillService implements SkillCatalogService {
         FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.ASSETS_DIR));
         writeTextAtomically(
                 FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME),
-                StrUtil.nullToEmpty(content));
+                StrUtil.nullToEmpty(content),
+                displayPath);
     }
 
     /** 解析技能支持文件路径。 */
@@ -598,6 +734,26 @@ public class LocalSkillService implements SkillCatalogService {
                     "Skill file path is outside skill directory: " + filePath);
         }
         return target;
+    }
+
+    private String safeSkillFilePath(SkillDescriptor descriptor, File target) {
+        String value = target == null ? "" : target.getName();
+        try {
+            File skillDir = FileUtil.file(descriptor.getSkillDir()).getCanonicalFile();
+            File canonical = target.getCanonicalFile();
+            String root = skillDir.getAbsolutePath() + File.separator;
+            if (canonical.getAbsolutePath().equals(skillDir.getAbsolutePath())) {
+                value = descriptor.canonicalName();
+            } else if (canonical.getAbsolutePath().startsWith(root)) {
+                String relative =
+                        canonical.getAbsolutePath()
+                                .substring(root.length())
+                                .replace(File.separatorChar, '/');
+                value = descriptor.canonicalName() + "/" + relative;
+            }
+        } catch (Exception ignored) {
+        }
+        return SecretRedactor.redact(value, 400);
     }
 
     /** 生成规范名。 */
@@ -637,8 +793,21 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 校验支持文件相对路径。 */
     private void validateSupportFilePath(String filePath) {
+        validateSupportFilePath(filePath, false);
+    }
+
+    private void validateSupportFilePath(String filePath, boolean writeLike) {
         if (StrUtil.isBlank(filePath) || filePath.contains("..")) {
             throw new IllegalStateException("Invalid skill file path: " + filePath);
+        }
+        SecurityPolicyService.FileVerdict verdict =
+                new SecurityPolicyService(appConfig).checkPath(filePath, writeLike);
+        if (!verdict.isAllowed()) {
+            throw new IllegalStateException(
+                    "Skill file path blocked by security policy: "
+                            + SecretRedactor.redact(verdict.getPath(), 400)
+                            + " - "
+                            + verdict.getMessage());
         }
     }
 
@@ -668,29 +837,29 @@ public class LocalSkillService implements SkillCatalogService {
         if (SkillSetupState.UNSUPPORTED.name().equals(descriptor.getSetupState())) {
             return false;
         }
-        Map<String, Object> hermes =
-                SkillFrontmatterSupport.getHermesMetadata(descriptor.getMetadata());
+        Map<String, Object> Jimuqu =
+                SkillFrontmatterSupport.getCompatibilityMetadata(descriptor.getMetadata());
         if (!checkRequiresTools(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("requires_tools")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_tools")),
                 agentScope)) {
             return false;
         }
         if (!checkRequiresToolsets(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("requires_toolsets")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_toolsets")),
                 agentScope)) {
             return false;
         }
         if (!checkFallbackTools(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("fallback_for_tools")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_tools")),
                 agentScope)) {
             return false;
         }
         return checkFallbackToolsets(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("fallback_for_toolsets")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_toolsets")),
                 agentScope);
     }
 
@@ -781,16 +950,22 @@ public class LocalSkillService implements SkillCatalogService {
                     ToolNameConstants.WEBFETCH,
                     ToolNameConstants.CODESEARCH);
         }
+        if ("gateway".equalsIgnoreCase(toolset) || "tool_gateway".equalsIgnoreCase(toolset)) {
+            return java.util.Collections.singletonList(ToolNameConstants.TOOL_GATEWAY);
+        }
         if ("terminal".equalsIgnoreCase(toolset)) {
             return java.util.Arrays.asList(
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.PROCESS,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
                     ToolNameConstants.FILE_LIST,
-                    ToolNameConstants.FILE_DELETE);
+                    ToolNameConstants.FILE_DELETE,
+                    ToolNameConstants.PATCH);
         }
         if ("skills".equalsIgnoreCase(toolset)) {
             return java.util.Arrays.asList(
@@ -840,7 +1015,7 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 以原子替换方式写文本，降低并发写和中断写导致的半成品风险。 */
-    private void writeTextAtomically(File target, String content) {
+    private void writeTextAtomically(File target, String content, String displayPath) {
         try {
             FileUtil.mkParentDirs(target);
             File tempFile =
@@ -862,7 +1037,10 @@ public class LocalSkillService implements SkillCatalogService {
             }
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Failed to write skill file: " + target.getAbsolutePath(), e);
+                    "Failed to write skill file: "
+                            + SecretRedactor.redact(
+                                    StrUtil.blankToDefault(displayPath, target.getName()), 400),
+                    e);
         }
     }
 }

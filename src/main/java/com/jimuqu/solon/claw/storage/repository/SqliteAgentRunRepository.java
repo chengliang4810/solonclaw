@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -38,8 +39,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(9, record.getPhase());
             statement.setString(10, record.getBusyPolicy());
             statement.setInt(11, record.isBackgrounded() ? 1 : 0);
-            statement.setString(12, record.getInputPreview());
-            statement.setString(13, record.getFinalReplyPreview());
+            statement.setString(12, redact(record.getInputPreview(), 8000));
+            statement.setString(13, redact(record.getFinalReplyPreview(), 8000));
             statement.setString(14, record.getProvider());
             statement.setString(15, record.getModel());
             statement.setInt(16, record.getAttempts());
@@ -59,8 +60,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(30, record.getFinishedAt());
             statement.setString(31, record.getExitReason());
             statement.setInt(32, record.isRecoverable() ? 1 : 0);
-            statement.setString(33, record.getRecoveryHint());
-            statement.setString(34, record.getError());
+            statement.setString(33, redact(record.getRecoveryHint(), 2000));
+            statement.setString(34, redact(record.getError(), 2000));
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -283,8 +284,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setInt(8, event.getAttemptNo());
             statement.setString(9, event.getProvider());
             statement.setString(10, event.getModel());
-            statement.setString(11, event.getSummary());
-            statement.setString(12, event.getMetadataJson());
+            statement.setString(11, redact(event.getSummary(), 1000));
+            statement.setString(12, redact(event.getMetadataJson(), 4000));
             statement.setLong(13, event.getCreatedAt());
             statement.executeUpdate();
             appendEventFts(connection, event);
@@ -422,7 +423,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(9, message.getCreatedAt());
             statement.setLong(10, message.getStartedAt());
             statement.setLong(11, message.getFinishedAt());
-            statement.setString(12, message.getError());
+            statement.setString(12, redact(message.getError(), 2000));
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -453,6 +454,27 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     @Override
+    public int countQueuedMessages(String sourceKey, String sessionId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select count(*) from queued_run_messages where source_key = ? and session_id = ? and status = 'queued'");
+            statement.setString(1, sourceKey);
+            statement.setString(2, sessionId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public void markQueuedMessage(String queueId, String status, long timestamp, String error)
             throws Exception {
         Connection connection = database.openConnection();
@@ -465,7 +487,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(3, timestamp);
             statement.setString(4, status);
             statement.setLong(5, timestamp);
-            statement.setString(6, error);
+            statement.setString(6, redact(error, 2000));
             statement.setString(7, queueId);
             statement.executeUpdate();
             statement.close();
@@ -487,10 +509,10 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(4, record.getSourceKey());
             statement.setString(5, record.getToolName());
             statement.setString(6, record.getStatus());
-            statement.setString(7, record.getArgsPreview());
-            statement.setString(8, record.getResultPreview());
-            statement.setString(9, record.getResultRef());
-            statement.setString(10, record.getError());
+            statement.setString(7, redact(record.getArgsPreview(), 8000));
+            statement.setString(8, redact(record.getResultPreview(), 8000));
+            statement.setString(9, redact(record.getResultRef(), 1000));
+            statement.setString(10, redact(record.getError(), 2000));
             statement.setInt(11, record.isReadOnly() ? 1 : 0);
             statement.setInt(12, record.isInterruptible() ? 1 : 0);
             statement.setInt(13, record.isSideEffecting() ? 1 : 0);
@@ -619,14 +641,14 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(5, record.getChildSourceKey());
             statement.setString(6, record.getSessionId());
             statement.setString(7, record.getName());
-            statement.setString(8, record.getGoalPreview());
+            statement.setString(8, redact(record.getGoalPreview(), 1000));
             statement.setString(9, record.getStatus());
             statement.setInt(10, record.isActive() ? 1 : 0);
             statement.setInt(11, record.isInterruptRequested() ? 1 : 0);
             statement.setInt(12, record.getDepth());
             statement.setInt(13, record.getTaskIndex());
-            statement.setString(14, record.getOutputTailJson());
-            statement.setString(15, record.getError());
+            statement.setString(14, redact(record.getOutputTailJson(), 4000));
+            statement.setString(15, redact(record.getError(), 2000));
             statement.setLong(16, record.getStartedAt());
             statement.setLong(17, record.getFinishedAt());
             statement.setLong(18, record.getHeartbeatAt());
@@ -674,8 +696,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(4, record.getSourceKey());
             statement.setString(5, record.getRecoveryType());
             statement.setString(6, record.getStatus());
-            statement.setString(7, record.getSummary());
-            statement.setString(8, record.getPayloadJson());
+            statement.setString(7, redact(record.getSummary(), 2000));
+            statement.setString(8, redact(record.getPayloadJson(), 4000));
             statement.setLong(9, record.getCreatedAt());
             statement.setLong(10, record.getResolvedAt());
             statement.executeUpdate();
@@ -953,8 +975,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(2, event.getSessionId());
             statement.setString(3, event.getSourceKey());
             statement.setString(4, event.getEventType());
-            statement.setString(5, event.getSummary());
-            statement.setString(6, event.getMetadataJson());
+            statement.setString(5, SecretRedactor.redact(event.getSummary(), 1000));
+            statement.setString(6, SecretRedactor.redact(event.getMetadataJson(), 4000));
             statement.executeUpdate();
             statement.close();
         } catch (Exception ignored) {
@@ -995,15 +1017,15 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                     5,
                     String.valueOf(record.getToolName())
                             + " "
-                            + String.valueOf(record.getResultPreview()));
+                            + redact(record.getResultPreview(), 8000));
             statement.setString(
                     6,
                     "{\"tool_name\":\""
                             + escapeJson(record.getToolName())
                             + "\",\"args_preview\":\""
-                            + escapeJson(record.getArgsPreview())
+                            + escapeJson(redact(record.getArgsPreview(), 8000))
                             + "\",\"result_ref\":\""
-                            + escapeJson(record.getResultRef())
+                            + escapeJson(redact(record.getResultRef(), 1000))
                             + "\"}");
             statement.executeUpdate();
             statement.close();
@@ -1016,5 +1038,9 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String redact(String value, int maxLength) {
+        return value == null ? null : SecretRedactor.redact(value, maxLength);
     }
 }

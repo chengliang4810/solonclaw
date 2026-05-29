@@ -41,4 +41,47 @@ public class LlmConfigOverrideLoadTest {
         assertThat(config.getLlm().getModel()).isEqualTo("gpt-5.4");
         assertThat(config.getLlm().getApiKey()).isEqualTo("test-key");
     }
+
+    @Test
+    void shouldLoadModelMaxTokensAliasFromRuntimeConfig() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-llm-max-tokens").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "model:\n"
+                        + "  max_tokens: 8192\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("providers.default.baseUrl", "https://api.openai.com");
+        props.put("providers.default.defaultModel", "gpt-5.4");
+        props.put("providers.default.dialect", "openai-responses");
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getLlm().getMaxTokens()).isEqualTo(8192);
+    }
+
+    @Test
+    void shouldPreferCanonicalLlmMaxTokensOverModelAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-llm-max-tokens-precedence").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  llm:\n"
+                        + "    maxTokens: 4096\n"
+                        + "model:\n"
+                        + "  max_tokens: 8192\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("providers.default.baseUrl", "https://api.openai.com");
+        props.put("providers.default.defaultModel", "gpt-5.4");
+        props.put("providers.default.dialect", "openai-responses");
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getLlm().getMaxTokens()).isEqualTo(4096);
+    }
 }

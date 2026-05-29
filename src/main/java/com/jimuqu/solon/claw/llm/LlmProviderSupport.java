@@ -1,14 +1,22 @@
 package com.jimuqu.solon.claw.llm;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Provider key / dialect / URL 拼装辅助工具。 */
 public final class LlmProviderSupport {
     private static final Set<String> DIALECTS =
             new LinkedHashSet<String>(LlmConstants.SUPPORTED_PROVIDERS);
+    private static final Pattern SENSITIVE_QUERY =
+            Pattern.compile(
+                    "(?i)(?:^|[?&;])(?:access_token|refresh_token|id_token|token|api_key|apikey|client_secret|password|auth|jwt|session|secret|key|code|signature|x-amz-signature)=");
 
     private LlmProviderSupport() {}
 
@@ -18,6 +26,55 @@ public final class LlmProviderSupport {
 
     public static String normalizeDialect(String dialect) {
         return StrUtil.nullToEmpty(dialect).trim().toLowerCase();
+    }
+
+    public static void validateBaseUrl(String baseUrl) {
+        String raw = normalizedBaseCandidate(baseUrl);
+        if (raw.length() == 0) {
+            return;
+        }
+        if (SecretRedactor.containsSecretLikeToken(raw) || SENSITIVE_QUERY.matcher(raw).find()) {
+            throw new IllegalArgumentException("provider.baseUrl 包含疑似 API key 或 token");
+        }
+
+        URI uri = parseProviderUri(raw);
+        String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
+            throw new IllegalArgumentException("provider.baseUrl 仅支持 http/https");
+        }
+        if (StrUtil.isNotBlank(uri.getRawUserInfo()) || hasAuthorityUserInfo(uri)) {
+            throw new IllegalArgumentException("provider.baseUrl 不能包含 userinfo 凭据");
+        }
+        if (StrUtil.isBlank(uri.getHost())) {
+            throw new IllegalArgumentException("provider.baseUrl 缺少主机名或端口格式错误");
+        }
+    }
+
+    public static boolean isDirectOpenAiBaseUrl(String baseUrl) {
+        return baseUrlHostMatches(baseUrl, "api.openai.com");
+    }
+
+    public static String baseUrlHostname(String baseUrl) {
+        String raw = normalizedBaseCandidate(baseUrl);
+        if (raw.length() == 0) {
+            return "";
+        }
+        String candidate = raw.contains("://") ? raw : "https://" + raw;
+        try {
+            URI uri = parseProviderUri(candidate);
+            return normalizeHostname(uri.getHost());
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
+
+    public static boolean baseUrlHostMatches(String baseUrl, String domain) {
+        String host = baseUrlHostname(baseUrl);
+        String normalizedDomain = normalizeHostname(domain);
+        if (host.length() == 0 || normalizedDomain.length() == 0) {
+            return false;
+        }
+        return host.equals(normalizedDomain) || host.endsWith("." + normalizedDomain);
     }
 
     public static String buildApiUrl(String baseUrl, String dialect) {
@@ -153,5 +210,45 @@ public final class LlmProviderSupport {
             current = current.substring(0, current.length() - 1);
         }
         return current;
+    }
+
+    private static String normalizedBaseCandidate(String baseUrl) {
+        String raw = StrUtil.nullToEmpty(baseUrl).trim();
+        if (raw.endsWith("#")) {
+            raw = raw.substring(0, raw.length() - 1).trim();
+        }
+        return raw;
+    }
+
+    private static URI parseProviderUri(String raw) {
+        try {
+            URI uri = new URI(raw);
+            String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
+            if ("http".equals(scheme) || "https".equals(scheme)) {
+                uri = uri.parseServerAuthority();
+                uri.getPort();
+            }
+            return uri;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("provider.baseUrl 格式无效", e);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("provider.baseUrl 格式无效", e);
+        }
+    }
+
+    private static boolean hasAuthorityUserInfo(URI uri) {
+        String authority = StrUtil.nullToEmpty(uri.getRawAuthority());
+        if (authority.length() == 0) {
+            authority = StrUtil.nullToEmpty(uri.getAuthority());
+        }
+        return authority.indexOf('@') >= 0;
+    }
+
+    private static String normalizeHostname(String host) {
+        String value = StrUtil.nullToEmpty(host).trim().toLowerCase(Locale.ROOT);
+        while (value.endsWith(".")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 }

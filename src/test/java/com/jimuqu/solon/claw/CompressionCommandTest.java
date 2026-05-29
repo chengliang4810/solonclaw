@@ -74,6 +74,37 @@ public class CompressionCommandTest {
         assertThat(updated.getCompressedSummary()).contains("发布流程");
     }
 
+    @Test
+    void shouldCompactCurrentSessionAsJimuquCompatibleAlias() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("admin-chat", "admin-user", "hello");
+        env.send("admin-chat", "admin-user", "/pairing claim-admin");
+        env.send("admin-chat", "admin-user", "start");
+
+        SessionRecord session =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("分析当前问题"),
+                                ChatMessage.ofAssistant("已经处理第一部分"),
+                                ChatMessage.ofTool("tool output " + repeat("D", 500), "tool", "1"),
+                                ChatMessage.ofUser("继续推进"),
+                                ChatMessage.ofAssistant("准备发布"),
+                                ChatMessage.ofUser(repeat("E", 5000)))));
+        env.sessionRepository.save(session);
+
+        GatewayReply reply =
+                env.gatewayService.handle(
+                        env.message("admin-chat", "admin-user", "/compact 发布流程"));
+        SessionRecord updated = env.sessionRepository.findById(session.getSessionId());
+
+        assertThat(reply.getContent()).contains("关注主题");
+        assertThat(updated.getCompressedSummary()).contains("Focus");
+        assertThat(updated.getCompressedSummary()).contains("发布流程");
+    }
+
     private String repeat(String value, int count) {
         StringBuilder buffer = new StringBuilder();
         for (int i = 0; i < count; i++) {

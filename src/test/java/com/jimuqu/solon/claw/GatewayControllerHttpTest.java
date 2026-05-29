@@ -10,6 +10,9 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.bootstrap.GatewayController;
+import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
+import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -33,6 +36,8 @@ import org.noear.snack4.ONode;
 import org.noear.solon.Solon;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.core.AppContext;
+import org.noear.solon.core.handle.Context;
+import org.noear.solon.core.handle.ContextEmpty;
 
 public class GatewayControllerHttpTest {
     private static final String GATEWAY_SECRET = "gateway-test-secret";
@@ -144,6 +149,56 @@ public class GatewayControllerHttpTest {
         assertThat(updated.getCompressedSummary()).contains("发布流程");
     }
 
+    @Test
+    void shouldRedactGatewayInjectionAuthErrors() throws Exception {
+        String bodyText =
+                ONode.serialize(
+                        new GatewayMessage(
+                                com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                                "http-admin-chat",
+                                "http-admin",
+                                "hello"));
+        GatewayController controller =
+                new GatewayController(
+                        bean(DefaultGatewayService.class),
+                        new GatewayInjectionAuthService(null) {
+                            @Override
+                            public void verify(Context context, String body) {
+                                throw new IllegalStateException(
+                                        "Gateway injection failed token=sk-test-gatewayauth12345");
+                            }
+                        });
+        Context context = ContextEmpty.create();
+        context.bodyNew(bodyText);
+
+        GatewayReply reply = controller.message(context);
+
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("token=***");
+        assertThat(reply.getContent()).doesNotContain("sk-test-gatewayauth12345");
+    }
+
+    @Test
+    void shouldWrapGatewayMessageBodyErrors() throws Exception {
+        String bodyText = "{\"text\":\"token=ghp_gatewayparse12345\"";
+        GatewayController controller =
+                new GatewayController(
+                        bean(DefaultGatewayService.class),
+                        new GatewayInjectionAuthService(null) {
+                            @Override
+                            public void verify(Context context, String body) {}
+                        });
+        Context context = ContextEmpty.create();
+        context.bodyNew(bodyText);
+
+        GatewayReply reply = controller.message(context);
+
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("请求体");
+        assertThat(reply.getContent()).doesNotContain("ghp_gatewayparse12345");
+        assertThat(reply.getContent()).doesNotContain("token=");
+    }
+
     private static void bootstrapAdmin() throws Exception {
         GatewayReply claimPrompt = postMessage("http-admin-chat", "http-admin", "hello");
         assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
@@ -209,16 +264,20 @@ public class GatewayControllerHttpTest {
                 new BufferedReader(
                         new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
         try {
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                buffer.append(line);
-            }
-            return ONode.deserialize(buffer.toString(), GatewayReply.class);
+            return ONode.deserialize(readAll(reader), GatewayReply.class);
         } finally {
             reader.close();
             connection.disconnect();
         }
+    }
+
+    private static String readAll(BufferedReader reader) throws Exception {
+        StringBuilder buffer = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            buffer.append(line);
+        }
+        return buffer.toString();
     }
 
     private static String hmac(String payload) throws Exception {

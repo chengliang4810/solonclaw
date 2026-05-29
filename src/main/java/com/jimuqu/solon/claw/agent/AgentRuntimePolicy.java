@@ -19,7 +19,11 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.FILE_WRITE,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
+                    ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.TERMINAL,
+                    ToolNameConstants.PROCESS,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
@@ -42,22 +46,38 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.SKILLS_HUB_TAP,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
+                    ToolNameConstants.KANBAN_SHOW,
+                    ToolNameConstants.KANBAN_COMPLETE,
+                    ToolNameConstants.KANBAN_BLOCK,
+                    ToolNameConstants.KANBAN_HEARTBEAT,
+                    ToolNameConstants.KANBAN_STEP,
+                    ToolNameConstants.KANBAN_COMMENT,
+                    ToolNameConstants.KANBAN_CREATE,
+                    ToolNameConstants.KANBAN_SCHEMA_CREATE,
+                    ToolNameConstants.KANBAN_LINK,
+                    ToolNameConstants.KANBAN_UNLINK,
                     ToolNameConstants.CONFIG_GET,
                     ToolNameConstants.CONFIG_SET,
                     ToolNameConstants.CONFIG_SET_SECRET,
                     ToolNameConstants.CONFIG_REFRESH,
+                    ToolNameConstants.TOOL_GATEWAY,
+                    ToolNameConstants.MCP,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
-                    ToolNameConstants.WEBFETCH);
+                    ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.SECURITY_AUDIT);
 
     private AgentRuntimePolicy() {}
 
     public static List<String> resolveAllowedTools(
             AgentRuntimeScope agentScope, List<String> allToolNames) {
-        if (agentScope == null || agentScope.isDefaultAgentName()) {
+        if (agentScope == null) {
             return new ArrayList<String>(allToolNames);
         }
         List<String> configured = parseStringList(agentScope.getAllowedToolsJson());
+        if (configured.isEmpty() && agentScope.isDefaultAgentName()) {
+            return new ArrayList<String>(allToolNames);
+        }
         if (configured.isEmpty()) {
             return new ArrayList<String>(allToolNames);
         }
@@ -76,11 +96,25 @@ public final class AgentRuntimePolicy {
         return allowed;
     }
 
+    public static LinkedHashSet<String> expandToolSelectors(List<String> selectors) {
+        LinkedHashSet<String> expanded = new LinkedHashSet<String>();
+        if (selectors == null) {
+            return expanded;
+        }
+        for (String item : selectors) {
+            addToolOrGroup(expanded, item);
+        }
+        return expanded;
+    }
+
     public static boolean isToolAllowed(AgentRuntimeScope agentScope, String toolName) {
-        if (agentScope == null || agentScope.isDefaultAgentName()) {
+        if (agentScope == null) {
             return true;
         }
         List<String> configured = parseStringList(agentScope.getAllowedToolsJson());
+        if (configured.isEmpty() && agentScope.isDefaultAgentName()) {
+            return true;
+        }
         if (configured.isEmpty()) {
             return true;
         }
@@ -173,6 +207,7 @@ public final class AgentRuntimePolicy {
             output.add(ToolNameConstants.FILE_WRITE);
             output.add(ToolNameConstants.FILE_LIST);
             output.add(ToolNameConstants.FILE_DELETE);
+            output.add(ToolNameConstants.PATCH);
             return;
         }
         if ("command".equals(key)
@@ -180,6 +215,9 @@ public final class AgentRuntimePolicy {
                 || "shell".equals(key)
                 || "terminal".equals(key)) {
             output.add(ToolNameConstants.EXECUTE_SHELL);
+            output.add(ToolNameConstants.TERMINAL);
+            output.add(ToolNameConstants.PROCESS);
+            output.add(ToolNameConstants.EXECUTE_CODE);
             output.add(ToolNameConstants.EXECUTE_PYTHON);
             output.add(ToolNameConstants.EXECUTE_JS);
             output.add(ToolNameConstants.GET_CURRENT_TIME);
@@ -214,12 +252,37 @@ public final class AgentRuntimePolicy {
             output.add(ToolNameConstants.CODESEARCH);
             return;
         }
+        if ("gateway".equals(key) || "tool_gateway".equals(key) || "managed_tools".equals(key)) {
+            output.add(ToolNameConstants.TOOL_GATEWAY);
+            return;
+        }
+        if ("mcp".equals(key) || "mcp_tools".equals(key)) {
+            output.add(ToolNameConstants.MCP);
+            return;
+        }
         if ("message".equals(key) || "messaging".equals(key) || "send".equals(key)) {
             output.add(ToolNameConstants.SEND_MESSAGE);
             return;
         }
         if ("cron".equals(key) || "cronjob".equals(key)) {
             output.add(ToolNameConstants.CRONJOB);
+            return;
+        }
+        if ("kanban".equals(key) || "board".equals(key) || "boards".equals(key)) {
+            output.add(ToolNameConstants.KANBAN_SHOW);
+            output.add(ToolNameConstants.KANBAN_COMPLETE);
+            output.add(ToolNameConstants.KANBAN_BLOCK);
+            output.add(ToolNameConstants.KANBAN_HEARTBEAT);
+            output.add(ToolNameConstants.KANBAN_STEP);
+            output.add(ToolNameConstants.KANBAN_COMMENT);
+            output.add(ToolNameConstants.KANBAN_CREATE);
+            output.add(ToolNameConstants.KANBAN_SCHEMA_CREATE);
+            output.add(ToolNameConstants.KANBAN_LINK);
+            output.add(ToolNameConstants.KANBAN_UNLINK);
+            return;
+        }
+        if ("security".equals(key) || "audit".equals(key) || "security_audit".equals(key)) {
+            output.add(ToolNameConstants.SECURITY_AUDIT);
             return;
         }
         if ("delegate".equals(key) || "delegation".equals(key)) {
