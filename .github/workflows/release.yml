@@ -134,9 +134,19 @@ jobs:
           fi
 
           mkdir -p dist
-          RELEASE_JAR="dist/${{ github.event.repository.name }}-${VERSION}.jar"
+          RELEASE_JAR="dist/SolonClaw.jar"
+          SOURCE_ZIP="dist/SolonClaw-source.zip"
+          SOURCE_TAR="dist/SolonClaw-source.tar.gz"
           cp "$JAR_PATH" "$RELEASE_JAR"
-          (cd dist && sha256sum "$(basename "$RELEASE_JAR")" > SHA256SUMS)
+          git archive --format=zip --output="$SOURCE_ZIP" "$GITHUB_SHA"
+          git archive --format=tar.gz --output="$SOURCE_TAR" "$GITHUB_SHA"
+          (
+            cd dist
+            sha256sum \
+              "$(basename "$RELEASE_JAR")" \
+              "$(basename "$SOURCE_ZIP")" \
+              "$(basename "$SOURCE_TAR")" > SHA256SUMS
+          )
 
           python3 scripts/write-release-notes.py \
             --output-path dist/release-notes.md \
@@ -146,6 +156,8 @@ jobs:
             --display-range "$RELEASE_DISPLAY_RANGE"
 
           echo "jar_path=$RELEASE_JAR" >> "$GITHUB_OUTPUT"
+          echo "source_zip_path=$SOURCE_ZIP" >> "$GITHUB_OUTPUT"
+          echo "source_tar_path=$SOURCE_TAR" >> "$GITHUB_OUTPUT"
           echo "sha_path=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
           echo "body_path=dist/release-notes.md" >> "$GITHUB_OUTPUT"
 
@@ -161,6 +173,8 @@ jobs:
           name: jimuqu-agent-release
           path: |
             ${{ steps.artifact.outputs.jar_path }}
+            ${{ steps.artifact.outputs.source_zip_path }}
+            ${{ steps.artifact.outputs.source_tar_path }}
             ${{ steps.artifact.outputs.sha_path }}
           if-no-files-found: error
 
@@ -176,6 +190,8 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             ${{ steps.artifact.outputs.jar_path }}
+            ${{ steps.artifact.outputs.source_zip_path }}
+            ${{ steps.artifact.outputs.source_tar_path }}
             ${{ steps.artifact.outputs.sha_path }}
 
       - name: Check published release naming

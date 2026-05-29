@@ -330,6 +330,14 @@ def main() -> int:
             raise AssertionError("Release notes generation did not classify scoped feat commits as features.")
         if not re.search(r"### 缺陷修复 / Fixes[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note", clean_release_text):
             raise AssertionError("Release notes generation did not classify scoped fix commits as fixes.")
+        if "`SolonClaw.jar`" not in clean_release_text:
+            raise AssertionError("Release notes generation should document the fixed release jar asset name.")
+        if "`SolonClaw-source.zip`" not in clean_release_text or "`SolonClaw-source.tar.gz`" not in clean_release_text:
+            raise AssertionError("Release notes generation should document source archive assets.")
+        if "java -jar SolonClaw.jar" not in clean_release_text:
+            raise AssertionError("Release notes generation should use the fixed release jar asset in quick start.")
+        if "jimuqu-agent-0.0.0-test.jar" in clean_release_text:
+            raise AssertionError("Release notes generation should not document the versioned repository jar asset name.")
 
         reset_sandbox(sandbox)
         release_dir = sandbox / "dist"

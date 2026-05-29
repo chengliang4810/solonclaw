@@ -10,8 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 仓库文件、配置、测试、路由、环境变量、文档、提交信息、Release notes 和用户可见输出中不得写入旧项目关键词；本项目命名以 `solon-claw` / `solonclaw` 为准，代码包名可沿用当前 `com.jimuqu.solon.claw` 结构。
 - 国内消息渠道范围：保留 `feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`；明确不做 `sms`、`webhook`；海外渠道默认不做。
 - 模型协议范围：`openai`、`openai-responses`、`ollama`、`gemini`、`anthropic`；其他 provider 默认不做，除非用户明确要求。
-- 已确认不做：多模态模型输入、图像理解/生成、TTS/独立语音转写、浏览器自动化内置实现、价格分析/价格计算、研究实验能力、Docker 之外执行后端、worktree、插件系统、OpenAI 兼容 API Server、Profiles、多实例/多租户/多机器人隔离。
-
+- 已确认不做：研究实验能力、Docker 之外执行后端、worktree、插件系统、OpenAI 兼容 API Server、Profiles、多实例/多租户/多机器人隔离。
+- 本版需要做：多模态模型输入、图像理解/生成、TTS/独立语音转写、浏览器自动化内置实现、价格分析/价格计算。
 ## 常用命令
 
 ### 后端 / 整体构建

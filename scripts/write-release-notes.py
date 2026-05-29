@@ -180,15 +180,19 @@ Commit range: `{display_range}`
 
 ### 下载内容 / Downloads
 
-- `jimuqu-agent-{version}.jar`：完整运行包，包含后端依赖与 Dashboard 静态资源。
-- `jimuqu-agent-{version}.jar`: Full runtime package with backend dependencies and Dashboard static assets.
+- `SolonClaw.jar`：完整运行包，包含后端依赖与 Dashboard 静态资源。
+- `SolonClaw.jar`: Full runtime package with backend dependencies and Dashboard static assets.
+- `SolonClaw-source.zip`：当前发布提交的源码 ZIP 包。
+- `SolonClaw-source.zip`: Source ZIP archive for the published commit.
+- `SolonClaw-source.tar.gz`：当前发布提交的源码 tar.gz 包。
+- `SolonClaw-source.tar.gz`: Source tar.gz archive for the published commit.
 - `SHA256SUMS`：发布包校验文件。
 - `SHA256SUMS`: Checksums for release artifacts.
 
 ### 快速运行 / Quick Start
 
 ```bash
-java -jar jimuqu-agent-{version}.jar
+java -jar SolonClaw.jar
 ```
 
 服务默认监听 `http://127.0.0.1:8080`，运行数据会写入当前目录的 `runtime/`。
