@@ -9,6 +9,8 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -80,6 +82,68 @@ public class BrowserRuntimeServiceTests {
     }
 
     @Test
+    void shouldDelegateBrowserActionsToProvider() {
+        RecordingProvider provider = new RecordingProvider(true);
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        new AppConfig(),
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(new AppConfig()),
+                        1);
+        BrowserRuntimeService.BrowserResult created = service.create("task-1");
+
+        BrowserRuntimeService.BrowserResult navigated =
+                service.navigate(created.getSessionId(), "https://example.com/start", 7);
+        BrowserRuntimeService.BrowserResult clicked =
+                service.click(created.getSessionId(), "#submit", 8);
+        BrowserRuntimeService.BrowserResult typed =
+                service.type(created.getSessionId(), "#name", "alice", 9);
+        BrowserRuntimeService.BrowserResult screenshot =
+                service.screenshot(created.getSessionId(), "page.png", true);
+        BrowserRuntimeService.BrowserResult extracted =
+                service.extract(created.getSessionId(), "main", "text");
+
+        assertThat(navigated.isSuccess()).isTrue();
+        assertThat(clicked.isSuccess()).isTrue();
+        assertThat(typed.isSuccess()).isTrue();
+        assertThat(screenshot.isSuccess()).isTrue();
+        assertThat(extracted.isSuccess()).isTrue();
+        assertThat(provider.navigateCount.get()).isEqualTo(1);
+        assertThat(provider.clickCount.get()).isEqualTo(1);
+        assertThat(provider.typeCount.get()).isEqualTo(1);
+        assertThat(provider.screenshotCount.get()).isEqualTo(1);
+        assertThat(provider.extractCount.get()).isEqualTo(1);
+        assertThat(navigated.getDetails().get("providerAction")).isEqualTo("navigate");
+        assertThat(clicked.getDetails().get("selector")).isEqualTo("#submit");
+        assertThat(typed.getDetails().toString()).doesNotContain("alice");
+        assertThat(screenshot.getDetails().get("path")).isEqualTo("page.png");
+        assertThat(extracted.getDetails().get("content")).isEqualTo("provider text");
+    }
+
+    @Test
+    void shouldBlockProviderReportedNavigationAfterClickOrType() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        RecordingProvider provider = new RecordingProvider(true);
+        provider.nextUrl = "http://169.254.169.254/latest/meta-data/";
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        config,
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(config),
+                        1);
+        BrowserRuntimeService.BrowserResult created = service.create("task-1");
+
+        BrowserRuntimeService.BrowserResult clicked =
+                service.click(created.getSessionId(), "#metadata", 3);
+
+        assertThat(clicked.isSuccess()).isFalse();
+        assertThat(clicked.getError().getCode()).isEqualTo("security_blocked");
+        assertThat(service.activeLeaseCount()).isZero();
+        assertThat(provider.closeCount.get()).isEqualTo(1);
+    }
+
+    @Test
     void shouldAvoidProviderAllocationWhenCapacityIsAlreadyExhausted() {
         RecordingProvider provider = new RecordingProvider(true);
         BrowserRuntimeService service =
@@ -143,6 +207,12 @@ public class BrowserRuntimeServiceTests {
         private final AtomicInteger sequence = new AtomicInteger();
         private final AtomicInteger createCount = new AtomicInteger();
         private final AtomicInteger closeCount = new AtomicInteger();
+        private final AtomicInteger navigateCount = new AtomicInteger();
+        private final AtomicInteger clickCount = new AtomicInteger();
+        private final AtomicInteger typeCount = new AtomicInteger();
+        private final AtomicInteger screenshotCount = new AtomicInteger();
+        private final AtomicInteger extractCount = new AtomicInteger();
+        private String nextUrl = "https://example.com/after-action";
 
         RecordingProvider(boolean available) {
             this(available, "wss://browser.example/connect?token=sk-secretsecret");
@@ -172,6 +242,56 @@ public class BrowserRuntimeServiceTests {
         @Override
         public void closeSession(String sessionId) {
             closeCount.incrementAndGet();
+        }
+
+        @Override
+        public BrowserActionResult navigate(
+                String sessionId, String url, int timeoutSeconds) {
+            navigateCount.incrementAndGet();
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("providerAction", "navigate");
+            details.put("url", url);
+            details.put("timeoutSeconds", timeoutSeconds);
+            return BrowserActionResult.ok("navigated", nextUrl, details);
+        }
+
+        @Override
+        public BrowserActionResult click(String sessionId, String selector, int timeoutSeconds) {
+            clickCount.incrementAndGet();
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("selector", selector);
+            details.put("timeoutSeconds", timeoutSeconds);
+            return BrowserActionResult.ok("clicked", nextUrl, details);
+        }
+
+        @Override
+        public BrowserActionResult type(
+                String sessionId, String selector, String text, int timeoutSeconds) {
+            typeCount.incrementAndGet();
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("selector", selector);
+            details.put("text", text);
+            details.put("timeoutSeconds", timeoutSeconds);
+            return BrowserActionResult.ok("typed", nextUrl, details);
+        }
+
+        @Override
+        public BrowserActionResult screenshot(String sessionId, String path, boolean fullPage) {
+            screenshotCount.incrementAndGet();
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("path", path);
+            details.put("fullPage", Boolean.valueOf(fullPage));
+            return BrowserActionResult.ok("screenshot", nextUrl, details);
+        }
+
+        @Override
+        public BrowserActionResult extract(String sessionId, String selector, String format) {
+            extractCount.incrementAndGet();
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("selector", selector);
+            details.put("format", format);
+            details.put("content", "provider text");
+            return BrowserActionResult.ok("extracted", nextUrl, details);
         }
     }
 

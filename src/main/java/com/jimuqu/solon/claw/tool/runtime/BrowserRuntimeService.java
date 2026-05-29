@@ -100,10 +100,16 @@ public class BrowserRuntimeService {
             close(sessionId);
             return BrowserResult.error("session_expired", "Browser session timed out");
         }
-        Map<String, Object> details = new LinkedHashMap<String, Object>();
-        details.put("url", SecretRedactor.maskUrl(url));
-        details.put("timeoutSeconds", Integer.valueOf(normalizeTimeout(timeoutSeconds)));
-        return BrowserResult.success(lease.id, "navigated", details);
+        try {
+            BrowserProvider.BrowserActionResult actionResult =
+                    lease.provider.navigate(
+                            lease.providerSession.getSessionId(),
+                            url,
+                            normalizeTimeout(timeoutSeconds));
+            return toBrowserResult(lease, actionResult, "navigated", "url", url);
+        } catch (Exception e) {
+            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+        }
     }
 
     public BrowserResult click(String sessionId, String selector, Integer timeoutSeconds) {
@@ -119,10 +125,20 @@ public class BrowserRuntimeService {
         if (lease == null) {
             return BrowserResult.error("session_not_found", "Browser session not found");
         }
-        Map<String, Object> details = new LinkedHashMap<String, Object>();
-        details.put("path", SecretRedactor.redact(path, 500));
-        details.put("fullPage", Boolean.valueOf(fullPage != null && fullPage.booleanValue()));
-        return BrowserResult.success(lease.id, "screenshot", details);
+        if (isExpired(lease)) {
+            close(sessionId);
+            return BrowserResult.error("session_expired", "Browser session timed out");
+        }
+        try {
+            BrowserProvider.BrowserActionResult actionResult =
+                    lease.provider.screenshot(
+                            lease.providerSession.getSessionId(),
+                            path,
+                            fullPage != null && fullPage.booleanValue());
+            return toBrowserResult(lease, actionResult, "screenshot", "path", path);
+        } catch (Exception e) {
+            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+        }
     }
 
     public BrowserResult extract(String sessionId, String selector, String format) {
@@ -130,11 +146,20 @@ public class BrowserRuntimeService {
         if (lease == null) {
             return BrowserResult.error("session_not_found", "Browser session not found");
         }
-        Map<String, Object> details = new LinkedHashMap<String, Object>();
-        details.put("selector", safe(selector));
-        details.put("format", safe(StrUtil.blankToDefault(format, "text")));
-        details.put("content", "");
-        return BrowserResult.success(lease.id, "extracted", details);
+        if (isExpired(lease)) {
+            close(sessionId);
+            return BrowserResult.error("session_expired", "Browser session timed out");
+        }
+        try {
+            BrowserProvider.BrowserActionResult actionResult =
+                    lease.provider.extract(
+                            lease.providerSession.getSessionId(),
+                            selector,
+                            StrUtil.blankToDefault(format, "text"));
+            return toBrowserResult(lease, actionResult, "extracted", "selector", selector);
+        } catch (Exception e) {
+            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+        }
     }
 
     public BrowserResult close(String sessionId) {
@@ -167,13 +192,26 @@ public class BrowserRuntimeService {
             close(sessionId);
             return BrowserResult.error("session_expired", "Browser session timed out");
         }
-        Map<String, Object> details = new LinkedHashMap<String, Object>();
-        details.put("selector", safe(selector));
-        if (text != null) {
-            details.put("text", SecretRedactor.redact(text, 500));
+        try {
+            BrowserProvider.BrowserActionResult actionResult;
+            if ("clicked".equals(action)) {
+                actionResult =
+                        lease.provider.click(
+                                lease.providerSession.getSessionId(),
+                                selector,
+                                normalizeTimeout(timeoutSeconds));
+            } else {
+                actionResult =
+                        lease.provider.type(
+                                lease.providerSession.getSessionId(),
+                                selector,
+                                text,
+                                normalizeTimeout(timeoutSeconds));
+            }
+            return toBrowserResult(lease, actionResult, action, "selector", selector);
+        } catch (Exception e) {
+            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
-        details.put("timeoutSeconds", Integer.valueOf(normalizeTimeout(timeoutSeconds)));
-        return BrowserResult.success(lease.id, action, details);
     }
 
     private BrowserProvider selectProvider() {
@@ -219,6 +257,83 @@ public class BrowserRuntimeService {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("url", url);
         return securityPolicyService.checkToolArgs(ToolNameConstants.BROWSER, args);
+    }
+
+    private BrowserResult toBrowserResult(
+            Lease lease,
+            BrowserProvider.BrowserActionResult actionResult,
+            String defaultStatus,
+            String fallbackKey,
+            String fallbackValue) {
+        if (actionResult == null) {
+            return BrowserResult.error("provider_error", "Browser provider returned no action result");
+        }
+        if (!actionResult.isSuccess()) {
+            return BrowserResult.error(
+                    StrUtil.blankToDefault(actionResult.getErrorCode(), "provider_error"),
+                    StrUtil.blankToDefault(actionResult.getErrorMessage(), "Browser provider action failed"));
+        }
+        SecurityPolicyService.UrlVerdict verdict = checkProviderUrl(actionResult.getCurrentUrl());
+        if (!verdict.isAllowed()) {
+            close(lease.id);
+            return BrowserResult.error(
+                    "security_blocked",
+                    verdict.getMessage(),
+                    Collections.<String, Object>singletonMap(
+                            "url", SecretRedactor.maskUrl(verdict.getUrl())));
+        }
+        Map<String, Object> details = sanitizeDetails(actionResult.getDetails());
+        if (StrUtil.isNotBlank(actionResult.getCurrentUrl())) {
+            details.put("currentUrl", SecretRedactor.maskUrl(actionResult.getCurrentUrl()));
+        }
+        if (StrUtil.isNotBlank(fallbackKey)
+                && StrUtil.isNotBlank(fallbackValue)
+                && !details.containsKey(fallbackKey)) {
+            details.put(fallbackKey, sanitizeFallbackValue(fallbackKey, fallbackValue));
+        }
+        return BrowserResult.success(
+                lease.id,
+                StrUtil.blankToDefault(actionResult.getStatus(), defaultStatus),
+                details);
+    }
+
+    private SecurityPolicyService.UrlVerdict checkProviderUrl(String url) {
+        if (StrUtil.isBlank(url)) {
+            return SecurityPolicyService.UrlVerdict.allow();
+        }
+        return checkUrl(url);
+    }
+
+    private Map<String, Object> sanitizeDetails(Map<String, Object> rawDetails) {
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        if (rawDetails == null) {
+            return details;
+        }
+        for (Map.Entry<String, Object> entry : rawDetails.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if ("text".equalsIgnoreCase(key) || "input".equalsIgnoreCase(key)) {
+                details.put(key, "[redacted]");
+                details.put(key + "Length", Integer.valueOf(StrUtil.nullToEmpty(String.valueOf(value)).length()));
+            } else if (value instanceof String && key.toLowerCase(java.util.Locale.ROOT).contains("url")) {
+                details.put(key, SecretRedactor.maskUrl(String.valueOf(value)));
+            } else if (value instanceof String) {
+                details.put(key, safe(String.valueOf(value)));
+            } else {
+                details.put(key, value);
+            }
+        }
+        return details;
+    }
+
+    private Object sanitizeFallbackValue(String key, String value) {
+        if (StrUtil.nullToEmpty(key).toLowerCase(java.util.Locale.ROOT).contains("url")) {
+            return SecretRedactor.maskUrl(value);
+        }
+        return safe(value);
     }
 
     private int normalizeTimeout(Integer timeoutSeconds) {

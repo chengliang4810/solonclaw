@@ -100,6 +100,9 @@ public class AppConfig {
     /** Usage pricing configuration. */
     private PricingConfig pricing = new PricingConfig();
 
+    /** Plugin discovery and activation configuration. */
+    private PluginConfig plugins = new PluginConfig();
+
     /** 审批/确认策略配置。 */
     private ApprovalsConfig approvals = new ApprovalsConfig();
 
@@ -226,6 +229,7 @@ public class AppConfig {
                                         "system_and_3")));
         applyProviderConfiguration(config, props, overrides, structuredOverrides);
         applyPricingConfiguration(config, props, overrides, structuredOverrides);
+        applyPluginConfiguration(config, props, overrides, structuredOverrides);
 
         config.getScheduler()
                 .setEnabled(
@@ -2486,6 +2490,41 @@ public class AppConfig {
     }
 
     @SuppressWarnings("unchecked")
+    private static void applyPluginConfiguration(
+            AppConfig config,
+            Props props,
+            Map<String, Object> overrides,
+            Map<String, Object> structuredOverrides) {
+        Object enabled = readRaw(props, overrides, "solonclaw.plugins.enabled", null);
+        Object disabled = readRaw(props, overrides, "solonclaw.plugins.disabled", null);
+        Object pluginsNode = structuredOverrides.get("plugins");
+        if (pluginsNode instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) pluginsNode;
+            if (map.containsKey("enabled")) {
+                enabled = map.get("enabled");
+            }
+            if (map.containsKey("disabled")) {
+                disabled = map.get("disabled");
+            }
+        }
+        Object solonclawNode = structuredOverrides.get("solonclaw");
+        if (solonclawNode instanceof Map) {
+            Object nestedPlugins = ((Map<String, Object>) solonclawNode).get("plugins");
+            if (nestedPlugins instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) nestedPlugins;
+                if (map.containsKey("enabled")) {
+                    enabled = map.get("enabled");
+                }
+                if (map.containsKey("disabled")) {
+                    disabled = map.get("disabled");
+                }
+            }
+        }
+        config.getPlugins().setEnabled(resolveList(enabled));
+        config.getPlugins().setDisabled(resolveList(disabled));
+    }
+
+    @SuppressWarnings("unchecked")
     private static List<ModelPrice> parseModelPrices(Object raw) {
         List<ModelPrice> prices = new ArrayList<ModelPrice>();
         if (raw == null) {
@@ -3697,6 +3736,17 @@ public class AppConfig {
     public static class PricingConfig {
         /** Per-token model prices in micros. Empty list keeps usage unpriced. */
         private List<ModelPrice> prices = new ArrayList<ModelPrice>();
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class PluginConfig {
+        /** Plugins that may be loaded even when manifest autoload is disabled. */
+        private List<String> enabled = new ArrayList<String>();
+
+        /** Plugins that must be skipped regardless of manifest settings. */
+        private List<String> disabled = new ArrayList<String>();
     }
 
     @Getter

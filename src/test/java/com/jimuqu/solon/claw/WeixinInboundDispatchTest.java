@@ -54,6 +54,21 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
+    void shouldNormalizeOutboundTextNewlinesToCrLfForWeixinClients() throws Exception {
+        Method normalize =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "normalizeOutboundTextForWeixin", String.class);
+        normalize.setAccessible(true);
+
+        assertThat((String) normalize.invoke(null, "第一行\n第二行"))
+                .isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r第二行"))
+                .isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r\n第二行"))
+                .isEqualTo("第一行\r\n第二行");
+    }
+
+    @Test
     void shouldDispatchInboundOffThePollingThread() throws Exception {
         AppConfig config = newConfig();
         config.getChannels().getWeixin().setEnabled(true);

@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
@@ -61,11 +62,14 @@ public class MediaSpeechTools {
 
     @ToolMapping(name = "speech_transcribe", description = "Transcribe a cached voice attachment.")
     public String transcribeSpeech(
-            @Param(name = "mediaReference", description = "media:// reference or local cache path")
+            @Param(name = "mediaReference", description = "media:// reference")
                     String mediaReference,
             @Param(name = "mimeType", required = false, description = "Audio MIME type") String mimeType,
             @Param(name = "optionsJson", required = false, description = "Optional JSON options")
                     String optionsJson) {
+        if (!StrUtil.nullToEmpty(mediaReference).trim().startsWith("media://")) {
+            return ONode.serialize(base(false, "speech_transcribe requires a media:// reference"));
+        }
         MessageAttachment attachment = new MessageAttachment();
         attachment.setKind("voice");
         attachment.setLocalPath(mediaReference);

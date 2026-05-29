@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.plugin;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.bootstrap.PluginConfiguration;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.core.Props;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 
 class PluginRuntimeIntegrationTest {
@@ -78,6 +80,44 @@ class PluginRuntimeIntegrationTest {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("text", "ok");
         assertThat(((FunctionTool) pluginTool).handle(args)).isEqualTo("plugin:ok");
+    }
+
+    @Test
+    void pluginToolDoesNotLeakIntoDelegatedSourceByDefault() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        PluginConfiguration plugins = new PluginConfiguration();
+        plugins.onToolRegistered(
+                new ToolRegistration(
+                        "plugin_echo",
+                        "plugin",
+                        Collections.<String, Object>emptyMap(),
+                        args -> "plugin:" + args.get("text")));
+        DefaultToolRegistry registry =
+                new DefaultToolRegistry(
+                        env.appConfig,
+                        new SqlitePreferenceStore(env.sqliteDatabase),
+                        env.sessionRepository,
+                        env.agentProfileService,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.kanbanService,
+                        env.deliveryService,
+                        env.memoryService,
+                        env.sessionSearchService,
+                        env.localSkillService,
+                        env.skillHubService,
+                        env.checkpointService,
+                        env.delegationService,
+                        null,
+                        null,
+                        env.gatewayRuntimeRefreshService,
+                        null,
+                        env.processRegistry,
+                        null,
+                        plugins.pluginTools());
+
+        assertThat(registry.resolveEnabledToolNames("MEMORY:room:user")).contains("plugin_echo");
+        assertThat(registry.resolveEnabledToolNames("MEMORY:room:user:delegate:child"))
+                .doesNotContain("plugin_echo");
     }
 
     @Test
@@ -143,5 +183,36 @@ class PluginRuntimeIntegrationTest {
         assertThat(reply.getContent()).isEqualTo("plugin:hello");
         assertThat(reply.isCommandHandled()).isTrue();
         assertThat(help.getContent()).doesNotContain("must-not-override");
+    }
+
+    @Test
+    void pluginConfigurationTreatsBuiltinsAsReservedNames() {
+        PluginConfiguration plugins = new PluginConfiguration();
+
+        assertThat(plugins.hasTool("websearch")).isTrue();
+        assertThat(plugins.hasCommand("help")).isTrue();
+        plugins.onToolRegistered(
+                new ToolRegistration(
+                        "websearch",
+                        "plugin",
+                        Collections.<String, Object>emptyMap(),
+                        args -> "must-not-register"));
+        plugins.onCommandRegistered("help", args -> "must-not-register", "Help override");
+
+        assertThat(plugins.pluginTools()).isEmpty();
+        assertThat(plugins.pluginCommands()).isEmpty();
+    }
+
+    @Test
+    void appConfigLoadsPluginEnableDisableLists() {
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", "target/test-runtime/plugin-config");
+        props.put("solonclaw.plugins.enabled", "alpha,beta");
+        props.put("solonclaw.plugins.disabled", "gamma, delta");
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getPlugins().getEnabled()).containsExactly("alpha", "beta");
+        assertThat(config.getPlugins().getDisabled()).containsExactly("gamma", "delta");
     }
 }

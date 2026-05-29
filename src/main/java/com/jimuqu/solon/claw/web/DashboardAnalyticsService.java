@@ -199,8 +199,7 @@ public class DashboardAnalyticsService {
             LocalDate start, LocalDate end, ZoneId zoneId, int safeDays) throws Exception {
         long from = start.atStartOfDay(zoneId).toInstant().toEpochMilli();
         long to = end.plusDays(1L).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1L;
-        List<UsageEventRecord> events =
-                usageEventRepository.listBetween(from, to, Math.max(1000, safeDays * 1000));
+        List<UsageEventRecord> events = usageEventRepository.listBetween(from, to);
         if (events.isEmpty()) {
             return null;
         }

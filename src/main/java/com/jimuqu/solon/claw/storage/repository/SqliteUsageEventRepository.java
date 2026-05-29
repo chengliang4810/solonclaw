@@ -57,15 +57,31 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
     @Override
     public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit)
             throws Exception {
+        return listBetweenInternal(fromInclusive, toInclusive, true, limit);
+    }
+
+    @Override
+    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive)
+            throws Exception {
+        return listBetweenInternal(fromInclusive, toInclusive, false, 0);
+    }
+
+    private List<UsageEventRecord> listBetweenInternal(
+            long fromInclusive, long toInclusive, boolean limited, int limit)
+            throws Exception {
         List<UsageEventRecord> records = new ArrayList<UsageEventRecord>();
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc limit ?");
+                            limited
+                                    ? "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc limit ?"
+                                    : "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc");
             statement.setLong(1, Math.max(0L, fromInclusive));
             statement.setLong(2, toInclusive <= 0 ? Long.MAX_VALUE : toInclusive);
-            statement.setInt(3, Math.max(1, Math.min(limit <= 0 ? 1000 : limit, 10000)));
+            if (limited) {
+                statement.setInt(3, Math.max(1, Math.min(limit <= 0 ? 1000 : limit, 10000)));
+            }
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {

@@ -127,8 +127,10 @@ public class ToolConfiguration {
     public ImageGenerationService imageGenerationService(
             AppConfig appConfig,
             AttachmentCacheService attachmentCacheService,
-            List<ImageGenProvider> imageGenProviders) {
-        return new ImageGenerationService(appConfig, attachmentCacheService, imageGenProviders);
+            List<ImageGenProvider> imageGenProviders,
+            SecurityPolicyService securityPolicyService) {
+        return new ImageGenerationService(
+                appConfig, attachmentCacheService, imageGenProviders, securityPolicyService);
     }
 
     @Bean

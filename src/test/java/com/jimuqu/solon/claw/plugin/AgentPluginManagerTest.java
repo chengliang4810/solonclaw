@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.plugin;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.plugin.hook.HookResult;
@@ -136,6 +138,42 @@ class AgentPluginManagerTest {
     }
 
     @Test
+    void forwardsSpeechAndTranscriptionProvidersThroughConflictAwareSink() throws Exception {
+        Path pluginDir = tempDir.resolve("speech-plugin");
+        Files.createDirectories(pluginDir);
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
+                "name: speech-plugin\nkind: backend\nenabled: true\nentry: SpeechPlugin\n");
+        Files.writeString(
+                pluginDir.resolve("SpeechPlugin.java"),
+                "import com.jimuqu.solon.claw.plugin.*;\n"
+                        + "import com.jimuqu.solon.claw.plugin.provider.*;\n"
+                        + "import java.util.Map;\n"
+                        + "public class SpeechPlugin implements AgentPlugin {\n"
+                        + "  public void register(AgentPluginContext ctx) {\n"
+                        + "    ctx.registerSpeechProvider(new SpeechProvider() {\n"
+                        + "      public String name() { return \"speech-provider\"; }\n"
+                        + "      public boolean isAvailable() { return true; }\n"
+                        + "      public SpeechResult synthesize(String text, String voice, Map<String,Object> options) { return SpeechResult.ok(\"audio/wav\", new byte[] {1}); }\n"
+                        + "    });\n"
+                        + "    ctx.registerTranscriptionProvider(new TranscriptionProvider() {\n"
+                        + "      public String name() { return \"transcription-provider\"; }\n"
+                        + "      public boolean isAvailable() { return true; }\n"
+                        + "      public TranscriptionResult transcribe(byte[] audio, String mimeType, Map<String,Object> options) { return TranscriptionResult.ok(\"ok\"); }\n"
+                        + "    });\n"
+                        + "  }\n"
+                        + "}\n");
+        AgentPluginManager manager =
+                new AgentPluginManager(new AgentHookRegistry(), Set.of("speech-plugin"), Set.of(), tempDir);
+        CapturingSink sink = new CapturingSink();
+
+        manager.discoverAndLoad(sink);
+
+        assertEquals(List.of("speech-provider"), sink.speechProviderNames);
+        assertEquals(List.of("transcription-provider"), sink.transcriptionProviderNames);
+    }
+
+    @Test
     void loadFailureDiagnosticRedactsSecrets() throws Exception {
         Path pluginDir = tempDir.resolve("bad-plugin");
         Files.createDirectories(pluginDir);
@@ -230,6 +268,8 @@ class AgentPluginManagerTest {
     private static class CapturingSink implements PluginRegistrationSink {
         final List<String> toolNames = new ArrayList<>();
         final Map<String, CommandHandler> commands = new LinkedHashMap<>();
+        final List<String> speechProviderNames = new ArrayList<>();
+        final List<String> transcriptionProviderNames = new ArrayList<>();
         final Set<String> reservedTools;
         final Set<String> reservedCommands;
 
@@ -250,6 +290,8 @@ class AgentPluginManagerTest {
         @Override public void onImageGenProviderRegistered(ImageGenProvider p) {}
         @Override public void onVideoGenProviderRegistered(VideoGenProvider p) {}
         @Override public void onBrowserProviderRegistered(BrowserProvider p) {}
+        @Override public void onSpeechProviderRegistered(SpeechProvider p) { speechProviderNames.add(p.name()); }
+        @Override public void onTranscriptionProviderRegistered(TranscriptionProvider p) { transcriptionProviderNames.add(p.name()); }
         @Override public void onMemoryProviderRegistered(MemoryProvider p) {}
         @Override public void onPlatformRegistered(PlatformRegistration r) {}
     }

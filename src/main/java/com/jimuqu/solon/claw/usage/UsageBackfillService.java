@@ -7,7 +7,9 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.pricing.UsageCost;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Creates approximate usage events from legacy run/session token totals. */
 public class UsageBackfillService {
@@ -29,16 +31,25 @@ public class UsageBackfillService {
 
     public int backfillApproximate() throws Exception {
         int inserted = 0;
+        Set<String> sessionsWithRunUsage = new LinkedHashSet<String>();
         List<AgentRunRecord> runs = agentRunRepository.listFinishedWithUsage(10000);
         for (AgentRunRecord run : runs) {
             UsageEventRecord event = fromRun(run);
-            if (event != null && usageEventRepository.insertIfAbsent(event)) {
-                inserted++;
+            if (event != null) {
+                if (StrUtil.isNotBlank(event.getSessionId())) {
+                    sessionsWithRunUsage.add(event.getSessionId());
+                }
+                if (usageEventRepository.insertIfAbsent(event)) {
+                    inserted++;
+                }
             }
         }
         int sessionCount = sessionRepository.countAll();
         List<SessionRecord> sessions = sessionRepository.listRecent(sessionCount);
         for (SessionRecord session : sessions) {
+            if (session != null && sessionsWithRunUsage.contains(session.getSessionId())) {
+                continue;
+            }
             UsageEventRecord event = fromSession(session);
             if (event != null && usageEventRepository.insertIfAbsent(event)) {
                 inserted++;

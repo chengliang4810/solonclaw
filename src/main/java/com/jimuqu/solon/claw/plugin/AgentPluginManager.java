@@ -504,6 +504,17 @@ public class AgentPluginManager {
         }
 
         @Override
+        public void onSpeechProviderRegistered(com.jimuqu.solon.claw.plugin.provider.SpeechProvider provider) {
+            delegate.onSpeechProviderRegistered(provider);
+        }
+
+        @Override
+        public void onTranscriptionProviderRegistered(
+                com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider provider) {
+            delegate.onTranscriptionProviderRegistered(provider);
+        }
+
+        @Override
         public void onMemoryProviderRegistered(com.jimuqu.solon.claw.core.service.MemoryProvider provider) {
             delegate.onMemoryProviderRegistered(provider);
         }

@@ -193,7 +193,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     message.set("context_token", contextToken);
                 }
                 ONode textItem = new ONode();
-                textItem.set("text", text);
+                textItem.set("text", normalizeOutboundTextForWeixin(text));
                 ONode item = new ONode();
                 item.set("type", ITEM_TEXT);
                 item.set("text_item", textItem);
@@ -219,6 +219,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 sleepQuietlyMillis((long) (config.getSendChunkRetryDelaySeconds() * 1000L));
             }
         }
+    }
+
+    private static String normalizeOutboundTextForWeixin(String text) {
+        return StrUtil.nullToEmpty(text)
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replace("\n", "\r\n");
     }
 
     private List<String> splitTextForDelivery(String text) {

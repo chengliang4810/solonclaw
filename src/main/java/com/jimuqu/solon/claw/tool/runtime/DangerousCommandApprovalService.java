@@ -3966,6 +3966,16 @@ public class DangerousCommandApprovalService {
                 || "file_search".equals(lower)) {
             return ToolNameConstants.CODESEARCH;
         }
+        if ("browser".equals(lower)
+                || "browser_create".equals(lower)
+                || "browser_navigate".equals(lower)
+                || "browser_click".equals(lower)
+                || "browser_type".equals(lower)
+                || "browser_screenshot".equals(lower)
+                || "browser_extract".equals(lower)
+                || "browser_close".equals(lower)) {
+            return ToolNameConstants.BROWSER;
+        }
         if ("read_file".equals(lower) || "file-read".equals(lower) || "file_read_file".equals(lower)) {
             return ToolNameConstants.FILE_READ;
         }
@@ -4107,7 +4117,8 @@ public class DangerousCommandApprovalService {
     private boolean isUrlSecurityTool(String toolName) {
         return ToolNameConstants.WEBFETCH.equals(toolName)
                 || ToolNameConstants.WEBSEARCH.equals(toolName)
-                || ToolNameConstants.CODESEARCH.equals(toolName);
+                || ToolNameConstants.CODESEARCH.equals(toolName)
+                || ToolNameConstants.BROWSER.equals(toolName);
     }
 
     private void clearGatewayInnerDecisionAfterApproval(

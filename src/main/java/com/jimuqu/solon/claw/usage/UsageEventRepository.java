@@ -12,4 +12,9 @@ public interface UsageEventRepository {
 
     List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit)
             throws Exception;
+
+    default List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive)
+            throws Exception {
+        return listBetween(fromInclusive, toInclusive, Integer.MAX_VALUE);
+    }
 }

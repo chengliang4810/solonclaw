@@ -928,7 +928,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             }
         }
         for (String toolName : pluginToolNames()) {
-            if (isPluginToolAllowed(agentScope, toolName) && isEnabled(sourceKey, toolName)) {
+            if (isPluginToolAllowed(agentScope, sourceKey, toolName) && isEnabled(sourceKey, toolName)) {
                 result.add(toolName);
             }
         }
@@ -1006,7 +1006,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             if (StrUtil.isBlank(name)
                     || builtinNames.contains(name)
                     || !seen.add(name)
-                    || !isPluginToolAllowed(agentScope, name)
+                    || !isPluginToolAllowed(agentScope, sourceKey, name)
                     || !isEnabled(sourceKey, name)) {
                 continue;
             }
@@ -1039,7 +1039,22 @@ public class DefaultToolRegistry implements ToolRegistry {
         return result;
     }
 
-    private boolean isPluginToolAllowed(AgentRuntimeScope agentScope, String toolName) {
+    private boolean isPluginToolAllowed(AgentRuntimeScope agentScope, String sourceKey, String toolName) {
+        if (isDelegateSourceKey(sourceKey) && !hasExplicitScopedToolToggle(sourceKey, toolName)) {
+            return false;
+        }
         return AgentRuntimePolicy.resolveAllowedTools(agentScope, listToolNames()).contains(toolName);
+    }
+
+    private boolean isDelegateSourceKey(String sourceKey) {
+        return StrUtil.nullToEmpty(sourceKey).contains(":delegate:");
+    }
+
+    private boolean hasExplicitScopedToolToggle(String sourceKey, String toolName) {
+        try {
+            return preferenceStore.hasScopedToolToggle(sourceKey, toolName);
+        } catch (SQLException e) {
+            return false;
+        }
     }
 }

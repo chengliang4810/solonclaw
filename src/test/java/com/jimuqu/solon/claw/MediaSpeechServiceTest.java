@@ -11,8 +11,14 @@ import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.tool.runtime.MediaSpeechTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.sun.net.httpserver.HttpServer;
+import java.io.File;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -51,6 +57,46 @@ public class MediaSpeechServiceTest {
         assertThat(outcome.getAttachment().getKind()).isEqualTo("image");
         assertThat(outcome.getMediaReference()).startsWith("media://");
         assertThat(outcome.getMediaUsage().get("generatedImages")).isEqualTo(1);
+    }
+
+    @Test
+    void shouldDownloadGeneratedImageUrlBeforeCaching() throws Exception {
+        byte[] imageBytes = new byte[] {(byte) 0x89, 'P', 'N', 'G'};
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/generated.png",
+                exchange -> {
+                    exchange.getResponseHeaders().add("Content-Type", "image/png");
+                    exchange.sendResponseHeaders(200, imageBytes.length);
+                    exchange.getResponseBody().write(imageBytes);
+                    exchange.close();
+                });
+        server.start();
+        try {
+            AppConfig config = config("image-url");
+            config.getSecurity().setAllowPrivateUrls(true);
+            AttachmentCacheService cacheService = new AttachmentCacheService(config);
+            ImageGenerationService service =
+                    new ImageGenerationService(
+                            config,
+                            cacheService,
+                            Collections.<ImageGenProvider>singletonList(
+                                    new FakeImageProvider(
+                                            true,
+                                            "http://127.0.0.1:"
+                                                    + server.getAddress().getPort()
+                                                    + "/generated.png")),
+                            new SecurityPolicyService(config));
+
+            ImageGenerationService.ImageGenerationOutcome outcome =
+                    service.generate("画一张图", "1:1", Collections.<String, Object>emptyMap());
+
+            assertThat(outcome.isSuccess()).isTrue();
+            assertThat(Files.readAllBytes(new File(outcome.getAttachment().getLocalPath()).toPath()))
+                    .containsExactly(imageBytes);
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test
@@ -122,6 +168,31 @@ public class MediaSpeechServiceTest {
         assertThat(ttsResult.get("kind")).isEqualTo("voice");
     }
 
+    @Test
+    void speechTranscribeToolRejectsLocalPathOutsideMediaReferenceBoundary() throws Exception {
+        AppConfig config = config("transcribe-local-path");
+        File rawAudio = new File(config.getRuntime().getCacheDir(), "raw.wav");
+        rawAudio.getParentFile().mkdirs();
+        Files.write(rawAudio.toPath(), new byte[] {1, 2, 3});
+        CountingTranscriptionProvider transcriptionProvider = new CountingTranscriptionProvider();
+        SpeechService speechService =
+                new SpeechService(
+                        config,
+                        new AttachmentCacheService(config),
+                        Collections.<SpeechProvider>emptyList(),
+                        Collections.<TranscriptionProvider>singletonList(transcriptionProvider));
+        MediaSpeechTools tools = new MediaSpeechTools(null, speechService);
+
+        Map<String, Object> result =
+                ONode.deserialize(
+                        tools.transcribeSpeech(rawAudio.getAbsolutePath(), "audio/wav", null),
+                        Map.class);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("error")).asString().contains("media://");
+        assertThat(transcriptionProvider.calls.get()).isZero();
+    }
+
     private AppConfig config(String name) {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome("target/test-runtime/" + name);
@@ -174,6 +245,27 @@ public class MediaSpeechServiceTest {
         @Override
         public SpeechResult synthesize(String text, String voice, Map<String, Object> options) {
             return SpeechResult.ok("audio/wav", new byte[] {1, 2, 3, 4});
+        }
+    }
+
+    private static class CountingTranscriptionProvider implements TranscriptionProvider {
+        private final AtomicInteger calls = new AtomicInteger();
+
+        @Override
+        public String name() {
+            return "fake-transcription";
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
+
+        @Override
+        public TranscriptionResult transcribe(
+                byte[] audio, String mimeType, Map<String, Object> options) {
+            calls.incrementAndGet();
+            return TranscriptionResult.ok("transcribed");
         }
     }
 }
