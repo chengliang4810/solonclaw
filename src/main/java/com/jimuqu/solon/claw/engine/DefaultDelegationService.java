@@ -106,6 +106,10 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.IMAGE_GENERATE,
+                    ToolNameConstants.TEXT_TO_SPEECH,
+                    ToolNameConstants.SPEECH_TRANSCRIBE,
+                    ToolNameConstants.BROWSER,
                     ToolNameConstants.SECURITY_AUDIT,
                     ToolNameConstants.CLARIFY);
 
