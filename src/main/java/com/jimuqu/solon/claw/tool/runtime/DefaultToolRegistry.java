@@ -17,6 +17,8 @@ import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.media.ImageGenerationService;
+import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -90,6 +92,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.IMAGE_GENERATE,
+                    ToolNameConstants.TEXT_TO_SPEECH,
+                    ToolNameConstants.SPEECH_TRANSCRIBE,
                     ToolNameConstants.SECURITY_AUDIT,
                     ToolNameConstants.CLARIFY);
 
@@ -151,6 +156,12 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
+    /** 图片生成服务。 */
+    private final ImageGenerationService imageGenerationService;
+
+    /** 语音服务。 */
+    private final SpeechService speechService;
+
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -185,6 +196,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
+                null,
+                null,
                 null,
                 null,
                 null);
@@ -227,6 +240,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 null,
+                null,
+                null,
                 null);
     }
 
@@ -268,7 +283,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 null,
-                mcpRuntimeService);
+                mcpRuntimeService,
+                null,
+                null);
     }
 
     public DefaultToolRegistry(
@@ -291,6 +308,52 @@ public class DefaultToolRegistry implements ToolRegistry {
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                processRegistry,
+                mcpRuntimeService,
+                null,
+                null);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -310,6 +373,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.securityPolicyService = securityPolicyService;
         this.mcpRuntimeService = mcpRuntimeService;
         this.processRegistry = processRegistry;
+        this.imageGenerationService = imageGenerationService;
+        this.speechService = speechService;
     }
 
     @Override
@@ -388,6 +453,10 @@ public class DefaultToolRegistry implements ToolRegistry {
                         new DangerousCommandApprovalService(null, appConfig, securityPolicyService),
                         new TirithSecurityService(appConfig),
                         appConfig);
+        MediaSpeechTools mediaSpeechTools =
+                imageGenerationService == null || speechService == null
+                        ? null
+                        : new MediaSpeechTools(imageGenerationService, speechService);
         boolean fileSkillAdded = false;
         boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
@@ -490,6 +559,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(webfetchTool);
             } else if (ToolNameConstants.CODESEARCH.equals(toolName)) {
                 tools.add(codeSearchTool);
+            } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
+                    || ToolNameConstants.TEXT_TO_SPEECH.equals(toolName)
+                    || ToolNameConstants.SPEECH_TRANSCRIBE.equals(toolName)) {
+                if (mediaSpeechTools != null && !tools.contains(mediaSpeechTools)) {
+                    tools.add(mediaSpeechTools);
+                }
             } else if (ToolNameConstants.SECURITY_AUDIT.equals(toolName)) {
                 tools.add(securityAuditTools);
             } else if (ToolNameConstants.CLARIFY.equals(toolName)) {

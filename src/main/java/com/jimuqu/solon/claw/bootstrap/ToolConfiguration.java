@@ -29,9 +29,14 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.media.ImageGenerationService;
+import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
+import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -55,6 +60,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
+import java.util.List;
 
 /** tool bean configuration. */
 @Configuration
@@ -112,6 +118,24 @@ public class ToolConfiguration {
         return new AttachmentCacheService(appConfig);
     }
 
+    @Bean
+    public ImageGenerationService imageGenerationService(
+            AppConfig appConfig,
+            AttachmentCacheService attachmentCacheService,
+            List<ImageGenProvider> imageGenProviders) {
+        return new ImageGenerationService(appConfig, attachmentCacheService, imageGenProviders);
+    }
+
+    @Bean
+    public SpeechService speechService(
+            AppConfig appConfig,
+            AttachmentCacheService attachmentCacheService,
+            List<SpeechProvider> speechProviders,
+            List<TranscriptionProvider> transcriptionProviders) {
+        return new SpeechService(
+                appConfig, attachmentCacheService, speechProviders, transcriptionProviders);
+    }
+
     @Bean(destroyMethod = "shutdown")
     public McpRuntimeService mcpRuntimeService(
             AppConfig appConfig,
@@ -145,7 +169,9 @@ public class ToolConfiguration {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry,
-            McpRuntimeService mcpRuntimeService) {
+            McpRuntimeService mcpRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService) {
         return new DefaultToolRegistry(
                 appConfig,
                 preferenceStore,
@@ -165,7 +191,9 @@ public class ToolConfiguration {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 processRegistry,
-                mcpRuntimeService);
+                mcpRuntimeService,
+                imageGenerationService,
+                speechService);
     }
 
     @Bean
@@ -277,7 +305,8 @@ public class ToolConfiguration {
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager,
             GoalService goalService,
-            AgentHookRegistry agentHookRegistry) {
+            AgentHookRegistry agentHookRegistry,
+            SpeechService speechService) {
         DefaultConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
@@ -293,7 +322,8 @@ public class ToolConfiguration {
                         runtimeFooterService,
                         agentRuntimeService,
                         memoryManager,
-                        goalService);
+                        goalService,
+                        speechService);
         orchestrator.setHookRegistry(agentHookRegistry);
         holder.set(orchestrator);
         return orchestrator;
