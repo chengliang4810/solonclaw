@@ -4,6 +4,8 @@ import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.plugin.hook.HookCallback;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import java.util.Map;
@@ -24,6 +26,10 @@ public interface AgentPluginContext {
     void registerVideoGenProvider(VideoGenProvider provider);
 
     void registerBrowserProvider(BrowserProvider provider);
+
+    void registerSpeechProvider(SpeechProvider provider);
+
+    void registerTranscriptionProvider(TranscriptionProvider provider);
 
     void registerMemoryProvider(MemoryProvider provider);
 

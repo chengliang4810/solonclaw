@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.plugin;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 
@@ -19,6 +21,10 @@ public interface PluginRegistrationSink {
     void onVideoGenProviderRegistered(VideoGenProvider provider);
 
     void onBrowserProviderRegistered(BrowserProvider provider);
+
+    default void onSpeechProviderRegistered(SpeechProvider provider) {}
+
+    default void onTranscriptionProviderRegistered(TranscriptionProvider provider) {}
 
     void onMemoryProviderRegistered(MemoryProvider provider);
 

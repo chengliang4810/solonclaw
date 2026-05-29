@@ -5,6 +5,8 @@ import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.plugin.*;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import java.util.*;
@@ -28,6 +30,8 @@ public class PluginConfiguration implements PluginRegistrationSink {
     private final List<ImageGenProvider> imageGenProviders = new CopyOnWriteArrayList<>();
     private final List<VideoGenProvider> videoGenProviders = new CopyOnWriteArrayList<>();
     private final List<BrowserProvider> browserProviders = new CopyOnWriteArrayList<>();
+    private final List<SpeechProvider> speechProviders = new CopyOnWriteArrayList<>();
+    private final List<TranscriptionProvider> transcriptionProviders = new CopyOnWriteArrayList<>();
     private final List<MemoryProvider> pluginMemoryProviders = new CopyOnWriteArrayList<>();
     private final List<ToolRegistration> pluginTools = new CopyOnWriteArrayList<>();
     private final Map<String, CommandEntry> pluginCommands = new LinkedHashMap<>();
@@ -77,6 +81,16 @@ public class PluginConfiguration implements PluginRegistrationSink {
         return browserProviders;
     }
 
+    @Bean
+    public List<SpeechProvider> speechProviders() {
+        return speechProviders;
+    }
+
+    @Bean
+    public List<TranscriptionProvider> transcriptionProviders() {
+        return transcriptionProviders;
+    }
+
     @Override
     public void onToolRegistered(ToolRegistration registration) {
         pluginTools.add(registration);
@@ -105,6 +119,14 @@ public class PluginConfiguration implements PluginRegistrationSink {
     @Override
     public void onBrowserProviderRegistered(BrowserProvider provider) {
         browserProviders.add(provider);
+    }
+
+    public void onSpeechProviderRegistered(SpeechProvider provider) {
+        speechProviders.add(provider);
+    }
+
+    public void onTranscriptionProviderRegistered(TranscriptionProvider provider) {
+        transcriptionProviders.add(provider);
     }
 
     @Override

@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.gateway.feedback.ToolPreviewSupport;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
+import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -100,6 +101,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final ToolResultTransformService toolResultTransformService;
     private final ToolCallLoopGuardrailService toolCallLoopGuardrailService;
     private final SecurityPolicyService securityPolicyService;
+    private final MediaInputBoundaryService mediaInputBoundaryService;
     private volatile PdfSkill pdfSkill;
     private HookBridgeInterceptor hookBridgeInterceptor;
 
@@ -188,6 +190,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 securityPolicyService == null
                         ? new SecurityPolicyService(appConfig)
                         : securityPolicyService;
+        this.mediaInputBoundaryService = new MediaInputBoundaryService(appConfig);
         if (this.dangerousCommandApprovalService != null) {
             this.dangerousCommandApprovalService.setSmartApprovalJudge(
                     new SolonAiSmartApprovalJudge());
@@ -870,48 +873,15 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         List<ContentBlock> blocks = new ArrayList<ContentBlock>();
         for (MessageAttachment attachment : attachments) {
-            if (!isImageAttachment(attachment)) {
+            if (blocks.size() >= mediaInputBoundaryService.maxImageAttachments()) {
                 continue;
             }
-            ImageBlock image = imageBlock(attachment);
+            ImageBlock image = mediaInputBoundaryService.toImageBlock(attachment);
             if (image != null) {
                 blocks.add(image);
             }
         }
         return blocks;
-    }
-
-    private boolean isImageAttachment(MessageAttachment attachment) {
-        if (attachment == null) {
-            return false;
-        }
-        String kind = StrUtil.nullToEmpty(attachment.getKind()).trim().toLowerCase(Locale.ROOT);
-        String mime = StrUtil.nullToEmpty(attachment.getMimeType()).trim().toLowerCase(Locale.ROOT);
-        return "image".equals(kind) || mime.startsWith("image/");
-    }
-
-    private ImageBlock imageBlock(MessageAttachment attachment) {
-        String mimeType = StrUtil.blankToDefault(attachment.getMimeType(), "image/png");
-        if (StrUtil.isNotBlank(attachment.getData())) {
-            return ImageBlock.ofBase64(attachment.getData(), mimeType);
-        }
-        if (StrUtil.isNotBlank(attachment.getUrl())) {
-            return ImageBlock.ofUrl(attachment.getUrl(), mimeType);
-        }
-        if (StrUtil.isBlank(attachment.getLocalPath())) {
-            return null;
-        }
-        try {
-            byte[] data = java.nio.file.Files.readAllBytes(
-                    java.nio.file.Paths.get(attachment.getLocalPath()));
-            return ImageBlock.ofBase64(data, mimeType);
-        } catch (Exception e) {
-            log.warn(
-                    "Failed to attach image block: path={}, error={}",
-                    SecretRedactor.redact(attachment.getLocalPath(), 400),
-                    safeError(e));
-            return null;
-        }
     }
 
     private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved) {
