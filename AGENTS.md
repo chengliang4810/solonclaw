@@ -256,7 +256,7 @@
 - 若用户后续明确裁剪某些功能，应及时更新本文件，使后续任务持续对齐目标。
 - 生成代码、配置、测试夹具、文档、提交信息、Release notes 前，必须先确认没有旧项目关键词、旧项目前缀环境变量、旧项目工具名或旧项目类名，并保持本项目命名为 `solon-claw` / `solonclaw`。
 - 若需要表达来源或对标关系，只能使用“外部对标仓库”“对标实现”“旧项目关键词”等中性说法，不得把旧项目名写入仓库文件或发布产物。
-- 常规提交前命名检查只允许扫描当前工作树和当前分支相对默认分支新增的提交：`pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -CheckCurrentBranchRange`。全 Git refs 扫描只能作为人工历史审计使用，不能作为判断当前源码或当前发布范围是否合格的常规门禁。
+- 常规提交前命名检查只允许扫描当前工作树和当前分支相对默认分支新增的提交：`python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`。全 Git refs 扫描只能作为人工历史审计使用，不能作为判断当前源码或当前发布范围是否合格的常规门禁。
 - 频繁开发提交默认推送到 `dev` 分支；不要每次小改都直接推送 `main`。
 - `dev` 分支从上一次合并到 `main` 之后开始计数；累计每 5 次有效开发 commit 后，再合并到 `main` 并推送一次。
 - 合并到 `main` 的 merge commit 不计入下一轮 5 次开发 commit；未满 5 次时，只有用户明确要求发布或紧急修复，才允许提前合并。

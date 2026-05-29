@@ -50,8 +50,8 @@ npm run preview
 
 ```bash
 docker compose up -d
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -CheckCurrentBranchRange
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-raw-exception-logging.ps1
+python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+python3 scripts/check-raw-exception-logging.py
 ```
 
 常规提交前的旧项目命名检查只允许扫描当前工作树和当前分支相对默认分支新增的提交；全 Git refs 扫描只作为人工历史审计。

@@ -23,27 +23,27 @@ jobs:
           fetch-depth: 0
 
       - name: Check repository guards
-        shell: pwsh
+        shell: bash
         run: |
-          ./scripts/check-project-naming.selftest.ps1
-          ./scripts/check-project-naming.ps1
-          ./scripts/check-raw-exception-logging.selftest.ps1
-          ./scripts/check-raw-exception-logging.ps1
+          python3 scripts/check-project-naming.selftest.py
+          python3 scripts/check-project-naming.py
+          python3 scripts/check-raw-exception-logging.selftest.py
+          python3 scripts/check-raw-exception-logging.py
 
       - name: Check new commit text
-        shell: pwsh
+        shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.sha }}
         run: |
-          if ($env:EVENT_NAME -eq "pull_request") {
-            $range = "$($env:BASE_SHA)..$($env:HEAD_SHA)"
-          } elseif ([string]::IsNullOrWhiteSpace($env:BEFORE_SHA) -or $env:BEFORE_SHA -match '^0+$') {
-            $range = $env:HEAD_SHA
-          } else {
-            $range = "$($env:BEFORE_SHA)..$($env:HEAD_SHA)"
-          }
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            range="${BASE_SHA}..${HEAD_SHA}"
+          elif [ -z "$BEFORE_SHA" ] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+            range="$HEAD_SHA"
+          else
+            range="${BEFORE_SHA}..${HEAD_SHA}"
+          fi
 
-          ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -GitCommitRange $range
+          python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "$range"

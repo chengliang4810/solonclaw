@@ -31,24 +31,19 @@ jobs:
           fetch-depth: 0
 
       - name: Check project naming self-test
-        shell: pwsh
-        run: ./scripts/check-project-naming.selftest.ps1
+        run: python3 scripts/check-project-naming.selftest.py
 
       - name: Check project naming
-        shell: pwsh
-        run: ./scripts/check-project-naming.ps1
+        run: python3 scripts/check-project-naming.py
 
       - name: Check raw exception logging self-test
-        shell: pwsh
-        run: ./scripts/check-raw-exception-logging.selftest.ps1
+        run: python3 scripts/check-raw-exception-logging.selftest.py
 
       - name: Check raw exception logging
-        shell: pwsh
-        run: ./scripts/check-raw-exception-logging.ps1
+        run: python3 scripts/check-raw-exception-logging.py
 
       - name: Check new commit naming
-        shell: pwsh
-        run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -GitCommitRange "${{ github.sha }}^..${{ github.sha }}"
+        run: python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "${{ github.sha }}^..${{ github.sha }}"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -89,12 +84,10 @@ jobs:
 
       - name: Resolve release commit range
         id: release_range
-        shell: pwsh
-        run: ./scripts/resolve-release-range.ps1
+        run: python3 scripts/resolve-release-range.py
 
       - name: Check release commit text
-        shell: pwsh
-        run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -GitCommitRange "${{ steps.release_range.outputs.git_range }}"
+        run: python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "${{ steps.release_range.outputs.git_range }}"
 
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'
@@ -145,22 +138,22 @@ jobs:
           cp "$JAR_PATH" "$RELEASE_JAR"
           (cd dist && sha256sum "$(basename "$RELEASE_JAR")" > SHA256SUMS)
 
-          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/write-release-notes.ps1 \
-            -OutputPath dist/release-notes.md \
-            -Tag "${{ steps.release.outputs.tag }}" \
-            -Version "$VERSION" \
-            -CommitRange "$RELEASE_GIT_RANGE" \
-            -DisplayRange "$RELEASE_DISPLAY_RANGE"
+          python3 scripts/write-release-notes.py \
+            --output-path dist/release-notes.md \
+            --tag "${{ steps.release.outputs.tag }}" \
+            --version "$VERSION" \
+            --commit-range "$RELEASE_GIT_RANGE" \
+            --display-range "$RELEASE_DISPLAY_RANGE"
 
           echo "jar_path=$RELEASE_JAR" >> "$GITHUB_OUTPUT"
           echo "sha_path=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
           echo "body_path=dist/release-notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Check release naming
-        shell: pwsh
+        shell: bash
         run: |
-          ./scripts/check-project-naming.ps1 -RootPath dist -CheckBinaryText
-          ./scripts/check-archive-naming.ps1 -ArchivePath "${{ steps.artifact.outputs.jar_path }}"
+          python3 scripts/check-project-naming.py --root-path dist --check-binary-text
+          python3 scripts/check-archive-naming.py --archive-path "${{ steps.artifact.outputs.jar_path }}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -186,7 +179,6 @@ jobs:
             ${{ steps.artifact.outputs.sha_path }}
 
       - name: Check published release naming
-        shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/check-release-naming.ps1 -Tag "${{ steps.release.outputs.tag }}"
+        run: python3 scripts/check-release-naming.py --tag "${{ steps.release.outputs.tag }}"
