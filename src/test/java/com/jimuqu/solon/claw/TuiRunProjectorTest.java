@@ -84,6 +84,11 @@ class TuiRunProjectorTest {
         }
 
         @Override
+        public List<AgentRunRecord> listFinishedWithUsage(int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
         public List<AgentRunRecord> listRecoverable(int limit) {
             return Collections.emptyList();
         }

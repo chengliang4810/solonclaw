@@ -553,6 +553,37 @@ public class SqliteDatabase {
             statement.execute(
                     "create index if not exists idx_agent_runs_status_activity on agent_runs(status, last_activity_at)");
             statement.execute(
+                    "create table if not exists usage_events ("
+                            + "event_id text primary key,"
+                            + "session_id text,"
+                            + "run_id text,"
+                            + "source_key text,"
+                            + "provider text,"
+                            + "model text,"
+                            + "input_tokens integer not null default 0,"
+                            + "output_tokens integer not null default 0,"
+                            + "cache_read_tokens integer not null default 0,"
+                            + "cache_write_tokens integer not null default 0,"
+                            + "reasoning_tokens integer not null default 0,"
+                            + "total_tokens integer not null default 0,"
+                            + "cost_micros integer not null default 0,"
+                            + "currency text,"
+                            + "price_source text,"
+                            + "pricing_available integer not null default 0,"
+                            + "unpriced_input_tokens integer not null default 0,"
+                            + "unpriced_output_tokens integer not null default 0,"
+                            + "unpriced_cache_read_tokens integer not null default 0,"
+                            + "unpriced_cache_write_tokens integer not null default 0,"
+                            + "unpriced_reasoning_tokens integer not null default 0,"
+                            + "priced_at integer not null default 0,"
+                            + "created_at integer not null,"
+                            + "backfill_approximate integer not null default 0"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_usage_events_created on usage_events(created_at desc)");
+            statement.execute(
+                    "create index if not exists idx_usage_events_run on usage_events(run_id)");
+            statement.execute(
                     "create table if not exists agent_run_events ("
                             + "event_id text primary key,"
                             + "run_id text not null,"

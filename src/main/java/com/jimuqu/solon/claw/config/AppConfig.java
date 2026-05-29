@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.config;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -95,6 +96,9 @@ public class AppConfig {
 
     /** Web 工具配置。 */
     private WebConfig web = new WebConfig();
+
+    /** Usage pricing configuration. */
+    private PricingConfig pricing = new PricingConfig();
 
     /** 审批/确认策略配置。 */
     private ApprovalsConfig approvals = new ApprovalsConfig();
@@ -221,6 +225,7 @@ public class AppConfig {
                                         "solonclaw.llm.promptCache.layout",
                                         "system_and_3")));
         applyProviderConfiguration(config, props, overrides, structuredOverrides);
+        applyPricingConfiguration(config, props, overrides, structuredOverrides);
 
         config.getScheduler()
                 .setEnabled(
@@ -1869,6 +1874,7 @@ public class AppConfig {
         copyTerminal(other.getTerminal());
         copySecurity(other.getSecurity());
         copyWeb(other.getWeb());
+        copyPricing(other.getPricing());
         copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
@@ -2087,6 +2093,10 @@ public class AppConfig {
     private void copyWeb(WebConfig other) {
         this.web.setSearchBackend(other.getSearchBackend());
         this.web.setBraveSearchApiKey(other.getBraveSearchApiKey());
+    }
+
+    private void copyPricing(PricingConfig other) {
+        this.pricing.setPrices(new ArrayList<ModelPrice>(other.getPrices()));
     }
 
     private void copyApprovals(ApprovalsConfig other) {
@@ -2447,6 +2457,91 @@ public class AppConfig {
             result.put(key, splitObjectList(entry.getValue()));
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void applyPricingConfiguration(
+            AppConfig config,
+            Props props,
+            Map<String, Object> overrides,
+            Map<String, Object> structuredOverrides) {
+        Object rawPrices = null;
+        Object pricingNode = structuredOverrides.get("pricing");
+        if (pricingNode instanceof Map) {
+            rawPrices = ((Map<String, Object>) pricingNode).get("prices");
+        }
+        Object nestedNode = structuredOverrides.get("solonclaw");
+        if (nestedNode instanceof Map) {
+            Object nestedPricing = ((Map<String, Object>) nestedNode).get("pricing");
+            if (nestedPricing instanceof Map && ((Map<?, ?>) nestedPricing).containsKey("prices")) {
+                rawPrices = ((Map<String, Object>) nestedPricing).get("prices");
+            }
+        }
+        Object flatPrices = readRaw(props, overrides, "solonclaw.pricing.prices", null);
+        if (flatPrices != null) {
+            rawPrices = flatPrices;
+        }
+        List<ModelPrice> prices = parseModelPrices(rawPrices);
+        config.getPricing().setPrices(prices);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<ModelPrice> parseModelPrices(Object raw) {
+        List<ModelPrice> prices = new ArrayList<ModelPrice>();
+        if (raw == null) {
+            return prices;
+        }
+        Object parsed = raw;
+        if (raw instanceof String) {
+            String text = String.valueOf(raw).trim();
+            if (text.length() == 0) {
+                return prices;
+            }
+            parsed = ONode.deserialize(text, Object.class);
+            if (parsed instanceof Map && ((Map<?, ?>) parsed).containsKey("prices")) {
+                parsed = ((Map<?, ?>) parsed).get("prices");
+            }
+        }
+        if (!(parsed instanceof List)) {
+            return prices;
+        }
+        for (Object item : (List<Object>) parsed) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> map = (Map<String, Object>) item;
+            ModelPrice price = new ModelPrice();
+            price.setProvider(stringValue(map, "provider"));
+            price.setModel(stringValue(map, "model"));
+            price.setCurrency(StrUtil.blankToDefault(stringValue(map, "currency"), "USD"));
+            price.setInputMicrosPerToken(longValue(map, "input_micros_per_token"));
+            price.setOutputMicrosPerToken(longValue(map, "output_micros_per_token"));
+            price.setCacheReadMicrosPerToken(longValue(map, "cache_read_micros_per_token"));
+            price.setCacheWriteMicrosPerToken(longValue(map, "cache_write_micros_per_token"));
+            price.setReasoningMicrosPerToken(longValue(map, "reasoning_micros_per_token"));
+            price.setSource(stringValue(map, "source"));
+            if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
+                prices.add(price);
+            }
+        }
+        return prices;
+    }
+
+    private static String stringValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static long longValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(String.valueOf(value).trim()));
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     /** 解析 personalities 配置映射。 */
@@ -3594,6 +3689,14 @@ public class AppConfig {
 
         /** 对齐 Jimuqu TERMINAL_TIMEOUT，限制 process(wait) 单次阻塞时长，单位秒。 */
         private int processWaitTimeoutSeconds = 180;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class PricingConfig {
+        /** Per-token model prices in micros. Empty list keeps usage unpriced. */
+        private List<ModelPrice> prices = new ArrayList<ModelPrice>();
     }
 
     @Getter
