@@ -9,6 +9,11 @@ interface DailyUsage {
   cacheWrite: number
   cacheTotal: number
   sessions: number
+  costMicros: number
+  currency: string
+  pricingAvailable: boolean
+  unpricedTokens: number
+  backfillApproximate: boolean
 }
 
 interface ModelUsage {
@@ -20,6 +25,11 @@ interface ModelUsage {
   cacheTokens: number
   totalTokens: number
   sessions: number
+  costMicros: number
+  currency: string
+  pricingAvailable: boolean
+  unpricedTokens: number
+  backfillApproximate: boolean
 }
 
 export const useUsageStore = defineStore('usage', () => {
@@ -49,6 +59,16 @@ export const useUsageStore = defineStore('usage', () => {
 
   const totalCacheTokens = computed(() => totalCacheReadTokens.value + totalCacheWriteTokens.value)
 
+  const totalCostMicros = computed(() => analytics.value?.totals.total_cost_micros || 0)
+
+  const currency = computed(() => analytics.value?.totals.currency || '')
+
+  const pricingAvailable = computed(() => analytics.value?.totals.pricing_available || false)
+
+  const unpricedTokens = computed(() => analytics.value?.totals.unpriced_total_tokens || 0)
+
+  const backfillApproximate = computed(() => analytics.value?.totals.backfill_approximate || false)
+
   const totalPromptTokens = computed(() =>
     totalInputTokens.value + totalCacheReadTokens.value + totalCacheWriteTokens.value,
   )
@@ -76,6 +96,11 @@ export const useUsageStore = defineStore('usage', () => {
           + (item.cache_read_tokens || 0)
           + (item.cache_write_tokens || 0),
         sessions: item.sessions || 0,
+        costMicros: item.cost_micros || 0,
+        currency: item.currency || '',
+        pricingAvailable: item.pricing_available || false,
+        unpricedTokens: item.unpriced_total_tokens || 0,
+        backfillApproximate: item.backfill_approximate || false,
       }))
       .sort((a, b) => b.totalTokens - a.totalTokens)
   })
@@ -92,6 +117,11 @@ export const useUsageStore = defineStore('usage', () => {
       cacheWrite: item.cache_write_tokens || 0,
       cacheTotal: (item.cache_read_tokens || 0) + (item.cache_write_tokens || 0),
       sessions: item.sessions || 0,
+      costMicros: item.cost_micros || 0,
+      currency: item.currency || '',
+      pricingAvailable: item.pricing_available || false,
+      unpricedTokens: item.unpriced_total_tokens || 0,
+      backfillApproximate: item.backfill_approximate || false,
     }))
   })
 
@@ -111,6 +141,11 @@ export const useUsageStore = defineStore('usage', () => {
     totalCacheReadTokens,
     totalCacheWriteTokens,
     totalCacheTokens,
+    totalCostMicros,
+    currency,
+    pricingAvailable,
+    unpricedTokens,
+    backfillApproximate,
     cacheHitRate,
     modelUsage,
     dailyUsage,

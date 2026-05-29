@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -53,6 +54,7 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
@@ -249,7 +251,9 @@ public class ToolConfiguration {
             ContextCompressionService contextCompressionService,
             ContextBudgetService contextBudgetService,
             LlmGateway llmGateway,
-            LlmProviderService llmProviderService) {
+            LlmProviderService llmProviderService,
+            UsageEventRepository usageEventRepository,
+            UsageCostCalculator usageCostCalculator) {
         return new AgentRunSupervisor(
                 appConfig,
                 sessionRepository,
@@ -257,7 +261,9 @@ public class ToolConfiguration {
                 contextCompressionService,
                 contextBudgetService,
                 llmGateway,
-                llmProviderService);
+                llmProviderService,
+                usageEventRepository,
+                usageCostCalculator);
     }
 
     @Bean

@@ -45,6 +45,7 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tui.TuiGatewayService;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
@@ -200,8 +201,8 @@ public class DashboardConfiguration {
 
     @Bean
     public DashboardAnalyticsService dashboardAnalyticsService(
-            SessionRepository sessionRepository) {
-        return new DashboardAnalyticsService(sessionRepository);
+            SessionRepository sessionRepository, UsageEventRepository usageEventRepository) {
+        return new DashboardAnalyticsService(sessionRepository, usageEventRepository);
     }
 
     @Bean

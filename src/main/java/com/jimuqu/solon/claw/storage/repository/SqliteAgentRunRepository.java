@@ -114,6 +114,30 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     @Override
+    public List<AgentRunRecord> listFinishedWithUsage(int limit) throws Exception {
+        List<AgentRunRecord> records = new ArrayList<AgentRunRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from agent_runs where status = 'success' and (input_tokens > 0 or output_tokens > 0 or total_tokens > 0) order by finished_at desc limit ?");
+            statement.setInt(1, Math.max(1, Math.min(limit <= 0 ? 1000 : limit, 10000)));
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    records.add(mapRun(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return records;
+    }
+
+    @Override
     public List<AgentRunRecord> listRecoverable(int limit) throws Exception {
         List<AgentRunRecord> records = new ArrayList<AgentRunRecord>();
         Connection connection = database.openConnection();

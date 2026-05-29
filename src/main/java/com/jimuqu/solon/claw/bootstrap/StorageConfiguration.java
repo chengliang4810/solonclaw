@@ -22,7 +22,9 @@ import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteUsageEventRepository;
 import com.jimuqu.solon.claw.support.DefaultCheckpointService;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
@@ -57,6 +59,11 @@ public class StorageConfiguration {
     @Bean
     public AgentRunRepository agentRunRepository(SqliteDatabase sqliteDatabase) {
         return new SqliteAgentRunRepository(sqliteDatabase);
+    }
+
+    @Bean
+    public UsageEventRepository usageEventRepository(SqliteDatabase sqliteDatabase) {
+        return new SqliteUsageEventRepository(sqliteDatabase);
     }
 
     @Bean
