@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -27,6 +28,7 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import org.noear.solon.ai.chat.prompt.Prompt;
@@ -95,6 +97,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
+                    ToolNameConstants.BROWSER,
                     ToolNameConstants.SECURITY_AUDIT,
                     ToolNameConstants.CLARIFY);
 
@@ -156,6 +159,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
+    /** 浏览器自动化运行时。 */
+    private final BrowserRuntimeService browserRuntimeService;
+
     /** 图片生成服务。 */
     private final ImageGenerationService imageGenerationService;
 
@@ -196,6 +202,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
+                null,
                 null,
                 null,
                 null,
@@ -242,6 +249,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -284,6 +292,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 securityPolicyService,
                 null,
                 mcpRuntimeService,
+                null,
                 null,
                 null);
     }
@@ -329,6 +338,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 null,
+                null,
                 null);
     }
 
@@ -354,6 +364,100 @@ public class DefaultToolRegistry implements ToolRegistry {
             McpRuntimeService mcpRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                processRegistry,
+                mcpRuntimeService,
+                null,
+                imageGenerationService,
+                speechService);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                null,
+                null);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -373,6 +477,13 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.securityPolicyService = securityPolicyService;
         this.mcpRuntimeService = mcpRuntimeService;
         this.processRegistry = processRegistry;
+        this.browserRuntimeService =
+                browserRuntimeService == null
+                        ? new BrowserRuntimeService(
+                                appConfig,
+                                Collections.<BrowserProvider>emptyList(),
+                                securityPolicyService)
+                        : browserRuntimeService;
         this.imageGenerationService = imageGenerationService;
         this.speechService = speechService;
     }
@@ -447,6 +558,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
         SolonClawWebTools.SafeCodeSearchTool codeSearchTool =
                 new SolonClawWebTools.SafeCodeSearchTool(securityPolicyService);
+        BrowserTools browserTools = new BrowserTools(browserRuntimeService);
         SecurityAuditTools securityAuditTools =
                 new SecurityAuditTools(
                         securityPolicyService,
@@ -565,6 +677,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 if (mediaSpeechTools != null && !tools.contains(mediaSpeechTools)) {
                     tools.add(mediaSpeechTools);
                 }
+            } else if (ToolNameConstants.BROWSER.equals(toolName)) {
+                tools.add(browserTools);
             } else if (ToolNameConstants.SECURITY_AUDIT.equals(toolName)) {
                 tools.add(securityAuditTools);
             } else if (ToolNameConstants.CLARIFY.equals(toolName)) {

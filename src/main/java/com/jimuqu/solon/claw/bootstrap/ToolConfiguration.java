@@ -34,6 +34,7 @@ import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
+import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
@@ -50,6 +51,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalAuditObserver;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -58,9 +60,9 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
+import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
-import java.util.List;
 
 /** tool bean configuration. */
 @Configuration
@@ -144,6 +146,14 @@ public class ToolConfiguration {
         return new McpRuntimeService(appConfig, sqliteDatabase, null, securityPolicyService);
     }
 
+    @Bean(destroyMethod = "shutdown")
+    public BrowserRuntimeService browserRuntimeService(
+            AppConfig appConfig,
+            List<BrowserProvider> browserProviders,
+            SecurityPolicyService securityPolicyService) {
+        return new BrowserRuntimeService(appConfig, browserProviders, securityPolicyService);
+    }
+
     @Bean
     public RuntimePathGuard runtimePathGuard(AppConfig appConfig) {
         return new RuntimePathGuard(appConfig);
@@ -170,6 +180,7 @@ public class ToolConfiguration {
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService) {
         return new DefaultToolRegistry(
@@ -192,6 +203,7 @@ public class ToolConfiguration {
                 securityPolicyService,
                 processRegistry,
                 mcpRuntimeService,
+                browserRuntimeService,
                 imageGenerationService,
                 speechService);
     }
