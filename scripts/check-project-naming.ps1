@@ -435,3 +435,5 @@ try {
 } finally {
     Pop-Location
 }
+
+$global:LASTEXITCODE = 0

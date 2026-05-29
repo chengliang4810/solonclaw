@@ -39,3 +39,5 @@ if ($findings.Count -gt 0) {
     $findings | ForEach-Object { Write-Host $_ -ForegroundColor Red }
     exit 1
 }
+
+$global:LASTEXITCODE = 0
