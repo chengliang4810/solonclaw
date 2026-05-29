@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -25,11 +26,15 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.Skill;
 import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.skills.sys.ShellSkill;
 import org.noear.solon.ai.skills.sys.SystemClockSkill;
@@ -151,6 +156,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
+    /** 插件注册工具。 */
+    private final List<ToolRegistration> pluginTools;
+
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -185,6 +193,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
+                null,
                 null,
                 null,
                 null);
@@ -227,6 +236,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 null,
+                null,
                 null);
     }
 
@@ -268,7 +278,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 null,
-                mcpRuntimeService);
+                mcpRuntimeService,
+                null);
     }
 
     public DefaultToolRegistry(
@@ -291,6 +302,50 @@ public class DefaultToolRegistry implements ToolRegistry {
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                processRegistry,
+                mcpRuntimeService,
+                null);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            List<ToolRegistration> pluginTools) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -310,11 +365,23 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.securityPolicyService = securityPolicyService;
         this.mcpRuntimeService = mcpRuntimeService;
         this.processRegistry = processRegistry;
+        this.pluginTools =
+                pluginTools == null
+                        ? Collections.<ToolRegistration>emptyList()
+                        : new ArrayList<ToolRegistration>(pluginTools);
     }
 
     @Override
     public List<String> listToolNames() {
-        return new ArrayList<String>(TOOL_NAMES);
+        List<String> result = new ArrayList<String>(TOOL_NAMES);
+        Set<String> seen = new LinkedHashSet<String>(TOOL_NAMES);
+        for (ToolRegistration registration : pluginTools) {
+            String name = registration == null ? null : registration.getName();
+            if (StrUtil.isNotBlank(name) && seen.add(name)) {
+                result.add(name);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -496,6 +563,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(new ClarifyTools());
             }
         }
+        for (FunctionTool pluginTool : resolvePluginTools(sourceKey, agentScope)) {
+            tools.add(pluginTool);
+        }
         if (isGatewayEnabled(sourceKey, agentScope)) {
             gatewayCandidates.addAll(tools);
             ToolGatewaySkill gatewaySkill = buildToolGateway(gatewayCandidates);
@@ -613,6 +683,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 result.add(toolName);
             }
         }
+        for (String toolName : pluginToolNames()) {
+            if (isPluginToolAllowed(agentScope, toolName) && isEnabled(sourceKey, toolName)) {
+                result.add(toolName);
+            }
+        }
         return result;
     }
 
@@ -620,6 +695,8 @@ public class DefaultToolRegistry implements ToolRegistry {
     public void enableTools(String sourceKey, List<String> toolNames) {
         for (String toolName : toolNames) {
             if (TOOL_NAMES.contains(toolName)) {
+                setToolEnabled(sourceKey, toolName, true);
+            } else if (pluginToolNames().contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, true);
             }
         }
@@ -629,6 +706,8 @@ public class DefaultToolRegistry implements ToolRegistry {
     public void disableTools(String sourceKey, List<String> toolNames) {
         for (String toolName : toolNames) {
             if (TOOL_NAMES.contains(toolName)) {
+                setToolEnabled(sourceKey, toolName, false);
+            } else if (pluginToolNames().contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, false);
             }
         }
@@ -672,5 +751,51 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     private ProcessRegistry resolveProcessRegistry() {
         return processRegistry == null ? new ProcessRegistry(appConfig) : processRegistry;
+    }
+
+    private List<FunctionTool> resolvePluginTools(String sourceKey, AgentRuntimeScope agentScope) {
+        List<FunctionTool> result = new ArrayList<FunctionTool>();
+        Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
+        Set<String> seen = new LinkedHashSet<String>();
+        for (final ToolRegistration registration : pluginTools) {
+            String name = registration == null ? null : registration.getName();
+            if (StrUtil.isBlank(name)
+                    || builtinNames.contains(name)
+                    || !seen.add(name)
+                    || !isPluginToolAllowed(agentScope, name)
+                    || !isEnabled(sourceKey, name)) {
+                continue;
+            }
+            FunctionToolDesc tool = new FunctionToolDesc(name);
+            tool.description(StrUtil.blankToDefault(registration.getDescription(), "Plugin tool"));
+            if (registration.getSchema() != null && !registration.getSchema().isEmpty()) {
+                tool.inputSchema(org.noear.snack4.ONode.serialize(registration.getSchema()));
+            }
+            tool.doHandle(
+                    args -> {
+                        return registration.getHandler() == null
+                                ? ""
+                                : registration.getHandler().apply(args);
+                    });
+            result.add(tool);
+        }
+        return result;
+    }
+
+    private List<String> pluginToolNames() {
+        List<String> result = new ArrayList<String>();
+        Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
+        Set<String> seen = new LinkedHashSet<String>();
+        for (ToolRegistration registration : pluginTools) {
+            String name = registration == null ? null : registration.getName();
+            if (StrUtil.isNotBlank(name) && !builtinNames.contains(name) && seen.add(name)) {
+                result.add(name);
+            }
+        }
+        return result;
+    }
+
+    private boolean isPluginToolAllowed(AgentRuntimeScope agentScope, String toolName) {
+        return AgentRuntimePolicy.resolveAllowedTools(agentScope, listToolNames()).contains(toolName);
     }
 }

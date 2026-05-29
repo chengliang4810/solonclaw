@@ -39,6 +39,7 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
+import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
@@ -135,6 +136,7 @@ public class DefaultCommandService implements CommandService {
     private final SlashConfirmService slashConfirmService;
     private final DefaultCronScheduler cronScheduler;
     private final GatewayRestartCoordinator gatewayRestartCoordinator;
+    private final Map<String, CommandHandler> pluginCommands;
 
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -581,6 +583,68 @@ public class DefaultCommandService implements CommandService {
             DefaultCronScheduler cronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
             SlashConfirmService slashConfirmService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -615,12 +679,17 @@ public class DefaultCommandService implements CommandService {
         this.cronScheduler = cronScheduler;
         this.gatewayRestartCoordinator =
                 gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;
+        this.pluginCommands =
+                pluginCommands == null
+                        ? Collections.<String, CommandHandler>emptyMap()
+                        : new LinkedHashMap<String, CommandHandler>(pluginCommands);
     }
 
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
-        return CommandRegistry.resolve(commandName) != null;
+        return CommandRegistry.resolve(commandName) != null
+                || pluginCommands.containsKey(StrUtil.nullToEmpty(commandName).trim().toLowerCase());
     }
 
     /** 处理单条 slash 命令。 */
@@ -1023,6 +1092,12 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_HELP.equals(command)) {
             return GatewayReply.ok(helpText());
+        }
+
+        if (descriptor == null && pluginCommands.containsKey(command)) {
+            GatewayReply reply = GatewayReply.ok(pluginCommands.get(command).handle(args));
+            reply.setCommandHandled(true);
+            return reply;
         }
 
         CommandDescriptor unresolvedRegistered = CommandRegistry.get(command);
