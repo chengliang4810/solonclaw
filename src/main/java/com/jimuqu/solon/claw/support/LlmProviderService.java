@@ -25,9 +25,27 @@ public class LlmProviderService {
             SessionRecord session, String agentDefaultModel) {
         String providerKey = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
         String model = "";
+        String transientProvider =
+                session == null
+                        ? ""
+                        : StrUtil.nullToEmpty(session.getTransientProviderOverride()).trim();
+        String transientModel =
+                session == null
+                        ? ""
+                        : StrUtil.nullToEmpty(session.getTransientModelOverride()).trim();
+        String transientBaseUrl =
+                session == null
+                        ? ""
+                        : StrUtil.nullToEmpty(session.getTransientBaseUrlOverride()).trim();
+        if (StrUtil.isNotBlank(transientProvider)) {
+            providerKey = transientProvider;
+        }
+        if (StrUtil.isNotBlank(transientModel)) {
+            model = transientModel;
+        }
         String override =
                 session == null ? "" : StrUtil.nullToEmpty(session.getModelOverride()).trim();
-        if (StrUtil.isNotBlank(override)) {
+        if (StrUtil.isBlank(model) && StrUtil.isNotBlank(override)) {
             if (override.contains(":")) {
                 String[] parts = override.split(":", 2);
                 providerKey = StrUtil.nullToEmpty(parts[0]).trim();
@@ -35,10 +53,16 @@ public class LlmProviderService {
             } else {
                 model = override;
             }
-        } else if (StrUtil.isNotBlank(agentDefaultModel)) {
+        } else if (StrUtil.isBlank(model) && StrUtil.isNotBlank(agentDefaultModel)) {
             model = agentDefaultModel.trim();
         }
-        return resolveProvider(providerKey, model);
+        ResolvedProvider resolved = resolveProvider(providerKey, model);
+        if (StrUtil.isNotBlank(transientBaseUrl)) {
+            resolved.setBaseUrl(transientBaseUrl);
+            resolved.setApiUrl(
+                    LlmProviderSupport.buildApiUrl(transientBaseUrl, resolved.getDialect()));
+        }
+        return resolved;
     }
 
     public ResolvedProvider resolveProvider(String providerKey, String explicitModel) {

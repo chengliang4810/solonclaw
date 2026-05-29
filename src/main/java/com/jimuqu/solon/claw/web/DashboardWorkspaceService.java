@@ -51,7 +51,7 @@ public class DashboardWorkspaceService {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("name", FileUtil.file(relativePath).getName());
             item.put("relativePath", relativePath);
-            item.put("path", personaWorkspaceService.absoluteDiaryPath(relativePath));
+            item.put("path", diaryReference(relativePath));
             files.add(item);
         }
 
@@ -64,7 +64,7 @@ public class DashboardWorkspaceService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("name", FileUtil.file(relativePath).getName());
         result.put("relativePath", relativePath);
-        result.put("path", personaWorkspaceService.absoluteDiaryPath(relativePath));
+        result.put("path", diaryReference(relativePath));
         result.put("content", personaWorkspaceService.readDiary(relativePath));
         return result;
     }
@@ -73,9 +73,17 @@ public class DashboardWorkspaceService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("key", key);
         result.put("name", personaWorkspaceService.fileName(key));
-        result.put("path", personaWorkspaceService.absolutePath(key));
+        result.put("path", fileReference(key));
         result.put("exists", personaWorkspaceService.exists(key));
         result.put("content", personaWorkspaceService.read(key));
         return result;
+    }
+
+    private String fileReference(String key) {
+        return "workspace://files/" + key;
+    }
+
+    private String diaryReference(String relativePath) {
+        return "workspace://diaries/" + relativePath.replace('\\', '/');
     }
 }

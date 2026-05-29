@@ -23,7 +23,11 @@ public class ChannelConfigPolicyLoadTest {
                         + "      groupPolicy: open\n"
                         + "      groupAllowedUsers:\n"
                         + "        - oc_group_a\n"
+                        + "      allowedChats:\n"
+                        + "        - oc_chat_a\n"
                         + "      botName: SolonClaw Bot\n"
+                        + "    dingtalk:\n"
+                        + "      allowed_chats: cidLegacy,cidCompat\n"
                         + "    wecom:\n"
                         + "      groups:\n"
                         + "        room-a:\n"
@@ -45,6 +49,10 @@ public class ChannelConfigPolicyLoadTest {
         assertThat(config.getChannels().getFeishu().getGroupPolicy()).isEqualTo("open");
         assertThat(config.getChannels().getFeishu().getGroupAllowedUsers())
                 .containsExactly("oc_group_a");
+        assertThat(config.getChannels().getFeishu().getAllowedChats())
+                .containsExactly("oc_chat_a");
+        assertThat(config.getChannels().getDingtalk().getAllowedChats())
+                .containsExactly("cidLegacy", "cidCompat");
         assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("SolonClaw Bot");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("room-a"))
                 .containsExactly("alice", "bob");

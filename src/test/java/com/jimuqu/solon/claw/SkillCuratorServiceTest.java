@@ -26,6 +26,10 @@ public class SkillCuratorServiceTest {
         Map<String, Object> report = service.runOnce(true);
 
         assertThat(report.get("status")).isEqualTo("ok");
+        assertThat(String.valueOf(report))
+                .contains("curator://state")
+                .contains("skill://old-skill")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(new File(env.appConfig.getRuntime().getSkillsDir(), ".curator_state")).isFile();
         assertThat(new File(staleSkill, "SKILL.md")).isFile();
         assertThat(FileUtil.loopFiles(new File(env.appConfig.getRuntime().getLogsDir(), "curator")))

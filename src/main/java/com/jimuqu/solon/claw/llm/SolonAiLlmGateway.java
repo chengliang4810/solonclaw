@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -13,20 +14,31 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.gateway.feedback.ToolPreviewSupport;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
+import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
+import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -51,10 +63,16 @@ import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.ChatRequestDesc;
 import org.noear.solon.ai.chat.ChatResponse;
+import org.noear.solon.ai.chat.content.ContentBlock;
+import org.noear.solon.ai.chat.content.Contents;
+import org.noear.solon.ai.chat.content.ImageBlock;
 import org.noear.solon.ai.chat.dialect.ChatDialectManager;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.skill.Skill;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.HarnessProperties;
 import org.noear.solon.ai.harness.agent.AgentDefinition;
@@ -79,7 +97,11 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final SessionRepository sessionRepository;
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
     private final LlmProviderService llmProviderService;
+    private final ToolResultTransformService toolResultTransformService;
+    private final ToolCallLoopGuardrailService toolCallLoopGuardrailService;
+    private final SecurityPolicyService securityPolicyService;
     private volatile PdfSkill pdfSkill;
+    private HookBridgeInterceptor hookBridgeInterceptor;
 
     public SolonAiLlmGateway(AppConfig appConfig) {
         this(appConfig, null, null, null);
@@ -101,11 +123,79 @@ public class SolonAiLlmGateway implements LlmGateway {
             SessionRepository sessionRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             LlmProviderService llmProviderService) {
+        this(
+                appConfig,
+                sessionRepository,
+                dangerousCommandApprovalService,
+                llmProviderService,
+                null);
+    }
+
+    public SolonAiLlmGateway(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            LlmProviderService llmProviderService,
+            ToolResultTransformService toolResultTransformService) {
+        this(
+                appConfig,
+                sessionRepository,
+                dangerousCommandApprovalService,
+                llmProviderService,
+                toolResultTransformService,
+                null);
+    }
+
+    public SolonAiLlmGateway(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            LlmProviderService llmProviderService,
+            ToolResultTransformService toolResultTransformService,
+            ToolCallLoopGuardrailService toolCallLoopGuardrailService) {
+        this(
+                appConfig,
+                sessionRepository,
+                dangerousCommandApprovalService,
+                llmProviderService,
+                toolResultTransformService,
+                toolCallLoopGuardrailService,
+                null);
+    }
+
+    public SolonAiLlmGateway(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            LlmProviderService llmProviderService,
+            ToolResultTransformService toolResultTransformService,
+            ToolCallLoopGuardrailService toolCallLoopGuardrailService,
+            SecurityPolicyService securityPolicyService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.llmProviderService =
                 llmProviderService == null ? new LlmProviderService(appConfig) : llmProviderService;
+        this.toolResultTransformService =
+                toolResultTransformService == null
+                        ? new ToolResultTransformService()
+                        : toolResultTransformService;
+        this.toolCallLoopGuardrailService =
+                toolCallLoopGuardrailService == null
+                        ? new ToolCallLoopGuardrailService(appConfig)
+                        : toolCallLoopGuardrailService;
+        this.securityPolicyService =
+                securityPolicyService == null
+                        ? new SecurityPolicyService(appConfig)
+                        : securityPolicyService;
+        if (this.dangerousCommandApprovalService != null) {
+            this.dangerousCommandApprovalService.setSmartApprovalJudge(
+                    new SolonAiSmartApprovalJudge());
+        }
+    }
+
+    public void setHookBridgeInterceptor(HookBridgeInterceptor hookBridgeInterceptor) {
+        this.hookBridgeInterceptor = hookBridgeInterceptor;
     }
 
     @Override
@@ -350,9 +440,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                     resolved,
                     feedbackSink,
                     eventSink,
-                    usageCollector);
+                    usageCollector,
+                    runContext);
         }
-        ReActResponse response = callAgent(agent, agentSession, userMessage, resume);
+        ReActResponse response = callAgent(agent, agentSession, userMessage, resume, runContext);
 
         AssistantMessage assistantMessage = response.getMessage();
         LlmResult result = new LlmResult();
@@ -372,11 +463,21 @@ public class SolonAiLlmGateway implements LlmGateway {
     private ReActResponse callAgent(
             ReActAgent agent, SqliteAgentSession agentSession, String userMessage, boolean resume)
             throws Exception {
+        return callAgent(agent, agentSession, userMessage, resume, null);
+    }
+
+    private ReActResponse callAgent(
+            ReActAgent agent,
+            SqliteAgentSession agentSession,
+            String userMessage,
+            boolean resume,
+            AgentRunContext runContext)
+            throws Exception {
         try {
             if (resume) {
                 return agent.prompt().session(agentSession).call();
             }
-            return agent.prompt(Prompt.of(userMessage))
+            return agent.prompt(userPrompt(userMessage, runContext))
                     .session(agentSession)
                     .options(options -> options.toolContextPut("user_message", userMessage))
                     .call();
@@ -396,7 +497,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             AppConfig.LlmConfig resolved,
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
-            UsageCollector usageCollector)
+            UsageCollector usageCollector,
+            AgentRunContext runContext)
             throws Exception {
         final StringBuilder emittedText = new StringBuilder();
         final ReActResponse[] finalResponse = new ReActResponse[1];
@@ -417,7 +519,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                         .blockLast();
             } else {
                 agent
-                        .prompt(Prompt.of(userMessage))
+                        .prompt(userPrompt(userMessage, runContext))
                         .session(agentSession)
                         .options(options -> options.toolContextPut("user_message", userMessage))
                         .stream()
@@ -727,12 +829,88 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (StrUtil.isBlank(resolved.getApiUrl())) {
             throw new IllegalStateException("LLM apiUrl 不能为空。");
         }
+        SecurityPolicyService.UrlVerdict apiUrlVerdict =
+                LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                        ? securityPolicyService.checkUrlAllowingPrivate(resolved.getApiUrl())
+                        : securityPolicyService.checkUrl(resolved.getApiUrl());
+        if (!apiUrlVerdict.isAllowed()) {
+            throw new IllegalStateException("LLM apiUrl 被安全策略阻断：" + apiUrlVerdict.getMessage());
+        }
         if (StrUtil.isBlank(resolved.getModel())) {
             throw new IllegalStateException("LLM model 不能为空。");
         }
         if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
                 && !StrUtil.containsIgnoreCase(resolved.getApiUrl(), "/responses")) {
             throw new IllegalStateException("openai-responses 的 apiUrl 必须直接指向 /responses 接口。");
+        }
+        if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                && SecretValueGuard.isPlaceholderSecret(resolved.getApiKey())) {
+            throw new IllegalStateException("LLM apiKey 不能使用示例或占位符密钥。");
+        }
+    }
+
+    private Prompt userPrompt(String userMessage, AgentRunContext runContext) {
+        List<ContentBlock> blocks = userContentBlocks(userMessage, runContext);
+        if (blocks.isEmpty()) {
+            return Prompt.of(userMessage);
+        }
+        if (StrUtil.isBlank(userMessage)) {
+            return Prompt.of(ChatMessage.ofUser(new Contents().addBlocks(blocks)));
+        }
+        return Prompt.of(ChatMessage.ofUser(StrUtil.nullToEmpty(userMessage), blocks));
+    }
+
+    private List<ContentBlock> userContentBlocks(String userMessage, AgentRunContext runContext) {
+        List<MessageAttachment> attachments =
+                runContext == null
+                        ? Collections.<MessageAttachment>emptyList()
+                        : runContext.getUserAttachments();
+        if (attachments.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ContentBlock> blocks = new ArrayList<ContentBlock>();
+        for (MessageAttachment attachment : attachments) {
+            if (!isImageAttachment(attachment)) {
+                continue;
+            }
+            ImageBlock image = imageBlock(attachment);
+            if (image != null) {
+                blocks.add(image);
+            }
+        }
+        return blocks;
+    }
+
+    private boolean isImageAttachment(MessageAttachment attachment) {
+        if (attachment == null) {
+            return false;
+        }
+        String kind = StrUtil.nullToEmpty(attachment.getKind()).trim().toLowerCase(Locale.ROOT);
+        String mime = StrUtil.nullToEmpty(attachment.getMimeType()).trim().toLowerCase(Locale.ROOT);
+        return "image".equals(kind) || mime.startsWith("image/");
+    }
+
+    private ImageBlock imageBlock(MessageAttachment attachment) {
+        String mimeType = StrUtil.blankToDefault(attachment.getMimeType(), "image/png");
+        if (StrUtil.isNotBlank(attachment.getData())) {
+            return ImageBlock.ofBase64(attachment.getData(), mimeType);
+        }
+        if (StrUtil.isNotBlank(attachment.getUrl())) {
+            return ImageBlock.ofUrl(attachment.getUrl(), mimeType);
+        }
+        if (StrUtil.isBlank(attachment.getLocalPath())) {
+            return null;
+        }
+        try {
+            byte[] data = java.nio.file.Files.readAllBytes(
+                    java.nio.file.Paths.get(attachment.getLocalPath()));
+            return ImageBlock.ofBase64(data, mimeType);
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to attach image block: path={}, error={}",
+                    SecretRedactor.redact(attachment.getLocalPath(), 400),
+                    safeError(e));
+            return null;
         }
     }
 
@@ -879,6 +1057,19 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (dangerousCommandApprovalService != null) {
             builder.defaultInterceptorAdd(dangerousCommandApprovalService.buildInterceptor());
         }
+        builder.defaultInterceptorAdd(toolCallLoopGuardrailService.buildInterceptor());
+        builder.defaultInterceptorAdd(toolResultTransformService.buildInterceptor());
+        ToolResultStorageService toolResultStorageService =
+                new ToolResultStorageService(
+                        appConfig.getRuntime().getCacheDir(),
+                        resolveWorkspace(runContext),
+                        appConfig.getTask().getToolOutputInlineLimit(),
+                        appConfig.getTask().getToolOutputTurnBudget(),
+                        appConfig.getTrace().getToolPreviewLength());
+        builder.defaultInterceptorAdd(
+                new ToolResultStorageInterceptor(
+                        toolResultStorageService,
+                        runContext == null ? null : runContext.getRunId()));
         if (feedbackSink != null && feedbackSink != ConversationFeedbackSink.noop()) {
             builder.defaultInterceptorAdd(
                     new FeedbackInterceptor(feedbackSink, dangerousCommandApprovalService));
@@ -888,18 +1079,89 @@ public class SolonAiLlmGateway implements LlmGateway {
                     new TracingReActInterceptor(
                             runContext,
                             appConfig.getTrace().getToolPreviewLength(),
-                            appConfig.getTask().getToolOutputInlineLimit(),
-                            appConfig.getRuntime().getCacheDir()));
+                            appConfig.getTask().getToolOutputInlineLimit()));
         }
         if (usageCollector != null) {
             builder.defaultInterceptorAdd(new UsageCollectingInterceptor(usageCollector));
         }
+        if (hookBridgeInterceptor != null) {
+            builder.defaultInterceptorAdd(hookBridgeInterceptor);
+        }
 
         for (Object toolObject : toolObjects) {
-            builder.defaultToolAdd(toolObject);
+            builder.defaultToolAdd(sanitizeToolObject(toolObject));
         }
-        builder.defaultSkillAdd(pdfSkill());
+        builder.defaultToolAdd(sanitizeToolObject(pdfSkill()));
         return builder.build();
+    }
+
+    private Object sanitizeToolObject(Object toolObject) {
+        if (toolObject instanceof FunctionTool) {
+            return SanitizedFunctionTool.wrap((FunctionTool) toolObject);
+        }
+        if (toolObject instanceof ToolProvider) {
+            final ToolProvider provider = (ToolProvider) toolObject;
+            return new ToolProvider() {
+                @Override
+                public java.util.Collection<FunctionTool> getTools() {
+                    java.util.List<FunctionTool> result = new java.util.ArrayList<FunctionTool>();
+                    java.util.Collection<FunctionTool> tools = provider.getTools();
+                    if (tools != null) {
+                        for (FunctionTool tool : tools) {
+                            result.add(SanitizedFunctionTool.wrap(tool));
+                        }
+                    }
+                    return result;
+                }
+            };
+        }
+        if (toolObject instanceof Skill) {
+            final Skill skill = (Skill) toolObject;
+            return new Skill() {
+                @Override
+                public String name() {
+                    return skill.name();
+                }
+
+                @Override
+                public String description() {
+                    return skill.description();
+                }
+
+                @Override
+                public org.noear.solon.ai.chat.skill.SkillMetadata metadata() {
+                    return skill.metadata();
+                }
+
+                @Override
+                public boolean isSupported(Prompt prompt) {
+                    return skill.isSupported(prompt);
+                }
+
+                @Override
+                public void onAttach(Prompt prompt) {
+                    skill.onAttach(prompt);
+                }
+
+                @Override
+                public String getInstruction(Prompt prompt) {
+                    return skill.getInstruction(prompt);
+                }
+
+                @Override
+                public java.util.Collection<FunctionTool> getTools(Prompt prompt) {
+                    java.util.List<FunctionTool> result = new java.util.ArrayList<FunctionTool>();
+                    java.util.Collection<FunctionTool> tools = skill.getTools(prompt);
+                    if (tools != null) {
+                        for (FunctionTool tool : tools) {
+                            result.add(SanitizedFunctionTool.wrap(tool));
+                        }
+                    }
+                    return result;
+                }
+            };
+        }
+        return toolObject;
     }
 
     private SummarizationInterceptor buildHarnessSummarizationInterceptor(
@@ -973,6 +1235,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         copy.setTemperature(source.getTemperature());
         copy.setMaxTokens(source.getMaxTokens());
         copy.setContextWindowTokens(source.getContextWindowTokens());
+        copy.getPromptCache().setEnabled(source.getPromptCache().isEnabled());
+        copy.getPromptCache().setTtl(source.getPromptCache().getTtl());
+        copy.getPromptCache().setLayout(source.getPromptCache().getLayout());
         return copy;
     }
 
@@ -1083,13 +1348,22 @@ public class SolonAiLlmGateway implements LlmGateway {
                         primaryModel);
             } catch (Throwable e) {
                 log.warn(
-                        "Aux summary model failed, fallback to primary model: strategy={}, auxModel={}, primaryModel={}",
+                        "Aux summary model failed, fallback to primary model: strategy={}, auxModel={}, primaryModel={}, error={}",
                         name,
                         auxModel,
                         primaryModel,
-                        e);
+                        safeSummaryError(e));
             }
             return primary.summarize(trace, messagesToSummarize);
+        }
+
+        private String safeSummaryError(Throwable error) {
+            if (error == null) {
+                return "unknown";
+            }
+            String message = error.getMessage();
+            String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+            return SecretRedactor.redact(value, 1000);
         }
     }
 
@@ -1108,12 +1382,12 @@ public class SolonAiLlmGateway implements LlmGateway {
     private PdfSkill buildPdfSkill() {
         File pdfWorkDir = new File(appConfig.getRuntime().getCacheDir(), "pdf");
         if (!pdfWorkDir.exists() && !pdfWorkDir.mkdirs()) {
-            log.warn("Failed to create pdf work directory: {}", pdfWorkDir.getAbsolutePath());
+            log.warn("Failed to create pdf work directory: {}", safePathRef(pdfWorkDir));
         }
 
         final File fontFile = resolvePdfFontFile();
         if (fontFile != null) {
-            log.info("PDF skill font detected: {}", fontFile.getAbsolutePath());
+            log.info("PDF skill font detected: {}", safePathRef(fontFile));
             return new PdfSkill(
                     pdfWorkDir.getAbsolutePath(),
                     new Supplier<InputStream>() {
@@ -1123,9 +1397,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 return new FileInputStream(fontFile);
                             } catch (Exception e) {
                                 log.warn(
-                                        "Failed to open PDF font file: {}",
-                                        fontFile.getAbsolutePath(),
-                                        e);
+                                        "Failed to open PDF font file: path={}, error={}",
+                                        safePathRef(fontFile),
+                                        safeError(e));
                                 return null;
                             }
                         }
@@ -1143,7 +1417,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             if (file.isFile()) {
                 return file;
             }
-            log.warn("Configured PDF font path not found: {}", file.getAbsolutePath());
+            log.warn("Configured PDF font path not found: {}", safePathRef(file));
         }
 
         List<String> candidates =
@@ -1165,6 +1439,95 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         return null;
+    }
+
+    private class SolonAiSmartApprovalJudge implements SmartApprovalJudge {
+        @Override
+        public SmartApprovalDecision judge(String toolName, String command, String description) {
+            try {
+                AppConfig.LlmConfig resolved = buildCandidateConfigs(null).get(0);
+                validate(resolved);
+                ChatModel chatModel = buildChatModel(resolved);
+                String prompt =
+                        "You are the smart approval judge for a local AI agent. "
+                                + "Decide whether this flagged command is low risk enough to run without asking the user, genuinely dangerous, or uncertain. "
+                                + "Reply with only compact JSON: {\"decision\":\"approve\"|\"deny\"|\"escalate\",\"reason\":\"...\"}. "
+                                + "Approve only read-only, diagnostic, or clearly reversible low-risk actions. "
+                                + "Deny genuinely destructive actions. Escalate credential, network install, privilege, persistence, service, or ambiguous actions.\n\n"
+                                + "tool: "
+                                + StrUtil.nullToEmpty(toolName)
+                                + "\nreason: "
+                                + StrUtil.nullToEmpty(description)
+                                + "\ncommand:\n"
+                                + StrUtil.nullToEmpty(command);
+                ChatResponse response =
+                        chatModel
+                                .prompt(
+                                        ChatMessage.ofSystem(
+                                                "You are a strict command risk classifier."),
+                                        ChatMessage.ofUser(prompt))
+                                .call();
+                return parseSmartApprovalResponse(response == null ? null : response.getContent());
+            } catch (Exception e) {
+                log.warn("Smart approval judge failed, escalating to manual approval: {}", e.getMessage());
+                return SmartApprovalDecision.escalate("smart approval failed");
+            }
+        }
+    }
+
+    private SmartApprovalDecision parseSmartApprovalResponse(String raw) {
+        String text = StrUtil.nullToEmpty(raw).trim();
+        if (text.startsWith("```")) {
+            text = text.replaceFirst("(?is)^```(?:json)?\\s*", "");
+            text = text.replaceFirst("(?is)\\s*```$", "").trim();
+        }
+        try {
+            Object parsed = ONode.deserialize(text, Object.class);
+            if (parsed instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) parsed;
+                String decision =
+                        StrUtil.nullToEmpty(String.valueOf(map.get("decision")))
+                                .trim()
+                                .toLowerCase(Locale.ROOT);
+                String reason = StrUtil.nullToEmpty(String.valueOf(map.get("reason")));
+                if ("approve".equals(decision)) {
+                    return SmartApprovalDecision.approve(reason);
+                }
+                if ("deny".equals(decision)) {
+                    return SmartApprovalDecision.deny(reason);
+                }
+                return SmartApprovalDecision.escalate(reason);
+            }
+        } catch (Exception ignored) {
+        }
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (lower.contains("\"approve\"") || lower.startsWith("approve")) {
+            return SmartApprovalDecision.approve(text);
+        }
+        if (lower.contains("\"deny\"") || lower.startsWith("deny")) {
+            return SmartApprovalDecision.deny(text);
+        }
+        return SmartApprovalDecision.escalate(text);
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
+    }
+
+    private String safePathRef(File file) {
+        if (file == null) {
+            return "path://unknown";
+        }
+        String name = file.getName();
+        if (StrUtil.isBlank(name)) {
+            name = "path";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /** 将 ReAct 生命周期事件桥接到网关反馈 sink。 */
@@ -1372,19 +1735,16 @@ public class SolonAiLlmGateway implements LlmGateway {
         private final AgentRunContext runContext;
         private final int previewLength;
         private final int inlineLimitBytes;
-        private final String cacheDir;
         private final ConcurrentMap<String, ToolCallRecord> activeToolCalls =
                 new ConcurrentHashMap<String, ToolCallRecord>();
 
         private TracingReActInterceptor(
                 AgentRunContext runContext,
                 int previewLength,
-                int inlineLimitBytes,
-                String cacheDir) {
+                int inlineLimitBytes) {
             this.runContext = runContext;
             this.previewLength = Math.max(200, previewLength);
             this.inlineLimitBytes = Math.max(256, inlineLimitBytes);
-            this.cacheDir = cacheDir;
         }
 
         @Override
@@ -1432,14 +1792,16 @@ public class SolonAiLlmGateway implements LlmGateway {
             Map<String, Object> metadata = new java.util.LinkedHashMap<String, Object>();
             metadata.put("tool", toolName);
             metadata.put("durationMs", durationMs);
-            ToolOutput output = storeOutputIfNeeded(toolName, result, null);
-            metadata.put("preview", output.preview);
-            metadata.put("result_ref", output.ref);
+            String observation = trace == null ? result : trace.getLastObservation();
+            ToolResultStorageService.StoredResult output =
+                    ToolResultStorageService.describeObservation(
+                            StrUtil.blankToDefault(observation, result));
+            metadata.put("preview", output.getPreview());
+            metadata.put("result_ref", output.getResultRef());
             runContext.event("tool.end", "工具完成：" + toolName + "（" + durationMs + "ms）", metadata);
             ToolCallRecord record = activeToolCalls.remove(toolName);
             if (record == null) {
                 record = new ToolCallRecord();
-                output = storeOutputIfNeeded(toolName, result, record);
                 record.setToolCallId(IdSupport.newId());
                 record.setRunId(runContext.getRunId());
                 record.setSessionId(runContext.getSessionId());
@@ -1452,48 +1814,14 @@ public class SolonAiLlmGateway implements LlmGateway {
                 record.setResultIndexable(true);
                 record.setOutputLimitBytes(inlineLimitBytes);
                 record.setExecutionPolicy(record.isSideEffecting() ? "serial" : "parallel_readonly");
-            } else {
-                output = storeOutputIfNeeded(toolName, result, record);
             }
             record.setStatus("completed");
-            record.setResultPreview(output.preview);
-            record.setResultRef(output.ref);
-            record.setResultSizeBytes(output.sizeBytes);
+            record.setResultPreview(output.getPreview());
+            record.setResultRef(output.getResultRef());
+            record.setResultSizeBytes(output.getSizeBytes());
             record.setFinishedAt(System.currentTimeMillis());
             record.setDurationMs(durationMs);
             runContext.saveToolCall(record);
-        }
-
-        private ToolOutput storeOutputIfNeeded(
-                String toolName, String result, ToolCallRecord record) {
-            ToolOutput output = new ToolOutput();
-            byte[] bytes = StrUtil.nullToEmpty(result).getBytes(StandardCharsets.UTF_8);
-            output.sizeBytes = bytes.length;
-            output.preview = AgentRunContext.safe(result, previewLength);
-            if (bytes.length <= inlineLimitBytes || StrUtil.isBlank(cacheDir)) {
-                return output;
-            }
-            try {
-                String callId =
-                        record != null && StrUtil.isNotBlank(record.getToolCallId())
-                                ? record.getToolCallId()
-                                : IdSupport.newId();
-                if (record != null && StrUtil.isBlank(record.getToolCallId())) {
-                    record.setToolCallId(callId);
-                }
-                File dir = new File(new File(cacheDir, "tool-results"), runContext.getRunId());
-                cn.hutool.core.io.FileUtil.mkdir(dir);
-                File file = new File(dir, callId + ".txt");
-                Files.write(file.toPath(), bytes);
-                output.ref = file.getAbsolutePath();
-                output.preview =
-                        AgentRunContext.safe(result, Math.min(previewLength, 600))
-                                + "\n[result_ref: "
-                                + output.ref
-                                + "]";
-            } catch (Exception ignored) {
-            }
-            return output;
         }
 
         private boolean isSideEffectingTool(String toolName) {
@@ -1510,12 +1838,6 @@ public class SolonAiLlmGateway implements LlmGateway {
                     || value.contains("cron")
                     || value.contains("skill_manage")
                     || value.contains("delegate");
-        }
-
-        private static class ToolOutput {
-            private String preview;
-            private String ref;
-            private long sizeBytes;
         }
     }
 }

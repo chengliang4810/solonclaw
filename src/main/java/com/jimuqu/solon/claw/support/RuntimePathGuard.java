@@ -85,7 +85,7 @@ public class RuntimePathGuard {
         }
         throw new IllegalArgumentException(
                 "Path is outside allowed roots: "
-                        + file.getAbsolutePath()
+                        + safePath(file)
                         + ". Allowed roots: "
                         + allowedRoots(roots));
     }
@@ -93,7 +93,10 @@ public class RuntimePathGuard {
     private void requireUnder(File file, File root) {
         if (!isUnder(file, root)) {
             throw new IllegalArgumentException(
-                    "Path is outside allowed root: " + file.getAbsolutePath());
+                    "Path is outside allowed root: "
+                            + safePath(file)
+                            + ". Allowed root: "
+                            + safePath(root));
         }
     }
 
@@ -119,7 +122,7 @@ public class RuntimePathGuard {
         try {
             return file.getCanonicalFile();
         } catch (IOException e) {
-            throw new IllegalArgumentException("Invalid path: " + file, e);
+            throw new IllegalArgumentException("Invalid path: " + safePath(file), e);
         }
     }
 
@@ -129,8 +132,50 @@ public class RuntimePathGuard {
             if (buffer.length() > 0) {
                 buffer.append(", ");
             }
-            buffer.append(root.getAbsolutePath());
+            buffer.append(safePath(root));
         }
         return buffer.toString();
+    }
+
+    private String safePath(File file) {
+        if (file == null) {
+            return "";
+        }
+        String name = file.getName();
+        if (StrUtil.isBlank(name)) {
+            name = file.getPath();
+        }
+        // Redact credential/secret file names entirely
+        if (isCredentialFileName(name)) {
+            return "[REDACTED_PATH]";
+        }
+        // Redact token-like values in the name but preserve the filename itself
+        return SecretRedactor.redactTokensOnly(name, 400);
+    }
+
+    private boolean isCredentialFileName(String name) {
+        String lower = StrUtil.nullToEmpty(name).toLowerCase(java.util.Locale.ROOT).trim();
+        // Strip extension for pattern matching
+        int dot = lower.lastIndexOf('.');
+        String base = dot > 0 ? lower.substring(0, dot) : lower;
+        return "credentials".equals(base)
+                || "credential".equals(base)
+                || "secrets".equals(base)
+                || "password".equals(base)
+                || "passwd".equals(base)
+                || base.startsWith("id_rsa")
+                || base.startsWith("id_ed25519")
+                || base.startsWith("id_dsa")
+                || base.startsWith("id_ecdsa")
+                || ".env".equals(lower)
+                || lower.startsWith(".env.")
+                || ".netrc".equals(lower)
+                || ".pgpass".equals(lower)
+                || "authorized_keys".equals(lower)
+                || lower.contains("credential")
+                || lower.contains("_secret")
+                || lower.contains("-secret")
+                || lower.contains("_password")
+                || lower.contains("-password");
     }
 }

@@ -9,18 +9,22 @@ import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes 风格 skills 工具集合。 */
-@RequiredArgsConstructor
+/** Jimuqu 风格 skills 工具集合。 */
 public class SkillTools {
     /** 本地技能目录服务。 */
     private final LocalSkillService localSkillService;
@@ -37,12 +41,39 @@ public class SkillTools {
     /** 当前运行冻结的 Agent scope。 */
     private final AgentRuntimeScope agentScope;
 
+    /** 定时任务服务；用于技能归档后迁移 cron 绑定。 */
+    private final CronJobService cronJobService;
+
     public SkillTools(
             LocalSkillService localSkillService,
             CheckpointService checkpointService,
             SessionRepository sessionRepository,
             String sourceKey) {
-        this(localSkillService, checkpointService, sessionRepository, sourceKey, null);
+        this(localSkillService, checkpointService, sessionRepository, sourceKey, null, null);
+    }
+
+    public SkillTools(
+            LocalSkillService localSkillService,
+            CheckpointService checkpointService,
+            SessionRepository sessionRepository,
+            String sourceKey,
+            AgentRuntimeScope agentScope) {
+        this(localSkillService, checkpointService, sessionRepository, sourceKey, agentScope, null);
+    }
+
+    public SkillTools(
+            LocalSkillService localSkillService,
+            CheckpointService checkpointService,
+            SessionRepository sessionRepository,
+            String sourceKey,
+            AgentRuntimeScope agentScope,
+            CronJobService cronJobService) {
+        this.localSkillService = localSkillService;
+        this.checkpointService = checkpointService;
+        this.sessionRepository = sessionRepository;
+        this.sourceKey = sourceKey;
+        this.agentScope = agentScope;
+        this.cronJobService = cronJobService;
     }
 
     @ToolMapping(
@@ -59,7 +90,7 @@ public class SkillTools {
                     visible.add(descriptor);
                 }
             }
-            return ONode.serialize(visible);
+            return safeResult(ONode.serialize(visible), 20000);
         } catch (Exception e) {
             return toolError(e.getMessage());
         }
@@ -74,7 +105,8 @@ public class SkillTools {
             throws Exception {
         try {
             SkillView view = localSkillService.viewSkill(name, filePath, agentScope);
-            return ONode.serialize(view);
+            registerSkillEnvironmentPassthrough(filePath, view);
+            return safeResult(ONode.serialize(view), 20000);
         } catch (Exception e) {
             return toolError(e.getMessage());
         }
@@ -98,39 +130,60 @@ public class SkillTools {
                     String newText,
             @Param(name = "filePath", description = "支持文件相对路径", required = false) String filePath,
             @Param(name = "fileContent", description = "write_file 时写入的内容", required = false)
-                    String fileContent)
+                    String fileContent,
+            @Param(
+                            name = "absorbed_into",
+                            description = "delete 时可选；传入合并后的 umbrella 技能名会迁移 cron 绑定，空字符串表示仅剪枝",
+                            required = false)
+                    String absorbedInto)
             throws Exception {
         try {
             if (SkillConstants.ACTION_CREATE.equalsIgnoreCase(action)) {
                 checkpoint(
                         Collections.singletonList(
                                 localSkillService.resolveSkillMainFile(name, category)));
-                return ONode.serialize(localSkillService.createSkill(name, category, content));
+                return safeResult(
+                        ONode.serialize(localSkillService.createSkill(name, category, content)),
+                        20000);
             }
             if (SkillConstants.ACTION_EDIT.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return ONode.serialize(localSkillService.editSkill(name, content));
+                return safeResult(ONode.serialize(localSkillService.editSkill(name, content)), 20000);
             }
             if (SkillConstants.ACTION_PATCH.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.patchSkill(name, oldText, newText, filePath);
+                return safeResult(localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.deleteSkill(name);
+                String result = localSkillService.deleteSkill(name);
+                return safeResult(result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.writeSkillFile(name, filePath, fileContent);
+                return safeResult(localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
             }
             if (SkillConstants.ACTION_REMOVE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.removeSkillFile(name, filePath);
+                return safeResult(localSkillService.removeSkillFile(name, filePath), 1000);
             }
             return toolError("Unsupported skill_manage action");
         } catch (Exception e) {
             return toolError(e.getMessage());
         }
+    }
+
+    public String skillManage(
+            String action,
+            String name,
+            String category,
+            String content,
+            String oldText,
+            String newText,
+            String filePath,
+            String fileContent)
+            throws Exception {
+        return skillManage(action, name, category, content, oldText, newText, filePath, fileContent, null);
     }
 
     /** 收集技能目录中的全部文件，用于 checkpoint。 */
@@ -142,6 +195,19 @@ public class SkillTools {
             files.add(FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME));
         }
         return files;
+    }
+
+    private void registerSkillEnvironmentPassthrough(String filePath, SkillView view) {
+        if (view == null || view.getDescriptor() == null) {
+            return;
+        }
+        if (StrUtil.isNotBlank(filePath)
+                && !SkillConstants.SKILL_FILE_NAME.equalsIgnoreCase(filePath.trim())) {
+            return;
+        }
+        SubprocessEnvironmentSanitizer.registerSkillEnvironmentPassthrough(
+                SkillFrontmatterSupport.resolveRequiredEnvironmentVariables(
+                        view.getDescriptor().getMetadata()));
     }
 
     /** 创建 checkpoint。 */
@@ -159,8 +225,16 @@ public class SkillTools {
     private String toolError(String message) {
         return new ONode()
                 .set("success", false)
-                .set("error", StrUtil.nullToDefault(message, "unknown error"))
+                .set("error", safeError(message))
                 .toJson();
+    }
+
+    private String safeError(String message) {
+        return SecretRedactor.redact(StrUtil.nullToDefault(message, "unknown error"), 1000);
+    }
+
+    private String safeResult(String message, int maxLength) {
+        return SecretRedactor.redact(StrUtil.nullToDefault(message, ""), maxLength);
     }
 
     /** `skills_list` 单工具暴露对象。 */
@@ -221,10 +295,34 @@ public class SkillTools {
                 @Param(name = "filePath", description = "支持文件相对路径", required = false)
                         String filePath,
                 @Param(name = "fileContent", description = "write_file 时写入的内容", required = false)
-                        String fileContent)
+                        String fileContent,
+                @Param(
+                                name = "absorbed_into",
+                                description = "delete 时可选；传入合并后的 umbrella 技能名会迁移 cron 绑定，空字符串表示仅剪枝",
+                                required = false)
+                        String absorbedInto)
                 throws Exception {
             return delegate.skillManage(
-                    action, name, category, content, oldText, newText, filePath, fileContent);
+                    action, name, category, content, oldText, newText, filePath, fileContent, absorbedInto);
+        }
+    }
+
+    private String rewriteCronSkillRefsAfterDelete(String name, String absorbedInto) {
+        if (cronJobService == null || StrUtil.isBlank(name)) {
+            return "";
+        }
+        try {
+            Map<String, String> consolidated = new LinkedHashMap<String, String>();
+            List<String> pruned = new ArrayList<String>();
+            if (StrUtil.isNotBlank(absorbedInto)) {
+                consolidated.put(name.trim(), absorbedInto.trim());
+            } else {
+                pruned.add(name.trim());
+            }
+            Map<String, Object> report = cronJobService.rewriteSkillRefs(consolidated, pruned);
+            return "\nCron skill refs rewritten: " + report.get("jobs_updated");
+        } catch (Exception e) {
+            return "\nCron skill refs rewrite failed: " + safeError(e.getMessage());
         }
     }
 }

@@ -102,6 +102,11 @@ public class AgentMechanismTest {
                 .contains("\"default_model\":\"agent-model\"");
         assertThat(runs.get(0).getModel()).isEqualTo("agent-model");
         assertThat(runs.get(0).getAgentSnapshotJson()).doesNotContain("config.yml");
+        assertThat(runs.get(0).getAgentSnapshotJson())
+                .contains("\"workspace_dir\":\"agent://coder/workspace\"")
+                .contains("\"agent_file_path\":\"agent://coder/AGENT.md\"")
+                .contains("\"memory_file_path\":\"agent://coder/MEMORY.md\"")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
 
         env.send("model-room", "model-user", "/model default:session-model");
         GatewayReply second = env.send("model-room", "model-user", "again");
@@ -147,8 +152,54 @@ public class AgentMechanismTest {
                         .toString();
 
         assertThat(names).containsExactly("file_read", "skills_list");
-        assertThat(joinedTools).contains("FileReadWriteSkill", "SkillsListTool");
+        assertThat(joinedTools).contains("SolonClawFileReadWriteSkill", "SkillsListTool");
         assertThat(joinedTools).doesNotContain("ShellSkill", "WebsearchTool", "TodoTools");
+    }
+
+    @Test
+    void shouldExpandKanbanToolSelectorAndHideItFromPlainAllContext() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.agentProfileService.createAgent("planner", "看板编排 Agent");
+        claimAdmin(env, "kanban-tools-room", "kanban-tools-user");
+        env.send("kanban-tools-room", "kanban-tools-user", "/agent tools planner kanban");
+        env.send("kanban-tools-room", "kanban-tools-user", "/agent planner");
+
+        AgentRuntimeScope kanbanScope =
+                env.agentRuntimeService.resolve(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:kanban-tools-room:kanban-tools-user"));
+        List<String> kanbanNames =
+                env.toolRegistry.resolveEnabledToolNames(
+                        "MEMORY:kanban-tools-room:kanban-tools-user", kanbanScope);
+
+        assertThat(kanbanNames)
+                .containsExactly(
+                        "kanban_show",
+                        "kanban_complete",
+                        "kanban_block",
+                        "kanban_heartbeat",
+                        "kanban_step",
+                        "kanban_comment",
+                        "kanban_create",
+                        "kanban_schema_create",
+                        "kanban_link",
+                        "kanban_unlink");
+
+        env.agentProfileService.createAgent("all-tools", "全工具 Agent");
+        claimAdmin(env, "all-tools-room", "all-tools-user");
+        env.send("all-tools-room", "all-tools-user", "/agent tools all-tools all");
+        env.send("all-tools-room", "all-tools-user", "/agent all-tools");
+
+        AgentRuntimeScope allScope =
+                env.agentRuntimeService.resolve(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:all-tools-room:all-tools-user"));
+        List<String> allNames =
+                env.toolRegistry.resolveEnabledToolNames(
+                        "MEMORY:all-tools-room:all-tools-user", allScope);
+
+        assertThat(allNames).contains("security_audit");
+        assertThat(allNames).doesNotContain("kanban_unlink");
     }
 
     @Test
@@ -207,6 +258,48 @@ public class AgentMechanismTest {
     }
 
     @Test
+    void shouldRedactSecretLikeDashboardAgentRunIdentifiers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.agentProfileService.createAgent("coder", "你是代码助手。");
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("session-ghp_agentdashsession12345");
+        session.setSourceKey("MEMORY:agent-dash:user");
+        session.setBranchName("main");
+        session.setNdjson("");
+        session.setCreatedAt(100L);
+        session.setUpdatedAt(100L);
+        env.sessionRepository.save(session);
+
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-ghp_agentdashrun12345");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey(session.getSourceKey());
+        run.setAgentName("coder");
+        run.setStatus("running");
+        run.setModel("model-token=ghp_agentdashmodel12345");
+        run.setStartedAt(100L);
+        env.agentRunRepository.saveRun(run);
+
+        DashboardAgentService service = dashboardAgentService(env);
+        String detailText = String.valueOf(service.get("coder", null));
+
+        Map<String, Object> activate = new LinkedHashMap<String, Object>();
+        activate.put("session_id", "session-ghp_agentactivate12345");
+        String activateText = String.valueOf(service.activate("coder", activate));
+
+        assertThat(detailText)
+                .contains("run_id=run-ghp_***")
+                .contains("session_id=session-ghp_***")
+                .contains("model=model-token=***")
+                .doesNotContain("agentdashrun12345")
+                .doesNotContain("agentdashsession12345")
+                .doesNotContain("agentdashmodel12345");
+        assertThat(activateText)
+                .contains("session_id=session-ghp_***")
+                .doesNotContain("agentactivate12345");
+    }
+
+    @Test
     void dashboardListShouldHideBuiltinDefaultAgent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("coder", "你是代码助手。");
@@ -228,6 +321,43 @@ public class AgentMechanismTest {
 
         assertThat(env.toolRegistry.listToolNames()).contains("agent_manage");
         assertThat(joined).contains("AgentTools");
+    }
+
+    @Test
+    void shouldRedactSecretsFromAgentToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentTools tools =
+                new AgentTools(
+                        env.agentProfileService,
+                        env.sessionRepository,
+                        "MEMORY:agent-error-room:agent-error-user");
+
+        String response = tools.agentManage("show missing-ghp_1234567890abcdef");
+
+        assertThat(response)
+                .contains("\"success\":false")
+                .contains("missing-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    @Test
+    void shouldRedactSecretsFromAgentToolSuccessPreviewOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentTools tools =
+                new AgentTools(
+                        env.agentProfileService,
+                        env.sessionRepository,
+                        "MEMORY:agent-success-room:agent-success-user");
+
+        tools.agentManage(
+                "create operator 角色 Authorization: Bearer ghp_agentrole12345");
+        String response = tools.agentManage("show operator");
+
+        assertThat(response)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_agentrole12345");
+        assertThat(env.agentProfileService.findByName("operator").getRolePrompt())
+                .contains("ghp_agentrole12345");
     }
 
     @Test

@@ -32,6 +32,7 @@ public class AdapterBackedDeliveryService implements DeliveryService {
                         "No home channel configured for platform: " + request.getPlatform());
             }
             request.setChatId(home.getChatId());
+            request.setThreadId(StrUtil.blankToDefault(request.getThreadId(), home.getThreadId()));
         }
 
         ChannelAdapter adapter = adapters.get(request.getPlatform());

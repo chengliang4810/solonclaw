@@ -8,7 +8,7 @@ import org.noear.snack4.ONode;
 
 public class ToolResultEnvelopeTest {
     @Test
-    void shouldExposeHermesEnvelopeAndLegacySuccessFlag() {
+    void shouldExposeJimuquEnvelopeAndLegacySuccessFlag() {
         ONode node =
                 ONode.ofJson(
                         ToolResultEnvelope.ok("done")

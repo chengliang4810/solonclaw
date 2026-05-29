@@ -5,6 +5,7 @@ import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import java.io.File;
 import java.io.InputStream;
@@ -68,13 +69,13 @@ public class PersonaWorkspaceService {
         } catch (IORuntimeException e) {
             log.warn(
                     "Unable to read persona workspace file {}; falling back to bundled template: {}",
-                    target.getAbsolutePath(),
+                    safePathRef(target),
                     failureMessage(e));
             return loadTemplate(key);
         } catch (SecurityException e) {
             log.warn(
                     "Unable to read persona workspace file {}; falling back to bundled template: {}",
-                    target.getAbsolutePath(),
+                    safePathRef(target),
                     failureMessage(e));
             return loadTemplate(key);
         }
@@ -166,12 +167,12 @@ public class PersonaWorkspaceService {
             } catch (IORuntimeException e) {
                 log.warn(
                         "Unable to seed persona workspace file {}: {}. Startup continues; fix runtime directory permissions before editing workspace files.",
-                        target.getAbsolutePath(),
+                        safePathRef(target),
                         failureMessage(e));
             } catch (SecurityException e) {
                 log.warn(
                         "Unable to seed persona workspace file {}: {}. Startup continues; fix runtime directory permissions before editing workspace files.",
-                        target.getAbsolutePath(),
+                        safePathRef(target),
                         failureMessage(e));
             }
         }
@@ -184,13 +185,13 @@ public class PersonaWorkspaceService {
             log.warn(
                     "Unable to create {} directory {}: {}. Startup continues; file edits under this directory may fail.",
                     label,
-                    dir.getAbsolutePath(),
+                    safePathRef(dir),
                     failureMessage(e));
         } catch (SecurityException e) {
             log.warn(
                     "Unable to create {} directory {}: {}. Startup continues; file edits under this directory may fail.",
                     label,
-                    dir.getAbsolutePath(),
+                    safePathRef(dir),
                     failureMessage(e));
         }
     }
@@ -207,7 +208,18 @@ public class PersonaWorkspaceService {
         if (e.getMessage() == null) {
             return e.getClass().getSimpleName();
         }
-        return e.getClass().getSimpleName() + ": " + e.getMessage();
+        return e.getClass().getSimpleName() + ": " + SecretRedactor.redact(e.getMessage(), 1000);
+    }
+
+    private static String safePathRef(File file) {
+        if (file == null) {
+            return "path://unknown";
+        }
+        String name = file.getName();
+        if (StrUtil.isBlank(name)) {
+            name = "path";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /** 从类路径加载原始模板。 */

@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.noear.solon.core.util.Assert;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -22,7 +23,14 @@ import org.yaml.snakeyaml.Yaml;
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
     private static final List<String> PASSTHROUGH_PREFIXES =
-            Arrays.asList("channels.wecom.groups.");
+            Arrays.asList(
+                    "approvals.",
+                    "channels.wecom.groups.",
+                    "security.",
+                    "terminal.");
+    private static final List<String> PASSTHROUGH_KEYS =
+            Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");
+    private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
     private static final Object WRITE_LOCK = new Object();
 
     private final AppConfig appConfig;
@@ -68,6 +76,7 @@ public class DashboardConfigService {
     public Map<String, Object> saveConfig(Map<String, Object> nestedConfig) {
         Map<String, Object> flat = flattenFieldMap(nestedConfig);
         validateKeys(flat.keySet());
+        validateValues(flat);
         writeOverrideFile(flat);
         gatewayRuntimeRefreshService.refreshNow();
         return Collections.<String, Object>singletonMap("ok", true);
@@ -76,6 +85,7 @@ public class DashboardConfigService {
     public Map<String, Object> saveRaw(String yamlText) {
         Map<String, Object> flat = loadFieldMap(yamlText);
         validateKeys(flat.keySet());
+        validateValues(flat);
         writeOverrideFile(flat);
         gatewayRuntimeRefreshService.refreshNow();
         return Collections.<String, Object>singletonMap("ok", true);
@@ -90,6 +100,7 @@ public class DashboardConfigService {
         validateKeys(flatUpdates.keySet());
         Map<String, Object> merged = mergeBaseValues();
         merged.putAll(flatUpdates);
+        validateValues(merged);
         writeOverrideFile(merged);
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();
@@ -113,12 +124,22 @@ public class DashboardConfigService {
         addField(new FieldDefinition("llm.maxTokens", "number", "general", "最大输出 token"));
         addField(
                 new FieldDefinition("llm.contextWindowTokens", "number", "general", "上下文窗口 token"));
+        addField(new FieldDefinition("llm.promptCache.enabled", "boolean", "general", "启用提示词缓存策略"));
+        addField(
+                new FieldDefinition("llm.promptCache.ttl", "select", "general", "提示词缓存 TTL")
+                        .options("5m", "1h"));
+        addField(
+                new FieldDefinition("llm.promptCache.layout", "select", "general", "提示词缓存布局")
+                        .options("system_and_3"));
         addField(
                 new FieldDefinition("display.toolProgress", "select", "general", "默认工具进度模式")
                         .options("off", "new", "all", "verbose"));
         addField(
                 new FieldDefinition(
                         "display.showReasoning", "boolean", "general", "默认允许 reasoning 进入聊天窗口"));
+        addField(
+                new FieldDefinition("display.resumeDisplay", "select", "general", "恢复会话历史展示")
+                        .options("full", "minimal"));
         addField(new FieldDefinition("display.toolPreviewLength", "number", "general", "工具参数预览长度"));
         addField(
                 new FieldDefinition(
@@ -170,11 +191,18 @@ public class DashboardConfigService {
                         "元宝 runtime footer 覆盖开关"));
         addField(new FieldDefinition("scheduler.enabled", "boolean", "general", "启用定时调度"));
         addField(new FieldDefinition("scheduler.tickSeconds", "number", "general", "调度轮询周期（秒）"));
+        addField(new FieldDefinition("scheduler.wrapResponse", "boolean", "general", "默认包装定时任务投递回复"));
 
         addField(new FieldDefinition("learning.enabled", "boolean", "agent", "启用主回复后的自动学习"));
         addField(
                 new FieldDefinition(
                         "learning.toolCallThreshold", "number", "agent", "触发学习所需的最少工具调用数"));
+        addField(
+                new FieldDefinition(
+                        "learning.auxiliaryTimeoutSeconds",
+                        "number",
+                        "agent",
+                        "自动学习辅助模型调用总超时（秒）"));
         addField(
                 new FieldDefinition(
                         "skills.curator.enabled", "boolean", "agent", "启用技能后台维护 Curator"));
@@ -190,6 +218,13 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "skills.curator.archiveAfterDays", "number", "agent", "技能多久未使用后归档"));
+        addField(
+                new FieldDefinition("task.busyPolicy", "select", "agent", "运行中输入策略")
+                        .options("queue", "steer", "interrupt", "reject"));
+        addField(new FieldDefinition("tool_output.max_bytes", "number", "agent", "工具输出内联字节上限"));
+        addField(new FieldDefinition("tool_output.turn_budget_bytes", "number", "agent", "单轮工具输出累计预算字节"));
+        addField(new FieldDefinition("tool_output.max_lines", "number", "agent", "工具文件读取最大行数"));
+        addField(new FieldDefinition("tool_output.max_line_length", "number", "agent", "工具输出单行最大长度"));
         addField(
                 new FieldDefinition(
                         "agent.heartbeat.intervalMinutes",
@@ -229,6 +264,54 @@ public class DashboardConfigService {
                         "number",
                         "compression",
                         "ReAct 摘要触发 token 阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopWarningsEnabled",
+                        "boolean",
+                        "security",
+                        "启用重复工具调用软提醒"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopHardStopEnabled",
+                        "boolean",
+                        "security",
+                        "启用重复工具调用硬停"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopExactFailureWarnAfter",
+                        "number",
+                        "security",
+                        "相同参数失败提醒阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopExactFailureBlockAfter",
+                        "number",
+                        "security",
+                        "相同参数失败硬停阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopSameToolFailureWarnAfter",
+                        "number",
+                        "security",
+                        "同一工具失败提醒阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopSameToolFailureHaltAfter",
+                        "number",
+                        "security",
+                        "同一工具失败硬停阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopNoProgressWarnAfter",
+                        "number",
+                        "security",
+                        "只读工具无进展提醒阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopNoProgressBlockAfter",
+                        "number",
+                        "security",
+                        "只读工具无进展硬停阈值"));
         addField(
                 new FieldDefinition(
                         "agent.personalities.helpful.description",
@@ -304,6 +387,84 @@ public class DashboardConfigService {
                         "number",
                         "security",
                         "HTTP 网关注入重放窗口秒数"));
+        addField(
+                new FieldDefinition(
+                        "security.allowPrivateUrls", "boolean", "security", "允许 URL 工具访问内网地址"));
+        addField(
+                new FieldDefinition(
+                        "security.websiteBlocklist.enabled",
+                        "boolean",
+                        "security",
+                        "启用网站阻断策略"));
+        addField(
+                new FieldDefinition(
+                        "security.websiteBlocklist.domains",
+                        "list",
+                        "security",
+                        "网站阻断域名列表"));
+        addField(
+                new FieldDefinition(
+                        "security.websiteBlocklist.sharedFiles",
+                        "list",
+                        "security",
+                        "共享网站阻断列表文件"));
+        addField(
+                new FieldDefinition("security.tirithEnabled", "boolean", "security", "启用 Tirith 命令扫描"));
+        addField(
+                new FieldDefinition("security.tirithPath", "string", "security", "Tirith 可执行文件路径"));
+        addField(
+                new FieldDefinition(
+                        "security.tirithTimeoutSeconds", "number", "security", "Tirith 扫描超时秒数"));
+        addField(
+                new FieldDefinition(
+                        "security.tirithFailOpen", "boolean", "security", "Tirith 不可用时放行"));
+        addField(
+                new FieldDefinition(
+                        "approvals.mode",
+                        "select",
+                        "security",
+                        "危险命令审批模式")
+                        .options("on", "off", "smart"));
+        addField(
+                new FieldDefinition(
+                        "approvals.cronMode",
+                        "select",
+                        "security",
+                        "Cron 危险命令策略")
+                        .options("deny", "approve"));
+        addField(
+                new FieldDefinition(
+                        "approvals.timeoutSeconds",
+                        "number",
+                        "security",
+                        "本地审批超时秒数"));
+        addField(
+                new FieldDefinition(
+                        "approvals.gatewayTimeoutSeconds",
+                        "number",
+                        "security",
+                        "渠道审批超时秒数"));
+        addField(
+                new FieldDefinition(
+                        "approvals.mcpReloadConfirm",
+                        "boolean",
+                        "security",
+                        "MCP reload 需要确认"));
+        addField(
+                new FieldDefinition(
+                        "terminal.credentialFiles",
+                        "list",
+                        "security",
+                        "终端凭据文件挂载清单"));
+        addField(
+                new FieldDefinition(
+                        "terminal.envPassthrough",
+                        "list",
+                        "security",
+                        "终端子进程环境变量放行清单"));
+        addField(
+                new FieldDefinition(
+                        "terminal.sudoPassword", "password", "security", "sudo 密码"));
 
         addChannelFields("feishu");
         addField(
@@ -725,11 +886,125 @@ public class DashboardConfigService {
         }
     }
 
+    private void validateValues(Map<String, Object> values) {
+        validateCredentialFiles(values.get("terminal.credentialFiles"));
+        validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
+        validateWebsiteSharedFiles(values.get("security.website_blocklist.shared_files"));
+    }
+
+    private void validateCredentialFiles(Object rawValue) {
+        for (String path : normalizePathList(rawValue)) {
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            String value = path.trim();
+            if (containsControlCharacter(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles contains an invalid control character");
+            }
+            if (startsWithHomePath(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles must use runtime-relative paths");
+            }
+            if (isAbsolutePathText(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles must use runtime-relative paths");
+            }
+            if (containsTraversal(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles must not contain path traversal");
+            }
+        }
+    }
+
+    private void validateWebsiteSharedFiles(Object rawValue) {
+        for (String path : normalizePathList(rawValue)) {
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            String value = path.trim();
+            if (containsControlCharacter(value)) {
+                throw new IllegalStateException(
+                        "security.websiteBlocklist.sharedFiles contains an invalid control character");
+            }
+            if (containsTraversal(value)) {
+                throw new IllegalStateException(
+                        "security.websiteBlocklist.sharedFiles must not contain path traversal");
+            }
+            if (value.startsWith("~") && !startsWithHomePath(value)) {
+                throw new IllegalStateException(
+                        "security.websiteBlocklist.sharedFiles only supports ~/ home paths");
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> normalizePathList(Object rawValue) {
+        if (rawValue == null) {
+            return Collections.emptyList();
+        }
+        List<String> values = new ArrayList<String>();
+        if (rawValue instanceof List) {
+            for (Object item : (List<Object>) rawValue) {
+                if (item != null) {
+                    values.add(String.valueOf(item));
+                }
+            }
+            return values;
+        }
+        if (rawValue instanceof String) {
+            String text = (String) rawValue;
+            if (StrUtil.isBlank(text)) {
+                return Collections.emptyList();
+            }
+            for (String item : text.split(",")) {
+                values.add(item);
+            }
+            return values;
+        }
+        throw new IllegalStateException("Path list config must be a list or comma-separated string");
+    }
+
+    private boolean containsControlCharacter(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean startsWithHomePath(String value) {
+        return value.startsWith("~/") || value.startsWith("~\\");
+    }
+
+    private boolean isAbsolutePathText(String value) {
+        String path = StrUtil.nullToEmpty(value).trim();
+        return new File(path).isAbsolute()
+                || path.startsWith("/")
+                || path.startsWith("\\")
+                || WINDOWS_DRIVE_PATH.matcher(path).matches();
+    }
+
+    private boolean containsTraversal(String value) {
+        String normalized = StrUtil.nullToEmpty(value).replace('\\', '/');
+        return normalized.equals("..")
+                || normalized.startsWith("../")
+                || normalized.endsWith("/..")
+                || normalized.contains("/../");
+    }
+
     private Map<String, Object> mergeBaseValues() {
         return new LinkedHashMap<String, Object>(loadOverrideFields());
     }
 
     private boolean isSupportedPassthroughKey(String key) {
+        if (PASSTHROUGH_KEYS.contains(key)) {
+            return true;
+        }
         for (String prefix : PASSTHROUGH_PREFIXES) {
             if (key != null && key.startsWith(prefix)) {
                 return true;
@@ -743,8 +1018,13 @@ public class DashboardConfigService {
             Map<String, Object> root = loadRawConfigRoot();
             Map<String, Object> solonclaw = ensureSolonClawRoot(root);
             clearManagedFields(solonclaw);
+            clearRootPassthroughFields(root);
             for (Map.Entry<String, Object> entry : fieldValues.entrySet()) {
-                setNestedValue(solonclaw, entry.getKey(), entry.getValue());
+                if (isSupportedPassthroughKey(entry.getKey())) {
+                    setNestedValue(root, entry.getKey(), entry.getValue());
+                } else {
+                    setNestedValue(solonclaw, entry.getKey(), entry.getValue());
+                }
             }
 
             File configFile = new File(appConfig.getRuntime().getConfigFile());
@@ -819,6 +1099,18 @@ public class DashboardConfigService {
         }
         for (String prefix : PASSTHROUGH_PREFIXES) {
             removeNestedPrefix(jimuqu, prefix);
+        }
+        for (String key : PASSTHROUGH_KEYS) {
+            removeNestedValue(jimuqu, key);
+        }
+    }
+
+    private void clearRootPassthroughFields(Map<String, Object> root) {
+        for (String prefix : PASSTHROUGH_PREFIXES) {
+            removeNestedPrefix(root, prefix);
+        }
+        for (String key : PASSTHROUGH_KEYS) {
+            removeNestedValue(root, key);
         }
     }
 

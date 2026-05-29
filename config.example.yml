@@ -64,6 +64,11 @@ solonclaw:
     maxTokens: 4096
     # 模型上下文窗口 token 估算值。
     contextWindowTokens: 128000
+    # 提示词缓存配置；当前仅声明本地策略与用量统计承载，具体 provider 支持由协议适配决定。
+    promptCache:
+      enabled: false
+      ttl: 5m
+      layout: system_and_3
 
   # 定时任务调度器配置。
   scheduler:
@@ -71,6 +76,83 @@ solonclaw:
     enabled: true
     # 调度器扫描间隔，单位秒。
     tickSeconds: 60
+    # 是否默认为定时任务投递结果加上任务名等包装信息；对应对标行为 cron.wrap_response。
+    wrapResponse: true
+    # cron 脚本执行超时时间，单位秒；对应对标行为 cron.script_timeout_seconds / JIMUQU_CRON_SCRIPT_TIMEOUT。
+    scriptTimeoutSeconds: 120
+    # cron Agent 无活动超时时间，单位秒；对应对标行为 JIMUQU_CRON_TIMEOUT，0 表示不限制。
+    inactivityTimeoutSeconds: 600
+    # 无人值守 cron 遇到危险命令时的处理方式：deny 表示阻断，approve 表示沿用普通危险命令审批放行策略。
+    # 对齐对标行为 approvals.cron_mode；默认 deny，避免定时任务在无人确认时执行破坏性命令。
+    cronApprovalMode: deny
+    # 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。
+    # 对齐对标行为 cron 平台工具配置回退。cron 运行时始终会额外禁用 cronjob / messaging / clarify，避免无人值守递归调度或主动发消息。
+    enabledToolsets: []
+
+  # 安全策略配置。对齐 hardline、URL safety、website policy 基线。
+  security:
+    # 是否允许 URL 工具访问内网/私有地址。云元数据地址始终阻断，无法通过本开关放行。
+    # 也可用环境变量 JIMUQU_ALLOW_PRIVATE_URLS=true 临时开启。
+    allowPrivateUrls: false
+    # MCP stdio 包安全检查默认使用 OSV 官方端点；如需内网代理或镜像，优先用环境变量 JIMUQU_OSV_ENDPOINT 覆盖。
+    # 兼容旧环境变量 OSV_ENDPOINT；两者同时存在时 JIMUQU_OSV_ENDPOINT 优先。
+    # URL 工具的网站阻断策略，用于 webfetch/websearch/codesearch 中出现的 URL。
+    websiteBlocklist:
+      # 是否启用域名阻断。
+      enabled: false
+      # 阻断域名列表，支持 example.com 和 *.example.com。
+      domains: []
+      # 共享阻断列表文件；相对路径按 runtime 目录解析。每行一个域名规则，支持注释和空行。
+      sharedFiles: []
+    # 是否启用 Tirith 命令内容安全扫描；对齐对标行为 security.tirith_enabled。
+    tirithEnabled: true
+    # Tirith 可执行文件路径。默认从 PATH 查找 tirith，也可填绝对路径。
+    tirithPath: tirith
+    # Tirith 扫描超时时间，单位秒。
+    tirithTimeoutSeconds: 5
+    # Tirith 不可用、超时或返回未知退出码时是否放行。设为 false 会 fail-closed 阻断。
+    tirithFailOpen: true
+
+  # 审批/确认策略配置。对齐对标行为 approvals.mcp_reload_confirm。
+  approvals:
+    # 危险命令审批模式：on 开启人工审批；off 关闭可审批危险命令提示；smart 先由辅助模型判定低风险命令，无法确认时回到人工审批。
+    # hardline 命令、URL 安全策略和凭据文件策略始终阻断，不受 off 影响。
+    mode: on
+    # cron 无人值守遇到危险命令时的处理方式：deny 阻断，approve 允许可审批危险命令直接运行。
+    # 旧配置 solonclaw.scheduler.cronApprovalMode 仍兼容，但建议迁移到本字段。
+    cronMode: deny
+    # 子 Agent 遇到危险命令时默认自动拒绝，避免等待父 TUI/stdin 审批导致卡死。
+    # 设为 true 后，子 Agent 会按 delegation.subagent_auto_approve 语义自动批准一次；仅建议可信批处理使用。
+    subagentAutoApprove: false
+    # 本地/直接审批超时秒数；超时后 /approve 不再放行旧命令。
+    timeoutSeconds: 60
+    # 网关/渠道审批超时秒数；用于消息渠道中的审批卡与 /approve。
+    gatewayTimeoutSeconds: 300
+    # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
+    # 设为 false 后，/reload-mcp 将直接执行。
+    mcpReloadConfirm: true
+
+  # MCP 工具适配配置。
+  mcp:
+    # 是否启用 MCP 工具适配。
+    enabled: false
+    # MCP 服务器 OAuth 认证配置（全局默认，可被单个服务器的 oauth_json 覆盖）。
+    oauth:
+      # OAuth 客户端 ID。
+      clientId: ""
+      # OAuth 客户端密钥；建议通过环境变量注入，不要明文写入配置文件。
+      clientSecret: ""
+      # OAuth token 端点 URL，例如 https://auth.example.com/oauth/token。
+      tokenUrl: ""
+      # OAuth 请求的 scope，多个 scope 用空格分隔。
+      scope: ""
+
+  # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；可选 brave-free 或 ddgs。
+  web:
+    # 搜索后端：solon-ai / brave-free / ddgs。兼容 web.search_backend 与 web.backend。
+    searchBackend: solon-ai
+    # Brave Search API key；也可通过环境变量 BRAVE_SEARCH_API_KEY 提供。
+    braveSearchApiKey: ""
 
   # 上下文压缩配置。
   compression:
@@ -91,6 +173,8 @@ solonclaw:
     enabled: true
     # 触发自动学习所需的最少工具调用数。
     toolCallThreshold: 5
+    # 自动学习分类/技能总结等辅助模型调用的总超时，单位秒。
+    auxiliaryTimeoutSeconds: 60
 
   # 技能后台维护配置。
   skills:
@@ -112,6 +196,24 @@ solonclaw:
     enabled: true
     # 每个来源保留的最大 checkpoint 数。
     maxCheckpointsPerSource: 20
+    # 单个文件超过此大小时不进入 checkpoint，避免快照目录膨胀。
+    maxFileSizeMb: 10
+    # checkpoint 默认排除构建产物、依赖目录、大二进制和密钥文件；可按需追加或覆盖。
+    excludePatterns:
+      - node_modules/
+      - dist/
+      - build/
+      - target/
+      - .git/
+      - .worktrees/
+      - "*.jar"
+      - "*.class"
+      - "*.mp4"
+      - "*.zip"
+      - ".env"
+      - ".envrc"
+      - ".env.*"
+      - "*.log"
 
   # 中间态显示配置。
   display:
@@ -119,6 +221,8 @@ solonclaw:
     toolProgress: all
     # 是否默认展示 reasoning/思考中间态。
     showReasoning: false
+    # 恢复会话时是否展示紧凑历史：full 展示，minimal 只恢复不展示历史。
+    resumeDisplay: full
     # 工具参数预览最大长度。
     toolPreviewLength: 80
     # 中间态消息节流间隔，单位毫秒。
@@ -173,6 +277,69 @@ solonclaw:
     summarizationMaxMessages: 40
     # ReAct 摘要守卫触发的 token 阈值。
     summarizationMaxTokens: 32000
+    # 是否启用重复工具调用软提醒。默认只提醒，不阻断工具执行。
+    toolLoopWarningsEnabled: true
+    # 是否启用重复工具调用硬停。开启后，相同失败或只读无进展达到阈值会停止本轮。
+    toolLoopHardStopEnabled: false
+    # 相同工具和相同参数连续失败达到该次数后，在工具结果中追加提醒。
+    toolLoopExactFailureWarnAfter: 2
+    # 相同工具和相同参数连续失败达到该次数后，硬停模式下阻断下一次执行。
+    toolLoopExactFailureBlockAfter: 5
+    # 同一工具连续失败达到该次数后，在工具结果中追加提醒。
+    toolLoopSameToolFailureWarnAfter: 3
+    # 同一工具连续失败达到该次数后，硬停模式下终止本轮。
+    toolLoopSameToolFailureHaltAfter: 8
+    # 只读工具相同参数连续返回相同结果达到该次数后，在工具结果中追加提醒。
+    toolLoopNoProgressWarnAfter: 2
+    # 只读工具相同参数连续返回相同结果达到该次数后，硬停模式下阻断下一次执行。
+    toolLoopNoProgressBlockAfter: 5
+
+  # 任务运行策略配置。
+  task:
+    # 运行中收到新消息时的处理策略：queue 排队、steer 注入当前 run、interrupt 打断重跑、reject 拒绝。
+    busyPolicy: interrupt
+    # /restart 等待运行中任务自然完成的最长时间，单位秒；0 表示不等待，立即让服务管理器重启。
+    restartDrainTimeoutSeconds: 180
+    # 单个工具输出超过该字节数时写入 runtime/cache/tool-results，只把预览和 result_ref 放回上下文。
+    toolOutputInlineLimit: 50000
+    # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
+    toolOutputTurnBudget: 200000
+    # 对齐 tool_output.max_lines，供文件读取/分页输出限制使用。
+    toolOutputMaxLines: 2000
+    # 对齐 tool_output.max_line_length，供单行输出截断使用。
+    toolOutputMaxLineLength: 2000
+
+  # 工具输出限制兼容别名。max_bytes 会映射到 task.toolOutputInlineLimit。
+  tool_output:
+    max_bytes: 50000
+    max_lines: 2000
+    max_line_length: 2000
+
+  # 终端/沙箱执行配置。
+  terminal:
+    # 对齐 terminal.credential_files。这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
+    # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到容器内 /root/.jimuqu-agent/<path>。
+    credentialFiles: []
+    # 对齐 terminal.env_passthrough。默认本地子进程不会继承 API key/token/secret。
+    # 这里仅用于明确放行第三方技能变量；模型、渠道、网关等内置凭据仍会被强制拦截。
+    envPassthrough: []
+    # 对齐 terminal.shell_init_files。非 Windows 本地 shell 执行前会静默 source 这些文件。
+    # 留空时会按 autoSourceBashrc 规则自动尝试 ~/.profile、~/.bash_profile、~/.bashrc。
+    shellInitFiles: []
+    # 对齐 terminal.auto_source_bashrc。用于让 nvm/asdf/pyenv 等写入 shell rc 的 PATH 初始化在工具进程可见。
+    autoSourceBashrc: true
+    # 可选 sudo 密码；也可通过环境变量 SUDO_PASSWORD 提供。用于把实际 sudo 命令改写为 sudo -S -p ''。
+    # 留空时不改写 sudo，避免在未配置凭据时改变命令行为。
+    sudoPassword: ""
+    # 对齐 JIMUQU_WRITE_SAFE_ROOT / terminal.write_safe_root。
+    # 留空表示不限制普通工作区写入；填写后 file_write/patch/shell 写入只能落在该目录内。
+    writeSafeRoot: ""
+    # 前台 terminal 执行遇到运行时异常时的自动重试次数；默认 3 次。
+    foregroundMaxRetries: 3
+    # 前台 terminal 异常重试的指数退避基准秒数；默认 2 秒，即 2/4/8。
+    foregroundRetryBaseDelaySeconds: 2
+    # 对齐 TERMINAL_TIMEOUT。限制 process(action=wait) 单次阻塞时长，模型传入更大值时会自动钳制。
+    processWaitTimeoutSeconds: 180
 
   # Agent 行为配置。
   agent:
@@ -229,6 +396,8 @@ solonclaw:
       groupPolicy: allowlist
       # 飞书允许访问的群 ID 列表。
       groupAllowedUsers: []
+      # 群聊会话硬白名单；非空时只响应列表内群聊，私聊不受影响。
+      allowedChats: []
       # 飞书机器人 open_id。
       botOpenId: ""
       # 飞书机器人 user_id。
@@ -269,6 +438,8 @@ solonclaw:
       groupPolicy: open
       # 钉钉允许访问的群 ID 列表。
       groupAllowedUsers: []
+      # 钉钉群聊会话硬白名单；非空时只响应列表内群聊，私聊不受影响。
+      allowedChats: []
       # 钉钉工具进度模式：off、new、all、verbose。
       toolProgress: all
       # 钉钉长任务进度卡片模板 ID；留空时使用文本消息。
@@ -415,6 +586,19 @@ solonclaw:
     injectionMaxBodyBytes: 65536
     # 外部注入消息防重放窗口，单位秒。
     injectionReplayWindowSeconds: 300
+    # 各平台工具集权限配置；键为平台名称（大写），值为该平台的工具集策略。
+    # 未配置的平台使用全局默认工具集，不受限制。
+    platforms:
+      # 飞书平台：只允许 web 和 file 工具集。
+      FEISHU:
+        enabledToolsets: [web, file]
+        disabledToolsets: []
+        approvalRequired: false
+      # 钉钉平台：允许 web、terminal 和 file 工具集。
+      DINGTALK:
+        enabledToolsets: [web, terminal, file]
+        disabledToolsets: []
+        approvalRequired: false
 
   # 应用更新检查配置。
   update:

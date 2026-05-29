@@ -1,0 +1,5 @@
+name: holographic
+version: 1.0.0
+description: "Local SQLite-based structured fact memory engine"
+author: jimuqu
+kind: exclusive

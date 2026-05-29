@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,7 +28,7 @@ public class DashboardCuratorService {
     public Map<String, Object> run(boolean force) throws Exception {
         Map<String, Object> report = skillCuratorService.runOnce(force);
         saveReport(report);
-        return report;
+        return sanitizeReport(report);
     }
 
     public Map<String, Object> list(int limit) throws Exception {
@@ -94,15 +95,17 @@ public class DashboardCuratorService {
                 while (resultSet.next()) {
                     Map<String, Object> item = new LinkedHashMap<String, Object>();
                     item.put("improvement_id", resultSet.getString("improvement_id"));
-                    item.put("session_id", resultSet.getString("session_id"));
-                    item.put("run_id", resultSet.getString("run_id"));
-                    item.put("skill_name", resultSet.getString("skill_name"));
-                    item.put("action", resultSet.getString("action"));
-                    item.put("summary", resultSet.getString("summary"));
+                    item.put("session_id", safe(resultSet.getString("session_id"), 200));
+                    item.put("run_id", safe(resultSet.getString("run_id"), 200));
+                    item.put("skill_name", safe(resultSet.getString("skill_name"), 400));
+                    item.put("action", safe(resultSet.getString("action"), 200));
+                    item.put("summary", safe(resultSet.getString("summary"), 2000));
                     item.put(
                             "changed_files",
-                            parseJson(resultSet.getString("changed_files_json")));
-                    item.put("evidence", parseJson(resultSet.getString("evidence_json")));
+                            sanitizeObject(parseJson(resultSet.getString("changed_files_json"))));
+                    item.put(
+                            "evidence",
+                            sanitizeObject(parseJson(resultSet.getString("evidence_json"))));
                     item.put("needs_review", resultSet.getInt("needs_review") != 0);
                     item.put("created_at", resultSet.getLong("created_at"));
                     improvements.add(item);
@@ -148,15 +151,88 @@ public class DashboardCuratorService {
     private Map<String, Object> map(ResultSet resultSet, boolean includeJson) throws Exception {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("report_id", resultSet.getString("report_id"));
-        map.put("status", resultSet.getString("status"));
-        map.put("summary", resultSet.getString("summary"));
-        map.put("report_path", resultSet.getString("report_path"));
+        map.put("status", safe(resultSet.getString("status"), 200));
+        map.put("summary", safe(resultSet.getString("summary"), 2000));
+        map.put("report_path", curatorReference(resultSet.getString("report_path")));
         map.put("started_at", resultSet.getLong("started_at"));
         map.put("finished_at", resultSet.getLong("finished_at"));
         if (includeJson) {
-            map.put("report", ONode.deserialize(resultSet.getString("report_json"), Object.class));
+            Object parsed = ONode.deserialize(resultSet.getString("report_json"), Object.class);
+            map.put(
+                    "report",
+                    parsed instanceof Map
+                            ? sanitizeReport((Map<String, Object>) parsed)
+                            : sanitizeObject(parsed));
         }
         return map;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sanitizeReport(Map<String, Object> report) {
+        Map<String, Object> sanitized = new LinkedHashMap<String, Object>();
+        if (report == null) {
+            return sanitized;
+        }
+        for (Map.Entry<String, Object> entry : report.entrySet()) {
+            sanitized.put(entry.getKey(), sanitizeObject(entry.getValue()));
+        }
+        if (sanitized.containsKey("stateFile")) {
+            sanitized.put("stateFile", curatorReference(String.valueOf(sanitized.get("stateFile"))));
+        }
+        Object items = sanitized.get("items");
+        if (items instanceof List) {
+            List<Object> sanitizedItems = new ArrayList<Object>();
+            for (Object item : (List<?>) items) {
+                if (item instanceof Map) {
+                    Map<String, Object> copy = new LinkedHashMap<String, Object>();
+                    for (Map.Entry<?, ?> entry : ((Map<?, ?>) item).entrySet()) {
+                        copy.put(String.valueOf(entry.getKey()), sanitizeObject(entry.getValue()));
+                    }
+                    if (copy.containsKey("path")) {
+                        copy.put("path", skillReference(String.valueOf(copy.get("name"))));
+                    }
+                    sanitizedItems.add(copy);
+                } else {
+                    sanitizedItems.add(sanitizeObject(item));
+                }
+            }
+            sanitized.put("items", sanitizedItems);
+        }
+        return sanitized;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object sanitizeObject(Object value) {
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                result.put(String.valueOf(entry.getKey()), sanitizeObject(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof List) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object item : (List<?>) value) {
+                result.add(sanitizeObject(item));
+            }
+            return result;
+        }
+        if (value instanceof String) {
+            return safe((String) value, 4000);
+        }
+        return value;
+    }
+
+    private String curatorReference(String value) {
+        return "curator://report";
+    }
+
+    private String skillReference(String name) {
+        return "skill://" + safe(StrUtil.blankToDefault(name, "unknown"), 400);
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private long asLong(Object value) {

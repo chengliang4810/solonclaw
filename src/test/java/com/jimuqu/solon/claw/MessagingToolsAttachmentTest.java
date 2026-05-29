@@ -3,9 +3,12 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import java.io.File;
 import java.nio.file.Files;
@@ -16,6 +19,84 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class MessagingToolsAttachmentTest {
+    @Test
+    void shouldSkipSendMessageToCronAutoDeliveryTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        CronAutoDeliveryContext.set(PlatformType.MEMORY, "chat-1", null);
+        String result;
+        try {
+            result = tools.sendMessage(null, null, "重复内容", Collections.<String>emptyList(), null);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
+
+        Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
+        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("reason")).isEqualTo("cron_auto_delivery_duplicate_target");
+        assertThat(env.memoryChannelAdapter.getLastRequest()).isNull();
+    }
+
+    @Test
+    void shouldRedactSecretsFromSkippedCronTargetToolResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-ghp_messagingsource12345:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        CronAutoDeliveryContext.set(PlatformType.MEMORY, "chat-ghp_messagingtarget12345", null);
+        String result;
+        try {
+            result =
+                    tools.sendMessage(
+                            "MEMORY",
+                            "chat-ghp_messagingtarget12345",
+                            "重复内容",
+                            Collections.<String>emptyList(),
+                            null);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
+
+        assertThat(result)
+                .contains("chat-ghp_***")
+                .doesNotContain("ghp_messagingsource12345")
+                .doesNotContain("ghp_messagingtarget12345");
+        assertThat(env.memoryChannelAdapter.getLastRequest()).isNull();
+    }
+
+    @Test
+    void shouldDeliverSendMessageToDifferentCronTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        CronAutoDeliveryContext.set(PlatformType.MEMORY, "chat-1", null);
+        try {
+            tools.sendMessage("MEMORY", "chat-2", "额外投递", Collections.<String>emptyList(), null);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getChatId()).isEqualTo("chat-2");
+        assertThat(request.getText()).isEqualTo("额外投递");
+    }
+
     @Test
     void shouldDeliverMediaPathsAsAttachments() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -52,6 +133,41 @@ public class MessagingToolsAttachmentTest {
     }
 
     @Test
+    void shouldSniffImageMimeFromCachedBytesBeforeSuffixOrHeader() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+
+        MessageAttachment attachment =
+                attachmentCacheService.cacheBytes(
+                        PlatformType.MEMORY,
+                        null,
+                        "discord_cached.webp",
+                        "image/webp",
+                        false,
+                        null,
+                        pngBytes());
+
+        assertThat(attachment.getKind()).isEqualTo("image");
+        assertThat(attachment.getMimeType()).isEqualTo("image/png");
+    }
+
+    @Test
+    void shouldSniffImageMimeFromCachedFileBeforeSuffix() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+        File image = new File(attachmentCacheService.platformDir(PlatformType.MEMORY), "real_png.webp");
+        Files.createDirectories(image.getParentFile().toPath());
+        Files.write(image.toPath(), pngBytes());
+
+        MessageAttachment attachment =
+                attachmentCacheService.fromMediaCacheFile(
+                        PlatformType.MEMORY, image, null, false, null);
+
+        assertThat(attachment.getKind()).isEqualTo("image");
+        assertThat(attachment.getMimeType()).isEqualTo("image/png");
+    }
+
+    @Test
     void shouldAllowTextOnlyWithoutAttachments() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MessagingTools tools =
@@ -66,6 +182,36 @@ public class MessagingToolsAttachmentTest {
         DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
         assertThat(request.getText()).isEqualTo("纯文本");
         assertThat(request.getAttachments()).isEmpty();
+    }
+
+    @Test
+    void shouldRedactSecretsFromSuccessfulMessagingToolResultOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:source-ghp_messagingsource12345:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        String result =
+                tools.sendMessage(
+                        "MEMORY",
+                        "room-ghp_messagingchat12345",
+                        "Authorization: Bearer ghp_messagingtext12345",
+                        Collections.<String>emptyList(),
+                        null);
+
+        assertThat(result)
+                .contains("Authorization: Bearer ***")
+                .contains("room-ghp_***")
+                .contains("source-ghp_***")
+                .doesNotContain("ghp_messagingchat12345")
+                .doesNotContain("ghp_messagingtext12345")
+                .doesNotContain("ghp_messagingsource12345");
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getChatId()).isEqualTo("room-ghp_messagingchat12345");
+        assertThat(request.getText()).isEqualTo("Authorization: Bearer ghp_messagingtext12345");
     }
 
     @Test
@@ -91,6 +237,31 @@ public class MessagingToolsAttachmentTest {
         assertThat(request.getChannelExtras()).containsEntry("cardTemplateId", "tpl-1");
         assertThat(((Map<?, ?>) request.getChannelExtras().get("cardData")).get("title"))
                 .isEqualTo("demo");
+    }
+
+    @Test
+    void shouldRedactSecretsFromMessagingToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        String result =
+                tools.sendMessage(
+                        "unknown-ghp_1234567890abcdef",
+                        "chat-1",
+                        "测试",
+                        Collections.<String>emptyList(),
+                        null);
+
+        Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
+        assertThat(payload.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(payload.get("error")))
+                .contains("unknown-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
     }
 
     @Test
@@ -173,5 +344,22 @@ public class MessagingToolsAttachmentTest {
                                         null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outside runtime cache");
+    }
+
+    private byte[] pngBytes() {
+        return new byte[] {
+            (byte) 0x89,
+            'P',
+            'N',
+            'G',
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+            0,
+            0,
+            0,
+            0
+        };
     }
 }

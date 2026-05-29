@@ -25,7 +25,9 @@ import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
@@ -36,16 +38,22 @@ import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
+import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.util.LinkedHashMap;
@@ -60,36 +68,47 @@ public class GatewayConfiguration {
     public Map<PlatformType, ChannelAdapter> channelAdapters(
             AppConfig appConfig,
             ChannelStateRepository channelStateRepository,
-            AttachmentCacheService attachmentCacheService) {
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         Map<PlatformType, ChannelAdapter> adapters =
                 new LinkedHashMap<PlatformType, ChannelAdapter>();
         adapters.put(
                 PlatformType.FEISHU,
                 new FeishuChannelAdapter(
-                        appConfig.getChannels().getFeishu(), attachmentCacheService));
+                        appConfig.getChannels().getFeishu(),
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.DINGTALK,
                 new DingTalkChannelAdapter(
                         appConfig.getChannels().getDingtalk(),
                         channelStateRepository,
-                        attachmentCacheService));
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.WECOM,
                 new WeComChannelAdapter(
-                        appConfig.getChannels().getWecom(), attachmentCacheService));
+                        appConfig.getChannels().getWecom(),
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.WEIXIN,
                 new WeiXinChannelAdapter(
                         appConfig.getChannels().getWeixin(),
                         channelStateRepository,
-                        attachmentCacheService));
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.QQBOT,
                 new QQBotChannelAdapter(
-                        appConfig.getChannels().getQqbot(), attachmentCacheService));
+                        appConfig,
+                        appConfig.getChannels().getQqbot(),
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.YUANBAO,
-                new YuanbaoChannelAdapter(appConfig.getChannels().getYuanbao()));
+                new YuanbaoChannelAdapter(
+                        appConfig.getChannels().getYuanbao(), securityPolicyService));
         return adapters;
     }
 
@@ -140,6 +159,22 @@ public class GatewayConfiguration {
     }
 
     @Bean
+    public GoalService goalService(SessionRepository sessionRepository) {
+        return new GoalService(sessionRepository);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public GatewayRestartCoordinator gatewayRestartCoordinator(
+            AppConfig appConfig, AgentRunControlService agentRunControlService) {
+        return new GatewayRestartCoordinator(appConfig, agentRunControlService);
+    }
+
+    @Bean
+    public SlashConfirmService slashConfirmService(GlobalSettingRepository globalSettingRepository) {
+        return new SlashConfirmService(globalSettingRepository);
+    }
+
+    @Bean
     public CommandService commandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -161,7 +196,14 @@ public class GatewayConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
-            AgentRunRepository agentRunRepository) {
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler defaultCronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -183,7 +225,14 @@ public class GatewayConfiguration {
                 dangerousCommandApprovalService,
                 agentRunControlService,
                 agentProfileService,
-                agentRunRepository);
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                defaultCronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService);
     }
 
     @Bean

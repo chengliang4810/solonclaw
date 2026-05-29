@@ -1,0 +1,10 @@
+name: brave-free
+version: 1.0.0
+description: Brave Search API web search provider
+author: jimuqu
+kind: backend
+source: BraveFreePlugin.java
+requiresEnv:
+  - name: BRAVE_SEARCH_API_KEY
+    description: Brave Search API key
+    secret: true

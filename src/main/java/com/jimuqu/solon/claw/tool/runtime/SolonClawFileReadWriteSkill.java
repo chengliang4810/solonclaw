@@ -1,0 +1,518 @@
+package com.jimuqu.solon.claw.tool.runtime;
+
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import java.io.BufferedReader;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.annotation.Param;
+import org.noear.solon.ai.skills.file.FileReadWriteSkill;
+
+/** Solon AI file skill wrapped with Jimuqu path and credential guardrails. */
+public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
+    private static final int DEFAULT_READ_OFFSET = 1;
+    private static final int DEFAULT_READ_LIMIT = 500;
+    private static final String READ_DEDUP_STATUS_MESSAGE =
+            "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 file_read 结果继续任务。";
+
+    private final Path rootPath;
+    private final Path realRootPath;
+    private final SecurityPolicyService securityPolicyService;
+    private final int maxLines;
+    private final int maxLineLength;
+    private final SolonClawFileStateTracker fileStateTracker;
+    private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
+    private ReadKey lastReadKey;
+    private int consecutiveReadCount;
+    private int observedOtherToolCallEpoch;
+
+    public SolonClawFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
+        this(workDir, securityPolicyService, 2000, 2000, new SolonClawFileStateTracker());
+    }
+
+    public SolonClawFileReadWriteSkill(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            int maxLines,
+            int maxLineLength) {
+        this(workDir, securityPolicyService, maxLines, maxLineLength, new SolonClawFileStateTracker());
+    }
+
+    public SolonClawFileReadWriteSkill(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            int maxLines,
+            int maxLineLength,
+            SolonClawFileStateTracker fileStateTracker) {
+        super(workDir);
+        this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
+        this.realRootPath = safeRealPath(this.rootPath);
+        this.securityPolicyService = securityPolicyService;
+        this.maxLines = Math.max(1, maxLines);
+        this.maxLineLength = Math.max(1, maxLineLength);
+        this.fileStateTracker = fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
+    }
+
+    @Override
+    @ToolMapping(name = "file_write", description = "写入文本到文件。会自动创建不存在的目录。")
+    public String write(@Param("fileName") String fileName, @Param("content") String content) {
+        assertSafe(ToolNameConstants.FILE_WRITE, fileName);
+        assertNotInternalFileStatusContent(content);
+        Path target = resolvePath(fileName);
+        String staleWarning = fileStateTracker.checkStaleness(fileName, target);
+        String result = super.write(fileName, content);
+        clearReadDedup(fileName);
+        fileStateTracker.recordWrite(target);
+        if (StrUtil.isNotBlank(staleWarning)) {
+            String safeResult = SecretRedactor.redact(result, 1000);
+            ToolResultEnvelope envelope =
+                    StrUtil.startWith(result, "写入失败")
+                            ? ToolResultEnvelope.error(safeResult)
+                            : ToolResultEnvelope.ok(safeResult);
+            return envelope.data("path", safeDisplayPath(fileName))
+                    .data("_warning", safeDisplayPath(staleWarning))
+                    .toJson();
+        }
+        return SecretRedactor.redact(result, 1000);
+    }
+
+    public String read(@Param("fileName") String fileName) {
+        return read(fileName, null, null);
+    }
+
+    @ToolMapping(
+            name = "file_read",
+            description =
+                    "读取文本文件内容。返回带行号的 JSON 结果；offset 从 1 开始，limit 默认 500，并受 tool_output.max_lines 限制。")
+    public String read(
+            @Param("fileName") String fileName,
+            @Param(
+                            name = "offset",
+                            required = false,
+                            defaultValue = "1",
+                            description = "从第几行开始读取，1 表示第一行。")
+                    Integer offset,
+            @Param(
+                            name = "limit",
+                            required = false,
+                            defaultValue = "500",
+                            description = "最多读取多少行，会按 tool_output.max_lines 截断。")
+                    Integer limit) {
+        assertSafe(ToolNameConstants.FILE_READ, fileName);
+        return readPaged(fileName, offset, limit);
+    }
+
+    @Override
+    @ToolMapping(name = "file_list", description = "列出指定目录下的文件和子目录。如果不指定目录，则列出根目录。")
+    public String list(@Param(value = "dirName", required = false) String dirName) {
+        assertSafe(ToolNameConstants.FILE_LIST, dirName);
+        assertContained(dirName);
+        return SecretRedactor.redact(super.list(dirName), 20000);
+    }
+
+    @Override
+    @ToolMapping(name = "file_delete", description = "删除指定文件或空目录。")
+    public String delete(@Param("fileName") String fileName) {
+        assertSafe(ToolNameConstants.FILE_DELETE, fileName);
+        assertContained(fileName);
+        String result = super.delete(fileName);
+        clearReadDedup(fileName);
+        return SecretRedactor.redact(result, 1000);
+    }
+
+    private void assertSafe(String toolName, String path) {
+        if (securityPolicyService == null || StrUtil.isBlank(path)) {
+            return;
+        }
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", path);
+        args.put("dirName", path);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs(toolName, args);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(blockedMessage(toolName, verdict));
+        }
+    }
+
+    private String blockedMessage(String toolName, SecurityPolicyService.FileVerdict verdict) {
+        return "BLOCKED: 文件安全策略阻止访问："
+                + verdict.getMessage()
+                + "\n工具："
+                + toolName
+                + "\n路径："
+                + SecretRedactor.redact(verdict.getPath(), 400)
+                + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
+    }
+
+    private String readPaged(String fileName, Integer offset, Integer limit) {
+        if (StrUtil.isBlank(fileName)) {
+            return ToolResultEnvelope.error("fileName is required").toJson();
+        }
+        int safeOffset = Math.max(1, offset == null ? DEFAULT_READ_OFFSET : offset.intValue());
+        int safeLimit =
+                Math.max(1, Math.min(limit == null ? DEFAULT_READ_LIMIT : limit.intValue(), maxLines));
+        Path target;
+        try {
+            target = resolvePath(fileName);
+        } catch (Exception e) {
+            return ToolResultEnvelope.error("读取失败: " + safeToolError(e)).toJson();
+        }
+        File targetFile = target.toFile();
+        if (!targetFile.exists()) {
+            String displayPath = safeDisplayPath(fileName);
+            return ToolResultEnvelope.error("文件不存在: " + displayPath)
+                    .data("path", displayPath)
+                    .toJson();
+        }
+        if (targetFile.isDirectory()) {
+            String displayPath = safeDisplayPath(fileName);
+            return ToolResultEnvelope.error(
+                            "读取失败：'" + displayPath + "' 是一个目录。请使用 file_list 查看其内容。")
+                    .data("path", displayPath)
+                    .toJson();
+        }
+        ReadKey readKey = new ReadKey(target.toAbsolutePath().normalize().toString(), safeOffset, safeLimit);
+        String duplicate = duplicateReadResult(fileName, readKey, targetFile);
+        if (duplicate != null) {
+            return duplicate;
+        }
+
+        List<String> selected = new ArrayList<String>();
+        int totalLines = 0;
+        int endLine = safeOffset + safeLimit - 1;
+        try (BufferedReader reader = Files.newBufferedReader(target, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                totalLines++;
+                if (totalLines >= safeOffset && totalLines <= endLine) {
+                    selected.add(numberedLine(totalLines, line));
+                }
+            }
+            boolean truncated = totalLines > endLine;
+            String content = SecretRedactor.redact(joinLines(selected));
+            ReadStatus readStatus = recordRead(fileName, readKey, targetFile);
+            fileStateTracker.recordRead(target);
+            if (readStatus.blocked) {
+                return ToolResultEnvelope.error(readStatus.message)
+                        .data("path", safeDisplayPath(fileName))
+                        .data("already_read", Integer.valueOf(readStatus.count))
+                        .toJson();
+            }
+            String displayPath = safeDisplayPath(fileName);
+            ToolResultEnvelope envelope =
+                    ToolResultEnvelope.ok("文件读取完成：" + displayPath)
+                            .data("path", displayPath)
+                            .data("content", content)
+                            .data("total_lines", Integer.valueOf(totalLines))
+                            .data("file_size", Long.valueOf(Files.size(target)))
+                            .data("offset", Integer.valueOf(safeOffset))
+                            .data("limit", Integer.valueOf(safeLimit))
+                            .preview(content)
+                            .truncated(truncated);
+            if (truncated) {
+                envelope.data(
+                        "hint",
+                        "Use offset="
+                                + (endLine + 1)
+                                + " to continue reading (showing "
+                                + safeOffset
+                                + "-"
+                                + endLine
+                                + " of "
+                                + totalLines
+                                + " lines)");
+            }
+            if (StrUtil.isNotBlank(readStatus.message)) {
+                envelope.data("warning", readStatus.message);
+            }
+            return envelope.toJson();
+        } catch (Exception e) {
+            return ToolResultEnvelope.error("读取失败: " + safeToolError(e))
+                    .data("path", safeDisplayPath(fileName))
+                    .toJson();
+        }
+    }
+
+    private String safeDisplayPath(String path) {
+        return SecretRedactor.redact(path, 400);
+    }
+
+    private String safeToolError(Exception e) {
+        String message = e == null ? "" : e.getMessage();
+        if (StrUtil.isBlank(message) && e != null) {
+            message = e.getClass().getSimpleName();
+        }
+        return SecretRedactor.redact(message, 1000);
+    }
+
+    private String numberedLine(int lineNumber, String line) {
+        String value = StrUtil.nullToEmpty(line);
+        if (value.length() > maxLineLength) {
+            value = value.substring(0, maxLineLength) + "... [truncated]";
+        }
+        return String.format("%6d|%s", Integer.valueOf(lineNumber), value);
+    }
+
+    private String joinLines(List<String> lines) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            builder.append(lines.get(i));
+        }
+        return builder.toString();
+    }
+
+    private Path resolvePath(String name) {
+        String value = StrUtil.nullToEmpty(name);
+        if (value.indexOf('\0') >= 0 || value.contains("!/")) {
+            throw new IllegalArgumentException("jar-internal paths are not disk files");
+        }
+        Path path = rootPath.resolve(name).normalize();
+        if (!path.startsWith(rootPath)) {
+            throw new SecurityException("禁止越权访问沙箱外部");
+        }
+        assertResolvedWithinRoot(path);
+        return path;
+    }
+
+    private void assertContained(String name) {
+        if (StrUtil.isBlank(name)) {
+            return;
+        }
+        resolvePath(name);
+    }
+
+    private void assertResolvedWithinRoot(Path target) {
+        Path existing = nearestExistingPath(target);
+        if (existing == null) {
+            return;
+        }
+        Path real = safeRealPath(existing);
+        if (!real.startsWith(realRootPath)) {
+            throw new SecurityException("禁止通过符号链接访问沙箱外部");
+        }
+    }
+
+    private Path nearestExistingPath(Path target) {
+        Path current = target;
+        while (current != null) {
+            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private Path safeRealPath(Path path) {
+        try {
+            return path.toRealPath();
+        } catch (Exception e) {
+            return path.toAbsolutePath().normalize();
+        }
+    }
+
+    private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
+        resetDedupHitsAfterOtherToolCall();
+        long modifiedAt = targetFile.lastModified();
+        synchronized (readDedup) {
+            ReadTracker tracker = readDedup.get(key);
+            if (tracker == null || tracker.modifiedAt != modifiedAt) {
+                return null;
+            }
+            tracker.dedupHits++;
+            if (tracker.dedupHits >= 2) {
+                return ToolResultEnvelope.error(
+                                "BLOCKED: 已连续多次读取同一文件区域且文件未变化："
+                                        + safeDisplayPath(fileName)
+                                        + "。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
+                        .data("path", safeDisplayPath(fileName))
+                        .data("already_read", Integer.valueOf(tracker.dedupHits + 1))
+                        .toJson();
+            }
+            return ToolResultEnvelope.ok(READ_DEDUP_STATUS_MESSAGE)
+                    .data("path", safeDisplayPath(fileName))
+                    .data("dedup", Boolean.TRUE)
+                    .data("content_returned", Boolean.FALSE)
+                    .data("offset", Integer.valueOf(key.offset))
+                    .data("limit", Integer.valueOf(key.limit))
+                    .toJson();
+        }
+    }
+
+    private void assertNotInternalFileStatusContent(String content) {
+        if (!isInternalFileStatusText(content)) {
+            return;
+        }
+        throw new IllegalArgumentException(
+                "Refusing to write internal read_file status text as file content. Re-read the file or reconstruct the intended file contents before writing.");
+    }
+
+    private boolean isInternalFileStatusText(String content) {
+        String stripped = StrUtil.nullToEmpty(content).trim();
+        if (stripped.length() == 0) {
+            return false;
+        }
+        if (READ_DEDUP_STATUS_MESSAGE.equals(stripped)) {
+            return true;
+        }
+        return stripped.contains(READ_DEDUP_STATUS_MESSAGE)
+                && stripped.length() <= 2 * READ_DEDUP_STATUS_MESSAGE.length();
+    }
+
+    private ReadStatus recordRead(String fileName, ReadKey key, File targetFile) {
+        resetDedupHitsAfterOtherToolCall();
+        synchronized (readDedup) {
+            ReadTracker tracker = readDedup.get(key);
+            if (tracker == null) {
+                tracker = new ReadTracker();
+                readDedup.put(key, tracker);
+            }
+            tracker.modifiedAt = targetFile.lastModified();
+            tracker.dedupHits = 0;
+            if (key.equals(lastReadKey)) {
+                consecutiveReadCount++;
+            } else {
+                lastReadKey = key;
+                consecutiveReadCount = 1;
+            }
+            capReadDedup();
+            if (consecutiveReadCount >= 4) {
+                return ReadStatus.block(
+                        "BLOCKED: 已连续 "
+                                + consecutiveReadCount
+                                + " 次读取同一文件区域且文件未变化："
+                                + safeDisplayPath(fileName),
+                        consecutiveReadCount);
+            }
+            if (consecutiveReadCount >= 3) {
+                return ReadStatus.warn(
+                        "你已经连续 "
+                                + consecutiveReadCount
+                                + " 次读取同一文件区域。内容未变化，请使用已有信息继续任务。",
+                        consecutiveReadCount);
+            }
+            return ReadStatus.ok(consecutiveReadCount);
+        }
+    }
+
+    private void clearReadDedup(String fileName) {
+        if (StrUtil.isBlank(fileName)) {
+            return;
+        }
+        try {
+            Path target = resolvePath(fileName).toAbsolutePath().normalize();
+            String targetPath = target.toString();
+            synchronized (readDedup) {
+                List<ReadKey> removed = new ArrayList<ReadKey>();
+                for (ReadKey key : readDedup.keySet()) {
+                    if (key.path.equals(targetPath)) {
+                        removed.add(key);
+                    }
+                }
+                for (ReadKey key : removed) {
+                    readDedup.remove(key);
+                }
+                if (lastReadKey != null && lastReadKey.path.equals(targetPath)) {
+                    lastReadKey = null;
+                    consecutiveReadCount = 0;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void resetDedupHitsAfterOtherToolCall() {
+        int currentEpoch = ToolCallLoopGuardrailService.otherToolCallEpoch();
+        synchronized (readDedup) {
+            if (observedOtherToolCallEpoch == currentEpoch) {
+                return;
+            }
+            observedOtherToolCallEpoch = currentEpoch;
+            for (ReadTracker tracker : readDedup.values()) {
+                if (tracker != null) {
+                    tracker.dedupHits = 0;
+                }
+            }
+        }
+    }
+
+    private void capReadDedup() {
+        while (readDedup.size() > 500) {
+            ReadKey first = readDedup.keySet().iterator().next();
+            readDedup.remove(first);
+        }
+    }
+
+    private static final class ReadTracker {
+        private long modifiedAt;
+        private int dedupHits;
+    }
+
+    private static final class ReadStatus {
+        private final boolean blocked;
+        private final String message;
+        private final int count;
+
+        private ReadStatus(boolean blocked, String message, int count) {
+            this.blocked = blocked;
+            this.message = message;
+            this.count = count;
+        }
+
+        private static ReadStatus ok(int count) {
+            return new ReadStatus(false, null, count);
+        }
+
+        private static ReadStatus warn(String message, int count) {
+            return new ReadStatus(false, message, count);
+        }
+
+        private static ReadStatus block(String message, int count) {
+            return new ReadStatus(true, message, count);
+        }
+    }
+
+    private static final class ReadKey {
+        private final String path;
+        private final int offset;
+        private final int limit;
+
+        private ReadKey(String path, int offset, int limit) {
+            this.path = path;
+            this.offset = offset;
+            this.limit = limit;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof ReadKey)) {
+                return false;
+            }
+            ReadKey other = (ReadKey) o;
+            return offset == other.offset && limit == other.limit && path.equals(other.path);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = path.hashCode();
+            result = 31 * result + offset;
+            result = 31 * result + limit;
+            return result;
+        }
+    }
+}
+

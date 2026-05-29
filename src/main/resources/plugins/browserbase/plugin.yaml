@@ -1,0 +1,5 @@
+name: browserbase
+version: 1.0.0
+description: "Browser automation via Browserbase API"
+author: jimuqu
+kind: backend

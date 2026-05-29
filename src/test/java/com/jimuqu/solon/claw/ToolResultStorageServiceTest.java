@@ -1,0 +1,406 @@
+package com.jimuqu.solon.claw;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.noear.solon.ai.agent.react.ReActTrace;
+
+public class ToolResultStorageServiceTest {
+    @TempDir File tempDir;
+
+    @Test
+    void shouldExposeToolResultStoragePolicyWithoutPaths() {
+        ToolResultStorageService cacheService =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 256, 600, 300);
+        ToolResultStorageService workspaceService =
+                new ToolResultStorageService(
+                        new File(tempDir, "runtime-cache").getAbsolutePath(),
+                        new File(tempDir, "workspace").getAbsolutePath(),
+                        256,
+                        600,
+                        300);
+
+        java.util.Map<String, Object> cacheSummary = cacheService.policySummary();
+        java.util.Map<String, Object> workspaceSummary = workspaceService.policySummary();
+
+        assertThat(cacheSummary.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("inlineLimitBytes")).isEqualTo(Integer.valueOf(256));
+        assertThat(cacheSummary.get("turnBudgetBytes")).isEqualTo(Integer.valueOf(600));
+        assertThat(cacheSummary.get("previewLength")).isEqualTo(Integer.valueOf(300));
+        assertThat(cacheSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.FALSE);
+        assertThat(cacheSummary.get("pinnedInlineRawObservationAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(cacheSummary.get("pinnedInlineObservationRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("pinnedInlinePreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("describedPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(cacheSummary))
+                .contains("file_read")
+                .contains("read_file")
+                .contains("resultRefReturned")
+                .contains("previewRedacted")
+                .contains("describedPreviewRedacted")
+                .contains("persistedOutputRedacted")
+                .contains("tool-results")
+                .doesNotContain(tempDir.getAbsolutePath());
+
+        assertThat(workspaceSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.TRUE);
+        assertThat(workspaceSummary.get("storageBase")).isEqualTo(".jimuqu/tool-results");
+        assertThat(String.valueOf(workspaceSummary)).doesNotContain(tempDir.getAbsolutePath());
+    }
+
+    @Test
+    void shouldKeepSmallToolResultInline() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1024, 300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("read_file", "small output", "run-1", "call-1");
+
+        assertThat(result.getObservation()).isEqualTo("small output");
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
+    void shouldRedactSmallNonPinnedToolResultObservation() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1024, 300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe(
+                        "webfetch",
+                        "small api_key=sk-small-inline-secret token=ghp_smallinline12345",
+                        "run-inline",
+                        "call-inline");
+
+        assertThat(result.getObservation())
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-small-inline-secret")
+                .doesNotContain("ghp_smallinline12345");
+        assertThat(result.getPreview())
+                .contains("api_key=***")
+                .doesNotContain("sk-small-inline-secret")
+                .doesNotContain("ghp_smallinline12345");
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
+    void shouldPersistLargeToolResultAndReturnJimuquBlock() throws Exception {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 256, 200000, 300);
+        String large = repeat("line\n", 200);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", large, "run-1", "call-1");
+
+        assertThat(result.getObservation()).startsWith("<persisted-output>");
+        assertThat(result.getObservation()).contains("Full output saved to:");
+        assertThat(result.getObservation()).contains("Use the file_read/read_file tool with offset and limit");
+        assertThat(result.getObservation()).contains("Tool: execute_shell");
+        String ref = result.getResultRef();
+        assertThat(ref)
+                .startsWith("runtime://tool-results/run-1/")
+                .doesNotContain(tempDir.getAbsolutePath());
+        assertThat(new String(Files.readAllBytes(runtimeRefFile(ref).toPath()), StandardCharsets.UTF_8))
+                .isEqualTo(large);
+
+        ToolResultStorageService.StoredResult described =
+                ToolResultStorageService.describeObservation(result.getObservation());
+        assertThat(described.getResultRef()).isEqualTo(ref);
+        assertThat(described.getSizeBytes()).isEqualTo(large.getBytes(StandardCharsets.UTF_8).length);
+        assertThat(described.isTruncated()).isTrue();
+    }
+
+    @Test
+    void shouldFallbackToPreviewOnlyWhenStorageIsUnavailable() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(null, 40, 200000, 300);
+        String large =
+                "first line\nOPENAI_API_KEY=sk-proj-previewonlysecret1234567890\n"
+                        + repeat("tail\n", 80);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", large, "run-preview-only", "call-preview-only");
+
+        assertThat(result.isTruncated()).isTrue();
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.getPreview())
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("sk-proj-previewonlysecret1234567890");
+        assertThat(result.getObservation())
+                .startsWith("<persisted-output>")
+                .contains("Full output could not be saved; use the preview only.")
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("Full output saved to:")
+                .doesNotContain("sk-proj-previewonlysecret1234567890");
+    }
+
+    @Test
+    void shouldRedactPersistedPreviewAndStoredOutput() throws Exception {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 40, 200000, 300);
+        String large =
+                "first line\nOPENAI_API_KEY=sk-proj-secretvalue1234567890\n"
+                        + "callback https://example.test/callback?api%255Fkey=tool-result-encoded-secret\n"
+                        + repeat("tail\n", 80);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", large, "run-secret", "call-secret");
+
+        assertThat(result.getPreview()).contains("OPENAI_API_KEY=***");
+        assertThat(result.getPreview()).contains("api%255Fkey=***");
+        assertThat(result.getPreview()).doesNotContain("sk-proj-secretvalue1234567890");
+        assertThat(result.getPreview()).doesNotContain("tool-result-encoded-secret");
+        assertThat(result.getObservation()).contains("OPENAI_API_KEY=***");
+        assertThat(result.getObservation()).contains("api%255Fkey=***");
+        assertThat(result.getObservation()).doesNotContain("sk-proj-secretvalue1234567890");
+        assertThat(result.getObservation()).doesNotContain("tool-result-encoded-secret");
+        assertThat(new String(Files.readAllBytes(runtimeRefFile(result.getResultRef()).toPath()), StandardCharsets.UTF_8))
+                .contains("OPENAI_API_KEY=***")
+                .contains("api%255Fkey=***")
+                .doesNotContain("sk-proj-secretvalue1234567890")
+                .doesNotContain("tool-result-encoded-secret");
+    }
+
+    @Test
+    void shouldDescribeLegacyJsonEnvelope() {
+        String json =
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old api_key=sk-legacy-preview-secret\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";
+
+        ToolResultStorageService.StoredResult described =
+                ToolResultStorageService.describeObservation(json);
+
+        assertThat(described.getPreview())
+                .contains("api_key=***")
+                .doesNotContain("sk-legacy-preview-secret");
+        assertThat(described.getResultRef()).isEqualTo("/tmp/result.txt");
+        assertThat(described.getSizeBytes()).isEqualTo(42L);
+        assertThat(described.isTruncated()).isTrue();
+    }
+
+    @Test
+    void shouldRedactResultRefsWhenDescribingExistingEnvelopes() {
+        String sensitivePathRef = "/tmp/output-token=secret123-ghp_1234567890abcdef.txt";
+        String encodedQueryRef = "https://example.test/output?api%255Fkey=legacy-result-secret";
+        String sensitivePathJson =
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old token=ghp_previewsecret12345\",\"result_ref\":\"" + sensitivePathRef
+                        + "\",\"size\":42,\"truncated\":true}";
+        String encodedQueryJson =
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old token=ghp_previewsecret12345\",\"result_ref\":\"" + encodedQueryRef
+                        + "\",\"size\":42,\"truncated\":true}";
+        String sensitivePathBlock =
+                "<persisted-output>\n"
+                        + "This tool result was too large (42 bytes).\n"
+                        + "Full output saved to: " + sensitivePathRef + "\n"
+                        + "Preview (first 3 chars):\n"
+                        + "old token=ghp_previewsecret12345\n"
+                        + "</persisted-output>";
+        String encodedQueryBlock =
+                "<persisted-output>\n"
+                        + "This tool result was too large (42 bytes).\n"
+                        + "Full output saved to: " + encodedQueryRef + "\n"
+                        + "Preview (first 3 chars):\n"
+                        + "old token=ghp_previewsecret12345\n"
+                        + "</persisted-output>";
+
+        ToolResultStorageService.StoredResult sensitivePathJsonDescribed =
+                ToolResultStorageService.describeObservation(sensitivePathJson);
+        ToolResultStorageService.StoredResult sensitivePathBlockDescribed =
+                ToolResultStorageService.describeObservation(sensitivePathBlock);
+        ToolResultStorageService.StoredResult encodedQueryJsonDescribed =
+                ToolResultStorageService.describeObservation(encodedQueryJson);
+        ToolResultStorageService.StoredResult encodedQueryBlockDescribed =
+                ToolResultStorageService.describeObservation(encodedQueryBlock);
+
+        assertThat(sensitivePathJsonDescribed.getResultRef())
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef");
+        assertThat(sensitivePathBlockDescribed.getResultRef())
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef");
+        assertThat(encodedQueryJsonDescribed.getResultRef())
+                .contains("api%255Fkey=***")
+                .doesNotContain("legacy-result-secret");
+        assertThat(encodedQueryBlockDescribed.getResultRef())
+                .contains("api%255Fkey=***")
+                .doesNotContain("legacy-result-secret")
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef");
+        assertThat(sensitivePathJsonDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+        assertThat(sensitivePathBlockDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+        assertThat(encodedQueryJsonDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+        assertThat(encodedQueryBlockDescribed.getPreview()).doesNotContain("ghp_previewsecret12345");
+    }
+
+    @Test
+    void shouldSanitizePathSegmentsWhenPersistingResult() throws Exception {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 10, 200000, 300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("shell", repeat("x", 400), "..\\evil/../run", "..\\call");
+        String ref = result.getResultRef();
+
+        assertThat(ref)
+                .startsWith("runtime://tool-results/")
+                .contains("evil")
+                .doesNotContain(tempDir.getAbsolutePath());
+        assertThat(runtimeRefFile(ref).getCanonicalPath())
+                .startsWith(new File(tempDir, "tool-results").getCanonicalPath());
+    }
+
+    @Test
+    void shouldRewriteTraceObservationThroughInterceptor() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
+        ToolResultStorageInterceptor interceptor =
+                new ToolResultStorageInterceptor(service, "run-interceptor");
+        ReActTrace trace = new ReActTrace();
+        trace.setLastObservation(repeat("z", 400));
+
+        interceptor.onObservation(trace, "webfetch", trace.getLastObservation(), 5L);
+
+        ToolResultStorageService.StoredResult described =
+                ToolResultStorageService.describeObservation(trace.getLastObservation());
+        assertThat(described.isTruncated()).isTrue();
+        assertThat(described.getResultRef()).isNotBlank();
+    }
+
+    @Test
+    void shouldKeepReadFileOutputInlineToAvoidPersistReadLoop() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
+        String large = repeat("read\n", 200);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("file_read", large, "run-1", "read-call");
+
+        assertThat(result.getObservation()).isEqualTo(large);
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
+    void shouldRedactPinnedReadFileObservationWhenContentContainsSecretLikeToken() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
+        String large = "read token=ghp_readinline12345\n" + repeat("read\n", 200);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("read_file", large, "run-read-inline", "call-read-inline");
+
+        assertThat(result.getObservation())
+                .contains("token=***")
+                .doesNotContain("ghp_readinline12345");
+        assertThat(result.getPreview()).contains("token=***").doesNotContain("ghp_readinline12345");
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
+    void shouldPersistLaterMediumResultWhenTurnBudgetIsExceeded() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1000, 600, 300);
+        String medium = repeat("m", 400);
+
+        ToolResultStorageService.StoredResult first =
+                service.observe("webfetch", medium, "run-budget", "call-1");
+        ToolResultStorageService.StoredResult second =
+                service.observe("webfetch", medium, "run-budget", "call-2");
+
+        assertThat(first.getObservation()).isEqualTo(medium);
+        assertThat(second.isTruncated()).isTrue();
+        assertThat(second.getResultRef()).isNotBlank();
+    }
+
+    @Test
+    void shouldKeepReadFileInlineAfterTurnBudgetExceeded() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1000, 600, 300);
+        String medium = repeat("m", 400);
+        String largeRead = repeat("read\n", 200);
+
+        ToolResultStorageService.StoredResult first =
+                service.observe("webfetch", medium, "run-budget-read", "call-1");
+        ToolResultStorageService.StoredResult second =
+                service.observe("read_file", largeRead, "run-budget-read", "call-read");
+
+        assertThat(first.getObservation()).isEqualTo(medium);
+        assertThat(second.getObservation()).isEqualTo(largeRead);
+        assertThat(second.getResultRef()).isNull();
+        assertThat(second.isTruncated()).isFalse();
+    }
+
+    @Test
+    void shouldPreferWorkspaceStorageSoFileToolCanReadResultRef() throws Exception {
+        File workspace = new File(tempDir, "workspace");
+        ToolResultStorageService service =
+                new ToolResultStorageService(
+                        new File(tempDir, "runtime-cache").getAbsolutePath(),
+                        workspace.getAbsolutePath(),
+                        20,
+                        200000,
+                        300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", repeat("w", 400), "run-workspace", "call-1");
+        String ref = result.getResultRef();
+
+        assertThat(ref).startsWith(".jimuqu/tool-results/run-workspace/");
+        assertThat(ref).doesNotContain(workspace.getAbsolutePath());
+        assertThat(new File(workspace, ref).getCanonicalPath())
+                .startsWith(new File(workspace, ".jimuqu/tool-results").getCanonicalPath());
+        assertThat(result.getObservation()).contains("Full output saved to: " + ref);
+    }
+
+    @Test
+    void shouldRedactRunAndCallIdsBeforeBuildingResultRef() {
+        File workspace = new File(tempDir, "workspace");
+        ToolResultStorageService service =
+                new ToolResultStorageService(
+                        new File(tempDir, "runtime-cache").getAbsolutePath(),
+                        workspace.getAbsolutePath(),
+                        20,
+                        200000,
+                        300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe(
+                        "execute_shell",
+                        repeat("w", 400),
+                        "run-token-ghp_resultref12345",
+                        "call-api_key=sk-resultref-secret");
+
+        assertThat(result.getResultRef())
+                .contains("ghp_")
+                .contains("api_key_")
+                .doesNotContain("ghp_resultref12345")
+                .doesNotContain("sk-resultref-secret");
+        assertThat(result.getObservation())
+                .doesNotContain("ghp_resultref12345")
+                .doesNotContain("sk-resultref-secret");
+    }
+
+    private String repeat(String value, int count) {
+        StringBuilder sb = new StringBuilder(value.length() * count);
+        for (int i = 0; i < count; i++) {
+            sb.append(value);
+        }
+        return sb.toString();
+    }
+
+    private File runtimeRefFile(String ref) {
+        String prefix = "runtime://tool-results/";
+        assertThat(ref).startsWith(prefix);
+        return new File(new File(tempDir, "tool-results"), ref.substring(prefix.length()));
+    }
+}

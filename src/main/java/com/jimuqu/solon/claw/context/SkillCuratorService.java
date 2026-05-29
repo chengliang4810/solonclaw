@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
-/** Hermes Curator 对齐的技能后台维护器。 */
+/** Jimuqu Curator 对齐的技能后台维护器。 */
 @RequiredArgsConstructor
 public class SkillCuratorService {
     private final AppConfig appConfig;
@@ -133,7 +134,7 @@ public class SkillCuratorService {
         item.put("loadCount", Long.valueOf(loadCount));
         item.put("callCount", Long.valueOf(callCount));
         item.put("suggestions", suggestions);
-        item.put("path", descriptor.getSkillDir());
+        item.put("path", skillReference(name));
         return item;
     }
 
@@ -199,9 +200,13 @@ public class SkillCuratorService {
         report.put("startedAt", Long.valueOf(now));
         report.put("finishedAt", Long.valueOf(System.currentTimeMillis()));
         report.put("items", items);
-        report.put("stateFile", stateFile().getAbsolutePath());
+        report.put("stateFile", "curator://state");
         writeReport(report, now);
         return report;
+    }
+
+    private String skillReference(String name) {
+        return "skill://" + SecretRedactor.redact(StrUtil.blankToDefault(name, "unknown"), 400);
     }
 
     private void writeReport(Map<String, Object> report, long now) {
@@ -288,8 +293,8 @@ public class SkillCuratorService {
         if (curator instanceof Map && asBoolean(((Map<String, Object>) curator).get("pinned"))) {
             return true;
         }
-        Object hermes = metadata.get("hermes");
-        return hermes instanceof Map && asBoolean(((Map<String, Object>) hermes).get("pinned"));
+        Object Jimuqu = metadata.get("Jimuqu");
+        return Jimuqu instanceof Map && asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
     }
 
     private boolean asBoolean(Object value) {

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -21,16 +22,25 @@ import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.gateway.feedback.GatewayConversationFeedbackSink;
+import com.jimuqu.solon.claw.goal.GoalDecision;
+import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.plugin.AgentHookName;
+import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeFooterService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.MessageDeliveryTracker;
+import java.io.File;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -73,8 +83,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private final RuntimeFooterService runtimeFooterService;
     private final AgentRuntimeService agentRuntimeService;
     private final MemoryManager memoryManager;
+    private final GoalService goalService;
     private final ConcurrentMap<String, Object> sourceLocks =
             new ConcurrentHashMap<String, Object>();
+    private AgentHookRegistry hookRegistry;
 
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
@@ -100,6 +112,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 dangerousCommandApprovalService,
                 agentRunSupervisor,
                 runtimeFooterService,
+                null,
                 null,
                 null);
     }
@@ -130,6 +143,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 agentRunSupervisor,
                 runtimeFooterService,
                 agentRuntimeService,
+                null,
                 null);
     }
 
@@ -147,6 +161,38 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             RuntimeFooterService runtimeFooterService,
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager) {
+        this(
+                sessionRepository,
+                contextService,
+                contextCompressionService,
+                llmGateway,
+                toolRegistry,
+                deliveryService,
+                displaySettingsService,
+                runtimeSettingsService,
+                dangerousCommandApprovalService,
+                agentRunSupervisor,
+                runtimeFooterService,
+                agentRuntimeService,
+                memoryManager,
+                null);
+    }
+
+    public DefaultConversationOrchestrator(
+            SessionRepository sessionRepository,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            LlmGateway llmGateway,
+            ToolRegistry toolRegistry,
+            DeliveryService deliveryService,
+            DisplaySettingsService displaySettingsService,
+            RuntimeSettingsService runtimeSettingsService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunSupervisor agentRunSupervisor,
+            RuntimeFooterService runtimeFooterService,
+            AgentRuntimeService agentRuntimeService,
+            MemoryManager memoryManager,
+            GoalService goalService) {
         this.sessionRepository = sessionRepository;
         this.contextService = contextService;
         this.contextCompressionService = contextCompressionService;
@@ -160,6 +206,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         this.runtimeFooterService = runtimeFooterService;
         this.agentRuntimeService = agentRuntimeService;
         this.memoryManager = memoryManager;
+        this.goalService = goalService;
     }
 
     public GatewayReply handleIncoming(GatewayMessage message) throws Exception {
@@ -196,9 +243,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             }
             return reply;
         }
-        synchronized (lockFor(sourceKey)) {
-            return runOnSession(session, message, eventSink);
-        }
+        return runOnSession(session, message, eventSink);
     }
 
     public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
@@ -239,6 +284,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             + "\n\n"
                             + runtimeSettingsService.buildAgentRuntimePrompt(
                                     sourceKey, session, enabledToolNames, agentScope);
+            systemPrompt = appendResumePendingSystemNote(systemPrompt, session);
             session.setSystemPromptSnapshot(systemPrompt);
 
             GatewayMessage feedbackTarget = messageFromSourceKey(sourceKey);
@@ -258,6 +304,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
+            clearAgentPending(session);
             syncMemory(session.getSourceKey(), resumedUserMessage, finalReply);
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());
@@ -265,6 +312,63 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             applyRuntimeMetadata(reply, outcome);
             return reply;
         }
+    }
+
+    private String appendResumePendingSystemNote(String systemPrompt, SessionRecord session) {
+        try {
+            SqliteAgentSession agentSession = new SqliteAgentSession(session);
+            if (!agentSession.isPending()) {
+                return systemPrompt;
+            }
+            String note =
+                    ResumePendingSupport.gatewayInterruptionSystemNote(
+                            agentSession.getPendingReason());
+            if (StrUtil.isBlank(note)) {
+                return systemPrompt;
+            }
+            return StrUtil.blankToDefault(systemPrompt, "") + "\n\n" + note;
+        } catch (Exception e) {
+            log.debug(
+                    "skip resume pending system note: sessionId={}, error={}",
+                    session == null ? "" : session.getSessionId(),
+                    safeError(e));
+            return systemPrompt;
+        }
+    }
+
+    private void clearAgentPending(SessionRecord session) {
+        if (session == null) {
+            return;
+        }
+        try {
+            SqliteAgentSession agentSession =
+                    new SqliteAgentSession(session, sessionRepository);
+            if (agentSession.isPending()) {
+                agentSession.pending(false, null);
+                agentSession.updateSnapshot();
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "clear agent pending failed: sessionId={}, error={}",
+                    session.getSessionId(),
+                    safeError(e));
+        }
+    }
+
+    public void setHookRegistry(AgentHookRegistry hookRegistry) {
+        this.hookRegistry = hookRegistry;
+    }
+
+    private void invokeHook(String hookName, String sessionId, String message) {
+        if (hookRegistry == null) {
+            return;
+        }
+        java.util.Map<String, Object> args = new java.util.HashMap<>();
+        args.put("session_id", sessionId);
+        if (message != null) {
+            args.put("message", message);
+        }
+        hookRegistry.invoke(hookName, args);
     }
 
     private Object lockFor(String sourceKey) {
@@ -294,6 +398,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             SessionRecord session, GatewayMessage message, ConversationEventSink eventSink)
             throws Exception {
         boolean shouldDrainQueue = false;
+        String previousTransientProvider = session.getTransientProviderOverride();
+        String previousTransientModel = session.getTransientModelOverride();
+        String previousTransientBaseUrl = session.getTransientBaseUrlOverride();
         DangerousCommandApprovalService.PendingApproval pendingApproval =
                 dangerousCommandApprovalService == null
                         ? null
@@ -312,6 +419,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
 
         try {
+            applyTransientModelOverride(session, message);
             String effectiveUserText = MessageAttachmentSupport.composeEffectiveUserText(message);
             message.setText(effectiveUserText);
             if (!message.isHeartbeat()
@@ -320,6 +428,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 session.setTitle(extractTitle(effectiveUserText));
             }
             AgentRuntimeScope agentScope = resolveAgentScope(session);
+            applyWorkspaceOverride(agentScope, message);
+            applyToolsetOverride(agentScope, message);
             List<String> enabledToolNames =
                     toolRegistry.resolveEnabledToolNames(message.sourceKey(), agentScope);
             List<Object> enabledTools =
@@ -332,6 +442,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             session.setSystemPromptSnapshot(systemPrompt);
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
+            invokeHook(AgentHookName.PRE_LLM_CALL, session.getSessionId(), effectiveUserText);
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
                             session,
@@ -341,7 +452,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             feedbackSink,
                             eventSink,
                             false,
-                            agentScope);
+                            agentScope,
+                            MessageAttachmentSupport.safeAttachments(message));
             shouldDrainQueue = true;
             String finalReply = StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK);
             if (MessageDeliveryTracker.consumeDuplicateFinalReply(message.sourceKey(), finalReply)) {
@@ -351,14 +463,20 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             }
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
+            invokeHook(AgentHookName.POST_LLM_CALL, session.getSessionId(), finalReply);
+            invokeHook(AgentHookName.ON_SESSION_END, session.getSessionId(), null);
             syncMemory(message.sourceKey(), effectiveUserText, finalReply);
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             applyRuntimeMetadata(reply, outcome);
             applyApprovalCardIfNeeded(reply, message.getPlatform(), session);
+            applyGoalDecision(reply, session, finalReply, message);
             return reply;
         } finally {
+            session.setTransientProviderOverride(previousTransientProvider);
+            session.setTransientModelOverride(previousTransientModel);
+            session.setTransientBaseUrlOverride(previousTransientBaseUrl);
             if (shouldDrainQueue || !agentRunSupervisor.isRunning(message.sourceKey())) {
                 agentRunSupervisor.onRunFinished(
                         message.sourceKey(),
@@ -372,6 +490,62 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         });
             }
         }
+    }
+
+    private void applyTransientModelOverride(SessionRecord session, GatewayMessage message) {
+        if (session == null || message == null || StrUtil.isBlank(message.getModelOverride())) {
+            return;
+        }
+        String override = message.getModelOverride().trim();
+        String provider = "";
+        String model = override;
+        int first = override.indexOf(':');
+        int second = first < 0 ? -1 : override.indexOf(':', first + 1);
+        if (first > 0) {
+            provider = override.substring(0, first).trim();
+            model = second > first ? override.substring(first + 1, second).trim() : override.substring(first + 1).trim();
+            if (second > first) {
+                session.setTransientBaseUrlOverride(override.substring(second + 1).trim());
+            }
+        }
+        session.setTransientProviderOverride(provider);
+        session.setTransientModelOverride(model);
+    }
+
+    private void applyWorkspaceOverride(AgentRuntimeScope agentScope, GatewayMessage message) {
+        if (agentScope == null || message == null || StrUtil.isBlank(message.getWorkspaceDirOverride())) {
+            return;
+        }
+        File dir = new File(message.getWorkspaceDirOverride().trim());
+        if (!dir.exists() || !dir.isDirectory()) {
+            log.warn("Ignoring missing scheduled workspace override: {}", message.getWorkspaceDirOverride());
+            return;
+        }
+        agentScope.setWorkspaceDir(dir.getAbsolutePath());
+        agentScope.setWorkspaceDirOverride(true);
+    }
+
+    private void applyToolsetOverride(AgentRuntimeScope agentScope, GatewayMessage message) {
+        if (agentScope == null || message == null) {
+            return;
+        }
+        List<String> enabled = message.getEnabledToolsetsOverride();
+        List<String> disabled = message.getDisabledToolsetsOverride();
+        boolean hasEnabled = enabled != null && !enabled.isEmpty();
+        boolean hasDisabled = disabled != null && !disabled.isEmpty();
+        if (!hasEnabled && !hasDisabled) {
+            return;
+        }
+        LinkedHashSet<String> allowed;
+        if (hasEnabled) {
+            allowed = AgentRuntimePolicy.expandToolSelectors(enabled);
+        } else {
+            allowed = new LinkedHashSet<String>(toolRegistry.listToolNames());
+        }
+        if (hasDisabled) {
+            allowed.removeAll(AgentRuntimePolicy.expandToolSelectors(disabled));
+        }
+        agentScope.setAllowedToolsJson(org.noear.snack4.ONode.serialize(new ArrayList<String>(allowed)));
     }
 
     private String decorateFinalReply(
@@ -405,6 +579,40 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    private void applyGoalDecision(
+            GatewayReply reply, SessionRecord session, String finalReply, GatewayMessage message) {
+        if (goalService == null
+                || reply == null
+                || reply.isError()
+                || reply.isCommandHandled()
+                || session == null
+                || message == null
+                || message.isHeartbeat()) {
+            return;
+        }
+        try {
+            GoalDecision decision = goalService.evaluateAfterTurn(session, finalReply);
+            if (decision == null || StrUtil.isBlank(decision.getVerdict())) {
+                return;
+            }
+            reply.getRuntimeMetadata().put("goal_status", decision.getStatus());
+            reply.getRuntimeMetadata().put("goal_verdict", decision.getVerdict());
+            reply.getRuntimeMetadata().put("goal_reason", decision.getReason());
+            if (StrUtil.isNotBlank(decision.getMessage())) {
+                reply.getRuntimeMetadata().put("goal_message", decision.getMessage());
+            }
+            if (decision.isShouldContinue() && StrUtil.isNotBlank(decision.getContinuationPrompt())) {
+                reply.getRuntimeMetadata().put("goal_should_continue", Boolean.TRUE);
+                reply.getRuntimeMetadata().put("goal_continuation_prompt", decision.getContinuationPrompt());
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Goal continuation hook failed: sessionId={}, error={}",
+                    session.getSessionId(),
+                    safeError(e));
+        }
+    }
+
     private String formatPendingApprovalBlock(
             DangerousCommandApprovalService.PendingApproval pending) {
         StringBuilder buffer = new StringBuilder();
@@ -415,8 +623,13 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         buffer.append("原因：")
                 .append(StrUtil.blankToDefault(pending.getDescription(), "危险命令"))
                 .append("\n\n");
-        buffer.append(
-                "请先回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
+        if (pending.isPermanentApprovalAllowed()) {
+            buffer.append(
+                    "请先回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
+        } else {
+            buffer.append(
+                    "该安全扫描结果只支持本次或当前会话审批，不能永久记住。请先回复 `/approve` 执行一次，`/approve session` 记住当前会话，或 `/deny` 取消。");
+        }
         return buffer.toString();
     }
 
@@ -465,7 +678,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         try {
             memoryManager.syncTurn(sourceKey, userMessage, finalReply);
         } catch (Exception e) {
-            log.warn("Memory sync failed: sourceKey={}", sourceKey, e);
+            log.warn("Memory sync failed: sourceKey={}, error={}", sourceKey, safeError(e));
         }
     }
 
@@ -636,5 +849,14 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         + Math.max(0L, base.getCacheWriteTokens()));
         extra.setTotalTokens(
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 }

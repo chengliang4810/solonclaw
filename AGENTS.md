@@ -1,8 +1,8 @@
-# solon-claw AGENTS.md
+# jimuqu-agent AGENTS.md
 
 ## 项目目标
 
-- 本项目目标是使用 Java 语言，基于 Solon 与 Solon AI，对 `D:\projects\hermes-agent` 进行功能复刻。
+- 本项目目标是使用 Java 语言，基于 Solon 与 Solon AI，对外部对标仓库进行功能复刻；本仓库内不得出现旧项目命名。
 - 复刻的目标是“行为与能力对齐”，不是逐行或逐模块照搬 Python 实现；允许使用更符合 Java / Solon 生态的实现方式。
 - 后续需求、设计、拆解、编码、测试都必须优先服务这个目标，避免偏离成泛用聊天应用、泛工作流平台或无关的 AI Demo。
 
@@ -23,28 +23,26 @@
 - 如某个外部协议或 SDK 必须依赖额外库，先保证边界清晰，再最小化引入，并在任务说明或变更说明中写明原因。
 - 优先使用 Maven Central 中可获取的稳定开源依赖。
 
-### 3. 参考源码目录
+### 3. 参考源码仓库
 
-- Solon 源码：`D:\projects\solon-main`
-- Solon AI 源码：`D:\projects\solon-ai-main`
-- Hutool 源码：`D:\projects\hutool-v5-master`
-- Hermes Agent 参考源码：`D:\projects\hermes-agent`
+- Solon 远程仓库：`https://gitee.com/opensolon/solon.git`
+- Solon AI 远程仓库：`https://gitee.com/opensolon/solon-ai.git`
+- Hutool 远程仓库：`https://gitee.com/dromara/hutool.git`
+- 外部 Agent 对标源码：远程仓库地址或本地副本路径由当前任务上下文提供，禁止在本仓库文件中写入旧项目名。
 
-遇到框架用法、设计取舍、扩展点不明确时，先查本地源码目录，再决定实现方案。
+遇到框架用法、设计取舍、扩展点不明确时，先根据上述远程仓库自行获取或更新参考源码，再决定实现方案。
 
 ## 上游参考与同步策略
 
-- `D:\projects\hermes-agent` 是功能对标基线。
-- 实现新能力前，先定位 Hermes 对应模块、配置项、交互方式、约束和用户可见行为。
-- 若任务依赖 Hermes 的最新变动，先同步参考仓库，再继续实现。建议命令：
-
-```powershell
-git -C D:\projects\hermes-agent fetch origin
-git -C D:\projects\hermes-agent log origin/main -1 --date=iso
-git -C D:\projects\hermes-agent status --short --branch
-```
+- 外部对标仓库是功能对标基线。
+- 实现新能力前，先定位外部对标仓库中的对应模块、配置项、交互方式、约束和用户可见行为。
+- 若任务依赖外部对标仓库的最新变动，先同步参考仓库，再继续实现；具体路径由任务上下文提供。
 
 - 若本地参考仓库与上游存在明显差异，优先说明本次实现参考的是哪个提交或本地状态。
+- 禁止把外部对标仓库中的配置键、环境变量名前缀、命令名、工具名、类名、release 文案或示例文本照搬进本仓库；涉及安全、URL 策略、审批、工具网关等功能时，也必须改为本项目命名。
+- 本项目命名以 `solon-claw` / `solonclaw` 为准；代码包名可沿用当前 `com.jimuqu.solon.claw` 结构。
+- 禁止在提交信息、Release notes、自动生成文档、测试夹具、命令输出摘要和交付说明中复述旧项目关键词；如必须说明来源，只能使用“外部对标仓库”“对标实现”“旧项目关键词”等中性说法。
+- 外部对标仓库路径只能作为本地开发上下文或临时命令参数使用，不得写入仓库文件、发布产物、配置样例或用户可见帮助文本。
 
 ## 复刻范围约束
 
@@ -52,7 +50,7 @@ git -C D:\projects\hermes-agent status --short --branch
 
 - 仅保留中国国内消息渠道支持。
 - 海外或非目标渠道默认不做，包括但不限于：Telegram、Discord、Slack、WhatsApp、Signal、Matrix、Mattermost、BlueBubbles、Home Assistant、Email。
-- Hermes 当前代码中与国内场景相关、可作为参考候选的渠道适配器，仅保留：`feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
+- 外部对标代码中与国内场景相关、可作为参考候选的渠道适配器，仅保留：`feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
 - 明确不做：`sms`、`webhook`。
 - 在你确认最终渠道清单之前，后续任务只允许建设“国内渠道抽象和适配能力”，不要投入任何海外渠道实现。
 
@@ -69,13 +67,14 @@ git -C D:\projects\hermes-agent status --short --branch
 
 ### 3. 设计边界
 
-- 复刻重点是 Agent 核心能力、国内渠道接入、模型协议适配、工具系统、记忆/技能/会话等与 Hermes 主产品价值直接相关的部分。
+- 复刻重点是 Agent 核心能力、国内渠道接入、模型协议适配、工具系统、记忆/技能/会话等与对标产品价值直接相关的部分。
 - 渠道接入与诊断入口默认走现有 dashboard/API，优先补齐 dashboard-first setup / doctor，而不是新增完整 CLI 向导。
-- 渠道传输层遵循 websocket-first：平台官方支持 websocket / stream 时优先采用；仅微信保留 Hermes 原有 iLink long-poll。
+- 渠道传输层遵循 websocket-first：平台官方支持 websocket / stream 时优先采用；仅微信保留对标行为中的 iLink long-poll。
 - 不要因为某个技术点实现方便，就偏离成以脚本、前端展示页、营销官网、实验性研究代码为中心的项目。
-- 若出现“为了兼容 Hermes 原实现而牺牲 Java/Solon 可维护性”的情况，优先保持 Java 侧架构清晰，再在行为层面对齐。
-- 已明确不做：多模态模型输入、图像生成、独立 TTS/语音转写服务、浏览器自动化内置实现、价格分析/价格计算、研究与实验能力、完整 CLI/TUI 交互层。
-- 浏览器自动化能力不进入内置主线；如后续需要，按“用户自行安装 skill 扩展”的方式处理。
+- 若出现“为了兼容外部对标实现而牺牲 Java/Solon 可维护性”的情况，优先保持 Java 侧架构清晰，再在行为层面对齐。
+- 已明确不做：研究与实验能力、完整 CLI/TUI 交互层。
+- 本版需要做：多模态模型输入、图像理解/生成、TTS / 独立语音转写服务、浏览器自动化内置实现、价格分析/价格计算。
+- 浏览器自动化能力进入本版主线；实现时仍保持审批、安全与审计边界。
 
 ## 默认实现原则
 
@@ -93,8 +92,8 @@ git -C D:\projects\hermes-agent status --short --branch
 
 ### 2. 任务判断原则
 
-- 每次开发前，先回答“这个任务对应 Hermes 的哪项能力”。
-- 如果对应不上 Hermes 的明确能力，或与本项目目标无关，应先暂停并确认，而不是直接扩展范围。
+- 每次开发前，先回答“这个任务对应外部对标仓库的哪项能力”。
+- 如果对应不上外部对标仓库的明确能力，或与本项目目标无关，应先暂停并确认，而不是直接扩展范围。
 - 没有用户明确要求时，优先实现最小可用版本，再逐步补齐兼容能力。
 
 ### 3. 架构原则
@@ -102,11 +101,11 @@ git -C D:\projects\hermes-agent status --short --branch
 - 先定义清晰的领域边界，再落地代码。
 - 配置、协议、渠道、工具、Agent 核心循环要解耦。
 - 避免把渠道逻辑、模型协议逻辑、工具执行逻辑直接耦合在一个类中。
-- 面向接口或抽象层设计，方便后续逐步补齐 Hermes 功能。
+- 面向接口或抽象层设计，方便后续逐步补齐对标能力。
 
-## 待确认的 Hermes 功能清单
+## 待确认的对标功能清单
 
-以下是 Hermes Agent 现有功能面，后续需要逐项确认哪些保留、哪些裁剪。未确认前，可以做架构预留，但不要默认全部深度实现。
+以下是外部对标 Agent 现有功能面，后续需要逐项确认哪些保留、哪些裁剪。未确认前，可以做架构预留，但不要默认全部深度实现。
 
 ### A. Agent 核心与会话
 
@@ -115,15 +114,13 @@ git -C D:\projects\hermes-agent status --short --branch
 - `/new`、`/retry`、`/undo`、`/branch`、`/resume` 等会话控制
 - 模型切换、推理强度、快速模式
 - 会话状态与基础运行信息
-- 保留 token 使用量统计；不做价格分析/价格计算
+- 保留 token 使用量统计；本版补价格分析/价格计算
 - checkpoint / rollback
 
 ### B. CLI / 交互层
 
 - 保留对话内 slash commands 的命令语义，例如：`/new`、`/retry`、`/undo`
-- 不做完整交互式 CLI
-- 不做富文本/TUI 展示
-- 不做皮肤、主题、展示样式
+- 建设完整交互式 CLI / TUI 能力，包括富文本、快捷键、状态栏、运行中输入策略、补全、剪贴板、皮肤、提示和历史浏览。
 - 不做语音模式入口
 
 ### C. 消息网关与渠道适配
@@ -144,11 +141,11 @@ git -C D:\projects\hermes-agent status --short --branch
 
 - 流式输出
 - 工具调用 / function calling
-- 不做多模态模型输入
+- 本版需要做：多模态模型输入、图像理解/生成、TTS / 独立语音转写服务、浏览器自动化内置实现、价格分析/价格计算。
 - Prompt caching
 - 模型元数据、上下文长度、token 估算
 - 智能模型路由
-- 保留 token 估算与使用量统计；不做价格分析/价格计算
+- 保留 token 估算与使用量统计；本版补价格分析/价格计算
 
 ### E. 工具系统
 
@@ -183,7 +180,7 @@ git -C D:\projects\hermes-agent status --short --branch
 ### G. 集成与扩展
 
 - MCP 集成
-- 第一版不做 ACP / 编辑器集成
+- ACP 集成
 - 第一版不做 OpenAI 兼容 API Server
 - 不做 Webhook
 - 第一版不做插件系统
@@ -227,12 +224,10 @@ git -C D:\projects\hermes-agent status --short --branch
 
 - 浏览器自动化内置实现
 - 价格分析/价格计算
-- 完整 CLI / TUI 交互层
 - 研究与实验能力
 - Docker 之外的执行后端
 - worktree
 - 插件系统
-- ACP / 编辑器集成
 - OpenAI 兼容 API Server
 - Profiles / 多配置隔离
 - 多实例 / 多租户 / 多机器人隔离
@@ -247,19 +242,26 @@ git -C D:\projects\hermes-agent status --short --branch
 - `java -jar` 部署
 - Docker 部署
 - 单实例架构
+- 完整 CLI / TUI 交互层
+- MCP / ACP 集成
 - Skills Hub / 手动导入兼容 / 在线 source 搜索安装
 - 内置 Websearch / Webfetch
 - token 使用量统计
 
 ## 后续任务执行要求
 
-- 所有任务都应优先说明它对应 Hermes 的哪个能力点。
+- 所有任务都应优先说明它对应外部对标仓库的哪个能力点。
 - 所有实现都应优先复用 Solon、Solon AI、Hutool、Snack4 的能力。
 - 做方案设计时，要显式标注“已确认范围”和“待确认范围”。
 - 新增依赖、新增协议、新增渠道、新增核心架构分层时，必须检查是否违反本文件约束。
 - 若用户后续明确裁剪某些功能，应及时更新本文件，使后续任务持续对齐目标。
-
-## ????
-
-- ??????????????????????????????????????????????????? git commit????????????????
-- ????????????????????????????????????????????
+- 生成代码、配置、测试夹具、文档、提交信息、Release notes 前，必须先确认没有旧项目关键词、旧项目前缀环境变量、旧项目工具名或旧项目类名，并保持本项目命名为 `solon-claw` / `solonclaw`。
+- 若需要表达来源或对标关系，只能使用“外部对标仓库”“对标实现”“旧项目关键词”等中性说法，不得把旧项目名写入仓库文件或发布产物。
+- 常规提交前命名检查只允许扫描当前工作树和当前分支相对默认分支新增的提交：`python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`。全 Git refs 扫描只能作为人工历史审计使用，不能作为判断当前源码或当前发布范围是否合格的常规门禁。
+- 频繁开发提交默认推送到 `dev` 分支；不要每次小改都直接推送 `main`。
+- `dev` 分支从上一次合并到 `main` 之后开始计数；累计每 5 次有效开发 commit 后，再合并到 `main` 并推送一次。
+- 合并到 `main` 的 merge commit 不计入下一轮 5 次开发 commit；未满 5 次时，只有用户明确要求发布或紧急修复，才允许提前合并。
+- 每次提交前仍需运行与改动匹配的编译或测试；验证失败不得提交。
+- commit message 必须使用中英双语描述，优先格式：`type: 中文说明 / English summary`。
+- GitHub Releases 描述必须使用中英双语，并包含功能变更、缺陷修复或其他变更的具体说明，不能只写下载与运行方式。
+- Release notes 的功能或缺陷描述应优先来自中英双语 commit subject；提交时要写清楚用户可见能力或修复点。

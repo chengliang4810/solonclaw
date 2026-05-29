@@ -16,11 +16,15 @@ public class McpServerRecord {
     private String command;
     private String argsJson;
     private String authJson;
+    private String oauthJson;
+    private String capabilitiesJson;
     private String status;
     private String toolsJson;
+    private String lastToolsHash;
     private String lastError;
     private boolean enabled;
     private long createdAt;
     private long updatedAt;
     private long lastCheckedAt;
+    private long lastToolsChangedAt;
 }

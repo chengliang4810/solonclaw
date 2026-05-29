@@ -18,6 +18,26 @@ public interface AgentRunControlService {
         return false;
     }
 
+    /** Activity summary for the active run of a gateway source. */
+    default Map<String, Object> activeRunSummary(String sourceKey) {
+        return null;
+    }
+
+    /** Number of currently active source runs. */
+    default int runningRunCount() {
+        return hasRunningRuns() ? 1 : 0;
+    }
+
+    /** Request cancellation of every currently active run. */
+    default int stopAllRunningRuns() {
+        return 0;
+    }
+
+    /** Request cancellation of every active run and optionally mark them resumable. */
+    default int stopAllRunningRuns(String resumeReason) {
+        return stopAllRunningRuns();
+    }
+
     /** Last time any run finished. A zero value means no completed run is known. */
     default long lastRunFinishedAt() {
         return 0L;
@@ -26,6 +46,16 @@ public interface AgentRunControlService {
     default RunBusyDecision coordinateIncoming(
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
         return RunBusyDecision.runNow("queue");
+    }
+
+    default RunBusyDecision queueIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        return RunBusyDecision.runNow("queue");
+    }
+
+    default RunBusyDecision steerIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        return RunBusyDecision.runNow("steer");
     }
 
     default Map<String, Object> controlRun(String runId, String command, Map<String, Object> payload)

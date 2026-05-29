@@ -71,6 +71,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         String beforeNdjson = session == null ? "" : session.getNdjson();
         try {
             List<ChatMessage> history = MessageSupport.loadMessages(session.getNdjson());
+            ToolCallArgumentSanitizer.sanitize(history);
             if (history.size() <= appConfig.getCompression().getProtectHeadMessages() + 1) {
                 return CompressionOutcome.skipped(session);
             }
@@ -116,7 +117,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             List<ChatMessage> tail =
                     new ArrayList<ChatMessage>(pruned.subList(protectTailStart, pruned.size()));
 
-            if (middle.isEmpty() || shouldSkipMiddleCompression(middle)) {
+            if (middle.isEmpty() || shouldSkipMiddleCompression(middle, pruned, normalized)) {
                 return CompressionOutcome.skipped(session);
             }
 
@@ -258,7 +259,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return start;
     }
 
-    /** Hermes 对齐：最后一条用户消息永远不能被压进摘要。 */
+    /** Jimuqu 对齐：最后一条用户消息永远不能被压进摘要。 */
     private int findLastUserIndex(List<ChatMessage> messages) {
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
@@ -281,7 +282,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         String progress = collectByRole(middle, ChatRole.ASSISTANT, 3);
         String decisions = collectKeywords(middle, new String[] {"决定", "改为", "使用", "切换", "采用"});
         String files = collectFileMentions(middle);
-        String nextSteps = collectByRole(tail, ChatRole.USER, 1);
+        String remainingWork = collectByRole(tail, ChatRole.USER, 1);
 
         StringBuilder buffer = new StringBuilder();
         String normalizedPreviousSummary = normalizePreviousSummary(previousSummary);
@@ -303,8 +304,8 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         buffer.append("Files\n")
                 .append(StrUtil.blankToDefault(files, "未提取到明确文件列表。"))
                 .append("\n\n");
-        buffer.append("Next Steps\n")
-                .append(StrUtil.blankToDefault(nextSteps, "继续处理最近用户要求，并避免重复之前已完成的工作。"));
+        buffer.append("Remaining Work\n")
+                .append(StrUtil.blankToDefault(remainingWork, "记录最近用户要求，避免重复之前已完成的工作。"));
         return trimMultilineContent(
                 buffer.toString().trim(), CompressionConstants.MAX_SUMMARY_LENGTH);
     }
@@ -412,7 +413,11 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     }
 
     /** 如果中间区间已经只剩占位内容，则无需继续压缩。 */
-    private boolean shouldSkipMiddleCompression(List<ChatMessage> middle) {
+    private boolean shouldSkipMiddleCompression(
+            List<ChatMessage> middle, List<ChatMessage> pruned, List<ChatMessage> original) {
+        if (!isSameMessages(pruned, original)) {
+            return false;
+        }
         for (ChatMessage message : middle) {
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
             if (content.length() == 0) {
@@ -425,6 +430,32 @@ public class DefaultContextCompressionService implements ContextCompressionServi
                 continue;
             }
             return false;
+        }
+        return true;
+    }
+
+    private boolean isSameMessages(List<ChatMessage> left, List<ChatMessage> right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            ChatMessage leftMessage = left.get(i);
+            ChatMessage rightMessage = right.get(i);
+            if (leftMessage == rightMessage) {
+                continue;
+            }
+            if (leftMessage == null || rightMessage == null) {
+                return false;
+            }
+            if (leftMessage.getRole() != rightMessage.getRole()) {
+                return false;
+            }
+            if (!StrUtil.equals(leftMessage.getContent(), rightMessage.getContent())) {
+                return false;
+            }
         }
         return true;
     }
@@ -517,7 +548,10 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     private int findFirstSectionHeader(String content) {
         int result = -1;
         String[] headers =
-                new String[] {"Focus", "Goal", "Progress", "Decisions", "Files", "Next Steps"};
+                new String[] {
+                    "Focus", "Goal", "Progress", "Decisions", "Files", "Remaining Work",
+                    "Next Steps"
+                };
         for (String header : headers) {
             int newlineIdx = content.indexOf(header + "\n");
             if (newlineIdx >= 0 && (result < 0 || newlineIdx < result)) {

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
@@ -48,6 +49,8 @@ public class RuntimeSettingsService {
                     "display.platforms.yuanbao.runtimeFooter.enabled",
                     "scheduler.enabled",
                     "scheduler.tickSeconds",
+                    "scheduler.wrapResponse",
+                    "scheduler.enabledToolsets",
                     "compression.enabled",
                     "compression.thresholdPercent",
                     "compression.summaryModel",
@@ -55,14 +58,25 @@ public class RuntimeSettingsService {
                     "compression.tailRatio",
                     "learning.enabled",
                     "learning.toolCallThreshold",
+                    "learning.auxiliaryTimeoutSeconds",
                     "skills.curator.enabled",
                     "skills.curator.intervalHours",
                     "skills.curator.minIdleHours",
                     "skills.curator.staleAfterDays",
                     "skills.curator.archiveAfterDays",
+                    "task.busyPolicy",
+                    "task.toolOutputInlineLimit",
+                    "task.toolOutputTurnBudget",
+                    "task.toolOutputMaxLines",
+                    "task.toolOutputMaxLineLength",
+                    "tool_output.max_bytes",
+                    "tool_output.max_lines",
+                    "tool_output.max_line_length",
                     "agent.heartbeat.intervalMinutes",
                     "rollback.enabled",
                     "rollback.maxCheckpointsPerSource",
+                    "rollback.maxFileSizeMb",
+                    "rollback.excludePatterns",
                     "react.maxSteps",
                     "react.retryMax",
                     "react.retryDelayMs",
@@ -72,11 +86,45 @@ public class RuntimeSettingsService {
                     "react.summarizationEnabled",
                     "react.summarizationMaxMessages",
                     "react.summarizationMaxTokens",
+                    "react.toolLoopWarningsEnabled",
+                    "react.toolLoopHardStopEnabled",
+                    "react.toolLoopExactFailureWarnAfter",
+                    "react.toolLoopExactFailureBlockAfter",
+                    "react.toolLoopSameToolFailureWarnAfter",
+                    "react.toolLoopSameToolFailureHaltAfter",
+                    "react.toolLoopNoProgressWarnAfter",
+                    "react.toolLoopNoProgressBlockAfter",
                     "gateway.allowedUsers",
                     "gateway.allowAllUsers",
                     "gateway.injectionSecret",
                     "gateway.injectionMaxBodyBytes",
-                    "gateway.injectionReplayWindowSeconds");
+                    "gateway.injectionReplayWindowSeconds",
+                    "security.allowPrivateUrls",
+                    "security.allow_private_urls",
+                    "browser.allow_private_urls",
+                    "security.tirithEnabled",
+                    "security.tirithPath",
+                    "security.tirithTimeoutSeconds",
+                    "security.tirithFailOpen",
+                    "security.websiteBlocklist.enabled",
+                    "security.websiteBlocklist.domains",
+                    "security.websiteBlocklist.sharedFiles",
+                    "security.website_blocklist.enabled",
+                    "security.website_blocklist.domains",
+                    "security.website_blocklist.shared_files",
+                    "approvals.mode",
+                    "approvals.cronMode",
+                    "approvals.subagentAutoApprove",
+                    "approvals.timeoutSeconds",
+                    "approvals.gatewayTimeoutSeconds",
+                    "approvals.mcpReloadConfirm",
+                    "terminal.credentialFiles",
+                    "terminal.envPassthrough",
+                    "terminal.sudoPassword",
+                    "terminal.writeSafeRoot",
+                    "terminal.maxForegroundTimeoutSeconds",
+                    "terminal.foregroundMaxRetries",
+                    "terminal.foregroundRetryBaseDelaySeconds");
 
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =
             Arrays.asList(
@@ -330,11 +378,22 @@ public class RuntimeSettingsService {
 
     public Object getConfigValue(String key) {
         ensureConfigKeyAllowed(key);
+        Object value = readAppConfigValue(key);
+        if (value != null) {
+            return value;
+        }
+        Object raw = RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).getRaw(key);
+        if (raw != null) {
+            return raw;
+        }
         return readNested(dashboardConfigService.getConfig(), key);
     }
 
     public void setConfigValue(String key, String rawValue) {
         ensureConfigKeyAllowed(key);
+        if (isSecretConfigKey(key)) {
+            throw new IllegalArgumentException(key + " 是密钥配置，请使用 config_set_secret 更新。");
+        }
         persistConfigValue(
                 key, parseValueForKey(key, rawValue), shouldReconnectChannelsForConfigKey(key));
     }
@@ -376,11 +435,21 @@ public class RuntimeSettingsService {
                 || "display.showReasoning".equals(key)
                 || "display.runtimeFooter.enabled".equals(key)
                 || "scheduler.enabled".equals(key)
+                || "scheduler.wrapResponse".equals(key)
                 || "compression.enabled".equals(key)
                 || "learning.enabled".equals(key)
                 || "rollback.enabled".equals(key)
                 || "skills.curator.enabled".equals(key)
-                || "gateway.allowAllUsers".equals(key)) {
+                || "gateway.allowAllUsers".equals(key)
+                || "security.allowPrivateUrls".equals(key)
+                || "security.allow_private_urls".equals(key)
+                || "browser.allow_private_urls".equals(key)
+                || "security.tirithEnabled".equals(key)
+                || "security.tirithFailOpen".equals(key)
+                || "security.websiteBlocklist.enabled".equals(key)
+                || "security.website_blocklist.enabled".equals(key)
+                || "approvals.subagentAutoApprove".equals(key)
+                || "approvals.mcpReloadConfirm".equals(key)) {
             return "true".equalsIgnoreCase(value)
                     || "1".equals(value)
                     || "yes".equalsIgnoreCase(value);
@@ -388,8 +457,10 @@ public class RuntimeSettingsService {
         if (key.endsWith("sendChunkRetries")
                 || "scheduler.tickSeconds".equals(key)
                 || "learning.toolCallThreshold".equals(key)
+                || "learning.auxiliaryTimeoutSeconds".equals(key)
                 || "agent.heartbeat.intervalMinutes".equals(key)
                 || "rollback.maxCheckpointsPerSource".equals(key)
+                || "rollback.maxFileSizeMb".equals(key)
                 || "react.maxSteps".equals(key)
                 || "react.retryMax".equals(key)
                 || "react.retryDelayMs".equals(key)
@@ -398,6 +469,12 @@ public class RuntimeSettingsService {
                 || "react.delegateRetryDelayMs".equals(key)
                 || "react.summarizationMaxMessages".equals(key)
                 || "react.summarizationMaxTokens".equals(key)
+                || "react.toolLoopExactFailureWarnAfter".equals(key)
+                || "react.toolLoopExactFailureBlockAfter".equals(key)
+                || "react.toolLoopSameToolFailureWarnAfter".equals(key)
+                || "react.toolLoopSameToolFailureHaltAfter".equals(key)
+                || "react.toolLoopNoProgressWarnAfter".equals(key)
+                || "react.toolLoopNoProgressBlockAfter".equals(key)
                 || "compression.protectHeadMessages".equals(key)
                 || "skills.curator.intervalHours".equals(key)
                 || "skills.curator.staleAfterDays".equals(key)
@@ -407,10 +484,18 @@ public class RuntimeSettingsService {
                 || "llm.maxTokens".equals(key)
                 || "llm.contextWindowTokens".equals(key)
                 || "gateway.injectionMaxBodyBytes".equals(key)
-                || "gateway.injectionReplayWindowSeconds".equals(key)) {
+                || "gateway.injectionReplayWindowSeconds".equals(key)
+                || "security.tirithTimeoutSeconds".equals(key)
+                || "approvals.timeoutSeconds".equals(key)
+                || "approvals.gatewayTimeoutSeconds".equals(key)
+                || "terminal.maxForegroundTimeoutSeconds".equals(key)
+                || "terminal.foregroundMaxRetries".equals(key)
+                || "terminal.foregroundRetryBaseDelaySeconds".equals(key)) {
             return Integer.valueOf(value);
         }
-        if ("react.summarizationEnabled".equals(key)) {
+        if ("react.summarizationEnabled".equals(key)
+                || "react.toolLoopWarningsEnabled".equals(key)
+                || "react.toolLoopHardStopEnabled".equals(key)) {
             return "true".equalsIgnoreCase(value)
                     || "1".equals(value)
                     || "yes".equalsIgnoreCase(value);
@@ -426,7 +511,15 @@ public class RuntimeSettingsService {
         if (key.endsWith("allowedUsers")
                 || key.endsWith("groupAllowedUsers")
                 || "display.runtimeFooter.fields".equals(key)
-                || "gateway.allowedUsers".equals(key)) {
+                || "gateway.allowedUsers".equals(key)
+                || "security.websiteBlocklist.domains".equals(key)
+                || "security.websiteBlocklist.sharedFiles".equals(key)
+                || "security.website_blocklist.domains".equals(key)
+                || "security.website_blocklist.shared_files".equals(key)
+                || "terminal.credentialFiles".equals(key)
+                || "terminal.envPassthrough".equals(key)
+                || "rollback.excludePatterns".equals(key)
+                || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();
             if (value.length() == 0) {
                 return values;
@@ -452,6 +545,40 @@ public class RuntimeSettingsService {
             current = ((Map<String, Object>) current).get(part);
         }
         return current;
+    }
+
+    private Object readAppConfigValue(String key) {
+        if (key == null) {
+            return null;
+        }
+        if ("model.providerKey".equals(key)) {
+            return appConfig.getModel().getProviderKey();
+        }
+        if ("model.default".equals(key)) {
+            return appConfig.getModel().getDefault();
+        }
+        if (key.startsWith("providers.default.")) {
+            AppConfig.ProviderConfig provider = appConfig.getProviders().get("default");
+            if (provider == null) {
+                return null;
+            }
+            if ("providers.default.name".equals(key)) {
+                return provider.getName();
+            }
+            if ("providers.default.baseUrl".equals(key)) {
+                return provider.getBaseUrl();
+            }
+            if ("providers.default.apiKey".equals(key)) {
+                return provider.getApiKey();
+            }
+            if ("providers.default.defaultModel".equals(key)) {
+                return provider.getDefaultModel();
+            }
+            if ("providers.default.dialect".equals(key)) {
+                return provider.getDialect();
+            }
+        }
+        return null;
     }
 
     private String join(List<String> values) {
@@ -480,6 +607,10 @@ public class RuntimeSettingsService {
         buffer.append("shell_probe_policy=Use execute_shell for environment detection.\n");
         buffer.append(
                 "shell_probe_example=Use execute_shell with commands like: command -v git >/dev/null 2>&1 && git --version || echo git_missing\n");
+        if (enabledToolNames.contains(ToolNameConstants.PROCESS)) {
+            buffer.append(
+                    "background_process_policy=Use terminal(command=..., background=true, notify_on_complete=true) or process(action=start, command=...) for long-running commands; manage them with process(action=poll|log|wait|kill). Avoid '&', nohup, disown, or foreground watch/server processes.\n");
+        }
     }
 
     private void persistConfigValue(String key, Object value, boolean reconnectChannels) {
@@ -494,6 +625,22 @@ public class RuntimeSettingsService {
 
     private boolean shouldReconnectChannelsForRuntimeKey(String key) {
         return key != null && key.startsWith("solonclaw.channels.");
+    }
+
+    public boolean isSecretConfigKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        if ("providers.default.apiKey".equals(key)
+                || "gateway.injectionSecret".equals(key)
+                || "terminal.sudoPassword".equals(key)) {
+            return true;
+        }
+        return key.endsWith(".apiKey")
+                || key.endsWith(".appSecret")
+                || key.endsWith(".clientSecret")
+                || key.endsWith(".secret")
+                || key.endsWith(".token");
     }
 
     public static class ResolvedModel {

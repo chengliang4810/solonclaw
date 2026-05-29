@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -20,10 +21,12 @@ public class ConfigTools {
     public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
         try {
             Object value = runtimeSettingsService.getConfigValue(key);
-            String preview = value == null ? "" : String.valueOf(value);
-            return ToolResultEnvelope.ok("读取运行时配置：" + key)
-                    .data("key", key)
-                    .data("value", value)
+            Object safeValue = safeValue(key, value);
+            String preview = safePreview(key, value);
+            return ToolResultEnvelope.ok("读取运行时配置：" + safeText(key, 400))
+                    .data("key", safeText(key, 400))
+                    .data("value", safeValue)
+                    .data("redacted", Boolean.valueOf(runtimeSettingsService.isSecretConfigKey(key)))
                     .preview(preview)
                     .toJson();
         } catch (Exception e) {
@@ -42,11 +45,11 @@ public class ConfigTools {
         try {
             runtimeSettingsService.setConfigValue(key, value);
             Object current = runtimeSettingsService.getConfigValue(key);
-            return ToolResultEnvelope.ok("已更新运行时配置：" + key)
-                    .data("key", key)
-                    .data("value", current)
+            return ToolResultEnvelope.ok("已更新运行时配置：" + safeText(key, 400))
+                    .data("key", safeText(key, 400))
+                    .data("value", safeValue(key, current))
                     .data("note", "takes effect on the next message")
-                    .preview(key + "=" + current)
+                    .preview(safeText(key, 400) + "=" + safePreview(key, current))
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -75,9 +78,9 @@ public class ConfigTools {
             return envelope
                     .data("refreshed", Boolean.valueOf(result.isRefreshed()))
                     .data("reconnectedChannels", Boolean.valueOf(result.isReconnectedChannels()))
-                    .data("configFile", result.getConfigFile())
-                    .data("message", result.getMessage())
-                    .preview(result.getMessage())
+                    .data("configFile", safeText(result.getConfigFile(), 400))
+                    .data("message", safeText(result.getMessage(), 1000))
+                    .preview(safeText(result.getMessage(), 1000))
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -93,10 +96,10 @@ public class ConfigTools {
             @Param(name = "value", description = "新的密钥值") String value) {
         try {
             runtimeSettingsService.setSecretValue(key, value);
-            return ToolResultEnvelope.ok("已更新运行时密钥：" + key)
-                    .data("key", key)
+            return ToolResultEnvelope.ok("已更新运行时密钥：" + safeText(key, 400))
+                    .data("key", safeText(key, 400))
                     .data("note", "takes effect on the next message")
-                    .preview(key + "=***")
+                    .preview(safeText(key, 400) + "=***")
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -105,8 +108,34 @@ public class ConfigTools {
 
     private String error(Exception e) {
         return ToolResultEnvelope.error(
-                        e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
+                        SecretRedactor.redact(
+                                e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                1000))
                 .toJson();
+    }
+
+    private Object safeValue(String key, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (!runtimeSettingsService.isSecretConfigKey(key)) {
+            return value;
+        }
+        return "***";
+    }
+
+    private String safePreview(String key, Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (runtimeSettingsService.isSecretConfigKey(key)) {
+            return safeText(key, 400) + "=***";
+        }
+        return SecretRedactor.redact(String.valueOf(value), 1000);
+    }
+
+    private String safeText(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     @RequiredArgsConstructor
@@ -118,6 +147,15 @@ public class ConfigTools {
                 description =
                         "Read a whitelisted runtime config key, such as llm.model or channels.weixin.enabled.")
         public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
+            return delegate.configGet(key);
+        }
+
+        @ToolMapping(
+                name = "config_read",
+                description =
+                        "Alias of config_get. Read a whitelisted runtime config key with secret redaction.")
+        public String configRead(
+                @Param(name = "key", description = "配置键，例如 llm.model") String key) {
             return delegate.configGet(key);
         }
     }
@@ -136,6 +174,17 @@ public class ConfigTools {
                 @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
             return delegate.configSet(key, value);
         }
+
+        @ToolMapping(
+                name = "config_write",
+                description =
+                        "Alias of config_set. Update a whitelisted non-secret runtime config key.")
+        public String configWrite(
+                @Param(name = "key", description = "配置键，例如 llm.model 或 channels.weixin.enabled")
+                        String key,
+                @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
+            return delegate.configSet(key, value);
+        }
     }
 
     @RequiredArgsConstructor
@@ -147,6 +196,15 @@ public class ConfigTools {
                 description =
                         "Update a whitelisted runtime secret key, such as providers.default.apiKey.")
         public String configSetSecret(
+                @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
+                @Param(name = "value", description = "新的密钥值") String value) {
+            return delegate.configSetSecret(key, value);
+        }
+
+        @ToolMapping(
+                name = "config_update_secret",
+                description = "Alias of config_set_secret. Update a whitelisted runtime secret key.")
+        public String configUpdateSecret(
                 @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
                 @Param(name = "value", description = "新的密钥值") String value) {
             return delegate.configSetSecret(key, value);

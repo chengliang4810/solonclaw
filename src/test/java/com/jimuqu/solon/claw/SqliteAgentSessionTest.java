@@ -2,8 +2,11 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +38,104 @@ public class SqliteAgentSessionTest {
         assertThat(restored.getContext().<String>getAs("flag")).isEqualTo("demo");
         assertThat(restored.isPending()).isTrue();
         assertThat(restored.getPendingReason()).isEqualTo("need-review");
+    }
+
+    @Test
+    void shouldListAndAutoResumeFreshPendingSessionsOnStartup() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord fresh =
+                env.sessionRepository.bindNewSession("MEMORY:fresh-pending-room:user");
+        SqliteAgentSession freshAgentSession =
+                new SqliteAgentSession(fresh, env.sessionRepository);
+        freshAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("启动前中断的审批任务")));
+        freshAgentSession.pending(true, "restart_interrupted");
+        freshAgentSession.updateSnapshot();
+
+        SessionRecord stale =
+                env.sessionRepository.bindNewSession("MEMORY:stale-pending-room:user");
+        SqliteAgentSession staleAgentSession =
+                new SqliteAgentSession(stale, env.sessionRepository);
+        staleAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("过期的审批任务")));
+        staleAgentSession.pending(true, "restart_interrupted");
+        staleAgentSession.updateSnapshot();
+        stale = env.sessionRepository.findById(stale.getSessionId());
+        stale.setUpdatedAt(System.currentTimeMillis() - 120_000L);
+        env.sessionRepository.save(stale);
+
+        SessionRecord approval =
+                env.sessionRepository.bindNewSession("MEMORY:approval-pending-room:user");
+        SqliteAgentSession approvalAgentSession =
+                new SqliteAgentSession(approval, env.sessionRepository);
+        approvalAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("等待人工审批的任务")));
+        approvalAgentSession.pending(true, "need-review");
+        approvalAgentSession.updateSnapshot();
+
+        env.appConfig.getTask().setStaleAfterMinutes(1);
+        fresh = env.sessionRepository.findById(fresh.getSessionId());
+        approval = env.sessionRepository.findById(approval.getSessionId());
+
+        assertThat(env.sessionRepository.listPendingAgentSessions(System.currentTimeMillis() - 60_000L, 10))
+                .extracting(SessionRecord::getSessionId)
+                .contains(fresh.getSessionId())
+                .contains(approval.getSessionId())
+                .doesNotContain(stale.getSessionId());
+
+        PendingSessionRecoveryService recoveryService =
+                new PendingSessionRecoveryService(
+                        env.appConfig, env.sessionRepository, env.conversationOrchestrator);
+        assertThat(recoveryService.recoverRecentPendingSessions()).isEqualTo(1);
+
+        SessionRecord recovered = env.sessionRepository.findById(fresh.getSessionId());
+        SqliteAgentSession recoveredAgentSession = new SqliteAgentSession(recovered);
+        assertThat(recoveredAgentSession.isPending()).isFalse();
+        assertThat(recovered.getNdjson()).contains("echo:resume");
+
+        SessionRecord stillStale = env.sessionRepository.findById(stale.getSessionId());
+        assertThat(new SqliteAgentSession(stillStale).isPending()).isTrue();
+
+        SessionRecord stillApproval = env.sessionRepository.findById(approval.getSessionId());
+        assertThat(new SqliteAgentSession(stillApproval).isPending()).isTrue();
+        assertThat(stillApproval.getNdjson()).doesNotContain("echo:resume");
+    }
+
+    @Test
+    void shouldAddGatewayInterruptionNoteWhenResumingRestartPendingSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:restart-note-room:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("继续启动前的任务")));
+        agentSession.pending(true, "restart_timeout");
+        agentSession.updateSnapshot();
+
+        GatewayReply reply =
+                env.conversationOrchestrator.resumePending("MEMORY:restart-note-room:user");
+
+        assertThat(reply.getContent()).contains("echo:resume");
+        assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
+                .contains("上一轮执行被网关重启打断")
+                .contains("尚未处理完的工具结果");
+        assertThat(new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()))
+                        .isPending())
+                .isFalse();
+    }
+
+    @Test
+    void shouldNotAddGatewayInterruptionNoteWhenResumingApprovalPendingSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:approval-note-room:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("等待审批后继续")));
+        agentSession.pending(true, "need-review");
+        agentSession.updateSnapshot();
+
+        GatewayReply reply =
+                env.conversationOrchestrator.resumePending("MEMORY:approval-note-room:user");
+
+        assertThat(reply.getContent()).contains("echo:resume");
+        assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
+                .doesNotContain("上一轮执行被网关");
     }
 
     @Test

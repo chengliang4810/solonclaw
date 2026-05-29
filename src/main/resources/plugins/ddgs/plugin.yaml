@@ -1,0 +1,6 @@
+name: ddgs
+version: 1.0.0
+description: DuckDuckGo HTML scraping web search provider
+author: jimuqu
+kind: backend
+source: DdgsPlugin.java

@@ -16,6 +16,9 @@ public class HomeChannelRecord {
     /** 目标会话 ID。 */
     private String chatId;
 
+    /** 目标线程或话题 ID。 */
+    private String threadId;
+
     /** 会话名称。 */
     private String chatName;
 

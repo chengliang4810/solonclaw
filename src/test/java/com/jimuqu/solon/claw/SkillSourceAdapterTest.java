@@ -7,7 +7,7 @@ import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.skillhub.source.ClaudeMarketplaceSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.ClawHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.GitHubSkillSource;
-import com.jimuqu.solon.claw.skillhub.source.HermesIndexSource;
+import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.LobeHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillsShSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.WellKnownSkillSource;
@@ -182,7 +182,7 @@ public class SkillSourceAdapterTest {
     }
 
     @Test
-    void shouldResolveLobeHubAndHermesIndexFixtures() throws Exception {
+    void shouldResolveLobeHubAndjimuquIndexFixtures() throws Exception {
         FixtureSkillHubHttpClient http =
                 new FixtureSkillHubHttpClient()
                         .onText(
@@ -192,7 +192,7 @@ public class SkillSourceAdapterTest {
                                 "https://chat-agents.lobehub.com/demo-agent.json",
                                 "{\"identifier\":\"demo-agent\",\"meta\":{\"title\":\"Demo Agent\",\"description\":\"agent desc\",\"tags\":[\"assist\"]},\"config\":{\"systemRole\":\"Help the user\"}}")
                         .onText(
-                                "https://hermes-agent.nousresearch.com/docs/api/skills-index.json",
+                                "https://jimuqu-agent.local/docs/api/skills-index.json",
                                 "{\"skills\":[{\"name\":\"hub-skill\",\"description\":\"hub desc\",\"source\":\"github\",\"identifier\":\"github/openai/skills/skills/hub-skill\",\"trust_level\":\"trusted\",\"resolved_github_id\":\"openai/skills/skills/hub-skill\",\"tags\":[\"hub\"]}]}")
                         .onText(
                                 "https://api.github.com/repos/openai/skills/contents/skills/hub-skill/SKILL.md",
@@ -204,10 +204,10 @@ public class SkillSourceAdapterTest {
         SkillHubStateStore stateStore = newStateStore();
         GitHubSkillSource github = new GitHubSkillSource(new GitHubAuth(http), http, stateStore);
         LobeHubSkillSource lobeHub = new LobeHubSkillSource(http, stateStore);
-        HermesIndexSource hermesIndex = new HermesIndexSource(http, stateStore, github);
+        SolonClawIndexSource jimuquIndex = new SolonClawIndexSource(http, stateStore, github);
 
         SkillBundle lobeBundle = lobeHub.fetch("lobehub/demo-agent");
-        SkillBundle indexBundle = hermesIndex.fetch("github/openai/skills/skills/hub-skill");
+        SkillBundle indexBundle = jimuquIndex.fetch("github/openai/skills/skills/hub-skill");
 
         assertThat(lobeBundle.getFiles().get("SKILL.md"))
                 .contains("## Instructions")

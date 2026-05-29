@@ -30,6 +30,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check project naming self-test
+        run: python3 scripts/check-project-naming.selftest.py
+
+      - name: Check project naming
+        run: python3 scripts/check-project-naming.py
+
+      - name: Check raw exception logging self-test
+        run: python3 scripts/check-raw-exception-logging.selftest.py
+
+      - name: Check raw exception logging
+        run: python3 scripts/check-raw-exception-logging.py
+
+      - name: Check new commit naming
+        run: python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "${{ github.sha }}^..${{ github.sha }}"
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -47,9 +62,11 @@ jobs:
       - name: Resolve release tag
         id: release
         shell: bash
+        env:
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            RELEASE_TAG="${{ inputs.tag_name }}"
+            RELEASE_TAG="$INPUT_TAG_NAME"
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             RELEASE_TAG="${{ github.ref_name }}"
           else
@@ -64,6 +81,13 @@ jobs:
           fi
 
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release commit range
+        id: release_range
+        run: python3 scripts/resolve-release-range.py
+
+      - name: Check release commit text
+        run: python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "${{ steps.release_range.outputs.git_range }}"
 
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'
@@ -91,11 +115,17 @@ jobs:
       - name: Prepare release files
         id: artifact
         shell: bash
+        env:
+          RELEASE_GIT_RANGE: ${{ steps.release_range.outputs.git_range }}
+          RELEASE_DISPLAY_RANGE: ${{ steps.release_range.outputs.display_range }}
         run: |
           VERSION="$(mvn -B -q -DforceStdout help:evaluate "-Dexpression=project.version")"
-          JAR_PATH="$(find target -maxdepth 1 -type f -name "solon-claw-${VERSION}.jar" ! -name 'original-*' -print -quit)"
+          JAR_PATH="$(find target -maxdepth 1 -type f -name "${{ github.event.repository.name }}-${VERSION}.jar" ! -name 'original-*' -print -quit)"
           if [ -z "$JAR_PATH" ]; then
-            JAR_PATH="$(find target -maxdepth 1 -type f -name 'solon-claw-*.jar' ! -name 'original-*' -print -quit)"
+            JAR_PATH="$(find target -maxdepth 1 -type f -name "${{ github.event.repository.name }}-*.jar" ! -name 'original-*' -print -quit)"
+          fi
+          if [ -z "$JAR_PATH" ]; then
+            JAR_PATH="$(find target -maxdepth 1 -type f -name "*.jar" ! -name 'original-*' -print -quit)"
           fi
           if [ -z "$JAR_PATH" ] || [ ! -f "$JAR_PATH" ]; then
             echo "Release jar not found"
@@ -104,39 +134,47 @@ jobs:
           fi
 
           mkdir -p dist
-          RELEASE_JAR="dist/solon-claw-${VERSION}.jar"
+          RELEASE_JAR="dist/SolonClaw.jar"
+          SOURCE_ZIP="dist/SolonClaw-source.zip"
+          SOURCE_TAR="dist/SolonClaw-source.tar.gz"
           cp "$JAR_PATH" "$RELEASE_JAR"
-          (cd dist && sha256sum "$(basename "$RELEASE_JAR")" > SHA256SUMS)
+          git archive --format=zip --output="$SOURCE_ZIP" "$GITHUB_SHA"
+          git archive --format=tar.gz --output="$SOURCE_TAR" "$GITHUB_SHA"
+          (
+            cd dist
+            sha256sum \
+              "$(basename "$RELEASE_JAR")" \
+              "$(basename "$SOURCE_ZIP")" \
+              "$(basename "$SOURCE_TAR")" > SHA256SUMS
+          )
 
-          cat > dist/release-notes.md <<EOF
-          ## solon-claw ${{ steps.release.outputs.tag }}
-
-          本次发布包含可直接通过 \`java -jar\` 运行的完整 shaded jar。
-
-          ### 下载内容
-
-          - \`solon-claw-${VERSION}.jar\`：完整运行包，包含后端依赖与 Dashboard 静态资源。
-          - \`SHA256SUMS\`：发布包校验文件。
-
-          ### 快速运行
-
-          \`\`\`bash
-          java -jar solon-claw-${VERSION}.jar
-          \`\`\`
-
-          服务默认监听 \`http://127.0.0.1:8080\`，运行数据会写入当前目录的 \`runtime/\`。
-          EOF
+          python3 scripts/write-release-notes.py \
+            --output-path dist/release-notes.md \
+            --tag "${{ steps.release.outputs.tag }}" \
+            --version "$VERSION" \
+            --commit-range "$RELEASE_GIT_RANGE" \
+            --display-range "$RELEASE_DISPLAY_RANGE"
 
           echo "jar_path=$RELEASE_JAR" >> "$GITHUB_OUTPUT"
+          echo "source_zip_path=$SOURCE_ZIP" >> "$GITHUB_OUTPUT"
+          echo "source_tar_path=$SOURCE_TAR" >> "$GITHUB_OUTPUT"
           echo "sha_path=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
           echo "body_path=dist/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Check release naming
+        shell: bash
+        run: |
+          python3 scripts/check-project-naming.py --root-path dist --check-binary-text
+          python3 scripts/check-archive-naming.py --archive-path "${{ steps.artifact.outputs.jar_path }}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: solon-claw-release
+          name: jimuqu-agent-release
           path: |
             ${{ steps.artifact.outputs.jar_path }}
+            ${{ steps.artifact.outputs.source_zip_path }}
+            ${{ steps.artifact.outputs.source_tar_path }}
             ${{ steps.artifact.outputs.sha_path }}
           if-no-files-found: error
 
@@ -145,11 +183,18 @@ jobs:
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: solon-claw ${{ steps.release.outputs.tag }}
+          name: jimuqu-agent ${{ steps.release.outputs.tag }}
           body_path: ${{ steps.artifact.outputs.body_path }}
-          generate_release_notes: true
+          generate_release_notes: false
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
           fail_on_unmatched_files: true
           files: |
             ${{ steps.artifact.outputs.jar_path }}
+            ${{ steps.artifact.outputs.source_zip_path }}
+            ${{ steps.artifact.outputs.source_tar_path }}
             ${{ steps.artifact.outputs.sha_path }}
+
+      - name: Check published release naming
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/check-release-naming.py --tag "${{ steps.release.outputs.tag }}"

@@ -1,0 +1,10 @@
+name: exa
+version: 1.0.0
+description: Exa AI search API web search provider
+author: jimuqu
+kind: backend
+source: ExaPlugin.java
+requiresEnv:
+  - name: EXA_API_KEY
+    description: Exa API key
+    secret: true

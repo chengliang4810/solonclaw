@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.gateway.service;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.util.Arrays;
@@ -34,7 +35,7 @@ public class GatewayRuntimeRefreshService {
     public RefreshResult refreshIfNeeded() {
         long configMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         if (configMtime == lastConfigMtime) {
-            return RefreshResult.skipped(runtimeConfigFile().getAbsolutePath(), "配置文件未变化。");
+            return RefreshResult.skipped(runtimeConfigReference(runtimeConfigFile()), "配置文件未变化。");
         }
         return refreshNow();
     }
@@ -52,33 +53,39 @@ public class GatewayRuntimeRefreshService {
         ValidationResult validation = validateRuntimeConfig(configFile);
         if (!validation.isSuccess()) {
             log.warn("Skip runtime refresh because config validation failed: {}", validation.message);
-            return RefreshResult.failure(configFile.getAbsolutePath(), validation.message);
+            return RefreshResult.failure(runtimeConfigReference(configFile), validation.message);
         }
 
         AppConfig latest;
         try {
+            Props props =
+                    Solon.cfg() == null
+                            ? new Props()
+                            : new Props(Solon.cfg());
+            props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
             if (Solon.cfg() == null) {
-                Props props = new Props();
-                props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
                 latest = AppConfig.load(props);
             } else {
-                latest = AppConfig.load(Solon.cfg());
+                latest = AppConfig.load(props);
             }
         } catch (Throwable e) {
-            log.debug("Skip runtime refresh because config reload failed", e);
+            log.debug(
+                    "Skip runtime refresh because config reload failed: errorType={}, error={}",
+                    e.getClass().getSimpleName(),
+                    safeError(e));
             return RefreshResult.failure(
-                    configFile.getAbsolutePath(),
-                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    runtimeConfigReference(configFile),
+                    safeError(e));
         }
         appConfig.applyFrom(latest);
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         if (!reconnectChannels) {
             return RefreshResult.success(
-                    configFile.getAbsolutePath(), false, "运行时配置已刷新。");
+                    runtimeConfigReference(configFile), false, "运行时配置已刷新。");
         }
         channelConnectionManager.refreshAll();
         return RefreshResult.success(
-                configFile.getAbsolutePath(), true, "运行时配置已刷新，渠道连接已重连。");
+                runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
     }
 
     private long fileMtime(String path) {
@@ -99,17 +106,25 @@ public class GatewayRuntimeRefreshService {
                 RuntimePathConstants.CONFIG_FILE_NAME);
     }
 
+    private String runtimeConfigReference(File configFile) {
+        return "runtime://" + RuntimePathConstants.CONFIG_FILE_NAME;
+    }
+
     private ValidationResult validateRuntimeConfig(File configFile) {
         if (configFile == null || !configFile.exists()) {
             return ValidationResult.success();
         }
         Object parsed;
+        String content = "";
         try {
-            parsed = new Yaml().load(FileUtil.readUtf8String(configFile));
+            content = FileUtil.readUtf8String(configFile);
+            parsed = new Yaml().load(content);
         } catch (Exception e) {
             return ValidationResult.failure(
                     "runtime/config.yml 格式错误："
-                            + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+                            + safeError(e)
+                            + "；配置片段="
+                            + SecretRedactor.redact(content, 1000));
         }
         if (parsed == null) {
             return ValidationResult.success();
@@ -256,6 +271,14 @@ public class GatewayRuntimeRefreshService {
             }
         }
         return false;
+    }
+
+    private String safeError(Throwable e) {
+        if (e == null) {
+            return "";
+        }
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     @SuppressWarnings("unchecked")
@@ -407,6 +430,7 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "providers",
                     "model",
+                    "approvals",
                     "solonclaw",
                     "solonclaw.llm",
                     "solonclaw.scheduler",
@@ -425,6 +449,7 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react",
                     "solonclaw.trace",
                     "solonclaw.task",
+                    "solonclaw.security",
                     "solonclaw.mcp",
                     "solonclaw.channels",
                     "solonclaw.channels.feishu",
@@ -441,12 +466,15 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.scheduler.tickSeconds",
                     "solonclaw.compression.protectHeadMessages",
                     "solonclaw.learning.toolCallThreshold",
+                    "solonclaw.learning.auxiliaryTimeoutSeconds",
                     "solonclaw.skills.curator.intervalHours",
                     "solonclaw.skills.curator.staleAfterDays",
                     "solonclaw.skills.curator.archiveAfterDays",
                     "solonclaw.rollback.maxCheckpointsPerSource",
                     "solonclaw.display.toolPreviewLength",
                     "solonclaw.display.progressThrottleMs",
+                    "solonclaw.display.resumeDisplay",
+                    "solonclaw.display.resume_display",
                     "solonclaw.gateway.injectionMaxBodyBytes",
                     "solonclaw.gateway.injectionReplayWindowSeconds",
                     "solonclaw.agent.heartbeat.intervalMinutes",
@@ -458,6 +486,24 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react.delegateRetryDelayMs",
                     "solonclaw.react.summarizationMaxMessages",
                     "solonclaw.react.summarizationMaxTokens",
+                    "solonclaw.react.toolLoopExactFailureWarnAfter",
+                    "solonclaw.react.toolLoopExactFailureBlockAfter",
+                    "solonclaw.react.toolLoopSameToolFailureWarnAfter",
+                    "solonclaw.react.toolLoopSameToolFailureHaltAfter",
+                    "solonclaw.react.toolLoopNoProgressWarnAfter",
+                    "solonclaw.react.toolLoopNoProgressBlockAfter",
+                    "tool_loop_guardrails.warn_after.exact_failure",
+                    "tool_loop_guardrails.warn_after.same_tool_failure",
+                    "tool_loop_guardrails.warn_after.idempotent_no_progress",
+                    "tool_loop_guardrails.hard_stop_after.exact_failure",
+                    "tool_loop_guardrails.hard_stop_after.same_tool_failure",
+                    "tool_loop_guardrails.hard_stop_after.idempotent_no_progress",
+                    "tool_loop_guardrails.exact_failure_warn_after",
+                    "tool_loop_guardrails.exact_failure_block_after",
+                    "tool_loop_guardrails.same_tool_failure_warn_after",
+                    "tool_loop_guardrails.same_tool_failure_halt_after",
+                    "tool_loop_guardrails.no_progress_warn_after",
+                    "tool_loop_guardrails.no_progress_block_after",
                     "solonclaw.trace.retentionDays",
                     "solonclaw.trace.maxAttempts",
                     "solonclaw.trace.toolPreviewLength",
@@ -465,7 +511,17 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.task.subagentMaxConcurrency",
                     "solonclaw.task.subagentMaxDepth",
                     "solonclaw.task.toolOutputInlineLimit",
-                    "solonclaw.task.mediaCacheTtlHours");
+                    "solonclaw.task.toolOutputTurnBudget",
+                    "solonclaw.task.toolOutputMaxLines",
+                    "solonclaw.task.toolOutputMaxLineLength",
+                    "tool_output.max_bytes",
+                    "tool_output.max_lines",
+                    "tool_output.max_line_length",
+                    "solonclaw.task.mediaCacheTtlHours",
+                    "jimuqu.security.tirithTimeoutSeconds",
+                    "jimuqu.security.tirith_timeout",
+                    "security.tirithTimeoutSeconds",
+                    "security.tirith_timeout");
 
     private static final Set<String> DOUBLE_KEYS =
             setOf(
@@ -478,6 +534,7 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "solonclaw.llm.stream",
                     "solonclaw.scheduler.enabled",
+                    "solonclaw.scheduler.wrapResponse",
                     "solonclaw.compression.enabled",
                     "solonclaw.learning.enabled",
                     "solonclaw.skills.curator.enabled",
@@ -486,18 +543,62 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.display.runtimeFooter.enabled",
                     "solonclaw.gateway.allowAllUsers",
                     "solonclaw.react.summarizationEnabled",
+                    "solonclaw.react.toolLoopWarningsEnabled",
+                    "solonclaw.react.toolLoopHardStopEnabled",
+                    "tool_loop_guardrails.warnings_enabled",
+                    "tool_loop_guardrails.hard_stop_enabled",
+                    "jimuqu.security.allowPrivateUrls",
+                    "security.allowPrivateUrls",
+                    "jimuqu.security.allow_private_urls",
+                    "security.allow_private_urls",
+                    "jimuqu.browser.allow_private_urls",
+                    "browser.allow_private_urls",
+                    "jimuqu.security.tirithEnabled",
+                    "jimuqu.security.tirith_enabled",
+                    "security.tirithEnabled",
+                    "security.tirith_enabled",
+                    "jimuqu.security.tirithFailOpen",
+                    "jimuqu.security.tirith_fail_open",
+                    "security.tirithFailOpen",
+                    "security.tirith_fail_open",
+                    "jimuqu.approvals.mcpReloadConfirm",
+                    "jimuqu.approvals.mcp_reload_confirm",
+                    "approvals.mcpReloadConfirm",
+                    "approvals.mcp_reload_confirm",
+                    "jimuqu.security.websiteBlocklist.enabled",
+                    "jimuqu.security.website_blocklist.enabled",
+                    "security.websiteBlocklist.enabled",
+                    "security.website_blocklist.enabled",
                     "solonclaw.mcp.enabled");
 
     private static final Set<String> LIST_KEYS =
             setOf(
                     "solonclaw.display.runtimeFooter.fields",
-                    "solonclaw.gateway.allowedUsers");
+                    "solonclaw.gateway.allowedUsers",
+                    "jimuqu.security.websiteBlocklist.domains",
+                    "jimuqu.security.websiteBlocklist.sharedFiles",
+                    "jimuqu.security.website_blocklist.domains",
+                    "jimuqu.security.website_blocklist.shared_files",
+                    "security.websiteBlocklist.domains",
+                    "security.websiteBlocklist.sharedFiles",
+                    "security.website_blocklist.domains",
+                    "security.website_blocklist.shared_files",
+                    "jimuqu.terminal.credentialFiles",
+                    "jimuqu.terminal.credential_files",
+                    "terminal.credentialFiles",
+                    "terminal.credential_files",
+                    "jimuqu.terminal.writeSafeRoot",
+                    "jimuqu.terminal.write_safe_root",
+                    "terminal.writeSafeRoot",
+                    "terminal.write_safe_root");
 
     private static final Set<String> INT_SUFFIXES =
             setOf(
                     ".sendChunkRetries",
                     ".toolPreviewLength",
-                    ".progressThrottleMs");
+                    ".progressThrottleMs",
+                    ".tirithTimeoutSeconds",
+                    ".maxForegroundTimeoutSeconds");
 
     private static final Set<String> DOUBLE_SUFFIXES =
             setOf(".sendChunkDelaySeconds", ".sendChunkRetryDelaySeconds");

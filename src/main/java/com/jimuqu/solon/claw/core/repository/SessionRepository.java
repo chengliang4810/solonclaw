@@ -24,6 +24,9 @@ public interface SessionRepository {
     /** 通过来源键和分支名查询会话。 */
     SessionRecord findBySourceAndBranch(String sourceKey, String branchName) throws Exception;
 
+    /** 按 Jimuqu /resume 引用查询候选会话：唯一 ID 前缀或精确标题。 */
+    List<SessionRecord> findResumeCandidates(String reference, int limit) throws Exception;
+
     /** 保存会话。 */
     void save(SessionRecord sessionRecord) throws Exception;
 
@@ -35,6 +38,10 @@ public interface SessionRepository {
 
     /** 按更新时间分页列出最近会话。 */
     List<SessionRecord> listRecent(int limit, int offset) throws Exception;
+
+    /** 列出最近仍处于 Agent pending 状态的会话，用于启动恢复。 */
+    List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit)
+            throws Exception;
 
     /** 返回会话总数。 */
     int countAll() throws Exception;
@@ -50,4 +57,10 @@ public interface SessionRepository {
 
     /** 清除所有使用指定 Agent 的会话激活状态。 */
     void clearActiveAgentName(String agentName) throws Exception;
+
+    /** 更新 Jimuqu /goal 长目标循环状态。 */
+    void setGoalState(String sessionId, String goalStateJson) throws Exception;
+
+    /** 更新最近一次学习闭环执行时间，不覆盖会话正文或运行态字段。 */
+    void setLastLearningAt(String sessionId, long lastLearningAt) throws Exception;
 }

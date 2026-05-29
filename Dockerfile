@@ -30,6 +30,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     PYTHONIOENCODING=UTF-8 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV SOLONCLAW_OFFICIAL_DOCKER_IMAGE=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

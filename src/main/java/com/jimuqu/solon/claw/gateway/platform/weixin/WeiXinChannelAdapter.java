@@ -18,8 +18,13 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -48,6 +53,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final int LONG_POLL_TIMEOUT_MS = 35_000;
     private static final int CONFIG_TIMEOUT_MS = 10_000;
     private static final int MESSAGE_DEDUP_TTL_MILLIS = 5 * 60 * 1000;
+    private static final int MAX_HTTP_REDIRECTS = 5;
 
     private static final int MSG_TYPE_BOT = 2;
     private static final int MSG_STATE_FINISH = 2;
@@ -65,6 +71,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final ConcurrentMap<String, Long> recentMessageIds =
             new ConcurrentHashMap<String, Long>();
     private final ConcurrentMap<String, TypingTicketState> typingTickets =
@@ -77,10 +84,19 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
             AttachmentCacheService attachmentCacheService) {
+        this(config, channelStateRepository, attachmentCacheService, null);
+    }
+
+    public WeiXinChannelAdapter(
+            AppConfig.ChannelConfig config,
+            ChannelStateRepository channelStateRepository,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.WEIXIN, config);
         this.config = config;
         this.channelStateRepository = channelStateRepository;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         setConnectionMode("long-poll");
         setFeatures("text", "attachments", "quoted-media", "typing", "qr-login");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
@@ -91,6 +107,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!isEnabled()) {
             setSetupState("disabled");
             setDetail("disabled");
+            return false;
+        }
+        if (rejectWeakCredentials(
+                "weixin_weak_credentials",
+                credentialField("solonclaw.channels.weixin.token", config.getToken()),
+                credentialField("solonclaw.channels.weixin.accountId", config.getAccountId()))) {
             return false;
         }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
@@ -281,7 +303,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
-                    "Weixin attachment file not found: " + attachment.getLocalPath());
+                    MessageAttachmentSupport.fileNotFoundMessage("Weixin", attachment));
         }
 
         String kind =
@@ -418,7 +440,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         String uploadParam = uploadInfo.get("upload_param").getString();
         if (StrUtil.isBlank(uploadParam)) {
             throw new IllegalStateException(
-                    "Weixin upload init missing upload url: " + uploadInfo.toJson());
+                    "Weixin upload init missing upload url: " + safeJson(uploadInfo));
         }
         String cdnBaseUrl =
                 StrUtil.blankToDefault(config.getCdnBaseUrl(), DEFAULT_CDN_BASE_URL)
@@ -431,16 +453,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String uploadCiphertext(String uploadUrl, byte[] ciphertext) {
-        HttpResponse response =
-                HttpRequest.post(uploadUrl)
-                        .body(ciphertext)
-                        .header("Content-Type", "application/octet-stream")
-                        .timeout(120000)
-                        .execute();
+        HttpResponse response = executeBinaryPost(uploadUrl, ciphertext, uploadUrl, 0);
         try {
             if (response.getStatus() != 200) {
                 throw new IllegalStateException(
-                        "Weixin CDN upload failed: " + response.getStatus());
+                        HutoolHttpErrorFormatter.failure("Weixin CDN upload", response));
             }
             String encryptedParam = response.header("x-encrypted-param");
             if (StrUtil.isBlank(encryptedParam)) {
@@ -467,7 +484,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         int errCode = node.get("errcode").getInt(0);
         int ret = node.get("ret").getInt(0);
         if (errCode != 0 || ret != 0) {
-            throw new IllegalStateException(defaultMessage + ": " + node.toJson());
+            throw new IllegalStateException(defaultMessage + ": " + safeJson(node));
         }
     }
 
@@ -521,14 +538,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 int errCode = response.get("errcode").getInt(0);
                 int ret = response.get("ret").getInt(0);
                 if (errCode != 0 || ret != 0) {
-                    log.warn("[WEIXIN] getupdates failed: {}", response.toJson());
+                    log.warn("[WEIXIN] getupdates failed: {}", safeJson(response));
                     if (errCode == -14 || ret == -14) {
-                        setLastError("weixin_session_expired", response.toJson());
+                        setLastError("weixin_session_expired", safeJson(response));
                         setDetail("session expired");
                         sleepQuietly(10);
                         continue;
                     }
-                    setLastError("weixin_poll_failed", response.toJson());
+                    setLastError("weixin_poll_failed", safeJson(response));
                     setDetail("poll failed");
                     sleepQuietly(2);
                     continue;
@@ -545,7 +562,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     saveSyncBuf(syncBuf);
                 }
             } catch (Exception e) {
-                log.warn("[WEIXIN] poll failed: {}", e.getMessage());
+                log.warn(
+                        "[WEIXIN] poll failed: errorType={}, error={}",
+                        errorType(e),
+                        safeError(e));
                 sleepQuietly(2);
             }
         }
@@ -619,9 +639,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         inboundMessageHandler().handle(gatewayMessage);
                                     } catch (Exception e) {
                                         log.warn(
-                                                "[WEIXIN] inbound dispatch failed: {}",
-                                                e.getMessage(),
-                                                e);
+                                                "[WEIXIN] inbound dispatch failed: errorType={}, error={}",
+                                                errorType(e),
+                                                safeError(e));
                                     } finally {
                                         if ("dm".equals(chatType)) {
                                             sendTyping(chatId, TYPING_STOP);
@@ -630,7 +650,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 }
                             });
         } catch (Exception e) {
-            log.warn("[WEIXIN] inbound submit failed: {}", e.getMessage(), e);
+            log.warn(
+                    "[WEIXIN] inbound submit failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -711,7 +734,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             }
         } catch (Exception e) {
-            log.warn("[WEIXIN] collect media failed: {}", e.getMessage());
+            log.warn(
+                    "[WEIXIN] collect media failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -766,7 +792,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private byte[] downloadBytes(String url) {
         return BoundedAttachmentIO.downloadHutool(
-                url, 60000, BoundedAttachmentIO.DEFAULT_MAX_BYTES);
+                url, 60000, BoundedAttachmentIO.DEFAULT_MAX_BYTES, securityPolicyService);
     }
 
     private byte[] parseAesKey(String hexAesKey, String encodedAesKey) {
@@ -886,7 +912,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 typingTicket, System.currentTimeMillis() + 10L * 60L * 1000L));
             }
         } catch (Exception e) {
-            log.debug("[WEIXIN] fetch typing ticket failed: {}", e.getMessage());
+            log.debug(
+                    "[WEIXIN] fetch typing ticket failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -905,7 +934,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                             .asObject(),
                     CONFIG_TIMEOUT_MS);
         } catch (Exception e) {
-            log.debug("[WEIXIN] send typing failed: {}", e.getMessage());
+            log.debug(
+                    "[WEIXIN] send typing failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -975,24 +1007,15 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         String baseUrl = resolveBaseUrl(endpoint);
         payload.set("base_info", new ONode().set("channel_version", "2.2.0").asObject());
         String body = payload.toJson();
-        String response =
-                HttpRequest.post(baseUrl + "/" + endpoint)
-                        .header("AuthorizationType", "ilink_bot_token")
-                        .header("Authorization", "Bearer " + config.getToken())
-                        .header("iLink-App-Id", "bot")
-                        .header("iLink-App-ClientVersion", String.valueOf((2 << 16) | (2 << 8)))
-                        .header(
-                                "X-WECHAT-UIN",
-                                Base64.getEncoder()
-                                        .encodeToString(
-                                                String.valueOf(Math.abs(RandomUtil.randomInt()))
-                                                        .getBytes(StandardCharsets.UTF_8)))
-                        .contentType(ContentType.JSON.toString())
-                        .body(body)
-                        .timeout(Math.max(20_000, timeoutMs))
-                        .execute()
-                        .body();
-        return ONode.ofJson(response);
+        String url = normalizeBaseUrl(baseUrl) + "/" + endpoint;
+        HttpResponse response = executeApiPost(url, body, Math.max(20_000, timeoutMs), url, 0);
+        try {
+            return ONode.ofJson(
+                    BoundedAttachmentIO.readHutoolText(
+                            response, BoundedAttachmentIO.JSON_MAX_BYTES));
+        } finally {
+            response.close();
+        }
     }
 
     private String resolveBaseUrl(String endpoint) {
@@ -1008,6 +1031,149 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         }
         return configured;
+    }
+
+    private HttpResponse executeApiPost(
+            String url, String body, int timeoutMs, String initialUrl, int redirectCount) {
+        assertSafeUrl(url, "Weixin API URL");
+        HttpRequest request =
+                HttpRequest.post(url)
+                        .header("AuthorizationType", "ilink_bot_token")
+                        .header("Authorization", "Bearer " + config.getToken())
+                        .header("iLink-App-Id", "bot")
+                        .header("iLink-App-ClientVersion", String.valueOf((2 << 16) | (2 << 8)))
+                        .header(
+                                "X-WECHAT-UIN",
+                                Base64.getEncoder()
+                                        .encodeToString(
+                                                String.valueOf(Math.abs(RandomUtil.randomInt()))
+                                                        .getBytes(StandardCharsets.UTF_8)))
+                        .contentType(ContentType.JSON.toString())
+                        .body(body)
+                        .timeout(timeoutMs)
+                        .setFollowRedirects(false);
+        HttpResponse response = request.execute();
+        if (!isRedirect(response.getStatus())) {
+            return response;
+        }
+        try {
+            String nextUrl = resolveRedirect(url, response, redirectCount, "Weixin API URL");
+            if (!sameOrigin(initialUrl, nextUrl)) {
+                throw new IllegalStateException(
+                        "Weixin API redirect crosses origin: "
+                                + SecretRedactor.maskUrl(nextUrl));
+            }
+            response.close();
+            return executeApiPost(nextUrl, body, timeoutMs, initialUrl, redirectCount + 1);
+        } catch (RuntimeException e) {
+            response.close();
+            throw e;
+        }
+    }
+
+    private HttpResponse executeBinaryPost(
+            String url, byte[] body, String initialUrl, int redirectCount) {
+        assertSafeUrl(url, "Weixin CDN upload URL");
+        HttpRequest request =
+                HttpRequest.post(url)
+                        .body(body)
+                        .header("Content-Type", "application/octet-stream")
+                        .timeout(120000)
+                        .setFollowRedirects(false);
+        HttpResponse response = request.execute();
+        if (!isRedirect(response.getStatus())) {
+            return response;
+        }
+        try {
+            String nextUrl = resolveRedirect(url, response, redirectCount, "Weixin CDN upload URL");
+            if (!sameOrigin(initialUrl, nextUrl)) {
+                throw new IllegalStateException(
+                        "Weixin CDN upload redirect crosses origin: "
+                                + SecretRedactor.maskUrl(nextUrl));
+            }
+            response.close();
+            return executeBinaryPost(nextUrl, body, initialUrl, redirectCount + 1);
+        } catch (RuntimeException e) {
+            response.close();
+            throw e;
+        }
+    }
+
+    private String resolveRedirect(
+            String url, HttpResponse response, int redirectCount, String purpose) {
+        if (redirectCount >= MAX_HTTP_REDIRECTS) {
+            throw new IllegalStateException(purpose + " redirect count exceeds limit");
+        }
+        String location = response.header("Location");
+        if (StrUtil.isBlank(location)) {
+            throw new IllegalStateException(purpose + " redirect missing Location");
+        }
+        try {
+            String nextUrl = URI.create(url).resolve(location.trim()).toString();
+            assertSafeUrl(nextUrl, purpose);
+            return nextUrl;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    purpose + " redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
+        }
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
+    }
+
+    private String safeJson(ONode value) {
+        return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        String value = StrUtil.nullToEmpty(baseUrl).trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private boolean sameOrigin(String initialUrl, String url) {
+        try {
+            URI initial = URI.create(initialUrl);
+            URI current = URI.create(url);
+            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
+                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
+                    && effectivePort(initial) == effectivePort(current);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
     }
 
     private static class ChatTarget {

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -8,7 +9,9 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.Collections;
@@ -95,6 +98,83 @@ public class WeixinInboundDispatchTest {
         adapter.disconnect();
     }
 
+    @Test
+    void shouldBlockUnsafeWeixinApiBaseUrlBeforeNetworkAccess() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setBaseUrl(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config));
+        Method apiPost =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "apiPost", String.class, ONode.class);
+        apiPost.setAccessible(true);
+
+        assertThatThrownBy(() -> invoke(apiPost, adapter, "ilink/bot/sendmessage", new ONode()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Weixin API URL blocked")
+                .hasMessageContaining("169.254.169.254")
+                .hasMessageContaining("token=***");
+    }
+
+    @Test
+    void shouldBlockUnsafeWeixinCdnBaseUrlBeforeUpload() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setCdnBaseUrl(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config));
+        Method resolveUploadUrl =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "resolveUploadUrl", ONode.class, String.class);
+        resolveUploadUrl.setAccessible(true);
+        String uploadUrl =
+                String.valueOf(
+                        resolveUploadUrl.invoke(
+                                adapter,
+                                new ONode().set("upload_param", "abc").asObject(),
+                                "file-1"));
+        Method uploadCiphertext =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "uploadCiphertext", String.class, byte[].class);
+        uploadCiphertext.setAccessible(true);
+
+        assertThat(uploadUrl).contains("169.254.169.254");
+        assertThatThrownBy(() -> invoke(uploadCiphertext, adapter, uploadUrl, new byte[] {1}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Weixin CDN upload URL blocked")
+                .hasMessageContaining("169.254.169.254")
+                .hasMessageContaining("token=***");
+    }
+
+    @Test
+    void shouldRedactWeixinFailureJson() throws Throwable {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method safeJson = WeiXinChannelAdapter.class.getDeclaredMethod("safeJson", ONode.class);
+        safeJson.setAccessible(true);
+        ONode failure =
+                new ONode()
+                        .set("errcode", 40001)
+                        .set("errmsg", "invalid token=ghp_weixinfail12345")
+                        .set("body", new ONode().set("api_key", "sk-weixin-failure-secret"));
+
+        String message = String.valueOf(invoke(safeJson, adapter, failure));
+
+        assertThat(message)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_weixinfail12345")
+                .doesNotContain("sk-weixin-failure-secret");
+    }
+
     private WeiXinChannelAdapter newAdapter() throws Exception {
         return newAdapter(newConfig());
     }
@@ -104,6 +184,14 @@ public class WeixinInboundDispatchTest {
                 config.getChannels().getWeixin(),
                 new InMemoryChannelStateRepository(),
                 new AttachmentCacheService(config));
+    }
+
+    private Object invoke(Method method, Object target, Object... args) throws Throwable {
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
     }
 
     private String repeat(String text, int count) {

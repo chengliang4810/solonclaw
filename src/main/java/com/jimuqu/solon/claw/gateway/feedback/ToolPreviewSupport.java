@@ -1,8 +1,12 @@
 package com.jimuqu.solon.claw.gateway.feedback;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
@@ -16,19 +20,20 @@ public final class ToolPreviewSupport {
             return "";
         }
 
+        Map<String, Object> safeArgs = sanitizeArgs(toolName, args);
         String preview;
         if (verbose) {
-            preview = ONode.serialize(args);
+            preview = ONode.serialize(safeArgs);
         } else {
-            preview = pickPrimaryValue(toolName, args);
+            preview = pickPrimaryValue(toolName, safeArgs);
         }
 
-        preview = normalize(preview);
+        preview = SecretRedactor.redact(normalize(preview), Math.max(maxLen * 2, 256));
         if (preview.length() <= maxLen) {
             return preview;
         }
         if (verbose) {
-            return buildJsonSafePreview(args, maxLen);
+            return buildJsonSafePreview(safeArgs, maxLen);
         }
         return preview.substring(0, Math.max(0, maxLen - 3)) + "...";
     }
@@ -99,16 +104,30 @@ public final class ToolPreviewSupport {
     private static String[] preferredKeys(String toolName) {
         if ("file_read".equals(toolName)
                 || "file_write".equals(toolName)
-                || "file_delete".equals(toolName)) {
+                || "file_delete".equals(toolName)
+                || "patch".equals(toolName)) {
             return new String[] {"fileName", "path", "filePath"};
         }
         if ("file_list".equals(toolName)) {
             return new String[] {"dirName", "path"};
         }
         if ("execute_shell".equals(toolName)
+                || "terminal".equals(toolName)
+                || "execute_code".equals(toolName)
                 || "execute_python".equals(toolName)
                 || "execute_js".equals(toolName)) {
             return new String[] {"command", "code"};
+        }
+        if (ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)
+                || "config_update_secret".equals(toolName)) {
+            return new String[] {"key"};
+        }
+        if (ToolNameConstants.CONFIG_GET.equals(toolName)
+                || ToolNameConstants.CONFIG_SET.equals(toolName)
+                || ToolNameConstants.CONFIG_REFRESH.equals(toolName)
+                || "config_read".equals(toolName)
+                || "config_write".equals(toolName)) {
+            return new String[] {"key", "reconnectChannels"};
         }
         if ("delegate_task".equals(toolName)) {
             return new String[] {"prompt", "goal", "context"};
@@ -131,6 +150,64 @@ public final class ToolPreviewSupport {
             return new String[] {"name", "skillName"};
         }
         return new String[] {"path", "command", "code", "query", "text", "name"};
+    }
+
+    private static Map<String, Object> sanitizeArgs(String toolName, Map<String, Object> args) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        boolean secretTool =
+                ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)
+                        || "config_update_secret".equals(toolName);
+        for (Map.Entry<String, Object> entry : args.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (secretTool && "value".equalsIgnoreCase(StrUtil.nullToEmpty(key))) {
+                safe.put(key, "***");
+            } else {
+                safe.put(key, sanitizeValue(key, value));
+            }
+        }
+        return safe;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object sanitizeValue(String key, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (isSensitiveArgKey(key)) {
+            return "***";
+        }
+        if (value instanceof String) {
+            return SecretRedactor.redact((String) value);
+        }
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                String nestedKey = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                result.put(nestedKey, sanitizeValue(nestedKey, entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof Iterable) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object item : (Iterable<?>) value) {
+                result.add(sanitizeValue("", item));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private static boolean isSensitiveArgKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
+        return normalized.contains("apikey")
+                || normalized.contains("api_key")
+                || normalized.contains("token")
+                || normalized.contains("secret")
+                || normalized.contains("password")
+                || normalized.contains("authorization")
+                || normalized.contains("privatekey")
+                || normalized.contains("private_key");
     }
 
     private static String normalize(String text) {

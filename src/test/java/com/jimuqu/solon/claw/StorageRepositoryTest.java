@@ -3,7 +3,10 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class StorageRepositoryTest {
@@ -26,6 +29,8 @@ public class StorageRepositoryTest {
         session.setCumulativeTotalTokens(69);
         session.setLastResolvedProvider("openai-responses");
         session.setLastResolvedModel("gpt-5.4");
+        session.setPlatformMessageId("pm-storage-1");
+        session.setMetadataJson("{\"topic\":\"canonical\"}");
         env.sessionRepository.save(session);
 
         SessionRecord stored = env.sessionRepository.findById(session.getSessionId());
@@ -42,6 +47,8 @@ public class StorageRepositoryTest {
         assertThat(stored.getCumulativeTotalTokens()).isEqualTo(69);
         assertThat(stored.getLastResolvedProvider()).isEqualTo("openai-responses");
         assertThat(stored.getLastResolvedModel()).isEqualTo("gpt-5.4");
+        assertThat(stored.getPlatformMessageId()).isEqualTo("pm-storage-1");
+        assertThat(stored.getMetadataJson()).contains("canonical");
         assertThat(env.sessionRepository.search("hello", 10)).hasSize(1);
         assertThat(env.sessionRepository.search("alpha", 10)).hasSize(1);
         assertThat(env.sessionRepository.search("beta", 10)).hasSize(1);
@@ -52,5 +59,80 @@ public class StorageRepositoryTest {
         assertThat(clone.getParentSessionId()).isEqualTo(session.getSessionId());
         assertThat(env.sessionRepository.findBySourceAndBranch("MEMORY:room-a:user-a", "review"))
                 .isNotNull();
+    }
+
+    @Test
+    void shouldClearSessionScopedSecurityStateWhenBranching() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:secure-branch:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.getContext().put("ordinary_context", "keep-me");
+        env.dangerousCommandApprovalService.enableSessionYolo(agentSession);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.approve(
+                agentSession, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
+
+        SessionRecord clone =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:secure-branch:user", session.getSessionId(), "safe-review");
+        SqliteAgentSession clonedSession =
+                new SqliteAgentSession(clone, env.sessionRepository);
+
+        assertThat(clonedSession.getContext().get("ordinary_context")).isEqualTo("keep-me");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(clonedSession))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(clonedSession)).isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                clonedSession, "recursive_delete"))
+                .isFalse();
+    }
+
+    @Test
+    void shouldFindResumeCandidatesByUniqueIdPrefixOrExactTitle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord alpha = env.sessionRepository.bindNewSession("MEMORY:resume-a:user");
+        alpha.setTitle("客户周报");
+        env.sessionRepository.save(alpha);
+        SessionRecord beta = env.sessionRepository.bindNewSession("MEMORY:resume-b:user");
+        beta.setTitle("客户日报");
+        env.sessionRepository.save(beta);
+
+        List<SessionRecord> byPrefix =
+                env.sessionRepository.findResumeCandidates(alpha.getSessionId().substring(0, 8), 3);
+        List<SessionRecord> byTitle =
+                env.sessionRepository.findResumeCandidates("客户日报", 3);
+        List<SessionRecord> partialTitle =
+                env.sessionRepository.findResumeCandidates("客户", 3);
+
+        assertThat(byPrefix).hasSize(1);
+        assertThat(byPrefix.get(0).getSessionId()).isEqualTo(alpha.getSessionId());
+        assertThat(byTitle).hasSize(1);
+        assertThat(byTitle.get(0).getSessionId()).isEqualTo(beta.getSessionId());
+        assertThat(partialTitle).isEmpty();
+    }
+
+    @Test
+    void shouldReturnMultipleResumeCandidatesForAmbiguousExactTitle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord first = env.sessionRepository.bindNewSession("MEMORY:resume-shared-a:user");
+        first.setTitle("共享标题");
+        env.sessionRepository.save(first);
+        SessionRecord second = env.sessionRepository.bindNewSession("MEMORY:resume-shared-b:user");
+        second.setTitle("共享标题");
+        env.sessionRepository.save(second);
+
+        List<SessionRecord> candidates =
+                env.sessionRepository.findResumeCandidates("共享标题", 3);
+
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates)
+                .extracting(SessionRecord::getSessionId)
+                .contains(first.getSessionId(), second.getSessionId());
     }
 }

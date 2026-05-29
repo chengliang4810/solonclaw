@@ -52,6 +52,8 @@ public interface AgentRunRepository {
 
     QueuedRunMessage findNextQueuedMessage(String sourceKey, String sessionId) throws Exception;
 
+    int countQueuedMessages(String sourceKey, String sessionId) throws Exception;
+
     void markQueuedMessage(String queueId, String status, long timestamp, String error)
             throws Exception;
 

@@ -3,10 +3,15 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
+import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpRequest;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -24,12 +29,14 @@ public class WeixinQrSetupService {
     private static final String GET_QR_STATUS_ENDPOINT = "ilink/bot/get_qrcode_status?qrcode=%s";
     private static final long LOGIN_TIMEOUT_MILLIS = 8L * 60L * 1000L;
     private static final int MAX_REFRESH_COUNT = 3;
+    private static final int MAX_HTTP_REDIRECTS = 5;
 
     private final AppConfig appConfig;
     private final DashboardConfigService configService;
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
     private final RuntimeConfigResolver configResolver;
+    private final SecurityPolicyService securityPolicyService;
     private final ExecutorService executor = BoundedExecutorFactory.fixed("weixin-qr-setup", 2, 32);
     private final ConcurrentMap<String, TicketState> tickets =
             new ConcurrentHashMap<String, TicketState>();
@@ -39,10 +46,23 @@ public class WeixinQrSetupService {
             DashboardConfigService configService,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService) {
+        this(appConfig, configService, gatewayRuntimeRefreshService, null);
+    }
+
+    public WeixinQrSetupService(
+            AppConfig appConfig,
+            DashboardConfigService configService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService) {
         this.appConfig = appConfig;
         this.configService = configService;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.configResolver = RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome());
+        this.securityPolicyService =
+                securityPolicyService == null
+                        ? new SecurityPolicyService(appConfig)
+                        : securityPolicyService;
     }
 
     public Map<String, Object> start() {
@@ -83,6 +103,7 @@ public class WeixinQrSetupService {
         String qrCode = null;
         int refreshCount = 0;
         try {
+            assertSafeBaseUrl(baseUrl, "微信 iLink baseUrl");
             ONode qrResponse = fetchQr(baseUrl);
             qrCode = updateQrState(state, qrResponse);
             while (System.currentTimeMillis() < state.expiresAt) {
@@ -96,7 +117,8 @@ public class WeixinQrSetupService {
                 } else if ("scaned_but_redirect".equals(status)) {
                     String redirectHost = statusResponse.get("redirect_host").getString();
                     if (StrUtil.isNotBlank(redirectHost)) {
-                        currentBaseUrl = "https://" + redirectHost.trim();
+                        currentBaseUrl = normalizeBaseUrl("https://" + redirectHost.trim());
+                        assertSafeBaseUrl(currentBaseUrl, "微信 iLink redirect_host");
                     }
                     mark(state, "scanned", "已扫码，等待跳转确认");
                 } else if ("expired".equals(status)) {
@@ -131,27 +153,48 @@ public class WeixinQrSetupService {
     }
 
     private ONode fetchQr(String baseUrl) {
-        String body =
-                HttpRequest.get(baseUrl + "/" + GET_BOT_QR_ENDPOINT)
-                        .header("iLink-App-Id", "bot")
-                        .header("iLink-App-ClientVersion", String.valueOf((2 << 16) | (2 << 8)))
-                        .contentType(ContentType.JSON.toString())
-                        .timeout(35_000)
-                        .execute()
-                        .body();
+        String body = executeJsonGet(normalizeBaseUrl(baseUrl) + "/" + GET_BOT_QR_ENDPOINT, 0);
         return ONode.ofJson(body);
     }
 
     private ONode fetchStatus(String baseUrl, String qrCode) {
         String body =
-                HttpRequest.get(baseUrl + "/" + String.format(GET_QR_STATUS_ENDPOINT, qrCode))
+                executeJsonGet(
+                        normalizeBaseUrl(baseUrl)
+                                + "/"
+                                + String.format(GET_QR_STATUS_ENDPOINT, qrCode),
+                        0);
+        return ONode.ofJson(body);
+    }
+
+    private String executeJsonGet(String url, int redirectCount) {
+        assertSafeUrl(url, "微信 iLink 请求地址");
+        HttpResponse response =
+                HttpRequest.get(url)
                         .header("iLink-App-Id", "bot")
                         .header("iLink-App-ClientVersion", String.valueOf((2 << 16) | (2 << 8)))
                         .contentType(ContentType.JSON.toString())
                         .timeout(35_000)
-                        .execute()
-                        .body();
-        return ONode.ofJson(body);
+                        .setFollowRedirects(false)
+                        .execute();
+        try {
+            int status = response.getStatus();
+            if (isRedirect(status)) {
+                if (redirectCount >= MAX_HTTP_REDIRECTS) {
+                    throw new IllegalStateException("微信 iLink 请求重定向次数超过限制");
+                }
+                String location = response.header("Location");
+                if (StrUtil.isBlank(location)) {
+                    throw new IllegalStateException("微信 iLink 请求重定向缺少 Location");
+                }
+                String nextUrl = resolveRedirectUrl(url, location);
+                response.close();
+                return executeJsonGet(nextUrl, redirectCount + 1);
+            }
+            return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+        } finally {
+            response.close();
+        }
     }
 
     private String updateQrState(TicketState state, ONode qrResponse) {
@@ -175,6 +218,8 @@ public class WeixinQrSetupService {
         if (StrUtil.isBlank(accountId) || StrUtil.isBlank(token)) {
             throw new IllegalStateException("微信扫码成功，但返回的账号信息不完整。");
         }
+        baseUrl = normalizeBaseUrl(baseUrl);
+        assertSafeBaseUrl(baseUrl, "微信 iLink baseurl");
         configResolver.setFileValue("solonclaw.channels.weixin.accountId", accountId);
         configResolver.setFileValue("solonclaw.channels.weixin.token", token);
 
@@ -193,10 +238,11 @@ public class WeixinQrSetupService {
     }
 
     private void fail(TicketState state, String code, String message) {
+        String safe = safeText(message);
         state.status = "failed";
         state.errorCode = code;
-        state.errorMessage = message;
-        state.message = message;
+        state.errorMessage = safe;
+        state.message = safe;
         state.updatedAt = System.currentTimeMillis();
     }
 
@@ -228,7 +274,49 @@ public class WeixinQrSetupService {
 
     private String safeMessage(Exception e) {
         String message = e.getMessage();
-        return StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        return safeText(safe);
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
+    }
+
+    private void assertSafeBaseUrl(String baseUrl, String purpose) {
+        assertSafeUrl(normalizeBaseUrl(baseUrl), purpose);
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " 被安全策略阻断："
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        String value = StrUtil.nullToEmpty(baseUrl).trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private String resolveRedirectUrl(String baseUrl, String location) {
+        try {
+            return URI.create(baseUrl).resolve(location.trim()).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "微信 iLink 请求重定向地址无效：" + SecretRedactor.maskUrl(location), e);
+        }
     }
 
     private String isoTime(long epochMillis) {

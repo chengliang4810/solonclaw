@@ -1,14 +1,128 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
+import java.net.URLDecoder;
+import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Redacts common secrets before returning logs/session details to dashboard clients. */
 public final class SecretRedactor {
-    private static final Pattern BEARER = Pattern.compile("(?i)bearer\\s+[A-Za-z0-9._~+/-]+=*");
-    private static final Pattern KEY_VALUE =
+    private static final Pattern BEARER =
             Pattern.compile(
-                    "(?i)(api[_-]?key|token|secret|password|authorization|client[_-]?secret)(\\s*[:=]\\s*)([^\\s,;\"'}]+)");
+                    "(?i)(Authorization:\\s*Bearer\\s+|\\bbearer\\s+)([A-Za-z0-9._~+/-]+=*)");
+    private static final Pattern ENV_ASSIGNMENT =
+            Pattern.compile(
+                    "\\b([A-Z0-9_]{0,50}(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Z0-9_]{0,50})(=)(['\"]?)(\\S+)\\3");
+    private static final Pattern SHELL_KEY_VALUE =
+            Pattern.compile(
+                    "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|access[_-]?token|refresh[_-]?token|bearer[_-]?token|client[_-]?secret|private[_-]?key)(=)([^\\s,;&=\"#'}]+)");
+    private static final Pattern JSON_FIELD =
+            Pattern.compile(
+                    "(?i)(\"(?:api_?key|token|secret|password|access_?token|refresh_?token|auth_?token|bearer_?token|client_?secret|secret_?value|raw_?secret|secret_?input|key_?material|private_?key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
+    private static final Pattern URL_USERINFO =
+            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
+    private static final Pattern ENCODED_URL_USERINFO =
+            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(%(?:25){0,3}3a)([^/?#\\s@]+)@");
+    private static final Pattern SCHEMELESS_URL_USERINFO =
+            Pattern.compile(
+                    "(?i)(?<![A-Za-z0-9_./:-])([A-Za-z0-9._~+%-]{1,80}):(?!//)([^\\s/@?#]+)@([A-Za-z0-9._~%-]+(?:\\:[0-9]{1,5})?(?:[/#?]|\\b))");
+    private static final Pattern SENSITIVE_URL_USERINFO =
+            Pattern.compile("(?i)\\b(?:https?|wss?|ftp)://[^/?#\\s:@]+:[^/?#\\s@]+@[^\\s]+");
+    private static final Pattern DB_CONNSTR =
+            Pattern.compile(
+                    "(?i)\\b((?:postgres(?:ql)?|mysql|mongodb(?:\\+srv)?|redis|amqp)://[^:\\s/@]+:)([^@\\s]+)(@)");
+    private static final Pattern PRIVATE_KEY =
+            Pattern.compile(
+                    "-----BEGIN[A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END[A-Z ]*PRIVATE KEY-----");
+    private static final Pattern JWT =
+            Pattern.compile("eyJ[A-Za-z0-9_-]{10,}(?:\\.[A-Za-z0-9_=-]{4,}){0,2}");
+    private static final String SENSITIVE_QUERY_NAMES =
+            "access_token|refresh_token|id_token|auth_token|oauth_token|authorization|proxy_authorization|bearer_token|code_verifier|client_assertion|saml_response|samlresponse|token|access_key|secret_key|session_token|api_key|apikey|client_secret|password|private_key|auth|jwt|session|secret|key|code|signature|security_token|x-amz-signature|x_amz_signature|x_amz_credential|x_amz_security_token|x_goog_signature|x_goog_credential|x_oss_signature|x_oss_security_token|x_cos_signature|x_cos_security_token|x_obs_signature|x_obs_security_token|x_ms_signature";
+    private static final Pattern SENSITIVE_QUERY =
+            Pattern.compile(
+                    "(?i)([?&;](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&;#\\s]+");
+    private static final Pattern SENSITIVE_PATH =
+            Pattern.compile(
+                    "(?i)(?<![A-Za-z0-9_])("
+                            + "(?:[A-Za-z]:)?(?:[\\\\/][^\\s\"'<>|;?#]+)*[\\\\/](?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh|\\.gnupg|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\s\"'<>|;?#]*(?:credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;?#]*)(?:[\\\\/][^\\s\"'<>|;?#]+)*"
+                            + "|~[\\\\/][^\\s\"'<>|;?#]*(?:\\.ssh|\\.gnupg|credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;?#]*(?:[\\\\/][^\\s\"'<>|;?#]+)*"
+                            + "|(?:^|(?<=[\\s\"'=:]))(?:[^\\s\"'<>|;?#]+[\\\\/])*skills[\\\\/]\\.hub(?:[\\\\/][^\\s\"'<>|;?#]+)*"
+                            + "|(?:^|(?<=[\\s\"'=:]))(?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh[\\\\/][^\\s\"'<>|;?#]+|credentials|secrets|credentials?[\\\\/][^\\s\"'<>|;?#]+|secrets?[\\\\/][^\\s\"'<>|;?#]+|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
+                            + ")");
+    private static final String ENCODED_SEPARATOR =
+            "(?:_|-|&#95;|&#x5[fF];|&lowbar;|%5[fF]|%255[fF])";
+    private static final Pattern SENSITIVE_FILE_TOKEN =
+            Pattern.compile(
+                    "(?i)(?<![A-Za-z0-9_.-])(?:[^\\s\"'<>|;?#=\\\\/]*?(?:"
+                            + "credential"
+                            + "|client"
+                            + ENCODED_SEPARATOR
+                            + "secret"
+                            + "|api"
+                            + ENCODED_SEPARATOR
+                            + "key"
+                            + "|access"
+                            + ENCODED_SEPARATOR
+                            + "token"
+                            + "|refresh"
+                            + ENCODED_SEPARATOR
+                            + "token"
+                            + "|private"
+                            + ENCODED_SEPARATOR
+                            + "key"
+                            + ")[^\\s\"'<>|;?#=\\\\/]*\\.[A-Za-z0-9]{1,12})(?![A-Za-z0-9_.-])");
+    private static final Pattern SENSITIVE_URL_PATH_SEGMENT =
+            Pattern.compile(
+                    "(?i)/(?:(?:access|refresh|id)"
+                            + ENCODED_SEPARATOR
+                            + "token|token|api"
+                            + ENCODED_SEPARATOR
+                            + "key|client"
+                            + ENCODED_SEPARATOR
+                            + "secret|private"
+                            + ENCODED_SEPARATOR
+                            + "key|credential|credentials|secret|password|auth|jwt|session|signature)(?:[/:=][^/?#\\s&;]+)+");
+    private static final Pattern PREFIX_SECRET =
+            Pattern.compile(
+                    "(?<![A-Za-z0-9_-])("
+                            + "sk-[A-Za-z0-9_-]{10,}"
+                            + "|ghp_[A-Za-z0-9]{10,}"
+                            + "|github_pat_[A-Za-z0-9_]{10,}"
+                            + "|gh[ousr]_[A-Za-z0-9]{10,}"
+                            + "|xox[baprs]-[A-Za-z0-9-]{10,}"
+                            + "|AIza[A-Za-z0-9_-]{30,}"
+                            + "|pplx-[A-Za-z0-9]{10,}"
+                            + "|fal_[A-Za-z0-9_-]{10,}"
+                            + "|fc-[A-Za-z0-9]{10,}"
+                            + "|bb_live_[A-Za-z0-9_-]{10,}"
+                            + "|gAAAA[A-Za-z0-9_=-]{20,}"
+                            + "|AKIA[A-Z0-9]{16}"
+                            + "|sk_live_[A-Za-z0-9]{10,}"
+                            + "|sk_test_[A-Za-z0-9]{10,}"
+                            + "|rk_live_[A-Za-z0-9]{10,}"
+                            + "|SG\\.[A-Za-z0-9_-]{10,}"
+                            + "|hf_[A-Za-z0-9]{10,}"
+                            + "|r8_[A-Za-z0-9]{10,}"
+                            + "|npm_[A-Za-z0-9]{10,}"
+                            + "|pypi-[A-Za-z0-9_-]{10,}"
+                            + "|do[po]_v1_[A-Za-z0-9]{10,}"
+                            + "|am_[A-Za-z0-9_-]{10,}"
+                            + "|sk_[A-Za-z0-9_]{10,}"
+                            + "|tvly-[A-Za-z0-9]{10,}"
+                            + "|exa_[A-Za-z0-9]{10,}"
+                            + "|gsk_[A-Za-z0-9]{10,}"
+                            + "|syt_[A-Za-z0-9]{10,}"
+                            + "|retaindb_[A-Za-z0-9]{10,}"
+                            + "|hsk-[A-Za-z0-9]{10,}"
+                            + "|mem0_[A-Za-z0-9]{10,}"
+                            + "|brv_[A-Za-z0-9]{10,}"
+                            + ")(?![A-Za-z0-9_-])");
+    private static final Pattern EMBEDDED_PREFIX_SECRET =
+            Pattern.compile(
+                    "(?i)((?:^|[^A-Za-z0-9])(?:[A-Za-z0-9_.-]{0,80})(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_))[A-Za-z0-9_-]{10,}");
+    private static final Pattern DISPLAY_CONTROL =
+            Pattern.compile("[\\u0000-\\u0008\\u000B-\\u001F\\u007F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]");
     private static final int DEFAULT_MAX_LENGTH = 8000;
 
     private SecretRedactor() {}
@@ -21,8 +135,42 @@ public final class SecretRedactor {
         if (text == null) {
             return null;
         }
-        String result = BEARER.matcher(text).replaceAll("Bearer ***");
-        result = KEY_VALUE.matcher(result).replaceAll("$1$2***");
+        String result = stripDisplayControls(text);
+        result = BEARER.matcher(result).replaceAll("$1***");
+        result = ENV_ASSIGNMENT.matcher(result).replaceAll("$1$2$3***$3");
+        result = SHELL_KEY_VALUE.matcher(result).replaceAll("$1$2***");
+        result = JSON_FIELD.matcher(result).replaceAll("$1$2***$4");
+        result = PREFIX_SECRET.matcher(result).replaceAll("***");
+        result = EMBEDDED_PREFIX_SECRET.matcher(result).replaceAll("$1***");
+        result = PRIVATE_KEY.matcher(result).replaceAll("[REDACTED PRIVATE KEY]");
+        result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
+        result = JWT.matcher(result).replaceAll("***");
+        result = SENSITIVE_URL_USERINFO.matcher(result).replaceAll("[REDACTED_PATH]");
+        result = redactUrlUserinfo(result);
+        result = redactEncodedSensitiveQuery(result);
+        result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
+        result = redactEncodedSensitiveQuery(result);
+        result = SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
+        result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
+        int limit = Math.max(128, maxLength);
+        if (result.length() > limit) {
+            return result.substring(0, limit)
+                    + "\n...[truncated, totalLength="
+                    + result.length()
+                    + "]";
+        }
+        return result;
+    }
+
+    /** Redacts only token-like values (prefix secrets, JWTs) without redacting file/path names. */
+    public static String redactTokensOnly(String text, int maxLength) {
+        if (text == null) {
+            return null;
+        }
+        String result = stripDisplayControls(text);
+        result = PREFIX_SECRET.matcher(result).replaceAll("***");
+        result = EMBEDDED_PREFIX_SECRET.matcher(result).replaceAll("$1***");
+        result = JWT.matcher(result).replaceAll("***");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {
             return result.substring(0, limit)
@@ -40,10 +188,202 @@ public final class SecretRedactor {
         return value;
     }
 
+    public static boolean containsSecretLikeToken(String text) {
+        if (StrUtil.isBlank(text)) {
+            return false;
+        }
+        if (PREFIX_SECRET.matcher(text).find()) {
+            return true;
+        }
+        try {
+            String decoded = URLDecoder.decode(text, "UTF-8");
+            return !decoded.equals(text) && PREFIX_SECRET.matcher(decoded).find();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     public static String maskUrl(String value) {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        return value.replaceAll("(?i)([?&](?:token|key|secret|password)=)[^&]+", "$1***");
+        String result = stripDisplayControls(value);
+        result = redactUrlUserinfo(result);
+        result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
+        result = redactEncodedSensitiveQuery(result);
+        result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
+        result = redactEncodedSensitiveQuery(result);
+        result = SENSITIVE_URL_PATH_SEGMENT.matcher(result).replaceAll("/[REDACTED_PATH]");
+        result = SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
+        result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
+        return PREFIX_SECRET.matcher(result).replaceAll("***");
+    }
+
+    public static String stripDisplayControls(String value) {
+        if (value == null) {
+            return null;
+        }
+        return DISPLAY_CONTROL.matcher(value).replaceAll("");
+    }
+
+    private static String redactUrlUserinfo(String value) {
+        String result = redactEncodedUrlUserinfo(value);
+        Matcher matcher = URL_USERINFO.matcher(result);
+        StringBuffer buffer = new StringBuffer(result.length());
+        while (matcher.find()) {
+            matcher.appendReplacement(
+                    buffer,
+                    Matcher.quoteReplacement(
+                            matcher.group(1) + "://" + matcher.group(2) + ":***@"));
+        }
+        matcher.appendTail(buffer);
+        return redactSchemelessUrlUserinfo(buffer.toString());
+    }
+
+    private static String redactEncodedUrlUserinfo(String value) {
+        Matcher matcher = ENCODED_URL_USERINFO.matcher(value);
+        StringBuffer buffer = new StringBuffer(value.length());
+        while (matcher.find()) {
+            matcher.appendReplacement(
+                    buffer,
+                    Matcher.quoteReplacement(
+                            matcher.group(1)
+                                    + "://"
+                                    + matcher.group(2)
+                                    + matcher.group(3)
+                                    + "***@"));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private static String redactSchemelessUrlUserinfo(String value) {
+        Matcher matcher = SCHEMELESS_URL_USERINFO.matcher(value);
+        StringBuffer buffer = new StringBuffer(value.length());
+        while (matcher.find()) {
+            matcher.appendReplacement(
+                    buffer,
+                    Matcher.quoteReplacement(
+                            matcher.group(1) + ":***@" + matcher.group(3)));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private static String redactEncodedSensitiveQuery(String value) {
+        StringBuilder buffer = new StringBuilder(value.length());
+        int start = 0;
+        while (start < value.length()) {
+            int question = value.indexOf('?', start);
+            int amp = value.indexOf('&', start);
+            int semicolon = value.indexOf(';', start);
+            int hash = value.indexOf('#', start);
+            int separator = minPositive(minPositive(question, amp), minPositive(semicolon, hash));
+            if (separator < 0 || separator + 1 >= value.length()) {
+                buffer.append(value.substring(start));
+                break;
+            }
+            buffer.append(value, start, separator + 1);
+            int end = nextParameterEnd(value, separator + 1, value.charAt(separator));
+            String parameter = value.substring(separator + 1, end);
+            buffer.append(redactEncodedSensitiveParameter(parameter));
+            start = end;
+        }
+        return buffer.toString();
+    }
+
+    private static int minPositive(int first, int second) {
+        if (first < 0) {
+            return second;
+        }
+        if (second < 0) {
+            return first;
+        }
+        return Math.min(first, second);
+    }
+
+    private static int nextParameterEnd(String value, int start, char separator) {
+        for (int i = start; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '&' || ch == ';' || (separator != '#' && ch == '#')) {
+                return i;
+            }
+            if (isUrlParameterTextBoundary(ch)) {
+                return i;
+            }
+        }
+        return value.length();
+    }
+
+    private static boolean isUrlParameterTextBoundary(char ch) {
+        return Character.isWhitespace(ch)
+                || ch == '"'
+                || ch == '\''
+                || ch == '`'
+                || ch == '<'
+                || ch == '>'
+                || ch == ')'
+                || ch == ']'
+                || ch == '}';
+    }
+
+    private static String redactEncodedSensitiveParameter(String parameter) {
+        int equals = parameter.indexOf('=');
+        if (equals <= 0 || equals + 1 >= parameter.length()) {
+            return parameter;
+        }
+        String name = parameter.substring(0, equals);
+        String decodedName = normalizeSensitiveQueryName(decodeRepeated(name));
+        if (!decodedName.matches("(?i)(?:" + SENSITIVE_QUERY_NAMES + ")")) {
+            return name + "=" + redactEmbeddedEncodedSensitiveQuery(parameter.substring(equals + 1));
+        }
+        return name + "=***";
+    }
+
+    private static String redactEmbeddedEncodedSensitiveQuery(String value) {
+        if (StrUtil.isBlank(value)) {
+            return value;
+        }
+        boolean hasRawSeparator =
+                value.indexOf('?') >= 0 || value.indexOf('#') >= 0 || value.indexOf(';') >= 0;
+        String decoded = decodeRepeated(value);
+        boolean hasDecodedSeparator =
+                decoded.indexOf('?') >= 0
+                        || decoded.indexOf('#') >= 0
+                        || decoded.indexOf(';') >= 0
+                        || decoded.indexOf('&') >= 0;
+        if (!hasRawSeparator && !hasDecodedSeparator) {
+            return value;
+        }
+        if (!hasRawSeparator && !redactEncodedSensitiveQuery(decoded).equals(decoded)) {
+            return "***";
+        }
+        return redactEncodedSensitiveQuery(value);
+    }
+
+    private static String decodeRepeated(String raw) {
+        String value = StrUtil.nullToEmpty(raw);
+        for (int i = 0; i < 4; i++) {
+            String decoded;
+            try {
+                decoded = URLDecoder.decode(value, "UTF-8");
+            } catch (Exception ignored) {
+                return value;
+            }
+            if (decoded.equals(value)) {
+                return decoded;
+            }
+            value = decoded;
+        }
+        return value;
+    }
+
+    private static String normalizeSensitiveQueryName(String raw) {
+        String name = StrUtil.nullToEmpty(raw);
+        name = name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2");
+        name = name.replaceAll("([a-z0-9])([A-Z])", "$1_$2");
+        name = name.toLowerCase(Locale.ROOT);
+        name = name.replace('-', '_').replace('.', '_');
+        return name.replaceAll("\\s+", "_");
     }
 }
