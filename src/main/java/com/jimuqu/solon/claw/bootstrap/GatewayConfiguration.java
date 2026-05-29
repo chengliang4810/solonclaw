@@ -41,6 +41,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -203,7 +204,8 @@ public class GatewayConfiguration {
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler defaultCronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
-            SlashConfirmService slashConfirmService) {
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -232,7 +234,8 @@ public class GatewayConfiguration {
                 sessionArtifactService,
                 defaultCronScheduler,
                 gatewayRestartCoordinator,
-                slashConfirmService);
+                slashConfirmService,
+                pluginCommands);
     }
 
     @Bean

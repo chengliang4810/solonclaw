@@ -3,11 +3,21 @@ package com.jimuqu.solon.claw.plugin;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 
 /** 插件注册事件接收器。主应用实现此接口以接收插件注册的组件。 */
 public interface PluginRegistrationSink {
+    default boolean hasTool(String name) {
+        return false;
+    }
+
+    default boolean hasCommand(String name) {
+        return false;
+    }
+
     void onToolRegistered(ToolRegistration registration);
 
     void onCommandRegistered(String name, CommandHandler handler, String description);
@@ -19,6 +29,10 @@ public interface PluginRegistrationSink {
     void onVideoGenProviderRegistered(VideoGenProvider provider);
 
     void onBrowserProviderRegistered(BrowserProvider provider);
+
+    default void onSpeechProviderRegistered(SpeechProvider provider) {}
+
+    default void onTranscriptionProviderRegistered(TranscriptionProvider provider) {}
 
     void onMemoryProviderRegistered(MemoryProvider provider);
 

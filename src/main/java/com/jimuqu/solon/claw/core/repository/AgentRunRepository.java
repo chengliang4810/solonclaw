@@ -17,6 +17,8 @@ public interface AgentRunRepository {
 
     List<AgentRunRecord> listBySession(String sessionId, int limit) throws Exception;
 
+    List<AgentRunRecord> listFinishedWithUsage(int limit) throws Exception;
+
     List<AgentRunRecord> listRecoverable(int limit) throws Exception;
 
     List<AgentRunRecord> listActiveBefore(long beforeEpochMillis, int limit) throws Exception;

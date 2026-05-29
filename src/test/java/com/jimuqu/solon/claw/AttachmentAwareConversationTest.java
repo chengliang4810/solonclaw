@@ -9,9 +9,13 @@ import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,6 +79,71 @@ public class AttachmentAwareConversationTest {
         assertThat(MessageSupport.getLastUserMessage(session.getNdjson()))
                 .contains("[attachments]");
         assertThat(MessageSupport.getLastUserMessage(session.getNdjson())).contains("report.pdf");
+    }
+
+    @Test
+    void shouldInjectVoiceTranscriptFromTranscriptionService() throws Exception {
+        CapturingLlmGateway llmGateway = new CapturingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        env.appConfig.getGateway().setAllowAllUsers(true);
+        AttachmentCacheService cacheService = new AttachmentCacheService(env.appConfig);
+        byte[] voiceBytes = "voice bytes".getBytes("UTF-8");
+        MessageAttachment voice =
+                cacheService.cacheBytes(
+                        PlatformType.MEMORY,
+                        "voice",
+                        "note.wav",
+                        "audio/wav",
+                        false,
+                        null,
+                        voiceBytes);
+        SpeechService speechService =
+                new SpeechService(
+                        env.appConfig,
+                        cacheService,
+                        java.util.Collections.<com.jimuqu.solon.claw.plugin.provider.SpeechProvider>emptyList(),
+                        java.util.Collections.<TranscriptionProvider>singletonList(
+                                new FakeTranscriptionProvider("转写文本")));
+        com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator orchestrator =
+                new com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator(
+                        env.sessionRepository,
+                        new com.jimuqu.solon.claw.context.FileContextService(
+                                env.appConfig,
+                                env.localSkillService,
+                                env.memoryManager,
+                                env.globalSettingRepository,
+                                new com.jimuqu.solon.claw.context.PersonaWorkspaceService(env.appConfig)),
+                        env.contextCompressionService,
+                        llmGateway,
+                        env.toolRegistry,
+                        env.deliveryService,
+                        new com.jimuqu.solon.claw.support.DisplaySettingsService(
+                                env.appConfig, env.globalSettingRepository),
+                        new com.jimuqu.solon.claw.support.RuntimeSettingsService(
+                                env.appConfig,
+                                env.globalSettingRepository,
+                                env.deliveryService,
+                                null,
+                                null,
+                                new AppVersionService(env.appConfig),
+                                new LlmProviderService(env.appConfig),
+                                null),
+                        env.dangerousCommandApprovalService,
+                        (com.jimuqu.solon.claw.engine.AgentRunSupervisor) env.agentRunControlService,
+                        new com.jimuqu.solon.claw.support.RuntimeFooterService(env.appConfig),
+                        env.agentRuntimeService,
+                        env.memoryManager,
+                        null,
+                        speechService);
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "room-voice", "user-1", "听一下");
+        message.setAttachments(new ArrayList<MessageAttachment>());
+        message.getAttachments().add(voice);
+
+        orchestrator.handleIncoming(message);
+
+        assertThat(llmGateway.lastUserMessage).contains("transcribedText=转写文本");
+        assertThat(voice.getTranscribedText()).isEqualTo("转写文本");
     }
 
     @Test
@@ -304,6 +373,29 @@ public class AttachmentAwareConversationTest {
                 SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    private static class FakeTranscriptionProvider implements TranscriptionProvider {
+        private final String transcript;
+
+        private FakeTranscriptionProvider(String transcript) {
+            this.transcript = transcript;
+        }
+
+        @Override
+        public String name() {
+            return "fake-transcription";
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
+
+        @Override
+        public TranscriptionResult transcribe(byte[] audio, String mimeType, Map<String, Object> options) {
+            return TranscriptionResult.ok(transcript);
         }
     }
 }

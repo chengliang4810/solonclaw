@@ -65,6 +65,10 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.IMAGE_GENERATE,
+                    ToolNameConstants.TEXT_TO_SPEECH,
+                    ToolNameConstants.SPEECH_TRANSCRIBE,
+                    ToolNameConstants.BROWSER,
                     ToolNameConstants.SECURITY_AUDIT);
 
     private AgentRuntimePolicy() {}
@@ -250,6 +254,30 @@ public final class AgentRuntimePolicy {
             output.add(ToolNameConstants.WEBSEARCH);
             output.add(ToolNameConstants.WEBFETCH);
             output.add(ToolNameConstants.CODESEARCH);
+            return;
+        }
+        if ("browser".equals(key) || "browsing".equals(key) || "automation".equals(key)) {
+            output.add(ToolNameConstants.BROWSER);
+            return;
+        }
+        if ("media".equals(key) || "multimodal".equals(key)) {
+            output.add(ToolNameConstants.IMAGE_GENERATE);
+            output.add(ToolNameConstants.TEXT_TO_SPEECH);
+            output.add(ToolNameConstants.SPEECH_TRANSCRIBE);
+            return;
+        }
+        if ("image".equals(key) || "images".equals(key) || "vision".equals(key)) {
+            output.add(ToolNameConstants.IMAGE_GENERATE);
+            return;
+        }
+        if ("speech".equals(key)
+                || "voice".equals(key)
+                || "audio".equals(key)
+                || "tts".equals(key)
+                || "transcription".equals(key)
+                || "transcribe".equals(key)) {
+            output.add(ToolNameConstants.TEXT_TO_SPEECH);
+            output.add(ToolNameConstants.SPEECH_TRANSCRIBE);
             return;
         }
         if ("gateway".equals(key) || "tool_gateway".equals(key) || "managed_tools".equals(key)) {

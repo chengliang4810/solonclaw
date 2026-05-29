@@ -55,6 +55,7 @@ public class ToolRegistryExposureTest {
                         "codesearch",
                         "websearch",
                         "webfetch",
+                        "browser",
                         "security_audit",
                         "clarify",
                         "file_read",
@@ -102,6 +103,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeCodeSearchTool");
         assertThat(joined).contains("SafeWebsearchTool");
         assertThat(joined).contains("SafeWebfetchTool");
+        assertThat(joined).contains("BrowserTools");
         assertThat(joined).contains("SecurityAuditTools");
         assertThat(joined).contains("ClarifyTools");
         assertThat(joined).contains("SolonClawFileReadWriteSkill");
@@ -2954,6 +2956,19 @@ public class ToolRegistryExposureTest {
         String joined = env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").toString();
 
         assertThat(joined).doesNotContain("FileReadWriteSkill");
+    }
+
+    @Test
+    void shouldDropBrowserToolsWhenDisabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        env.toolRegistry.disableTools(
+                sourceKey, java.util.Collections.singletonList("browser"));
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).doesNotContain("browser");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .doesNotContain("BrowserTools");
     }
 
     @Test

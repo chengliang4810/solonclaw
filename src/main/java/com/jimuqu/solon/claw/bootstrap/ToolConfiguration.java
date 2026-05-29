@@ -29,9 +29,17 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.media.ImageGenerationService;
+import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
+import com.jimuqu.solon.claw.plugin.ToolRegistration;
+import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
+import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -45,6 +53,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalAuditObserver;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -53,6 +62,8 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
+import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
@@ -112,12 +123,38 @@ public class ToolConfiguration {
         return new AttachmentCacheService(appConfig);
     }
 
+    @Bean
+    public ImageGenerationService imageGenerationService(
+            AppConfig appConfig,
+            AttachmentCacheService attachmentCacheService,
+            List<ImageGenProvider> imageGenProviders) {
+        return new ImageGenerationService(appConfig, attachmentCacheService, imageGenProviders);
+    }
+
+    @Bean
+    public SpeechService speechService(
+            AppConfig appConfig,
+            AttachmentCacheService attachmentCacheService,
+            List<SpeechProvider> speechProviders,
+            List<TranscriptionProvider> transcriptionProviders) {
+        return new SpeechService(
+                appConfig, attachmentCacheService, speechProviders, transcriptionProviders);
+    }
+
     @Bean(destroyMethod = "shutdown")
     public McpRuntimeService mcpRuntimeService(
             AppConfig appConfig,
             SqliteDatabase sqliteDatabase,
             SecurityPolicyService securityPolicyService) {
         return new McpRuntimeService(appConfig, sqliteDatabase, null, securityPolicyService);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public BrowserRuntimeService browserRuntimeService(
+            AppConfig appConfig,
+            List<BrowserProvider> browserProviders,
+            SecurityPolicyService securityPolicyService) {
+        return new BrowserRuntimeService(appConfig, browserProviders, securityPolicyService);
     }
 
     @Bean
@@ -145,7 +182,11 @@ public class ToolConfiguration {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry,
-            McpRuntimeService mcpRuntimeService) {
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            List<ToolRegistration> pluginTools) {
         return new DefaultToolRegistry(
                 appConfig,
                 preferenceStore,
@@ -165,7 +206,11 @@ public class ToolConfiguration {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 processRegistry,
-                mcpRuntimeService);
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                pluginTools);
     }
 
     @Bean
@@ -249,7 +294,9 @@ public class ToolConfiguration {
             ContextCompressionService contextCompressionService,
             ContextBudgetService contextBudgetService,
             LlmGateway llmGateway,
-            LlmProviderService llmProviderService) {
+            LlmProviderService llmProviderService,
+            UsageEventRepository usageEventRepository,
+            UsageCostCalculator usageCostCalculator) {
         return new AgentRunSupervisor(
                 appConfig,
                 sessionRepository,
@@ -257,7 +304,9 @@ public class ToolConfiguration {
                 contextCompressionService,
                 contextBudgetService,
                 llmGateway,
-                llmProviderService);
+                llmProviderService,
+                usageEventRepository,
+                usageCostCalculator);
     }
 
     @Bean
@@ -277,7 +326,8 @@ public class ToolConfiguration {
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager,
             GoalService goalService,
-            AgentHookRegistry agentHookRegistry) {
+            AgentHookRegistry agentHookRegistry,
+            SpeechService speechService) {
         DefaultConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
@@ -293,7 +343,8 @@ public class ToolConfiguration {
                         runtimeFooterService,
                         agentRuntimeService,
                         memoryManager,
-                        goalService);
+                        goalService,
+                        speechService);
         orchestrator.setHookRegistry(agentHookRegistry);
         holder.set(orchestrator);
         return orchestrator;
