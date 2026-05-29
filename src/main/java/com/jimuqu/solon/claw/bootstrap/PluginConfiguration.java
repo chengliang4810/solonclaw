@@ -91,14 +91,47 @@ public class PluginConfiguration implements PluginRegistrationSink {
         return transcriptionProviders;
     }
 
+    @Bean
+    public List<ToolRegistration> pluginTools() {
+        return pluginTools;
+    }
+
+    @Bean
+    public Map<String, CommandHandler> pluginCommands() {
+        Map<String, CommandHandler> commands = new LinkedHashMap<>();
+        for (Map.Entry<String, CommandEntry> entry : pluginCommands.entrySet()) {
+            commands.put(entry.getKey(), entry.getValue().handler);
+        }
+        return Collections.unmodifiableMap(commands);
+    }
+
+    @Override
+    public boolean hasTool(String name) {
+        for (ToolRegistration registration : pluginTools) {
+            if (registration != null && Objects.equals(registration.getName(), name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean hasCommand(String name) {
+        return pluginCommands.containsKey(name);
+    }
+
     @Override
     public void onToolRegistered(ToolRegistration registration) {
-        pluginTools.add(registration);
+        if (registration != null && !hasTool(registration.getName())) {
+            pluginTools.add(registration);
+        }
     }
 
     @Override
     public void onCommandRegistered(String name, CommandHandler handler, String description) {
-        pluginCommands.put(name, new CommandEntry(name, handler, description));
+        if (!pluginCommands.containsKey(name)) {
+            pluginCommands.put(name, new CommandEntry(name, handler, description));
+        }
     }
 
     @Override

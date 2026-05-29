@@ -34,6 +34,7 @@ import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
+import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
@@ -182,7 +183,8 @@ public class ToolConfiguration {
             McpRuntimeService mcpRuntimeService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
-            SpeechService speechService) {
+            SpeechService speechService,
+            List<ToolRegistration> pluginTools) {
         return new DefaultToolRegistry(
                 appConfig,
                 preferenceStore,
@@ -205,7 +207,8 @@ public class ToolConfiguration {
                 mcpRuntimeService,
                 browserRuntimeService,
                 imageGenerationService,
-                speechService);
+                speechService,
+                pluginTools);
     }
 
     @Bean

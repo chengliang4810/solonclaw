@@ -19,6 +19,10 @@ public interface AgentPluginContext {
 
     void registerCommand(String name, CommandHandler handler, String description);
 
+    default void registerCommand(String name, CommandHandler handler) {
+        registerCommand(name, handler, "");
+    }
+
     void registerWebSearchProvider(WebSearchProvider provider);
 
     void registerImageGenProvider(ImageGenProvider provider);
