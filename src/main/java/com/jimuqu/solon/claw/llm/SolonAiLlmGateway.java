@@ -421,7 +421,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 resolved.isStream(),
                 session != null && StrUtil.isNotBlank(session.getModelOverride()));
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        ChatConfig chatConfig = buildChatConfig(resolved);
+        ChatConfig chatConfig = buildChatConfig(resolved, session);
         UsageCollector usageCollector = new UsageCollector();
         ReActAgent agent =
                 buildHarnessReActAgent(
@@ -885,6 +885,10 @@ public class SolonAiLlmGateway implements LlmGateway {
     }
 
     private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved) {
+        return buildChatConfig(resolved, null);
+    }
+
+    private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved, SessionRecord session) {
         ensureCustomDialectsRegistered();
         String dialect =
                 LlmProviderSupport.normalizeDialect(
@@ -912,6 +916,11 @@ public class SolonAiLlmGateway implements LlmGateway {
                             "reasoning",
                             Collections.<String, Object>singletonMap(
                                     "effort", resolved.getReasoningEffort()));
+        }
+        if (session != null
+                && "priority".equalsIgnoreCase(
+                        StrUtil.nullToEmpty(session.getServiceTierOverride()).trim())) {
+            chatConfig.getModelOptions().optionSet("service_tier", "priority");
         }
 
         return chatConfig;

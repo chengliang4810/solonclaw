@@ -813,6 +813,8 @@ public class DefaultCommandService implements CommandService {
                                     + count
                                     + ", model="
                                     + StrUtil.nullToDefault(session.getModelOverride(), "default")
+                                    + ", fast_mode="
+                                    + fastModeName(session)
                                     + ", agent="
                                     + StrUtil.blankToDefault(
                                             session.getActiveAgentName(), "default")
@@ -937,6 +939,14 @@ public class DefaultCommandService implements CommandService {
                             : input.model;
             sessionRepository.setModelOverride(session.getSessionId(), override);
             GatewayReply reply = GatewayReply.ok("已切换当前会话模型为：" + override + "（下一条消息生效）");
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+
+        if (GatewayCommandConstants.COMMAND_FAST.equals(command)) {
+            SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply reply = handleFast(session, args);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -3535,6 +3545,48 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_REASONING + " [show|hide]");
     }
 
+    private GatewayReply handleFast(SessionRecord session, String args) throws Exception {
+        String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        if (StrUtil.isBlank(normalized) || "status".equals(normalized)) {
+            return GatewayReply.ok(formatFastStatus(session));
+        }
+        if ("fast".equals(normalized) || "on".equals(normalized) || "priority".equals(normalized)) {
+            sessionRepository.setServiceTierOverride(session.getSessionId(), "priority");
+            session.setServiceTierOverride("priority");
+            return GatewayReply.ok("已开启当前会话快速模式。\n" + formatFastStatus(session));
+        }
+        if ("normal".equals(normalized) || "off".equals(normalized) || "default".equals(normalized)) {
+            sessionRepository.setServiceTierOverride(session.getSessionId(), null);
+            session.setServiceTierOverride(null);
+            return GatewayReply.ok("已恢复当前会话普通模式。\n" + formatFastStatus(session));
+        }
+        return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]");
+    }
+
+    private String formatFastStatus(SessionRecord session) {
+        return "fast_mode="
+                + fastModeName(session)
+                + "\nservice_tier="
+                + serviceTierName(session)
+                + "\nusage="
+                + GatewayCommandConstants.SLASH_FAST
+                + " [fast|normal|status]";
+    }
+
+    private String fastModeName(SessionRecord session) {
+        return isPriorityServiceTier(session) ? "fast" : "normal";
+    }
+
+    private String serviceTierName(SessionRecord session) {
+        return isPriorityServiceTier(session) ? "priority" : "default";
+    }
+
+    private boolean isPriorityServiceTier(SessionRecord session) {
+        return session != null
+                && "priority".equalsIgnoreCase(
+                        StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
+    }
+
     private GatewayReply handleBusy(String args, String sourceKey) {
         String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
         if (StrUtil.isBlank(normalized) || "status".equals(normalized)) {
@@ -4050,6 +4102,9 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_MODEL
                                         + " [--global] [provider:]<model>|clear",
                                 "查看或切换模型"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]",
+                                "查看或切换当前会话快速模式"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_REASONING + " [show|hide]",
                                 "查看或切换 reasoning 展示"),

@@ -30,4 +30,33 @@ public class ModelCommandTest {
         assertThat(env.appConfig.getLlm().getProvider()).isEqualTo("default");
         assertThat(env.appConfig.getLlm().getModel()).isEqualTo("claude-sonnet-4");
     }
+
+    @Test
+    void shouldToggleSessionFastMode() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("admin-chat", "admin-user", "hello");
+        env.send("admin-chat", "admin-user", "/pairing claim-admin");
+
+        GatewayReply initial = env.send("admin-chat", "admin-user", "/fast status");
+        assertThat(initial.getContent()).contains("fast_mode=normal");
+
+        GatewayReply fast = env.send("admin-chat", "admin-user", "/fast fast");
+        assertThat(fast.getContent()).contains("fast_mode=fast");
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:admin-chat:admin-user")
+                                .getServiceTierOverride())
+                .isEqualTo("priority");
+
+        GatewayReply enabledStatus = env.send("admin-chat", "admin-user", "/fast status");
+        assertThat(enabledStatus.getContent()).contains("service_tier=priority");
+
+        GatewayReply normal = env.send("admin-chat", "admin-user", "/fast normal");
+        assertThat(normal.getContent()).contains("fast_mode=normal");
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:admin-chat:admin-user")
+                                .getServiceTierOverride())
+                .isNull();
+    }
 }

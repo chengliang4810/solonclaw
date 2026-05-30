@@ -216,6 +216,9 @@ public class TerminalSessionBrowserTest {
         public void setModelOverride(String sessionId, String modelOverride) {}
 
         @Override
+        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
+
+        @Override
         public void setActiveAgentName(String sessionId, String agentName) {}
 
         @Override

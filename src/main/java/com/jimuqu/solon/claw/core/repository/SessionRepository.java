@@ -52,6 +52,9 @@ public interface SessionRepository {
     /** 更新会话模型覆盖配置。 */
     void setModelOverride(String sessionId, String modelOverride) throws Exception;
 
+    /** 更新会话服务层级覆盖配置。 */
+    void setServiceTierOverride(String sessionId, String serviceTierOverride) throws Exception;
+
     /** 更新当前会话激活 Agent。 */
     void setActiveAgentName(String sessionId, String agentName) throws Exception;
 

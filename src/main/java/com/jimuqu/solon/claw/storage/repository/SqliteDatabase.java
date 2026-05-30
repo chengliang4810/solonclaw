@@ -126,6 +126,7 @@ public class SqliteDatabase {
                             + "branch_name text,"
                             + "parent_session_id text,"
                             + "model_override text,"
+                            + "service_tier_override text,"
                             + "active_agent_name text,"
                             + "platform_message_id text,"
                             + "metadata_json text,"
@@ -170,6 +171,7 @@ public class SqliteDatabase {
                 statement.execute("alter table sessions add column model_override text");
             } catch (Exception ignored) {
             }
+            addColumn(statement, "sessions", "service_tier_override text");
             try {
                 statement.execute("alter table sessions add column active_agent_name text");
             } catch (Exception ignored) {

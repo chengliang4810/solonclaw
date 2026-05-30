@@ -24,6 +24,9 @@ public class SessionRecord {
     /** 模型覆盖配置。 */
     private String modelOverride;
 
+    /** 服务层级覆盖配置。 */
+    private String serviceTierOverride;
+
     /** 本轮运行临时 provider 覆盖，不写入持久化存储。 */
     private transient String transientProviderOverride;
 
