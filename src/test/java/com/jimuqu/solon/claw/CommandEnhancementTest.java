@@ -1250,6 +1250,22 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldSupportReloadMcpUnderscoreAliasWithConfirmationText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload_mcp");
+        assertThat(prompt.getContent())
+                .contains("/approve")
+                .contains("/always")
+                .contains("/cancel")
+                .contains("工具 schema");
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
+        assertThat(status.getContent()).contains("当前待确认 slash 命令：/reload-mcp");
+    }
+
+    @Test
     void shouldResolveReloadMcpWithSlashConfirmFallbacks() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

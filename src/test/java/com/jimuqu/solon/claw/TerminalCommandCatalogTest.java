@@ -57,6 +57,10 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor platforms = CommandRegistry.get("platforms");
         assertThat(platforms.getAliases()).contains("gateway");
         assertThat(CommandRegistry.resolve("/gateway").getName()).isEqualTo("platforms");
+
+        CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
+        assertThat(reloadMcp.getAliases()).contains("reload_mcp");
+        assertThat(CommandRegistry.resolve("/reload_mcp").getName()).isEqualTo("reload-mcp");
     }
 
     @Test
