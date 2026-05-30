@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.kanban;
 
 import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -9,6 +10,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Collections;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,6 +90,10 @@ public class ConversationKanbanWorkerSpawner implements KanbanWorkerSpawner {
         buffer.append("- 无法完成时调用 kanban_block(task_id=\"")
                 .append(task.getTaskId())
                 .append("\", reason=\"...\")。\n");
+        List<String> skills = AgentRuntimePolicy.parseStringList(task.getSkillsJson());
+        if (!skills.isEmpty()) {
+            buffer.append("- 请先加载并遵循这些技能：").append(skills).append('\n');
+        }
         if (StrUtil.isNotBlank(workspacePath)) {
             buffer.append("- 工作目录：").append(workspacePath).append('\n');
         }

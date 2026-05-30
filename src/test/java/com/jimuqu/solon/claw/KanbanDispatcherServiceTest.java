@@ -3,6 +3,10 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.kanban.ConversationKanbanWorkerSpawner;
 import com.jimuqu.solon.claw.kanban.KanbanDispatcherService;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
@@ -434,6 +438,44 @@ public class KanbanDispatcherServiceTest {
         assertThat(detail.get("worker_pid")).isEqualTo(Long.valueOf(4242L));
         assertThat(String.valueOf(detail.get("events"))).contains("claimed").contains("spawned");
         assertThat(spawner.spawned).isEqualTo(1);
+    }
+
+    @Test
+    void shouldAttachReviewSkillWhenDispatchingReviewTask() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        RecordingSpawner spawner = new RecordingSpawner();
+        KanbanDispatcherService dispatcher = new KanbanDispatcherService(repository, service, spawner);
+
+        String taskId = createTask(service, "复核技能任务", "worker-a", "planner", "review", null);
+
+        dispatcher.dispatch(new LinkedHashMap<String, Object>());
+
+        assertThat(spawner.lastTask.getTaskId()).isEqualTo(taskId);
+        assertThat(spawner.lastTask.getSkillsJson()).contains("review");
+        assertThat(service.task(taskId).get("skills")).isNull();
+    }
+
+    @Test
+    void shouldIncludeReviewSkillInWorkerPromptForReviewTask() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+        KanbanDispatcherService dispatcher =
+                new KanbanDispatcherService(
+                        repository,
+                        service,
+                        new ConversationKanbanWorkerSpawner(orchestrator, service));
+
+        createTask(service, "复核提示任务", "worker-a", "planner", "review", null);
+
+        dispatcher.dispatch(new LinkedHashMap<String, Object>());
+
+        assertThat(orchestrator.awaitMessage().getText())
+                .contains("请先加载并遵循这些技能")
+                .contains("review");
     }
 
     @Test
@@ -947,12 +989,41 @@ public class KanbanDispatcherServiceTest {
 
     private static class RecordingSpawner implements KanbanWorkerSpawner {
         int spawned;
+        KanbanTaskRecord lastTask;
 
         @Override
         public long spawn(KanbanTaskRecord task, String workspacePath, String workerContext) {
             spawned++;
+            lastTask = task;
             assertThat(workerContext).contains(task.getTaskId()).contains(task.getTitle());
             return 4242L;
+        }
+    }
+
+    private static class CapturingOrchestrator implements ConversationOrchestrator {
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private volatile GatewayMessage lastMessage;
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            lastMessage = syntheticMessage;
+            latch.countDown();
+            return GatewayReply.ok("ok");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+
+        GatewayMessage awaitMessage() throws InterruptedException {
+            assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
+            return lastMessage;
         }
     }
 
