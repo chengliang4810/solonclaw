@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.storage.repository;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.kanban.KanbanBoardRecord;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanEventRecord;
@@ -21,11 +22,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
 /** SQLite-backed Kanban repository. */
-@RequiredArgsConstructor
 public class SqliteKanbanRepository implements KanbanRepository {
     public static final String DEFAULT_BOARD = "default";
     private static final long DEFAULT_CLAIM_TTL_SECONDS = 900L;
@@ -33,6 +32,16 @@ public class SqliteKanbanRepository implements KanbanRepository {
     private static final long STALE_HEARTBEAT_GAP_SECONDS = 3600L;
 
     private final SqliteDatabase database;
+    private final AppConfig appConfig;
+
+    public SqliteKanbanRepository(SqliteDatabase database) {
+        this(database, null);
+    }
+
+    public SqliteKanbanRepository(SqliteDatabase database, AppConfig appConfig) {
+        this.database = database;
+        this.appConfig = appConfig;
+    }
 
     @Override
     public List<KanbanBoardRecord> listBoards() throws Exception {
@@ -291,16 +300,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
     public KanbanTaskRecord findTask(String taskId) throws Exception {
         Connection connection = database.openConnection();
         try {
-            PreparedStatement statement =
-                    connection.prepareStatement("select * from kanban_tasks where task_id = ?");
-            statement.setString(1, taskId);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                return resultSet.next() ? mapTask(resultSet) : null;
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
+            return findTask(connection, taskId);
         } finally {
             connection.close();
         }
@@ -426,11 +426,30 @@ public class SqliteKanbanRepository implements KanbanRepository {
 
     @Override
     public void linkTasks(String parentId, String childId) throws Exception {
-        if (StrUtil.hasBlank(parentId, childId) || StrUtil.equals(parentId, childId)) {
+        if (StrUtil.hasBlank(parentId, childId)) {
             return;
+        }
+        if (StrUtil.equals(parentId, childId)) {
+            throw new IllegalArgumentException("Kanban task cannot link to itself: " + parentId);
         }
         Connection connection = database.openConnection();
         try {
+            KanbanTaskRecord parent = findTask(connection, parentId);
+            KanbanTaskRecord child = findTask(connection, childId);
+            if (parent == null) {
+                throw new IllegalArgumentException("Kanban task not found: " + parentId);
+            }
+            if (child == null) {
+                throw new IllegalArgumentException("Kanban task not found: " + childId);
+            }
+            if (!StrUtil.equals(parent.getBoardSlug(), child.getBoardSlug())) {
+                throw new IllegalArgumentException(
+                        "Kanban tasks must be on the same board: " + parentId + " -> " + childId);
+            }
+            if (linkWouldCreateCycle(connection, parentId, childId)) {
+                throw new IllegalArgumentException(
+                        "Kanban link would create a dependency cycle: " + parentId + " -> " + childId);
+            }
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert or ignore into kanban_task_links (parent_id, child_id) values (?, ?)");
@@ -447,6 +466,38 @@ public class SqliteKanbanRepository implements KanbanRepository {
             demote.close();
         } finally {
             connection.close();
+        }
+    }
+
+    private KanbanTaskRecord findTask(Connection connection, String taskId) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement("select * from kanban_tasks where task_id = ?");
+        statement.setString(1, taskId);
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next() ? mapTask(resultSet) : null;
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    private boolean linkWouldCreateCycle(Connection connection, String parentId, String childId) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "with recursive descendants(task_id) as ("
+                                + "select child_id from kanban_task_links where parent_id = ? "
+                                + "union "
+                                + "select l.child_id from kanban_task_links l join descendants d on l.parent_id = d.task_id"
+                                + ") select 1 from descendants where task_id = ? limit 1");
+        statement.setString(1, childId);
+        statement.setString(2, parentId);
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next();
+        } finally {
+            resultSet.close();
+            statement.close();
         }
     }
 
@@ -616,6 +667,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         if (before == null) {
             return false;
         }
+        boolean shouldRecomputeReady = false;
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -649,9 +701,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
             } else if (StrUtil.isNotBlank(before.getCurrentRunId())) {
                 closeOrSynthesizeRun(after, "released", "released", result, null, null, now, connection);
             }
+            shouldRecomputeReady = "done".equals(normalized) || "archived".equals(normalized);
             return true;
         } finally {
             connection.close();
+            if (shouldRecomputeReady) {
+                recomputeReady(before.getBoardSlug());
+            }
         }
     }
 
@@ -1164,7 +1220,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
     private void extendLiveStaleClaim(Connection connection, KanbanTaskRecord task, long now)
             throws Exception {
         long previousExpiresAt = task.getClaimExpiresAt();
-        long nextExpiresAt = now + DEFAULT_CLAIM_TTL_SECONDS * 1000L;
+        long nextExpiresAt = now + defaultClaimTtlSeconds() * 1000L;
         PreparedStatement statement =
                 connection.prepareStatement(
                         "update kanban_tasks set claim_expires_at = ?, updated_at = ? where task_id = ? and status = 'running'");
@@ -1185,6 +1241,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
         payload.put("worker_pid", Long.valueOf(task.getWorkerPid()));
         payload.put("reason", "worker_pid_alive");
         addEvent(connection, task.getTaskId(), "claim_extended", payload);
+    }
+
+    private long defaultClaimTtlSeconds() {
+        if (appConfig == null || appConfig.getKanban() == null) {
+            return DEFAULT_CLAIM_TTL_SECONDS;
+        }
+        return Math.max(1L, appConfig.getKanban().getClaimTtlSeconds());
     }
 
     private boolean isWorkerPidAlive(long pid) {

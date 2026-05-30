@@ -256,7 +256,7 @@ public class KanbanService {
         task.setTitle(text(body, "title"));
         task.setBody(text(body, "body"));
         task.setAssignee(text(body, "assignee"));
-        String defaultStatus = parentIds.isEmpty() ? "todo" : initialCommandStatus(parentIds);
+        String defaultStatus = initialCommandStatus(parentIds);
         task.setStatus(StrUtil.blankToDefault(text(body, "status"), defaultStatus));
         task.setPriority(intValue(body, "priority", 0));
         task.setTenant(text(body, "tenant"));
@@ -970,7 +970,7 @@ public class KanbanService {
 
     public Map<String, Object> claim(String taskId, Map<String, Object> body) throws Exception {
         String claimer = StrUtil.blankToDefault(text(body, "claimer"), defaultClaimer());
-        long ttl = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
+        long ttl = longValue(body, "ttl_seconds", defaultClaimTtlSeconds());
         String workerId = StrUtil.blankToDefault(text(body, "worker_id"), claimer);
         long workerPid = longValue(body, "worker_pid", 0L);
         KanbanTaskRecord claimed =
@@ -983,7 +983,7 @@ public class KanbanService {
 
     public Map<String, Object> claimNext(Map<String, Object> body) throws Exception {
         String claimer = StrUtil.blankToDefault(text(body, "claimer"), defaultClaimer());
-        long ttl = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
+        long ttl = longValue(body, "ttl_seconds", defaultClaimTtlSeconds());
         String workerId = StrUtil.blankToDefault(text(body, "worker_id"), claimer);
         long workerPid = longValue(body, "worker_pid", 0L);
         KanbanTaskRecord claimed =
@@ -1009,12 +1009,19 @@ public class KanbanService {
     public Map<String, Object> heartbeatClaim(String taskId, Map<String, Object> body)
             throws Exception {
         String claimer = StrUtil.blankToDefault(text(body, "claimer"), defaultClaimer());
-        long ttl = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
+        long ttl = longValue(body, "ttl_seconds", defaultClaimTtlSeconds());
         boolean ok = repository.heartbeatClaim(taskId, claimer, ttl);
         if (!ok) {
             throw new IllegalArgumentException("Kanban claim is not owned by claimer: " + taskId);
         }
         return task(taskId);
+    }
+
+    private long defaultClaimTtlSeconds() {
+        if (appConfig == null || appConfig.getKanban() == null) {
+            return DEFAULT_CLAIM_TTL_SECONDS;
+        }
+        return Math.max(1L, appConfig.getKanban().getClaimTtlSeconds());
     }
 
     public Map<String, Object> heartbeatWorker(String taskId, Map<String, Object> body)

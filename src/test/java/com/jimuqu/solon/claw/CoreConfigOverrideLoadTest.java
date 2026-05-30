@@ -57,6 +57,7 @@ public class CoreConfigOverrideLoadTest {
                         + "    maxInProgress: 8\n"
                         + "    maxInProgressPerProfile: 2\n"
                         + "    failureLimit: 5\n"
+                        + "    claimTtlSeconds: 3600\n"
                         + "  terminal:\n"
                         + "    foregroundMaxRetries: 4\n"
                         + "    foregroundRetryBaseDelaySeconds: 1\n"
@@ -176,6 +177,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getKanban().getMaxInProgress()).isEqualTo(8);
         assertThat(config.getKanban().getMaxInProgressPerProfile()).isEqualTo(2);
         assertThat(config.getKanban().getFailureLimit()).isEqualTo(5);
+        assertThat(config.getKanban().getClaimTtlSeconds()).isEqualTo(3600);
         assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
                 .containsExactly("blocked.example");

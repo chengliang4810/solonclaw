@@ -73,6 +73,7 @@ public class KanbanDispatcherService {
         this.kanbanService = kanbanService;
         this.workerSpawner = workerSpawner;
         this.appConfig = appConfig;
+        this.daemonTtlSeconds = defaultClaimTtlSeconds();
     }
 
     public Map<String, Object> dispatch(Map<String, Object> body) throws Exception {
@@ -88,7 +89,7 @@ public class KanbanDispatcherService {
                 intValue(body, "max_in_progress_per_profile", defaults.getMaxInProgressPerProfile());
         int failureLimit = intValue(body, "failure_limit", defaults.getFailureLimit());
         long staleTimeoutSeconds = longValue(body, "stale_timeout_seconds", 0L);
-        long ttlSeconds = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
+        long ttlSeconds = longValue(body, "ttl_seconds", defaultClaimTtlSeconds());
         boolean dryRun = booleanValue(body, "dry_run");
         return dispatchOnce(
                         board,
@@ -371,7 +372,7 @@ public class KanbanDispatcherService {
                     intValue(body, "max_in_progress_per_profile", defaults.getMaxInProgressPerProfile());
             daemonFailureLimit = intValue(body, "failure_limit", defaults.getFailureLimit());
             daemonStaleTimeoutSeconds = longValue(body, "stale_timeout_seconds", 0L);
-            daemonTtlSeconds = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
+            daemonTtlSeconds = longValue(body, "ttl_seconds", defaultClaimTtlSeconds());
             daemonIntervalSeconds = Math.max(1, intValue(body, "interval_seconds", DEFAULT_DAEMON_INTERVAL_SECONDS));
             daemonDryRun = booleanValue(body, "dry_run");
             daemonStartedAt = System.currentTimeMillis();
@@ -513,6 +514,11 @@ public class KanbanDispatcherService {
 
     private AppConfig.KanbanConfig kanbanConfig() {
         return appConfig == null ? new AppConfig.KanbanConfig() : appConfig.getKanban();
+    }
+
+    private long defaultClaimTtlSeconds() {
+        AppConfig.KanbanConfig config = kanbanConfig();
+        return Math.max(1L, config.getClaimTtlSeconds());
     }
 
     private boolean isSpawnableAssignee(String assignee) throws Exception {
