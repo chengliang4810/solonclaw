@@ -754,7 +754,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             }
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, current_run_id = null, updated_at = ? where task_id = ?");
+                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, updated_at = ? where task_id = ?");
             statement.setLong(1, now);
             statement.setString(2, taskId);
             int updated = statement.executeUpdate();

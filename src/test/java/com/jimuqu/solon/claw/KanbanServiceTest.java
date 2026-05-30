@@ -541,6 +541,7 @@ public class KanbanServiceTest {
         running.put("status", "running");
         running.put("claim_lock", "lock-1");
         running.put("worker_id", "worker-a");
+        running.put("worker_pid", 424242L);
         service.updateTask(taskId, running);
 
         assertThatThrownBy(() -> service.reassign(taskId, "bob", false, null))
@@ -549,6 +550,7 @@ public class KanbanServiceTest {
         Map<String, Object> reclaimed = service.reclaim(taskId, "worker timeout");
         assertThat(reclaimed.get("status")).isEqualTo("ready");
         assertThat(reclaimed.get("claim_lock")).isNull();
+        assertThat(reclaimed.get("worker_pid")).isNull();
         assertThat(String.valueOf(reclaimed.get("events"))).contains("reclaimed");
 
         Map<String, Object> reassigned = service.reassign(taskId, "bob", false, "handoff");
