@@ -377,6 +377,44 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldInheritBoardDefaultWorkspacePathOnlyForPersistentWorkspaces() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        Map<String, Object> board = new LinkedHashMap<String, Object>();
+        board.put("slug", "workspace-defaults");
+        board.put("name", "工作区默认值");
+        board.put("default_workspace_path", "/tmp/solon-claw-board-default");
+        service.createBoard(board);
+
+        Map<String, Object> scratch = new LinkedHashMap<String, Object>();
+        scratch.put("board", "workspace-defaults");
+        scratch.put("title", "scratch 不继承");
+        String scratchId = String.valueOf(service.createTask(scratch).get("id"));
+
+        Map<String, Object> dir = new LinkedHashMap<String, Object>();
+        dir.put("board", "workspace-defaults");
+        dir.put("title", "dir 继承");
+        dir.put("workspace_kind", "dir");
+        String dirId = String.valueOf(service.createTask(dir).get("id"));
+
+        Map<String, Object> explicit = new LinkedHashMap<String, Object>();
+        explicit.put("board", "workspace-defaults");
+        explicit.put("title", "显式路径优先");
+        explicit.put("workspace_kind", "dir");
+        explicit.put("workspace_path", "/tmp/solon-claw-explicit");
+        String explicitId = String.valueOf(service.createTask(explicit).get("id"));
+
+        assertThat(repository.findBoard("workspace-defaults").getDefaultWorkspacePath())
+                .isEqualTo("/tmp/solon-claw-board-default");
+        assertThat(repository.findTask(scratchId).getWorkspacePath()).isNull();
+        assertThat(repository.findTask(dirId).getWorkspacePath())
+                .isEqualTo("/tmp/solon-claw-board-default");
+        assertThat(repository.findTask(explicitId).getWorkspacePath())
+                .isEqualTo("/tmp/solon-claw-explicit");
+    }
+
+    @Test
     void shouldFilterTaskListAssigneeCaseInsensitively() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "大小写过滤任务", "alice", "planner");
@@ -1007,6 +1045,64 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRemoveManagedScratchWorkspaceWhenTaskCompletes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, env.appConfig);
+        String taskId = createReadyTask(service, "完成后清理 scratch", "worker", "planner");
+        File workspace = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "workspaces", taskId);
+        FileUtil.mkdir(workspace);
+        FileUtil.writeUtf8String("temporary", FileUtil.file(workspace, "result.txt"));
+        repository.setWorkspacePath(taskId, workspace.getAbsolutePath());
+
+        service.status(taskId, "done", "完成");
+
+        assertThat(workspace).doesNotExist();
+        assertThat(service.task(taskId).get("status")).isEqualTo("done");
+    }
+
+    @Test
+    void shouldPreserveScratchWorkspacePathOutsideManagedRootWhenTaskCompletes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, env.appConfig);
+        String taskId = createReadyTask(service, "保护外部 scratch 路径", "worker", "planner");
+        File sourceTree = new File(env.appConfig.getRuntime().getHome(), "../source-tree").getCanonicalFile();
+        FileUtil.mkdir(sourceTree);
+        FileUtil.writeUtf8String("important", FileUtil.file(sourceTree, "README.md"));
+        repository.setWorkspacePath(taskId, sourceTree.getAbsolutePath());
+
+        service.status(taskId, "done", "完成");
+
+        assertThat(sourceTree).isDirectory();
+        assertThat(FileUtil.file(sourceTree, "README.md")).hasContent("important");
+    }
+
+    @Test
+    void shouldCleanBoardScopedScratchWorkspaceButPreserveBoardMetadataDirs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, env.appConfig);
+        String taskId = createReadyTask(service, "看板级 scratch", "worker", "planner");
+        File boardRoot = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "boards", "default");
+        File boardLogs = FileUtil.file(boardRoot, "logs");
+        File boardWorkspaces = FileUtil.file(boardRoot, "workspaces");
+        File workspace = FileUtil.file(boardWorkspaces, taskId);
+        FileUtil.mkdir(boardLogs);
+        FileUtil.mkdir(workspace);
+        FileUtil.writeUtf8String("metadata", FileUtil.file(boardLogs, "keep.log"));
+        FileUtil.writeUtf8String("temporary", FileUtil.file(workspace, "result.txt"));
+        repository.setWorkspacePath(taskId, workspace.getAbsolutePath());
+
+        service.status(taskId, "done", "完成");
+
+        assertThat(workspace).doesNotExist();
+        assertThat(boardWorkspaces).isDirectory();
+        assertThat(boardLogs).isDirectory();
+        assertThat(FileUtil.file(boardLogs, "keep.log")).hasContent("metadata");
+    }
+
+    @Test
     void shouldOnlyHardDeleteArchivedTasksAndCleanRelatedRows() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
@@ -1029,6 +1125,25 @@ public class KanbanServiceTest {
         assertRelatedRowCount(env.sqliteDatabase, "kanban_events", taskId, 0);
         assertRelatedRowCount(env.sqliteDatabase, "kanban_runs", taskId, 0);
         assertRelatedLinkCount(env.sqliteDatabase, taskId, 0);
+    }
+
+    @Test
+    void shouldPromoteChildImmediatelyWhenArchivedParentIsHardDeleted() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "待删除父任务", "lead", "planner");
+        String childId = createTask(service, "删除后可执行子任务", "worker", "planner");
+        service.link(parentId, childId);
+        service.status(parentId, "archived", "父任务归档");
+        Map<String, Object> relinked = new LinkedHashMap<String, Object>();
+        relinked.put("status", "todo");
+        service.updateTask(childId, relinked);
+
+        service.delete(parentId);
+
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+        assertRelatedLinkCount(env.sqliteDatabase, parentId, 0);
     }
 
     @Test

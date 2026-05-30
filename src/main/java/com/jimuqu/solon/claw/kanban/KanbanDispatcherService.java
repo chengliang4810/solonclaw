@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.kanban;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfile;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
@@ -225,7 +226,7 @@ public class KanbanDispatcherService {
                 continue;
             }
             if (dryRun) {
-                result.addSpawned(task, resolveWorkspacePath(task), 0L, taskAssignee);
+                result.addSpawned(task, resolveWorkspacePath(task, false), 0L, taskAssignee);
                 spawned++;
                 if (perProfileCap > 0) {
                     perProfileRunning.put(
@@ -246,7 +247,7 @@ public class KanbanDispatcherService {
                 continue;
             }
             try {
-                String workspace = resolveWorkspacePath(claimed);
+                String workspace = resolveWorkspacePath(claimed, true);
                 repository.setWorkspacePath(claimed.getTaskId(), workspace);
                 Map<String, Object> detail = kanbanService.task(claimed.getTaskId());
                 String workerContext = String.valueOf(detail.get("worker_context"));
@@ -301,7 +302,7 @@ public class KanbanDispatcherService {
                 }
             }
             if (dryRun) {
-                result.addSpawned(task, resolveWorkspacePath(task), 0L, taskAssignee);
+                result.addSpawned(task, resolveWorkspacePath(task, false), 0L, taskAssignee);
                 spawned++;
                 if (perProfileCap > 0) {
                     perProfileRunning.put(
@@ -323,7 +324,7 @@ public class KanbanDispatcherService {
             }
             try {
                 attachReviewSkill(claimed);
-                String workspace = resolveWorkspacePath(claimed);
+                String workspace = resolveWorkspacePath(claimed, true);
                 repository.setWorkspacePath(claimed.getTaskId(), workspace);
                 Map<String, Object> detail = kanbanService.task(claimed.getTaskId());
                 String workerContext = String.valueOf(detail.get("worker_context"));
@@ -483,11 +484,33 @@ public class KanbanDispatcherService {
         daemonRunning.set(false);
     }
 
-    private String resolveWorkspacePath(KanbanTaskRecord task) {
+    private String resolveWorkspacePath(KanbanTaskRecord task, boolean createDirectories) throws Exception {
         if (task != null && StrUtil.isNotBlank(task.getWorkspacePath())) {
-            return task.getWorkspacePath();
+            String workspacePath = task.getWorkspacePath();
+            if (createDirectories && "dir".equals(task.getWorkspaceKind())) {
+                FileUtil.mkdir(workspacePath);
+            }
+            return workspacePath;
+        }
+        if (task != null && "scratch".equals(task.getWorkspaceKind())) {
+            File workspace = FileUtil.file(scratchWorkspaceRoot(), task.getTaskId()).getCanonicalFile();
+            if (createDirectories) {
+                FileUtil.mkdir(workspace);
+            }
+            return workspace.getAbsolutePath();
         }
         return new File(System.getProperty("user.dir")).getAbsolutePath();
+    }
+
+    private File scratchWorkspaceRoot() {
+        return FileUtil.file(runtimeHome(), "kanban", "workspaces");
+    }
+
+    private File runtimeHome() {
+        if (appConfig != null && appConfig.getRuntime() != null && StrUtil.isNotBlank(appConfig.getRuntime().getHome())) {
+            return FileUtil.file(appConfig.getRuntime().getHome());
+        }
+        return FileUtil.file("runtime");
     }
 
     private String defaultClaimer(String assignee) {

@@ -7,6 +7,7 @@ public class KanbanBoardRecord {
     private String name;
     private String description;
     private String color;
+    private String defaultWorkspacePath;
     private boolean current;
     private boolean archived;
     private long createdAt;
@@ -50,6 +51,14 @@ public class KanbanBoardRecord {
 
     public void setColor(String color) {
         this.color = color;
+    }
+
+    public String getDefaultWorkspacePath() {
+        return defaultWorkspacePath;
+    }
+
+    public void setDefaultWorkspacePath(String defaultWorkspacePath) {
+        this.defaultWorkspacePath = defaultWorkspacePath;
     }
 
     public boolean isCurrent() {
