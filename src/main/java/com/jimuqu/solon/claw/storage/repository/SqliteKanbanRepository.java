@@ -1468,11 +1468,16 @@ public class SqliteKanbanRepository implements KanbanRepository {
 
     @Override
     public void deleteTask(String taskId) throws Exception {
+        List<String> affectedBoards = new ArrayList<String>();
         Connection connection = database.openConnection();
         try {
+            affectedBoards.addAll(boardsWithDependents(connection, Collections.singletonList(taskId)));
             deleteTasks(connection, Collections.singletonList(taskId));
         } finally {
             connection.close();
+        }
+        for (String boardSlug : affectedBoards) {
+            recomputeReady(boardSlug);
         }
     }
 
@@ -1514,6 +1519,38 @@ public class SqliteKanbanRepository implements KanbanRepository {
             task.executeUpdate();
             task.close();
         }
+    }
+
+    private List<String> boardsWithDependents(Connection connection, List<String> taskIds) throws Exception {
+        List<String> boards = new ArrayList<String>();
+        if (taskIds == null || taskIds.isEmpty()) {
+            return boards;
+        }
+        StringBuilder placeholders = new StringBuilder();
+        for (int i = 0; i < taskIds.size(); i++) {
+            if (i > 0) {
+                placeholders.append(", ");
+            }
+            placeholders.append('?');
+        }
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select distinct c.board_slug from kanban_task_links l "
+                                + "join kanban_tasks c on c.task_id = l.child_id "
+                                + "where l.parent_id in (" + placeholders + ")");
+        for (int i = 0; i < taskIds.size(); i++) {
+            statement.setString(i + 1, taskIds.get(i));
+        }
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            while (resultSet.next()) {
+                boards.add(resultSet.getString("board_slug"));
+            }
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+        return boards;
     }
 
     @Override

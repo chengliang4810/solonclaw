@@ -1032,6 +1032,25 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldPromoteChildImmediatelyWhenArchivedParentIsHardDeleted() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "待删除父任务", "lead", "planner");
+        String childId = createTask(service, "删除后可执行子任务", "worker", "planner");
+        service.link(parentId, childId);
+        service.status(parentId, "archived", "父任务归档");
+        Map<String, Object> relinked = new LinkedHashMap<String, Object>();
+        relinked.put("status", "todo");
+        service.updateTask(childId, relinked);
+
+        service.delete(parentId);
+
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+        assertRelatedLinkCount(env.sqliteDatabase, parentId, 0);
+    }
+
+    @Test
     void shouldEditCompletedTaskRecoveryFields() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "需要修正结果", "alice", "alice");
