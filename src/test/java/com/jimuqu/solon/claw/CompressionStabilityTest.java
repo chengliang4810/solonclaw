@@ -128,6 +128,40 @@ public class CompressionStabilityTest {
     }
 
     @Test
+    void shouldStripHistoricalSummaryPrefixWhenRecompressingResumedSession() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-historical-prefix");
+        String staleSummary =
+                "[CONTEXT SUMMARY]:\n"
+                        + "Historical Work\n"
+                        + "继续已经过期的历史任务\n\n"
+                        + "Progress\n"
+                        + "旧进展";
+        session.setCompressedSummary(staleSummary);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofAssistant(staleSummary),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser("新的用户问题优先"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Previous Summary");
+        assertThat(compressed.getCompressedSummary()).contains("旧进展");
+        assertThat(compressed.getCompressedSummary()).contains("新的用户问题优先");
+        assertThat(compressed.getCompressedSummary()).startsWith(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(CompressionConstants.SUMMARY_PREFIX)
+                .contains("latest user message")
+                .contains("background reference")
+                .contains("NOT as active instructions");
+        assertThat(compressed.getCompressedSummary()).doesNotContain("[CONTEXT SUMMARY]");
+    }
+
+    @Test
     void shouldFlattenNestedPreviousSummaryAndCapSummaryLength() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
         SessionRecord session = new SessionRecord();

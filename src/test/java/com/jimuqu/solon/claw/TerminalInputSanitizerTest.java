@@ -84,6 +84,14 @@ public class TerminalInputSanitizerTest {
                         TerminalInputSanitizer.stripLeakedTerminalResponses(
                                 "open \u001B]8;;https://example.invalid\u001B\\link\u001B]8;;\u001B\\ now"))
                 .isEqualTo("open link now");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed]11;rgb:ffff/ffff/ffff\u0007more"))
+                .isEqualTo("typedmore");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed^]11;rgb:0000/0000/0000^Gmore"))
+                .isEqualTo("typedmore");
     }
 
     @Test

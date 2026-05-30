@@ -615,6 +615,18 @@ public class DashboardConfigService {
                         "微信多行消息拆分"));
         addField(
                 new FieldDefinition(
+                        "channels.weixin.textBatchDelaySeconds",
+                        "number",
+                        "messaging",
+                        "微信入站文本批量延迟（秒）"));
+        addField(
+                new FieldDefinition(
+                        "channels.weixin.textBatchSplitDelaySeconds",
+                        "number",
+                        "messaging",
+                        "微信长文本分片批量延迟（秒）"));
+        addField(
+                new FieldDefinition(
                                 "channels.weixin.toolProgress", "select", "messaging", "微信工具进度模式")
                         .options("off", "new", "all", "verbose"));
         addField(

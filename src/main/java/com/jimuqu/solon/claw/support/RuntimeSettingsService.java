@@ -156,6 +156,8 @@ public class RuntimeSettingsService {
                     ".cdnBaseUrl",
                     ".longPollUrl",
                     ".splitMultilineMessages",
+                    ".textBatchDelaySeconds",
+                    ".textBatchSplitDelaySeconds",
                     ".sendChunkDelaySeconds",
                     ".sendChunkRetries",
                     ".sendChunkRetryDelaySeconds",
@@ -524,7 +526,9 @@ public class RuntimeSettingsService {
                     || "1".equals(value)
                     || "yes".equalsIgnoreCase(value);
         }
-        if (key.endsWith("sendChunkDelaySeconds")
+        if (key.endsWith("textBatchDelaySeconds")
+                || key.endsWith("textBatchSplitDelaySeconds")
+                || key.endsWith("sendChunkDelaySeconds")
                 || key.endsWith("sendChunkRetryDelaySeconds")
                 || "llm.temperature".equals(key)
                 || "compression.thresholdPercent".equals(key)

@@ -48,6 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -4586,7 +4588,7 @@ public class DefaultCronSchedulerTest {
 
         scheduler.runNow("mcp-cron");
 
-        assertThat(order).containsExactly("mcp-resolve", "mcp-tools", "orchestrator");
+        assertThat(order).contains("mcp-resolve", "mcp-tools", "orchestrator");
         assertThat(env.cronJobRepository.findById("mcp-cron").getLastStatus()).isEqualTo("ok");
     }
 
@@ -4619,8 +4621,47 @@ public class DefaultCronSchedulerTest {
 
         scheduler.runNow("mcp-cron-failure");
 
-        assertThat(order).containsExactly("mcp-resolve", "orchestrator");
+        assertThat(order).contains("mcp-resolve", "orchestrator");
         assertThat(env.cronJobRepository.findById("mcp-cron-failure").getLastStatus()).isEqualTo("ok");
+    }
+
+    @Test
+    void shouldNotBlockScheduledAgentRunOnSlowMcpWarmup() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        List<String> order = java.util.Collections.synchronizedList(new java.util.ArrayList<String>());
+        CountDownLatch releaseWarmup = new CountDownLatch(1);
+        BlockingWarmupMcpRuntimeService mcpRuntimeService =
+                new BlockingWarmupMcpRuntimeService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        order,
+                        releaseWarmup);
+        CronJobRecord job = job("mcp-cron-slow", "MEMORY:mcp-slow-room:user");
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        new OrderedConversationOrchestrator(order),
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        mcpRuntimeService);
+
+        try {
+            scheduler.runNow("mcp-cron-slow");
+            assertThat(order).contains("orchestrator");
+            assertThat(order).contains("mcp-tools-start");
+            assertThat(order).doesNotContain("mcp-tools");
+            assertThat(env.cronJobRepository.findById("mcp-cron-slow").getLastStatus()).isEqualTo("ok");
+        } finally {
+            releaseWarmup.countDown();
+        }
     }
 
     @Test
@@ -4998,6 +5039,52 @@ public class DefaultCronSchedulerTest {
 
         @Override
         public Collection<FunctionTool> getTools() {
+            order.add("mcp-tools");
+            FunctionToolDesc tool = new FunctionToolDesc("mcp_docs_search");
+            tool.title("MCP Docs Search");
+            tool.description("Search docs");
+            tool.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            tool.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
+            return Collections.<FunctionTool>singletonList(tool);
+        }
+    }
+
+    private static class BlockingWarmupMcpRuntimeService extends McpRuntimeService {
+        private final List<String> order;
+        private final CountDownLatch releaseWarmup;
+
+        private BlockingWarmupMcpRuntimeService(
+                AppConfig appConfig, SqliteDatabase database, List<String> order, CountDownLatch releaseWarmup) {
+            super(appConfig, database);
+            this.order = order;
+            this.releaseWarmup = releaseWarmup;
+        }
+
+        @Override
+        public List<ToolProvider> resolveEnabledToolProviders() {
+            order.add("mcp-resolve");
+            return Collections.<ToolProvider>singletonList(new BlockingWarmupToolProvider(order, releaseWarmup));
+        }
+    }
+
+    private static class BlockingWarmupToolProvider implements ToolProvider {
+        private final List<String> order;
+        private final CountDownLatch releaseWarmup;
+
+        private BlockingWarmupToolProvider(List<String> order, CountDownLatch releaseWarmup) {
+            this.order = order;
+            this.releaseWarmup = releaseWarmup;
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            order.add("mcp-tools-start");
+            try {
+                releaseWarmup.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted", e);
+            }
             order.add("mcp-tools");
             FunctionToolDesc tool = new FunctionToolDesc("mcp_docs_search");
             tool.title("MCP Docs Search");
