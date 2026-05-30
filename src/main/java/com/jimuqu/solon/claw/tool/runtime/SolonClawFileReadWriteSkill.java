@@ -185,10 +185,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             return ToolResultEnvelope.error("读取失败: " + safeToolError(e)).toJson();
         }
         File targetFile = target.toFile();
+        String resolvedPath = safeDisplayPath(resolvedOutputPath(target));
         if (!targetFile.exists()) {
             String displayPath = safeDisplayPath(fileName);
             return ToolResultEnvelope.error("文件不存在: " + displayPath)
                     .data("path", displayPath)
+                    .data("resolved_path", resolvedPath)
                     .toJson();
         }
         if (targetFile.isDirectory()) {
@@ -196,6 +198,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             return ToolResultEnvelope.error(
                             "读取失败：'" + displayPath + "' 是一个目录。请使用 file_list 查看其内容。")
                     .data("path", displayPath)
+                    .data("resolved_path", resolvedPath)
                     .toJson();
         }
         ReadKey readKey = new ReadKey(target.toAbsolutePath().normalize().toString(), safeOffset, safeLimit);
@@ -225,6 +228,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             if (readStatus.blocked) {
                 return ToolResultEnvelope.error(readStatus.message)
                         .data("path", safeDisplayPath(fileName))
+                        .data("resolved_path", resolvedPath)
                         .data("already_read", Integer.valueOf(readStatus.count))
                         .toJson();
             }
@@ -232,6 +236,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             ToolResultEnvelope envelope =
                     ToolResultEnvelope.ok("文件读取完成：" + displayPath)
                             .data("path", displayPath)
+                            .data("resolved_path", resolvedPath)
                             .data("content", content)
                             .data("total_lines", Integer.valueOf(totalLines))
                             .data("file_size", Long.valueOf(Files.size(target)))
@@ -259,6 +264,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         } catch (Exception e) {
             return ToolResultEnvelope.error("读取失败: " + safeToolError(e))
                     .data("path", safeDisplayPath(fileName))
+                    .data("resolved_path", resolvedPath)
                     .toJson();
         }
     }
@@ -396,11 +402,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                                         + safeDisplayPath(fileName)
                                         + "。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
                         .data("path", safeDisplayPath(fileName))
+                        .data("resolved_path", safeDisplayPath(resolvedOutputPath(targetFile.toPath())))
                         .data("already_read", Integer.valueOf(tracker.dedupHits + 1))
                         .toJson();
             }
             return ToolResultEnvelope.ok(READ_DEDUP_STATUS_MESSAGE)
                     .data("path", safeDisplayPath(fileName))
+                    .data("resolved_path", safeDisplayPath(resolvedOutputPath(targetFile.toPath())))
                     .data("dedup", Boolean.TRUE)
                     .data("content_returned", Boolean.FALSE)
                     .data("offset", Integer.valueOf(key.offset))

@@ -190,6 +190,34 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldFailClosedWhenSinglePromptProducesEmptyResponse() throws Exception {
+        TuiShell shell =
+                new TuiShell(
+                        new EmptyPromptRuntime(),
+                        new CliMode(CliMode.Kind.TUI, null, null));
+        java.io.StringWriter buffer = new java.io.StringWriter();
+
+        int exitCode = send(shell, new PrintWriter(buffer), "hello");
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(buffer.toString()).contains("未产生最终回复");
+    }
+
+    @Test
+    void shouldFailClosedWhenSinglePromptThrowsRuntimeException() throws Exception {
+        TuiShell shell =
+                new TuiShell(
+                        new ThrowingPromptRuntime(),
+                        new CliMode(CliMode.Kind.TUI, null, null));
+        java.io.StringWriter buffer = new java.io.StringWriter();
+
+        int exitCode = send(shell, new PrintWriter(buffer), "hello");
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(buffer.toString()).contains("执行失败").contains("not a TTY");
+    }
+
+    @Test
     void shouldRenderFooterStatusSummary() throws Exception {
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
         LocalTerminalTaskRunner runner = new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
@@ -302,6 +330,36 @@ public class TuiShellHeaderTest {
                             + "source_running=true\n"
                             + "active_run_id=run-active\n"
                             + "queue_pending=2");
+        }
+    }
+
+    private static class EmptyPromptRuntime extends com.jimuqu.solon.claw.cli.CliRuntime {
+        private EmptyPromptRuntime() {
+            super(null, null);
+        }
+
+        @Override
+        public GatewayReply send(
+                String sessionId,
+                String input,
+                java.util.List<com.jimuqu.solon.claw.core.model.MessageAttachment> attachments,
+                com.jimuqu.solon.claw.core.service.ConversationEventSink eventSink) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class ThrowingPromptRuntime extends com.jimuqu.solon.claw.cli.CliRuntime {
+        private ThrowingPromptRuntime() {
+            super(null, null);
+        }
+
+        @Override
+        public GatewayReply send(
+                String sessionId,
+                String input,
+                java.util.List<com.jimuqu.solon.claw.core.model.MessageAttachment> attachments,
+                com.jimuqu.solon.claw.core.service.ConversationEventSink eventSink) {
+            throw new IllegalStateException("not a TTY");
         }
     }
 }

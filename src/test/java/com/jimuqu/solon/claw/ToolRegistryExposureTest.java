@@ -4618,6 +4618,27 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReportResolvedAbsolutePathForFileRead() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path file = workspace.resolve("notes/input.txt");
+        Files.createDirectories(file.getParent());
+        Files.write(file, Arrays.asList("alpha", "beta"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("notes/input.txt", 1, 2));
+        String expected = file.toRealPath().toString();
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("resolved_path").getString()).isEqualTo(expected);
+        assertThat(result.get("path").getString()).isEqualTo("notes/input.txt");
+        assertThat(result.get("content").getString()).contains("1|alpha").contains("2|beta");
+    }
+
+    @Test
     void shouldHideUtf8BomOnFileReadAndPreserveItAcrossEdits() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
@@ -4889,15 +4910,19 @@ public class ToolRegistryExposureTest {
         ONode first = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
         ONode second = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
         ONode third = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
+        String expected = workspace.resolve("repeat.txt").toRealPath().toString();
 
         assertThat(first.get("success").getBoolean()).isTrue();
         assertThat(first.get("content").getString()).contains("alpha").contains("bravo");
+        assertThat(first.get("resolved_path").getString()).isEqualTo(expected);
         assertThat(second.get("success").getBoolean()).isTrue();
         assertThat(second.get("dedup").getBoolean()).isTrue();
+        assertThat(second.get("resolved_path").getString()).isEqualTo(expected);
         assertThat(second.get("content_returned").getBoolean()).isFalse();
         assertThat(second.get("content").getString()).isNull();
         assertThat(third.get("success").getBoolean()).isFalse();
         assertThat(third.get("error").getString()).contains("BLOCKED").contains("重复");
+        assertThat(third.get("resolved_path").getString()).isEqualTo(expected);
 
         fileSkill.write("repeat.txt", "delta\n");
         ONode changed = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));

@@ -91,7 +91,7 @@ public class DashboardAuthService {
             return;
         }
 
-        if (!isLocalOrigin(origin)) {
+        if (!isAllowedDashboardOrigin(origin)) {
             return;
         }
 
@@ -118,6 +118,10 @@ public class DashboardAuthService {
         }
     }
 
+    public boolean isAllowedDashboardOrigin(String origin) {
+        return isLocalOrigin(origin) || isBoundDashboardOrigin(origin);
+    }
+
     private boolean isLocalOrigin(String origin) {
         try {
             URI uri = URI.create(origin);
@@ -133,6 +137,68 @@ public class DashboardAuthService {
             return InetAddress.getByName(host).isLoopbackAddress();
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private boolean isBoundDashboardOrigin(String origin) {
+        AppConfig.DashboardConfig dashboard = appConfig == null ? null : appConfig.getDashboard();
+        if (dashboard == null || StrUtil.isBlank(dashboard.getBindHost())) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(origin);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                    || StrUtil.isBlank(host)) {
+                return false;
+            }
+
+            String bindHost = dashboard.getBindHost().trim();
+            if (isLoopbackHost(bindHost)) {
+                return false;
+            }
+            if ("0.0.0.0".equals(bindHost) || "::".equals(bindHost)) {
+                return true;
+            }
+            if (!host.equalsIgnoreCase(bindHost)) {
+                return false;
+            }
+            int bindPort = dashboard.getBindPort();
+            return bindPort <= 0 || normalizeOriginPort(uri) == bindPort;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int normalizeOriginPort(URI uri) {
+        int port = uri.getPort();
+        if (port > 0) {
+            return port;
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
+    }
+
+    private boolean isLoopbackHost(String host) {
+        if (StrUtil.isBlank(host)) {
+            return false;
+        }
+        String normalized = host.trim();
+        if ("localhost".equalsIgnoreCase(normalized)) {
+            return true;
+        }
+        try {
+            return InetAddress.getByName(normalized).isLoopbackAddress();
+        } catch (Exception e) {
+            return "127.0.0.1".equals(normalized)
+                    || "0:0:0:0:0:0:0:1".equals(normalized)
+                    || "::1".equals(normalized);
         }
     }
 

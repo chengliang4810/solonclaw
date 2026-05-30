@@ -11,9 +11,11 @@ import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardKanbanService;
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import cn.hutool.core.io.FileUtil;
 import org.junit.jupiter.api.Test;
 
 public class DashboardKanbanServiceTest {
@@ -277,6 +279,43 @@ public class DashboardKanbanServiceTest {
         assertThat(kanbanService.task(secondTaskId).get("status")).isEqualTo("archived");
         assertThat(String.valueOf(kanbanService.tasks(null, null, false))).doesNotContain(firstTaskId, secondTaskId);
         assertThat(String.valueOf(kanbanService.tasks(null, null, true))).contains(firstTaskId, secondTaskId);
+    }
+
+    @Test
+    void shouldExposeTaskAttachmentLifecycleThroughDashboardService() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String taskId = createTask(kanbanService);
+        File attachment =
+                FileUtil.file(
+                        env.appConfig.getRuntime().getHome(),
+                        "kanban",
+                        "attachments",
+                        taskId,
+                        "source.txt");
+        FileUtil.writeUtf8String("source material", attachment);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("filename", "source.txt");
+        body.put("stored_path", attachment.getCanonicalPath());
+        body.put("content_type", "text/plain");
+        body.put("size", Long.valueOf(attachment.length()));
+        body.put("uploaded_by", "dashboard");
+
+        Map<String, Object> created = dashboardKanbanService.addAttachment(taskId, body);
+        List<Map<String, Object>> attachments = dashboardKanbanService.attachments(taskId);
+        Map<String, Object> removed =
+                dashboardKanbanService.deleteAttachment(String.valueOf(created.get("attachment_id")));
+
+        assertThat(created.get("filename")).isEqualTo("source.txt");
+        assertThat(created.get("stored_path")).isEqualTo(attachment.getCanonicalPath());
+        assertThat(String.valueOf(attachments))
+                .contains("source.txt")
+                .contains(attachment.getCanonicalPath());
+        assertThat(removed.get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(dashboardKanbanService.attachments(taskId)).isEmpty();
+        assertThat(attachment).doesNotExist();
     }
 
     private String createTask(KanbanService kanbanService) throws Exception {
