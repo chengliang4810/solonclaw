@@ -59,7 +59,7 @@ public final class CommandRegistry {
         register(core("deny", "security", "拒绝待审批危险命令"));
         register(core("always", "security", "永久批准当前待确认 slash 命令"));
         register(core("cancel", "security", "取消当前待确认 slash 命令"));
-        register(core("platforms", "gateway", "查看平台连接与授权状态"));
+        register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
 
         register(terminal("background", "管理后台任务运行方式"));
         register(terminal("tasks", "查看后台任务列表"));

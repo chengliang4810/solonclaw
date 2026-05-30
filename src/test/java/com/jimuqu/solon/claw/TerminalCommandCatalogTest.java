@@ -53,6 +53,10 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor model = CommandRegistry.get("model");
         assertThat(model.getAliases()).contains("provider");
         assertThat(CommandRegistry.resolve("/provider").getName()).isEqualTo("model");
+
+        CommandDescriptor platforms = CommandRegistry.get("platforms");
+        assertThat(platforms.getAliases()).contains("gateway");
+        assertThat(CommandRegistry.resolve("/gateway").getName()).isEqualTo("platforms");
     }
 
     @Test

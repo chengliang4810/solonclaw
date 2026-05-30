@@ -40,6 +40,10 @@ public class HomeChannelCommandTest {
         GatewayReply platforms = env.send("admin-dm", "admin-user", "/platforms");
         assertThat(platforms.getContent()).contains("home=group-1");
         assertThat(platforms.getContent()).contains("admin=admin-user");
+
+        GatewayReply gateway = env.send("admin-dm", "admin-user", "/gateway");
+        assertThat(gateway.getContent()).contains("home=group-1");
+        assertThat(gateway.getContent()).contains("admin=admin-user");
     }
 
     @Test
