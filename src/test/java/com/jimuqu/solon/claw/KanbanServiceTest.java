@@ -1193,6 +1193,27 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRejectInvalidDependencyEdgesAtRepositoryBoundary() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String firstId = createTask(service, "仓储父任务", "lead", "lead");
+        String secondId = createTask(service, "仓储子任务", "worker", "lead");
+        String thirdId = createTask(service, "仓储孙任务", "worker", "lead");
+
+        assertThatThrownBy(() -> repository.linkTasks(firstId, firstId))
+                .hasMessageContaining("cannot link to itself");
+        assertThat(repository.listParents(firstId)).isEmpty();
+
+        repository.linkTasks(firstId, secondId);
+        repository.linkTasks(secondId, thirdId);
+
+        assertThatThrownBy(() -> repository.linkTasks(thirdId, firstId))
+                .hasMessageContaining("dependency cycle");
+        assertThat(repository.listParents(firstId)).isEmpty();
+    }
+
+    @Test
     void shouldRejectCreateTaskWithUnknownParentWithoutPersistingTask() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);

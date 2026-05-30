@@ -291,16 +291,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
     public KanbanTaskRecord findTask(String taskId) throws Exception {
         Connection connection = database.openConnection();
         try {
-            PreparedStatement statement =
-                    connection.prepareStatement("select * from kanban_tasks where task_id = ?");
-            statement.setString(1, taskId);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                return resultSet.next() ? mapTask(resultSet) : null;
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
+            return findTask(connection, taskId);
         } finally {
             connection.close();
         }
@@ -426,11 +417,30 @@ public class SqliteKanbanRepository implements KanbanRepository {
 
     @Override
     public void linkTasks(String parentId, String childId) throws Exception {
-        if (StrUtil.hasBlank(parentId, childId) || StrUtil.equals(parentId, childId)) {
+        if (StrUtil.hasBlank(parentId, childId)) {
             return;
+        }
+        if (StrUtil.equals(parentId, childId)) {
+            throw new IllegalArgumentException("Kanban task cannot link to itself: " + parentId);
         }
         Connection connection = database.openConnection();
         try {
+            KanbanTaskRecord parent = findTask(connection, parentId);
+            KanbanTaskRecord child = findTask(connection, childId);
+            if (parent == null) {
+                throw new IllegalArgumentException("Kanban task not found: " + parentId);
+            }
+            if (child == null) {
+                throw new IllegalArgumentException("Kanban task not found: " + childId);
+            }
+            if (!StrUtil.equals(parent.getBoardSlug(), child.getBoardSlug())) {
+                throw new IllegalArgumentException(
+                        "Kanban tasks must be on the same board: " + parentId + " -> " + childId);
+            }
+            if (linkWouldCreateCycle(connection, parentId, childId)) {
+                throw new IllegalArgumentException(
+                        "Kanban link would create a dependency cycle: " + parentId + " -> " + childId);
+            }
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert or ignore into kanban_task_links (parent_id, child_id) values (?, ?)");
@@ -447,6 +457,38 @@ public class SqliteKanbanRepository implements KanbanRepository {
             demote.close();
         } finally {
             connection.close();
+        }
+    }
+
+    private KanbanTaskRecord findTask(Connection connection, String taskId) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement("select * from kanban_tasks where task_id = ?");
+        statement.setString(1, taskId);
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next() ? mapTask(resultSet) : null;
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    private boolean linkWouldCreateCycle(Connection connection, String parentId, String childId) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "with recursive descendants(task_id) as ("
+                                + "select child_id from kanban_task_links where parent_id = ? "
+                                + "union "
+                                + "select l.child_id from kanban_task_links l join descendants d on l.parent_id = d.task_id"
+                                + ") select 1 from descendants where task_id = ? limit 1");
+        statement.setString(1, childId);
+        statement.setString(2, parentId);
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next();
+        } finally {
+            resultSet.close();
+            statement.close();
         }
     }
 
