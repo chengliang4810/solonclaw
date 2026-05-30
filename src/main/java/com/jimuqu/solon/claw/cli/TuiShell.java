@@ -278,6 +278,11 @@ public class TuiShell {
         if (StrUtil.isBlank(finalText)) {
             finalText = sink.assistantText();
         }
+        if (StrUtil.isBlank(finalText)) {
+            writer.println(skin.dim("未产生最终回复，已按失败处理。"));
+            writer.flush();
+            return 1;
+        }
         if (StrUtil.isNotBlank(finalText)) {
             lastReply = finalText;
             transcript.assistant(finalText);
