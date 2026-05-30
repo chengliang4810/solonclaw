@@ -24,6 +24,7 @@ import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private static final int DEFAULT_READ_OFFSET = 1;
     private static final int DEFAULT_READ_LIMIT = 500;
+    private static final String UTF8_BOM = "\ufeff";
     private static final String READ_DEDUP_STATUS_MESSAGE =
             "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 file_read 结果继续任务。";
 
@@ -72,17 +73,26 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         assertNotInternalFileStatusContent(content);
         Path target = resolvePath(fileName);
         String staleWarning = fileStateTracker.checkStaleness(fileName, target);
-        String result = super.write(fileName, content);
-        clearReadDedup(fileName);
-        fileStateTracker.recordWrite(target);
+        String result;
+        boolean success;
+        try {
+            writeTextPreservingBom(target, content);
+            result = "文件保存成功: " + fileName;
+            success = true;
+        } catch (Exception e) {
+            result = "写入失败: " + safeToolError(e);
+            success = false;
+        }
+        if (success) {
+            clearReadDedup(fileName);
+            fileStateTracker.recordWrite(target);
+        }
         String safeResult = SecretRedactor.redact(result, 1000);
         ToolResultEnvelope envelope =
-                StrUtil.startWith(result, "写入失败")
-                        ? ToolResultEnvelope.error(safeResult)
-                        : ToolResultEnvelope.ok(safeResult);
+                success ? ToolResultEnvelope.ok(safeResult) : ToolResultEnvelope.error(safeResult);
         String resolvedPath = resolvedOutputPath(target);
         envelope.data("path", safeDisplayPath(fileName));
-        if (!StrUtil.startWith(result, "写入失败")) {
+        if (success) {
             envelope.data("resolved_path", safeDisplayPath(resolvedPath))
                     .data("files_modified", Collections.singletonList(safeDisplayPath(resolvedPath)));
         }
@@ -201,6 +211,9 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             String line;
             while ((line = reader.readLine()) != null) {
                 totalLines++;
+                if (totalLines == 1) {
+                    line = stripLeadingBom(line);
+                }
                 if (totalLines >= safeOffset && totalLines <= endLine) {
                     selected.add(numberedLine(totalLines, line));
                 }
@@ -267,7 +280,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         if (value.length() > maxLineLength) {
             value = value.substring(0, maxLineLength) + "... [truncated]";
         }
-        return String.format("%6d|%s", Integer.valueOf(lineNumber), value);
+        return lineNumber + "|" + value;
     }
 
     private String joinLines(List<String> lines) {
@@ -279,6 +292,39 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             builder.append(lines.get(i));
         }
         return builder.toString();
+    }
+
+    private void writeTextPreservingBom(Path target, String content) throws Exception {
+        String value = StrUtil.nullToEmpty(content);
+        if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
+            value = UTF8_BOM + value;
+        }
+        if (target.getParent() != null) {
+            Files.createDirectories(target.getParent());
+        }
+        Files.write(target, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean hasLeadingBom(Path target) {
+        if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
+            return false;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(target);
+            return bytes.length >= 3
+                    && (bytes[0] & 0xFF) == 0xEF
+                    && (bytes[1] & 0xFF) == 0xBB
+                    && (bytes[2] & 0xFF) == 0xBF;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stripLeadingBom(String value) {
+        if (value != null && value.startsWith(UTF8_BOM)) {
+            return value.substring(UTF8_BOM.length());
+        }
+        return value;
     }
 
     private Path resolvePath(String name) {

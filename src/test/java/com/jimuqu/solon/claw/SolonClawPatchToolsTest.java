@@ -73,6 +73,31 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
+    void shouldReportResolvedAbsolutePathForSingleFileV4aUpdate() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("app.txt");
+        Files.write(file, "alpha\nbeta\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: app.txt\n"
+                        + "@@ beta @@\n"
+                        + " alpha\n"
+                        + "-beta\n"
+                        + "+gamma\n"
+                        + "*** End Patch";
+
+        Map<?, ?> result = parse(tools.patch("patch", null, null, null, null, patch));
+        String expected = file.toRealPath().toString();
+
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("resolved_path")).isEqualTo(expected);
+        assertThat(String.valueOf(result.get("files_modified"))).isEqualTo("[" + expected + "]");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("alpha\ngamma\n");
+    }
+
+    @Test
     void shouldRejectAmbiguousReplaceUnlessReplaceAll() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("dup.txt");

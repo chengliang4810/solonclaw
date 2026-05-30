@@ -21,6 +21,8 @@ import org.noear.solon.annotation.Param;
 
 /** Patch tool backed by the local workspace. */
 public class SolonClawPatchTools {
+    private static final String UTF8_BOM = "\ufeff";
+
     private final Path rootPath;
     private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
@@ -408,14 +410,18 @@ public class SolonClawPatchTools {
             String content = collectAddContent(operation);
             write(target, content);
             fileStateTracker.recordWrite(target);
-            result.filesCreated.add(normalizePath(operation.filePath));
+            String resolvedPath = resolvedOutputPath(target);
+            result.filesCreated.add(resolvedPath);
+            result.setSingleResolvedPath(resolvedPath);
             diff.append(simpleDiff(normalizePath(operation.filePath), "", content));
         } else if ("delete".equals(operation.type)) {
             result.addWarning(fileStateTracker.checkStaleness(operation.filePath, target));
             String old = read(target);
+            String resolvedPath = resolvedOutputPath(target);
             Files.delete(target);
             fileStateTracker.recordWrite(target);
-            result.filesDeleted.add(normalizePath(operation.filePath));
+            result.filesDeleted.add(resolvedPath);
+            result.setSingleResolvedPath(resolvedPath);
             diff.append(simpleDiff(normalizePath(operation.filePath), old, ""));
         } else if ("move".equals(operation.type)) {
             result.addWarning(fileStateTracker.checkStaleness(operation.filePath, target));
@@ -426,7 +432,9 @@ public class SolonClawPatchTools {
             Files.move(target, destination, StandardCopyOption.ATOMIC_MOVE);
             fileStateTracker.recordWrite(target);
             fileStateTracker.recordWrite(destination);
-            result.filesModified.add(normalizePath(operation.filePath) + " -> " + normalizePath(operation.newPath));
+            String resolvedSource = resolvedOutputPath(target);
+            String resolvedDestination = resolvedOutputPath(destination);
+            result.filesModified.add(resolvedSource + " -> " + resolvedDestination);
             diff.append("# Moved: ")
                     .append(normalizePath(operation.filePath))
                     .append(" -> ")
@@ -445,12 +453,16 @@ public class SolonClawPatchTools {
                 Files.delete(target);
                 fileStateTracker.recordWrite(target);
                 fileStateTracker.recordWrite(destination);
-                result.filesModified.add(normalizePath(operation.filePath) + " -> " + normalizePath(operation.newPath));
+                String resolvedSource = resolvedOutputPath(target);
+                String resolvedDestination = resolvedOutputPath(destination);
+                result.filesModified.add(resolvedSource + " -> " + resolvedDestination);
                 diff.append(simpleDiff(normalizePath(operation.newPath), old, applied.content));
             } else {
                 write(target, applied.content);
                 fileStateTracker.recordWrite(target);
-                result.filesModified.add(normalizePath(operation.filePath));
+                String resolvedPath = resolvedOutputPath(target);
+                result.filesModified.add(resolvedPath);
+                result.setSingleResolvedPath(resolvedPath);
                 diff.append(simpleDiff(normalizePath(operation.filePath), old, applied.content));
             }
         }
@@ -692,14 +704,40 @@ public class SolonClawPatchTools {
     }
 
     private String read(Path target) throws IOException {
-        return new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
+        return stripLeadingBom(new String(Files.readAllBytes(target), StandardCharsets.UTF_8));
     }
 
     private void write(Path target, String content) throws IOException {
+        String value = StrUtil.nullToEmpty(content);
+        if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
+            value = UTF8_BOM + value;
+        }
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
-        Files.write(target, StrUtil.nullToEmpty(content).getBytes(StandardCharsets.UTF_8));
+        Files.write(target, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean hasLeadingBom(Path target) {
+        if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
+            return false;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(target);
+            return bytes.length >= 3
+                    && (bytes[0] & 0xFF) == 0xEF
+                    && (bytes[1] & 0xFF) == 0xBB
+                    && (bytes[2] & 0xFF) == 0xBF;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stripLeadingBom(String value) {
+        if (value != null && value.startsWith(UTF8_BOM)) {
+            return value.substring(UTF8_BOM.length());
+        }
+        return value;
     }
 
     private String afterMarker(String line, String marker) {
@@ -812,6 +850,14 @@ public class SolonClawPatchTools {
 
         private static String redact(String value, int maxLength) {
             return value == null ? null : SecretRedactor.redact(value, maxLength);
+        }
+
+        private void setSingleResolvedPath(String path) {
+            if (StrUtil.isNotBlank(path) && StrUtil.isBlank(resolved_path)) {
+                resolved_path = path;
+            } else {
+                resolved_path = null;
+            }
         }
     }
 

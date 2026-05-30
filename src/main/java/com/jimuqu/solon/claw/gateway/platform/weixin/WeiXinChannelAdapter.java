@@ -618,6 +618,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
+        if (isDuplicateText(senderId, text)) {
+            return;
+        }
         java.util.ArrayList<MessageAttachment> attachments =
                 new java.util.ArrayList<MessageAttachment>();
         for (int i = 0; i < itemList.size(); i++) {
@@ -1028,6 +1031,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         Long previous = recentMessageIds.putIfAbsent(messageId, System.currentTimeMillis());
         return previous != null;
+    }
+
+    private boolean isDuplicateText(String senderId, String text) {
+        if (StrUtil.isBlank(senderId) || StrUtil.isBlank(text)) {
+            return false;
+        }
+        return isDuplicate("content:" + senderId + ":" + DigestUtil.md5Hex(text));
     }
 
     private void pruneRecentMessageIds() {

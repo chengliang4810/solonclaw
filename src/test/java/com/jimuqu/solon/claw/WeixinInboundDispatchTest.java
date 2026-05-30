@@ -157,6 +157,45 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
+    void shouldDeduplicateRepeatedInboundTextContentFromSameSender() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
+
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final List<String> texts = Collections.synchronizedList(new ArrayList<String>());
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    @Override
+                    public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        texts.add(message.getText());
+                        latch.countDown();
+                    }
+                });
+
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        processInbound.invoke(adapter, inboundText("msg-dup-1", "room-1", "wx-user", "重复内容"));
+        processInbound.invoke(adapter, inboundText("msg-dup-2", "room-1", "wx-user", "重复内容"));
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        TimeUnit.MILLISECONDS.sleep(250L);
+        assertThat(texts).containsExactly("重复内容");
+
+        adapter.disconnect();
+    }
+
+    @Test
     void shouldBlockUnsafeWeixinApiBaseUrlBeforeNetworkAccess() throws Exception {
         AppConfig config = newConfig();
         config.getChannels().getWeixin().setBaseUrl(
