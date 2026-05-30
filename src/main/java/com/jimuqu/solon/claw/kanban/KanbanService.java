@@ -459,6 +459,9 @@ public class KanbanService {
         if (task == null) {
             throw new IllegalArgumentException("Kanban task not found: " + taskId);
         }
+        if ("ready".equals(normalized)) {
+            assertReadyMoveAllowed(taskId);
+        }
         if ("done".equals(normalized)) {
             verifiedCards = verifyCreatedCards(task, createdCards);
         }
@@ -475,6 +478,25 @@ public class KanbanService {
             repository.recomputeReady(task.getBoardSlug());
         }
         return task(taskId);
+    }
+
+    private void assertReadyMoveAllowed(String taskId) throws Exception {
+        List<KanbanTaskRecord> parents = repository.listParents(taskId);
+        List<String> unsatisfied = new ArrayList<String>();
+        for (KanbanTaskRecord parent : parents) {
+            String status = StrUtil.blankToDefault(parent.getStatus(), "unknown");
+            if (!"done".equals(status) && !"archived".equals(status)) {
+                unsatisfied.add(parent.getTaskId()
+                        + " '"
+                        + StrUtil.blankToDefault(parent.getTitle(), "")
+                        + "' status="
+                        + status);
+            }
+        }
+        if (!unsatisfied.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Cannot move to 'ready': unsatisfied parent dependencies: " + String.join(", ", unsatisfied));
+        }
     }
 
     public Map<String, Object> assign(String taskId, String assignee) throws Exception {

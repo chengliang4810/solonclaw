@@ -1249,6 +1249,24 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRejectManualReadyMoveWhenParentsAreUndone() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "待完成父任务", "lead", "planner");
+        String childId = createTask(service, "手动推进子任务", "worker", "planner");
+        service.link(parentId, childId);
+
+        assertThatThrownBy(() -> service.status(childId, "ready", "手动推进"))
+                .hasMessageContaining("Cannot move to 'ready'")
+                .hasMessageContaining(parentId)
+                .hasMessageContaining("待完成父任务")
+                .hasMessageContaining("status=todo");
+        assertThat(service.task(childId).get("status")).isEqualTo("todo");
+
+        service.status(parentId, "done", "父任务完成");
+        assertThat(service.status(childId, "ready", "父任务已完成").get("status")).isEqualTo("ready");
+    }
+
+    @Test
     void shouldPromoteBlockedDependencyTaskWhenParentsAreDone() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
