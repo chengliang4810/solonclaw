@@ -1079,6 +1079,30 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldCleanBoardScopedScratchWorkspaceButPreserveBoardMetadataDirs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, env.appConfig);
+        String taskId = createReadyTask(service, "看板级 scratch", "worker", "planner");
+        File boardRoot = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "boards", "default");
+        File boardLogs = FileUtil.file(boardRoot, "logs");
+        File boardWorkspaces = FileUtil.file(boardRoot, "workspaces");
+        File workspace = FileUtil.file(boardWorkspaces, taskId);
+        FileUtil.mkdir(boardLogs);
+        FileUtil.mkdir(workspace);
+        FileUtil.writeUtf8String("metadata", FileUtil.file(boardLogs, "keep.log"));
+        FileUtil.writeUtf8String("temporary", FileUtil.file(workspace, "result.txt"));
+        repository.setWorkspacePath(taskId, workspace.getAbsolutePath());
+
+        service.status(taskId, "done", "完成");
+
+        assertThat(workspace).doesNotExist();
+        assertThat(boardWorkspaces).isDirectory();
+        assertThat(boardLogs).isDirectory();
+        assertThat(FileUtil.file(boardLogs, "keep.log")).hasContent("metadata");
+    }
+
+    @Test
     void shouldOnlyHardDeleteArchivedTasksAndCleanRelatedRows() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);

@@ -3086,7 +3086,7 @@ public class KanbanService {
             } catch (Exception e) {
                 continue;
             }
-            if (!isUnderRoot(canonical, root) || !canonical.exists() || !canonical.isDirectory()) {
+            if (!isManagedScratchPath(canonical, root) || !canonical.exists() || !canonical.isDirectory()) {
                 continue;
             }
             FileUtil.del(canonical);
@@ -3110,7 +3110,7 @@ public class KanbanService {
         } catch (Exception e) {
             return;
         }
-        if (!isUnderRoot(canonical, root) || !canonical.exists() || !canonical.isDirectory()) {
+        if (!isManagedScratchPath(canonical, root) || !canonical.exists() || !canonical.isDirectory()) {
             return;
         }
         FileUtil.del(canonical);
@@ -3168,6 +3168,26 @@ public class KanbanService {
         String candidatePath = candidate.getPath();
         String rootPath = root.getPath();
         return !candidatePath.equals(rootPath) && candidatePath.startsWith(rootPath + File.separator);
+    }
+
+    private boolean isManagedScratchPath(File candidate, File scratchRoot) throws Exception {
+        File canonical = candidate.getCanonicalFile();
+        File root = scratchRoot.getCanonicalFile();
+        if (isUnderRoot(canonical, root)) {
+            return true;
+        }
+        File boardRoot = FileUtil.file(runtimeHome(), "kanban", "boards").getCanonicalFile();
+        String candidatePath = canonical.getPath();
+        String boardRootPath = boardRoot.getPath();
+        if (!candidatePath.startsWith(boardRootPath + File.separator)) {
+            return false;
+        }
+        String relative = candidatePath.substring(boardRootPath.length() + 1);
+        String[] parts = relative.split(Pattern.quote(File.separator));
+        return parts.length >= 3
+                && StrUtil.isNotBlank(parts[0])
+                && "workspaces".equals(parts[1])
+                && StrUtil.isNotBlank(parts[2]);
     }
 
     private String taskId(Map<String, Object> task) {
