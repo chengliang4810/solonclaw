@@ -8,6 +8,7 @@ import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
+import org.noear.solon.core.handle.UploadedFile;
 
 /** Dashboard Kanban API. */
 @Controller
@@ -558,13 +559,16 @@ public class DashboardKanbanController {
         return kanbanService.attachments(taskId);
     }
 
-    @Mapping(value = "/api/kanban/tasks/{taskId}/attachments", method = MethodType.POST)
-    public Map<String, Object> addAttachment(String taskId, Context context) throws Exception {
+    @Mapping(value = "/api/kanban/tasks/{taskId}/attachments", method = MethodType.POST, multipart = true)
+    public Map<String, Object> addAttachment(String taskId, Context context, UploadedFile[] file) throws Exception {
         return safeKanban(
                 context,
                 new KanbanAction() {
                     @Override
                     public Map<String, Object> run() throws Exception {
+                        if (file != null && file.length > 0) {
+                            return kanbanService.uploadAttachment(taskId, file);
+                        }
                         return kanbanService.addAttachment(taskId, body(context));
                     }
                 });

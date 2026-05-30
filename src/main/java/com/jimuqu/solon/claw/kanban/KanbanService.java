@@ -1123,6 +1123,17 @@ public class KanbanService {
         return attachmentView(saved);
     }
 
+    public File attachmentDirectory(String taskId) throws Exception {
+        KanbanTaskRecord task = requireTask(taskId);
+        File root = FileUtil.file(runtimeHome(), "kanban", "attachments").getCanonicalFile();
+        File dir = FileUtil.file(root, task.getTaskId()).getCanonicalFile();
+        if (!isUnderRoot(dir, root)) {
+            throw new IllegalArgumentException("Kanban attachment path escapes runtime home");
+        }
+        FileUtil.mkdir(dir);
+        return dir;
+    }
+
     public List<Map<String, Object>> attachments(String taskId) throws Exception {
         requireTask(taskId);
         return attachmentViews(repository.listAttachments(taskId));

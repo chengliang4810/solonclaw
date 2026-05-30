@@ -1556,6 +1556,47 @@ public class DashboardControllerHttpTest {
         String taskId = ONode.ofJson(createTask.body).get("data").get("id").getString();
         assertThat(taskId).isNotBlank();
 
+        HttpResult uploadKanbanAttachment =
+                requestMultipart(
+                        "/api/kanban/tasks/" + taskId + "/attachments",
+                        token,
+                        "task-source.txt",
+                        "source material");
+        assertThat(uploadKanbanAttachment.status).isEqualTo(200);
+        assertThat(uploadKanbanAttachment.body)
+                .contains("task-source.txt")
+                .contains("\"attachment_id\"")
+                .contains("\"stored_path\"");
+
+        HttpResult kanbanAttachments =
+                request("GET", "/api/kanban/tasks/" + taskId + "/attachments", null, token);
+        assertThat(kanbanAttachments.status).isEqualTo(200);
+        assertThat(kanbanAttachments.body).contains("task-source.txt");
+
+        HttpResult attachmentContext =
+                request("GET", "/api/kanban/tasks/" + taskId + "/context", null, token);
+        assertThat(attachmentContext.status).isEqualTo(200);
+        assertThat(attachmentContext.body)
+                .contains("Attachments")
+                .contains("task-source.txt")
+                .contains("Files attached to this task");
+
+        File metadataAttachment =
+                FileUtil.file(runtimeHome, "kanban", "attachments", taskId, "metadata-source.txt");
+        FileUtil.writeUtf8String("metadata source", metadataAttachment);
+        HttpResult metadataKanbanAttachment =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/attachments",
+                        "{\"filename\":\"metadata-source.txt\",\"stored_path\":\""
+                                + metadataAttachment.getCanonicalPath().replace("\\", "\\\\")
+                                + "\",\"content_type\":\"text/plain\",\"size\":"
+                                + metadataAttachment.length()
+                                + ",\"uploaded_by\":\"dashboard\"}",
+                        token);
+        assertThat(metadataKanbanAttachment.status).isEqualTo(200);
+        assertThat(metadataKanbanAttachment.body).contains("metadata-source.txt");
+
         HttpResult moveTask =
                 request(
                         "POST",

@@ -1,20 +1,26 @@
 package com.jimuqu.solon.claw.web;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.noear.solon.core.handle.UploadedFile;
 
 /** Dashboard Kanban application service. */
 public class DashboardKanbanService {
+    private static final long MAX_ATTACHMENT_BYTES = 25L * 1024L * 1024L;
+
     private final KanbanService kanbanService;
     private final GatewayPolicyRepository gatewayPolicyRepository;
     private final KanbanNotificationScheduler notificationScheduler;
@@ -432,6 +438,45 @@ public class DashboardKanbanService {
         return kanbanService.addAttachment(taskId, body);
     }
 
+    public Map<String, Object> uploadAttachment(String taskId, UploadedFile[] files) throws Exception {
+        if (files == null || files.length == 0) {
+            throw new IllegalArgumentException("至少上传一个看板附件。");
+        }
+        List<Map<String, Object>> uploaded = new ArrayList<Map<String, Object>>();
+        for (UploadedFile file : files) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
+            if (file.getContentSize() > MAX_ATTACHMENT_BYTES) {
+                throw new IllegalArgumentException("看板附件不能超过 25MB。");
+            }
+            String filename = safeAttachmentName(file.getName());
+            File target = nextAttachmentFile(taskId, filename);
+            try {
+                file.transferTo(target);
+                Map<String, Object> body = new LinkedHashMap<String, Object>();
+                body.put("filename", filename);
+                body.put("stored_path", target.getCanonicalPath());
+                body.put("content_type", StrUtil.blankToDefault(file.getContentType(), "application/octet-stream"));
+                body.put("size", Long.valueOf(target.length()));
+                body.put("uploaded_by", "dashboard");
+                uploaded.add(kanbanService.addAttachment(taskId, body));
+            } finally {
+                file.delete();
+            }
+        }
+        if (uploaded.isEmpty()) {
+            throw new IllegalArgumentException("未收到有效的看板附件文件。");
+        }
+        if (uploaded.size() == 1) {
+            return uploaded.get(0);
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("attachments", uploaded);
+        result.put("count", Integer.valueOf(uploaded.size()));
+        return result;
+    }
+
     public List<Map<String, Object>> attachments(String taskId) throws Exception {
         return kanbanService.attachments(taskId);
     }
@@ -447,6 +492,65 @@ public class DashboardKanbanService {
     private String text(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private File nextAttachmentFile(String taskId, String filename) throws Exception {
+        File canonicalDir = kanbanService.attachmentDirectory(taskId).getCanonicalFile();
+        File target = FileUtil.file(canonicalDir, filename).getCanonicalFile();
+        assertUnderDirectory(target, canonicalDir);
+        if (!target.exists()) {
+            return target;
+        }
+        String base = filename;
+        String ext = "";
+        int dot = filename.lastIndexOf('.');
+        if (dot > 0) {
+            base = filename.substring(0, dot);
+            ext = filename.substring(dot);
+        }
+        for (int i = 1; i < 1000; i++) {
+            File candidate = FileUtil.file(canonicalDir, base + "-" + i + ext).getCanonicalFile();
+            assertUnderDirectory(candidate, canonicalDir);
+            if (!candidate.exists()) {
+                return candidate;
+            }
+        }
+        throw new IllegalArgumentException("看板附件文件名冲突过多。");
+    }
+
+    private String safeAttachmentName(String rawName) {
+        String name = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(rawName)).trim();
+        name = name.replace('\\', '/');
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0) {
+            name = name.substring(slash + 1);
+        }
+        name = name.replaceAll("[\\r\\n\\t]", "_").replaceAll("[^A-Za-z0-9._ -]", "_");
+        while (name.contains("..")) {
+            name = name.replace("..", ".");
+        }
+        name = SecretRedactor.redact(name, 240).trim();
+        if (StrUtil.isBlank(name) || ".".equals(name) || "..".equals(name)) {
+            name = "attachment";
+        }
+        if (name.length() > 180) {
+            int dot = name.lastIndexOf('.');
+            if (dot > 0 && dot > name.length() - 32) {
+                String ext = name.substring(dot);
+                name = name.substring(0, Math.max(1, 180 - ext.length())) + ext;
+            } else {
+                name = name.substring(0, 180);
+            }
+        }
+        return name;
+    }
+
+    private void assertUnderDirectory(File target, File dir) throws Exception {
+        String targetPath = target.getCanonicalPath();
+        String dirPath = dir.getCanonicalPath();
+        if (!targetPath.startsWith(dirPath + File.separator)) {
+            throw new IllegalArgumentException("看板附件路径非法。");
+        }
     }
 
     private List<String> taskIds(Map<String, Object> body) {
