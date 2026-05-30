@@ -37,6 +37,10 @@ public class GatewayCommandFlowTest {
                 env.gatewayService.handle(env.message("room-1", "user-1", "/branch review"));
         assertThat(branchReply.getContent()).contains("review");
 
+        GatewayReply forkReply =
+                env.gatewayService.handle(env.message("room-1", "user-1", "/fork review-fork"));
+        assertThat(forkReply.getContent()).contains("review-fork");
+
         GatewayReply undoReply =
                 env.gatewayService.handle(env.message("room-1", "user-1", "/undo"));
         assertThat(undoReply.getContent()).contains("已从会话中移除上一轮对话");

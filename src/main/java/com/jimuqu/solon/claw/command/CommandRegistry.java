@@ -22,7 +22,7 @@ public final class CommandRegistry {
         register(core("reset", "session", "重置当前会话并重新开始"));
         register(core("retry", "session", "重新执行上一条用户消息"));
         register(core("undo", "session", "撤销上一轮对话"));
-        register(core("branch", "session", "从当前会话创建分支"));
+        register(core("branch", "session", "从当前会话创建分支").alias("fork"));
         register(core("resume", "session", "恢复指定会话或分支"));
         register(core("title", "session", "查看、设置或清空当前会话标题"));
         register(core("status", "session", "查看当前会话状态"));
