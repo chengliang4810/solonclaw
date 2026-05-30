@@ -81,8 +81,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             String previousSummary = StrUtil.nullToEmpty(session.getCompressedSummary()).trim();
             for (ChatMessage message : history) {
                 if (message.getRole() == ChatRole.ASSISTANT
-                        && StrUtil.startWithIgnoreCase(
-                                message.getContent(), CompressionConstants.SUMMARY_PREFIX)) {
+                        && CompressionConstants.isSummaryContent(message.getContent())) {
                     if (StrUtil.isBlank(previousSummary)) {
                         previousSummary = message.getContent().trim();
                     }
@@ -467,7 +466,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             if (CompressionConstants.PRUNED_TOOL_PLACEHOLDER.equals(content)) {
                 continue;
             }
-            if (StrUtil.startWithIgnoreCase(content, CompressionConstants.SUMMARY_PREFIX)) {
+            if (CompressionConstants.isSummaryContent(content)) {
                 continue;
             }
             return false;
@@ -567,10 +566,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
 
     /** 去掉旧摘要中再次嵌套的 “Previous Summary” 区块，避免摘要递归膨胀。 */
     private String normalizePreviousSummary(String previousSummary) {
-        String normalized =
-                StrUtil.nullToEmpty(previousSummary)
-                        .replace(CompressionConstants.SUMMARY_PREFIX, "")
-                        .trim();
+        String normalized = CompressionConstants.stripSummaryPrefix(previousSummary);
         if (StrUtil.isBlank(normalized)) {
             return "";
         }

@@ -308,10 +308,7 @@ public class SessionArtifactService {
 
     private String removeCompactionPrefix(String content) {
         String value = StrUtil.nullToEmpty(content);
-        if (StrUtil.startWithIgnoreCase(value, CompressionConstants.SUMMARY_PREFIX)) {
-            return value;
-        }
-        return value;
+        return CompressionConstants.stripSummaryPrefix(value);
     }
 
     private String oneLine(String value) {
