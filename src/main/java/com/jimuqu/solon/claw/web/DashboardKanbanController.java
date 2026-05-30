@@ -553,6 +553,35 @@ public class DashboardKanbanController {
                 });
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/attachments", method = MethodType.GET)
+    public List<Map<String, Object>> attachments(String taskId) throws Exception {
+        return kanbanService.attachments(taskId);
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/attachments", method = MethodType.POST)
+    public Map<String, Object> addAttachment(String taskId, Context context) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.addAttachment(taskId, body(context));
+                    }
+                });
+    }
+
+    @Mapping(value = "/api/kanban/attachments/{attachmentId}", method = MethodType.DELETE)
+    public Map<String, Object> deleteAttachment(String attachmentId) throws Exception {
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.deleteAttachment(attachmentId);
+                    }
+                });
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}", method = MethodType.DELETE)
     public Map<String, Object> delete(String taskId) throws Exception {
         return safeKanban(

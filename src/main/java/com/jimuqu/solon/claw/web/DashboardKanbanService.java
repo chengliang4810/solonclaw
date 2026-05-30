@@ -428,6 +428,18 @@ public class DashboardKanbanService {
                 body == null || body.get("body") == null ? "" : String.valueOf(body.get("body")));
     }
 
+    public Map<String, Object> addAttachment(String taskId, Map<String, Object> body) throws Exception {
+        return kanbanService.addAttachment(taskId, body);
+    }
+
+    public List<Map<String, Object>> attachments(String taskId) throws Exception {
+        return kanbanService.attachments(taskId);
+    }
+
+    public Map<String, Object> deleteAttachment(String attachmentId) throws Exception {
+        return kanbanService.deleteAttachment(attachmentId);
+    }
+
     public Map<String, Object> delete(String taskId) throws Exception {
         return kanbanService.delete(taskId);
     }
