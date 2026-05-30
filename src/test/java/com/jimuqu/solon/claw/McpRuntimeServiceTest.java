@@ -257,6 +257,27 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldDeferMcpProviderCreationUntilToolsAreRequested() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        CountingMcpFactory factory = new CountingMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        List<ToolProvider> providers = mcpRuntimeService.resolveEnabledToolProviders();
+
+        assertThat(providers).hasSize(1);
+        assertThat(factory.createCount).isEqualTo(0);
+        assertThat(providers.get(0).toString()).contains("McpToolProvider(local-docs)");
+
+        assertThat(providers.get(0).getTools())
+                .extracting(FunctionTool::name)
+                .contains("mcp_local-docs_docs_search");
+        assertThat(factory.createCount).isEqualTo(1);
+    }
+
+    @Test
     void shouldGateMcpUtilityToolsByAdvertisedCapabilities() throws Exception {
         assertUtilityToolsForCapabilities(
                 capabilities(Boolean.FALSE, Boolean.FALSE),
@@ -921,7 +942,7 @@ public class McpRuntimeServiceTest {
         McpRuntimeService mcpRuntimeService =
                 new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
         try {
-            mcpRuntimeService.resolveEnabledToolProviders();
+            mcpRuntimeService.resolveEnabledToolProviders().get(0).getTools();
 
             assertThat(factory.config).isNotNull();
             assertThat(factory.config.getHeaders())
