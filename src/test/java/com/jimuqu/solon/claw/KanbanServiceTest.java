@@ -1857,6 +1857,64 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldExposeTaskAttachmentsInWorkerContext() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
+        String taskId = createTask(service, "阅读附件资料", "worker", "planner");
+        File attachment = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "attachments", taskId, "manual.pdf");
+        FileUtil.writeUtf8String("pdf bytes", attachment);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("filename", "manual.pdf");
+        body.put("stored_path", attachment.getCanonicalPath());
+        body.put("content_type", "application/pdf");
+        body.put("size", Long.valueOf(attachment.length()));
+        body.put("uploaded_by", "planner");
+
+        Map<String, Object> created = service.addAttachment(taskId, body);
+        Map<String, Object> detail = service.task(taskId);
+        String context = String.valueOf(service.context(taskId).get("worker_context"));
+
+        assertThat(created.get("filename")).isEqualTo("manual.pdf");
+        assertThat(String.valueOf(detail.get("attachments")))
+                .contains("manual.pdf")
+                .contains(attachment.getCanonicalPath());
+        assertThat(context)
+                .contains("Attachments")
+                .contains("manual.pdf")
+                .contains("application/pdf")
+                .contains(attachment.getCanonicalPath());
+    }
+
+    @Test
+    void shouldListAndRemoveTaskAttachmentMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
+        String taskId = createTask(service, "整理附件资料", "worker", "planner");
+        File attachment = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "attachments", taskId, "notes.txt");
+        FileUtil.writeUtf8String("notes", attachment);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("filename", "notes.txt");
+        body.put("stored_path", attachment.getCanonicalPath());
+        body.put("size", Long.valueOf(attachment.length()));
+        Map<String, Object> created = service.addAttachment(taskId, body);
+
+        assertThat(String.valueOf(service.attachments(taskId)))
+                .contains("notes.txt")
+                .contains(attachment.getCanonicalPath());
+
+        Map<String, Object> removed = service.deleteAttachment(String.valueOf(created.get("id")));
+
+        assertThat(removed.get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(service.attachments(taskId)).isEmpty();
+        assertThat(attachment).doesNotExist();
+        assertThat(String.valueOf(service.task(taskId).get("events")))
+                .contains("attached")
+                .contains("attachment_removed");
+    }
+
+    @Test
     void shouldExposeJimuquStyleStatsWatchNotifyLogAndGc() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         KanbanService service =

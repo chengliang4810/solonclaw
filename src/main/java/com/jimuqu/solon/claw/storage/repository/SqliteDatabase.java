@@ -966,6 +966,19 @@ public class SqliteDatabase {
             statement.execute(
                     "create index if not exists idx_kanban_task_links_parent on kanban_task_links(parent_id)");
             statement.execute(
+                    "create table if not exists kanban_task_attachments ("
+                            + "attachment_id text primary key,"
+                            + "task_id text not null,"
+                            + "filename text not null,"
+                            + "stored_path text not null,"
+                            + "content_type text,"
+                            + "size integer not null default 0,"
+                            + "uploaded_by text,"
+                            + "created_at integer not null"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_task_attachments_task on kanban_task_attachments(task_id, created_at asc)");
+            statement.execute(
                     "create table if not exists kanban_runs ("
                             + "run_id text primary key,"
                             + "task_id text not null,"

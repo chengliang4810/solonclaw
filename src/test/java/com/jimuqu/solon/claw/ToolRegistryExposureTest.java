@@ -4597,6 +4597,27 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReportResolvedAbsolutePathForFileWrite() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.write("notes/out.txt", "hello\n"));
+        String expected = workspace.resolve("notes/out.txt").toRealPath().toString();
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("resolved_path").getString()).isEqualTo(expected);
+        Object filesModified = result.get("files_modified").toData();
+        assertThat(String.valueOf(filesModified)).isEqualTo("[" + expected + "]");
+        assertThat(result.get("path").getString()).isEqualTo("notes/out.txt");
+        assertThat(new String(Files.readAllBytes(workspace.resolve("notes/out.txt")), StandardCharsets.UTF_8))
+                .isEqualTo("hello\n");
+    }
+
+    @Test
     void shouldRejectJarInternalFileToolPathsBeforeDelegating() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawFileReadWriteSkill fileSkill =

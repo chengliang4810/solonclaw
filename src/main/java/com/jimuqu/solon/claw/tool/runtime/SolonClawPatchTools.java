@@ -163,7 +163,9 @@ public class SolonClawPatchTools {
         fileStateTracker.recordWrite(target);
 
         PatchResult result = PatchResult.success();
-        result.filesModified.add(normalizePath(filePath));
+        String resolvedPath = resolvedOutputPath(target);
+        result.resolved_path = resolvedPath;
+        result.filesModified.add(resolvedPath);
         result.diff = simpleDiff(normalizePath(filePath), content, updated);
         result.addWarning(staleWarning);
         return result;
@@ -685,6 +687,10 @@ public class SolonClawPatchTools {
         }
     }
 
+    private String resolvedOutputPath(Path path) {
+        return safeRealPath(path).toString();
+    }
+
     private String read(Path target) throws IOException {
         return new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
     }
@@ -749,6 +755,7 @@ public class SolonClawPatchTools {
         public String error;
         public String diff;
         public String _warning;
+        public String resolved_path;
         public List<String> warnings = new ArrayList<String>();
         public List<String> files_modified = new ArrayList<String>();
         public List<String> files_created = new ArrayList<String>();
@@ -787,6 +794,7 @@ public class SolonClawPatchTools {
             error = redact(error, 1000);
             diff = redact(diff, 20000);
             _warning = redact(_warning, 1000);
+            resolved_path = redact(resolved_path, 400);
             redactList(warnings, 1000);
             redactList(files_modified, 400);
             redactList(files_created, 400);
@@ -859,4 +867,3 @@ public class SolonClawPatchTools {
         }
     }
 }
-
