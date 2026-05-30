@@ -227,6 +227,29 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
+    void shouldApplySessionReasoningEffortOverride() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai-responses");
+        config.getLlm().setApiUrl("https://example.com/v1/responses");
+        config.getLlm().setModel("gpt-5.4");
+        config.getLlm().setReasoningEffort("medium");
+
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setReasoningEffortOverride("high");
+        Method buildChatConfig =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "buildChatConfig", AppConfig.LlmConfig.class, SessionRecord.class);
+        buildChatConfig.setAccessible(true);
+
+        ChatConfig chatConfig =
+                (ChatConfig) buildChatConfig.invoke(gateway, config.getLlm(), session);
+
+        assertThat(chatConfig.getModelOptions().options())
+                .containsEntry("reasoning", Collections.singletonMap("effort", "high"));
+    }
+
+    @Test
     void shouldBuildMultimodalPromptForImageAttachments() throws Exception {
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
         AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");

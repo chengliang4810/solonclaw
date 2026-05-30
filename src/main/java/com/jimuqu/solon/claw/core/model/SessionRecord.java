@@ -27,6 +27,9 @@ public class SessionRecord {
     /** 服务层级覆盖配置。 */
     private String serviceTierOverride;
 
+    /** 推理强度覆盖配置。 */
+    private String reasoningEffortOverride;
+
     /** 本轮运行临时 provider 覆盖，不写入持久化存储。 */
     private transient String transientProviderOverride;
 

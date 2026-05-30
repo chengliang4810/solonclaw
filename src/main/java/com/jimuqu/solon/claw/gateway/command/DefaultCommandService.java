@@ -3533,17 +3533,17 @@ public class DefaultCommandService implements CommandService {
 
     private GatewayReply handleReasoning(GatewayMessage message, String args) throws Exception {
         String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (normalized.length() == 0) {
             return GatewayReply.ok(
                     "reasoning_display="
                             + displaySettingsService.describeReasoning(
                                     message.sourceKey(), message.getPlatform())
                             + "\nreasoning_effort="
-                            + StrUtil.blankToDefault(
-                                    appConfig.getLlm().getReasoningEffort(), "default")
+                            + effectiveReasoningEffort(session)
                             + "\nusage="
                             + GatewayCommandConstants.SLASH_REASONING
-                            + " [show|hide]");
+                            + " [level|reset|show|hide]");
         }
         if ("show".equals(normalized) || "on".equals(normalized)) {
             displaySettingsService.setReasoningVisible(message.sourceKey(), true);
@@ -3553,7 +3553,43 @@ public class DefaultCommandService implements CommandService {
             displaySettingsService.setReasoningVisible(message.sourceKey(), false);
             return GatewayReply.ok("已关闭当前来源键的 reasoning 展示。");
         }
-        return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_REASONING + " [show|hide]");
+        if (session == null) {
+            return GatewayReply.error("当前没有可设置 reasoning 的会话。");
+        }
+        if ("reset".equals(normalized) || "default".equals(normalized)) {
+            sessionRepository.setReasoningEffortOverride(session.getSessionId(), null);
+            session.setReasoningEffortOverride(null);
+            return GatewayReply.ok(
+                    "已清除当前会话 reasoning 覆盖。\nreasoning_effort="
+                            + effectiveReasoningEffort(session));
+        }
+        if (isReasoningEffortLevel(normalized)) {
+            String override = "none".equals(normalized) ? "none" : normalized;
+            sessionRepository.setReasoningEffortOverride(session.getSessionId(), override);
+            session.setReasoningEffortOverride(override);
+            return GatewayReply.ok(
+                    "已设置当前会话 reasoning 强度。\nreasoning_effort="
+                            + effectiveReasoningEffort(session));
+        }
+        return GatewayReply.error(
+                "用法：" + GatewayCommandConstants.SLASH_REASONING + " [level|reset|show|hide]");
+    }
+
+    private boolean isReasoningEffortLevel(String value) {
+        return "none".equals(value)
+                || "minimal".equals(value)
+                || "low".equals(value)
+                || "medium".equals(value)
+                || "high".equals(value)
+                || "xhigh".equals(value);
+    }
+
+    private String effectiveReasoningEffort(SessionRecord session) {
+        String override =
+                session == null ? "" : StrUtil.nullToEmpty(session.getReasoningEffortOverride()).trim();
+        return StrUtil.blankToDefault(
+                StrUtil.isNotBlank(override) ? override : appConfig.getLlm().getReasoningEffort(),
+                "default");
     }
 
     private GatewayReply handleFast(SessionRecord session, String args) throws Exception {
@@ -4117,8 +4153,9 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]",
                                 "查看或切换当前会话快速模式"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_REASONING + " [show|hide]",
-                                "查看或切换 reasoning 展示"),
+                                GatewayCommandConstants.SLASH_REASONING
+                                        + " [level|reset|show|hide]",
+                                "查看或切换 reasoning 强度和展示"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TOOLS
                                         + " [list|enable|disable] [name...]",

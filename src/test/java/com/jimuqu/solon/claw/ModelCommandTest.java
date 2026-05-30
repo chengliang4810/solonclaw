@@ -59,4 +59,30 @@ public class ModelCommandTest {
                                 .getServiceTierOverride())
                 .isNull();
     }
+
+    @Test
+    void shouldToggleSessionReasoningEffort() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("reasoning-chat", "reasoning-user", "hello");
+        env.send("reasoning-chat", "reasoning-user", "/pairing claim-admin");
+
+        GatewayReply high = env.send("reasoning-chat", "reasoning-user", "/reasoning high");
+        assertThat(high.getContent()).contains("reasoning_effort=high");
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:reasoning-chat:reasoning-user")
+                                .getReasoningEffortOverride())
+                .isEqualTo("high");
+
+        GatewayReply status = env.send("reasoning-chat", "reasoning-user", "/reasoning");
+        assertThat(status.getContent()).contains("reasoning_effort=high");
+
+        GatewayReply reset = env.send("reasoning-chat", "reasoning-user", "/reasoning reset");
+        assertThat(reset.getContent()).contains("reasoning_effort=medium");
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:reasoning-chat:reasoning-user")
+                                .getReasoningEffortOverride())
+                .isNull();
+    }
 }

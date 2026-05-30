@@ -908,14 +908,19 @@ public class SolonAiLlmGateway implements LlmGateway {
 
         chatConfig.getModelOptions().temperature(resolved.getTemperature());
         chatConfig.getModelOptions().max_tokens(resolved.getMaxTokens());
+        String reasoningEffort =
+                session != null && StrUtil.isNotBlank(session.getReasoningEffortOverride())
+                        ? session.getReasoningEffortOverride().trim()
+                        : resolved.getReasoningEffort();
         if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
-                && StrUtil.isNotBlank(resolved.getReasoningEffort())) {
+                && StrUtil.isNotBlank(reasoningEffort)
+                && !"none".equalsIgnoreCase(reasoningEffort.trim())) {
             chatConfig
                     .getModelOptions()
                     .optionSet(
                             "reasoning",
                             Collections.<String, Object>singletonMap(
-                                    "effort", resolved.getReasoningEffort()));
+                                    "effort", reasoningEffort.trim()));
         }
         if (session != null
                 && "priority".equalsIgnoreCase(

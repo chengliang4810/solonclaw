@@ -4734,6 +4734,9 @@ public class DashboardDiagnosticOutputTest {
         public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
 
         @Override
+        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
+
+        @Override
         public void setActiveAgentName(String sessionId, String agentName) {}
 
         @Override
