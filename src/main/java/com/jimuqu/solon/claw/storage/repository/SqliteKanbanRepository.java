@@ -990,7 +990,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             if (StrUtil.isNotBlank(assignee)) {
                 sql.append(" and assignee = ?");
             }
-            sql.append(" order by priority desc, updated_at asc limit 1");
+            sql.append(" order by priority desc, updated_at asc");
             PreparedStatement statement = connection.prepareStatement(sql.toString());
             statement.setString(1, slug);
             if (StrUtil.isNotBlank(assignee)) {
@@ -998,11 +998,14 @@ public class SqliteKanbanRepository implements KanbanRepository {
             }
             ResultSet resultSet = statement.executeQuery();
             try {
-                if (!resultSet.next()) {
-                    return null;
+                while (resultSet.next()) {
+                    KanbanTaskRecord claimed =
+                            claimTask(resultSet.getString("task_id"), claimer, ttlSeconds, workerId, workerPid);
+                    if (claimed != null) {
+                        return claimed;
+                    }
                 }
-                String taskId = resultSet.getString("task_id");
-                return claimTask(taskId, claimer, ttlSeconds, workerId, workerPid);
+                return null;
             } finally {
                 resultSet.close();
                 statement.close();
@@ -1339,7 +1342,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement select =
                     connection.prepareStatement(
-                            "select t.task_id from kanban_tasks t where t.board_slug = ? and t.status in ('todo', 'blocked') and not exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = t.task_id and p.status not in ('done', 'archived'))");
+                            "select t.task_id from kanban_tasks t where t.board_slug = ? and t.status in ('todo', 'blocked') and not exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = t.task_id and p.status not in ('done', 'archived')) and not exists (select 1 from kanban_events e where e.rowid = (select max(mx.rowid) from kanban_events mx where mx.task_id = t.task_id and mx.kind in ('blocked', 'unblocked')) and e.kind = 'blocked')");
             select.setString(1, slug);
             ResultSet resultSet = select.executeQuery();
             try {
@@ -1354,7 +1357,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             for (String taskId : promotable) {
                 PreparedStatement update =
                         connection.prepareStatement(
-                                "update kanban_tasks set status = 'ready', updated_at = ? where task_id = ? and status in ('todo', 'blocked')");
+                                "update kanban_tasks set status = 'ready', spawn_failures = 0, last_spawn_error = null, updated_at = ? where task_id = ? and status in ('todo', 'blocked')");
                 update.setLong(1, System.currentTimeMillis());
                 update.setString(2, taskId);
                 int count = update.executeUpdate();

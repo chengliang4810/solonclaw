@@ -2,10 +2,13 @@ package com.jimuqu.solon.claw.kanban;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfile;
+import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +21,7 @@ public class KanbanDispatcherService {
     private static final long DEFAULT_CLAIM_TTL_SECONDS = 900L;
     private static final int DEFAULT_FAILURE_LIMIT = 3;
     private static final int DEFAULT_DAEMON_INTERVAL_SECONDS = 60;
+    private static final String REVIEW_SKILL = "review";
     private static final long RESPAWN_GUARD_SUCCESS_WINDOW_MILLIS = 3600000L;
     private static final long RESPAWN_GUARD_PR_WINDOW_MILLIS = 86400000L;
     private static final Pattern RESPAWN_BLOCKER =
@@ -317,6 +321,7 @@ public class KanbanDispatcherService {
                 continue;
             }
             try {
+                attachReviewSkill(claimed);
                 String workspace = resolveWorkspacePath(claimed);
                 repository.setWorkspacePath(claimed.getTaskId(), workspace);
                 Map<String, Object> detail = kanbanService.task(claimed.getTaskId());
@@ -520,6 +525,20 @@ public class KanbanDispatcherService {
         }
         AgentProfile profile = kanbanService.getAgentProfileService().findByName(normalized);
         return profile != null && profile.isEnabled();
+    }
+
+    private void attachReviewSkill(KanbanTaskRecord task) {
+        if (task == null) {
+            return;
+        }
+        LinkedHashSet<String> skills = new LinkedHashSet<String>();
+        for (String skill : AgentRuntimePolicy.parseStringList(task.getSkillsJson())) {
+            if (StrUtil.isNotBlank(skill)) {
+                skills.add(skill.trim());
+            }
+        }
+        skills.add(REVIEW_SKILL);
+        task.setSkillsJson(ONode.serialize(new ArrayList<String>(skills)));
     }
 
     private Map<String, Integer> runningTaskCountByAssignee(String board) throws Exception {

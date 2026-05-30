@@ -1251,6 +1251,36 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldClaimNextSkipRejectedReadyCandidate() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "未完成调度父任务", "lead", "planner");
+        String dirtyId = createTask(service, "脏就绪调度任务", "worker", "planner");
+        String cleanId = createTask(service, "合法调度任务", "worker", "planner");
+        service.link(parentId, dirtyId);
+        Map<String, Object> dirtyReady = new LinkedHashMap<String, Object>();
+        dirtyReady.put("status", "ready");
+        dirtyReady.put("priority", Integer.valueOf(10));
+        service.updateTask(dirtyId, dirtyReady);
+        Map<String, Object> cleanReady = new LinkedHashMap<String, Object>();
+        cleanReady.put("status", "ready");
+        cleanReady.put("priority", Integer.valueOf(1));
+        service.updateTask(cleanId, cleanReady);
+
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("assignee", "worker");
+        claim.put("claimer", "host:claim-next");
+        claim.put("worker_id", "claim-next");
+        Map<String, Object> next = service.claimNext(claim);
+
+        assertThat(next.get("claimed")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(next.get("task"))).contains(cleanId).doesNotContain(dirtyId);
+        assertThat(service.task(dirtyId).get("status")).isEqualTo("todo");
+        assertThat(String.valueOf(service.task(dirtyId).get("events")))
+                .contains("claim_rejected")
+                .contains("parents_not_done");
+    }
+
+    @Test
     void shouldRejectManualReadyMoveWhenParentsAreUndone() throws Exception {
         KanbanService service = service();
         String parentId = createTask(service, "待完成父任务", "lead", "planner");
@@ -1276,8 +1306,10 @@ public class KanbanServiceTest {
         String parentId = createTask(service, "依赖父任务", "lead", "planner");
         String childId = createTask(service, "依赖子任务", "worker", "planner");
         service.link(parentId, childId);
-        service.status(childId, "blocked", "等待父任务完成");
         repository.updateTaskStatus(parentId, "done", "父任务完成");
+        Map<String, Object> blocked = new LinkedHashMap<String, Object>();
+        blocked.put("status", "blocked");
+        service.updateTask(childId, blocked);
 
         int promoted = repository.recomputeReady(null);
 
@@ -1285,6 +1317,46 @@ public class KanbanServiceTest {
         Map<String, Object> child = service.task(childId);
         assertThat(child.get("status")).isEqualTo("ready");
         assertThat(String.valueOf(child.get("events"))).contains("promoted");
+    }
+
+    @Test
+    void shouldClearFailureStateWhenRecomputingBlockedTaskReady() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "重算父任务", "lead", "planner");
+        String childId = createTask(service, "重算阻塞子任务", "worker", "planner");
+        service.link(parentId, childId);
+        repository.updateTaskStatus(parentId, "done", "父任务完成");
+        Map<String, Object> failure = new LinkedHashMap<String, Object>();
+        failure.put("status", "blocked");
+        failure.put("spawn_failures", Integer.valueOf(5));
+        failure.put("last_spawn_error", "persistent error");
+        service.updateTask(childId, failure);
+
+        int promoted = repository.recomputeReady(null);
+
+        assertThat(promoted).isEqualTo(1);
+        Map<String, Object> child = service.task(childId);
+        assertThat(child.get("status")).isEqualTo("ready");
+        assertThat(child.get("spawn_failures")).isEqualTo(Integer.valueOf(0));
+        assertThat(child.get("last_spawn_error")).isNull();
+    }
+
+    @Test
+    void shouldKeepManuallyBlockedTaskStickyDuringReadyRecompute() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String taskId = createReadyTask(service, "人工阻塞重算任务", "worker", "planner");
+        service.status(taskId, "blocked", "等待人工复核");
+
+        int promoted = repository.recomputeReady(null);
+
+        assertThat(promoted).isEqualTo(0);
+        Map<String, Object> task = service.task(taskId);
+        assertThat(task.get("status")).isEqualTo("blocked");
+        assertThat(String.valueOf(task.get("events"))).contains("blocked").doesNotContain("promoted_ready");
     }
 
     @Test
