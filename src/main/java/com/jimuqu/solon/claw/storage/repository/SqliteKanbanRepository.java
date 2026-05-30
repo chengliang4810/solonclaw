@@ -1354,7 +1354,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             for (String taskId : promotable) {
                 PreparedStatement update =
                         connection.prepareStatement(
-                                "update kanban_tasks set status = 'ready', updated_at = ? where task_id = ? and status in ('todo', 'blocked')");
+                                "update kanban_tasks set status = 'ready', spawn_failures = 0, last_spawn_error = null, updated_at = ? where task_id = ? and status in ('todo', 'blocked')");
                 update.setLong(1, System.currentTimeMillis());
                 update.setString(2, taskId);
                 int count = update.executeUpdate();
