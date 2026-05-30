@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
@@ -1277,6 +1278,33 @@ public class KanbanServiceTest {
         assertThat(live.get("last_heartbeat_at")).isNotNull();
         assertThat(String.valueOf(live.get("active_run"))).contains("worker-1");
         assertThat(String.valueOf(live.get("events"))).contains("heartbeat").contains("still running");
+    }
+
+    @Test
+    void shouldUseConfiguredDefaultClaimTtlForClaimsAndHeartbeats() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AppConfig config = new AppConfig();
+        config.getKanban().setClaimTtlSeconds(3600);
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, config);
+        String taskId = createTask(service, "默认 TTL 任务", "alice", "planner");
+
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:ttl-default");
+        long beforeClaim = System.currentTimeMillis();
+        service.claim(taskId, claim);
+
+        assertThat(repository.findTask(taskId).getClaimExpiresAt())
+                .isGreaterThan(beforeClaim + 3000L * 1000L);
+
+        Map<String, Object> rewind = new LinkedHashMap<String, Object>();
+        rewind.put("claim_expires_at", 0L);
+        service.updateTask(taskId, rewind);
+        long beforeHeartbeat = System.currentTimeMillis();
+        service.heartbeatClaim(taskId, claim);
+
+        assertThat(repository.findTask(taskId).getClaimExpiresAt())
+                .isGreaterThan(beforeHeartbeat + 3000L * 1000L);
     }
 
     @Test

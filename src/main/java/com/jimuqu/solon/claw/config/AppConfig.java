@@ -1426,6 +1426,20 @@ public class AppConfig {
                                                         "solonclaw.kanban.failure_limit",
                                                         3))),
                                 3));
+        config.getKanban()
+                .setClaimTtlSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.claimTtlSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.claim_ttl_seconds",
+                                                        900))),
+                                900));
         config.getSecurity()
                 .setAllowPrivateUrls(
                         resolveBoolean(
@@ -2181,6 +2195,7 @@ public class AppConfig {
         this.kanban.setMaxInProgress(other.getMaxInProgress());
         this.kanban.setMaxInProgressPerProfile(other.getMaxInProgressPerProfile());
         this.kanban.setFailureLimit(other.getFailureLimit());
+        this.kanban.setClaimTtlSeconds(other.getClaimTtlSeconds());
     }
 
     private void copySecurity(SecurityConfig other) {
@@ -3841,6 +3856,9 @@ public class AppConfig {
 
         /** Consecutive spawn failure limit before auto-blocking. */
         private int failureLimit = 3;
+
+        /** Default claim and heartbeat TTL in seconds. */
+        private int claimTtlSeconds = 900;
     }
 
     @Getter
