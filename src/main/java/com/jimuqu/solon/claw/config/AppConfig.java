@@ -1099,6 +1099,11 @@ public class AppConfig {
                         resolveSecret(
                                 readString(
                                         props, overrides, "solonclaw.dashboard.accessToken", "")));
+        config.getDashboard()
+                .setBindHost(
+                        resolveConfigString(readString(props, overrides, "server.host", "")));
+        config.getDashboard()
+                .setBindPort(resolveInt(readInt(props, overrides, "server.port", 8080)));
         config.getAgent().setPersonalities(loadPersonalities(props, overrides));
         config.getAgent()
                 .getHeartbeat()
@@ -4299,5 +4304,11 @@ public class AppConfig {
     public static class DashboardConfig {
         /** Shared bearer token for dashboard pages and API requests. */
         private String accessToken;
+
+        /** HTTP host Solon is explicitly bound to. Empty means framework default. */
+        private String bindHost;
+
+        /** HTTP port Solon is explicitly bound to. */
+        private int bindPort = 8080;
     }
 }
