@@ -256,7 +256,7 @@ public class KanbanService {
         task.setTitle(text(body, "title"));
         task.setBody(text(body, "body"));
         task.setAssignee(text(body, "assignee"));
-        String defaultStatus = parentIds.isEmpty() ? "todo" : initialCommandStatus(parentIds);
+        String defaultStatus = initialCommandStatus(parentIds);
         task.setStatus(StrUtil.blankToDefault(text(body, "status"), defaultStatus));
         task.setPriority(intValue(body, "priority", 0));
         task.setTenant(text(body, "tenant"));

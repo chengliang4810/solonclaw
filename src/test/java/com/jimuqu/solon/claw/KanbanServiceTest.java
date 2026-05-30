@@ -160,6 +160,36 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldInferReadyStatusWhenServiceCreatesExecutableTasks() throws Exception {
+        KanbanService service = service();
+
+        Map<String, Object> standalone = new LinkedHashMap<String, Object>();
+        standalone.put("title", "可直接执行任务");
+        standalone.put("assignee", "alice");
+        Map<String, Object> createdStandalone = service.createTask(standalone);
+        String standaloneId = String.valueOf(createdStandalone.get("id"));
+
+        assertThat(createdStandalone.get("status")).isEqualTo("ready");
+        assertThat(service.task(standaloneId).get("status")).isEqualTo("ready");
+
+        service.status(standaloneId, "done", "已完成");
+
+        Map<String, Object> childOfDone = new LinkedHashMap<String, Object>();
+        childOfDone.put("title", "父任务已完成子任务");
+        childOfDone.put("assignee", "bob");
+        childOfDone.put("parents", java.util.Collections.singletonList(standaloneId));
+        assertThat(service.createTask(childOfDone).get("status")).isEqualTo("ready");
+
+        String openParentId = createTask(service, "未完成父任务", "lead", "planner");
+        Map<String, Object> childOfOpen = new LinkedHashMap<String, Object>();
+        childOfOpen.put("title", "等待父任务子任务");
+        childOfOpen.put("assignee", "worker");
+        childOfOpen.put("parents", java.util.Collections.singletonList(openParentId));
+
+        assertThat(service.createTask(childOfOpen).get("status")).isEqualTo("todo");
+    }
+
+    @Test
     void shouldListTasksByPriorityThenCreationOrder() throws Exception {
         KanbanService service = service();
         String firstId = createTask(service, "同优先级较早任务", "alice", "planner");
@@ -494,7 +524,7 @@ public class KanbanServiceTest {
                 .hasMessageContaining("unverifiable");
 
         Map<String, Object> detail = service.task(parentId);
-        assertThat(detail.get("status")).isEqualTo("todo");
+        assertThat(detail.get("status")).isEqualTo("ready");
         assertThat(String.valueOf(detail.get("warnings")))
                 .contains("completion_blocked_hallucination")
                 .contains("KB-DEADBEEF");
@@ -516,7 +546,7 @@ public class KanbanServiceTest {
                                         Arrays.asList(childId)))
                 .isInstanceOf(KanbanService.HallucinatedCardsException.class)
                 .hasMessageContaining("created_by=bob");
-        assertThat(service.task(parentId).get("status")).isEqualTo("todo");
+        assertThat(service.task(parentId).get("status")).isEqualTo("ready");
     }
 
     @Test
@@ -1291,7 +1321,7 @@ public class KanbanServiceTest {
                 .hasMessageContaining("Cannot move to 'ready'")
                 .hasMessageContaining(parentId)
                 .hasMessageContaining("待完成父任务")
-                .hasMessageContaining("status=todo");
+                .hasMessageContaining("status=ready");
         assertThat(service.task(childId).get("status")).isEqualTo("todo");
 
         service.status(parentId, "done", "父任务完成");
@@ -1394,8 +1424,7 @@ public class KanbanServiceTest {
         KanbanService service = new KanbanService(repository);
         String parentId = createTask(service, "未完成父任务", "lead", "planner");
         String childId = createTask(service, "应退回子任务", "worker", "planner");
-        assertThat(service.task(childId).get("status")).isEqualTo("todo");
-        service.status(childId, "ready", null);
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
 
         repository.linkTasks(parentId, childId);
 
