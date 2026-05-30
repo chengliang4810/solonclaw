@@ -1065,6 +1065,14 @@ public class AppConfig {
                                         "solonclaw.gateway.injectionReplayWindowSeconds",
                                         300)));
         config.getGateway()
+                .setFilterSilenceNarration(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.gateway.filterSilenceNarration",
+                                        true)));
+        config.getGateway()
                 .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
                 .setAccessToken(
@@ -2003,6 +2011,7 @@ public class AppConfig {
         this.gateway.setInjectionMaxBodyBytes(other.getGateway().getInjectionMaxBodyBytes());
         this.gateway.setInjectionReplayWindowSeconds(
                 other.getGateway().getInjectionReplayWindowSeconds());
+        this.gateway.setFilterSilenceNarration(other.getGateway().isFilterSilenceNarration());
         this.gateway.setPlatforms(cloneGatewayPlatforms(other.getGateway().getPlatforms()));
         this.dashboard.setAccessToken(other.getDashboard().getAccessToken());
         this.agent.setPersonalities(clonePersonalities(other.getAgent().getPersonalities()));
@@ -4228,6 +4237,9 @@ public class AppConfig {
 
         /** Replay window in seconds for signed gateway injection requests. */
         private int injectionReplayWindowSeconds = 300;
+
+        /** Whether short silence narration should be dropped before channel delivery. */
+        private boolean filterSilenceNarration = true;
 
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
         private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();

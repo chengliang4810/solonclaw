@@ -115,9 +115,10 @@ public class GatewayConfiguration {
 
     @Bean
     public DeliveryService deliveryService(
+            AppConfig appConfig,
             Map<PlatformType, ChannelAdapter> channelAdapters,
             GatewayPolicyRepository gatewayPolicyRepository) {
-        return new AdapterBackedDeliveryService(channelAdapters, gatewayPolicyRepository);
+        return new AdapterBackedDeliveryService(appConfig, channelAdapters, gatewayPolicyRepository);
     }
 
     @Bean

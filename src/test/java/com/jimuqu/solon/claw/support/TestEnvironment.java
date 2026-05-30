@@ -226,7 +226,7 @@ public class TestEnvironment {
                 new LinkedHashMap<PlatformType, ChannelAdapter>();
         adapters.put(PlatformType.MEMORY, memoryAdapter);
         DeliveryService deliveryService =
-                new AdapterBackedDeliveryService(adapters, gatewayPolicyRepository);
+                new AdapterBackedDeliveryService(config, adapters, gatewayPolicyRepository);
         GatewayAuthorizationService gatewayAuthorizationService =
                 new GatewayAuthorizationService(gatewayPolicyRepository, config);
         CheckpointService checkpointService = new DefaultCheckpointService(config, database);
