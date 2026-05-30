@@ -1342,7 +1342,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement select =
                     connection.prepareStatement(
-                            "select t.task_id from kanban_tasks t where t.board_slug = ? and t.status in ('todo', 'blocked') and not exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = t.task_id and p.status not in ('done', 'archived'))");
+                            "select t.task_id from kanban_tasks t where t.board_slug = ? and t.status in ('todo', 'blocked') and not exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = t.task_id and p.status not in ('done', 'archived')) and not exists (select 1 from kanban_events e where e.rowid = (select max(mx.rowid) from kanban_events mx where mx.task_id = t.task_id and mx.kind in ('blocked', 'unblocked')) and e.kind = 'blocked')");
             select.setString(1, slug);
             ResultSet resultSet = select.executeQuery();
             try {

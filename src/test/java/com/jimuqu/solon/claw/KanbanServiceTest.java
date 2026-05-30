@@ -1306,8 +1306,10 @@ public class KanbanServiceTest {
         String parentId = createTask(service, "依赖父任务", "lead", "planner");
         String childId = createTask(service, "依赖子任务", "worker", "planner");
         service.link(parentId, childId);
-        service.status(childId, "blocked", "等待父任务完成");
         repository.updateTaskStatus(parentId, "done", "父任务完成");
+        Map<String, Object> blocked = new LinkedHashMap<String, Object>();
+        blocked.put("status", "blocked");
+        service.updateTask(childId, blocked);
 
         int promoted = repository.recomputeReady(null);
 
@@ -1326,8 +1328,8 @@ public class KanbanServiceTest {
         String childId = createTask(service, "重算阻塞子任务", "worker", "planner");
         service.link(parentId, childId);
         repository.updateTaskStatus(parentId, "done", "父任务完成");
-        service.status(childId, "blocked", "等待重算恢复");
         Map<String, Object> failure = new LinkedHashMap<String, Object>();
+        failure.put("status", "blocked");
         failure.put("spawn_failures", Integer.valueOf(5));
         failure.put("last_spawn_error", "persistent error");
         service.updateTask(childId, failure);
@@ -1339,6 +1341,22 @@ public class KanbanServiceTest {
         assertThat(child.get("status")).isEqualTo("ready");
         assertThat(child.get("spawn_failures")).isEqualTo(Integer.valueOf(0));
         assertThat(child.get("last_spawn_error")).isNull();
+    }
+
+    @Test
+    void shouldKeepManuallyBlockedTaskStickyDuringReadyRecompute() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String taskId = createReadyTask(service, "人工阻塞重算任务", "worker", "planner");
+        service.status(taskId, "blocked", "等待人工复核");
+
+        int promoted = repository.recomputeReady(null);
+
+        assertThat(promoted).isEqualTo(0);
+        Map<String, Object> task = service.task(taskId);
+        assertThat(task.get("status")).isEqualTo("blocked");
+        assertThat(String.valueOf(task.get("events"))).contains("blocked").doesNotContain("promoted_ready");
     }
 
     @Test
