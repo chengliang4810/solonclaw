@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import java.io.File;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -57,7 +58,8 @@ public class KanbanDispatcherServiceTest {
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
         KanbanService service = new KanbanService(repository);
         RecordingSpawner spawner = new RecordingSpawner();
-        KanbanDispatcherService dispatcher = new KanbanDispatcherService(repository, service, spawner);
+        KanbanDispatcherService dispatcher =
+                new KanbanDispatcherService(repository, service, spawner, env.appConfig);
 
         String taskId = createTask(service, "可派发任务", "worker", "planner", "ready", null);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -70,11 +72,45 @@ public class KanbanDispatcherServiceTest {
                 .doesNotContain(System.getProperty("user.dir"));
         assertThat(result.get("skipped_unassigned")).asString().doesNotContain(taskId);
         assertThat(spawner.spawned).isEqualTo(1);
+        File expectedWorkspace =
+                new File(new File(env.appConfig.getRuntime().getHome(), "kanban/workspaces"), taskId)
+                        .getCanonicalFile();
+        assertThat(spawner.lastWorkspacePath).isEqualTo(expectedWorkspace.getAbsolutePath());
+        assertThat(expectedWorkspace).isDirectory();
         Map<String, Object> detail = service.task(taskId);
         assertThat(detail.get("status")).isEqualTo("running");
         assertThat(detail.get("worker_pid")).isEqualTo(Long.valueOf(4242L));
         assertThat(detail.get("spawn_failures")).isEqualTo(Integer.valueOf(0));
         assertThat(String.valueOf(detail.get("events"))).contains("spawned");
+    }
+
+    @Test
+    void shouldCreateExplicitDirWorkspaceBeforeInvokingSpawner() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        RecordingSpawner spawner = new RecordingSpawner();
+        KanbanDispatcherService dispatcher =
+                new KanbanDispatcherService(repository, service, spawner, env.appConfig);
+
+        File workspace = new File(env.appConfig.getRuntime().getHome(), "custom-workspace");
+        Map<String, Object> task = new LinkedHashMap<String, Object>();
+        task.put("title", "目录工作区任务");
+        task.put("assignee", "worker");
+        task.put("created_by", "planner");
+        task.put("status", "ready");
+        task.put("workspace_kind", "dir");
+        task.put("workspace_path", workspace.getAbsolutePath());
+        String taskId = String.valueOf(service.createTask(task).get("id"));
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("max_spawn", 1);
+
+        dispatcher.dispatch(body);
+
+        assertThat(spawner.spawned).isEqualTo(1);
+        assertThat(spawner.lastWorkspacePath).isEqualTo(workspace.getAbsolutePath());
+        assertThat(workspace).isDirectory();
+        assertThat(repository.findTask(taskId).getWorkspacePath()).isEqualTo(workspace.getAbsolutePath());
     }
 
     @Test
@@ -990,11 +1026,13 @@ public class KanbanDispatcherServiceTest {
     private static class RecordingSpawner implements KanbanWorkerSpawner {
         int spawned;
         KanbanTaskRecord lastTask;
+        String lastWorkspacePath;
 
         @Override
         public long spawn(KanbanTaskRecord task, String workspacePath, String workerContext) {
             spawned++;
             lastTask = task;
+            lastWorkspacePath = workspacePath;
             assertThat(workerContext).contains(task.getTaskId()).contains(task.getTitle());
             return 4242L;
         }
