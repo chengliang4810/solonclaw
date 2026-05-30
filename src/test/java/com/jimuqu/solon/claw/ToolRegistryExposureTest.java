@@ -4648,7 +4648,8 @@ public class ToolRegistryExposureTest {
 
         assertThat(read.get("success").getBoolean()).isTrue();
         assertThat(read.get("content").getString())
-                .contains("     1|alpha")
+                .contains("1|alpha")
+                .doesNotContain("     1|")
                 .doesNotContain("\ufeff");
         assertThat(write.get("success").getBoolean()).isTrue();
         assertThat(Files.readAllBytes(writeTarget))
@@ -4858,16 +4859,18 @@ public class ToolRegistryExposureTest {
         assertThat(firstPage.get("truncated").getBoolean()).isTrue();
         assertThat(firstPage.get("hint").getString()).contains("offset=3");
         assertThat(firstPage.get("content").getString())
-                .contains("     1|alpha")
-                .contains("     2|0123456789... [truncated]")
+                .contains("1|alpha")
+                .contains("2|0123456789... [truncated]")
+                .doesNotContain("     1|")
                 .doesNotContain("charlie");
 
         ONode secondPage = ONode.ofJson(fileSkill.read("long-lines.txt", 3, 2));
 
         assertThat(secondPage.get("truncated").getBoolean()).isFalse();
         assertThat(secondPage.get("content").getString())
-                .contains("     3|charlie")
-                .contains("     4|delta");
+                .contains("3|charlie")
+                .contains("4|delta")
+                .doesNotContain("     3|");
     }
 
     @Test

@@ -280,7 +280,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         if (value.length() > maxLineLength) {
             value = value.substring(0, maxLineLength) + "... [truncated]";
         }
-        return String.format("%6d|%s", Integer.valueOf(lineNumber), value);
+        return lineNumber + "|" + value;
     }
 
     private String joinLines(List<String> lines) {
