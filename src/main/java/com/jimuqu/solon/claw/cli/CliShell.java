@@ -189,6 +189,7 @@ public class CliShell {
             String input,
             boolean verbose)
             throws Exception {
+        input = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
         String trimmed = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(trimmed)) {
             writer.println(LocalTerminalHelp.text());

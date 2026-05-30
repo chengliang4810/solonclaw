@@ -87,6 +87,24 @@ public class CliShellTipsTest {
     }
 
     @Test
+    void shouldSanitizeTerminalResponsesBeforeLocalCliCommandRouting() throws Exception {
+        CliShell shell =
+                new CliShell(
+                        new StubCliRuntime(GatewayReply.ok("routed-to-model"), null),
+                        new CliMode(CliMode.Kind.CLI, null, null));
+        StringWriter buffer = new StringWriter();
+
+        int exitCode =
+                sendOnce(
+                        shell,
+                        new PrintWriter(buffer),
+                        "/tips]11;rgb:ffff/ffff/ffff\u0007");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString()).contains("终端提示");
+    }
+
+    @Test
     void shouldRenderSecurityPolicyLocally() throws Exception {
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
 
