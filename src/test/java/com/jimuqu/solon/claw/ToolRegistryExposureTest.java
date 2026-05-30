@@ -4618,6 +4618,49 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldHideUtf8BomOnFileReadAndPreserveItAcrossEdits() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path readTarget = workspace.resolve("bom-read.txt");
+        Path writeTarget = workspace.resolve("bom-write.txt");
+        Path patchTarget = workspace.resolve("bom-patch.txt");
+        byte[] bom = new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        Files.write(readTarget, concat(bom, "alpha\nbravo\n".getBytes(StandardCharsets.UTF_8)));
+        Files.write(writeTarget, concat(bom, "old\n".getBytes(StandardCharsets.UTF_8)));
+        Files.write(patchTarget, concat(bom, "first\nsecond\n".getBytes(StandardCharsets.UTF_8)));
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
+        SolonClawPatchTools patchTools =
+                new SolonClawPatchTools(env.appConfig.getRuntime().getHome(), policy);
+
+        ONode read = ONode.ofJson(fileSkill.read("bom-read.txt", 1, 2));
+        ONode write = ONode.ofJson(fileSkill.write("bom-write.txt", "new\n"));
+        ONode patch =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "replace",
+                                "bom-patch.txt",
+                                "first",
+                                "first updated",
+                                Boolean.FALSE,
+                                null));
+
+        assertThat(read.get("success").getBoolean()).isTrue();
+        assertThat(read.get("content").getString())
+                .contains("     1|alpha")
+                .doesNotContain("\ufeff");
+        assertThat(write.get("success").getBoolean()).isTrue();
+        assertThat(Files.readAllBytes(writeTarget))
+                .startsWith(bom)
+                .isEqualTo(concat(bom, "new\n".getBytes(StandardCharsets.UTF_8)));
+        assertThat(patch.get("success").getBoolean()).isTrue();
+        assertThat(Files.readAllBytes(patchTarget))
+                .startsWith(bom)
+                .isEqualTo(concat(bom, "first updated\nsecond\n".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void shouldRejectJarInternalFileToolPathsBeforeDelegating() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawFileReadWriteSkill fileSkill =
@@ -5053,6 +5096,13 @@ public class ToolRegistryExposureTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private byte[] concat(byte[] prefix, byte[] suffix) {
+        byte[] result = new byte[prefix.length + suffix.length];
+        System.arraycopy(prefix, 0, result, 0, prefix.length);
+        System.arraycopy(suffix, 0, result, prefix.length, suffix.length);
+        return result;
     }
 
     private boolean createDirectoryLink(Path link, Path target) {

@@ -21,6 +21,8 @@ import org.noear.solon.annotation.Param;
 
 /** Patch tool backed by the local workspace. */
 public class SolonClawPatchTools {
+    private static final String UTF8_BOM = "\ufeff";
+
     private final Path rootPath;
     private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
@@ -692,14 +694,40 @@ public class SolonClawPatchTools {
     }
 
     private String read(Path target) throws IOException {
-        return new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
+        return stripLeadingBom(new String(Files.readAllBytes(target), StandardCharsets.UTF_8));
     }
 
     private void write(Path target, String content) throws IOException {
+        String value = StrUtil.nullToEmpty(content);
+        if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
+            value = UTF8_BOM + value;
+        }
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
-        Files.write(target, StrUtil.nullToEmpty(content).getBytes(StandardCharsets.UTF_8));
+        Files.write(target, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean hasLeadingBom(Path target) {
+        if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
+            return false;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(target);
+            return bytes.length >= 3
+                    && (bytes[0] & 0xFF) == 0xEF
+                    && (bytes[1] & 0xFF) == 0xBB
+                    && (bytes[2] & 0xFF) == 0xBF;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stripLeadingBom(String value) {
+        if (value != null && value.startsWith(UTF8_BOM)) {
+            return value.substring(UTF8_BOM.length());
+        }
+        return value;
     }
 
     private String afterMarker(String line, String marker) {
