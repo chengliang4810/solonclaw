@@ -316,6 +316,36 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldPersistWorktreeBranchNameAndRejectScratchBranchName() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "工作树分支任务");
+        body.put("workspace_kind", "worktree");
+        body.put("workspace_path", "/tmp/solon-claw-worktrees/task-a");
+        body.put("branch_name", " feature/task-a ");
+
+        Map<String, Object> created = service.createTask(body);
+        String taskId = String.valueOf(created.get("id"));
+        Map<String, Object> detail = service.task(taskId);
+
+        assertThat(created.get("branch_name")).isEqualTo("feature/task-a");
+        assertThat(detail.get("branch_name")).isEqualTo("feature/task-a");
+        assertThat(String.valueOf(detail.get("events"))).contains("branch_name=feature/task-a");
+        assertThat(String.valueOf(detail.get("worker_context"))).contains("Branch:   feature/task-a");
+        assertThat(service.handleCommand("create 命令分支任务 --workspace worktree --branch feature/cmd --json", "tester"))
+                .contains("\"branch_name\":\"feature/cmd\"");
+
+        Map<String, Object> invalid = new LinkedHashMap<String, Object>();
+        invalid.put("title", "非法分支任务");
+        invalid.put("workspace_kind", "scratch");
+        invalid.put("branch_name", "feature/bad");
+
+        assertThatThrownBy(() -> service.createTask(invalid))
+                .hasMessageContaining("branch_name")
+                .hasMessageContaining("worktree");
+    }
+
+    @Test
     void shouldFilterTaskListAssigneeCaseInsensitively() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "大小写过滤任务", "alice", "planner");
@@ -511,6 +541,7 @@ public class KanbanServiceTest {
         running.put("status", "running");
         running.put("claim_lock", "lock-1");
         running.put("worker_id", "worker-a");
+        running.put("worker_pid", 424242L);
         service.updateTask(taskId, running);
 
         assertThatThrownBy(() -> service.reassign(taskId, "bob", false, null))
@@ -519,6 +550,7 @@ public class KanbanServiceTest {
         Map<String, Object> reclaimed = service.reclaim(taskId, "worker timeout");
         assertThat(reclaimed.get("status")).isEqualTo("ready");
         assertThat(reclaimed.get("claim_lock")).isNull();
+        assertThat(reclaimed.get("worker_pid")).isNull();
         assertThat(String.valueOf(reclaimed.get("events"))).contains("reclaimed");
 
         Map<String, Object> reassigned = service.reassign(taskId, "bob", false, "handoff");
@@ -841,6 +873,71 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldClearSpawnFailuresWhenUnblocked() throws Exception {
+        KanbanService service = service();
+        String taskId = createReadyTask(service, "解除阻塞清理失败任务", "worker", "planner");
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:worker-failure");
+        service.claim(taskId, claim);
+        Map<String, Object> failure = new LinkedHashMap<String, Object>();
+        failure.put("error", "spawn failure before manual input");
+        service.markSpawnFailure(taskId, failure);
+        service.status(taskId, "blocked", "等待人工输入");
+
+        Map<String, Object> blocked = service.task(taskId);
+        assertThat(blocked.get("spawn_failures")).isEqualTo(Integer.valueOf(1));
+        assertThat(blocked.get("last_spawn_error")).isEqualTo("spawn failure before manual input");
+
+        Map<String, Object> unblocked = service.unblock(taskId);
+
+        assertThat(unblocked.get("status")).isEqualTo("ready");
+        assertThat(unblocked.get("spawn_failures")).isEqualTo(Integer.valueOf(0));
+        assertThat(unblocked.get("last_spawn_error")).isNull();
+    }
+
+    @Test
+    void shouldScheduleTasksAndUnblockThemThroughParentGate() throws Exception {
+        KanbanService service = service();
+        String delayedId = createReadyTask(service, "延后复查任务", "ops", "planner");
+
+        Map<String, Object> scheduled = service.schedule(delayedId, "下周再检查");
+
+        assertThat(scheduled.get("status")).isEqualTo("scheduled");
+        assertThat(String.valueOf(scheduled.get("events")))
+                .contains("scheduled")
+                .contains("下周再检查");
+        assertThatThrownBy(() -> service.claim(delayedId, new LinkedHashMap<String, Object>()))
+                .hasMessageContaining("not ready");
+        assertThatThrownBy(() -> service.schedule(delayedId, "二次延后"))
+                .hasMessageContaining("not schedulable");
+        String commandScheduledId = createReadyTask(service, "命令延后任务", "ops", "planner");
+        assertThat(service.handleCommand("schedule " + commandScheduledId + " 命令延后", "planner"))
+                .contains("已延后看板任务")
+                .contains(commandScheduledId);
+
+        String triageId = createTask(service, "待梳理任务", "ops", "planner");
+        service.status(triageId, "triage", null);
+        assertThatThrownBy(() -> service.schedule(triageId, "信息不完整"))
+                .hasMessageContaining("not schedulable");
+        assertThat(service.task(triageId).get("status")).isEqualTo("triage");
+        String doneId = createReadyTask(service, "已完成任务", "ops", "planner");
+        service.status(doneId, "done", "完成");
+        assertThatThrownBy(() -> service.schedule(doneId, "完成后不延后"))
+                .hasMessageContaining("not schedulable");
+        assertThat(service.task(doneId).get("status")).isEqualTo("done");
+
+        String parentId = createTask(service, "计划父任务", "lead", "planner");
+        String childId = createTask(service, "计划子任务", "worker", "planner");
+        service.link(parentId, childId);
+        service.schedule(childId, "等待定时器");
+        assertThat(service.unblock(childId).get("status")).isEqualTo("todo");
+
+        service.status(parentId, "done", "父任务完成");
+        service.schedule(childId, "第二次等待");
+        assertThat(service.unblock(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
     void shouldSupportJimuquStyleBulkLifecycleCommands() throws Exception {
         KanbanService service = service();
         String firstId = createTask(service, "批量任务一", "alice", "alice");
@@ -1151,6 +1248,24 @@ public class KanbanServiceTest {
         assertThat(String.valueOf(detail.get("events")))
                 .contains("claim_rejected")
                 .contains("parents_not_done");
+    }
+
+    @Test
+    void shouldRejectManualReadyMoveWhenParentsAreUndone() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "待完成父任务", "lead", "planner");
+        String childId = createTask(service, "手动推进子任务", "worker", "planner");
+        service.link(parentId, childId);
+
+        assertThatThrownBy(() -> service.status(childId, "ready", "手动推进"))
+                .hasMessageContaining("Cannot move to 'ready'")
+                .hasMessageContaining(parentId)
+                .hasMessageContaining("待完成父任务")
+                .hasMessageContaining("status=todo");
+        assertThat(service.task(childId).get("status")).isEqualTo("todo");
+
+        service.status(parentId, "done", "父任务完成");
+        assertThat(service.status(childId, "ready", "父任务已完成").get("status")).isEqualTo("ready");
     }
 
     @Test

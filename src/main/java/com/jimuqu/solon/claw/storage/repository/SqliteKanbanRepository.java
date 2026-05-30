@@ -333,7 +333,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement statement =
                 connection.prepareStatement(
-                            "insert or replace into kanban_tasks (task_id, board_slug, title, body, assignee, status, priority, tenant, session_id, workspace_kind, workspace_path, created_by, result, idempotency_key, claim_lock, claim_expires_at, worker_id, worker_pid, last_spawn_error, spawn_failures, max_retries, max_runtime_seconds, last_heartbeat_at, current_run_id, workflow_template_id, current_step_key, skills_json, created_at, updated_at, started_at, completed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into kanban_tasks (task_id, board_slug, title, body, assignee, status, priority, tenant, session_id, workspace_kind, workspace_path, branch_name, created_by, result, idempotency_key, claim_lock, claim_expires_at, worker_id, worker_pid, last_spawn_error, spawn_failures, max_retries, max_runtime_seconds, last_heartbeat_at, current_run_id, workflow_template_id, current_step_key, skills_json, created_at, updated_at, started_at, completed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, task.getTaskId());
             statement.setString(2, task.getBoardSlug());
             statement.setString(3, task.getTitle());
@@ -345,30 +345,31 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.setString(9, task.getSessionId());
             statement.setString(10, task.getWorkspaceKind());
             statement.setString(11, task.getWorkspacePath());
-            statement.setString(12, task.getCreatedBy());
-            statement.setString(13, task.getResult());
-            statement.setString(14, task.getIdempotencyKey());
-            statement.setString(15, task.getClaimLock());
-            statement.setLong(16, task.getClaimExpiresAt());
-            statement.setString(17, task.getWorkerId());
-            statement.setLong(18, task.getWorkerPid());
-            statement.setString(19, task.getLastSpawnError());
-            statement.setInt(20, task.getSpawnFailures());
+            statement.setString(12, task.getBranchName());
+            statement.setString(13, task.getCreatedBy());
+            statement.setString(14, task.getResult());
+            statement.setString(15, task.getIdempotencyKey());
+            statement.setString(16, task.getClaimLock());
+            statement.setLong(17, task.getClaimExpiresAt());
+            statement.setString(18, task.getWorkerId());
+            statement.setLong(19, task.getWorkerPid());
+            statement.setString(20, task.getLastSpawnError());
+            statement.setInt(21, task.getSpawnFailures());
             if (task.getMaxRetries() == null) {
-                statement.setNull(21, java.sql.Types.INTEGER);
+                statement.setNull(22, java.sql.Types.INTEGER);
             } else {
-                statement.setInt(21, task.getMaxRetries().intValue());
+                statement.setInt(22, task.getMaxRetries().intValue());
             }
-            statement.setLong(22, task.getMaxRuntimeSeconds());
-            statement.setLong(23, task.getLastHeartbeatAt());
-            statement.setString(24, task.getCurrentRunId());
-            statement.setString(25, task.getWorkflowTemplateId());
-            statement.setString(26, task.getCurrentStepKey());
-            statement.setString(27, task.getSkillsJson());
-            statement.setLong(28, task.getCreatedAt());
-            statement.setLong(29, task.getUpdatedAt());
-            statement.setLong(30, task.getStartedAt());
-            statement.setLong(31, task.getCompletedAt());
+            statement.setLong(23, task.getMaxRuntimeSeconds());
+            statement.setLong(24, task.getLastHeartbeatAt());
+            statement.setString(25, task.getCurrentRunId());
+            statement.setString(26, task.getWorkflowTemplateId());
+            statement.setString(27, task.getCurrentStepKey());
+            statement.setString(28, task.getSkillsJson());
+            statement.setLong(29, task.getCreatedAt());
+            statement.setLong(30, task.getUpdatedAt());
+            statement.setLong(31, task.getStartedAt());
+            statement.setLong(32, task.getCompletedAt());
             statement.executeUpdate();
             statement.close();
             KanbanTaskRecord persisted = findTask(task.getTaskId());
@@ -379,6 +380,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
                 payload.put("status", persisted.getStatus());
                 payload.put("tenant", persisted.getTenant());
                 payload.put("created_by", persisted.getCreatedBy());
+                payload.put("branch_name", persisted.getBranchName());
                 addEvent(connection, persisted.getTaskId(), "created", payload);
             }
             if ("running".equals(persisted.getStatus())) {
@@ -640,6 +642,8 @@ public class SqliteKanbanRepository implements KanbanRepository {
                         after, "done", "completed", StrUtil.blankToDefault(result, after.getResult()), null, null, now, connection);
             } else if ("blocked".equals(normalized)) {
                 closeOrSynthesizeRun(after, "blocked", "blocked", result, null, result, now, connection);
+            } else if ("scheduled".equals(normalized)) {
+                closeOrSynthesizeRun(after, "scheduled", "scheduled", result, null, null, now, connection);
             } else if ("archived".equals(normalized)) {
                 closeOrSynthesizeRun(after, "released", "archived", result, null, null, now, connection);
             } else if (StrUtil.isNotBlank(before.getCurrentRunId())) {
@@ -657,12 +661,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
         Connection connection = database.openConnection();
         try {
             KanbanTaskRecord task = findTask(taskId);
-            if (task == null || !"blocked".equals(task.getStatus())) {
+            if (task == null
+                    || (!"blocked".equals(task.getStatus()) && !"scheduled".equals(task.getStatus()))) {
                 return false;
             }
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update kanban_tasks set status = case when exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = kanban_tasks.task_id and p.status not in ('done', 'archived')) then 'todo' else 'ready' end, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, completed_at = 0, updated_at = ? where task_id = ? and status = 'blocked'");
+                            "update kanban_tasks set status = case when exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = kanban_tasks.task_id and p.status not in ('done', 'archived')) then 'todo' else 'ready' end, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, spawn_failures = 0, last_spawn_error = null, completed_at = 0, updated_at = ? where task_id = ? and status in ('blocked', 'scheduled')");
             statement.setLong(1, now);
             statement.setString(2, taskId);
             int updated = statement.executeUpdate();
@@ -674,6 +679,34 @@ public class SqliteKanbanRepository implements KanbanRepository {
                 payload.put("previous_run_id", task.getCurrentRunId());
                 payload.put("previous_result", task.getResult());
                 addEvent(connection, taskId, "unblocked", payload);
+            }
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean scheduleTask(String taskId, String reason) throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            KanbanTaskRecord task = findTask(taskId);
+            if (task == null) {
+                return false;
+            }
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'scheduled', claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, updated_at = ? where task_id = ? and status in ('todo', 'ready', 'running', 'blocked')");
+            statement.setLong(1, now);
+            statement.setString(2, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0) {
+                closeOrSynthesizeRun(task, "scheduled", "scheduled", reason, null, null, now, connection);
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("reason", reason);
+                addEvent(connection, taskId, "scheduled", payload);
             }
             return updated > 0;
         } finally {
@@ -721,7 +754,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             }
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, current_run_id = null, updated_at = ? where task_id = ?");
+                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, updated_at = ? where task_id = ?");
             statement.setLong(1, now);
             statement.setString(2, taskId);
             int updated = statement.executeUpdate();
@@ -2130,6 +2163,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         String value = StrUtil.blankToDefault(status, "todo").trim().toLowerCase();
         if (!"triage".equals(value)
                 && !"todo".equals(value)
+                && !"scheduled".equals(value)
                 && !"ready".equals(value)
                 && !"review".equals(value)
                 && !"running".equals(value)
@@ -2290,6 +2324,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setSessionId(resultSet.getString("session_id"));
         record.setWorkspaceKind(resultSet.getString("workspace_kind"));
         record.setWorkspacePath(resultSet.getString("workspace_path"));
+        record.setBranchName(resultSet.getString("branch_name"));
         record.setCreatedBy(resultSet.getString("created_by"));
         record.setResult(resultSet.getString("result"));
         record.setIdempotencyKey(resultSet.getString("idempotency_key"));

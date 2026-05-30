@@ -13,6 +13,7 @@ public class KanbanTaskRecord {
     private String sessionId;
     private String workspaceKind;
     private String workspacePath;
+    private String branchName;
     private String createdBy;
     private String result;
     private String idempotencyKey;
@@ -120,6 +121,14 @@ public class KanbanTaskRecord {
 
     public void setWorkspacePath(String workspacePath) {
         this.workspacePath = workspacePath;
+    }
+
+    public String getBranchName() {
+        return branchName;
+    }
+
+    public void setBranchName(String branchName) {
+        this.branchName = branchName;
     }
 
     public String getCreatedBy() {
