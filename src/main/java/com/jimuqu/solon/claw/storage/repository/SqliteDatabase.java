@@ -55,6 +55,9 @@ public class SqliteDatabase {
                 try {
                     statement.execute("pragma busy_timeout=5000");
                     statement.execute("pragma journal_mode=WAL");
+                    statement.execute("pragma secure_delete=ON");
+                    statement.execute("pragma cell_size_check=ON");
+                    statement.execute("pragma synchronous=FULL");
                 } finally {
                     statement.close();
                 }
