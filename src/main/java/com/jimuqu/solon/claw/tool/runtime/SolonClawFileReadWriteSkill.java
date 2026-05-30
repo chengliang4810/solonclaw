@@ -12,6 +12,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,17 +75,22 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         String result = super.write(fileName, content);
         clearReadDedup(fileName);
         fileStateTracker.recordWrite(target);
+        String safeResult = SecretRedactor.redact(result, 1000);
+        ToolResultEnvelope envelope =
+                StrUtil.startWith(result, "写入失败")
+                        ? ToolResultEnvelope.error(safeResult)
+                        : ToolResultEnvelope.ok(safeResult);
+        String resolvedPath = resolvedOutputPath(target);
+        envelope.data("path", safeDisplayPath(fileName));
+        if (!StrUtil.startWith(result, "写入失败")) {
+            envelope.data("resolved_path", safeDisplayPath(resolvedPath))
+                    .data("files_modified", Collections.singletonList(safeDisplayPath(resolvedPath)));
+        }
         if (StrUtil.isNotBlank(staleWarning)) {
-            String safeResult = SecretRedactor.redact(result, 1000);
-            ToolResultEnvelope envelope =
-                    StrUtil.startWith(result, "写入失败")
-                            ? ToolResultEnvelope.error(safeResult)
-                            : ToolResultEnvelope.ok(safeResult);
-            return envelope.data("path", safeDisplayPath(fileName))
-                    .data("_warning", safeDisplayPath(staleWarning))
+            return envelope.data("_warning", safeDisplayPath(staleWarning))
                     .toJson();
         }
-        return SecretRedactor.redact(result, 1000);
+        return envelope.toJson();
     }
 
     public String read(@Param("fileName") String fileName) {
@@ -325,6 +331,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    private String resolvedOutputPath(Path path) {
+        return safeRealPath(path).toString();
+    }
+
     private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
         resetDedupHitsAfterOtherToolCall();
         long modifiedAt = targetFile.lastModified();
@@ -515,4 +525,3 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 }
-
