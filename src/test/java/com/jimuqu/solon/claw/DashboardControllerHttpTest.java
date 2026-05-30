@@ -1634,11 +1634,95 @@ public class DashboardControllerHttpTest {
         assertThat(unlinkTask.status).isEqualTo(200);
         assertThat(unlinkTask.body).contains(childTaskId).contains("unlinked");
 
+        HttpResult bulkReady =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\",\"KB-NOTFOUND\",\"" + alphaTaskId + "\"],\"status\":\"ready\"}",
+                        token);
+        assertThat(bulkReady.status).isEqualTo(200);
+        assertThat(bulkReady.body)
+                .contains("\"id\":\"" + childTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found")
+                .contains("\"id\":\"" + alphaTaskId + "\"");
+
+        HttpResult bulkRunning =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + alphaTaskId + "\"],\"status\":\"running\"}",
+                        token);
+        assertThat(bulkRunning.status).isEqualTo(200);
+        assertThat(bulkRunning.body)
+                .contains("\"id\":\"" + alphaTaskId + "\"")
+                .contains("\"ok\":false")
+                .contains("running");
+
+        HttpResult bulkPriority =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\",\"KB-NOTFOUND\",\"" + alphaTaskId + "\"],\"priority\":7}",
+                        token);
+        assertThat(bulkPriority.status).isEqualTo(200);
+        assertThat(bulkPriority.body)
+                .contains("\"id\":\"" + childTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found")
+                .contains("\"id\":\"" + alphaTaskId + "\"");
+
+        HttpResult childTaskDetail = request("GET", "/api/kanban/tasks/" + childTaskId, null, token);
+        assertThat(childTaskDetail.status).isEqualTo(200);
+        assertThat(childTaskDetail.body).contains("\"priority\":7");
+        HttpResult alphaTaskDetail = request("GET", "/api/kanban/tasks/" + alphaTaskId, null, token);
+        assertThat(alphaTaskDetail.status).isEqualTo(200);
+        assertThat(alphaTaskDetail.body).contains("\"priority\":7");
+
+        HttpResult bulkReassign =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\",\"KB-NOTFOUND\",\"" + alphaTaskId + "\"],\"assignee\":\"reviewer\"}",
+                        token);
+        assertThat(bulkReassign.status).isEqualTo(200);
+        assertThat(bulkReassign.body)
+                .contains("\"id\":\"" + childTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found")
+                .contains("\"id\":\"" + alphaTaskId + "\"");
+
+        childTaskDetail = request("GET", "/api/kanban/tasks/" + childTaskId, null, token);
+        assertThat(childTaskDetail.status).isEqualTo(200);
+        assertThat(childTaskDetail.body).contains("\"assignee\":\"reviewer\"");
+        alphaTaskDetail = request("GET", "/api/kanban/tasks/" + alphaTaskId, null, token);
+        assertThat(alphaTaskDetail.status).isEqualTo(200);
+        assertThat(alphaTaskDetail.body).contains("\"assignee\":\"reviewer\"");
+
+        HttpResult bulkUnassign =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\"],\"assignee\":\"\"}",
+                        token);
+        assertThat(bulkUnassign.status).isEqualTo(200);
+        assertThat(bulkUnassign.body).contains("\"id\":\"" + childTaskId + "\"").contains("\"ok\":true");
+        childTaskDetail = request("GET", "/api/kanban/tasks/" + childTaskId, null, token);
+        assertThat(childTaskDetail.status).isEqualTo(200);
+        assertThat(ONode.ofJson(childTaskDetail.body).get("data").get("assignee").isNull()).isTrue();
+        assertThat(childTaskDetail.body).contains("assignee=-");
+
         HttpResult claimTask =
                 request(
-                        "PUT",
-                        "/api/kanban/tasks/" + taskId,
-                        "{\"status\":\"running\",\"claim_lock\":\"http-lock\",\"worker_id\":\"http-worker\"}",
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/claim",
+                        "{\"claimer\":\"http-lock\",\"worker_id\":\"http-worker\"}",
                         token);
         assertThat(claimTask.status).isEqualTo(200);
         assertThat(claimTask.body).contains("\"status\":\"running\"");
@@ -1747,7 +1831,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"name\":\"next\"")
                 .contains("\"configured\":true")
                 .contains("\"on_disk\":true")
-                .contains("\"name\":\"local\"")
+                .contains("\"name\":\"reviewer\"")
                 .contains("\"configured\":false")
                 .contains("\"counts\"");
 
@@ -1755,6 +1839,26 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/kanban/watch?kinds=reassigned&limit=20", null, token);
         assertThat(kanbanWatch.status).isEqualTo(200);
         assertThat(kanbanWatch.body).contains("reassigned");
+
+        HttpResult bulkArchive =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + alphaTaskId + "\",\"KB-NOTFOUND\"],\"archive\":true}",
+                        token);
+        assertThat(bulkArchive.status).isEqualTo(200);
+        assertThat(bulkArchive.body)
+                .contains("\"id\":\"" + alphaTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found");
+        HttpResult visibleTasks = request("GET", "/api/kanban/tasks", null, token);
+        assertThat(visibleTasks.status).isEqualTo(200);
+        assertThat(visibleTasks.body).doesNotContain(alphaTaskId);
+        HttpResult archivedTasks = request("GET", "/api/kanban/tasks?archived=true", null, token);
+        assertThat(archivedTasks.status).isEqualTo(200);
+        assertThat(archivedTasks.body).contains(alphaTaskId).contains("\"status\":\"archived\"");
 
         HttpResult notifySubscribe =
                 request(

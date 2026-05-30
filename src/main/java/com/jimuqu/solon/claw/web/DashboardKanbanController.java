@@ -162,6 +162,18 @@ public class DashboardKanbanController {
                 });
     }
 
+    @Mapping(value = "/api/kanban/tasks/bulk", method = MethodType.POST)
+    public Map<String, Object> bulkTasks(Context context) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.bulkTasks(body(context));
+                    }
+                });
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/step", method = MethodType.POST)
     public Map<String, Object> step(String taskId, Context context) throws Exception {
         return safeKanban(
