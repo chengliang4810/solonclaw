@@ -49,6 +49,22 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldCreateNamedSessionFromNewCommandArgument() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("room-new-title", "user-new-title", "hello");
+        env.send("room-new-title", "user-new-title", "/pairing claim-admin");
+
+        GatewayReply newReply =
+                env.send("room-new-title", "user-new-title", "/new  客户项目\r\n复盘  ");
+        SessionRecord rebound =
+                env.sessionRepository.getBoundSession("MEMORY:room-new-title:user-new-title");
+
+        assertThat(newReply.getSessionId()).isEqualTo(rebound.getSessionId());
+        assertThat(newReply.getContent()).contains("客户项目 复盘");
+        assertThat(rebound.getTitle()).isEqualTo("客户项目 复盘");
+    }
+
+    @Test
     void shouldRenderHelpWithChineseDescriptionsPerLine() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

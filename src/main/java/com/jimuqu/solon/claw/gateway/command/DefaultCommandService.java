@@ -723,9 +723,20 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_NEW.equals(command)
                 || GatewayCommandConstants.COMMAND_RESET.equals(command)) {
             SessionRecord created = sessionRepository.bindNewSession(message.sourceKey());
-            GatewayReply reply = GatewayReply.ok("已创建新会话：" + created.getSessionId());
+            String title = normalizeSessionTitle(args);
+            String content = "已创建新会话：" + created.getSessionId();
+            if (StrUtil.isNotBlank(title)) {
+                created.setTitle(title);
+                created.setUpdatedAt(System.currentTimeMillis());
+                sessionRepository.save(created);
+                content = "已创建新会话：" + title + "（" + created.getSessionId() + "）";
+            }
+            GatewayReply reply = GatewayReply.ok(content);
             reply.setSessionId(created.getSessionId());
             reply.setBranchName(created.getBranchName());
+            if (StrUtil.isNotBlank(title)) {
+                reply.getRuntimeMetadata().put("title", title);
+            }
             return reply;
         }
 
