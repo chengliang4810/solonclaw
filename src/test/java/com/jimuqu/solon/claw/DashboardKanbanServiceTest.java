@@ -201,6 +201,55 @@ public class DashboardKanbanServiceTest {
         assertThat(kanbanService.task(secondTaskId).get("priority")).isEqualTo(7);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldBulkReassignDashboardTasksAndKeepPartialFailuresIsolated() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String firstTaskId = createTask(kanbanService);
+        String secondTaskId = createTask(kanbanService);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("ids", java.util.Arrays.asList(firstTaskId, "KB-NOTFOUND", secondTaskId));
+        body.put("assignee", "reviewer");
+
+        Map<String, Object> result = dashboardKanbanService.bulkTasks(body);
+        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+
+        assertThat(results).hasSize(3);
+        assertThat(results.get(0).get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(results.get(1).get("id")).isEqualTo("KB-NOTFOUND");
+        assertThat(results.get(1).get("ok")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(results.get(1).get("error"))).contains("not found");
+        assertThat(results.get(2).get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(kanbanService.task(firstTaskId).get("assignee")).isEqualTo("reviewer");
+        assertThat(kanbanService.task(secondTaskId).get("assignee")).isEqualTo("reviewer");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldBulkUnassignDashboardTasksWithBlankAssignee() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String taskId = createTask(kanbanService);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("ids", java.util.Collections.singletonList(taskId));
+        body.put("assignee", "");
+
+        Map<String, Object> result = dashboardKanbanService.bulkTasks(body);
+        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).get("id")).isEqualTo(taskId);
+        assertThat(results.get(0).get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(kanbanService.task(taskId).get("assignee")).isNull();
+    }
+
     private String createTask(KanbanService kanbanService) throws Exception {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("title", "home channel 通知任务");

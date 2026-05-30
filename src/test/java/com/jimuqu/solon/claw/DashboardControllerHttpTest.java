@@ -1683,6 +1683,41 @@ public class DashboardControllerHttpTest {
         assertThat(alphaTaskDetail.status).isEqualTo(200);
         assertThat(alphaTaskDetail.body).contains("\"priority\":7");
 
+        HttpResult bulkReassign =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\",\"KB-NOTFOUND\",\"" + alphaTaskId + "\"],\"assignee\":\"reviewer\"}",
+                        token);
+        assertThat(bulkReassign.status).isEqualTo(200);
+        assertThat(bulkReassign.body)
+                .contains("\"id\":\"" + childTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found")
+                .contains("\"id\":\"" + alphaTaskId + "\"");
+
+        childTaskDetail = request("GET", "/api/kanban/tasks/" + childTaskId, null, token);
+        assertThat(childTaskDetail.status).isEqualTo(200);
+        assertThat(childTaskDetail.body).contains("\"assignee\":\"reviewer\"");
+        alphaTaskDetail = request("GET", "/api/kanban/tasks/" + alphaTaskId, null, token);
+        assertThat(alphaTaskDetail.status).isEqualTo(200);
+        assertThat(alphaTaskDetail.body).contains("\"assignee\":\"reviewer\"");
+
+        HttpResult bulkUnassign =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\"],\"assignee\":\"\"}",
+                        token);
+        assertThat(bulkUnassign.status).isEqualTo(200);
+        assertThat(bulkUnassign.body).contains("\"id\":\"" + childTaskId + "\"").contains("\"ok\":true");
+        childTaskDetail = request("GET", "/api/kanban/tasks/" + childTaskId, null, token);
+        assertThat(childTaskDetail.status).isEqualTo(200);
+        assertThat(ONode.ofJson(childTaskDetail.body).get("data").get("assignee").isNull()).isTrue();
+        assertThat(childTaskDetail.body).contains("assignee=-");
+
         HttpResult claimTask =
                 request(
                         "POST",
@@ -1796,7 +1831,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"name\":\"next\"")
                 .contains("\"configured\":true")
                 .contains("\"on_disk\":true")
-                .contains("\"name\":\"local\"")
+                .contains("\"name\":\"reviewer\"")
                 .contains("\"configured\":false")
                 .contains("\"counts\"");
 
