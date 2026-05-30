@@ -103,6 +103,14 @@ public interface KanbanRepository {
 
     void deleteTask(String taskId) throws Exception;
 
+    KanbanAttachmentRecord addAttachment(KanbanAttachmentRecord attachment) throws Exception;
+
+    List<KanbanAttachmentRecord> listAttachments(String taskId) throws Exception;
+
+    KanbanAttachmentRecord findAttachment(String attachmentId) throws Exception;
+
+    KanbanAttachmentRecord deleteAttachment(String attachmentId) throws Exception;
+
     KanbanCommentRecord addComment(KanbanCommentRecord comment) throws Exception;
 
     List<KanbanCommentRecord> listComments(String taskId) throws Exception;

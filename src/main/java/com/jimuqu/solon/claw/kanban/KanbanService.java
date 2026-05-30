@@ -1105,6 +1105,45 @@ public class KanbanService {
         return task(task.getTaskId());
     }
 
+    public Map<String, Object> addAttachment(String taskId, Map<String, Object> body) throws Exception {
+        KanbanTaskRecord task = requireTask(taskId);
+        KanbanAttachmentRecord attachment = new KanbanAttachmentRecord();
+        attachment.setTaskId(task.getTaskId());
+        attachment.setFilename(requireText(body, "filename"));
+        attachment.setStoredPath(requireText(body, "stored_path"));
+        attachment.setContentType(text(body, "content_type"));
+        attachment.setSize(longValue(body, "size", 0));
+        attachment.setUploadedBy(StrUtil.blankToDefault(text(body, "uploaded_by"), "user"));
+        KanbanAttachmentRecord saved = repository.addAttachment(attachment);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("filename", saved.getFilename());
+        payload.put("size", Long.valueOf(saved.getSize()));
+        payload.put("uploaded_by", saved.getUploadedBy());
+        addEvent(task.getTaskId(), "attached", payload);
+        return attachmentView(saved);
+    }
+
+    public List<Map<String, Object>> attachments(String taskId) throws Exception {
+        requireTask(taskId);
+        return attachmentViews(repository.listAttachments(taskId));
+    }
+
+    public Map<String, Object> deleteAttachment(String attachmentId) throws Exception {
+        String id = requireArg(attachmentId, "kanban_attachment attachment_id");
+        KanbanAttachmentRecord removed = repository.deleteAttachment(id);
+        if (removed == null) {
+            throw new IllegalArgumentException("Kanban attachment not found: " + id);
+        }
+        deleteAttachmentFile(removed);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("filename", removed.getFilename());
+        addEvent(removed.getTaskId(), "attachment_removed", payload);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.TRUE);
+        result.put("attachment", attachmentView(removed));
+        return result;
+    }
+
     public Map<String, Object> delete(String taskId) throws Exception {
         String id = requireArg(taskId, "kanban_delete task_id");
         KanbanTaskRecord task = requireTask(id);
@@ -2106,9 +2145,49 @@ public class KanbanService {
             result.put("retry_count", Integer.valueOf(Math.max(0, runs.size() - 1)));
             result.put("parents", taskRefs(repository.listParents(task.getTaskId())));
             result.put("children", taskRefs(repository.listChildren(task.getTaskId())));
-            result.put("worker_context", workerContext(task, comments, runs));
+            List<Map<String, Object>> attachments = attachmentViews(repository.listAttachments(task.getTaskId()));
+            result.put("attachments", attachments);
+            result.put("worker_context", workerContext(task, comments, runs, attachments));
         }
         return result;
+    }
+
+    private List<Map<String, Object>> attachmentViews(List<KanbanAttachmentRecord> attachments) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (KanbanAttachmentRecord attachment : attachments) {
+            result.add(attachmentView(attachment));
+        }
+        return result;
+    }
+
+    private Map<String, Object> attachmentView(KanbanAttachmentRecord attachment) {
+        if (attachment == null) {
+            return null;
+        }
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("id", attachment.getAttachmentId());
+        item.put("attachment_id", attachment.getAttachmentId());
+        item.put("task_id", attachment.getTaskId());
+        item.put("filename", safeDisplayText(attachment.getFilename(), 400));
+        item.put("stored_path", safeDisplayText(attachment.getStoredPath(), 1000));
+        item.put("content_type", safeDisplayText(attachment.getContentType(), 200));
+        item.put("size", Long.valueOf(attachment.getSize()));
+        item.put("uploaded_by", safeDisplayText(attachment.getUploadedBy(), 200));
+        item.put("created_at", iso(attachment.getCreatedAt()));
+        return item;
+    }
+
+    private void deleteAttachmentFile(KanbanAttachmentRecord attachment) {
+        if (attachment == null || StrUtil.isBlank(attachment.getStoredPath())) {
+            return;
+        }
+        try {
+            File file = FileUtil.file(attachment.getStoredPath()).getCanonicalFile();
+            if (file.isFile()) {
+                FileUtil.del(file);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private Map<String, Object> drawerActions(Map<String, Object> task) {
@@ -3684,7 +3763,8 @@ public class KanbanService {
     private String workerContext(
             KanbanTaskRecord task,
             List<Map<String, Object>> comments,
-            List<Map<String, Object>> runs)
+            List<Map<String, Object>> runs,
+            List<Map<String, Object>> attachments)
             throws Exception {
         StringBuilder buffer = new StringBuilder();
         buffer.append("Task ").append(task.getTaskId()).append(": ").append(task.getTitle()).append('\n');
@@ -3737,6 +3817,19 @@ public class KanbanService {
                         .append('\n');
             }
         }
+        if (attachments != null && !attachments.isEmpty()) {
+            buffer.append("\nAttachments:\n");
+            buffer.append("Files attached to this task. Read them with file or terminal tools at these paths:\n");
+            for (Map<String, Object> attachment : attachments) {
+                buffer.append("- ").append(attachment.get("filename"));
+                appendInlineContext(buffer, attachment.get("content_type"));
+                Long size = longObject(attachment.get("size"));
+                if (size != null && size.longValue() > 0) {
+                    buffer.append(", ").append(sizeKb(size.longValue())).append(" KB");
+                }
+                buffer.append(" -> ").append(attachment.get("stored_path")).append('\n');
+            }
+        }
         if (!runs.isEmpty()) {
             buffer.append("\nPrior attempts:\n");
             int start = Math.max(0, runs.size() - 10);
@@ -3779,6 +3872,29 @@ public class KanbanService {
             buffer.append("\nCurrent result:\n").append(capped(task.getResult(), CONTEXT_MAX_TEXT)).append('\n');
         }
         return buffer.toString().trim();
+    }
+
+    private void appendInlineContext(StringBuilder buffer, Object value) {
+        if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+            buffer.append(", ").append(value);
+        }
+    }
+
+    private Long longObject(Object value) {
+        if (value instanceof Number) {
+            return Long.valueOf(((Number) value).longValue());
+        }
+        try {
+            return value == null || StrUtil.isBlank(String.valueOf(value))
+                    ? null
+                    : Long.valueOf(String.valueOf(value));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private long sizeKb(long size) {
+        return Math.max(1L, (size + 1023L) / 1024L);
     }
 
     private void appendContextField(StringBuilder buffer, String label, Object value) {

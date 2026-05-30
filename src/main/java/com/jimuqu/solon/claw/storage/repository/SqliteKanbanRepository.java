@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.storage.repository;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.kanban.KanbanAttachmentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanBoardRecord;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanEventRecord;
@@ -1502,6 +1503,11 @@ public class SqliteKanbanRepository implements KanbanRepository {
             runs.setString(1, taskId);
             runs.executeUpdate();
             runs.close();
+            PreparedStatement attachments =
+                    connection.prepareStatement("delete from kanban_task_attachments where task_id = ?");
+            attachments.setString(1, taskId);
+            attachments.executeUpdate();
+            attachments.close();
             PreparedStatement subscriptions =
                     connection.prepareStatement("delete from kanban_notify_subscriptions where task_id = ?");
             subscriptions.setString(1, taskId);
@@ -1552,6 +1558,123 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.close();
         }
         return boards;
+    }
+
+    @Override
+    public KanbanAttachmentRecord addAttachment(KanbanAttachmentRecord attachment) throws Exception {
+        if (attachment == null || StrUtil.isBlank(attachment.getTaskId())) {
+            throw new IllegalArgumentException("task id is required");
+        }
+        String filename = StrUtil.nullToEmpty(attachment.getFilename()).trim();
+        String storedPath = StrUtil.nullToEmpty(attachment.getStoredPath()).trim();
+        if (StrUtil.isBlank(filename)) {
+            throw new IllegalArgumentException("attachment filename is required");
+        }
+        if (StrUtil.isBlank(storedPath)) {
+            throw new IllegalArgumentException("attachment stored_path is required");
+        }
+        KanbanTaskRecord task = findTask(attachment.getTaskId());
+        if (task == null) {
+            throw new IllegalArgumentException("Kanban task not found: " + attachment.getTaskId());
+        }
+        if (StrUtil.isBlank(attachment.getAttachmentId())) {
+            attachment.setAttachmentId("attachment_" + IdSupport.newId());
+        }
+        attachment.setTaskId(task.getTaskId());
+        attachment.setFilename(filename);
+        attachment.setStoredPath(storedPath);
+        attachment.setContentType(StrUtil.emptyToNull(StrUtil.nullToEmpty(attachment.getContentType()).trim()));
+        attachment.setUploadedBy(StrUtil.emptyToNull(StrUtil.nullToEmpty(attachment.getUploadedBy()).trim()));
+        attachment.setSize(Math.max(0L, attachment.getSize()));
+        if (attachment.getCreatedAt() <= 0) {
+            attachment.setCreatedAt(System.currentTimeMillis());
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into kanban_task_attachments (attachment_id, task_id, filename, stored_path, content_type, size, uploaded_by, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+            statement.setString(1, attachment.getAttachmentId());
+            statement.setString(2, attachment.getTaskId());
+            statement.setString(3, attachment.getFilename());
+            statement.setString(4, attachment.getStoredPath());
+            statement.setString(5, attachment.getContentType());
+            statement.setLong(6, attachment.getSize());
+            statement.setString(7, attachment.getUploadedBy());
+            statement.setLong(8, attachment.getCreatedAt());
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+        return findAttachment(attachment.getAttachmentId());
+    }
+
+    @Override
+    public List<KanbanAttachmentRecord> listAttachments(String taskId) throws Exception {
+        List<KanbanAttachmentRecord> attachments = new ArrayList<KanbanAttachmentRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_task_attachments where task_id = ? order by created_at asc, attachment_id asc");
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    attachments.add(mapAttachment(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return attachments;
+    }
+
+    @Override
+    public KanbanAttachmentRecord findAttachment(String attachmentId) throws Exception {
+        if (StrUtil.isBlank(attachmentId)) {
+            return null;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_task_attachments where attachment_id = ?");
+            statement.setString(1, attachmentId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapAttachment(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanAttachmentRecord deleteAttachment(String attachmentId) throws Exception {
+        KanbanAttachmentRecord attachment = findAttachment(attachmentId);
+        if (attachment == null) {
+            return null;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "delete from kanban_task_attachments where attachment_id = ?");
+            statement.setString(1, attachment.getAttachmentId());
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+        return attachment;
     }
 
     @Override
@@ -2461,6 +2584,19 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setTaskId(resultSet.getString("task_id"));
         record.setAuthor(resultSet.getString("author"));
         record.setBody(resultSet.getString("body"));
+        record.setCreatedAt(resultSet.getLong("created_at"));
+        return record;
+    }
+
+    private KanbanAttachmentRecord mapAttachment(ResultSet resultSet) throws Exception {
+        KanbanAttachmentRecord record = new KanbanAttachmentRecord();
+        record.setAttachmentId(resultSet.getString("attachment_id"));
+        record.setTaskId(resultSet.getString("task_id"));
+        record.setFilename(resultSet.getString("filename"));
+        record.setStoredPath(resultSet.getString("stored_path"));
+        record.setContentType(resultSet.getString("content_type"));
+        record.setSize(resultSet.getLong("size"));
+        record.setUploadedBy(resultSet.getString("uploaded_by"));
         record.setCreatedAt(resultSet.getLong("created_at"));
         return record;
     }
