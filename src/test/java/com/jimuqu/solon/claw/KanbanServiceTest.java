@@ -1616,6 +1616,33 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldUseConfiguredClaimTtlWhenExtendingLiveExpiredClaims() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AppConfig config = new AppConfig();
+        config.getKanban().setClaimTtlSeconds(3600);
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase, config);
+        KanbanService service = new KanbanService(repository, config);
+        String taskId = createTask(service, "慢速配置续期任务", "alice", "planner");
+
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:worker-live-ttl");
+        claim.put("worker_id", "worker-live-ttl");
+        claim.put("worker_pid", currentPid());
+        claim.put("ttl_seconds", 1);
+        service.claim(taskId, claim);
+        Map<String, Object> expired = new LinkedHashMap<String, Object>();
+        expired.put("claim_expires_at", System.currentTimeMillis() - 60000L);
+        service.updateTask(taskId, expired);
+
+        long beforeReclaim = System.currentTimeMillis();
+        int reclaimed = repository.releaseStaleClaims(beforeReclaim);
+
+        assertThat(reclaimed).isEqualTo(0);
+        assertThat(repository.findTask(taskId).getClaimExpiresAt())
+                .isGreaterThan(beforeReclaim + 3000L * 1000L);
+    }
+
+    @Test
     void shouldTrackSpawnFailuresOnClaimedTasks() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "启动失败任务", "worker", "planner");

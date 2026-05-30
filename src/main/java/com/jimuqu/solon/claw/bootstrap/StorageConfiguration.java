@@ -52,8 +52,8 @@ public class StorageConfiguration {
     }
 
     @Bean
-    public KanbanRepository kanbanRepository(SqliteDatabase sqliteDatabase) {
-        return new SqliteKanbanRepository(sqliteDatabase);
+    public KanbanRepository kanbanRepository(SqliteDatabase sqliteDatabase, AppConfig appConfig) {
+        return new SqliteKanbanRepository(sqliteDatabase, appConfig);
     }
 
     @Bean

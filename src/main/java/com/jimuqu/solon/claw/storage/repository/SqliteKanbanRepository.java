@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.storage.repository;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.kanban.KanbanBoardRecord;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanEventRecord;
@@ -21,11 +22,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
 /** SQLite-backed Kanban repository. */
-@RequiredArgsConstructor
 public class SqliteKanbanRepository implements KanbanRepository {
     public static final String DEFAULT_BOARD = "default";
     private static final long DEFAULT_CLAIM_TTL_SECONDS = 900L;
@@ -33,6 +32,16 @@ public class SqliteKanbanRepository implements KanbanRepository {
     private static final long STALE_HEARTBEAT_GAP_SECONDS = 3600L;
 
     private final SqliteDatabase database;
+    private final AppConfig appConfig;
+
+    public SqliteKanbanRepository(SqliteDatabase database) {
+        this(database, null);
+    }
+
+    public SqliteKanbanRepository(SqliteDatabase database, AppConfig appConfig) {
+        this.database = database;
+        this.appConfig = appConfig;
+    }
 
     @Override
     public List<KanbanBoardRecord> listBoards() throws Exception {
@@ -1206,7 +1215,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
     private void extendLiveStaleClaim(Connection connection, KanbanTaskRecord task, long now)
             throws Exception {
         long previousExpiresAt = task.getClaimExpiresAt();
-        long nextExpiresAt = now + DEFAULT_CLAIM_TTL_SECONDS * 1000L;
+        long nextExpiresAt = now + defaultClaimTtlSeconds() * 1000L;
         PreparedStatement statement =
                 connection.prepareStatement(
                         "update kanban_tasks set claim_expires_at = ?, updated_at = ? where task_id = ? and status = 'running'");
@@ -1227,6 +1236,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
         payload.put("worker_pid", Long.valueOf(task.getWorkerPid()));
         payload.put("reason", "worker_pid_alive");
         addEvent(connection, task.getTaskId(), "claim_extended", payload);
+    }
+
+    private long defaultClaimTtlSeconds() {
+        if (appConfig == null || appConfig.getKanban() == null) {
+            return DEFAULT_CLAIM_TTL_SECONDS;
+        }
+        return Math.max(1L, appConfig.getKanban().getClaimTtlSeconds());
     }
 
     private boolean isWorkerPidAlive(long pid) {
