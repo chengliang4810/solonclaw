@@ -990,7 +990,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             if (StrUtil.isNotBlank(assignee)) {
                 sql.append(" and assignee = ?");
             }
-            sql.append(" order by priority desc, updated_at asc limit 1");
+            sql.append(" order by priority desc, updated_at asc");
             PreparedStatement statement = connection.prepareStatement(sql.toString());
             statement.setString(1, slug);
             if (StrUtil.isNotBlank(assignee)) {
@@ -998,11 +998,14 @@ public class SqliteKanbanRepository implements KanbanRepository {
             }
             ResultSet resultSet = statement.executeQuery();
             try {
-                if (!resultSet.next()) {
-                    return null;
+                while (resultSet.next()) {
+                    KanbanTaskRecord claimed =
+                            claimTask(resultSet.getString("task_id"), claimer, ttlSeconds, workerId, workerPid);
+                    if (claimed != null) {
+                        return claimed;
+                    }
                 }
-                String taskId = resultSet.getString("task_id");
-                return claimTask(taskId, claimer, ttlSeconds, workerId, workerPid);
+                return null;
             } finally {
                 resultSet.close();
                 statement.close();

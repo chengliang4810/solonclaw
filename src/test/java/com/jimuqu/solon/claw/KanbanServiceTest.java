@@ -1251,6 +1251,36 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldClaimNextSkipRejectedReadyCandidate() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "未完成调度父任务", "lead", "planner");
+        String dirtyId = createTask(service, "脏就绪调度任务", "worker", "planner");
+        String cleanId = createTask(service, "合法调度任务", "worker", "planner");
+        service.link(parentId, dirtyId);
+        Map<String, Object> dirtyReady = new LinkedHashMap<String, Object>();
+        dirtyReady.put("status", "ready");
+        dirtyReady.put("priority", Integer.valueOf(10));
+        service.updateTask(dirtyId, dirtyReady);
+        Map<String, Object> cleanReady = new LinkedHashMap<String, Object>();
+        cleanReady.put("status", "ready");
+        cleanReady.put("priority", Integer.valueOf(1));
+        service.updateTask(cleanId, cleanReady);
+
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("assignee", "worker");
+        claim.put("claimer", "host:claim-next");
+        claim.put("worker_id", "claim-next");
+        Map<String, Object> next = service.claimNext(claim);
+
+        assertThat(next.get("claimed")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(next.get("task"))).contains(cleanId).doesNotContain(dirtyId);
+        assertThat(service.task(dirtyId).get("status")).isEqualTo("todo");
+        assertThat(String.valueOf(service.task(dirtyId).get("events")))
+                .contains("claim_rejected")
+                .contains("parents_not_done");
+    }
+
+    @Test
     void shouldRejectManualReadyMoveWhenParentsAreUndone() throws Exception {
         KanbanService service = service();
         String parentId = createTask(service, "待完成父任务", "lead", "planner");
