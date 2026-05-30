@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -47,6 +48,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -72,6 +74,8 @@ public class DefaultCronScheduler {
             Arrays.asList("cronjob", "messaging", "clarify");
     private static final int DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS = 600;
     private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
+    private static final ExecutorService MCP_WARMUP_EXECUTOR =
+            BoundedExecutorFactory.fixed("cron-mcp-warmup", 1, 16);
     private static final Pattern MEDIA_PATTERN =
             Pattern.compile(
                     "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
@@ -669,6 +673,23 @@ public class DefaultCronScheduler {
         if (mcpRuntimeService == null) {
             return;
         }
+        try {
+            MCP_WARMUP_EXECUTOR.submit(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            warmupMcpToolsNow(job);
+                        }
+                    });
+        } catch (RejectedExecutionException e) {
+            log.warn(
+                    "Cron job '{}' MCP initialization skipped: {}",
+                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                    safeError(e));
+        }
+    }
+
+    private void warmupMcpToolsNow(CronJobRecord job) {
         try {
             int count = 0;
             List<ToolProvider> providers = mcpRuntimeService.resolveEnabledToolProviders();
