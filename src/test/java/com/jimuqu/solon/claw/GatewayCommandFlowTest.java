@@ -37,6 +37,10 @@ public class GatewayCommandFlowTest {
                 env.gatewayService.handle(env.message("room-1", "user-1", "/branch review"));
         assertThat(branchReply.getContent()).contains("review");
 
+        GatewayReply forkReply =
+                env.gatewayService.handle(env.message("room-1", "user-1", "/fork review-fork"));
+        assertThat(forkReply.getContent()).contains("review-fork");
+
         GatewayReply undoReply =
                 env.gatewayService.handle(env.message("room-1", "user-1", "/undo"));
         assertThat(undoReply.getContent()).contains("已从会话中移除上一轮对话");
@@ -46,6 +50,22 @@ public class GatewayCommandFlowTest {
 
         SessionRecord rebound = env.sessionRepository.getBoundSession("MEMORY:room-1:user-1");
         assertThat(rebound.getSessionId()).isEqualTo(newReply.getSessionId());
+    }
+
+    @Test
+    void shouldCreateNamedSessionFromNewCommandArgument() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("room-new-title", "user-new-title", "hello");
+        env.send("room-new-title", "user-new-title", "/pairing claim-admin");
+
+        GatewayReply newReply =
+                env.send("room-new-title", "user-new-title", "/new  客户项目\r\n复盘  ");
+        SessionRecord rebound =
+                env.sessionRepository.getBoundSession("MEMORY:room-new-title:user-new-title");
+
+        assertThat(newReply.getSessionId()).isEqualTo(rebound.getSessionId());
+        assertThat(newReply.getContent()).contains("客户项目 复盘");
+        assertThat(rebound.getTitle()).isEqualTo("客户项目 复盘");
     }
 
     @Test

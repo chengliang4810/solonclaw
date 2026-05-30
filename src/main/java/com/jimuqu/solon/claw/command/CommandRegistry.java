@@ -22,7 +22,7 @@ public final class CommandRegistry {
         register(core("reset", "session", "重置当前会话并重新开始"));
         register(core("retry", "session", "重新执行上一条用户消息"));
         register(core("undo", "session", "撤销上一轮对话"));
-        register(core("branch", "session", "从当前会话创建分支"));
+        register(core("branch", "session", "从当前会话创建分支").alias("fork"));
         register(core("resume", "session", "恢复指定会话或分支"));
         register(core("title", "session", "查看、设置或清空当前会话标题"));
         register(core("status", "session", "查看当前会话状态"));
@@ -38,6 +38,7 @@ public final class CommandRegistry {
         register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
         register(core("model", "model", "查看或切换模型"));
+        register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
@@ -52,7 +53,7 @@ public final class CommandRegistry {
         register(core("compact", "session", "压缩当前会话上下文").alias("compress"));
         register(core("compress", "session", "压缩当前会话上下文"));
         register(core("rollback", "session", "回滚到指定 checkpoint"));
-        register(core("sethome", "gateway", "将当前聊天设为 home channel"));
+        register(core("sethome", "gateway", "将当前聊天设为 home channel").alias("set-home"));
         register(core("pairing", "gateway", "管理渠道配对与管理员授权"));
         register(core("approve", "security", "批准待审批危险命令"));
         register(core("deny", "security", "拒绝待审批危险命令"));

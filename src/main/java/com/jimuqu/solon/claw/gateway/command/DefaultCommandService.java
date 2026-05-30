@@ -723,9 +723,20 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_NEW.equals(command)
                 || GatewayCommandConstants.COMMAND_RESET.equals(command)) {
             SessionRecord created = sessionRepository.bindNewSession(message.sourceKey());
-            GatewayReply reply = GatewayReply.ok("已创建新会话：" + created.getSessionId());
+            String title = normalizeSessionTitle(args);
+            String content = "已创建新会话：" + created.getSessionId();
+            if (StrUtil.isNotBlank(title)) {
+                created.setTitle(title);
+                created.setUpdatedAt(System.currentTimeMillis());
+                sessionRepository.save(created);
+                content = "已创建新会话：" + title + "（" + created.getSessionId() + "）";
+            }
+            GatewayReply reply = GatewayReply.ok(content);
             reply.setSessionId(created.getSessionId());
             reply.setBranchName(created.getBranchName());
+            if (StrUtil.isNotBlank(title)) {
+                reply.getRuntimeMetadata().put("title", title);
+            }
             return reply;
         }
 
@@ -813,6 +824,8 @@ public class DefaultCommandService implements CommandService {
                                     + count
                                     + ", model="
                                     + StrUtil.nullToDefault(session.getModelOverride(), "default")
+                                    + ", fast_mode="
+                                    + fastModeName(session)
                                     + ", agent="
                                     + StrUtil.blankToDefault(
                                             session.getActiveAgentName(), "default")
@@ -937,6 +950,14 @@ public class DefaultCommandService implements CommandService {
                             : input.model;
             sessionRepository.setModelOverride(session.getSessionId(), override);
             GatewayReply reply = GatewayReply.ok("已切换当前会话模型为：" + override + "（下一条消息生效）");
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+
+        if (GatewayCommandConstants.COMMAND_FAST.equals(command)) {
+            SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply reply = handleFast(session, args);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -3512,17 +3533,17 @@ public class DefaultCommandService implements CommandService {
 
     private GatewayReply handleReasoning(GatewayMessage message, String args) throws Exception {
         String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (normalized.length() == 0) {
             return GatewayReply.ok(
                     "reasoning_display="
                             + displaySettingsService.describeReasoning(
                                     message.sourceKey(), message.getPlatform())
                             + "\nreasoning_effort="
-                            + StrUtil.blankToDefault(
-                                    appConfig.getLlm().getReasoningEffort(), "default")
+                            + effectiveReasoningEffort(session)
                             + "\nusage="
                             + GatewayCommandConstants.SLASH_REASONING
-                            + " [show|hide]");
+                            + " [level|reset|show|hide]");
         }
         if ("show".equals(normalized) || "on".equals(normalized)) {
             displaySettingsService.setReasoningVisible(message.sourceKey(), true);
@@ -3532,7 +3553,85 @@ public class DefaultCommandService implements CommandService {
             displaySettingsService.setReasoningVisible(message.sourceKey(), false);
             return GatewayReply.ok("已关闭当前来源键的 reasoning 展示。");
         }
-        return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_REASONING + " [show|hide]");
+        if (session == null) {
+            return GatewayReply.error("当前没有可设置 reasoning 的会话。");
+        }
+        if ("reset".equals(normalized) || "default".equals(normalized)) {
+            sessionRepository.setReasoningEffortOverride(session.getSessionId(), null);
+            session.setReasoningEffortOverride(null);
+            return GatewayReply.ok(
+                    "已清除当前会话 reasoning 覆盖。\nreasoning_effort="
+                            + effectiveReasoningEffort(session));
+        }
+        if (isReasoningEffortLevel(normalized)) {
+            String override = "none".equals(normalized) ? "none" : normalized;
+            sessionRepository.setReasoningEffortOverride(session.getSessionId(), override);
+            session.setReasoningEffortOverride(override);
+            return GatewayReply.ok(
+                    "已设置当前会话 reasoning 强度。\nreasoning_effort="
+                            + effectiveReasoningEffort(session));
+        }
+        return GatewayReply.error(
+                "用法：" + GatewayCommandConstants.SLASH_REASONING + " [level|reset|show|hide]");
+    }
+
+    private boolean isReasoningEffortLevel(String value) {
+        return "none".equals(value)
+                || "minimal".equals(value)
+                || "low".equals(value)
+                || "medium".equals(value)
+                || "high".equals(value)
+                || "xhigh".equals(value);
+    }
+
+    private String effectiveReasoningEffort(SessionRecord session) {
+        String override =
+                session == null ? "" : StrUtil.nullToEmpty(session.getReasoningEffortOverride()).trim();
+        return StrUtil.blankToDefault(
+                StrUtil.isNotBlank(override) ? override : appConfig.getLlm().getReasoningEffort(),
+                "default");
+    }
+
+    private GatewayReply handleFast(SessionRecord session, String args) throws Exception {
+        String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        if (StrUtil.isBlank(normalized) || "status".equals(normalized)) {
+            return GatewayReply.ok(formatFastStatus(session));
+        }
+        if ("fast".equals(normalized) || "on".equals(normalized) || "priority".equals(normalized)) {
+            sessionRepository.setServiceTierOverride(session.getSessionId(), "priority");
+            session.setServiceTierOverride("priority");
+            return GatewayReply.ok("已开启当前会话快速模式。\n" + formatFastStatus(session));
+        }
+        if ("normal".equals(normalized) || "off".equals(normalized) || "default".equals(normalized)) {
+            sessionRepository.setServiceTierOverride(session.getSessionId(), null);
+            session.setServiceTierOverride(null);
+            return GatewayReply.ok("已恢复当前会话普通模式。\n" + formatFastStatus(session));
+        }
+        return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]");
+    }
+
+    private String formatFastStatus(SessionRecord session) {
+        return "fast_mode="
+                + fastModeName(session)
+                + "\nservice_tier="
+                + serviceTierName(session)
+                + "\nusage="
+                + GatewayCommandConstants.SLASH_FAST
+                + " [fast|normal|status]";
+    }
+
+    private String fastModeName(SessionRecord session) {
+        return isPriorityServiceTier(session) ? "fast" : "normal";
+    }
+
+    private String serviceTierName(SessionRecord session) {
+        return isPriorityServiceTier(session) ? "priority" : "default";
+    }
+
+    private boolean isPriorityServiceTier(SessionRecord session) {
+        return session != null
+                && "priority".equalsIgnoreCase(
+                        StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
     }
 
     private GatewayReply handleBusy(String args, String sourceKey) {
@@ -4051,8 +4150,12 @@ public class DefaultCommandService implements CommandService {
                                         + " [--global] [provider:]<model>|clear",
                                 "查看或切换模型"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_REASONING + " [show|hide]",
-                                "查看或切换 reasoning 展示"),
+                                GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]",
+                                "查看或切换当前会话快速模式"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_REASONING
+                                        + " [level|reset|show|hide]",
+                                "查看或切换 reasoning 强度和展示"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TOOLS
                                         + " [list|enable|disable] [name...]",

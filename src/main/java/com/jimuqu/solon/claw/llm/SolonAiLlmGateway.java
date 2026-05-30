@@ -421,7 +421,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 resolved.isStream(),
                 session != null && StrUtil.isNotBlank(session.getModelOverride()));
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        ChatConfig chatConfig = buildChatConfig(resolved);
+        ChatConfig chatConfig = buildChatConfig(resolved, session);
         UsageCollector usageCollector = new UsageCollector();
         ReActAgent agent =
                 buildHarnessReActAgent(
@@ -885,6 +885,10 @@ public class SolonAiLlmGateway implements LlmGateway {
     }
 
     private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved) {
+        return buildChatConfig(resolved, null);
+    }
+
+    private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved, SessionRecord session) {
         ensureCustomDialectsRegistered();
         String dialect =
                 LlmProviderSupport.normalizeDialect(
@@ -904,14 +908,24 @@ public class SolonAiLlmGateway implements LlmGateway {
 
         chatConfig.getModelOptions().temperature(resolved.getTemperature());
         chatConfig.getModelOptions().max_tokens(resolved.getMaxTokens());
+        String reasoningEffort =
+                session != null && StrUtil.isNotBlank(session.getReasoningEffortOverride())
+                        ? session.getReasoningEffortOverride().trim()
+                        : resolved.getReasoningEffort();
         if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
-                && StrUtil.isNotBlank(resolved.getReasoningEffort())) {
+                && StrUtil.isNotBlank(reasoningEffort)
+                && !"none".equalsIgnoreCase(reasoningEffort.trim())) {
             chatConfig
                     .getModelOptions()
                     .optionSet(
                             "reasoning",
                             Collections.<String, Object>singletonMap(
-                                    "effort", resolved.getReasoningEffort()));
+                                    "effort", reasoningEffort.trim()));
+        }
+        if (session != null
+                && "priority".equalsIgnoreCase(
+                        StrUtil.nullToEmpty(session.getServiceTierOverride()).trim())) {
+            chatConfig.getModelOptions().optionSet("service_tier", "priority");
         }
 
         return chatConfig;
