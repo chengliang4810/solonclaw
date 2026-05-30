@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -114,6 +115,61 @@ public class DashboardKanbanServiceTest {
         assertThat(task.get("status")).isEqualTo("ready");
         assertThat(task.get("title")).isEqualTo("home channel 通知任务");
         assertThat(task.get("current_run_id")).isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldBulkUpdateDashboardTaskStatusAndKeepPartialFailuresIsolated() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String firstTaskId = createTask(kanbanService);
+        String secondTaskId = createTask(kanbanService);
+        kanbanService.status(firstTaskId, "blocked", "等待批量恢复");
+        kanbanService.status(secondTaskId, "blocked", "等待批量恢复");
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("ids", java.util.Arrays.asList(firstTaskId, "KB-NOTFOUND", secondTaskId));
+        body.put("status", "ready");
+
+        Map<String, Object> result = dashboardKanbanService.bulkTasks(body);
+        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+
+        assertThat(results).hasSize(3);
+        assertThat(results.get(0).get("id")).isEqualTo(firstTaskId);
+        assertThat(results.get(0).get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(results.get(1).get("id")).isEqualTo("KB-NOTFOUND");
+        assertThat(results.get(1).get("ok")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(results.get(1).get("error"))).contains("not found");
+        assertThat(results.get(2).get("id")).isEqualTo(secondTaskId);
+        assertThat(results.get(2).get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(kanbanService.task(firstTaskId).get("status")).isEqualTo("ready");
+        assertThat(kanbanService.task(secondTaskId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectDashboardBulkRunningStatusPerTask() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String taskId = createTask(kanbanService);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("ids", java.util.Collections.singletonList(taskId));
+        body.put("status", "running");
+
+        Map<String, Object> result = dashboardKanbanService.bulkTasks(body);
+        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).get("id")).isEqualTo(taskId);
+        assertThat(results.get(0).get("ok")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(results.get(0).get("error"))).contains("running");
+        assertThat(kanbanService.task(taskId).get("status")).isEqualTo("ready");
+        assertThat(kanbanService.task(taskId).get("current_run_id")).isNull();
     }
 
     private String createTask(KanbanService kanbanService) throws Exception {

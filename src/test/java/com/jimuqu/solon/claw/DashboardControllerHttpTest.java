@@ -1634,6 +1634,33 @@ public class DashboardControllerHttpTest {
         assertThat(unlinkTask.status).isEqualTo(200);
         assertThat(unlinkTask.body).contains(childTaskId).contains("unlinked");
 
+        HttpResult bulkReady =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\",\"KB-NOTFOUND\",\"" + alphaTaskId + "\"],\"status\":\"ready\"}",
+                        token);
+        assertThat(bulkReady.status).isEqualTo(200);
+        assertThat(bulkReady.body)
+                .contains("\"id\":\"" + childTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found")
+                .contains("\"id\":\"" + alphaTaskId + "\"");
+
+        HttpResult bulkRunning =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + alphaTaskId + "\"],\"status\":\"running\"}",
+                        token);
+        assertThat(bulkRunning.status).isEqualTo(200);
+        assertThat(bulkRunning.body)
+                .contains("\"id\":\"" + alphaTaskId + "\"")
+                .contains("\"ok\":false")
+                .contains("running");
+
         HttpResult claimTask =
                 request(
                         "POST",

@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,6 +167,33 @@ public class DashboardKanbanService {
                 body == null || body.get("result") == null ? null : String.valueOf(body.get("result")),
                 body == null || body.get("summary") == null ? null : String.valueOf(body.get("summary")),
                 body == null ? null : body.get("created_cards"));
+    }
+
+    public Map<String, Object> bulkTasks(Map<String, Object> body) throws Exception {
+        List<String> taskIds = taskIds(body);
+        if (taskIds.isEmpty()) {
+            throw new IllegalArgumentException("ids must contain at least one kanban task id");
+        }
+        List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
+        for (String taskId : taskIds) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("id", taskId);
+            try {
+                if (body != null && body.containsKey("status")) {
+                    status(taskId, body);
+                } else {
+                    throw new IllegalArgumentException("bulk task update requires status");
+                }
+                item.put("ok", Boolean.TRUE);
+            } catch (Exception e) {
+                item.put("ok", Boolean.FALSE);
+                item.put("error", e.getMessage());
+            }
+            results.add(item);
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("results", results);
+        return result;
     }
 
     public Map<String, Object> step(String taskId, Map<String, Object> body) throws Exception {
@@ -399,6 +427,21 @@ public class DashboardKanbanService {
     private String text(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private List<String> taskIds(Map<String, Object> body) {
+        List<String> result = new ArrayList<String>();
+        Object value = body == null ? null : body.get("ids");
+        if (value instanceof Collection) {
+            for (Object item : (Collection<?>) value) {
+                if (item != null && StrUtil.isNotBlank(String.valueOf(item))) {
+                    result.add(String.valueOf(item));
+                }
+            }
+        } else if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+            result.add(String.valueOf(value));
+        }
+        return result;
     }
 
     private void rejectDirectRunningStatus(Map<String, Object> body) {
