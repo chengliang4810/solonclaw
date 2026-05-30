@@ -3597,6 +3597,10 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(attachmentTerminalPastePolicy.get("pathPolicyCheckedBeforeCache"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPastePolicy.get("windowsPathPreviewCrossPlatform"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPastePolicy.get("windowsDrivePathNotDuplicatedAsPosix"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(attachmentTerminalPastePolicy.get("rawPathHiddenInPrompt"))
                 .isEqualTo(Boolean.TRUE);
     }

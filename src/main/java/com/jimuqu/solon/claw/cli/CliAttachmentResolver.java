@@ -28,13 +28,13 @@ public class CliAttachmentResolver {
     private static final Pattern QUOTED_TOKEN =
             Pattern.compile("(['\"])([^'\"\\r\\n]{2,})\\1");
     private static final Pattern FILE_URI_TOKEN =
-            Pattern.compile("(?i)(?<!\\S)file://[^\\s'\"<>]+");
+            Pattern.compile("(?i)(?<!\\S)file:/[^\\s'\"<>]+");
     private static final Pattern WINDOWS_PATH_TOKEN =
             Pattern.compile(
                     "(?<![\\p{L}\\p{N}_./\\\\-])(?:[A-Za-z]:[/\\\\][^\\s'\"<>|]+)");
     private static final Pattern POSIX_PATH_TOKEN =
             Pattern.compile(
-                    "(?<![\\p{L}\\p{N}_./\\\\-])(?:~?/[A-Za-z0-9._+@%=-][^\\s'\"<>|]*)");
+                    "(?<![A-Za-z]:)(?<![\\p{L}\\p{N}_./\\\\-])(?:~?/[A-Za-z0-9._+@%=-][^\\s'\"<>|]*)");
     private static final Pattern ABSOLUTE_PATH_IN_MESSAGE =
             Pattern.compile("(?:(?<=\\s)|(?<=^)|(?<==)|(?<=:))(/[A-Za-z0-9._+@%-][^\\s'\"<>|;,]*)");
 
@@ -62,6 +62,8 @@ public class CliAttachmentResolver {
         summary.put("fileUriDetection", Boolean.TRUE);
         summary.put("fileUriPercentDecoded", Boolean.TRUE);
         summary.put("windowsPathDetection", Boolean.TRUE);
+        summary.put("windowsPathPreviewCrossPlatform", Boolean.TRUE);
+        summary.put("windowsDrivePathNotDuplicatedAsPosix", Boolean.TRUE);
         summary.put("posixPathDetection", Boolean.TRUE);
         summary.put("tildeHomeExpansion", Boolean.TRUE);
         summary.put("canonicalPathResolvedBeforePolicy", Boolean.TRUE);
@@ -226,12 +228,12 @@ public class CliAttachmentResolver {
             return null;
         }
         try {
-            if (value.toLowerCase(Locale.ROOT).startsWith("file://")) {
+            if (value.toLowerCase(Locale.ROOT).startsWith("file:")) {
                 return new File(new URI(value)).getCanonicalFile();
             }
         } catch (Exception ignored) {
             try {
-                String withoutScheme = value.substring("file://".length());
+                String withoutScheme = value.substring("file:".length());
                 return FileUtil.file(URLDecoder.decode(withoutScheme, "UTF-8")).getCanonicalFile();
             } catch (Exception ignoredAgain) {
                 return null;
@@ -250,7 +252,7 @@ public class CliAttachmentResolver {
         if (text.length() == 0) {
             return false;
         }
-        if (text.toLowerCase(Locale.ROOT).startsWith("file://")) {
+        if (text.toLowerCase(Locale.ROOT).startsWith("file:")) {
             return true;
         }
         if (Pattern.compile("^[A-Za-z]:[/\\\\].+").matcher(text).matches()) {
@@ -315,10 +317,15 @@ public class CliAttachmentResolver {
             return "-";
         }
         try {
-            if (value.toLowerCase(Locale.ROOT).startsWith("file://")) {
+            if (value.toLowerCase(Locale.ROOT).startsWith("file:")) {
                 return new File(new URI(value)).getName();
             }
         } catch (Exception ignored) {
+        }
+        if (Pattern.compile("^[A-Za-z]:[/\\\\].+").matcher(value).matches()) {
+            String normalized = value.replace('\\', '/');
+            int slash = normalized.lastIndexOf('/');
+            return slash >= 0 ? normalized.substring(slash + 1) : normalized;
         }
         return FileUtil.file(value).getName();
     }

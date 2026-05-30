@@ -1250,6 +1250,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "fileUriDetection");
             copyPolicyValue(summary, safe, "fileUriPercentDecoded");
             copyPolicyValue(summary, safe, "windowsPathDetection");
+            copyPolicyValue(summary, safe, "windowsPathPreviewCrossPlatform");
+            copyPolicyValue(summary, safe, "windowsDrivePathNotDuplicatedAsPosix");
             copyPolicyValue(summary, safe, "posixPathDetection");
             copyPolicyValue(summary, safe, "tildeHomeExpansion");
             copyPolicyValue(summary, safe, "canonicalPathResolvedBeforePolicy");
@@ -6016,6 +6018,8 @@ public class DashboardDiagnosticsService {
             CliAttachmentResolver.ResolvedInput resolved =
                     resolver.resolve("分析 " + fileUri);
             String preview = resolver.renderPreview(privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
+            List<CliAttachmentResolver.AttachmentPreview> windowsPreviews =
+                    resolver.preview("查看 C:\\Users\\demo\\Pictures\\shot.png 和 D:/reports/result.pdf");
             Map<String, Object> summary = CliAttachmentResolver.policySummary();
             boolean fileUriResolved =
                     resolved.getAttachments().size() == 1
@@ -6026,15 +6030,21 @@ public class DashboardDiagnosticsService {
                             && StrUtil.contains(preview, "missing")
                             && !StrUtil.contains(preview, secret)
                             && !StrUtil.contains(preview, privateKey.getAbsolutePath());
+            boolean windowsPathHandled =
+                    windowsPreviews.size() == 2
+                            && "shot.png".equals(windowsPreviews.get(0).getName())
+                            && "result.pdf".equals(windowsPreviews.get(1).getName());
             boolean policyAdvertised =
                     Boolean.TRUE.equals(summary.get("fileUriPercentDecoded"))
+                            && Boolean.TRUE.equals(summary.get("windowsPathPreviewCrossPlatform"))
+                            && Boolean.TRUE.equals(summary.get("windowsDrivePathNotDuplicatedAsPosix"))
                             && Boolean.TRUE.equals(summary.get("pathPolicyCheckedBeforeCache"))
                             && Boolean.TRUE.equals(summary.get("credentialPathBlocked"))
                             && Boolean.TRUE.equals(summary.get("rawPathHiddenInPrompt"));
-            boolean passed = fileUriResolved && unsafePreviewRedacted && policyAdvertised;
+            boolean passed = fileUriResolved && unsafePreviewRedacted && windowsPathHandled && policyAdvertised;
             String message =
                     passed
-                            ? "终端粘贴附件已支持 file URI 解析、路径策略预检和敏感预览脱敏。"
+                            ? "终端粘贴附件已支持 file URI、Windows 盘符路径、路径策略预检和敏感预览脱敏。"
                             : "终端粘贴附件解析、路径阻断或预览脱敏检查未通过。";
             return policyProbeItem(
                     key,
@@ -6042,7 +6052,7 @@ public class DashboardDiagnosticsService {
                     "attachment_terminal_paste",
                     true,
                     passed,
-                    "file://, credential path, missing path preview",
+                    "file://, Windows drive path, credential path, missing path preview",
                     message);
         } catch (Exception e) {
             return policyProbeItem(
