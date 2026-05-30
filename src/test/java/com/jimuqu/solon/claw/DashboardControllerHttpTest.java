@@ -1840,6 +1840,26 @@ public class DashboardControllerHttpTest {
         assertThat(kanbanWatch.status).isEqualTo(200);
         assertThat(kanbanWatch.body).contains("reassigned");
 
+        HttpResult bulkArchive =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + alphaTaskId + "\",\"KB-NOTFOUND\"],\"archive\":true}",
+                        token);
+        assertThat(bulkArchive.status).isEqualTo(200);
+        assertThat(bulkArchive.body)
+                .contains("\"id\":\"" + alphaTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found");
+        HttpResult visibleTasks = request("GET", "/api/kanban/tasks", null, token);
+        assertThat(visibleTasks.status).isEqualTo(200);
+        assertThat(visibleTasks.body).doesNotContain(alphaTaskId);
+        HttpResult archivedTasks = request("GET", "/api/kanban/tasks?archived=true", null, token);
+        assertThat(archivedTasks.status).isEqualTo(200);
+        assertThat(archivedTasks.body).contains(alphaTaskId).contains("\"status\":\"archived\"");
+
         HttpResult notifySubscribe =
                 request(
                         "POST",

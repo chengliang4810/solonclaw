@@ -185,8 +185,12 @@ public class DashboardKanbanService {
                     updateTask(taskId, body);
                 } else if (body != null && body.containsKey("assignee")) {
                     reassign(taskId, body);
+                } else if (body != null && Boolean.TRUE.equals(body.get("archive"))) {
+                    Map<String, Object> archiveBody = new LinkedHashMap<String, Object>();
+                    archiveBody.put("status", "archived");
+                    status(taskId, archiveBody);
                 } else {
-                    throw new IllegalArgumentException("bulk task update requires status, priority, or assignee");
+                    throw new IllegalArgumentException("bulk task update requires status, priority, assignee, or archive");
                 }
                 item.put("ok", Boolean.TRUE);
             } catch (Exception e) {
