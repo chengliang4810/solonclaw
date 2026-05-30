@@ -642,6 +642,8 @@ public class SqliteKanbanRepository implements KanbanRepository {
                         after, "done", "completed", StrUtil.blankToDefault(result, after.getResult()), null, null, now, connection);
             } else if ("blocked".equals(normalized)) {
                 closeOrSynthesizeRun(after, "blocked", "blocked", result, null, result, now, connection);
+            } else if ("scheduled".equals(normalized)) {
+                closeOrSynthesizeRun(after, "scheduled", "scheduled", result, null, null, now, connection);
             } else if ("archived".equals(normalized)) {
                 closeOrSynthesizeRun(after, "released", "archived", result, null, null, now, connection);
             } else if (StrUtil.isNotBlank(before.getCurrentRunId())) {
@@ -659,12 +661,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
         Connection connection = database.openConnection();
         try {
             KanbanTaskRecord task = findTask(taskId);
-            if (task == null || !"blocked".equals(task.getStatus())) {
+            if (task == null
+                    || (!"blocked".equals(task.getStatus()) && !"scheduled".equals(task.getStatus()))) {
                 return false;
             }
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update kanban_tasks set status = case when exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = kanban_tasks.task_id and p.status not in ('done', 'archived')) then 'todo' else 'ready' end, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, completed_at = 0, updated_at = ? where task_id = ? and status = 'blocked'");
+                            "update kanban_tasks set status = case when exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = kanban_tasks.task_id and p.status not in ('done', 'archived')) then 'todo' else 'ready' end, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, completed_at = 0, updated_at = ? where task_id = ? and status in ('blocked', 'scheduled')");
             statement.setLong(1, now);
             statement.setString(2, taskId);
             int updated = statement.executeUpdate();
@@ -676,6 +679,34 @@ public class SqliteKanbanRepository implements KanbanRepository {
                 payload.put("previous_run_id", task.getCurrentRunId());
                 payload.put("previous_result", task.getResult());
                 addEvent(connection, taskId, "unblocked", payload);
+            }
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean scheduleTask(String taskId, String reason) throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            KanbanTaskRecord task = findTask(taskId);
+            if (task == null) {
+                return false;
+            }
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'scheduled', claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, updated_at = ? where task_id = ? and status in ('todo', 'ready', 'running', 'blocked')");
+            statement.setLong(1, now);
+            statement.setString(2, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0) {
+                closeOrSynthesizeRun(task, "scheduled", "scheduled", reason, null, null, now, connection);
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("reason", reason);
+                addEvent(connection, taskId, "scheduled", payload);
             }
             return updated > 0;
         } finally {
@@ -2132,6 +2163,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         String value = StrUtil.blankToDefault(status, "todo").trim().toLowerCase();
         if (!"triage".equals(value)
                 && !"todo".equals(value)
+                && !"scheduled".equals(value)
                 && !"ready".equals(value)
                 && !"review".equals(value)
                 && !"running".equals(value)

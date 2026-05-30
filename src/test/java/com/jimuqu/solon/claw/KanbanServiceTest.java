@@ -871,6 +871,48 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldScheduleTasksAndUnblockThemThroughParentGate() throws Exception {
+        KanbanService service = service();
+        String delayedId = createReadyTask(service, "延后复查任务", "ops", "planner");
+
+        Map<String, Object> scheduled = service.schedule(delayedId, "下周再检查");
+
+        assertThat(scheduled.get("status")).isEqualTo("scheduled");
+        assertThat(String.valueOf(scheduled.get("events")))
+                .contains("scheduled")
+                .contains("下周再检查");
+        assertThatThrownBy(() -> service.claim(delayedId, new LinkedHashMap<String, Object>()))
+                .hasMessageContaining("not ready");
+        assertThatThrownBy(() -> service.schedule(delayedId, "二次延后"))
+                .hasMessageContaining("not schedulable");
+        String commandScheduledId = createReadyTask(service, "命令延后任务", "ops", "planner");
+        assertThat(service.handleCommand("schedule " + commandScheduledId + " 命令延后", "planner"))
+                .contains("已延后看板任务")
+                .contains(commandScheduledId);
+
+        String triageId = createTask(service, "待梳理任务", "ops", "planner");
+        service.status(triageId, "triage", null);
+        assertThatThrownBy(() -> service.schedule(triageId, "信息不完整"))
+                .hasMessageContaining("not schedulable");
+        assertThat(service.task(triageId).get("status")).isEqualTo("triage");
+        String doneId = createReadyTask(service, "已完成任务", "ops", "planner");
+        service.status(doneId, "done", "完成");
+        assertThatThrownBy(() -> service.schedule(doneId, "完成后不延后"))
+                .hasMessageContaining("not schedulable");
+        assertThat(service.task(doneId).get("status")).isEqualTo("done");
+
+        String parentId = createTask(service, "计划父任务", "lead", "planner");
+        String childId = createTask(service, "计划子任务", "worker", "planner");
+        service.link(parentId, childId);
+        service.schedule(childId, "等待定时器");
+        assertThat(service.unblock(childId).get("status")).isEqualTo("todo");
+
+        service.status(parentId, "done", "父任务完成");
+        service.schedule(childId, "第二次等待");
+        assertThat(service.unblock(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
     void shouldSupportJimuquStyleBulkLifecycleCommands() throws Exception {
         KanbanService service = service();
         String firstId = createTask(service, "批量任务一", "alice", "alice");

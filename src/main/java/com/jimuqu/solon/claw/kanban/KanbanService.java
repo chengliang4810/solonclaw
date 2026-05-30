@@ -26,7 +26,16 @@ import org.noear.snack4.ONode;
 public class KanbanService {
     public static final List<String> STATUSES =
             Collections.unmodifiableList(
-                    Arrays.asList("triage", "todo", "ready", "review", "running", "blocked", "done", "archived"));
+                    Arrays.asList(
+                            "triage",
+                            "todo",
+                            "scheduled",
+                            "ready",
+                            "review",
+                            "running",
+                            "blocked",
+                            "done",
+                            "archived"));
     public static final List<String> TASK_SORT_ORDERS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -511,7 +520,15 @@ public class KanbanService {
     public Map<String, Object> unblock(String taskId) throws Exception {
         String id = requireArg(taskId, "kanban_unblock task_id");
         if (!repository.unblockTask(id)) {
-            throw new IllegalArgumentException("Kanban task is not blocked or not found: " + id);
+            throw new IllegalArgumentException("Kanban task is not blocked, scheduled, or not found: " + id);
+        }
+        return task(id);
+    }
+
+    public Map<String, Object> schedule(String taskId, String reason) throws Exception {
+        String id = requireArg(taskId, "kanban_schedule task_id");
+        if (!repository.scheduleTask(id, reason)) {
+            throw new IllegalArgumentException("Kanban task is not schedulable or not found: " + id);
         }
         return task(id);
     }
@@ -668,7 +685,7 @@ public class KanbanService {
         result.put("board", selectedBoard);
         result.put(
                 "status_flow",
-                Arrays.asList("triage", "todo", "ready", "review", "running", "blocked", "done", "archived"));
+                Arrays.asList("triage", "todo", "scheduled", "ready", "review", "running", "blocked", "done", "archived"));
         result.put("objective", "使用看板把需求拆成结构化任务，分配执行人，派发运行，并通过抽屉复核流水、历史、日志和通知。");
         result.put("steps", guideSteps());
         result.put("drawer_sections", Arrays.asList(
@@ -1096,7 +1113,7 @@ public class KanbanService {
         if ("move".equals(action) || "status".equals(action)) {
             String[] tokens = rest.split("\\s+", 3);
             if (tokens.length < 2) {
-                return "用法：/kanban move <task-id> <triage|todo|ready|review|running|blocked|done|archived>";
+                return "用法：/kanban move <task-id> <triage|todo|scheduled|ready|review|running|blocked|done|archived>";
             }
             status(tokens[0], tokens[1], tokens.length > 2 ? tokens[2] : null);
             return "已更新任务状态：" + tokens[0] + " -> " + normalizeStatus(tokens[1]);
@@ -1150,6 +1167,12 @@ public class KanbanService {
             retry(requireArg(tokens[0], "/kanban retry <task-id> [reason]"),
                     tokens.length > 1 ? tokens[1] : null);
             return "已重试任务：" + tokens[0];
+        }
+        if ("schedule".equals(action) || "delay".equals(action)) {
+            String[] tokens = rest.split("\\s+", 2);
+            String taskId = requireArg(tokens[0], "/kanban schedule <task-id> [reason]");
+            schedule(taskId, tokens.length > 1 ? tokens[1] : null);
+            return "已延后看板任务：" + taskId;
         }
         if ("unblock".equals(action)) {
             return unblockCommand(rest);
@@ -1629,7 +1652,7 @@ public class KanbanService {
         }
         if (!failed.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Kanban task is not blocked or not found: " + String.join(", ", failed));
+                    "Kanban task is not blocked, scheduled, or not found: " + String.join(", ", failed));
         }
         return "已解除阻塞任务：" + String.join(", ", unblocked);
     }
@@ -2047,6 +2070,7 @@ public class KanbanService {
         String status = String.valueOf(task.get("status"));
         boolean running = "running".equals(status);
         boolean blocked = "blocked".equals(status);
+        boolean scheduled = "scheduled".equals(status);
         boolean done = "done".equals(status);
         boolean claimed =
                 task.get("claim_lock") != null
@@ -2057,7 +2081,7 @@ public class KanbanService {
         actions.put("can_reassign", Boolean.TRUE);
         actions.put("can_reclaim", Boolean.valueOf(running || claimed));
         actions.put("can_retry", Boolean.valueOf(blocked || done || "archived".equals(status)));
-        actions.put("can_unblock", Boolean.valueOf(blocked));
+        actions.put("can_unblock", Boolean.valueOf(blocked || scheduled));
         actions.put("can_edit_result", Boolean.valueOf(done));
         return actions;
     }
@@ -2171,6 +2195,9 @@ public class KanbanService {
         if ("blocked".equals(status)) {
             return "blocked";
         }
+        if ("scheduled".equals(status)) {
+            return "scheduled";
+        }
         if ("ready".equals(status)) {
             return isBlankObject(task.get("assignee")) ? "waiting_assignee" : "ready";
         }
@@ -2195,6 +2222,9 @@ public class KanbanService {
         }
         if ("blocked".equals(status)) {
             return "unblock_or_retry";
+        }
+        if ("scheduled".equals(status)) {
+            return "unblock_when_due";
         }
         if ("ready".equals(status)) {
             return isBlankObject(task.get("assignee")) ? "assign" : "dispatch";
