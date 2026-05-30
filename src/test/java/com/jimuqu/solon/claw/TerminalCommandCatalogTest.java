@@ -49,6 +49,10 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor sethome = CommandRegistry.get("sethome");
         assertThat(sethome.getAliases()).contains("set-home");
         assertThat(CommandRegistry.resolve("/set-home").getName()).isEqualTo("sethome");
+
+        CommandDescriptor model = CommandRegistry.get("model");
+        assertThat(model.getAliases()).contains("provider");
+        assertThat(CommandRegistry.resolve("/provider").getName()).isEqualTo("model");
     }
 
     @Test

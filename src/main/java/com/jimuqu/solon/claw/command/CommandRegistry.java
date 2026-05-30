@@ -37,7 +37,7 @@ public final class CommandRegistry {
         register(core("security", "security", "查看安全策略、审批、审计与终端安全状态"));
         register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
-        register(core("model", "model", "查看或切换模型"));
+        register(core("model", "model", "查看或切换模型").alias("provider"));
         register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
