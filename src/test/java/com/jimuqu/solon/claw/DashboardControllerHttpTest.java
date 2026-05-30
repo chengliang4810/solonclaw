@@ -1636,9 +1636,9 @@ public class DashboardControllerHttpTest {
 
         HttpResult claimTask =
                 request(
-                        "PUT",
-                        "/api/kanban/tasks/" + taskId,
-                        "{\"status\":\"running\",\"claim_lock\":\"http-lock\",\"worker_id\":\"http-worker\"}",
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/claim",
+                        "{\"claimer\":\"http-lock\",\"worker_id\":\"http-worker\"}",
                         token);
         assertThat(claimTask.status).isEqualTo(200);
         assertThat(claimTask.body).contains("\"status\":\"running\"");

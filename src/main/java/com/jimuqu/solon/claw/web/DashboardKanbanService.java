@@ -146,6 +146,7 @@ public class DashboardKanbanService {
 
     public Map<String, Object> updateTask(String taskId, Map<String, Object> body)
             throws Exception {
+        rejectDirectRunningStatus(body);
         return kanbanService.updateTask(taskId, body);
     }
 
@@ -158,6 +159,7 @@ public class DashboardKanbanService {
     }
 
     public Map<String, Object> status(String taskId, Map<String, Object> body) throws Exception {
+        rejectDirectRunningStatus(body);
         return kanbanService.status(
                 taskId,
                 body == null ? null : String.valueOf(body.get("status")),
@@ -397,6 +399,15 @@ public class DashboardKanbanService {
     private String text(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private void rejectDirectRunningStatus(Map<String, Object> body) {
+        if (body != null
+                && body.get("status") != null
+                && StrUtil.equalsIgnoreCase("running", String.valueOf(body.get("status")))) {
+            throw new IllegalArgumentException(
+                    "Dashboard cannot set kanban tasks to running directly; use claim or dispatch.");
+        }
     }
 
     private PlatformType requirePlatform(String platformName) {

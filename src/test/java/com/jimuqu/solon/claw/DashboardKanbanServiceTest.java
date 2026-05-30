@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
@@ -71,6 +72,48 @@ public class DashboardKanbanServiceTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(withScheduler.notifyDeliveryStatus().get("enabled"))
                 .isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
+    void shouldRejectDashboardDirectRunningStatus() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String taskId = createTask(kanbanService);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("status", "running");
+
+        assertThatThrownBy(() -> dashboardKanbanService.status(taskId, body))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("running");
+
+        Map<String, Object> task = kanbanService.task(taskId);
+        assertThat(task.get("status")).isEqualTo("ready");
+        assertThat(task.get("current_run_id")).isNull();
+    }
+
+    @Test
+    void shouldRejectDashboardEditRunningStatus() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String taskId = createTask(kanbanService);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "renamed by dashboard");
+        body.put("status", "running");
+
+        assertThatThrownBy(() -> dashboardKanbanService.updateTask(taskId, body))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("running");
+
+        Map<String, Object> task = kanbanService.task(taskId);
+        assertThat(task.get("status")).isEqualTo("ready");
+        assertThat(task.get("title")).isEqualTo("home channel 通知任务");
+        assertThat(task.get("current_run_id")).isNull();
     }
 
     private String createTask(KanbanService kanbanService) throws Exception {
