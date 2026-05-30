@@ -252,8 +252,10 @@ public class KanbanService {
         task.setPriority(intValue(body, "priority", 0));
         task.setTenant(text(body, "tenant"));
         task.setSessionId(text(body, "session_id"));
-        task.setWorkspaceKind(normalizeWorkspaceKind(text(body, "workspace_kind")));
+        String workspaceKind = normalizeWorkspaceKind(text(body, "workspace_kind"));
+        task.setWorkspaceKind(workspaceKind);
         task.setWorkspacePath(text(body, "workspace_path"));
+        task.setBranchName(normalizeBranchName(text(body, "branch_name"), workspaceKind));
         task.setCreatedBy(StrUtil.blankToDefault(text(body, "created_by"), "user"));
         task.setIdempotencyKey(idempotencyKey);
         task.setMaxRetries(optionalPositiveInt(body, "max_retries"));
@@ -302,10 +304,19 @@ public class KanbanService {
             task.setSessionId(text(body, "session_id"));
         }
         if (body.containsKey("workspace_kind")) {
-            task.setWorkspaceKind(normalizeWorkspaceKind(text(body, "workspace_kind")));
+            String workspaceKind = normalizeWorkspaceKind(text(body, "workspace_kind"));
+            if (!"worktree".equals(workspaceKind)
+                    && StrUtil.isNotBlank(task.getBranchName())
+                    && !body.containsKey("branch_name")) {
+                throw new IllegalArgumentException("branch_name is only valid for worktree workspaces");
+            }
+            task.setWorkspaceKind(workspaceKind);
         }
         if (body.containsKey("workspace_path")) {
             task.setWorkspacePath(text(body, "workspace_path"));
+        }
+        if (body.containsKey("branch_name")) {
+            task.setBranchName(normalizeBranchName(text(body, "branch_name"), task.getWorkspaceKind()));
         }
         if (body.containsKey("result")) {
             task.setResult(text(body, "result"));
@@ -1327,6 +1338,10 @@ public class KanbanService {
         if (StrUtil.isNotBlank(workspace)) {
             applyWorkspaceOption(body, workspace);
         }
+        String branch = parsed.value("branch");
+        if (StrUtil.isNotBlank(branch)) {
+            body.put("branch_name", branch);
+        }
         String maxRuntime = parsed.value("max-runtime");
         if (StrUtil.isNotBlank(maxRuntime)) {
             body.put("max_runtime_seconds", Long.valueOf(parseDurationSeconds(maxRuntime)));
@@ -1971,6 +1986,7 @@ public class KanbanService {
         result.put("session_id", task.getSessionId());
         result.put("workspace_kind", task.getWorkspaceKind());
         result.put("workspace_path", workspaceReference(task));
+        result.put("branch_name", task.getBranchName());
         result.put("created_by", task.getCreatedBy());
         result.put("result", task.getResult());
         result.put("idempotency_key", task.getIdempotencyKey());
@@ -3129,6 +3145,17 @@ public class KanbanService {
         return value;
     }
 
+    private String normalizeBranchName(String branchName, String workspaceKind) {
+        String value = StrUtil.nullToEmpty(branchName).trim();
+        if (StrUtil.isBlank(value)) {
+            return null;
+        }
+        if (!"worktree".equals(workspaceKind)) {
+            throw new IllegalArgumentException("branch_name is only valid for worktree workspaces");
+        }
+        return value;
+    }
+
     private String normalizeRunStateFilter(String stateType, String stateName) {
         boolean hasType = StrUtil.isNotBlank(stateType);
         boolean hasName = StrUtil.isNotBlank(stateName);
@@ -3549,6 +3576,9 @@ public class KanbanService {
                 .append(", assignee=").append(StrUtil.blankToDefault(task.getAssignee(), "-"))
                 .append(", priority=").append(task.getPriority())
                 .append('\n');
+        if (StrUtil.isNotBlank(task.getBranchName())) {
+            buffer.append("Branch:   ").append(task.getBranchName()).append('\n');
+        }
         if (StrUtil.isNotBlank(task.getBody())) {
             buffer.append("\nBody:\n").append(capped(task.getBody(), CONTEXT_MAX_TEXT)).append('\n');
         }

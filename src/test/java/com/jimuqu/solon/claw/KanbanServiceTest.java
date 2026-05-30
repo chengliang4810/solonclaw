@@ -316,6 +316,36 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldPersistWorktreeBranchNameAndRejectScratchBranchName() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "工作树分支任务");
+        body.put("workspace_kind", "worktree");
+        body.put("workspace_path", "/tmp/solon-claw-worktrees/task-a");
+        body.put("branch_name", " feature/task-a ");
+
+        Map<String, Object> created = service.createTask(body);
+        String taskId = String.valueOf(created.get("id"));
+        Map<String, Object> detail = service.task(taskId);
+
+        assertThat(created.get("branch_name")).isEqualTo("feature/task-a");
+        assertThat(detail.get("branch_name")).isEqualTo("feature/task-a");
+        assertThat(String.valueOf(detail.get("events"))).contains("branch_name=feature/task-a");
+        assertThat(String.valueOf(detail.get("worker_context"))).contains("Branch:   feature/task-a");
+        assertThat(service.handleCommand("create 命令分支任务 --workspace worktree --branch feature/cmd --json", "tester"))
+                .contains("\"branch_name\":\"feature/cmd\"");
+
+        Map<String, Object> invalid = new LinkedHashMap<String, Object>();
+        invalid.put("title", "非法分支任务");
+        invalid.put("workspace_kind", "scratch");
+        invalid.put("branch_name", "feature/bad");
+
+        assertThatThrownBy(() -> service.createTask(invalid))
+                .hasMessageContaining("branch_name")
+                .hasMessageContaining("worktree");
+    }
+
+    @Test
     void shouldFilterTaskListAssigneeCaseInsensitively() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "大小写过滤任务", "alice", "planner");
