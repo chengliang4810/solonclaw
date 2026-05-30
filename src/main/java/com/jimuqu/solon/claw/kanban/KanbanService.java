@@ -471,6 +471,7 @@ public class KanbanService {
         }
         if ("done".equals(normalized)) {
             recordCompleted(taskId, verifiedCards, summary, result);
+            cleanupCompletedScratchWorkspace(task);
             scanProseForPhantomIds(taskId, summary, result);
         } else if ("blocked".equals(normalized)) {
             recordBlocked(taskId, summary, result);
@@ -3092,6 +3093,27 @@ public class KanbanService {
             removed++;
         }
         return removed;
+    }
+
+    private void cleanupCompletedScratchWorkspace(KanbanTaskRecord task) throws Exception {
+        if (task == null || !"scratch".equals(task.getWorkspaceKind())) {
+            return;
+        }
+        File root = scratchWorkspaceRoot().getCanonicalFile();
+        File path =
+                StrUtil.isBlank(task.getWorkspacePath())
+                        ? FileUtil.file(root, task.getTaskId())
+                        : FileUtil.file(task.getWorkspacePath());
+        File canonical;
+        try {
+            canonical = path.getCanonicalFile();
+        } catch (Exception e) {
+            return;
+        }
+        if (!isUnderRoot(canonical, root) || !canonical.exists() || !canonical.isDirectory()) {
+            return;
+        }
+        FileUtil.del(canonical);
     }
 
     private File workerLogFile(String taskId) {

@@ -1045,6 +1045,40 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRemoveManagedScratchWorkspaceWhenTaskCompletes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, env.appConfig);
+        String taskId = createReadyTask(service, "完成后清理 scratch", "worker", "planner");
+        File workspace = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "workspaces", taskId);
+        FileUtil.mkdir(workspace);
+        FileUtil.writeUtf8String("temporary", FileUtil.file(workspace, "result.txt"));
+        repository.setWorkspacePath(taskId, workspace.getAbsolutePath());
+
+        service.status(taskId, "done", "完成");
+
+        assertThat(workspace).doesNotExist();
+        assertThat(service.task(taskId).get("status")).isEqualTo("done");
+    }
+
+    @Test
+    void shouldPreserveScratchWorkspacePathOutsideManagedRootWhenTaskCompletes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository, env.appConfig);
+        String taskId = createReadyTask(service, "保护外部 scratch 路径", "worker", "planner");
+        File sourceTree = new File(env.appConfig.getRuntime().getHome(), "../source-tree").getCanonicalFile();
+        FileUtil.mkdir(sourceTree);
+        FileUtil.writeUtf8String("important", FileUtil.file(sourceTree, "README.md"));
+        repository.setWorkspacePath(taskId, sourceTree.getAbsolutePath());
+
+        service.status(taskId, "done", "完成");
+
+        assertThat(sourceTree).isDirectory();
+        assertThat(FileUtil.file(sourceTree, "README.md")).hasContent("important");
+    }
+
+    @Test
     void shouldOnlyHardDeleteArchivedTasksAndCleanRelatedRows() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
