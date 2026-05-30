@@ -45,6 +45,10 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor branch = CommandRegistry.get("branch");
         assertThat(branch.getAliases()).contains("fork");
         assertThat(CommandRegistry.resolve("/fork").getName()).isEqualTo("branch");
+
+        CommandDescriptor sethome = CommandRegistry.get("sethome");
+        assertThat(sethome.getAliases()).contains("set-home");
+        assertThat(CommandRegistry.resolve("/set-home").getName()).isEqualTo("sethome");
     }
 
     @Test

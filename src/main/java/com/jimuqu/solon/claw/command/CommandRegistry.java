@@ -53,7 +53,7 @@ public final class CommandRegistry {
         register(core("compact", "session", "压缩当前会话上下文").alias("compress"));
         register(core("compress", "session", "压缩当前会话上下文"));
         register(core("rollback", "session", "回滚到指定 checkpoint"));
-        register(core("sethome", "gateway", "将当前聊天设为 home channel"));
+        register(core("sethome", "gateway", "将当前聊天设为 home channel").alias("set-home"));
         register(core("pairing", "gateway", "管理渠道配对与管理员授权"));
         register(core("approve", "security", "批准待审批危险命令"));
         register(core("deny", "security", "拒绝待审批危险命令"));
