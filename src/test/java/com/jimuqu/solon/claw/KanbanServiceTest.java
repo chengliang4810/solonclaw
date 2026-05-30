@@ -1446,7 +1446,7 @@ public class KanbanServiceTest {
         String parentId = createTask(service, "归档父任务", "lead", "planner");
         String childId = createTask(service, "归档依赖子任务", "worker", "planner");
         service.link(parentId, childId);
-        repository.updateTaskStatus(parentId, "archived", "父任务不再需要");
+        updateTaskStatusDirectly(env.sqliteDatabase, parentId, "archived");
 
         int promoted = repository.recomputeReady(null);
 
@@ -1462,6 +1462,20 @@ public class KanbanServiceTest {
         service.link(parentId, childId);
 
         service.status(parentId, "archived", "父任务归档");
+
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
+    void shouldPromoteChildImmediatelyWhenRepositoryArchivesParent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "仓储归档父任务", "lead", "planner");
+        String childId = createTask(service, "仓储归档子任务", "worker", "planner");
+        service.link(parentId, childId);
+
+        repository.updateTaskStatus(parentId, "archived", "父任务归档");
 
         assertThat(service.task(childId).get("status")).isEqualTo("ready");
     }
@@ -1970,6 +1984,20 @@ public class KanbanServiceTest {
         String taskId = createTask(service, title, assignee, createdBy);
         service.status(taskId, "ready", null);
         return taskId;
+    }
+
+    private void updateTaskStatusDirectly(SqliteDatabase database, String taskId, String status) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement("update kanban_tasks set status = ? where task_id = ?");
+            statement.setString(1, status);
+            statement.setString(2, taskId);
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
     }
 
     private void assertRelatedRowCount(SqliteDatabase database, String table, String taskId, int expected)

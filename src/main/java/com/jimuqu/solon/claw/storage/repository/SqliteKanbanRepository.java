@@ -667,6 +667,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         if (before == null) {
             return false;
         }
+        boolean shouldRecomputeReady = false;
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -700,9 +701,13 @@ public class SqliteKanbanRepository implements KanbanRepository {
             } else if (StrUtil.isNotBlank(before.getCurrentRunId())) {
                 closeOrSynthesizeRun(after, "released", "released", result, null, null, now, connection);
             }
+            shouldRecomputeReady = "done".equals(normalized) || "archived".equals(normalized);
             return true;
         } finally {
             connection.close();
+            if (shouldRecomputeReady) {
+                recomputeReady(before.getBoardSlug());
+            }
         }
     }
 
