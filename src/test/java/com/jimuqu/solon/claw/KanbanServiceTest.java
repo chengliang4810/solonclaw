@@ -871,6 +871,29 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldClearSpawnFailuresWhenUnblocked() throws Exception {
+        KanbanService service = service();
+        String taskId = createReadyTask(service, "解除阻塞清理失败任务", "worker", "planner");
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:worker-failure");
+        service.claim(taskId, claim);
+        Map<String, Object> failure = new LinkedHashMap<String, Object>();
+        failure.put("error", "spawn failure before manual input");
+        service.markSpawnFailure(taskId, failure);
+        service.status(taskId, "blocked", "等待人工输入");
+
+        Map<String, Object> blocked = service.task(taskId);
+        assertThat(blocked.get("spawn_failures")).isEqualTo(Integer.valueOf(1));
+        assertThat(blocked.get("last_spawn_error")).isEqualTo("spawn failure before manual input");
+
+        Map<String, Object> unblocked = service.unblock(taskId);
+
+        assertThat(unblocked.get("status")).isEqualTo("ready");
+        assertThat(unblocked.get("spawn_failures")).isEqualTo(Integer.valueOf(0));
+        assertThat(unblocked.get("last_spawn_error")).isNull();
+    }
+
+    @Test
     void shouldScheduleTasksAndUnblockThemThroughParentGate() throws Exception {
         KanbanService service = service();
         String delayedId = createReadyTask(service, "延后复查任务", "ops", "planner");

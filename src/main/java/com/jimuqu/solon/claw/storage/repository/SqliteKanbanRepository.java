@@ -667,7 +667,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
             }
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update kanban_tasks set status = case when exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = kanban_tasks.task_id and p.status not in ('done', 'archived')) then 'todo' else 'ready' end, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, completed_at = 0, updated_at = ? where task_id = ? and status in ('blocked', 'scheduled')");
+                            "update kanban_tasks set status = case when exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = kanban_tasks.task_id and p.status not in ('done', 'archived')) then 'todo' else 'ready' end, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, spawn_failures = 0, last_spawn_error = null, completed_at = 0, updated_at = ? where task_id = ? and status in ('blocked', 'scheduled')");
             statement.setLong(1, now);
             statement.setString(2, taskId);
             int updated = statement.executeUpdate();
