@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +22,7 @@ public class BrowserRuntimeService {
     private static final int DEFAULT_MAX_CONCURRENCY = 2;
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
 
+    private final AppConfig appConfig;
     private final List<BrowserProvider> providers;
     private final SecurityPolicyService securityPolicyService;
     private final int maxConcurrency;
@@ -38,6 +40,7 @@ public class BrowserRuntimeService {
             List<BrowserProvider> providers,
             SecurityPolicyService securityPolicyService,
             int maxConcurrency) {
+        this.appConfig = appConfig;
         this.providers =
                 providers == null
                         ? Collections.<BrowserProvider>emptyList()
@@ -100,13 +103,23 @@ public class BrowserRuntimeService {
             close(sessionId);
             return BrowserResult.error("session_expired", "Browser session timed out");
         }
+        LoopbackRewrite rewrite = rewriteLoopbackUrl(url);
+        String browserUrl = rewrite.isRewritten() ? rewrite.rewrittenUrl : url;
         try {
             BrowserProvider.BrowserActionResult actionResult =
                     lease.provider.navigate(
                             lease.providerSession.getSessionId(),
-                            url,
+                            browserUrl,
                             normalizeTimeout(timeoutSeconds));
-            return toBrowserResult(lease, actionResult, "navigated", "url", url);
+            BrowserResult result =
+                    toBrowserResult(lease, actionResult, "navigated", "url", browserUrl);
+            if (!result.isSuccess() || !rewrite.isRewritten()) {
+                return result;
+            }
+            Map<String, Object> details = result.getDetails();
+            details.put("requestedUrl", SecretRedactor.maskUrl(url));
+            details.put("urlRewrite", rewrite.toDetails());
+            return BrowserResult.success(result.getSessionId(), result.getStatus(), details);
         } catch (Exception e) {
             return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
@@ -351,6 +364,89 @@ public class BrowserRuntimeService {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 500);
     }
 
+    private LoopbackRewrite rewriteLoopbackUrl(String url) {
+        if (appConfig == null
+                || appConfig.getSecurity() == null
+                || !appConfig.getSecurity().isRewriteBrowserLoopbackUrls()) {
+            return LoopbackRewrite.none(url);
+        }
+        String alias = StrUtil.nullToEmpty(appConfig.getSecurity().getBrowserLoopbackHostAlias()).trim();
+        if (alias.length() == 0) {
+            return LoopbackRewrite.none(url);
+        }
+        URI uri;
+        try {
+            uri = URI.create(StrUtil.nullToEmpty(url).trim());
+        } catch (Exception ignored) {
+            return LoopbackRewrite.none(url);
+        }
+        String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(java.util.Locale.ROOT);
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
+            return LoopbackRewrite.none(url);
+        }
+        String host = uri.getHost();
+        if (!isLoopbackHost(host)) {
+            return LoopbackRewrite.none(url);
+        }
+        String rewritten = rebuildUrl(uri, alias);
+        if (StrUtil.isBlank(rewritten) || rewritten.equals(url)) {
+            return LoopbackRewrite.none(url);
+        }
+        return new LoopbackRewrite(url, rewritten, host, alias);
+    }
+
+    private boolean isLoopbackHost(String host) {
+        String value = StrUtil.nullToEmpty(host).trim().toLowerCase(java.util.Locale.ROOT);
+        if (value.startsWith("[") && value.endsWith("]") && value.length() > 2) {
+            value = value.substring(1, value.length() - 1);
+        }
+        while (value.endsWith(".")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        if ("localhost".equals(value) || "::1".equals(value) || "0:0:0:0:0:0:0:1".equals(value)) {
+            return true;
+        }
+        if (value.startsWith("::ffff:")) {
+            value = value.substring("::ffff:".length());
+        }
+        String[] parts = value.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+        try {
+            int first = Integer.parseInt(parts[0]);
+            for (int i = 1; i < parts.length; i++) {
+                int part = Integer.parseInt(parts[i]);
+                if (part < 0 || part > 255) {
+                    return false;
+                }
+            }
+            return first == 127;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private String rebuildUrl(URI uri, String alias) {
+        String host = alias;
+        if (host.indexOf(':') >= 0 && !host.startsWith("[") && !host.endsWith("]")) {
+            host = "[" + host + "]";
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append(uri.getScheme()).append("://").append(host);
+        if (uri.getPort() >= 0) {
+            builder.append(':').append(uri.getPort());
+        }
+        builder.append(StrUtil.nullToEmpty(uri.getRawPath()));
+        if (StrUtil.isNotBlank(uri.getRawQuery())) {
+            builder.append('?').append(uri.getRawQuery());
+        }
+        if (StrUtil.isNotBlank(uri.getRawFragment())) {
+            builder.append('#').append(uri.getRawFragment());
+        }
+        return builder.toString();
+    }
+
     private void safeClose(BrowserProvider provider, String providerSessionId) {
         try {
             provider.closeSession(providerSessionId);
@@ -376,6 +472,38 @@ public class BrowserRuntimeService {
             this.provider = provider;
             this.providerSession = providerSession;
             this.expiresAtMillis = expiresAtMillis;
+        }
+    }
+
+    private static class LoopbackRewrite {
+        private final String originalUrl;
+        private final String rewrittenUrl;
+        private final String originalHost;
+        private final String aliasHost;
+
+        private LoopbackRewrite(
+                String originalUrl, String rewrittenUrl, String originalHost, String aliasHost) {
+            this.originalUrl = originalUrl;
+            this.rewrittenUrl = rewrittenUrl;
+            this.originalHost = originalHost;
+            this.aliasHost = aliasHost;
+        }
+
+        private static LoopbackRewrite none(String url) {
+            return new LoopbackRewrite(url, url, "", "");
+        }
+
+        private boolean isRewritten() {
+            return StrUtil.isNotBlank(rewrittenUrl) && !StrUtil.equals(originalUrl, rewrittenUrl);
+        }
+
+        private Map<String, Object> toDetails() {
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("from", SecretRedactor.maskUrl(StrUtil.nullToEmpty(originalHost)));
+            details.put("to", SecretRedactor.maskUrl(StrUtil.nullToEmpty(aliasHost)));
+            details.put("originalUrl", SecretRedactor.maskUrl(originalUrl));
+            details.put("rewrittenUrl", SecretRedactor.maskUrl(rewrittenUrl));
+            return details;
         }
     }
 

@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfile;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
@@ -25,7 +26,20 @@ import org.noear.snack4.ONode;
 public class KanbanService {
     public static final List<String> STATUSES =
             Collections.unmodifiableList(
-                    Arrays.asList("triage", "todo", "ready", "running", "blocked", "done", "archived"));
+                    Arrays.asList("triage", "todo", "ready", "review", "running", "blocked", "done", "archived"));
+    public static final List<String> TASK_SORT_ORDERS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "created",
+                            "created-desc",
+                            "priority",
+                            "priority-desc",
+                            "status",
+                            "assignee",
+                            "title",
+                            "updated"));
+    private static final List<String> WORKSPACE_KINDS =
+            Collections.unmodifiableList(Arrays.asList("scratch", "dir", "worktree"));
     private static final Pattern PROSE_TASK_ID =
             Pattern.compile("\\b(?:KB-[0-9A-Fa-f]{8}|t_[0-9A-Fa-f]{6,})\\b");
     private static final int CONTEXT_MAX_TEXT = 4096;
@@ -60,6 +74,10 @@ public class KanbanService {
 
     public void setNotificationService(KanbanNotificationService notificationService) {
         this.notificationService = notificationService;
+    }
+
+    public AgentProfileService getAgentProfileService() {
+        return agentProfileService;
     }
 
     public List<Map<String, Object>> boards() throws Exception {
@@ -114,22 +132,90 @@ public class KanbanService {
 
     public List<Map<String, Object>> tasks(String board, String status, boolean includeArchived)
             throws Exception {
-        return tasks(board, status, includeArchived, null, null);
+        return tasks(board, status, includeArchived, null, null, null);
     }
 
     public List<Map<String, Object>> tasks(
             String board, String status, boolean includeArchived, String assignee, String tenant)
             throws Exception {
+        return tasks(board, status, includeArchived, assignee, tenant, null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board,
+            String status,
+            boolean includeArchived,
+            String assignee,
+            String tenant,
+            String orderBy)
+            throws Exception {
+        return tasks(board, status, includeArchived, assignee, tenant, orderBy, null, null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board,
+            String status,
+            boolean includeArchived,
+            String assignee,
+            String tenant,
+            String orderBy,
+            String workflowTemplateId,
+            String currentStepKey)
+            throws Exception {
+        return tasks(
+                board,
+                status,
+                includeArchived,
+                assignee,
+                tenant,
+                orderBy,
+                workflowTemplateId,
+                currentStepKey,
+                null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board,
+            String status,
+            boolean includeArchived,
+            String assignee,
+            String tenant,
+            String orderBy,
+            String workflowTemplateId,
+            String currentStepKey,
+            String sessionId)
+            throws Exception {
         String normalizedStatus = StrUtil.isBlank(status) ? null : normalizeStatus(status);
-        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (KanbanTaskRecord task : repository.listTasks(board, normalizedStatus, includeArchived)) {
-            if (StrUtil.isNotBlank(assignee) && !StrUtil.equals(assignee, task.getAssignee())) {
+        String normalizedOrderBy = normalizeTaskOrderBy(orderBy);
+        List<KanbanTaskRecord> records = new ArrayList<KanbanTaskRecord>();
+        List<String> taskIds = new ArrayList<String>();
+        String normalizedSessionId = StrUtil.isBlank(sessionId) ? null : sessionId.trim();
+        for (KanbanTaskRecord task :
+                repository.listTasks(board, normalizedStatus, includeArchived, normalizedSessionId)) {
+            if (StrUtil.isNotBlank(assignee) && !StrUtil.equalsIgnoreCase(assignee, task.getAssignee())) {
                 continue;
             }
             if (StrUtil.isNotBlank(tenant) && !StrUtil.equals(tenant, task.getTenant())) {
                 continue;
             }
-            result.add(taskView(task, false));
+            if (StrUtil.isNotBlank(workflowTemplateId)
+                    && !StrUtil.equals(workflowTemplateId, task.getWorkflowTemplateId())) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(currentStepKey)
+                    && !StrUtil.equals(currentStepKey, task.getCurrentStepKey())) {
+                continue;
+            }
+            records.add(task);
+            taskIds.add(task.getTaskId());
+        }
+        sortTasks(records, normalizedOrderBy);
+        Map<String, String> latestSummaries = repository.latestSummaries(taskIds);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (KanbanTaskRecord task : records) {
+            Map<String, Object> item = taskView(task, false);
+            item.put("latest_summary", safeDisplayText(latestSummaries.get(task.getTaskId()), 1000));
+            result.add(item);
         }
         return result;
     }
@@ -151,13 +237,22 @@ public class KanbanService {
         if (existing != null) {
             return taskView(existing, true);
         }
+        List<String> parentIds = normalizeTaskIds(body == null ? null : body.get("parents"));
+        for (String parentId : parentIds) {
+            KanbanTaskRecord parent = repository.findTask(parentId);
+            if (parent == null) {
+                throw new IllegalArgumentException("Kanban parent task not found: " + parentId);
+            }
+        }
         task.setTitle(text(body, "title"));
         task.setBody(text(body, "body"));
         task.setAssignee(text(body, "assignee"));
-        task.setStatus(StrUtil.blankToDefault(text(body, "status"), "todo"));
+        String defaultStatus = parentIds.isEmpty() ? "todo" : initialCommandStatus(parentIds);
+        task.setStatus(StrUtil.blankToDefault(text(body, "status"), defaultStatus));
         task.setPriority(intValue(body, "priority", 0));
         task.setTenant(text(body, "tenant"));
-        task.setWorkspaceKind(StrUtil.blankToDefault(text(body, "workspace_kind"), "scratch"));
+        task.setSessionId(text(body, "session_id"));
+        task.setWorkspaceKind(normalizeWorkspaceKind(text(body, "workspace_kind")));
         task.setWorkspacePath(text(body, "workspace_path"));
         task.setCreatedBy(StrUtil.blankToDefault(text(body, "created_by"), "user"));
         task.setIdempotencyKey(idempotencyKey);
@@ -174,10 +269,10 @@ public class KanbanService {
             task.setCurrentStepKey(text(body, "current_step_key"));
         }
         KanbanTaskRecord saved = repository.saveTask(task);
-        for (String parentId : normalizeTaskIds(body == null ? null : body.get("parents"))) {
-            repository.linkTasks(parentId, saved.getTaskId());
+        for (String parentId : parentIds) {
+            link(parentId, saved.getTaskId());
         }
-        return taskView(saved, true);
+        return task(saved.getTaskId());
     }
 
     public Map<String, Object> updateTask(String taskId, Map<String, Object> body) throws Exception {
@@ -203,8 +298,11 @@ public class KanbanService {
         if (body.containsKey("tenant")) {
             task.setTenant(text(body, "tenant"));
         }
+        if (body.containsKey("session_id")) {
+            task.setSessionId(text(body, "session_id"));
+        }
         if (body.containsKey("workspace_kind")) {
-            task.setWorkspaceKind(text(body, "workspace_kind"));
+            task.setWorkspaceKind(normalizeWorkspaceKind(text(body, "workspace_kind")));
         }
         if (body.containsKey("workspace_path")) {
             task.setWorkspacePath(text(body, "workspace_path"));
@@ -353,11 +451,24 @@ public class KanbanService {
         } else if ("blocked".equals(normalized)) {
             recordBlocked(taskId, summary, result);
         }
+        if ("done".equals(normalized) || "archived".equals(normalized)) {
+            repository.recomputeReady(task.getBoardSlug());
+        }
         return task(taskId);
     }
 
     public Map<String, Object> assign(String taskId, String assignee) throws Exception {
+        KanbanTaskRecord existing = requireTask(taskId);
+        if ("running".equals(existing.getStatus())) {
+            throw new IllegalArgumentException(
+                    "Kanban task is currently running; reclaim it before assigning: " + taskId);
+        }
         if (!repository.assignTask(taskId, assignee)) {
+            KanbanTaskRecord latest = repository.findTask(taskId);
+            if (latest != null && "running".equals(latest.getStatus())) {
+                throw new IllegalArgumentException(
+                        "Kanban task is currently running; reclaim it before assigning: " + taskId);
+            }
             throw new IllegalArgumentException("Kanban task not found: " + taskId);
         }
         return task(taskId);
@@ -406,9 +517,17 @@ public class KanbanService {
     }
 
     public List<Map<String, Object>> runs(String taskId) throws Exception {
+        return runs(taskId, null, null);
+    }
+
+    public List<Map<String, Object>> runs(String taskId, String stateType, String stateName) throws Exception {
         requireTask(taskId);
+        String type = normalizeRunStateFilter(stateType, stateName);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (KanbanRunRecord run : repository.listRuns(taskId, true)) {
+            if (type != null && !matchesRunState(run, type, stateName)) {
+                continue;
+            }
             result.add(runView(run));
         }
         return result;
@@ -472,6 +591,10 @@ public class KanbanService {
                 new LinkedHashMap<String, Map<String, Integer>>();
         long oldestReady = 0;
         long now = System.currentTimeMillis();
+        int readySpawnable = 0;
+        int readyNonspawnable = 0;
+        int reviewSpawnable = 0;
+        int reviewNonspawnable = 0;
         for (KanbanTaskRecord task : tasks) {
             String status = task.getStatus();
             Integer statusCount = byStatus.get(status);
@@ -487,10 +610,30 @@ public class KanbanService {
             if ("ready".equals(status) && task.getUpdatedAt() > 0) {
                 oldestReady = oldestReady == 0 ? task.getUpdatedAt() : Math.min(oldestReady, task.getUpdatedAt());
             }
+            if ("ready".equals(status) && StrUtil.isNotBlank(task.getAssignee())) {
+                if (isSpawnableAssignee(task.getAssignee())) {
+                    readySpawnable++;
+                } else {
+                    readyNonspawnable++;
+                }
+            }
+            if ("review".equals(status) && StrUtil.isNotBlank(task.getAssignee())) {
+                if (isSpawnableAssignee(task.getAssignee())) {
+                    reviewSpawnable++;
+                } else {
+                    reviewNonspawnable++;
+                }
+            }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("by_status", byStatus);
         result.put("by_assignee", byAssignee);
+        result.put("has_spawnable_ready", Boolean.valueOf(readySpawnable > 0));
+        result.put("ready_spawnable", Integer.valueOf(readySpawnable));
+        result.put("ready_nonspawnable", Integer.valueOf(readyNonspawnable));
+        result.put("has_spawnable_review", Boolean.valueOf(reviewSpawnable > 0));
+        result.put("review_spawnable", Integer.valueOf(reviewSpawnable));
+        result.put("review_nonspawnable", Integer.valueOf(reviewNonspawnable));
         result.put(
                 "oldest_ready_age_seconds",
                 oldestReady <= 0 ? null : Long.valueOf(Math.max(0, (now - oldestReady) / 1000L)));
@@ -512,7 +655,9 @@ public class KanbanService {
         }
         Map<String, Object> stats = stats();
         result.put("board", selectedBoard);
-        result.put("status_flow", Arrays.asList("triage", "todo", "ready", "running", "blocked", "done", "archived"));
+        result.put(
+                "status_flow",
+                Arrays.asList("triage", "todo", "ready", "review", "running", "blocked", "done", "archived"));
         result.put("objective", "使用看板把需求拆成结构化任务，分配执行人，派发运行，并通过抽屉复核流水、历史、日志和通知。");
         result.put("steps", guideSteps());
         result.put("drawer_sections", Arrays.asList(
@@ -608,6 +753,18 @@ public class KanbanService {
             result.add(entries.get(name));
         }
         return result;
+    }
+
+    private boolean isSpawnableAssignee(String assignee) throws Exception {
+        if (agentProfileService == null) {
+            return true;
+        }
+        String normalized = AgentRuntimeScope.normalizeName(assignee);
+        if (AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {
+            return true;
+        }
+        AgentProfile profile = agentProfileService.findByName(normalized);
+        return profile != null && profile.isEnabled();
     }
 
     public List<Map<String, Object>> watch(String assignee, String tenant, String kinds, int limit)
@@ -836,9 +993,10 @@ public class KanbanService {
     }
 
     public Map<String, Object> reclaimTimedOutWorkers() throws Exception {
-        int reclaimed = repository.reclaimTimedOutWorkers(System.currentTimeMillis());
+        List<String> reclaimed = repository.reclaimTimedOutWorkers(System.currentTimeMillis());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("reclaimed", Integer.valueOf(reclaimed));
+        result.put("reclaimed", Integer.valueOf(reclaimed.size()));
+        result.put("timed_out", reclaimed);
         return result;
     }
 
@@ -871,20 +1029,30 @@ public class KanbanService {
     }
 
     public Map<String, Object> comment(String taskId, String author, String body) throws Exception {
+        String normalizedBody = StrUtil.nullToEmpty(body).trim();
+        if (StrUtil.isBlank(normalizedBody)) {
+            throw new IllegalArgumentException("comment body is required");
+        }
+        KanbanTaskRecord task = requireTask(taskId);
         KanbanCommentRecord comment = new KanbanCommentRecord();
-        comment.setTaskId(taskId);
+        comment.setTaskId(task.getTaskId());
         comment.setAuthor(StrUtil.blankToDefault(author, "user"));
-        comment.setBody(body);
+        comment.setBody(normalizedBody);
         repository.addComment(comment);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("author", comment.getAuthor());
         payload.put("body", summaryPreview(comment.getBody()));
-        addEvent(taskId, "comment", payload);
-        return task(taskId);
+        addEvent(task.getTaskId(), "comment", payload);
+        return task(task.getTaskId());
     }
 
     public Map<String, Object> delete(String taskId) throws Exception {
-        repository.deleteTask(taskId);
+        String id = requireArg(taskId, "kanban_delete task_id");
+        KanbanTaskRecord task = requireTask(id);
+        if (!"archived".equals(task.getStatus())) {
+            throw new IllegalArgumentException("Kanban task must be archived before hard delete: " + id);
+        }
+        repository.deleteTask(id);
         return Collections.<String, Object>singletonMap("ok", Boolean.TRUE);
     }
 
@@ -917,7 +1085,7 @@ public class KanbanService {
         if ("move".equals(action) || "status".equals(action)) {
             String[] tokens = rest.split("\\s+", 3);
             if (tokens.length < 2) {
-                return "用法：/kanban move <task-id> <triage|todo|ready|running|blocked|done|archived>";
+                return "用法：/kanban move <task-id> <triage|todo|ready|review|running|blocked|done|archived>";
             }
             status(tokens[0], tokens[1], tokens.length > 2 ? tokens[2] : null);
             return "已更新任务状态：" + tokens[0] + " -> " + normalizeStatus(tokens[1]);
@@ -1226,7 +1394,19 @@ public class KanbanService {
                         status,
                         parsed.hasFlag("archived"),
                         assignee,
-                        parsed.value("tenant"));
+                        parsed.value("tenant"),
+                        firstNonBlank(parsed.value("sort"), firstNonBlank(parsed.value("order-by"), parsed.value("order_by"))),
+                        firstNonBlank(
+                                parsed.value("workflow"),
+                                firstNonBlank(
+                                        parsed.value("workflow-template-id"),
+                                        parsed.value("workflow_template_id"))),
+                        firstNonBlank(
+                                parsed.value("step"),
+                                firstNonBlank(parsed.value("current-step-key"), parsed.value("current_step_key"))),
+                        firstNonBlank(
+                                parsed.value("session"),
+                                firstNonBlank(parsed.value("session-id"), parsed.value("session_id"))));
         if (parsed.hasFlag("json")) {
             return ONode.serialize(list);
         }
@@ -1266,9 +1446,15 @@ public class KanbanService {
         ParsedKanbanOptions parsed = parseCommandOptions(rest);
         String taskId = parsed.positionalText();
         if (StrUtil.isBlank(taskId)) {
-            return "用法：/kanban runs <task-id> [--json]";
+            return "用法：/kanban runs <task-id> [--state-type status|outcome --state name] [--json]";
         }
-        List<Map<String, Object>> list = runs(taskId);
+        List<Map<String, Object>> list =
+                runs(
+                        taskId,
+                        firstNonBlank(parsed.value("state-type"), parsed.value("state_type")),
+                        firstNonBlank(
+                                parsed.value("state"),
+                                firstNonBlank(parsed.value("state-name"), parsed.value("state_name"))));
         if (parsed.hasFlag("json")) {
             return ONode.serialize(list);
         }
@@ -1682,7 +1868,7 @@ public class KanbanService {
         if ("status".equals(action)) {
             return "Kanban 派发 daemon 状态：" + formatDaemonStatus(daemonStatus());
         }
-        return "用法：/kanban daemon status|start|stop [--interval N] [--max N] [--board slug] [--failure-limit N]";
+        return "用法：/kanban daemon status|start|stop [--interval N] [--max N] [--max-in-progress N] [--max-in-progress-per-profile N] [--default-assignee name] [--board slug] [--failure-limit N]";
     }
 
     private String handleBoardsCommand(String rest) throws Exception {
@@ -1782,6 +1968,7 @@ public class KanbanService {
         result.put("status", task.getStatus());
         result.put("priority", Integer.valueOf(task.getPriority()));
         result.put("tenant", task.getTenant());
+        result.put("session_id", task.getSessionId());
         result.put("workspace_kind", task.getWorkspaceKind());
         result.put("workspace_path", workspaceReference(task));
         result.put("created_by", task.getCreatedBy());
@@ -1831,6 +2018,7 @@ public class KanbanService {
             result.put("runs", runs);
             result.put("active_run", runView(repository.activeRun(task.getTaskId())));
             result.put("latest_run", runView(repository.latestRun(task.getTaskId())));
+            result.put("latest_summary", safeDisplayText(repository.latestSummary(task.getTaskId()), 1000));
             result.put("retry_count", Integer.valueOf(Math.max(0, runs.size() - 1)));
             result.put("parents", taskRefs(repository.listParents(task.getTaskId())));
             result.put("children", taskRefs(repository.listChildren(task.getTaskId())));
@@ -1939,7 +2127,8 @@ public class KanbanService {
         overview.put("current_run_id", task.get("current_run_id"));
         overview.put("latest_run_id", latestRun == null ? null : latestRun.get("run_id"));
         overview.put("latest_outcome", latestRun == null ? null : latestRun.get("outcome"));
-        overview.put("latest_summary", latestRun == null ? null : safeDisplayText(latestRun.get("summary"), 1000));
+        overview.put("latest_summary", firstNonBlankObject(task.get("latest_summary"),
+                latestRun == null ? null : safeDisplayText(latestRun.get("summary"), 1000)));
         overview.put("latest_error", latestRun == null ? null : safeDisplayText(latestRun.get("error"), 1000));
         overview.put("last_worker", firstNonNull(task.get("worker_id"), latestRun == null ? null : latestRun.get("worker_id")));
         overview.put("last_started_at", latestRun == null ? null : latestRun.get("started_at"));
@@ -2012,6 +2201,10 @@ public class KanbanService {
 
     private Object firstNonNull(Object first, Object second) {
         return first == null ? second : first;
+    }
+
+    private Object firstNonBlankObject(Object first, Object second) {
+        return isBlankObject(first) ? second : first;
     }
 
     @SuppressWarnings("unchecked")
@@ -2307,6 +2500,7 @@ public class KanbanService {
                 "创建或切换看板",
                 "按项目拆分 board，避免不同项目的任务、执行人和自动派发互相干扰。",
                 "/kanban boards list",
+                "/kanban list --sort priority",
                 "/kanban boards create <slug> <name>",
                 "/kanban boards switch <slug>"));
         steps.add(guideStep(
@@ -2326,8 +2520,8 @@ public class KanbanService {
                 4,
                 "派发或认领执行",
                 "手动派发、后台派发或 worker 认领 ready 任务，并持续心跳。",
-                "/kanban dispatch --max 3",
-                "/kanban daemon start --interval 60 --max 3",
+                "/kanban dispatch --max 3 --max-in-progress 6 --max-in-progress-per-profile 2 --default-assignee worker",
+                "/kanban daemon start --interval 60 --max 3 --max-in-progress 6 --max-in-progress-per-profile 2",
                 "/kanban next <assignee>",
                 "/kanban heartbeat <task-id>"));
         steps.add(guideStep(
@@ -2456,7 +2650,7 @@ public class KanbanService {
         return String.join(
                 "\n",
                 Arrays.asList(
-                        "/kanban list - 查看当前看板任务",
+                        "/kanban list [--sort priority|created|status|assignee|title|updated] [--session id] - 查看当前看板任务",
                         "/kanban guide [--json] - 查看看板教程化操作流程",
                         "/kanban create <title> - 创建任务",
                         "/kanban schema <task-json> - 用 JSON 创建结构化任务",
@@ -2489,8 +2683,8 @@ public class KanbanService {
                         "/kanban heartbeat <task-id> [note] - 刷新认领和 worker 心跳",
                         "/kanban release-stale - 收回过期认领",
                         "/kanban reclaim-timeouts - 收回超过运行时限的任务",
-                        "/kanban dispatch [--dry-run] [--max N] [--board slug] - 执行一次自动派发",
-                        "/kanban daemon status|start|stop [--interval N] [--max N] [--board slug] - 管理后台派发循环",
+                        "/kanban dispatch [--dry-run] [--max N] [--max-in-progress N] [--max-in-progress-per-profile N] [--default-assignee name] [--board slug] - 执行一次自动派发",
+                        "/kanban daemon status|start|stop [--interval N] [--max N] [--max-in-progress N] [--max-in-progress-per-profile N] [--default-assignee name] [--board slug] - 管理后台派发循环",
                         "/kanban comment <task-id> <text> - 追加评论",
                         "/kanban block <task-id> [reason] [--ids task-id...] - 阻塞任务并可批量追加同一原因",
                         "/kanban done <task-id> [task-id...] - 标记完成",
@@ -2510,6 +2704,12 @@ public class KanbanService {
                 + result.get("timed_out")
                 + ", skipped_unassigned="
                 + sizeOf(result.get("skipped_unassigned"))
+                + ", skipped_capacity="
+                + sizeOf(result.get("skipped_capacity"))
+                + ", auto_assigned_default="
+                + sizeOf(result.get("auto_assigned_default"))
+                + ", skipped_per_profile_capped="
+                + sizeOf(result.get("skipped_per_profile_capped"))
                 + ", auto_blocked="
                 + sizeOf(result.get("auto_blocked"));
     }
@@ -2521,6 +2721,12 @@ public class KanbanService {
                 + status.get("interval_seconds")
                 + "s, max_spawn="
                 + status.get("max_spawn")
+                + ", max_in_progress="
+                + status.get("max_in_progress")
+                + ", max_in_progress_per_profile="
+                + status.get("max_in_progress_per_profile")
+                + ", default_assignee="
+                + StrUtil.blankToDefault(String.valueOf(status.get("default_assignee")), "-")
                 + ", board="
                 + StrUtil.blankToDefault(String.valueOf(status.get("board")), "-")
                 + ", ticks="
@@ -2915,6 +3121,115 @@ public class KanbanService {
         return value;
     }
 
+    private String normalizeWorkspaceKind(String workspaceKind) {
+        String value = StrUtil.blankToDefault(workspaceKind, "scratch").trim().toLowerCase(Locale.ROOT);
+        if (!WORKSPACE_KINDS.contains(value)) {
+            throw new IllegalArgumentException("workspace_kind must be one of " + WORKSPACE_KINDS);
+        }
+        return value;
+    }
+
+    private String normalizeRunStateFilter(String stateType, String stateName) {
+        boolean hasType = StrUtil.isNotBlank(stateType);
+        boolean hasName = StrUtil.isNotBlank(stateName);
+        if (hasType != hasName) {
+            throw new IllegalArgumentException("state_type and state_name must both be provided");
+        }
+        if (!hasType) {
+            return null;
+        }
+        String type = stateType.trim().toLowerCase(Locale.ROOT);
+        if (!"status".equals(type) && !"outcome".equals(type)) {
+            throw new IllegalArgumentException("state_type must be status or outcome");
+        }
+        return type;
+    }
+
+    private boolean matchesRunState(KanbanRunRecord run, String stateType, String stateName) {
+        String actual = "status".equals(stateType) ? run.getStatus() : run.getOutcome();
+        return StrUtil.equals(actual, stateName);
+    }
+
+    private String normalizeTaskOrderBy(String orderBy) {
+        if (StrUtil.isBlank(orderBy)) {
+            return null;
+        }
+        String value = orderBy.trim().toLowerCase(Locale.ROOT);
+        if (!TASK_SORT_ORDERS.contains(value)) {
+            throw new IllegalArgumentException("order_by must be one of " + TASK_SORT_ORDERS);
+        }
+        return value;
+    }
+
+    private void sortTasks(List<KanbanTaskRecord> tasks, final String orderBy) {
+        if (StrUtil.isBlank(orderBy) || tasks == null || tasks.size() < 2) {
+            return;
+        }
+        Collections.sort(
+                tasks,
+                (left, right) -> {
+                    int compared = compareTaskOrder(left, right, orderBy);
+                    return compared == 0
+                            ? compareText(left.getTaskId(), right.getTaskId())
+                            : compared;
+                });
+    }
+
+    private int compareTaskOrder(KanbanTaskRecord left, KanbanTaskRecord right, String orderBy) {
+        if ("created".equals(orderBy)) {
+            int compared = Long.compare(left.getCreatedAt(), right.getCreatedAt());
+            return compared == 0 ? compareText(left.getTaskId(), right.getTaskId()) : compared;
+        }
+        if ("created-desc".equals(orderBy)) {
+            int compared = Long.compare(right.getCreatedAt(), left.getCreatedAt());
+            return compared == 0 ? compareText(right.getTaskId(), left.getTaskId()) : compared;
+        }
+        if ("priority".equals(orderBy)) {
+            int compared = Integer.compare(right.getPriority(), left.getPriority());
+            return compared == 0 ? Long.compare(left.getCreatedAt(), right.getCreatedAt()) : compared;
+        }
+        if ("priority-desc".equals(orderBy)) {
+            int compared = Integer.compare(left.getPriority(), right.getPriority());
+            return compared == 0 ? Long.compare(left.getCreatedAt(), right.getCreatedAt()) : compared;
+        }
+        if ("status".equals(orderBy)) {
+            int compared = compareText(left.getStatus(), right.getStatus());
+            return compared == 0 ? Long.compare(left.getCreatedAt(), right.getCreatedAt()) : compared;
+        }
+        if ("assignee".equals(orderBy)) {
+            int compared = compareText(left.getAssignee(), right.getAssignee());
+            return compared == 0 ? Long.compare(left.getCreatedAt(), right.getCreatedAt()) : compared;
+        }
+        if ("title".equals(orderBy)) {
+            int compared = compareText(left.getTitle(), right.getTitle());
+            return compared == 0 ? compareText(left.getTaskId(), right.getTaskId()) : compared;
+        }
+        if ("updated".equals(orderBy)) {
+            int compared = compareLongDescZeroLast(left.getUpdatedAt(), right.getUpdatedAt());
+            return compared == 0 ? Long.compare(right.getCreatedAt(), left.getCreatedAt()) : compared;
+        }
+        return 0;
+    }
+
+    private int compareText(String left, String right) {
+        return StrUtil.nullToEmpty(left).compareToIgnoreCase(StrUtil.nullToEmpty(right));
+    }
+
+    private int compareLongDescZeroLast(long left, long right) {
+        boolean leftBlank = left <= 0;
+        boolean rightBlank = right <= 0;
+        if (leftBlank && rightBlank) {
+            return 0;
+        }
+        if (leftBlank) {
+            return 1;
+        }
+        if (rightBlank) {
+            return -1;
+        }
+        return Long.compare(right, left);
+    }
+
     private String text(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         if (value == null) {
@@ -3248,6 +3563,17 @@ public class KanbanService {
                         .append("] ")
                         .append(parent.getTitle())
                         .append('\n');
+                if (StrUtil.isNotBlank(parent.getResult())) {
+                    buffer.append("  result: ")
+                            .append(capped(parent.getResult(), CONTEXT_MAX_TEXT))
+                            .append('\n');
+                }
+                KanbanRunRecord latestParentRun = repository.latestRun(parent.getTaskId());
+                if (latestParentRun != null && StrUtil.isNotBlank(latestParentRun.getSummary())) {
+                    buffer.append("  summary: ")
+                            .append(capped(latestParentRun.getSummary(), CONTEXT_MAX_TEXT))
+                            .append('\n');
+                }
             }
         }
         List<KanbanTaskRecord> children = repository.listChildren(task.getTaskId());

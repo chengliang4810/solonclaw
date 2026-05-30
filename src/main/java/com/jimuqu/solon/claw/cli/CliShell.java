@@ -99,6 +99,7 @@ public class CliShell {
                         .completer(new StringsCompleter(COMMANDS))
                         .variable(LineReader.HISTORY_FILE, ".jimuqu-cli-history")
                         .build();
+        TerminalShortcuts.install(reader);
         writer.println("Jimuqu Agent CLI。输入 /help 查看命令，/exit 退出。");
         writer.flush();
         LocalTerminalTaskRunner taskRunner = new LocalTerminalTaskRunner(writer);

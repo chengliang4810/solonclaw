@@ -289,9 +289,10 @@ public class DashboardConfiguration {
     public KanbanDispatcherService kanbanDispatcherService(
             KanbanRepository kanbanRepository,
             KanbanService kanbanService,
-            KanbanWorkerSpawner kanbanWorkerSpawner) {
+            KanbanWorkerSpawner kanbanWorkerSpawner,
+            AppConfig appConfig) {
         KanbanDispatcherService dispatcherService =
-                new KanbanDispatcherService(kanbanRepository, kanbanService, kanbanWorkerSpawner);
+                new KanbanDispatcherService(kanbanRepository, kanbanService, kanbanWorkerSpawner, appConfig);
         kanbanService.setDispatcherService(dispatcherService);
         return dispatcherService;
     }

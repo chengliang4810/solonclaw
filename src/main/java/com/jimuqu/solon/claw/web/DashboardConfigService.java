@@ -39,7 +39,7 @@ public class DashboardConfigService {
     private final Map<String, FieldDefinition> fields =
             new LinkedHashMap<String, FieldDefinition>();
     private final List<String> categoryOrder =
-            Arrays.asList("general", "agent", "compression", "security", "messaging");
+            Arrays.asList("general", "agent", "kanban", "compression", "security", "messaging");
 
     public DashboardConfigService(
             AppConfig appConfig,
@@ -231,6 +231,16 @@ public class DashboardConfigService {
                         "number",
                         "agent",
                         "heartbeat 轮询间隔（分钟，0 表示关闭）"));
+        addField(new FieldDefinition("kanban.defaultAssignee", "string", "kanban", "未分配任务默认执行者"));
+        addField(new FieldDefinition("kanban.maxSpawn", "number", "kanban", "Kanban 最大运行 worker 数"));
+        addField(new FieldDefinition("kanban.maxInProgress", "number", "kanban", "Kanban 全局运行中上限"));
+        addField(
+                new FieldDefinition(
+                        "kanban.maxInProgressPerProfile",
+                        "number",
+                        "kanban",
+                        "单个执行者运行中上限"));
+        addField(new FieldDefinition("kanban.failureLimit", "number", "kanban", "连续启动失败自动阻塞阈值"));
         addField(new FieldDefinition("rollback.enabled", "boolean", "agent", "启用 checkpoint 回滚"));
         addField(
                 new FieldDefinition(
@@ -390,6 +400,18 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "security.allowPrivateUrls", "boolean", "security", "允许 URL 工具访问内网地址"));
+        addField(
+                new FieldDefinition(
+                        "browser.rewriteLoopbackUrls",
+                        "boolean",
+                        "security",
+                        "容器浏览器访问宿主机 loopback 地址改写"));
+        addField(
+                new FieldDefinition(
+                        "browser.loopbackHostAlias",
+                        "string",
+                        "security",
+                        "容器浏览器访问宿主机的主机别名"));
         addField(
                 new FieldDefinition(
                         "security.websiteBlocklist.enabled",

@@ -10,6 +10,7 @@ public class KanbanTaskRecord {
     private String status;
     private int priority;
     private String tenant;
+    private String sessionId;
     private String workspaceKind;
     private String workspacePath;
     private String createdBy;
@@ -95,6 +96,14 @@ public class KanbanTaskRecord {
 
     public void setTenant(String tenant) {
         this.tenant = tenant;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     public String getWorkspaceKind() {

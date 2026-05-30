@@ -26,6 +26,10 @@ public interface KanbanRepository {
     List<KanbanTaskRecord> listTasks(String boardSlug, String status, boolean includeArchived)
             throws Exception;
 
+    List<KanbanTaskRecord> listTasks(
+            String boardSlug, String status, boolean includeArchived, String sessionId)
+            throws Exception;
+
     List<KanbanTaskRecord> listReadyTasks(String boardSlug) throws Exception;
 
     Map<String, Map<String, Integer>> countTasksByAssignee(String boardSlug) throws Exception;
@@ -53,6 +57,8 @@ public interface KanbanRepository {
 
     boolean assignTask(String taskId, String assignee) throws Exception;
 
+    boolean assignTask(String taskId, String assignee, String source) throws Exception;
+
     boolean setWorkspacePath(String taskId, String workspacePath) throws Exception;
 
     boolean reassignTask(String taskId, String assignee, boolean reclaimFirst, String reason)
@@ -64,6 +70,10 @@ public interface KanbanRepository {
             String taskId, String claimer, long ttlSeconds, String workerId, long workerPid)
             throws Exception;
 
+    KanbanTaskRecord claimReviewTask(
+            String taskId, String claimer, long ttlSeconds, String workerId, long workerPid)
+            throws Exception;
+
     KanbanTaskRecord claimNextReady(
             String boardSlug, String assignee, String claimer, long ttlSeconds, String workerId, long workerPid)
             throws Exception;
@@ -71,6 +81,10 @@ public interface KanbanRepository {
     boolean heartbeatClaim(String taskId, String claimer, long ttlSeconds) throws Exception;
 
     int releaseStaleClaims(long now) throws Exception;
+
+    List<String> reclaimStaleRunning(long now, long staleTimeoutSeconds) throws Exception;
+
+    List<String> reclaimCrashedWorkers(long now) throws Exception;
 
     boolean heartbeatWorker(String taskId, String note) throws Exception;
 
@@ -83,7 +97,7 @@ public interface KanbanRepository {
 
     int recomputeReady(String boardSlug) throws Exception;
 
-    int reclaimTimedOutWorkers(long now) throws Exception;
+    List<String> reclaimTimedOutWorkers(long now) throws Exception;
 
     void deleteTask(String taskId) throws Exception;
 
@@ -130,6 +144,10 @@ public interface KanbanRepository {
     List<KanbanRunRecord> listRuns(String taskId, boolean includeActive) throws Exception;
 
     KanbanRunRecord latestRun(String taskId) throws Exception;
+
+    String latestSummary(String taskId) throws Exception;
+
+    Map<String, String> latestSummaries(List<String> taskIds) throws Exception;
 
     KanbanRunRecord activeRun(String taskId) throws Exception;
 

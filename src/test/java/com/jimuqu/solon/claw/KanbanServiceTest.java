@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -11,6 +12,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import cn.hutool.core.io.FileUtil;
 import java.io.File;
+import java.lang.management.ManagementFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -77,6 +79,10 @@ public class KanbanServiceTest {
                 .contains("\"automation_actions\"")
                 .contains("\"history_actions\"")
                 .contains("\"notify-subscribe\"")
+                .contains("--max-in-progress")
+                .contains("--max-in-progress-per-profile")
+                .contains("--default-assignee")
+                .contains("--sort")
                 .contains("\"maintenance_actions\"");
         assertThatThrownBy(() -> service.guide("missing-board"))
                 .hasMessageContaining("Kanban board not found: missing-board");
@@ -151,6 +157,216 @@ public class KanbanServiceTest {
 
         String triageJson = service.handleCommand("create 需要澄清 --triage --json", "tester");
         assertThat(triageJson).contains("\"status\":\"triage\"");
+    }
+
+    @Test
+    void shouldListTasksByPriorityThenCreationOrder() throws Exception {
+        KanbanService service = service();
+        String firstId = createTask(service, "同优先级较早任务", "alice", "planner");
+        String secondId = createTask(service, "同优先级较晚任务", "bob", "planner");
+
+        service.comment(firstId, "tester", "更新较早任务不应改变同优先级排序");
+        String highPriorityOutput =
+                service.handleCommand("create 高优先级任务 --assignee carol --priority 2", "tester");
+        String highPriorityId = firstTaskId(highPriorityOutput);
+
+        java.util.List<Map<String, Object>> list = service.tasks(null, null, false);
+
+        assertThat(list.get(0).get("id")).isEqualTo(highPriorityId);
+        assertThat(list.get(1).get("id")).isEqualTo(firstId);
+        assertThat(list.get(2).get("id")).isEqualTo(secondId);
+    }
+
+    @Test
+    void shouldSupportTaskListSortOptions() throws Exception {
+        KanbanService service = service();
+        String alphaId = createTask(service, "alpha", "worker-b", "planner");
+        String betaId = createTask(service, "beta", "worker-c", "planner");
+        String gammaId = createTask(service, "gamma", "worker-a", "planner");
+
+        String byTitle = service.handleCommand("list --sort title --json", "tester");
+        assertThat(byTitle).containsSubsequence(
+                "\"id\":\"" + alphaId + "\"",
+                "\"id\":\"" + betaId + "\"",
+                "\"id\":\"" + gammaId + "\"");
+
+        String byAssignee = service.handleCommand("list --order-by assignee --json", "tester");
+        assertThat(byAssignee).containsSubsequence(
+                "\"id\":\"" + gammaId + "\"",
+                "\"id\":\"" + alphaId + "\"",
+                "\"id\":\"" + betaId + "\"");
+
+        assertThatThrownBy(() -> service.handleCommand("list --sort bogus", "tester"))
+                .hasMessageContaining("order_by must be one of");
+    }
+
+    @Test
+    void shouldFilterTaskListByWorkflowTemplateAndStep() throws Exception {
+        KanbanService service = service();
+        String reviewId = createTask(service, "复核步骤任务", "alice", "planner");
+        String shipId = createTask(service, "发布步骤任务", "bob", "planner");
+        String otherId = createTask(service, "其他流程任务", "carol", "planner");
+        service.step(reviewId, "review", "delivery", null, "planner");
+        service.step(shipId, "ship", "delivery", null, "planner");
+        service.step(otherId, "review", "ops", null, "planner");
+
+        java.util.List<Map<String, Object>> deliveryTasks =
+                service.tasks(null, null, false, null, null, null, "delivery", null);
+        java.util.List<Map<String, Object>> reviewTasks =
+                service.tasks(null, null, false, null, null, null, null, "review");
+        java.util.List<Map<String, Object>> deliveryReviewTasks =
+                service.tasks(null, null, false, null, null, null, "delivery", "review");
+
+        assertThat(String.valueOf(deliveryTasks)).contains(reviewId).contains(shipId).doesNotContain(otherId);
+        assertThat(String.valueOf(reviewTasks)).contains(reviewId).contains(otherId).doesNotContain(shipId);
+        assertThat(deliveryReviewTasks).hasSize(1);
+        assertThat(deliveryReviewTasks.get(0).get("id")).isEqualTo(reviewId);
+
+        String workflowJson = service.handleCommand("list --workflow delivery --step review --json", "tester");
+        assertThat(workflowJson)
+                .contains("\"id\":\"" + reviewId + "\"")
+                .doesNotContain("\"id\":\"" + shipId + "\"")
+                .doesNotContain("\"id\":\"" + otherId + "\"");
+    }
+
+    @Test
+    void shouldStampAndFilterTaskListByOriginatingSessionId() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> first = new LinkedHashMap<String, Object>();
+        first.put("title", "会话任务一");
+        first.put("tenant", "biz-a");
+        first.put("session_id", "chat-session-a");
+        String firstId = String.valueOf(service.createTask(first).get("id"));
+        Map<String, Object> second = new LinkedHashMap<String, Object>();
+        second.put("title", "会话任务二");
+        second.put("tenant", "biz-b");
+        second.put("session_id", "chat-session-a");
+        String secondId = String.valueOf(service.createTask(second).get("id"));
+        Map<String, Object> otherSession = new LinkedHashMap<String, Object>();
+        otherSession.put("title", "其他会话任务");
+        otherSession.put("tenant", "biz-a");
+        otherSession.put("session_id", "chat-session-b");
+        String otherSessionId = String.valueOf(service.createTask(otherSession).get("id"));
+        Map<String, Object> noSession = new LinkedHashMap<String, Object>();
+        noSession.put("title", "无会话任务");
+        String noSessionId = String.valueOf(service.createTask(noSession).get("id"));
+
+        assertThat(service.task(firstId).get("session_id")).isEqualTo("chat-session-a");
+        assertThat(service.task(noSessionId)).containsKey("session_id");
+        assertThat(service.task(noSessionId).get("session_id")).isNull();
+
+        java.util.List<Map<String, Object>> sessionTasks =
+                service.tasks(null, null, false, null, null, null, null, null, "chat-session-a");
+        java.util.List<Map<String, Object>> tenantSessionTasks =
+                service.tasks(null, null, false, null, "biz-a", null, null, null, "chat-session-a");
+        String commandList = service.handleCommand("list --session chat-session-a --json", "tester");
+
+        assertThat(String.valueOf(sessionTasks))
+                .contains(firstId)
+                .contains(secondId)
+                .doesNotContain(otherSessionId)
+                .doesNotContain(noSessionId);
+        assertThat(tenantSessionTasks).hasSize(1);
+        assertThat(tenantSessionTasks.get(0).get("id")).isEqualTo(firstId);
+        assertThat(commandList)
+                .contains("\"id\":\"" + firstId + "\"")
+                .contains("\"id\":\"" + secondId + "\"")
+                .doesNotContain("\"id\":\"" + otherSessionId + "\"")
+                .doesNotContain("\"id\":\"" + noSessionId + "\"");
+    }
+
+    @Test
+    void shouldCreateTaskSessionIdIndex() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        new SqliteKanbanRepository(env.sqliteDatabase);
+
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select name from sqlite_master where type = 'index' and tbl_name = 'kanban_tasks'");
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                java.util.List<String> names = new java.util.ArrayList<String>();
+                while (resultSet.next()) {
+                    names.add(resultSet.getString("name"));
+                }
+                assertThat(names).contains("idx_kanban_tasks_session_id");
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Test
+    void shouldRejectUnsupportedTaskWorkspaceKind() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "非法工作区任务");
+        body.put("workspace_kind", "cloud");
+
+        assertThatThrownBy(() -> service.createTask(body))
+                .hasMessageContaining("workspace_kind")
+                .hasMessageContaining("scratch")
+                .hasMessageContaining("dir")
+                .hasMessageContaining("worktree");
+    }
+
+    @Test
+    void shouldFilterTaskListAssigneeCaseInsensitively() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "大小写过滤任务", "alice", "planner");
+        createTask(service, "其他执行人任务", "bob", "planner");
+
+        java.util.List<Map<String, Object>> filtered =
+                service.tasks(null, null, false, "ALICE", null);
+
+        assertThat(filtered).hasSize(1);
+        assertThat(filtered.get(0).get("id")).isEqualTo(taskId);
+        assertThat(service.handleCommand("list --assignee ALICE --json", "tester"))
+                .contains("\"id\":\"" + taskId + "\"")
+                .doesNotContain("\"assignee\":\"bob\"");
+    }
+
+    @Test
+    void shouldRecordCreatedEventWithTenantPayload() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "租户事件任务");
+        body.put("assignee", "alice");
+        body.put("tenant", "biz-a");
+        body.put("created_by", "planner");
+
+        String taskId = String.valueOf(service.createTask(body).get("id"));
+
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(String.valueOf(detail.get("events")))
+                .contains("kind=created")
+                .contains("tenant=biz-a")
+                .contains("created_by=planner");
+    }
+
+    @Test
+    void shouldValidateCommentsBeforePersistingThem() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String taskId = createTask(service, "评论校验任务", "alice", "planner");
+
+        assertThatThrownBy(() -> service.comment(taskId, "tester", " "))
+                .hasMessageContaining("comment body is required");
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_comments", taskId, 0);
+        assertThatThrownBy(() -> service.comment("KB-NOTFOUND", "tester", "孤立评论"))
+                .hasMessageContaining("Kanban task not found: KB-NOTFOUND");
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_comments", "KB-NOTFOUND", 0);
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_events", "KB-NOTFOUND", 0);
+
+        Map<String, Object> detail = service.comment(taskId, "tester", "  有效评论  ");
+        assertThat(String.valueOf(detail.get("comments"))).contains("有效评论");
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_comments", taskId, 1);
     }
 
     @Test
@@ -311,6 +527,102 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRejectAssigningRunningTaskWithoutReclaim() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "运行中禁止直接分配", "alice", "alice");
+        Map<String, Object> running = new LinkedHashMap<String, Object>();
+        running.put("status", "running");
+        running.put("claim_lock", "lock-assign");
+        running.put("worker_id", "worker-assign");
+        service.updateTask(taskId, running);
+
+        assertThatThrownBy(() -> service.assign(taskId, "bob"))
+                .hasMessageContaining("currently running")
+                .hasMessageContaining(taskId);
+        assertThat(service.task(taskId).get("assignee")).isEqualTo("alice");
+
+        assertThatThrownBy(() -> service.handleCommand("assign " + taskId + " bob", "tester"))
+                .hasMessageContaining("currently running")
+                .hasMessageContaining(taskId);
+        assertThat(service.task(taskId).get("assignee")).isEqualTo("alice");
+    }
+
+    @Test
+    void shouldExposeLatestNonBlankRunSummaryInTaskDetail() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String taskId = createTask(service, "最近摘要", "alice", "alice");
+        long now = System.currentTimeMillis();
+
+        KanbanRunRecord firstRun = new KanbanRunRecord();
+        firstRun.setRunId("run_summary_real");
+        firstRun.setTaskId(taskId);
+        firstRun.setStatus("done");
+        firstRun.setOutcome("completed");
+        firstRun.setSummary("有效交接摘要");
+        firstRun.setStartedAt(now - 2000L);
+        firstRun.setEndedAt(now - 1000L);
+        repository.addRun(firstRun);
+
+        KanbanRunRecord emptyRun = new KanbanRunRecord();
+        emptyRun.setRunId("run_summary_empty");
+        emptyRun.setTaskId(taskId);
+        emptyRun.setStatus("done");
+        emptyRun.setOutcome("completed");
+        emptyRun.setSummary("");
+        emptyRun.setStartedAt(now + 1000L);
+        emptyRun.setEndedAt(now + 2000L);
+        repository.addRun(emptyRun);
+
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(detail.get("latest_summary")).isEqualTo("有效交接摘要");
+        assertThat(String.valueOf(detail.get("latest_run"))).contains("run_summary_empty");
+
+        Map<String, Object> drawer = service.taskDrawer(taskId, 128);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> overview = (Map<String, Object>) drawer.get("execution_overview");
+        assertThat(overview.get("latest_summary")).isEqualTo("有效交接摘要");
+    }
+
+    @Test
+    void shouldExposeLatestNonBlankRunSummaryInTaskLists() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String firstId = createTask(service, "列表摘要 A", "alice", "alice");
+        String secondId = createTask(service, "列表摘要 B", "bob", "bob");
+        long now = System.currentTimeMillis();
+
+        KanbanRunRecord firstRun = new KanbanRunRecord();
+        firstRun.setRunId("run_list_real");
+        firstRun.setTaskId(firstId);
+        firstRun.setStatus("done");
+        firstRun.setOutcome("completed");
+        firstRun.setSummary("列表交接摘要");
+        firstRun.setStartedAt(now - 2000L);
+        firstRun.setEndedAt(now - 1000L);
+        repository.addRun(firstRun);
+
+        KanbanRunRecord emptyRun = new KanbanRunRecord();
+        emptyRun.setRunId("run_list_empty");
+        emptyRun.setTaskId(firstId);
+        emptyRun.setStatus("done");
+        emptyRun.setOutcome("completed");
+        emptyRun.setSummary("");
+        emptyRun.setStartedAt(now + 1000L);
+        emptyRun.setEndedAt(now + 2000L);
+        repository.addRun(emptyRun);
+
+        Map<String, Object> first = findTaskView(service.tasks(null, null, false), firstId);
+        Map<String, Object> second = findTaskView(service.tasks(null, null, false), secondId);
+
+        assertThat(first.get("latest_summary")).isEqualTo("列表交接摘要");
+        assertThat(second).containsKey("latest_summary");
+        assertThat(second.get("latest_summary")).isNull();
+    }
+
+    @Test
     void shouldTrackRunHistoryAcrossRunningCompletionReclaimAndRetry() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "有执行历史的任务", "alice", "alice");
@@ -364,6 +676,19 @@ public class KanbanServiceTest {
         assertThat(String.valueOf(reclaimed.get("runs"))).contains("completed").contains("reclaimed");
 
         assertThat(String.valueOf(service.runs(taskId))).contains("completed").contains("reclaimed");
+        assertThat(String.valueOf(service.runs(taskId, "outcome", "completed")))
+                .contains("completed")
+                .doesNotContain("reclaimed");
+        assertThat(String.valueOf(service.runs(taskId, "outcome", "reclaimed")))
+                .contains("reclaimed")
+                .doesNotContain("completed");
+        assertThat(service.runs(taskId, "outcome", "blocked")).isEmpty();
+        assertThatThrownBy(() -> service.runs(taskId, "status", null))
+                .hasMessageContaining("state_type and state_name must both be provided");
+        assertThatThrownBy(() -> service.runs(taskId, null, "done"))
+                .hasMessageContaining("state_type and state_name must both be provided");
+        assertThatThrownBy(() -> service.runs(taskId, "nope", "done"))
+                .hasMessageContaining("state_type must be status or outcome");
         assertThat(String.valueOf(service.events(taskId))).contains("retry").contains("reclaimed");
         assertThat(String.valueOf(service.context(taskId).get("worker_context")))
                 .contains("Prior attempts")
@@ -396,10 +721,12 @@ public class KanbanServiceTest {
                 .contains("stage=ready")
                 .contains("attempt_count=2")
                 .contains("latest_outcome=reclaimed")
+                .contains("latest_summary=worker timeout")
                 .contains("last_event_kind=reclaimed")
                 .contains("next_action=dispatch");
         @SuppressWarnings("unchecked")
         Map<String, Object> overview = (Map<String, Object>) drawer.get("execution_overview");
+        assertThat(overview.get("latest_summary")).isEqualTo("worker timeout");
         assertThat(((Number) overview.get("last_duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
         assertThat(overview.get("last_timed_out")).isEqualTo(Boolean.FALSE);
         @SuppressWarnings("unchecked")
@@ -412,6 +739,9 @@ public class KanbanServiceTest {
         assertThat(service.handleCommand("runs " + taskId + " --json", "tester"))
                 .contains("\"outcome\":\"completed\"")
                 .contains("\"outcome\":\"reclaimed\"");
+        assertThat(service.handleCommand("runs " + taskId + " --state-type outcome --state reclaimed --json", "tester"))
+                .contains("\"outcome\":\"reclaimed\"")
+                .doesNotContain("\"outcome\":\"completed\"");
         assertThat(service.handleCommand("events " + taskId, "tester"))
                 .contains("执行流水")
                 .contains("retry");
@@ -496,6 +826,21 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldReturnBlockedChildToTodoWhenUnblockedBeforeParentsDone() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "未完成父任务", "lead", "planner");
+        String childId = createTask(service, "等待依赖子任务", "worker", "planner");
+        service.link(parentId, childId);
+        service.status(childId, "blocked", "等待外部输入");
+
+        Map<String, Object> unblocked = service.unblock(childId);
+
+        assertThat(unblocked.get("status")).isEqualTo("todo");
+        service.status(parentId, "done", "父任务完成");
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
     void shouldSupportJimuquStyleBulkLifecycleCommands() throws Exception {
         KanbanService service = service();
         String firstId = createTask(service, "批量任务一", "alice", "alice");
@@ -531,6 +876,31 @@ public class KanbanServiceTest {
 
         assertThatThrownBy(() -> service.handleCommand("archive " + firstId + " KB-NOTFOUND", "tester"))
                 .hasMessageContaining("KB-NOTFOUND");
+    }
+
+    @Test
+    void shouldOnlyHardDeleteArchivedTasksAndCleanRelatedRows() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "保留父任务", "lead", "planner");
+        String taskId = createTask(service, "待删除归档任务", "worker", "planner");
+        service.link(parentId, taskId);
+        service.comment(taskId, "tester", "删除前评论");
+
+        assertThatThrownBy(() -> service.delete(taskId))
+                .hasMessageContaining("archived");
+        assertThat(service.task(taskId).get("id")).isEqualTo(taskId);
+
+        service.status(taskId, "archived", "任务归档");
+        Map<String, Object> deleted = service.delete(taskId);
+
+        assertThat(deleted.get("ok")).isEqualTo(Boolean.TRUE);
+        assertThat(repository.findTask(taskId)).isNull();
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_comments", taskId, 0);
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_events", taskId, 0);
+        assertRelatedRowCount(env.sqliteDatabase, "kanban_runs", taskId, 0);
+        assertRelatedLinkCount(env.sqliteDatabase, taskId, 0);
     }
 
     @Test
@@ -632,6 +1002,8 @@ public class KanbanServiceTest {
                 .contains("Task " + childId)
                 .contains("Parents:")
                 .contains(parentId)
+                .contains("父任务完成")
+                .contains("父任务交接摘要")
                 .contains("Recent comments:")
                 .contains("准备执行");
 
@@ -694,6 +1066,39 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRejectCreateTaskWithUnknownParentWithoutPersistingTask() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "悬空依赖子任务");
+        body.put("assignee", "worker");
+        body.put("parents", Arrays.asList("KB-NOTFOUND"));
+
+        assertThatThrownBy(() -> service.createTask(body))
+                .hasMessageContaining("parent task not found")
+                .hasMessageContaining("KB-NOTFOUND");
+
+        assertThat(repository.listTasks(null, null, true)).isEmpty();
+    }
+
+    @Test
+    void shouldInferReadyWhenCreatingTaskWithDoneParentsThroughApi() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "已完成父任务", "lead", "planner");
+        service.status(parentId, "done", "父任务完成");
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "可立即执行子任务");
+        body.put("assignee", "worker");
+        body.put("parents", Arrays.asList(parentId));
+
+        Map<String, Object> created = service.createTask(body);
+
+        assertThat(created.get("status")).isEqualTo("ready");
+        assertThat(String.valueOf(created.get("parents"))).contains(parentId);
+    }
+
+    @Test
     void shouldClaimHeartbeatAndReleaseStaleKanbanTasks() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "可认领任务", "alice", "planner");
@@ -727,6 +1132,111 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRejectClaimWhenReadyTaskStillHasUndoneParents() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "未完成父任务", "lead", "planner");
+        String childId = createTask(service, "被错误推进的子任务", "worker", "planner");
+        service.link(parentId, childId);
+        Map<String, Object> forcedReady = new LinkedHashMap<String, Object>();
+        forcedReady.put("status", "ready");
+        service.updateTask(childId, forcedReady);
+
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:worker-claim");
+
+        assertThatThrownBy(() -> service.claim(childId, claim))
+                .hasMessageContaining("not ready");
+        Map<String, Object> detail = service.task(childId);
+        assertThat(detail.get("status")).isEqualTo("todo");
+        assertThat(String.valueOf(detail.get("events")))
+                .contains("claim_rejected")
+                .contains("parents_not_done");
+    }
+
+    @Test
+    void shouldPromoteBlockedDependencyTaskWhenParentsAreDone() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "依赖父任务", "lead", "planner");
+        String childId = createTask(service, "依赖子任务", "worker", "planner");
+        service.link(parentId, childId);
+        service.status(childId, "blocked", "等待父任务完成");
+        repository.updateTaskStatus(parentId, "done", "父任务完成");
+
+        int promoted = repository.recomputeReady(null);
+
+        assertThat(promoted).isEqualTo(1);
+        Map<String, Object> child = service.task(childId);
+        assertThat(child.get("status")).isEqualTo("ready");
+        assertThat(String.valueOf(child.get("events"))).contains("promoted");
+    }
+
+    @Test
+    void shouldTreatArchivedParentsAsSatisfiedWhenRecomputingReady() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "归档父任务", "lead", "planner");
+        String childId = createTask(service, "归档依赖子任务", "worker", "planner");
+        service.link(parentId, childId);
+        repository.updateTaskStatus(parentId, "archived", "父任务不再需要");
+
+        int promoted = repository.recomputeReady(null);
+
+        assertThat(promoted).isEqualTo(1);
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
+    void shouldPromoteChildImmediatelyWhenParentIsArchived() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "立即归档父任务", "lead", "planner");
+        String childId = createTask(service, "立即归档子任务", "worker", "planner");
+        service.link(parentId, childId);
+
+        service.status(parentId, "archived", "父任务归档");
+
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
+    void shouldDemoteReadyChildWhenRepositoryLinksUndoneParent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String parentId = createTask(service, "未完成父任务", "lead", "planner");
+        String childId = createTask(service, "应退回子任务", "worker", "planner");
+        assertThat(service.task(childId).get("status")).isEqualTo("todo");
+        service.status(childId, "ready", null);
+
+        repository.linkTasks(parentId, childId);
+
+        assertThat(service.task(childId).get("status")).isEqualTo("todo");
+    }
+
+    @Test
+    void shouldPromoteChildWhenRepositoryUnlinksLastUndoneParent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String doneParentId = createTask(service, "已完成父任务", "lead", "planner");
+        String runningParentId = createTask(service, "运行中父任务", "runner", "planner");
+        String childId = createTask(service, "依赖解除子任务", "worker", "planner");
+        repository.updateTaskStatus(doneParentId, "done", "父任务完成");
+        repository.updateTaskStatus(runningParentId, "running", "父任务运行中");
+        repository.linkTasks(doneParentId, childId);
+        repository.linkTasks(runningParentId, childId);
+
+        assertThat(service.task(childId).get("status")).isEqualTo("todo");
+
+        boolean unlinked = repository.unlinkTasks(runningParentId, childId);
+
+        assertThat(unlinked).isTrue();
+        assertThat(service.task(childId).get("status")).isEqualTo("ready");
+    }
+
+    @Test
     void shouldClaimNextAndReclaimExpiredAndTimedOutTasks() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
@@ -749,6 +1259,10 @@ public class KanbanServiceTest {
         assertThat(reclaimed.get("status")).isEqualTo("ready");
         assertThat(reclaimed.get("claim_lock")).isNull();
         assertThat(String.valueOf(reclaimed.get("latest_run"))).contains("reclaimed");
+        assertThat(String.valueOf(reclaimed.get("events")))
+                .contains("claim_expires_at")
+                .contains("last_heartbeat_at")
+                .contains("worker_pid");
 
         Map<String, Object> update = new LinkedHashMap<String, Object>();
         update.put("max_runtime_seconds", 1);
@@ -759,11 +1273,81 @@ public class KanbanServiceTest {
         claim.put("ttl_seconds", 60);
         service.claim(taskId, claim);
 
-        int timedOut = repository.reclaimTimedOutWorkers(System.currentTimeMillis() + 2000L);
-        assertThat(timedOut).isEqualTo(1);
+        java.util.List<String> timedOut = repository.reclaimTimedOutWorkers(System.currentTimeMillis() + 2000L);
+        assertThat(timedOut).contains(taskId);
         Map<String, Object> timedOutTask = service.task(taskId);
         assertThat(timedOutTask.get("status")).isEqualTo("ready");
         assertThat(String.valueOf(timedOutTask.get("latest_run"))).contains("timed_out");
+    }
+
+    @Test
+    void shouldUseCurrentRunStartWhenReclaimingTimedOutRetry() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String taskId = createTask(service, "重试运行时限任务", "alice", "planner");
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("max_runtime_seconds", 10);
+        service.updateTask(taskId, update);
+        service.status(taskId, "ready", null);
+
+        Map<String, Object> firstClaim = new LinkedHashMap<String, Object>();
+        firstClaim.put("claimer", "host:first-run");
+        firstClaim.put("worker_id", "first-run");
+        firstClaim.put("ttl_seconds", 3600);
+        service.claim(taskId, firstClaim);
+        ageTaskAndActiveRun(env, taskId, 20000L);
+
+        java.util.List<String> firstTimedOut = repository.reclaimTimedOutWorkers(System.currentTimeMillis());
+        assertThat(firstTimedOut).contains(taskId);
+        assertThat(service.task(taskId).get("status")).isEqualTo("ready");
+
+        Map<String, Object> secondClaim = new LinkedHashMap<String, Object>();
+        secondClaim.put("claimer", "host:retry-run");
+        secondClaim.put("worker_id", "retry-run");
+        secondClaim.put("ttl_seconds", 3600);
+        service.claim(taskId, secondClaim);
+
+        java.util.List<String> retryTimedOut = repository.reclaimTimedOutWorkers(System.currentTimeMillis());
+
+        assertThat(retryTimedOut).isEmpty();
+        Map<String, Object> retryTask = service.task(taskId);
+        assertThat(retryTask.get("status")).isEqualTo("running");
+        assertThat(String.valueOf(retryTask.get("active_run"))).contains("retry-run");
+    }
+
+    @Test
+    void shouldExtendExpiredClaimWhenWorkerPidIsStillAlive() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        String taskId = createTask(service, "慢速存活任务", "alice", "planner");
+        service.status(taskId, "ready", null);
+
+        long livePid = currentPid();
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:worker-live");
+        claim.put("worker_id", "worker-live");
+        claim.put("worker_pid", livePid);
+        claim.put("ttl_seconds", 1);
+        service.claim(taskId, claim);
+        long oldExpiresAt = System.currentTimeMillis() - 60000L;
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("claim_expires_at", oldExpiresAt);
+        service.updateTask(taskId, update);
+
+        int reclaimed = repository.releaseStaleClaims(System.currentTimeMillis());
+
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(reclaimed).isEqualTo(0);
+        assertThat(detail.get("status")).isEqualTo("running");
+        assertThat(detail.get("claim_lock")).isEqualTo("host:worker-live");
+        assertThat(detail.get("claim_expires_at")).isNotNull();
+        assertThat(String.valueOf(detail.get("active_run"))).contains("worker-live");
+        assertThat(String.valueOf(detail.get("events")))
+                .contains("claim_extended")
+                .contains("worker_pid_alive")
+                .doesNotContain("reclaimed");
     }
 
     @Test
@@ -942,6 +1526,62 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldExposeSpawnableReadyStatsUsingConfiguredAgentRegistry() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentProfileService agentService =
+                new AgentProfileService(new SqliteAgentProfileRepository(env.sqliteDatabase), env.agentRuntimeService);
+        agentService.createAgent("daily", "可派发执行者");
+        KanbanService service =
+                new KanbanService(
+                        new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig, agentService);
+
+        createReadyTask(service, "终端通道任务", "terminal-lane", "planner");
+        Map<String, Object> onlyTerminalStats = service.stats();
+        assertThat(onlyTerminalStats.get("has_spawnable_ready")).isEqualTo(Boolean.FALSE);
+        assertThat(onlyTerminalStats.get("ready_spawnable")).isEqualTo(Integer.valueOf(0));
+        assertThat(onlyTerminalStats.get("ready_nonspawnable")).isEqualTo(Integer.valueOf(1));
+
+        createReadyTask(service, "真实执行者任务", "daily", "planner");
+        Map<String, Object> mixedStats = service.stats();
+        assertThat(mixedStats.get("has_spawnable_ready")).isEqualTo(Boolean.TRUE);
+        assertThat(mixedStats.get("ready_spawnable")).isEqualTo(Integer.valueOf(1));
+        assertThat(mixedStats.get("ready_nonspawnable")).isEqualTo(Integer.valueOf(1));
+        assertThat(service.handleCommand("stats --json", "tester"))
+                .contains("\"has_spawnable_ready\":true")
+                .contains("\"ready_spawnable\":1")
+                .contains("\"ready_nonspawnable\":1");
+    }
+
+    @Test
+    void shouldExposeSpawnableReviewStatsUsingConfiguredAgentRegistry() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentProfileService agentService =
+                new AgentProfileService(new SqliteAgentProfileRepository(env.sqliteDatabase), env.agentRuntimeService);
+        agentService.createAgent("reviewer", "可复核执行者");
+        KanbanService service =
+                new KanbanService(
+                        new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig, agentService);
+
+        String terminalTaskId = createTask(service, "终端复核通道任务", "terminal-lane", "planner");
+        service.status(terminalTaskId, "review", null);
+        Map<String, Object> onlyTerminalStats = service.stats();
+        assertThat(onlyTerminalStats.get("has_spawnable_review")).isEqualTo(Boolean.FALSE);
+        assertThat(onlyTerminalStats.get("review_spawnable")).isEqualTo(Integer.valueOf(0));
+        assertThat(onlyTerminalStats.get("review_nonspawnable")).isEqualTo(Integer.valueOf(1));
+
+        String reviewerTaskId = createTask(service, "真实复核执行者任务", "reviewer", "planner");
+        service.status(reviewerTaskId, "review", null);
+        Map<String, Object> mixedStats = service.stats();
+        assertThat(mixedStats.get("has_spawnable_review")).isEqualTo(Boolean.TRUE);
+        assertThat(mixedStats.get("review_spawnable")).isEqualTo(Integer.valueOf(1));
+        assertThat(mixedStats.get("review_nonspawnable")).isEqualTo(Integer.valueOf(1));
+        assertThat(service.handleCommand("stats --json", "tester"))
+                .contains("\"has_spawnable_review\":true")
+                .contains("\"review_spawnable\":1")
+                .contains("\"review_nonspawnable\":1");
+    }
+
+    @Test
     void shouldClaimRewindAndAdvanceNotifyEvents() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         KanbanService service =
@@ -1033,11 +1673,95 @@ public class KanbanServiceTest {
         return String.valueOf(service.createTask(task).get("id"));
     }
 
+    private String createReadyTask(KanbanService service, String title, String assignee, String createdBy)
+            throws Exception {
+        String taskId = createTask(service, title, assignee, createdBy);
+        service.status(taskId, "ready", null);
+        return taskId;
+    }
+
+    private void assertRelatedRowCount(SqliteDatabase database, String table, String taskId, int expected)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement("select count(*) from " + table + " where task_id = ?");
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                assertThat(resultSet.next()).isTrue();
+                assertThat(resultSet.getInt(1)).isEqualTo(expected);
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    private void assertRelatedLinkCount(SqliteDatabase database, String taskId, int expected) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select count(*) from kanban_task_links where parent_id = ? or child_id = ?");
+            statement.setString(1, taskId);
+            statement.setString(2, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                assertThat(resultSet.next()).isTrue();
+                assertThat(resultSet.getInt(1)).isEqualTo(expected);
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    private void ageTaskAndActiveRun(TestEnvironment env, String taskId, long millisAgo) throws Exception {
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement taskStatement =
+                    connection.prepareStatement("update kanban_tasks set started_at = ? where task_id = ?");
+            taskStatement.setLong(1, System.currentTimeMillis() - millisAgo);
+            taskStatement.setString(2, taskId);
+            taskStatement.executeUpdate();
+            taskStatement.close();
+
+            PreparedStatement runStatement =
+                    connection.prepareStatement(
+                            "update kanban_runs set started_at = ? where run_id = (select current_run_id from kanban_tasks where task_id = ?)");
+            runStatement.setLong(1, System.currentTimeMillis() - millisAgo);
+            runStatement.setString(2, taskId);
+            runStatement.executeUpdate();
+            runStatement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
+    private long currentPid() {
+        String name = ManagementFactory.getRuntimeMXBean().getName();
+        return Long.parseLong(name.split("@", 2)[0]);
+    }
+
     private static String firstTaskId(String value) {
         java.util.regex.Matcher matcher =
                 java.util.regex.Pattern.compile("KB-[0-9A-F]{8}").matcher(value);
         assertThat(matcher.find()).isTrue();
         return matcher.group();
+    }
+
+    private static Map<String, Object> findTaskView(java.util.List<Map<String, Object>> tasks, String taskId) {
+        for (Map<String, Object> task : tasks) {
+            if (taskId.equals(task.get("id"))) {
+                return task;
+            }
+        }
+        throw new AssertionError("task not found: " + taskId);
     }
 
     private static void assertRedactedRunSummary(String value) {

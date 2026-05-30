@@ -88,6 +88,9 @@ public class AppConfig {
     /** 长任务控制配置。 */
     private TaskConfig task = new TaskConfig();
 
+    /** Kanban dispatcher configuration. */
+    private KanbanConfig kanban = new KanbanConfig();
+
     /** 终端/沙箱执行配置。 */
     private TerminalConfig terminal = new TerminalConfig();
 
@@ -1355,10 +1358,102 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.task.mediaCacheTtlHours",
                                         168)));
+        config.getKanban()
+                .setDefaultAssignee(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.kanban.defaultAssignee",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.default_assignee",
+                                                ""))));
+        config.getKanban()
+                .setMaxSpawn(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.maxSpawn",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.max_spawn",
+                                                        0))),
+                                0));
+        config.getKanban()
+                .setMaxInProgress(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.maxInProgress",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.max_in_progress",
+                                                        0))),
+                                0));
+        config.getKanban()
+                .setMaxInProgressPerProfile(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.maxInProgressPerProfile",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.max_in_progress_per_profile",
+                                                        0))),
+                                0));
+        config.getKanban()
+                .setFailureLimit(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.failureLimit",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.failure_limit",
+                                                        3))),
+                                3));
         config.getSecurity()
                 .setAllowPrivateUrls(
                         resolveBoolean(
                                 readAllowPrivateUrls(props, overrides)));
+        config.getSecurity()
+                .setRewriteBrowserLoopbackUrls(
+                        resolveBoolean(
+                                readBrowserLoopbackRewriteEnabled(props, overrides)));
+        config.getSecurity()
+                .setBrowserLoopbackHostAlias(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.browser.loopbackHostAlias",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.browser.loopback_host_alias",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "browser.loopbackHostAlias",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "browser.loopback_host_alias",
+                                                                "host.docker.internal"))))));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setEnabled(
@@ -1875,6 +1970,7 @@ public class AppConfig {
         copyReact(other.getReact());
         copyTrace(other.getTrace());
         copyTask(other.getTask());
+        copyKanban(other.getKanban());
         copyTerminal(other.getTerminal());
         copySecurity(other.getSecurity());
         copyWeb(other.getWeb());
@@ -2079,8 +2175,18 @@ public class AppConfig {
         this.terminal.setProcessWaitTimeoutSeconds(other.getProcessWaitTimeoutSeconds());
     }
 
+    private void copyKanban(KanbanConfig other) {
+        this.kanban.setDefaultAssignee(other.getDefaultAssignee());
+        this.kanban.setMaxSpawn(other.getMaxSpawn());
+        this.kanban.setMaxInProgress(other.getMaxInProgress());
+        this.kanban.setMaxInProgressPerProfile(other.getMaxInProgressPerProfile());
+        this.kanban.setFailureLimit(other.getFailureLimit());
+    }
+
     private void copySecurity(SecurityConfig other) {
         this.security.setAllowPrivateUrls(other.isAllowPrivateUrls());
+        this.security.setRewriteBrowserLoopbackUrls(other.isRewriteBrowserLoopbackUrls());
+        this.security.setBrowserLoopbackHostAlias(other.getBrowserLoopbackHostAlias());
         this.security.setTirithEnabled(other.isTirithEnabled());
         this.security.setTirithPath(other.getTirithPath());
         this.security.setTirithTimeoutSeconds(other.getTirithTimeoutSeconds());
@@ -2842,6 +2948,27 @@ public class AppConfig {
                                                         overrides,
                                                         "browser.allow_private_urls",
                                                         false))))));
+    }
+
+    private static boolean readBrowserLoopbackRewriteEnabled(
+            Props props, Map<String, Object> overrides) {
+        return readBoolean(
+                props,
+                overrides,
+                "solonclaw.browser.rewriteLoopbackUrls",
+                readBoolean(
+                        props,
+                        overrides,
+                        "solonclaw.browser.rewrite_loopback_urls",
+                        readBoolean(
+                                props,
+                                overrides,
+                                "browser.rewriteLoopbackUrls",
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "browser.rewrite_loopback_urls",
+                                        false))));
     }
 
     private static void applyProviderConfiguration(
@@ -3695,6 +3822,27 @@ public class AppConfig {
         private int mediaCacheTtlHours = 168;
     }
 
+    /** Kanban dispatcher defaults. */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class KanbanConfig {
+        /** Fallback assignee for ready tasks without an explicit assignee. */
+        private String defaultAssignee = "";
+
+        /** Live running worker cap when dispatching; 0 disables the cap. */
+        private int maxSpawn = 0;
+
+        /** Alternate global live running worker cap; 0 disables the cap. */
+        private int maxInProgress = 0;
+
+        /** Per-assignee live running worker cap; 0 disables the cap. */
+        private int maxInProgressPerProfile = 0;
+
+        /** Consecutive spawn failure limit before auto-blocking. */
+        private int failureLimit = 3;
+    }
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3755,6 +3903,12 @@ public class AppConfig {
     public static class SecurityConfig {
         /** 是否允许 URL 工具访问内网/私有地址；云元数据地址始终阻断。 */
         private boolean allowPrivateUrls = false;
+
+        /** 容器内浏览器访问宿主机服务时，是否改写页面导航里的 loopback 地址。 */
+        private boolean rewriteBrowserLoopbackUrls = false;
+
+        /** 容器内浏览器访问宿主机 loopback 服务使用的主机别名。 */
+        private String browserLoopbackHostAlias = "host.docker.internal";
 
         /** 是否启用 Tirith 命令内容安全扫描。 */
         private boolean tirithEnabled = true;

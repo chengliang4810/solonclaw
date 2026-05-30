@@ -1486,6 +1486,17 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "docker_compose_lifecycle",
+                                    "Docker Compose lifecycle command",
+                                    pattern(
+                                            "\\b(?:docker\\s+compose|docker-compose|podman\\s+compose)\\s+(?:restart|stop|kill|down)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "docker_container_lifecycle",
+                                    "Docker container lifecycle command",
+                                    pattern("\\b(?:docker|podman|nerdctl)\\s+(?:restart|stop|kill)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "docker_privileged_or_host_mount",
                                     "Docker privileged container or host mount",
                                     pattern(

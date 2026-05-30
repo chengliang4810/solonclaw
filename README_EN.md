@@ -89,6 +89,8 @@ export SOLONCLAW_GID="$(id -g)"
 docker compose up -d
 ```
 
+The entrypoint also accepts the common NAS-style `PUID` / `PGID` aliases. If both forms are set, `SOLONCLAW_UID` / `SOLONCLAW_GID` take precedence.
+
 ## Configuration
 
 Default configuration lives in:

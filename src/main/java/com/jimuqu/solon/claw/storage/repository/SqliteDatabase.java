@@ -900,6 +900,7 @@ public class SqliteDatabase {
                             + "status text not null,"
                             + "priority integer not null default 0,"
                             + "tenant text,"
+                            + "session_id text,"
                             + "workspace_kind text,"
                             + "workspace_path text,"
                             + "created_by text,"
@@ -940,10 +941,13 @@ public class SqliteDatabase {
             addColumn(statement, "kanban_tasks", "workflow_template_id text");
             addColumn(statement, "kanban_tasks", "current_step_key text");
             addColumn(statement, "kanban_tasks", "skills_json text");
+            addColumn(statement, "kanban_tasks", "session_id text");
             statement.execute(
                     "create index if not exists idx_kanban_tasks_board_status on kanban_tasks(board_slug, status, priority desc, updated_at desc)");
             statement.execute(
                     "create index if not exists idx_kanban_tasks_idempotency on kanban_tasks(board_slug, idempotency_key)");
+            statement.execute(
+                    "create index if not exists idx_kanban_tasks_session_id on kanban_tasks(session_id)");
             statement.execute(
                     "create table if not exists kanban_task_links ("
                             + "parent_id text not null,"

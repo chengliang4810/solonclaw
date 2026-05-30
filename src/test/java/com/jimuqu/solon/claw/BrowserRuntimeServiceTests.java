@@ -121,6 +121,32 @@ public class BrowserRuntimeServiceTests {
     }
 
     @Test
+    void shouldRewriteLoopbackNavigationForContainerBrowserProviders() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        config.getSecurity().setRewriteBrowserLoopbackUrls(true);
+        config.getSecurity().setBrowserLoopbackHostAlias("host.docker.internal");
+        RecordingProvider provider = new RecordingProvider(true);
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        config,
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(config),
+                        1);
+        BrowserRuntimeService.BrowserResult created = service.create("task-1");
+
+        BrowserRuntimeService.BrowserResult navigated =
+                service.navigate(created.getSessionId(), "http://127.0.0.1:8766/#settings", 7);
+
+        assertThat(navigated.isSuccess()).isTrue();
+        assertThat(provider.lastNavigatedUrl).isEqualTo("http://host.docker.internal:8766/#settings");
+        assertThat(navigated.getDetails().get("requestedUrl")).isEqualTo("http://127.0.0.1:8766/#settings");
+        assertThat(navigated.getDetails().get("url")).isEqualTo("http://host.docker.internal:8766/#settings");
+        assertThat(String.valueOf(navigated.getDetails().get("urlRewrite"))).contains("127.0.0.1");
+        assertThat(String.valueOf(navigated.getDetails().get("urlRewrite"))).contains("host.docker.internal");
+    }
+
+    @Test
     void shouldBlockProviderReportedNavigationAfterClickOrType() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
@@ -213,6 +239,7 @@ public class BrowserRuntimeServiceTests {
         private final AtomicInteger screenshotCount = new AtomicInteger();
         private final AtomicInteger extractCount = new AtomicInteger();
         private String nextUrl = "https://example.com/after-action";
+        private String lastNavigatedUrl = "";
 
         RecordingProvider(boolean available) {
             this(available, "wss://browser.example/connect?token=sk-secretsecret");
@@ -248,6 +275,7 @@ public class BrowserRuntimeServiceTests {
         public BrowserActionResult navigate(
                 String sessionId, String url, int timeoutSeconds) {
             navigateCount.incrementAndGet();
+            lastNavigatedUrl = url;
             Map<String, Object> details = new LinkedHashMap<String, Object>();
             details.put("providerAction", "navigate");
             details.put("url", url);

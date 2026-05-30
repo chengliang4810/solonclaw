@@ -210,14 +210,21 @@ public class CompressionStabilityTest {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
         SessionRecord session = new SessionRecord();
         session.setSessionId("s-fail");
+        session.setCompressedSummary(CompressionConstants.SUMMARY_PREFIX + "\n已有摘要");
         session.setNdjson("{not-valid-json");
+        String originalNdjson = session.getNdjson();
+        String originalSummary = session.getCompressedSummary();
 
         CompressionOutcome outcome = service.compressNowWithOutcome(session, "system", "focus");
 
         assertThat(outcome.isFailed()).isTrue();
         assertThat(outcome.getWarning()).contains("压缩摘要生成失败");
+        assertThat(outcome.getWarning()).contains("原始上下文已保留");
         assertThat(outcome.getSession()).isSameAs(session);
+        assertThat(session.getNdjson()).isEqualTo(originalNdjson);
+        assertThat(session.getCompressedSummary()).isEqualTo(originalSummary);
         assertThat(session.getCompressionFailureCount()).isEqualTo(1);
+        assertThat(session.getLastCompressionFailedAt()).isGreaterThan(0L);
     }
 
     @Test
@@ -240,6 +247,42 @@ public class CompressionStabilityTest {
         SessionRecord compressed = service.compressNow(session, "system");
 
         assertThat(compressed.getNdjson()).contains("必须保留的最后用户消息");
+    }
+
+    @Test
+    void shouldPreserveRecentCompactedTurnsInSummaryWithoutCopyingProtectedTail() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(1);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-compacted-turns");
+        String secret = "ghp_compactionrecentturnsecret12345";
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("排查 /tmp/active.py 的失败分支"),
+                                ChatMessage.ofAssistant("已经定位 /tmp/active.py 的 failing branch"),
+                                ChatMessage.ofTool(
+                                        "ValueError: boom in /tmp/active.py token="
+                                                + secret,
+                                        "terminal",
+                                        "call-old"),
+                                ChatMessage.ofAssistant("下一步补 /tmp/active.py 的回归测试"),
+                                ChatMessage.ofUser("受保护 tail 请求不要复制到摘要里"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Last Compacted Turns");
+        String compactedTurns = section(
+                compressed.getCompressedSummary(), "Last Compacted Turns", "Remaining Work");
+        assertThat(compressed.getCompressedSummary())
+                .contains("ASSISTANT: 已经定位 /tmp/active.py 的 failing branch")
+                .contains("TOOL: ValueError: boom in /tmp/active.py");
+        assertThat(compressed.getCompressedSummary()).doesNotContain(secret);
+        assertThat(compactedTurns).doesNotContain("受保护 tail 请求不要复制到摘要里");
     }
 
     @Test
@@ -367,6 +410,15 @@ public class CompressionStabilityTest {
             from = idx + token.length();
         }
         return count;
+    }
+
+    private String section(String text, String startHeader, String endHeader) {
+        int start = text.indexOf(startHeader);
+        assertThat(start).isGreaterThanOrEqualTo(0);
+        int contentStart = start + startHeader.length();
+        int end = text.indexOf(endHeader, contentStart);
+        assertThat(end).isGreaterThan(contentStart);
+        return text.substring(contentStart, end);
     }
 
     private AssistantMessage assistantWithRawToolCall(

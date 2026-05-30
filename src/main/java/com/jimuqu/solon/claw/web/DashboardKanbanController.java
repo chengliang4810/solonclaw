@@ -85,7 +85,11 @@ public class DashboardKanbanController {
                 context.param("status"),
                 Boolean.parseBoolean(String.valueOf(context.param("archived"))),
                 context.param("assignee"),
-                context.param("tenant"));
+                context.param("tenant"),
+                taskOrderBy(context),
+                firstParam(context, "workflow_template_id", "workflow"),
+                firstParam(context, "current_step_key", "step"),
+                firstParam(context, "session_id", "session"));
     }
 
     @Mapping(value = "/api/kanban/tasks", method = MethodType.POST)
@@ -231,8 +235,11 @@ public class DashboardKanbanController {
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/runs", method = MethodType.GET)
-    public List<Map<String, Object>> runs(String taskId) throws Exception {
-        return kanbanService.runs(taskId);
+    public List<Map<String, Object>> runs(String taskId, Context context) throws Exception {
+        return kanbanService.runs(
+                taskId,
+                firstParam(context, "state_type", "stateType"),
+                firstParam(context, "state_name", "state"));
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/events", method = MethodType.GET)
@@ -592,6 +599,22 @@ public class DashboardKanbanController {
             }
             return DashboardResponse.error("KANBAN_BAD_REQUEST", e.getMessage());
         }
+    }
+
+    private String taskOrderBy(Context context) {
+        String orderBy = context == null ? null : context.param("order_by");
+        if (orderBy == null || orderBy.trim().isEmpty()) {
+            orderBy = context == null ? null : context.param("sort");
+        }
+        return orderBy;
+    }
+
+    private String firstParam(Context context, String first, String second) {
+        String value = context == null ? null : context.param(first);
+        if (value == null || value.trim().isEmpty()) {
+            value = context == null ? null : context.param(second);
+        }
+        return value;
     }
 
     private interface KanbanAction {

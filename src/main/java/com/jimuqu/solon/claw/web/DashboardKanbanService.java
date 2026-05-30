@@ -73,7 +73,63 @@ public class DashboardKanbanService {
     public List<Map<String, Object>> tasks(
             String board, String status, boolean includeArchived, String assignee, String tenant)
             throws Exception {
-        return kanbanService.tasks(board, status, includeArchived, assignee, tenant);
+        return tasks(board, status, includeArchived, assignee, tenant, null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board,
+            String status,
+            boolean includeArchived,
+            String assignee,
+            String tenant,
+            String orderBy)
+            throws Exception {
+        return tasks(board, status, includeArchived, assignee, tenant, orderBy, null, null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board,
+            String status,
+            boolean includeArchived,
+            String assignee,
+            String tenant,
+            String orderBy,
+            String workflowTemplateId,
+            String currentStepKey)
+            throws Exception {
+        return tasks(
+                board,
+                status,
+                includeArchived,
+                assignee,
+                tenant,
+                orderBy,
+                workflowTemplateId,
+                currentStepKey,
+                null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board,
+            String status,
+            boolean includeArchived,
+            String assignee,
+            String tenant,
+            String orderBy,
+            String workflowTemplateId,
+            String currentStepKey,
+            String sessionId)
+            throws Exception {
+        return kanbanService.tasks(
+                board,
+                status,
+                includeArchived,
+                assignee,
+                tenant,
+                orderBy,
+                workflowTemplateId,
+                currentStepKey,
+                sessionId);
     }
 
     public Map<String, Object> task(String taskId) throws Exception {
@@ -154,6 +210,11 @@ public class DashboardKanbanService {
 
     public List<Map<String, Object>> runs(String taskId) throws Exception {
         return kanbanService.runs(taskId);
+    }
+
+    public List<Map<String, Object>> runs(String taskId, String stateType, String stateName)
+            throws Exception {
+        return kanbanService.runs(taskId, stateType, stateName);
     }
 
     public List<Map<String, Object>> events(String taskId) throws Exception {

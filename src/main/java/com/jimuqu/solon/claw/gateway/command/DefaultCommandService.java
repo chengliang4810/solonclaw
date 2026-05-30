@@ -1012,6 +1012,24 @@ public class DefaultCommandService implements CommandService {
 
         if (isCompressionCommand(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            if (agentRunControlService != null
+                    && agentRunControlService.isRunning(message.sourceKey())) {
+                GatewayReply reply =
+                        GatewayReply.error(
+                                "当前会话正在运行任务，已跳过上下文压缩，避免覆盖运行中的上下文。请等待任务完成后重试，或先使用 /stop 停止当前任务。");
+                reply.setSessionId(session.getSessionId());
+                reply.setBranchName(session.getBranchName());
+                Map<String, Object> activeRun =
+                        agentRunControlService.activeRunSummary(message.sourceKey());
+                if (activeRun != null) {
+                    reply.getRuntimeMetadata().put("busy_status", "running");
+                    Object runId = activeRun.get("run_id");
+                    if (runId != null) {
+                        reply.getRuntimeMetadata().put("run_id", String.valueOf(runId));
+                    }
+                }
+                return reply;
+            }
             String systemPrompt = contextService.buildSystemPrompt(message.sourceKey());
             session.setSystemPromptSnapshot(systemPrompt);
             CompressionOutcome outcome =
