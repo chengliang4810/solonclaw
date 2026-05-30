@@ -153,6 +153,24 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldSanitizeTerminalResponsesBeforeLocalTuiCommandRouting() throws Exception {
+        TuiShell shell =
+                new TuiShell(
+                        new TextRuntime("routed-to-model"),
+                        new CliMode(CliMode.Kind.TUI, null, null));
+        java.io.StringWriter buffer = new java.io.StringWriter();
+
+        int exitCode =
+                send(
+                        shell,
+                        new PrintWriter(buffer),
+                        "/tips]11;rgb:ffff/ffff/ffff\u0007");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString()).contains("终端提示");
+    }
+
+    @Test
     void shouldUseSharedTerminalCommandCatalogForCompletion() throws Exception {
         Field field = TuiShell.class.getDeclaredField("COMMANDS");
         field.setAccessible(true);
@@ -360,6 +378,24 @@ public class TuiShellHeaderTest {
                 java.util.List<com.jimuqu.solon.claw.core.model.MessageAttachment> attachments,
                 com.jimuqu.solon.claw.core.service.ConversationEventSink eventSink) {
             throw new IllegalStateException("not a TTY");
+        }
+    }
+
+    private static class TextRuntime extends com.jimuqu.solon.claw.cli.CliRuntime {
+        private final String text;
+
+        private TextRuntime(String text) {
+            super(null, null);
+            this.text = text;
+        }
+
+        @Override
+        public GatewayReply send(
+                String sessionId,
+                String input,
+                java.util.List<com.jimuqu.solon.claw.core.model.MessageAttachment> attachments,
+                com.jimuqu.solon.claw.core.service.ConversationEventSink eventSink) {
+            return GatewayReply.ok(text);
         }
     }
 }

@@ -13,8 +13,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -188,10 +190,15 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         String resolvedPath = safeDisplayPath(resolvedOutputPath(target));
         if (!targetFile.exists()) {
             String displayPath = safeDisplayPath(fileName);
-            return ToolResultEnvelope.error("文件不存在: " + displayPath)
+            ToolResultEnvelope envelope =
+                    ToolResultEnvelope.error("文件不存在: " + displayPath)
                     .data("path", displayPath)
-                    .data("resolved_path", resolvedPath)
-                    .toJson();
+                            .data("resolved_path", resolvedPath);
+            List<String> similarFiles = similarFiles(fileName, target);
+            if (!similarFiles.isEmpty()) {
+                envelope.data("similar_files", similarFiles);
+            }
+            return envelope.toJson();
         }
         if (targetFile.isDirectory()) {
             String displayPath = safeDisplayPath(fileName);
@@ -387,6 +394,134 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return safeRealPath(path).toString();
     }
 
+    private List<String> similarFiles(String requestedPath, Path target) {
+        Path dir = target == null ? null : target.getParent();
+        if (dir == null || !Files.isDirectory(dir)) {
+            return Collections.emptyList();
+        }
+        Path fileNamePath = target.getFileName();
+        String requestedName = fileNamePath == null ? StrUtil.nullToEmpty(requestedPath) : fileNamePath.toString();
+        String lowerName = requestedName.toLowerCase(Locale.ROOT);
+        String requestedBase = basename(lowerName);
+        String requestedExt = extension(lowerName);
+        List<ScoredPath> scored = new ArrayList<ScoredPath>();
+        try (java.util.stream.Stream<Path> stream = Files.list(dir)) {
+            java.util.Iterator<Path> iterator = stream.iterator();
+            int scanned = 0;
+            while (iterator.hasNext() && scanned < 200) {
+                scanned++;
+                Path candidate = iterator.next();
+                if (!Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                String candidateName = candidate.getFileName() == null ? "" : candidate.getFileName().toString();
+                int score = similarityScore(lowerName, requestedBase, requestedExt, candidateName);
+                if (score <= 0 || !allowedSuggestion(candidate)) {
+                    continue;
+                }
+                scored.add(new ScoredPath(score, displayPathForCandidate(candidate)));
+            }
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+        Collections.sort(
+                scored,
+                new Comparator<ScoredPath>() {
+                    @Override
+                    public int compare(ScoredPath left, ScoredPath right) {
+                        int byScore = Integer.compare(right.score, left.score);
+                        if (byScore != 0) {
+                            return byScore;
+                        }
+                        return left.path.compareTo(right.path);
+                    }
+                });
+        List<String> result = new ArrayList<String>();
+        for (ScoredPath item : scored) {
+            result.add(safeDisplayPath(item.path));
+            if (result.size() >= 5) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private boolean allowedSuggestion(Path candidate) {
+        if (securityPolicyService == null) {
+            return true;
+        }
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", displayPathForCandidate(candidate));
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs(ToolNameConstants.FILE_READ, args);
+        return verdict.isAllowed();
+    }
+
+    private String displayPathForCandidate(Path candidate) {
+        Path normalized = candidate.toAbsolutePath().normalize();
+        if (normalized.startsWith(rootPath)) {
+            return rootPath.relativize(normalized).toString();
+        }
+        return normalized.toString();
+    }
+
+    private int similarityScore(
+            String lowerName, String requestedBase, String requestedExt, String candidateName) {
+        String candidateLower = candidateName.toLowerCase(Locale.ROOT);
+        String candidateBase = basename(candidateLower);
+        String candidateExt = extension(candidateLower);
+        if (candidateLower.equals(lowerName)) {
+            return 100;
+        }
+        if (candidateBase.equals(requestedBase)) {
+            return 90;
+        }
+        if (candidateLower.startsWith(lowerName) || lowerName.startsWith(candidateLower)) {
+            return 70;
+        }
+        if (candidateLower.contains(lowerName)) {
+            return 60;
+        }
+        if (lowerName.contains(candidateLower) && candidateLower.length() > 2) {
+            return 40;
+        }
+        if (StrUtil.isNotBlank(requestedExt) && requestedExt.equals(candidateExt)) {
+            int common = commonCharacterCount(lowerName, candidateLower);
+            int max = Math.max(lowerName.length(), candidateLower.length());
+            if (max > 0 && common >= Math.max(1, max * 4 / 10)) {
+                return 30;
+            }
+        }
+        if (StrUtil.isNotBlank(requestedBase) && candidateBase.contains(requestedBase)) {
+            return 20;
+        }
+        return 0;
+    }
+
+    private int commonCharacterCount(String left, String right) {
+        java.util.Set<Character> seen = new java.util.HashSet<Character>();
+        for (int i = 0; i < left.length(); i++) {
+            seen.add(Character.valueOf(left.charAt(i)));
+        }
+        int common = 0;
+        for (int i = 0; i < right.length(); i++) {
+            if (seen.contains(Character.valueOf(right.charAt(i)))) {
+                common++;
+            }
+        }
+        return common;
+    }
+
+    private String basename(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot <= 0 ? name : name.substring(0, dot);
+    }
+
+    private String extension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot <= 0 ? "" : name.substring(dot);
+    }
+
     private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
         resetDedupHitsAfterOtherToolCall();
         long modifiedAt = targetFile.lastModified();
@@ -576,6 +711,16 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             result = 31 * result + offset;
             result = 31 * result + limit;
             return result;
+        }
+    }
+
+    private static final class ScoredPath {
+        private final int score;
+        private final String path;
+
+        private ScoredPath(int score, String path) {
+            this.score = score;
+            this.path = path;
         }
     }
 }

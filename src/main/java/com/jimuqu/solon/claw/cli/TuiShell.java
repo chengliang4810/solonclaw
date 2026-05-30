@@ -193,6 +193,7 @@ public class TuiShell {
 
     private int send(LocalTerminalTaskRunner taskRunner, PrintWriter writer, String sessionId, String input)
             throws Exception {
+        input = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
         String trimmed = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(trimmed)) {
             writer.println(LocalTerminalHelp.text());

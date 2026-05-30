@@ -12,11 +12,13 @@ import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import cn.hutool.core.io.FileUtil;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.core.handle.UploadedFile;
 
 public class DashboardKanbanServiceTest {
     @Test
@@ -316,6 +318,48 @@ public class DashboardKanbanServiceTest {
         assertThat(removed.get("ok")).isEqualTo(Boolean.TRUE);
         assertThat(dashboardKanbanService.attachments(taskId)).isEmpty();
         assertThat(attachment).doesNotExist();
+    }
+
+    @Test
+    void shouldUploadKanbanAttachmentFilesIntoTaskDirectoryWithCollisionSuffix() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService dashboardKanbanService = new DashboardKanbanService(kanbanService);
+        String taskId = createTask(kanbanService);
+
+        dashboardKanbanService.uploadAttachment(
+                taskId,
+                new UploadedFile[] {
+                    upload("notes.txt", "first"),
+                    upload("notes.txt", "second")
+                });
+
+        List<Map<String, Object>> attachments = dashboardKanbanService.attachments(taskId);
+        File taskDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "kanban", "attachments", taskId)
+                .getCanonicalFile();
+
+        assertThat(attachments).hasSize(2);
+        assertThat(String.valueOf(attachments)).contains("notes.txt").contains("notes-1.txt");
+        for (Map<String, Object> attachment : attachments) {
+            File stored = FileUtil.file(String.valueOf(attachment.get("stored_path"))).getCanonicalFile();
+            assertThat(stored.getPath()).startsWith(taskDir.getPath() + File.separator);
+            assertThat(stored).isFile();
+        }
+        assertThat(String.valueOf(kanbanService.context(taskId).get("worker_context")))
+                .contains("Files attached to this task")
+                .contains("notes.txt")
+                .contains("notes-1.txt");
+    }
+
+    private UploadedFile upload(String name, String content) {
+        byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return new UploadedFile(
+                "text/plain",
+                bytes.length,
+                new ByteArrayInputStream(bytes),
+                name,
+                "txt");
     }
 
     private String createTask(KanbanService kanbanService) throws Exception {

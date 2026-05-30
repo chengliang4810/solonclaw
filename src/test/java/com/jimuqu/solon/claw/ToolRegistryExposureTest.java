@@ -4639,6 +4639,60 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldSuggestSimilarFilesWhenFileReadPathIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.createDirectories(workspace.resolve("config"));
+        Files.write(workspace.resolve("config/app.yaml"), Arrays.asList("app: true"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("config/app.yml"), Arrays.asList("app: short"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("config/application.yaml"), Arrays.asList("app: long"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("config/readme.txt"), Arrays.asList("ignore"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("config/app.json", 1, 5));
+        Object suggestionsData = result.get("similar_files").toData();
+        String suggestions = String.valueOf(suggestionsData);
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString()).contains("config/app.json");
+        assertThat(suggestionsData).isNotNull();
+        assertThat(result.get("path").getString()).isEqualTo("config/app.json");
+        assertThat(result.get("resolved_path").getString())
+                .isEqualTo(workspace.resolve("config/app.json").toAbsolutePath().normalize().toString());
+        assertThat(suggestions)
+                .contains("config/app.yaml")
+                .contains("config/app.yml")
+                .contains("config/application.yaml")
+                .doesNotContain("config/readme.txt");
+    }
+
+    @Test
+    void shouldNotSuggestSensitiveFilesWhenFileReadPathIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(workspace.resolve("config.yml"), Arrays.asList("public: true"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("credentials.json"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("config.json", 1, 5));
+        Object suggestionsData = result.get("similar_files").toData();
+        String suggestions = String.valueOf(suggestionsData);
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(suggestions)
+                .contains("config.yml")
+                .doesNotContain("credentials.json")
+                .doesNotContain("TOKEN=secret");
+        assertThat(result.toJson()).doesNotContain("credentials.json").doesNotContain("TOKEN=secret");
+    }
+
+    @Test
     void shouldHideUtf8BomOnFileReadAndPreserveItAcrossEdits() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
