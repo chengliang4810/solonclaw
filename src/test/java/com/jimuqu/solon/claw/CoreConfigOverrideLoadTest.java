@@ -96,6 +96,8 @@ public class CoreConfigOverrideLoadTest {
                         + "      cdnBaseUrl: https://cdn.example\n"
                         + "      longPollUrl: https://poll.example/ilink/bot/getupdates\n"
                         + "      splitMultilineMessages: true\n"
+                        + "      textBatchDelaySeconds: 0.8\n"
+                        + "      textBatchSplitDelaySeconds: 1.6\n"
                         + "      sendChunkRetries: 9\n"
                         + "jimuqu:\n"
                         + "  approvals:\n"
@@ -211,7 +213,32 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getChannels().getWeixin().getLongPollUrl())
                 .isEqualTo("https://poll.example/ilink/bot/getupdates");
         assertThat(config.getChannels().getWeixin().isSplitMultilineMessages()).isTrue();
+        assertThat(config.getChannels().getWeixin().getTextBatchDelaySeconds()).isEqualTo(0.8D);
+        assertThat(config.getChannels().getWeixin().getTextBatchSplitDelaySeconds())
+                .isEqualTo(1.6D);
         assertThat(config.getChannels().getWeixin().getSendChunkRetries()).isEqualTo(9);
+    }
+
+    @Test
+    void shouldFallbackInvalidWeixinTextBatchDelaysToDefaults() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-weixin-text-batch").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  channels:\n"
+                        + "    weixin:\n"
+                        + "      textBatchDelaySeconds: NaN\n"
+                        + "      textBatchSplitDelaySeconds: -1\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getChannels().getWeixin().getTextBatchDelaySeconds()).isEqualTo(3.0D);
+        assertThat(config.getChannels().getWeixin().getTextBatchSplitDelaySeconds())
+                .isEqualTo(5.0D);
     }
 
     @Test

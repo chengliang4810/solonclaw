@@ -833,6 +833,26 @@ public class AppConfig {
                                         false)));
         config.getChannels()
                 .getWeixin()
+                .setTextBatchDelaySeconds(
+                        nonNegativeFiniteDouble(
+                                readDouble(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.weixin.textBatchDelaySeconds",
+                                        3.0D),
+                                3.0D));
+        config.getChannels()
+                .getWeixin()
+                .setTextBatchSplitDelaySeconds(
+                        nonNegativeFiniteDouble(
+                                readDouble(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.weixin.textBatchSplitDelaySeconds",
+                                        5.0D),
+                                5.0D));
+        config.getChannels()
+                .getWeixin()
                 .setSendChunkDelaySeconds(
                         resolveDouble(
                                 readDouble(
@@ -2281,6 +2301,8 @@ public class AppConfig {
         target.setAllowAllUsers(source.isAllowAllUsers());
         target.setUnauthorizedDmBehavior(source.getUnauthorizedDmBehavior());
         target.setSplitMultilineMessages(source.isSplitMultilineMessages());
+        target.setTextBatchDelaySeconds(source.getTextBatchDelaySeconds());
+        target.setTextBatchSplitDelaySeconds(source.getTextBatchSplitDelaySeconds());
         target.setSendChunkDelaySeconds(source.getSendChunkDelaySeconds());
         target.setSendChunkRetries(source.getSendChunkRetries());
         target.setSendChunkRetryDelaySeconds(source.getSendChunkRetryDelaySeconds());
@@ -2464,6 +2486,10 @@ public class AppConfig {
     /** 支持通过配置文件覆盖浮点配置。 */
     private static double resolveDouble(double fallback) {
         return fallback;
+    }
+
+    private static double nonNegativeFiniteDouble(double value, double defaultValue) {
+        return Double.isFinite(value) && value >= 0.0D ? value : defaultValue;
     }
 
     /** 支持逗号分隔的用户列表解析。 */
@@ -4183,6 +4209,12 @@ public class AppConfig {
 
         /** 微信是否按多行强制拆分。 */
         private boolean splitMultilineMessages;
+
+        /** 微信入站文本去抖批量延迟。 */
+        private double textBatchDelaySeconds = 3.0D;
+
+        /** 微信入站长分片文本去抖批量延迟。 */
+        private double textBatchSplitDelaySeconds = 5.0D;
 
         /** 微信分片发送间隔。 */
         private double sendChunkDelaySeconds = 0.35D;

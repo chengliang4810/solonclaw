@@ -507,6 +507,10 @@ solonclaw:
       groupAllowedUsers: []
       # 是否按多行强制拆分微信文本消息。
       splitMultilineMessages: false
+      # 微信入站文本批量延迟，单位秒；连续短文本会合并为一次对话触发。
+      textBatchDelaySeconds: 3.0
+      # 微信长文本分片入站批量延迟，单位秒。
+      textBatchSplitDelaySeconds: 5.0
       # 微信分片发送间隔，单位秒。
       sendChunkDelaySeconds: 0.35
       # 微信分片发送失败后的重试次数。
