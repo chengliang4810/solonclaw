@@ -140,16 +140,17 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into kanban_boards (board_id, slug, name, description, color, current, archived, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into kanban_boards (board_id, slug, name, description, color, default_workspace_path, current, archived, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, board.getBoardId());
             statement.setString(2, board.getSlug());
             statement.setString(3, board.getName());
             statement.setString(4, board.getDescription());
             statement.setString(5, board.getColor());
-            statement.setInt(6, board.isCurrent() ? 1 : 0);
-            statement.setInt(7, board.isArchived() ? 1 : 0);
-            statement.setLong(8, board.getCreatedAt());
-            statement.setLong(9, board.getUpdatedAt());
+            statement.setString(6, board.getDefaultWorkspacePath());
+            statement.setInt(7, board.isCurrent() ? 1 : 0);
+            statement.setInt(8, board.isArchived() ? 1 : 0);
+            statement.setLong(9, board.getCreatedAt());
+            statement.setLong(10, board.getUpdatedAt());
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -2236,16 +2237,17 @@ public class SqliteKanbanRepository implements KanbanRepository {
             long now = System.currentTimeMillis();
             PreparedStatement insert =
                     connection.prepareStatement(
-                            "insert into kanban_boards (board_id, slug, name, description, color, current, archived, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert into kanban_boards (board_id, slug, name, description, color, default_workspace_path, current, archived, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             insert.setString(1, "board_default");
             insert.setString(2, DEFAULT_BOARD);
             insert.setString(3, "默认看板");
             insert.setString(4, "本地协作任务看板");
             insert.setString(5, "#2563eb");
-            insert.setInt(6, 1);
-            insert.setInt(7, 0);
-            insert.setLong(8, now);
+            insert.setString(6, null);
+            insert.setInt(7, 1);
+            insert.setInt(8, 0);
             insert.setLong(9, now);
+            insert.setLong(10, now);
             insert.executeUpdate();
             insert.close();
         } finally {
@@ -2293,6 +2295,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setName(resultSet.getString("name"));
         record.setDescription(resultSet.getString("description"));
         record.setColor(resultSet.getString("color"));
+        record.setDefaultWorkspacePath(resultSet.getString("default_workspace_path"));
         record.setCurrent(resultSet.getInt("current") == 1);
         record.setArchived(resultSet.getInt("archived") == 1);
         record.setCreatedAt(resultSet.getLong("created_at"));

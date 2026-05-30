@@ -377,6 +377,44 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldInheritBoardDefaultWorkspacePathOnlyForPersistentWorkspaces() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        Map<String, Object> board = new LinkedHashMap<String, Object>();
+        board.put("slug", "workspace-defaults");
+        board.put("name", "工作区默认值");
+        board.put("default_workspace_path", "/tmp/solon-claw-board-default");
+        service.createBoard(board);
+
+        Map<String, Object> scratch = new LinkedHashMap<String, Object>();
+        scratch.put("board", "workspace-defaults");
+        scratch.put("title", "scratch 不继承");
+        String scratchId = String.valueOf(service.createTask(scratch).get("id"));
+
+        Map<String, Object> dir = new LinkedHashMap<String, Object>();
+        dir.put("board", "workspace-defaults");
+        dir.put("title", "dir 继承");
+        dir.put("workspace_kind", "dir");
+        String dirId = String.valueOf(service.createTask(dir).get("id"));
+
+        Map<String, Object> explicit = new LinkedHashMap<String, Object>();
+        explicit.put("board", "workspace-defaults");
+        explicit.put("title", "显式路径优先");
+        explicit.put("workspace_kind", "dir");
+        explicit.put("workspace_path", "/tmp/solon-claw-explicit");
+        String explicitId = String.valueOf(service.createTask(explicit).get("id"));
+
+        assertThat(repository.findBoard("workspace-defaults").getDefaultWorkspacePath())
+                .isEqualTo("/tmp/solon-claw-board-default");
+        assertThat(repository.findTask(scratchId).getWorkspacePath()).isNull();
+        assertThat(repository.findTask(dirId).getWorkspacePath())
+                .isEqualTo("/tmp/solon-claw-board-default");
+        assertThat(repository.findTask(explicitId).getWorkspacePath())
+                .isEqualTo("/tmp/solon-claw-explicit");
+    }
+
+    @Test
     void shouldFilterTaskListAssigneeCaseInsensitively() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "大小写过滤任务", "alice", "planner");

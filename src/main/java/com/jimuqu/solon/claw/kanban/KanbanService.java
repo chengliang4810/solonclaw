@@ -111,6 +111,7 @@ public class KanbanService {
         board.setName(StrUtil.blankToDefault(text(body, "name"), board.getSlug()));
         board.setDescription(text(body, "description"));
         board.setColor(StrUtil.blankToDefault(text(body, "color"), "#2563eb"));
+        board.setDefaultWorkspacePath(text(body, "default_workspace_path"));
         board.setCurrent(booleanValue(body, "current") || booleanValue(body, "switch"));
         return boardView(repository.saveBoard(board));
     }
@@ -263,7 +264,7 @@ public class KanbanService {
         task.setSessionId(text(body, "session_id"));
         String workspaceKind = normalizeWorkspaceKind(text(body, "workspace_kind"));
         task.setWorkspaceKind(workspaceKind);
-        task.setWorkspacePath(text(body, "workspace_path"));
+        task.setWorkspacePath(resolveWorkspacePath(task.getBoardSlug(), workspaceKind, text(body, "workspace_path")));
         task.setBranchName(normalizeBranchName(text(body, "branch_name"), workspaceKind));
         task.setCreatedBy(StrUtil.blankToDefault(text(body, "created_by"), "user"));
         task.setIdempotencyKey(idempotencyKey);
@@ -1715,6 +1716,19 @@ public class KanbanService {
         return "ready";
     }
 
+    private String resolveWorkspacePath(String boardSlug, String workspaceKind, String explicitPath)
+            throws Exception {
+        if (StrUtil.isNotBlank(explicitPath) || "scratch".equals(workspaceKind)) {
+            return explicitPath;
+        }
+        KanbanBoardRecord board =
+                StrUtil.isBlank(boardSlug) ? repository.currentBoard() : repository.findBoard(boardSlug);
+        if (board == null) {
+            return explicitPath;
+        }
+        return StrUtil.blankToDefault(board.getDefaultWorkspacePath(), explicitPath);
+    }
+
     private void putOption(
             Map<String, Object> body, ParsedKanbanOptions parsed, String bodyKey, String optionKey) {
         String value = parsed.value(optionKey);
@@ -2002,6 +2016,7 @@ public class KanbanService {
         result.put("name", board.getName());
         result.put("description", board.getDescription());
         result.put("color", board.getColor());
+        result.put("default_workspace_path", board.getDefaultWorkspacePath());
         result.put("current", Boolean.valueOf(board.isCurrent()));
         result.put("archived", Boolean.valueOf(board.isArchived()));
         result.put("created_at", iso(board.getCreatedAt()));
