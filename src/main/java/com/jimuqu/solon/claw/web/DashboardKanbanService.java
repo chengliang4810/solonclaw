@@ -181,8 +181,10 @@ public class DashboardKanbanService {
             try {
                 if (body != null && body.containsKey("status")) {
                     status(taskId, body);
+                } else if (body != null && body.containsKey("priority")) {
+                    updateTask(taskId, body);
                 } else {
-                    throw new IllegalArgumentException("bulk task update requires status");
+                    throw new IllegalArgumentException("bulk task update requires status or priority");
                 }
                 item.put("ok", Boolean.TRUE);
             } catch (Exception e) {

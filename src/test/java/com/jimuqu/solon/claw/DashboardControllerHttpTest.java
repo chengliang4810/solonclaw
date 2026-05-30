@@ -1661,6 +1661,28 @@ public class DashboardControllerHttpTest {
                 .contains("\"ok\":false")
                 .contains("running");
 
+        HttpResult bulkPriority =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/bulk",
+                        "{\"ids\":[\"" + childTaskId + "\",\"KB-NOTFOUND\",\"" + alphaTaskId + "\"],\"priority\":7}",
+                        token);
+        assertThat(bulkPriority.status).isEqualTo(200);
+        assertThat(bulkPriority.body)
+                .contains("\"id\":\"" + childTaskId + "\"")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"KB-NOTFOUND\"")
+                .contains("\"ok\":false")
+                .contains("not found")
+                .contains("\"id\":\"" + alphaTaskId + "\"");
+
+        HttpResult childTaskDetail = request("GET", "/api/kanban/tasks/" + childTaskId, null, token);
+        assertThat(childTaskDetail.status).isEqualTo(200);
+        assertThat(childTaskDetail.body).contains("\"priority\":7");
+        HttpResult alphaTaskDetail = request("GET", "/api/kanban/tasks/" + alphaTaskId, null, token);
+        assertThat(alphaTaskDetail.status).isEqualTo(200);
+        assertThat(alphaTaskDetail.body).contains("\"priority\":7");
+
         HttpResult claimTask =
                 request(
                         "POST",
