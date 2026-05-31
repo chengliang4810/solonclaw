@@ -44,7 +44,20 @@ public class ModelMetadataService {
         if (slash >= 0 && slash + 1 < value.length()) {
             return value.substring(slash + 1).trim();
         }
+        int colon = value.indexOf(':');
+        if (colon > 0 && colon + 1 < value.length() && isProviderPrefix(value.substring(0, colon))) {
+            return value.substring(colon + 1).trim();
+        }
         return value;
+    }
+
+    private boolean isProviderPrefix(String prefix) {
+        String value = StrUtil.nullToEmpty(prefix).trim().toLowerCase();
+        return "openai".equals(value)
+                || "openai-responses".equals(value)
+                || "anthropic".equals(value)
+                || "gemini".equals(value)
+                || "google".equals(value);
     }
 
     private List<String> aliases(String model) {
