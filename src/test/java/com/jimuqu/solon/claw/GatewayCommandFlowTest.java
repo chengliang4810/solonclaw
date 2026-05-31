@@ -127,6 +127,38 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldListAndSearchSessionsFromSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-sessions", "user-sessions", "hello");
+        env.send("room-sessions", "user-sessions", "/pairing claim-admin");
+
+        GatewayReply firstNew = env.send("room-sessions", "user-sessions", "/new 客户周报");
+        GatewayReply secondNew = env.send("room-sessions", "user-sessions", "/new 研发计划");
+
+        GatewayReply listReply = env.send("room-sessions", "user-sessions", "/sessions");
+
+        assertThat(listReply.getContent())
+                .contains("最近会话")
+                .contains("客户周报")
+                .contains("研发计划")
+                .contains("1.")
+                .contains("/resume");
+        assertThat(listReply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "sessions");
+
+        GatewayReply searchReply = env.send("room-sessions", "user-sessions", "/sessions 周报");
+
+        assertThat(searchReply.getContent())
+                .contains("最近会话")
+                .contains("客户周报")
+                .contains(firstNew.getSessionId())
+                .doesNotContain("研发计划")
+                .doesNotContain(secondNew.getSessionId());
+    }
+
+    @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-resume-a", "user-resume", "hello"));

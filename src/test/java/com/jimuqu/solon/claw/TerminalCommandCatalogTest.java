@@ -32,7 +32,7 @@ public class TerminalCommandCatalogTest {
                         "/image",
                         "/handoff",
                         "/subgoal")
-                .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security");
+                .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security", "/sessions");
 
         CommandDescriptor footer = CommandRegistry.get("footer");
         assertThat(footer).isNotNull();
