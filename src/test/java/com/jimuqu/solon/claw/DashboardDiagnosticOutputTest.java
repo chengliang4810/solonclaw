@@ -323,6 +323,7 @@ public class DashboardDiagnosticOutputTest {
         config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getSecurity().setAllowPrivateUrls(false);
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
         DangerousCommandApprovalService approvalService =

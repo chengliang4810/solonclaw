@@ -191,7 +191,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         if (securityPolicyService == null) {
             return;
         }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlBlockingPrivate(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
                     "Skills Hub HTTP URL blocked by security policy: "
