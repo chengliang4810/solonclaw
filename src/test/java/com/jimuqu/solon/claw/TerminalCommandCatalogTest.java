@@ -25,6 +25,7 @@ public class TerminalCommandCatalogTest {
                         "/plugins",
                         "/curator",
                         "/toolsets",
+                        "/browser",
                         "/update",
                         "/history",
                         "/reload-skills",
@@ -119,6 +120,11 @@ public class TerminalCommandCatalogTest {
         assertThat(toolsets).isNotNull();
         assertThat(toolsets.getCategory()).isEqualTo("tool");
         assertThat(CommandRegistry.resolve("/toolsets").getName()).isEqualTo("toolsets");
+
+        CommandDescriptor browser = CommandRegistry.get("browser");
+        assertThat(browser).isNotNull();
+        assertThat(browser.getCategory()).isEqualTo("tool");
+        assertThat(CommandRegistry.resolve("/browser").getName()).isEqualTo("browser");
 
         CommandDescriptor update = CommandRegistry.get("update");
         assertThat(update).isNotNull();

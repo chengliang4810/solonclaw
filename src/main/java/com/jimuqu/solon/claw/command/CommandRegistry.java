@@ -47,6 +47,7 @@ public final class CommandRegistry {
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
         register(core("toolsets", "tool", "列出可用工具集"));
+        register(core("browser", "tool", "管理浏览器自动化运行时"));
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
         register(core("curator", "skill", "管理技能后台维护状态与运行"));
         register(core("plugins", "tool", "查看插件加载状态"));

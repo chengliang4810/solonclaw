@@ -51,6 +51,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -212,6 +213,7 @@ public class GatewayConfiguration {
             AgentPluginManager pluginManager,
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService,
+            BrowserRuntimeService browserRuntimeService,
             Map<String, CommandHandler> pluginCommands) {
         return new DefaultCommandService(
                 sessionRepository,
@@ -245,7 +247,8 @@ public class GatewayConfiguration {
                 pluginCommands,
                 pluginManager,
                 dashboardCuratorService,
-                dashboardSkillsService);
+                dashboardSkillsService,
+                browserRuntimeService);
     }
 
     @Bean

@@ -83,6 +83,7 @@ import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -291,6 +292,12 @@ public class TestEnvironment {
                         new SkillCuratorService(config, localSkillService), database);
         DashboardSkillsService dashboardSkillsService =
                 new DashboardSkillsService(localSkillService, preferenceStore);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(config);
+        BrowserRuntimeService browserRuntimeService =
+                new BrowserRuntimeService(
+                        config,
+                        java.util.Collections.<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
+                        securityPolicyService);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -309,9 +316,10 @@ public class TestEnvironment {
                         attachmentCacheService,
                         runtimeSettingsService,
                         refreshService,
-                        new SecurityPolicyService(config),
+                        securityPolicyService,
                         processRegistry,
-                        null);
+                        null,
+                        browserRuntimeService);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
                 new AgentRunSupervisor(
@@ -392,7 +400,8 @@ public class TestEnvironment {
                         null,
                         null,
                         dashboardCuratorService,
-                        dashboardSkillsService);
+                        dashboardSkillsService,
+                        browserRuntimeService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,
