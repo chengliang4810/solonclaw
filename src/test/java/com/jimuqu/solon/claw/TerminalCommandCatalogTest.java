@@ -40,7 +40,8 @@ public class TerminalCommandCatalogTest {
                         "/paste",
                         "/image",
                         "/handoff",
-                        "/subgoal")
+                        "/subgoal",
+                        "/quit")
                 .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security", "/sessions");
 
         CommandDescriptor footer = CommandRegistry.get("footer");
@@ -121,6 +122,13 @@ public class TerminalCommandCatalogTest {
         assertThat(skin).isNotNull();
         assertThat(skin.getCategory()).isEqualTo("terminal");
         assertThat(CommandRegistry.resolve("/skin").getName()).isEqualTo("skin");
+
+        CommandDescriptor quit = CommandRegistry.get("quit");
+        assertThat(quit).isNotNull();
+        assertThat(quit.getCategory()).isEqualTo("terminal");
+        assertThat(quit.getAliases()).contains("exit");
+        assertThat(CommandRegistry.resolve("/quit").getName()).isEqualTo("quit");
+        assertThat(CommandRegistry.resolve("/exit").getName()).isEqualTo("quit");
     }
 
     @Test

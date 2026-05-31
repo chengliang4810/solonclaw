@@ -80,6 +80,7 @@ public final class CommandRegistry {
         register(terminal("history", "预览当前终端会话的最近历史"));
         register(terminal("handoff", "生成会话交接信息"));
         register(terminal("subgoal", "管理当前目标的子目标"));
+        register(terminal("quit", "退出当前终端会话").alias("exit"));
     }
 
     private CommandRegistry() {}
