@@ -306,7 +306,7 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
     {
       title: 'URL 与私有地址',
       items: [
-        metric('允许私有地址', firstDefined(privateUrlPolicy.allowPrivateUrls, urlPolicy.allowPrivateUrls, policy.allow_private_urls), false),
+        metric('允许私有地址', firstDefined(privateUrlPolicy.allowPrivateUrls, urlPolicy.allowPrivateUrls, policy.allow_private_urls), true),
         metric('固定阻断主机', urlPolicy.alwaysBlockedHostCount),
         metric('固定阻断地址', urlPolicy.alwaysBlockedIpCount),
         metric('敏感参数名', urlPolicy.sensitiveQueryNameCount),
@@ -844,7 +844,7 @@ onMounted(load)
                 <div>
                   <dt>允许私有地址</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityPolicy.allow_private_urls, false)">
+                    <NTag size="small" :type="booleanTagType(securityPolicy.allow_private_urls, true)">
                       {{ booleanText(securityPolicy.allow_private_urls) }}
                     </NTag>
                   </dd>

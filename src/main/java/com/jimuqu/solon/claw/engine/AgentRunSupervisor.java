@@ -28,12 +28,16 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
+import com.jimuqu.solon.claw.pricing.UsageCost;
+import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+import com.jimuqu.solon.claw.usage.UsageEventRecord;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -44,7 +48,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -52,7 +55,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** SolonClaw 风格的外层 Agent run 状态机。 */
-@RequiredArgsConstructor
 public class AgentRunSupervisor implements AgentRunControlService {
     private static final Logger log = LoggerFactory.getLogger(AgentRunSupervisor.class);
     private static final String EMPTY_REPLY_RECOVERY_PROMPT =
@@ -73,11 +75,54 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private final ContextBudgetService contextBudgetService;
     private final LlmGateway llmGateway;
     private final LlmProviderService llmProviderService;
+    private final UsageEventRepository usageEventRepository;
+    private final UsageCostCalculator usageCostCalculator;
     private final ConcurrentMap<String, RunHandle> runningRuns =
             new ConcurrentHashMap<String, RunHandle>();
     private final ConcurrentMap<String, AtomicBoolean> drainingQueues =
             new ConcurrentHashMap<String, AtomicBoolean>();
     private volatile long lastRunFinishedAt;
+
+    public AgentRunSupervisor(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            AgentRunRepository agentRunRepository,
+            ContextCompressionService contextCompressionService,
+            ContextBudgetService contextBudgetService,
+            LlmGateway llmGateway,
+            LlmProviderService llmProviderService) {
+        this(
+                appConfig,
+                sessionRepository,
+                agentRunRepository,
+                contextCompressionService,
+                contextBudgetService,
+                llmGateway,
+                llmProviderService,
+                null,
+                null);
+    }
+
+    public AgentRunSupervisor(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            AgentRunRepository agentRunRepository,
+            ContextCompressionService contextCompressionService,
+            ContextBudgetService contextBudgetService,
+            LlmGateway llmGateway,
+            LlmProviderService llmProviderService,
+            UsageEventRepository usageEventRepository,
+            UsageCostCalculator usageCostCalculator) {
+        this.appConfig = appConfig;
+        this.sessionRepository = sessionRepository;
+        this.agentRunRepository = agentRunRepository;
+        this.contextCompressionService = contextCompressionService;
+        this.contextBudgetService = contextBudgetService;
+        this.llmGateway = llmGateway;
+        this.llmProviderService = llmProviderService;
+        this.usageEventRepository = usageEventRepository;
+        this.usageCostCalculator = usageCostCalculator;
+    }
 
     @Override
     public AgentRunStopResult stop(String sourceKey) {
@@ -766,6 +811,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runRecord.setExitReason("success");
             heartbeat(runRecord);
             agentRunRepository.saveRun(runRecord);
+            recordUsageEvent(runRecord, finalResult);
             runContext.event("run.success", "运行完成");
 
             AgentRunOutcome outcome = new AgentRunOutcome();
@@ -1156,6 +1202,86 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (StrUtil.isNotBlank(result.getModel())) {
             session.setLastResolvedModel(result.getModel());
         }
+    }
+
+    private void recordUsageEvent(AgentRunRecord runRecord, LlmResult result) {
+        if (usageEventRepository == null || runRecord == null || result == null) {
+            return;
+        }
+        long input = Math.max(0L, result.getInputTokens());
+        long output = Math.max(0L, result.getOutputTokens());
+        long cacheRead = Math.max(0L, result.getCacheReadTokens());
+        long cacheWrite = Math.max(0L, result.getCacheWriteTokens());
+        long reasoning = Math.max(0L, result.getReasoningTokens());
+        long total = Math.max(Math.max(0L, result.getTotalTokens()), input + output + reasoning);
+        if (total <= 0
+                && input <= 0
+                && output <= 0
+                && cacheRead <= 0
+                && cacheWrite <= 0
+                && reasoning <= 0) {
+            return;
+        }
+        UsageEventRecord event = new UsageEventRecord();
+        event.setEventId("run-usage-" + runRecord.getRunId());
+        event.setRunId(runRecord.getRunId());
+        event.setSessionId(runRecord.getSessionId());
+        event.setSourceKey(runRecord.getSourceKey());
+        event.setProvider(StrUtil.blankToDefault(result.getProvider(), runRecord.getProvider()));
+        event.setModel(StrUtil.blankToDefault(result.getModel(), runRecord.getModel()));
+        event.setInputTokens(input);
+        event.setOutputTokens(output);
+        event.setCacheReadTokens(cacheRead);
+        event.setCacheWriteTokens(cacheWrite);
+        event.setReasoningTokens(reasoning);
+        event.setTotalTokens(total);
+        event.setCreatedAt(
+                runRecord.getFinishedAt() > 0
+                        ? runRecord.getFinishedAt()
+                        : System.currentTimeMillis());
+        applyCost(event);
+        try {
+            usageEventRepository.insertIfAbsent(event);
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to record usage event: runId={}, error={}",
+                    runRecord.getRunId(),
+                    safeError(e));
+        }
+    }
+
+    private void applyCost(UsageEventRecord event) {
+        if (event == null) {
+            return;
+        }
+        if (usageCostCalculator == null) {
+            event.setPricingAvailable(false);
+            event.setUnpricedInputTokens(event.getInputTokens());
+            event.setUnpricedOutputTokens(event.getOutputTokens());
+            event.setUnpricedCacheReadTokens(event.getCacheReadTokens());
+            event.setUnpricedCacheWriteTokens(event.getCacheWriteTokens());
+            event.setUnpricedReasoningTokens(event.getReasoningTokens());
+            return;
+        }
+        UsageCost cost =
+                usageCostCalculator.calculate(
+                        event.getProvider(),
+                        event.getModel(),
+                        event.getInputTokens(),
+                        event.getOutputTokens(),
+                        event.getCacheReadTokens(),
+                        event.getCacheWriteTokens(),
+                        event.getReasoningTokens());
+        event.setCostMicros(cost.getTotalMicros());
+        event.setCurrency(cost.getCurrency());
+        event.setPriceSource(cost.getPriceSource());
+        event.setPricingAvailable(cost.isPricingAvailable());
+        event.setUnpricedInputTokens(cost.getUnpricedInputTokens());
+        event.setUnpricedOutputTokens(cost.getUnpricedOutputTokens());
+        event.setUnpricedCacheReadTokens(cost.getUnpricedCacheReadTokens());
+        event.setUnpricedCacheWriteTokens(cost.getUnpricedCacheWriteTokens());
+        event.setUnpricedReasoningTokens(cost.getUnpricedReasoningTokens());
+        event.setPricedAt(cost.getPricedAt());
     }
 
     private void mergeUsage(LlmResult base, LlmResult extra) {

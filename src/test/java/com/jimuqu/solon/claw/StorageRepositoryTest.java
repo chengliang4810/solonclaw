@@ -3,9 +3,13 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -59,6 +63,42 @@ public class StorageRepositoryTest {
         assertThat(clone.getParentSessionId()).isEqualTo(session.getSessionId());
         assertThat(env.sessionRepository.findBySourceAndBranch("MEMORY:room-a:user-a", "review"))
                 .isNotNull();
+    }
+
+    @Test
+    void shouldApplyDurabilityAndSafetyPragmasOnEveryConnection() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        assertStoragePragmas(env.sqliteDatabase.openConnection());
+        assertStoragePragmas(env.sqliteDatabase.openConnection());
+    }
+
+    @Test
+    void shouldPersistSessionsWhenSearchIndexUnavailable() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        dropSessionSearchIndex(env.sqliteDatabase);
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:no-fts-room:user");
+        session.setNdjson("fallback searchable transcript");
+        session.setTitle("fallback title");
+        session.setCompressedSummary("fallback summary");
+        env.sessionRepository.save(session);
+
+        assertThat(env.sessionRepository.findById(session.getSessionId())).isNotNull();
+        assertThat(env.sessionRepository.search("fallback", 10))
+                .extracting(SessionRecord::getSessionId)
+                .contains(session.getSessionId());
+    }
+
+    @Test
+    void shouldDeleteSessionsWhenSearchIndexUnavailable() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:no-fts-delete:user");
+        dropSessionSearchIndex(env.sqliteDatabase);
+
+        env.sessionRepository.delete(session.getSessionId());
+
+        assertThat(env.sessionRepository.findById(session.getSessionId())).isNull();
     }
 
     @Test
@@ -134,5 +174,44 @@ public class StorageRepositoryTest {
         assertThat(candidates)
                 .extracting(SessionRecord::getSessionId)
                 .contains(first.getSessionId(), second.getSessionId());
+    }
+
+    private void assertStoragePragmas(Connection connection) throws Exception {
+        try {
+            assertThat(pragmaInt(connection, "secure_delete")).isEqualTo(1);
+            assertThat(pragmaInt(connection, "cell_size_check")).isEqualTo(1);
+            assertThat(pragmaInt(connection, "synchronous")).isEqualTo(2);
+        } finally {
+            connection.close();
+        }
+    }
+
+    private int pragmaInt(Connection connection, String name) throws Exception {
+        Statement statement = connection.createStatement();
+        try {
+            ResultSet resultSet = statement.executeQuery("pragma " + name);
+            try {
+                assertThat(resultSet.next()).isTrue();
+                return resultSet.getInt(1);
+            } finally {
+                resultSet.close();
+            }
+        } finally {
+            statement.close();
+        }
+    }
+
+    private void dropSessionSearchIndex(SqliteDatabase database) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            Statement statement = connection.createStatement();
+            try {
+                statement.execute("drop table if exists sessions_fts");
+            } finally {
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
     }
 }

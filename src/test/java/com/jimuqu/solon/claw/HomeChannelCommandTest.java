@@ -40,6 +40,14 @@ public class HomeChannelCommandTest {
         GatewayReply platforms = env.send("admin-dm", "admin-user", "/platforms");
         assertThat(platforms.getContent()).contains("home=group-1");
         assertThat(platforms.getContent()).contains("admin=admin-user");
+
+        GatewayReply gateway = env.send("admin-dm", "admin-user", "/gateway");
+        assertThat(gateway.getContent()).contains("home=group-1");
+        assertThat(gateway.getContent()).contains("admin=admin-user");
+
+        GatewayReply platform = env.send("admin-dm", "admin-user", "/platform");
+        assertThat(platform.getContent()).contains("home=group-1");
+        assertThat(platform.getContent()).contains("admin=admin-user");
     }
 
     @Test
@@ -59,5 +67,28 @@ public class HomeChannelCommandTest {
         assertThat(home).isNotNull();
         assertThat(home.getChatId()).isEqualTo("group-1");
         assertThat(home.getThreadId()).isEqualTo("topic-1");
+    }
+
+    @Test
+    void shouldSetHomeChannelWithDashedAlias() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("admin-dm", "admin-user", "hello");
+        env.send("admin-dm", "admin-user", "/pairing claim-admin");
+
+        GatewayReply success =
+                env.gatewayService.handle(
+                        env.message(
+                                "group-alias",
+                                "admin-user",
+                                "group",
+                                "Alias Group",
+                                "Alice",
+                                "/set-home"));
+        assertThat(success.getContent()).contains("Home Channel");
+
+        HomeChannelRecord home = env.gatewayPolicyRepository.getHomeChannel(PlatformType.MEMORY);
+        assertThat(home).isNotNull();
+        assertThat(home.getChatId()).isEqualTo("group-alias");
     }
 }

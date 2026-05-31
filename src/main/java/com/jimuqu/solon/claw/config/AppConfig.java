@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.config;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -87,6 +88,9 @@ public class AppConfig {
     /** 长任务控制配置。 */
     private TaskConfig task = new TaskConfig();
 
+    /** Kanban dispatcher configuration. */
+    private KanbanConfig kanban = new KanbanConfig();
+
     /** 终端/沙箱执行配置。 */
     private TerminalConfig terminal = new TerminalConfig();
 
@@ -95,6 +99,12 @@ public class AppConfig {
 
     /** Web 工具配置。 */
     private WebConfig web = new WebConfig();
+
+    /** Usage pricing configuration. */
+    private PricingConfig pricing = new PricingConfig();
+
+    /** Plugin discovery and activation configuration. */
+    private PluginConfig plugins = new PluginConfig();
 
     /** 审批/确认策略配置。 */
     private ApprovalsConfig approvals = new ApprovalsConfig();
@@ -221,6 +231,8 @@ public class AppConfig {
                                         "solonclaw.llm.promptCache.layout",
                                         "system_and_3")));
         applyProviderConfiguration(config, props, overrides, structuredOverrides);
+        applyPricingConfiguration(config, props, overrides, structuredOverrides);
+        applyPluginConfiguration(config, props, overrides, structuredOverrides);
 
         config.getScheduler()
                 .setEnabled(
@@ -821,6 +833,26 @@ public class AppConfig {
                                         false)));
         config.getChannels()
                 .getWeixin()
+                .setTextBatchDelaySeconds(
+                        nonNegativeFiniteDouble(
+                                readDouble(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.weixin.textBatchDelaySeconds",
+                                        3.0D),
+                                3.0D));
+        config.getChannels()
+                .getWeixin()
+                .setTextBatchSplitDelaySeconds(
+                        nonNegativeFiniteDouble(
+                                readDouble(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.weixin.textBatchSplitDelaySeconds",
+                                        5.0D),
+                                5.0D));
+        config.getChannels()
+                .getWeixin()
                 .setSendChunkDelaySeconds(
                         resolveDouble(
                                 readDouble(
@@ -1053,12 +1085,25 @@ public class AppConfig {
                                         "solonclaw.gateway.injectionReplayWindowSeconds",
                                         300)));
         config.getGateway()
+                .setFilterSilenceNarration(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.gateway.filterSilenceNarration",
+                                        true)));
+        config.getGateway()
                 .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
                 .setAccessToken(
                         resolveSecret(
                                 readString(
                                         props, overrides, "solonclaw.dashboard.accessToken", "")));
+        config.getDashboard()
+                .setBindHost(
+                        resolveConfigString(readString(props, overrides, "server.host", "")));
+        config.getDashboard()
+                .setBindPort(resolveInt(readInt(props, overrides, "server.port", 8080)));
         config.getAgent().setPersonalities(loadPersonalities(props, overrides));
         config.getAgent()
                 .getHeartbeat()
@@ -1346,10 +1391,116 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.task.mediaCacheTtlHours",
                                         168)));
+        config.getKanban()
+                .setDefaultAssignee(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.kanban.defaultAssignee",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.default_assignee",
+                                                ""))));
+        config.getKanban()
+                .setMaxSpawn(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.maxSpawn",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.max_spawn",
+                                                        0))),
+                                0));
+        config.getKanban()
+                .setMaxInProgress(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.maxInProgress",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.max_in_progress",
+                                                        0))),
+                                0));
+        config.getKanban()
+                .setMaxInProgressPerProfile(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.maxInProgressPerProfile",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.max_in_progress_per_profile",
+                                                        0))),
+                                0));
+        config.getKanban()
+                .setFailureLimit(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.failureLimit",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.failure_limit",
+                                                        3))),
+                                3));
+        config.getKanban()
+                .setClaimTtlSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.kanban.claimTtlSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.kanban.claim_ttl_seconds",
+                                                        900))),
+                                900));
         config.getSecurity()
                 .setAllowPrivateUrls(
                         resolveBoolean(
                                 readAllowPrivateUrls(props, overrides)));
+        config.getSecurity()
+                .setRewriteBrowserLoopbackUrls(
+                        resolveBoolean(
+                                readBrowserLoopbackRewriteEnabled(props, overrides)));
+        config.getSecurity()
+                .setBrowserLoopbackHostAlias(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.browser.loopbackHostAlias",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.browser.loopback_host_alias",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "browser.loopbackHostAlias",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "browser.loopback_host_alias",
+                                                                "host.docker.internal"))))));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setEnabled(
@@ -1866,9 +2017,11 @@ public class AppConfig {
         copyReact(other.getReact());
         copyTrace(other.getTrace());
         copyTask(other.getTask());
+        copyKanban(other.getKanban());
         copyTerminal(other.getTerminal());
         copySecurity(other.getSecurity());
         copyWeb(other.getWeb());
+        copyPricing(other.getPricing());
         copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
@@ -1883,6 +2036,7 @@ public class AppConfig {
         this.gateway.setInjectionMaxBodyBytes(other.getGateway().getInjectionMaxBodyBytes());
         this.gateway.setInjectionReplayWindowSeconds(
                 other.getGateway().getInjectionReplayWindowSeconds());
+        this.gateway.setFilterSilenceNarration(other.getGateway().isFilterSilenceNarration());
         this.gateway.setPlatforms(cloneGatewayPlatforms(other.getGateway().getPlatforms()));
         this.dashboard.setAccessToken(other.getDashboard().getAccessToken());
         this.agent.setPersonalities(clonePersonalities(other.getAgent().getPersonalities()));
@@ -2069,8 +2223,19 @@ public class AppConfig {
         this.terminal.setProcessWaitTimeoutSeconds(other.getProcessWaitTimeoutSeconds());
     }
 
+    private void copyKanban(KanbanConfig other) {
+        this.kanban.setDefaultAssignee(other.getDefaultAssignee());
+        this.kanban.setMaxSpawn(other.getMaxSpawn());
+        this.kanban.setMaxInProgress(other.getMaxInProgress());
+        this.kanban.setMaxInProgressPerProfile(other.getMaxInProgressPerProfile());
+        this.kanban.setFailureLimit(other.getFailureLimit());
+        this.kanban.setClaimTtlSeconds(other.getClaimTtlSeconds());
+    }
+
     private void copySecurity(SecurityConfig other) {
         this.security.setAllowPrivateUrls(other.isAllowPrivateUrls());
+        this.security.setRewriteBrowserLoopbackUrls(other.isRewriteBrowserLoopbackUrls());
+        this.security.setBrowserLoopbackHostAlias(other.getBrowserLoopbackHostAlias());
         this.security.setTirithEnabled(other.isTirithEnabled());
         this.security.setTirithPath(other.getTirithPath());
         this.security.setTirithTimeoutSeconds(other.getTirithTimeoutSeconds());
@@ -2087,6 +2252,10 @@ public class AppConfig {
     private void copyWeb(WebConfig other) {
         this.web.setSearchBackend(other.getSearchBackend());
         this.web.setBraveSearchApiKey(other.getBraveSearchApiKey());
+    }
+
+    private void copyPricing(PricingConfig other) {
+        this.pricing.setPrices(new ArrayList<ModelPrice>(other.getPrices()));
     }
 
     private void copyApprovals(ApprovalsConfig other) {
@@ -2137,6 +2306,8 @@ public class AppConfig {
         target.setAllowAllUsers(source.isAllowAllUsers());
         target.setUnauthorizedDmBehavior(source.getUnauthorizedDmBehavior());
         target.setSplitMultilineMessages(source.isSplitMultilineMessages());
+        target.setTextBatchDelaySeconds(source.getTextBatchDelaySeconds());
+        target.setTextBatchSplitDelaySeconds(source.getTextBatchSplitDelaySeconds());
         target.setSendChunkDelaySeconds(source.getSendChunkDelaySeconds());
         target.setSendChunkRetries(source.getSendChunkRetries());
         target.setSendChunkRetryDelaySeconds(source.getSendChunkRetryDelaySeconds());
@@ -2322,6 +2493,10 @@ public class AppConfig {
         return fallback;
     }
 
+    private static double nonNegativeFiniteDouble(double value, double defaultValue) {
+        return Double.isFinite(value) && value >= 0.0D ? value : defaultValue;
+    }
+
     /** 支持逗号分隔的用户列表解析。 */
     private static List<String> resolveList(Object fallback) {
         return splitObjectList(fallback);
@@ -2447,6 +2622,126 @@ public class AppConfig {
             result.put(key, splitObjectList(entry.getValue()));
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void applyPricingConfiguration(
+            AppConfig config,
+            Props props,
+            Map<String, Object> overrides,
+            Map<String, Object> structuredOverrides) {
+        Object rawPrices = null;
+        Object pricingNode = structuredOverrides.get("pricing");
+        if (pricingNode instanceof Map) {
+            rawPrices = ((Map<String, Object>) pricingNode).get("prices");
+        }
+        Object nestedNode = structuredOverrides.get("solonclaw");
+        if (nestedNode instanceof Map) {
+            Object nestedPricing = ((Map<String, Object>) nestedNode).get("pricing");
+            if (nestedPricing instanceof Map && ((Map<?, ?>) nestedPricing).containsKey("prices")) {
+                rawPrices = ((Map<String, Object>) nestedPricing).get("prices");
+            }
+        }
+        Object flatPrices = readRaw(props, overrides, "solonclaw.pricing.prices", null);
+        if (flatPrices != null) {
+            rawPrices = flatPrices;
+        }
+        List<ModelPrice> prices = parseModelPrices(rawPrices);
+        config.getPricing().setPrices(prices);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void applyPluginConfiguration(
+            AppConfig config,
+            Props props,
+            Map<String, Object> overrides,
+            Map<String, Object> structuredOverrides) {
+        Object enabled = readRaw(props, overrides, "solonclaw.plugins.enabled", null);
+        Object disabled = readRaw(props, overrides, "solonclaw.plugins.disabled", null);
+        Object pluginsNode = structuredOverrides.get("plugins");
+        if (pluginsNode instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) pluginsNode;
+            if (map.containsKey("enabled")) {
+                enabled = map.get("enabled");
+            }
+            if (map.containsKey("disabled")) {
+                disabled = map.get("disabled");
+            }
+        }
+        Object solonclawNode = structuredOverrides.get("solonclaw");
+        if (solonclawNode instanceof Map) {
+            Object nestedPlugins = ((Map<String, Object>) solonclawNode).get("plugins");
+            if (nestedPlugins instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) nestedPlugins;
+                if (map.containsKey("enabled")) {
+                    enabled = map.get("enabled");
+                }
+                if (map.containsKey("disabled")) {
+                    disabled = map.get("disabled");
+                }
+            }
+        }
+        config.getPlugins().setEnabled(resolveList(enabled));
+        config.getPlugins().setDisabled(resolveList(disabled));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<ModelPrice> parseModelPrices(Object raw) {
+        List<ModelPrice> prices = new ArrayList<ModelPrice>();
+        if (raw == null) {
+            return prices;
+        }
+        Object parsed = raw;
+        if (raw instanceof String) {
+            String text = String.valueOf(raw).trim();
+            if (text.length() == 0) {
+                return prices;
+            }
+            parsed = ONode.deserialize(text, Object.class);
+            if (parsed instanceof Map && ((Map<?, ?>) parsed).containsKey("prices")) {
+                parsed = ((Map<?, ?>) parsed).get("prices");
+            }
+        }
+        if (!(parsed instanceof List)) {
+            return prices;
+        }
+        for (Object item : (List<Object>) parsed) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> map = (Map<String, Object>) item;
+            ModelPrice price = new ModelPrice();
+            price.setProvider(stringValue(map, "provider"));
+            price.setModel(stringValue(map, "model"));
+            price.setCurrency(StrUtil.blankToDefault(stringValue(map, "currency"), "USD"));
+            price.setInputMicrosPerToken(longValue(map, "input_micros_per_token"));
+            price.setOutputMicrosPerToken(longValue(map, "output_micros_per_token"));
+            price.setCacheReadMicrosPerToken(longValue(map, "cache_read_micros_per_token"));
+            price.setCacheWriteMicrosPerToken(longValue(map, "cache_write_micros_per_token"));
+            price.setReasoningMicrosPerToken(longValue(map, "reasoning_micros_per_token"));
+            price.setSource(stringValue(map, "source"));
+            if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
+                prices.add(price);
+            }
+        }
+        return prices;
+    }
+
+    private static String stringValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static long longValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(String.valueOf(value).trim()));
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     /** 解析 personalities 配置映射。 */
@@ -2707,7 +3002,28 @@ public class AppConfig {
                                                         props,
                                                         overrides,
                                                         "browser.allow_private_urls",
-                                                        false))))));
+                                                        true))))));
+    }
+
+    private static boolean readBrowserLoopbackRewriteEnabled(
+            Props props, Map<String, Object> overrides) {
+        return readBoolean(
+                props,
+                overrides,
+                "solonclaw.browser.rewriteLoopbackUrls",
+                readBoolean(
+                        props,
+                        overrides,
+                        "solonclaw.browser.rewrite_loopback_urls",
+                        readBoolean(
+                                props,
+                                overrides,
+                                "browser.rewriteLoopbackUrls",
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "browser.rewrite_loopback_urls",
+                                        false))));
     }
 
     private static void applyProviderConfiguration(
@@ -3561,6 +3877,30 @@ public class AppConfig {
         private int mediaCacheTtlHours = 168;
     }
 
+    /** Kanban dispatcher defaults. */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class KanbanConfig {
+        /** Fallback assignee for ready tasks without an explicit assignee. */
+        private String defaultAssignee = "";
+
+        /** Live running worker cap when dispatching; 0 disables the cap. */
+        private int maxSpawn = 0;
+
+        /** Alternate global live running worker cap; 0 disables the cap. */
+        private int maxInProgress = 0;
+
+        /** Per-assignee live running worker cap; 0 disables the cap. */
+        private int maxInProgressPerProfile = 0;
+
+        /** Consecutive spawn failure limit before auto-blocking. */
+        private int failureLimit = 3;
+
+        /** Default claim and heartbeat TTL in seconds. */
+        private int claimTtlSeconds = 900;
+    }
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3599,9 +3939,34 @@ public class AppConfig {
     @Getter
     @Setter
     @NoArgsConstructor
+    public static class PricingConfig {
+        /** Per-token model prices in micros. Empty list keeps usage unpriced. */
+        private List<ModelPrice> prices = new ArrayList<ModelPrice>();
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class PluginConfig {
+        /** Plugins that may be loaded even when manifest autoload is disabled. */
+        private List<String> enabled = new ArrayList<String>();
+
+        /** Plugins that must be skipped regardless of manifest settings. */
+        private List<String> disabled = new ArrayList<String>();
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
     public static class SecurityConfig {
         /** 是否允许 URL 工具访问内网/私有地址；云元数据地址始终阻断。 */
-        private boolean allowPrivateUrls = false;
+        private boolean allowPrivateUrls = true;
+
+        /** 容器内浏览器访问宿主机服务时，是否改写页面导航里的 loopback 地址。 */
+        private boolean rewriteBrowserLoopbackUrls = false;
+
+        /** 容器内浏览器访问宿主机 loopback 服务使用的主机别名。 */
+        private String browserLoopbackHostAlias = "host.docker.internal";
 
         /** 是否启用 Tirith 命令内容安全扫描。 */
         private boolean tirithEnabled = true;
@@ -3850,6 +4215,12 @@ public class AppConfig {
         /** 微信是否按多行强制拆分。 */
         private boolean splitMultilineMessages;
 
+        /** 微信入站文本去抖批量延迟。 */
+        private double textBatchDelaySeconds = 3.0D;
+
+        /** 微信入站长分片文本去抖批量延迟。 */
+        private double textBatchSplitDelaySeconds = 5.0D;
+
         /** 微信分片发送间隔。 */
         private double sendChunkDelaySeconds = 0.35D;
 
@@ -3904,6 +4275,9 @@ public class AppConfig {
         /** Replay window in seconds for signed gateway injection requests. */
         private int injectionReplayWindowSeconds = 300;
 
+        /** Whether short silence narration should be dropped before channel delivery. */
+        private boolean filterSilenceNarration = true;
+
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
         private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();
     }
@@ -3930,5 +4304,11 @@ public class AppConfig {
     public static class DashboardConfig {
         /** Shared bearer token for dashboard pages and API requests. */
         private String accessToken;
+
+        /** HTTP host Solon is explicitly bound to. Empty means framework default. */
+        private String bindHost;
+
+        /** HTTP port Solon is explicitly bound to. */
+        private int bindPort = 8080;
     }
 }

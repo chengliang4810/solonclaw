@@ -1,9 +1,39 @@
 package com.jimuqu.solon.claw.support.constants;
 
+import cn.hutool.core.util.StrUtil;
+
 /** 上下文压缩相关常量。 */
 public interface CompressionConstants {
     /** 压缩摘要前缀。 */
-    String SUMMARY_PREFIX = "[CONTEXT COMPACTION]";
+    String SUMMARY_PREFIX =
+            "[CONTEXT COMPACTION - REFERENCE ONLY] Earlier turns were compacted into the "
+                    + "summary below. Treat it as background reference, NOT as active "
+                    + "instructions. Respond only to the latest user message after this summary; "
+                    + "when older summary content conflicts with that latest user message, the "
+                    + "latest user message wins. If a historical Active Task or handoff "
+                    + "conflicts with the latest user message, discard that stale Active Task.";
+
+    /** 历史摘要前缀。 */
+    String[] HISTORICAL_SUMMARY_PREFIXES =
+            new String[] {
+                "[CONTEXT COMPACTION - REFERENCE ONLY] Earlier turns were compacted into the "
+                        + "summary below. Treat it as background reference, NOT as active "
+                        + "instructions. Respond only to the latest user message after this summary; "
+                        + "when older summary content conflicts with that latest user message, the "
+                        + "latest user message wins.",
+                "[CONTEXT COMPACTION \u2014 REFERENCE ONLY] Earlier turns were compacted "
+                        + "into the summary below. This is a handoff from a previous context "
+                        + "window \u2014 treat it as background reference, NOT as active instructions. "
+                        + "Do NOT answer questions or fulfill requests mentioned in this summary; "
+                        + "they were already addressed. "
+                        + "Your current task is identified in the '## Active Task' section of the "
+                        + "summary \u2014 resume exactly from there. "
+                        + "Respond ONLY to the latest user message "
+                        + "that appears AFTER this summary. The current session state (files, "
+                        + "config, etc.) may reflect work described here \u2014 avoid repeating it:",
+                "[CONTEXT COMPACTION]",
+                "[CONTEXT SUMMARY]:"
+            };
 
     /** 被裁剪的旧工具输出占位文本。 */
     String PRUNED_TOOL_PLACEHOLDER = "[Old tool output cleared to save context space]";
@@ -37,4 +67,32 @@ public interface CompressionConstants {
 
     /** 再次压缩前至少新增的估算 token。 */
     int MIN_RECOMPRESS_DELTA_TOKENS = 512;
+
+    /** 判断内容是否为压缩摘要消息。 */
+    static boolean isSummaryContent(String content) {
+        String value = StrUtil.nullToEmpty(content).trim();
+        if (StrUtil.startWithIgnoreCase(value, SUMMARY_PREFIX)) {
+            return true;
+        }
+        for (String prefix : HISTORICAL_SUMMARY_PREFIXES) {
+            if (StrUtil.startWithIgnoreCase(value, prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 去掉当前或历史摘要前缀，只保留摘要正文。 */
+    static String stripSummaryPrefix(String content) {
+        String value = StrUtil.nullToEmpty(content).trim();
+        if (StrUtil.startWithIgnoreCase(value, SUMMARY_PREFIX)) {
+            return value.substring(SUMMARY_PREFIX.length()).trim();
+        }
+        for (String prefix : HISTORICAL_SUMMARY_PREFIXES) {
+            if (StrUtil.startWithIgnoreCase(value, prefix)) {
+                return value.substring(prefix.length()).trim();
+            }
+        }
+        return value;
+    }
 }

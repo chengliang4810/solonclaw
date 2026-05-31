@@ -67,6 +67,26 @@ public class TerminalInputSanitizerTest {
     }
 
     @Test
+    void shouldStripDegradedMouseBurstNoiseWithoutDroppingPlainText() {
+        String burst =
+                "M6M35;220;56M6M35;218;56M169;48M;157;47M;44M20;43M79;40M78;40M0M7M"
+                        + "35;49;41M48;41M;47;40M9;15;32M[I;31M5;211;26M35;211;25M7M;220;1MM0M"
+                        + "09;25M24M23M3;22MM18M99;26M32MM38M63;44M47MM1;51M M4M54M";
+        String burstWithRecoverableFragments =
+                "<35;159;11M;44M20;43M0M7M<35;124;26M;47;40M9;15;32M5M2M";
+
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses(burst)).isEqualTo("");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses(burstWithRecoverableFragments))
+                .isEqualTo("");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("Mmm MMM mmm yummy"))
+                .isEqualTo("Mmm MMM mmm yummy");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("see 1;2;3M for details"))
+                .isEqualTo("see 1;2;3M for details");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("1234;56;78M9;10;11M"))
+                .isEqualTo("1234;56;78M9;10;11M");
+    }
+
+    @Test
     void shouldStripOscResponsesFromTerminalInput() {
         assertThat(
                         TerminalInputSanitizer.stripLeakedTerminalResponses(
@@ -84,6 +104,14 @@ public class TerminalInputSanitizerTest {
                         TerminalInputSanitizer.stripLeakedTerminalResponses(
                                 "open \u001B]8;;https://example.invalid\u001B\\link\u001B]8;;\u001B\\ now"))
                 .isEqualTo("open link now");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed]11;rgb:ffff/ffff/ffff\u0007more"))
+                .isEqualTo("typedmore");
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                "typed^]11;rgb:0000/0000/0000^Gmore"))
+                .isEqualTo("typedmore");
     }
 
     @Test

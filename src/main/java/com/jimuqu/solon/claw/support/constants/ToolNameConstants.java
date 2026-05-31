@@ -52,7 +52,10 @@ public interface ToolNameConstants {
     String CODESEARCH = "codesearch";
     String WEBSEARCH = "websearch";
     String WEBFETCH = "webfetch";
+    String IMAGE_GENERATE = "image_generate";
+    String TEXT_TO_SPEECH = "text_to_speech";
+    String SPEECH_TRANSCRIBE = "speech_transcribe";
+    String BROWSER = "browser";
     String SECURITY_AUDIT = "security_audit";
     String CLARIFY = "clarify";
 }
-

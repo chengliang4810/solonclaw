@@ -73,6 +73,16 @@ public class RuntimeSettingsService {
                     "tool_output.max_lines",
                     "tool_output.max_line_length",
                     "agent.heartbeat.intervalMinutes",
+                    "kanban.defaultAssignee",
+                    "kanban.default_assignee",
+                    "kanban.maxSpawn",
+                    "kanban.max_spawn",
+                    "kanban.maxInProgress",
+                    "kanban.max_in_progress",
+                    "kanban.maxInProgressPerProfile",
+                    "kanban.max_in_progress_per_profile",
+                    "kanban.failureLimit",
+                    "kanban.failure_limit",
                     "rollback.enabled",
                     "rollback.maxCheckpointsPerSource",
                     "rollback.maxFileSizeMb",
@@ -102,6 +112,10 @@ public class RuntimeSettingsService {
                     "security.allowPrivateUrls",
                     "security.allow_private_urls",
                     "browser.allow_private_urls",
+                    "browser.rewriteLoopbackUrls",
+                    "browser.rewrite_loopback_urls",
+                    "browser.loopbackHostAlias",
+                    "browser.loopback_host_alias",
                     "security.tirithEnabled",
                     "security.tirithPath",
                     "security.tirithTimeoutSeconds",
@@ -142,6 +156,8 @@ public class RuntimeSettingsService {
                     ".cdnBaseUrl",
                     ".longPollUrl",
                     ".splitMultilineMessages",
+                    ".textBatchDelaySeconds",
+                    ".textBatchSplitDelaySeconds",
                     ".sendChunkDelaySeconds",
                     ".sendChunkRetries",
                     ".sendChunkRetryDelaySeconds",
@@ -444,6 +460,8 @@ public class RuntimeSettingsService {
                 || "security.allowPrivateUrls".equals(key)
                 || "security.allow_private_urls".equals(key)
                 || "browser.allow_private_urls".equals(key)
+                || "browser.rewriteLoopbackUrls".equals(key)
+                || "browser.rewrite_loopback_urls".equals(key)
                 || "security.tirithEnabled".equals(key)
                 || "security.tirithFailOpen".equals(key)
                 || "security.websiteBlocklist.enabled".equals(key)
@@ -476,6 +494,14 @@ public class RuntimeSettingsService {
                 || "react.toolLoopNoProgressWarnAfter".equals(key)
                 || "react.toolLoopNoProgressBlockAfter".equals(key)
                 || "compression.protectHeadMessages".equals(key)
+                || "kanban.maxSpawn".equals(key)
+                || "kanban.max_spawn".equals(key)
+                || "kanban.maxInProgress".equals(key)
+                || "kanban.max_in_progress".equals(key)
+                || "kanban.maxInProgressPerProfile".equals(key)
+                || "kanban.max_in_progress_per_profile".equals(key)
+                || "kanban.failureLimit".equals(key)
+                || "kanban.failure_limit".equals(key)
                 || "skills.curator.intervalHours".equals(key)
                 || "skills.curator.staleAfterDays".equals(key)
                 || "skills.curator.archiveAfterDays".equals(key)
@@ -500,7 +526,9 @@ public class RuntimeSettingsService {
                     || "1".equals(value)
                     || "yes".equalsIgnoreCase(value);
         }
-        if (key.endsWith("sendChunkDelaySeconds")
+        if (key.endsWith("textBatchDelaySeconds")
+                || key.endsWith("textBatchSplitDelaySeconds")
+                || key.endsWith("sendChunkDelaySeconds")
                 || key.endsWith("sendChunkRetryDelaySeconds")
                 || "llm.temperature".equals(key)
                 || "compression.thresholdPercent".equals(key)
@@ -615,8 +643,33 @@ public class RuntimeSettingsService {
 
     private void persistConfigValue(String key, Object value, boolean reconnectChannels) {
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
-        updates.put(key, value);
+        updates.put(canonicalDashboardConfigKey(key), value);
         dashboardConfigService.savePartialFlat(updates, reconnectChannels);
+    }
+
+    private String canonicalDashboardConfigKey(String key) {
+        if ("kanban.default_assignee".equals(key)) {
+            return "kanban.defaultAssignee";
+        }
+        if ("kanban.max_spawn".equals(key)) {
+            return "kanban.maxSpawn";
+        }
+        if ("kanban.max_in_progress".equals(key)) {
+            return "kanban.maxInProgress";
+        }
+        if ("kanban.max_in_progress_per_profile".equals(key)) {
+            return "kanban.maxInProgressPerProfile";
+        }
+        if ("kanban.failure_limit".equals(key)) {
+            return "kanban.failureLimit";
+        }
+        if ("browser.rewrite_loopback_urls".equals(key)) {
+            return "browser.rewriteLoopbackUrls";
+        }
+        if ("browser.loopback_host_alias".equals(key)) {
+            return "browser.loopbackHostAlias";
+        }
+        return key;
     }
 
     private boolean shouldReconnectChannelsForConfigKey(String key) {

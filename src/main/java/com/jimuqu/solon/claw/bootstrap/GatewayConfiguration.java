@@ -41,6 +41,8 @@ import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.plugin.AgentPluginManager;
+import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -49,13 +51,16 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.solon.annotation.Bean;
@@ -114,9 +119,10 @@ public class GatewayConfiguration {
 
     @Bean
     public DeliveryService deliveryService(
+            AppConfig appConfig,
             Map<PlatformType, ChannelAdapter> channelAdapters,
             GatewayPolicyRepository gatewayPolicyRepository) {
-        return new AdapterBackedDeliveryService(channelAdapters, gatewayPolicyRepository);
+        return new AdapterBackedDeliveryService(appConfig, channelAdapters, gatewayPolicyRepository);
     }
 
     @Bean
@@ -203,7 +209,12 @@ public class GatewayConfiguration {
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler defaultCronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
-            SlashConfirmService slashConfirmService) {
+            SlashConfirmService slashConfirmService,
+            AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardSkillsService dashboardSkillsService,
+            BrowserRuntimeService browserRuntimeService,
+            Map<String, CommandHandler> pluginCommands) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -232,7 +243,12 @@ public class GatewayConfiguration {
                 sessionArtifactService,
                 defaultCronScheduler,
                 gatewayRestartCoordinator,
-                slashConfirmService);
+                slashConfirmService,
+                pluginCommands,
+                pluginManager,
+                dashboardCuratorService,
+                dashboardSkillsService,
+                browserRuntimeService);
     }
 
     @Bean
@@ -243,6 +259,7 @@ public class GatewayConfiguration {
             SessionRepository sessionRepository,
             GatewayAuthorizationService gatewayAuthorizationService,
             SkillLearningService skillLearningService,
+            AttachmentCacheService attachmentCacheService,
             ChannelConnectionManager channelConnectionManager) {
         final DefaultGatewayService service =
                 new DefaultGatewayService(
@@ -251,7 +268,8 @@ public class GatewayConfiguration {
                         deliveryService,
                         sessionRepository,
                         gatewayAuthorizationService,
-                        skillLearningService);
+                        skillLearningService,
+                        attachmentCacheService);
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {

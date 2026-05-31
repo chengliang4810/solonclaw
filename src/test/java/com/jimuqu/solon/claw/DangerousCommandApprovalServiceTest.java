@@ -101,6 +101,23 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRequireApprovalForDockerLifecycleCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        assertDockerLifecyclePattern(env, "docker restart app", "docker_container_lifecycle");
+        assertDockerLifecyclePattern(env, "docker stop app", "docker_container_lifecycle");
+        assertDockerLifecyclePattern(env, "docker kill app", "docker_container_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose restart app", "docker_compose_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose stop app", "docker_compose_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose kill app", "docker_compose_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose down", "docker_compose_lifecycle");
+
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "docker ps")).isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "docker compose ps"))
+                .isNull();
+    }
+
+    @Test
     void shouldExposeApprovalPolicySummaryWithoutExecutingCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("smart");
@@ -8473,8 +8490,9 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsLikeJimuqu() throws Exception {
+    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsWhenPrivateUrlsDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
         List<String> blocked =
@@ -8695,8 +8713,9 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockJimuquStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
+    void shouldBlockPrivateReservedAndSharedUrlsWhenPrivateUrlsDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
         List<String> blocked =
@@ -8727,6 +8746,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBlockSchemelessPrivateUrlsInToolArgsAndCommandsLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put(
@@ -9030,6 +9050,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBlockBareSecurityRelevantHostsInsideShellCommandsLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
         env.appConfig
                 .getSecurity()
@@ -9177,6 +9198,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeJimuquUrlSafety()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService benchmark =
                 new FixedDnsSecurityPolicyService(env.appConfig, "198.18.0.23");
         SecurityPolicyService loopback =
@@ -13881,6 +13903,16 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect("execute_shell", command);
         assertThat(result)
                 .withFailMessage("expected danger detection for command: %s", command)
+                .isNotNull();
+        assertThat(result.getPatternKey()).isEqualTo(patternKey);
+    }
+
+    private void assertDockerLifecyclePattern(
+            TestEnvironment env, String command, String patternKey) {
+        DangerousCommandApprovalService.DetectionResult result =
+                env.dangerousCommandApprovalService.detect("execute_shell", command);
+        assertThat(result)
+                .withFailMessage("expected Docker lifecycle detection for command: %s", command)
                 .isNotNull();
         assertThat(result.getPatternKey()).isEqualTo(patternKey);
     }

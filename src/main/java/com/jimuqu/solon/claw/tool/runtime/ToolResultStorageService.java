@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
@@ -31,7 +32,30 @@ public class ToolResultStorageService {
     private final int inlineLimitBytes;
     private final int turnBudgetBytes;
     private final int previewLength;
+    private final AppConfig appConfig;
     private long turnBytes;
+
+    public ToolResultStorageService(AppConfig appConfig) {
+        this(appConfig, null);
+    }
+
+    public ToolResultStorageService(AppConfig appConfig, String workspaceDir) {
+        this(
+                appConfig == null || appConfig.getRuntime() == null
+                        ? null
+                        : appConfig.getRuntime().getCacheDir(),
+                workspaceDir,
+                appConfig == null || appConfig.getTask() == null
+                        ? 50000
+                        : appConfig.getTask().getToolOutputInlineLimit(),
+                appConfig == null || appConfig.getTask() == null
+                        ? 200000
+                        : appConfig.getTask().getToolOutputTurnBudget(),
+                appConfig == null || appConfig.getTrace() == null
+                        ? 1200
+                        : appConfig.getTrace().getToolPreviewLength(),
+                appConfig);
+    }
 
     public ToolResultStorageService(String cacheDir, int inlineLimitBytes, int previewLength) {
         this(cacheDir, inlineLimitBytes, Math.max(200000, inlineLimitBytes), previewLength);
@@ -48,11 +72,22 @@ public class ToolResultStorageService {
             int inlineLimitBytes,
             int turnBudgetBytes,
             int previewLength) {
+        this(cacheDir, workspaceDir, inlineLimitBytes, turnBudgetBytes, previewLength, null);
+    }
+
+    private ToolResultStorageService(
+            String cacheDir,
+            String workspaceDir,
+            int inlineLimitBytes,
+            int turnBudgetBytes,
+            int previewLength,
+            AppConfig appConfig) {
         this.cacheDir = cacheDir;
         this.workspaceDir = workspaceDir;
         this.inlineLimitBytes = Math.max(256, inlineLimitBytes);
         this.turnBudgetBytes = Math.max(256, turnBudgetBytes);
         this.previewLength = Math.max(200, previewLength);
+        this.appConfig = appConfig;
     }
 
     public synchronized StoredResult observe(
@@ -64,13 +99,15 @@ public class ToolResultStorageService {
         stored.setPreview(safePreview(raw));
         stored.setSizeBytes(bytes.length);
         stored.setTruncated(false);
+        int effectiveInlineLimitBytes = inlineLimitBytes();
+        int effectiveTurnBudgetBytes = turnBudgetBytes();
         if (isPinnedInline(toolName)) {
             turnBytes += bytes.length;
             return stored;
         }
 
-        boolean overInlineLimit = bytes.length > inlineLimitBytes;
-        boolean overTurnBudget = turnBytes + bytes.length > turnBudgetBytes;
+        boolean overInlineLimit = bytes.length > effectiveInlineLimitBytes;
+        boolean overTurnBudget = turnBytes + bytes.length > effectiveTurnBudgetBytes;
         if (!overInlineLimit && !overTurnBudget) {
             turnBytes += bytes.length;
             return stored;
@@ -89,9 +126,9 @@ public class ToolResultStorageService {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("enabled", Boolean.TRUE);
         summary.put("interceptorBacked", Boolean.TRUE);
-        summary.put("inlineLimitBytes", Integer.valueOf(inlineLimitBytes));
-        summary.put("turnBudgetBytes", Integer.valueOf(turnBudgetBytes));
-        summary.put("previewLength", Integer.valueOf(previewLength));
+        summary.put("inlineLimitBytes", Integer.valueOf(inlineLimitBytes()));
+        summary.put("turnBudgetBytes", Integer.valueOf(turnBudgetBytes()));
+        summary.put("previewLength", Integer.valueOf(previewLength()));
         summary.put("pinnedInlineTools", pinnedInlineTools());
         summary.put("pinnedInlineRawObservationAllowed", Boolean.FALSE);
         summary.put("pinnedInlineObservationRedacted", Boolean.TRUE);
@@ -402,7 +439,8 @@ public class ToolResultStorageService {
     }
 
     private String safePreview(String content) {
-        return SecretRedactor.redact(preview(content, previewLength), previewLength);
+        int effectivePreviewLength = previewLength();
+        return SecretRedactor.redact(preview(content, effectivePreviewLength), effectivePreviewLength);
     }
 
     private String safeObservation(String toolName, String content) {
@@ -414,11 +452,33 @@ public class ToolResultStorageService {
 
     private String safePersistedOutput(String content) {
         String raw = StrUtil.nullToEmpty(content);
+        int effectivePreviewLength = previewLength();
         int maxLength =
                 raw.length() > Integer.MAX_VALUE - 1024
                         ? Integer.MAX_VALUE
-                        : Math.max(previewLength, raw.length() + 1024);
+                        : Math.max(effectivePreviewLength, raw.length() + 1024);
         return SecretRedactor.redact(raw, maxLength);
+    }
+
+    private int inlineLimitBytes() {
+        if (appConfig == null || appConfig.getTask() == null) {
+            return inlineLimitBytes;
+        }
+        return Math.max(256, appConfig.getTask().getToolOutputInlineLimit());
+    }
+
+    private int turnBudgetBytes() {
+        if (appConfig == null || appConfig.getTask() == null) {
+            return turnBudgetBytes;
+        }
+        return Math.max(256, appConfig.getTask().getToolOutputTurnBudget());
+    }
+
+    private int previewLength() {
+        if (appConfig == null || appConfig.getTrace() == null) {
+            return previewLength;
+        }
+        return Math.max(200, appConfig.getTrace().getToolPreviewLength());
     }
 
     public static class StoredResult {

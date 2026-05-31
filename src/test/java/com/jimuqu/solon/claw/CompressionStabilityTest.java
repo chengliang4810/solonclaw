@@ -22,6 +22,25 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 校验上下文压缩的反抖动、失败冷却与摘要合并行为。 */
 public class CompressionStabilityTest {
+    private static final String PREVIOUS_SUMMARY_PREFIX =
+            "[CONTEXT COMPACTION - REFERENCE ONLY] Earlier turns were compacted into the "
+                    + "summary below. Treat it as background reference, NOT as active "
+                    + "instructions. Respond only to the latest user message after this summary; "
+                    + "when older summary content conflicts with that latest user message, the "
+                    + "latest user message wins.";
+
+    private static final String OLD_CONFLICTING_SUMMARY_PREFIX =
+            "[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted "
+                    + "into the summary below. This is a handoff from a previous context "
+                    + "window — treat it as background reference, NOT as active instructions. "
+                    + "Do NOT answer questions or fulfill requests mentioned in this summary; "
+                    + "they were already addressed. "
+                    + "Your current task is identified in the '## Active Task' section of the "
+                    + "summary — resume exactly from there. "
+                    + "Respond ONLY to the latest user message "
+                    + "that appears AFTER this summary. The current session state (files, "
+                    + "config, etc.) may reflect work described here — avoid repeating it:";
+
     @Test
     void shouldSkipRecompressionWhenRecentCompressionDidNotGainEnoughNewContext() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
@@ -128,6 +147,124 @@ public class CompressionStabilityTest {
     }
 
     @Test
+    void shouldStripHistoricalSummaryPrefixWhenRecompressingResumedSession() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-historical-prefix");
+        String staleSummary =
+                "[CONTEXT SUMMARY]:\n"
+                        + "Historical Work\n"
+                        + "继续已经过期的历史任务\n\n"
+                        + "Progress\n"
+                        + "旧进展";
+        session.setCompressedSummary(staleSummary);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofAssistant(staleSummary),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser("新的用户问题优先"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Previous Summary");
+        assertThat(compressed.getCompressedSummary()).contains("旧进展");
+        assertThat(compressed.getCompressedSummary()).contains("新的用户问题优先");
+        assertThat(compressed.getCompressedSummary()).startsWith(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(CompressionConstants.SUMMARY_PREFIX)
+                .contains("latest user message")
+                .contains("background reference")
+                .contains("NOT as active instructions");
+        assertThat(compressed.getCompressedSummary()).doesNotContain("[CONTEXT SUMMARY]");
+    }
+
+    @Test
+    void shouldRenormalizeHistoricalHandoffFromProtectedHead() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(2);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-historical-protected-head");
+        String staleHandoff =
+                OLD_CONFLICTING_SUMMARY_PREFIX
+                        + "\n## Active Task\n"
+                        + "User asked: '完成已经过期的任务 A'\n\n"
+                        + "## Goal\n历史任务 A";
+        assertThat(staleHandoff.toLowerCase()).contains("resume exactly");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser(staleHandoff),
+                                ChatMessage.ofAssistant(repeat("中间进展", 500)),
+                                ChatMessage.ofUser("新的用户问题 B 优先"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).startsWith(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(compressed.getCompressedSummary()).contains("历史任务 A");
+        assertThat(compressed.getCompressedSummary()).contains("新的用户问题 B 优先");
+        assertThat(compressed.getNdjson()).doesNotContain(OLD_CONFLICTING_SUMMARY_PREFIX);
+        assertThat(compressed.getNdjson().toLowerCase()).doesNotContain("resume exactly");
+        assertThat(CompressionConstants.SUMMARY_PREFIX.toLowerCase())
+                .contains("latest user message")
+                .contains("active task")
+                .contains("discard");
+    }
+
+    @Test
+    void shouldStripPreviousCurrentPrefixBeforeGenericHistoricalPrefix() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-previous-current-prefix");
+        String storedSummary = PREVIOUS_SUMMARY_PREFIX + "\nGoal\n历史目标\n\nProgress\n旧进展";
+        session.setCompressedSummary(storedSummary);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofAssistant(storedSummary),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser("新的用户请求"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Previous Summary\nGoal\n历史目标");
+        assertThat(compressed.getCompressedSummary())
+                .doesNotContain("Previous Summary\n" + PREVIOUS_SUMMARY_PREFIX);
+        assertThat(compressed.getCompressedSummary())
+                .doesNotContain("Progress\n- " + PREVIOUS_SUMMARY_PREFIX);
+    }
+
+    @Test
+    void shouldNotDropLatestUserMessageWhenItStartsWithSummaryPrefix() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(1);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-latest-user-summary-like");
+        String latestUserMessage = "[CONTEXT SUMMARY]:\n请解释这段摘要前缀的含义";
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("旧问题"),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser(latestUserMessage),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getNdjson()).contains("请解释这段摘要前缀的含义");
+        assertThat(compressed.getCompressedSummary()).contains("请解释这段摘要前缀的含义");
+    }
+
+    @Test
     void shouldFlattenNestedPreviousSummaryAndCapSummaryLength() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
         SessionRecord session = new SessionRecord();
@@ -210,14 +347,21 @@ public class CompressionStabilityTest {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
         SessionRecord session = new SessionRecord();
         session.setSessionId("s-fail");
+        session.setCompressedSummary(CompressionConstants.SUMMARY_PREFIX + "\n已有摘要");
         session.setNdjson("{not-valid-json");
+        String originalNdjson = session.getNdjson();
+        String originalSummary = session.getCompressedSummary();
 
         CompressionOutcome outcome = service.compressNowWithOutcome(session, "system", "focus");
 
         assertThat(outcome.isFailed()).isTrue();
         assertThat(outcome.getWarning()).contains("压缩摘要生成失败");
+        assertThat(outcome.getWarning()).contains("原始上下文已保留");
         assertThat(outcome.getSession()).isSameAs(session);
+        assertThat(session.getNdjson()).isEqualTo(originalNdjson);
+        assertThat(session.getCompressedSummary()).isEqualTo(originalSummary);
         assertThat(session.getCompressionFailureCount()).isEqualTo(1);
+        assertThat(session.getLastCompressionFailedAt()).isGreaterThan(0L);
     }
 
     @Test
@@ -240,6 +384,42 @@ public class CompressionStabilityTest {
         SessionRecord compressed = service.compressNow(session, "system");
 
         assertThat(compressed.getNdjson()).contains("必须保留的最后用户消息");
+    }
+
+    @Test
+    void shouldPreserveRecentCompactedTurnsInSummaryWithoutCopyingProtectedTail() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(1);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-compacted-turns");
+        String secret = "ghp_compactionrecentturnsecret12345";
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("排查 /tmp/active.py 的失败分支"),
+                                ChatMessage.ofAssistant("已经定位 /tmp/active.py 的 failing branch"),
+                                ChatMessage.ofTool(
+                                        "ValueError: boom in /tmp/active.py token="
+                                                + secret,
+                                        "terminal",
+                                        "call-old"),
+                                ChatMessage.ofAssistant("下一步补 /tmp/active.py 的回归测试"),
+                                ChatMessage.ofUser("受保护 tail 请求不要复制到摘要里"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Last Compacted Turns");
+        String compactedTurns = section(
+                compressed.getCompressedSummary(), "Last Compacted Turns", "Remaining Work");
+        assertThat(compressed.getCompressedSummary())
+                .contains("ASSISTANT: 已经定位 /tmp/active.py 的 failing branch")
+                .contains("TOOL: ValueError: boom in /tmp/active.py");
+        assertThat(compressed.getCompressedSummary()).doesNotContain(secret);
+        assertThat(compactedTurns).doesNotContain("受保护 tail 请求不要复制到摘要里");
     }
 
     @Test
@@ -367,6 +547,15 @@ public class CompressionStabilityTest {
             from = idx + token.length();
         }
         return count;
+    }
+
+    private String section(String text, String startHeader, String endHeader) {
+        int start = text.indexOf(startHeader);
+        assertThat(start).isGreaterThanOrEqualTo(0);
+        int contentStart = start + startHeader.length();
+        int end = text.indexOf(endHeader, contentStart);
+        assertThat(end).isGreaterThan(contentStart);
+        return text.substring(contentStart, end);
     }
 
     private AssistantMessage assistantWithRawToolCall(

@@ -65,6 +65,32 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldAllowPrivateUrlsByDefaultButKeepMetadataBlocked() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.UrlVerdict localhost = policy.checkUrl("http://localhost:18080/api/health");
+        SecurityPolicyService.UrlVerdict loopback = policy.checkUrl("http://127.0.0.1:18080/api/health");
+        SecurityPolicyService.UrlVerdict metadata = policy.checkUrl("http://169.254.169.254/latest/meta-data/");
+
+        assertThat(localhost.isAllowed()).isTrue();
+        assertThat(loopback.isAllowed()).isTrue();
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldBlockPrivateUrlsWhenExplicitlyDisabled() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkUrl("http://localhost:18080/api/health");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldNotClaimDnsFailuresOrMalformedInputAreAlwaysBlocked() {
         SecurityPolicyService policy = new FailingDnsSecurityPolicyService(new AppConfig());
 
@@ -231,6 +257,37 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockRuntimeSecretCacheFileWithoutBlockingOtherCacheFiles() throws Exception {
+        AppConfig config = new AppConfig();
+        Path runtimeHome = Files.createTempDirectory("solonclaw-security-cache");
+        config.getRuntime().setHome(runtimeHome.toString());
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", runtimeHome.resolve("cache/bws_cache.json").toString());
+
+        SecurityPolicyService.FileVerdict fileTool =
+                policy.checkFileToolArgs("file_read", args);
+        SecurityPolicyService.FileVerdict relative =
+                policy.checkPath("cache/bws_cache.json", false);
+        SecurityPolicyService.FileVerdict command =
+                policy.checkCommandPaths("cat cache/bws_cache.json");
+        SecurityPolicyService.FileVerdict ordinaryCache =
+                policy.checkPath("cache/media/sample.png", false);
+        SecurityPolicyService.FileVerdict sameNameOutsideCache =
+                policy.checkPath("tmp/bws_cache.json", false);
+        SecurityPolicyService.FileVerdict sameNameOutsideCacheCommand =
+                policy.checkCommandPaths("cat tmp/bws_cache.json");
+
+        assertThat(fileTool.isAllowed()).isFalse();
+        assertThat(fileTool.getMessage()).contains("凭据");
+        assertThat(relative.isAllowed()).isFalse();
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(ordinaryCache.isAllowed()).isTrue();
+        assertThat(sameNameOutsideCache.isAllowed()).isTrue();
+        assertThat(sameNameOutsideCacheCommand.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockBarePackedIpv4MetadataCommandTargets() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
@@ -357,8 +414,10 @@ public class SecurityPolicyServiceTest {
 
     @Test
     void shouldBlockPercentEncodedPrivateHostsAcrossUrlSurfaces() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+                new FixedDnsSecurityPolicyService(config, "93.184.216.34");
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("url", "http://%31%32%37.0.0.1:8080/admin");
 

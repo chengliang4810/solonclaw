@@ -7,6 +7,9 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +40,10 @@ public class GatewayCommandFlowTest {
                 env.gatewayService.handle(env.message("room-1", "user-1", "/branch review"));
         assertThat(branchReply.getContent()).contains("review");
 
+        GatewayReply forkReply =
+                env.gatewayService.handle(env.message("room-1", "user-1", "/fork review-fork"));
+        assertThat(forkReply.getContent()).contains("review-fork");
+
         GatewayReply undoReply =
                 env.gatewayService.handle(env.message("room-1", "user-1", "/undo"));
         assertThat(undoReply.getContent()).contains("已从会话中移除上一轮对话");
@@ -46,6 +53,22 @@ public class GatewayCommandFlowTest {
 
         SessionRecord rebound = env.sessionRepository.getBoundSession("MEMORY:room-1:user-1");
         assertThat(rebound.getSessionId()).isEqualTo(newReply.getSessionId());
+    }
+
+    @Test
+    void shouldCreateNamedSessionFromNewCommandArgument() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("room-new-title", "user-new-title", "hello");
+        env.send("room-new-title", "user-new-title", "/pairing claim-admin");
+
+        GatewayReply newReply =
+                env.send("room-new-title", "user-new-title", "/new  客户项目\r\n复盘  ");
+        SessionRecord rebound =
+                env.sessionRepository.getBoundSession("MEMORY:room-new-title:user-new-title");
+
+        assertThat(newReply.getSessionId()).isEqualTo(rebound.getSessionId());
+        assertThat(newReply.getContent()).contains("客户项目 复盘");
+        assertThat(rebound.getTitle()).isEqualTo("客户项目 复盘");
     }
 
     @Test
@@ -60,6 +83,9 @@ public class GatewayCommandFlowTest {
         GatewayReply helpReply = env.send("room-help", "user-help", "/help");
         assertThat(helpReply.getContent()).contains("/new - 创建并切换到新会话");
         assertThat(helpReply.getContent()).contains("/help - 显示帮助信息");
+        assertThat(helpReply.getContent()).contains("/insights - 查看使用洞察与运行摘要");
+        assertThat(helpReply.getContent()).contains("/plugins - 查看插件加载状态");
+        assertThat(helpReply.getContent()).contains("/reload-skills - 重新扫描本地技能目录");
         assertThat(Arrays.asList(helpReply.getContent().split("\\R")))
                 .isNotEmpty()
                 .allMatch(line -> line.startsWith("/") && line.contains(" - "));
@@ -80,7 +106,170 @@ public class GatewayCommandFlowTest {
         assertThat(aliasReply.getRuntimeMetadata())
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "statusbar");
+
+        GatewayReply shortAliasReply = env.send("room-registry", "user-registry", "/sb");
+        assertThat(shortAliasReply.isError()).isTrue();
+        assertThat(shortAliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "statusbar");
+
+        GatewayReply backgroundAliasReply = env.send("room-registry", "user-registry", "/bg nightly task");
+        assertThat(backgroundAliasReply.isError()).isTrue();
+        assertThat(backgroundAliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "background");
+
+        GatewayReply backgroundBtwReply = env.send("room-registry", "user-registry", "/btw nightly task");
+        assertThat(backgroundBtwReply.isError()).isTrue();
+        assertThat(backgroundBtwReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "background");
+
+        GatewayReply agentsAliasReply = env.send("room-registry", "user-registry", "/agents");
+        assertThat(agentsAliasReply.isError()).isTrue();
+        assertThat(agentsAliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "tasks");
     }
+
+    @Test
+    void shouldListAndSearchSessionsFromSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-sessions", "user-sessions", "hello");
+        env.send("room-sessions", "user-sessions", "/pairing claim-admin");
+
+        GatewayReply firstNew = env.send("room-sessions", "user-sessions", "/new 客户周报");
+        GatewayReply secondNew = env.send("room-sessions", "user-sessions", "/new 研发计划");
+
+        GatewayReply listReply = env.send("room-sessions", "user-sessions", "/sessions");
+
+        assertThat(listReply.getContent())
+                .contains("最近会话")
+                .contains("客户周报")
+                .contains("研发计划")
+                .contains("1.")
+                .contains("/resume");
+        assertThat(listReply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "sessions");
+
+        GatewayReply searchReply = env.send("room-sessions", "user-sessions", "/sessions 周报");
+
+        assertThat(searchReply.getContent())
+                .contains("最近会话")
+                .contains("客户周报")
+                .contains(firstNew.getSessionId())
+                .doesNotContain("研发计划")
+                .doesNotContain(secondNew.getSessionId());
+    }
+
+    @Test
+    void shouldReportSlashCommandAccessIdentity() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-whoami", "user-whoami", "hello");
+        env.send("room-whoami", "user-whoami", "/pairing claim-admin");
+
+        GatewayReply reply = env.send("room-whoami", "user-whoami", "/whoami");
+
+        assertThat(reply.getContent())
+                .contains("platform=MEMORY")
+                .contains("user=user-whoami")
+                .contains("chat=room-whoami")
+                .contains("role=admin")
+                .contains("authorized=true");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "whoami")
+                .containsEntry("role", "admin");
+    }
+
+    @Test
+    void shouldBrowseRegisteredCommandsFromSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-commands", "user-commands", "hello");
+        env.send("room-commands", "user-commands", "/pairing claim-admin");
+
+        GatewayReply reply = env.send("room-commands", "user-commands", "/commands");
+
+        assertThat(reply.getContent())
+                .contains("命令目录")
+                .contains("/new")
+                .contains("/sessions")
+                .contains("/whoami")
+                .contains("/model")
+                .contains("page=1");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "commands")
+                .containsEntry("page", Integer.valueOf(1));
+    }
+
+    @Test
+    void shouldReloadLocalSkillsFromTopLevelSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-reload-skills", "user-reload-skills", "hello");
+        env.send("room-reload-skills", "user-reload-skills", "/pairing claim-admin");
+        File skillDir = new File(env.appConfig.getRuntime().getSkillsDir(), "ops/reload-demo");
+        Files.createDirectories(skillDir.toPath());
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
+                Arrays.asList(
+                        "---",
+                        "name: reload-demo",
+                        "description: Reload demo skill",
+                        "---",
+                        "Use this skill to verify slash command reload."),
+                StandardCharsets.UTF_8);
+
+        GatewayReply reply = env.send("room-reload-skills", "user-reload-skills", "/reload_skills");
+
+        assertThat(reply.getContent())
+                .contains("已重新加载本地技能")
+                .contains("ops/reload-demo")
+                .contains("共 1 个");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "reload-skills")
+                .containsEntry("skill_count", Integer.valueOf(1));
+    }
+
+    @Test
+    void shouldRenderUsageInsightsFromSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-insights", "user-insights", "hello");
+        env.send("room-insights", "user-insights", "/pairing claim-admin");
+        File skillDir = new File(env.appConfig.getRuntime().getSkillsDir(), "ops/insight-demo");
+        Files.createDirectories(skillDir.toPath());
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
+                Arrays.asList(
+                        "---",
+                        "name: insight-demo",
+                        "description: Insight demo skill",
+                        "---",
+                        "Use this skill to verify slash command insights."),
+                StandardCharsets.UTF_8);
+        env.localSkillService.listSkillNames();
+
+        GatewayReply reply = env.send("room-insights", "user-insights", "/insights");
+
+        assertThat(reply.getContent())
+                .contains("使用洞察")
+                .contains("sessions.total=")
+                .contains("skills.available=1")
+                .contains("runtime.memory=");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "insights")
+                .containsKey("session_total")
+                .containsEntry("skill_available", Integer.valueOf(1));
+    }
+
     @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

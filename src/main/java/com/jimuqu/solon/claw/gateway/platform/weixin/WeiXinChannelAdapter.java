@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -34,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -67,6 +70,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final int TYPING_START = 1;
     private static final int TYPING_STOP = 2;
     private static final int MAX_TEXT_CHUNK_LENGTH = 2000;
+    private static final int INBOUND_TEXT_SPLIT_THRESHOLD = 1800;
 
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
@@ -76,8 +80,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             new ConcurrentHashMap<String, Long>();
     private final ConcurrentMap<String, TypingTicketState> typingTickets =
             new ConcurrentHashMap<String, TypingTicketState>();
+    private final ConcurrentMap<String, PendingTextBatch> pendingTextBatches =
+            new ConcurrentHashMap<String, PendingTextBatch>();
+    private final ConcurrentMap<String, ScheduledFuture<?>> pendingTextBatchTasks =
+            new ConcurrentHashMap<String, ScheduledFuture<?>>();
     private volatile ExecutorService pollExecutor;
     private volatile ExecutorService inboundExecutor;
+    private volatile ScheduledExecutorService textBatchExecutor;
     private volatile boolean polling;
 
     public WeiXinChannelAdapter(
@@ -152,6 +161,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             inboundExecutor.shutdown();
             inboundExecutor = null;
         }
+        if (textBatchExecutor != null) {
+            textBatchExecutor.shutdownNow();
+            textBatchExecutor = null;
+        }
+        pendingTextBatches.clear();
+        pendingTextBatchTasks.clear();
         setConnected(false);
         setDetail("disconnected");
     }
@@ -193,7 +208,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     message.set("context_token", contextToken);
                 }
                 ONode textItem = new ONode();
-                textItem.set("text", text);
+                textItem.set("text", normalizeOutboundTextForWeixin(text));
                 ONode item = new ONode();
                 item.set("type", ITEM_TEXT);
                 item.set("text_item", textItem);
@@ -219,6 +234,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 sleepQuietlyMillis((long) (config.getSendChunkRetryDelaySeconds() * 1000L));
             }
         }
+    }
+
+    private static String normalizeOutboundTextForWeixin(String text) {
+        return StrUtil.nullToEmpty(text)
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replace("\n", "\r\n");
     }
 
     private List<String> splitTextForDelivery(String text) {
@@ -596,6 +618,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
+        if (isDuplicateText(senderId, text)) {
+            return;
+        }
         java.util.ArrayList<MessageAttachment> attachments =
                 new java.util.ArrayList<MessageAttachment>();
         for (int i = 0; i < itemList.size(); i++) {
@@ -616,8 +641,67 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         gatewayMessage.setUserName(senderId);
         gatewayMessage.setThreadId(messageId);
         gatewayMessage.setAttachments(attachments);
+        if (attachments.isEmpty() && StrUtil.isNotBlank(text)) {
+            enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
+            return;
+        }
         dispatchInboundMessage(
                 gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
+    }
+
+    private void enqueueTextBatch(
+            GatewayMessage gatewayMessage,
+            String chatType,
+            String chatId,
+            String contextToken) {
+        final String key = gatewayMessage.sourceKey();
+        PendingTextBatch batch =
+                pendingTextBatches.compute(
+                        key,
+                        (ignored, existing) -> {
+                            if (existing == null) {
+                                return new PendingTextBatch(
+                                        gatewayMessage, chatType, chatId, contextToken);
+                            }
+                            existing.append(gatewayMessage, chatType, chatId, contextToken);
+                            return existing;
+                        });
+        ScheduledFuture<?> previous = pendingTextBatchTasks.remove(key);
+        if (previous != null) {
+            previous.cancel(false);
+        }
+        long delayMillis = batch.delayMillis(config);
+        ScheduledFuture<?> future =
+                ensureTextBatchExecutor()
+                        .schedule(
+                                new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        flushTextBatch(key);
+                                    }
+                                },
+                                delayMillis,
+                                TimeUnit.MILLISECONDS);
+        pendingTextBatchTasks.put(key, future);
+    }
+
+    private synchronized ScheduledExecutorService ensureTextBatchExecutor() {
+        if (textBatchExecutor == null
+                || textBatchExecutor.isShutdown()
+                || textBatchExecutor.isTerminated()) {
+            textBatchExecutor = BoundedExecutorFactory.scheduled("weixin-text-batch", 1);
+        }
+        return textBatchExecutor;
+    }
+
+    private void flushTextBatch(String key) {
+        pendingTextBatchTasks.remove(key);
+        PendingTextBatch batch = pendingTextBatches.remove(key);
+        if (batch == null) {
+            return;
+        }
+        GatewayMessage message = batch.toGatewayMessage();
+        dispatchInboundMessage(message, batch.chatType, batch.chatId, batch.contextToken);
     }
 
     private void dispatchInboundMessage(
@@ -949,6 +1033,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return previous != null;
     }
 
+    private boolean isDuplicateText(String senderId, String text) {
+        if (StrUtil.isBlank(senderId) || StrUtil.isBlank(text)) {
+            return false;
+        }
+        return isDuplicate("content:" + senderId + ":" + DigestUtil.md5Hex(text));
+    }
+
     private void pruneRecentMessageIds() {
         long now = System.currentTimeMillis();
         for (java.util.Map.Entry<String, Long> entry : recentMessageIds.entrySet()) {
@@ -1197,6 +1288,58 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         private boolean isValid() {
             return ticket != null && ticket.length() > 0 && expiresAt > System.currentTimeMillis();
+        }
+    }
+
+    private static class PendingTextBatch {
+        private final GatewayMessage message;
+        private String chatType;
+        private String chatId;
+        private String contextToken;
+        private int lastChunkLength;
+
+        private PendingTextBatch(
+                GatewayMessage message, String chatType, String chatId, String contextToken) {
+            this.message = message;
+            this.chatType = chatType;
+            this.chatId = chatId;
+            this.contextToken = contextToken;
+            this.lastChunkLength = StrUtil.length(message.getText());
+        }
+
+        private void append(
+                GatewayMessage nextMessage,
+                String nextChatType,
+                String nextChatId,
+                String nextContextToken) {
+            String existing = StrUtil.nullToEmpty(message.getText());
+            String nextText = StrUtil.nullToEmpty(nextMessage.getText());
+            if (StrUtil.isBlank(existing)) {
+                message.setText(nextText);
+            } else if (StrUtil.isNotBlank(nextText)) {
+                message.setText(existing + "\n" + nextText);
+            }
+            message.setThreadId(nextMessage.getThreadId());
+            message.setTimestamp(nextMessage.getTimestamp());
+            this.chatType = nextChatType;
+            this.chatId = nextChatId;
+            this.contextToken = nextContextToken;
+            this.lastChunkLength = StrUtil.length(nextText);
+        }
+
+        private long delayMillis(AppConfig.ChannelConfig config) {
+            double seconds =
+                    lastChunkLength >= INBOUND_TEXT_SPLIT_THRESHOLD
+                            ? config.getTextBatchSplitDelaySeconds()
+                            : config.getTextBatchDelaySeconds();
+            if (!Double.isFinite(seconds) || seconds < 0.0D) {
+                seconds = 0.0D;
+            }
+            return Math.max(0L, Math.round(seconds * 1000D));
+        }
+
+        private GatewayMessage toGatewayMessage() {
+            return message;
         }
     }
 }

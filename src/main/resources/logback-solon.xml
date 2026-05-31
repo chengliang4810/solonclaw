@@ -36,7 +36,7 @@
         </encoder>
     </appender>
 
-    <appender name="AgentFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <appender name="AgentFile" class="com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>${FILE_LOG_LEVEL}</level>
         </filter>
@@ -53,7 +53,7 @@
         </encoder>
     </appender>
 
-    <appender name="GatewayFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <appender name="GatewayFile" class="com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>${FILE_LOG_LEVEL}</level>
         </filter>
@@ -70,7 +70,7 @@
         </encoder>
     </appender>
 
-    <appender name="ErrorFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <appender name="ErrorFile" class="com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>ERROR</level>
         </filter>

@@ -48,7 +48,14 @@ public class CronJobService {
                 threat("read_secrets", "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass)"),
                 threat("ssh_backdoor", "authorized_keys"),
                 threat("sudoers_mod", "/etc/sudoers|visudo"),
-                threat("destructive_root_rm", "rm\\s+-rf\\s+/")
+                threat("destructive_root_rm", "rm\\s+-rf\\s+/"),
+                threat(
+                        "gateway_lifecycle",
+                        "(?:\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(?:restart|stop|start)\\b)"
+                                + "|(?:\\blaunchctl\\s+(?:kickstart|unload|load|stop|restart)\\b[^\\n]*solon-?claw)"
+                                + "|(?:\\bsystemctl\\s+(?:restart|stop|start)\\b[^\\n]*solon-?claw)"
+                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:Jimuqu|jimuqu-agent|solon-claw|solonclaw|gateway))"
+                                + "|(?:\\bkill\\b[^\\n]*(?:\\$\\(\\s*(?:pgrep|pidof)\\b|`\\s*(?:pgrep|pidof)\\b))")
             };
 
     private final AppConfig appConfig;

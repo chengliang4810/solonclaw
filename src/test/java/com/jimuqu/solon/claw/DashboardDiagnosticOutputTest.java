@@ -3597,6 +3597,10 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(attachmentTerminalPastePolicy.get("pathPolicyCheckedBeforeCache"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPastePolicy.get("windowsPathPreviewCrossPlatform"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPastePolicy.get("windowsDrivePathNotDuplicatedAsPosix"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(attachmentTerminalPastePolicy.get("rawPathHiddenInPrompt"))
                 .isEqualTo(Boolean.TRUE);
     }
@@ -4725,6 +4729,12 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public void setModelOverride(String sessionId, String modelOverride) {}
+
+        @Override
+        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
+
+        @Override
+        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
 
         @Override
         public void setActiveAgentName(String sessionId, String agentName) {}

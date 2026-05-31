@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,10 +79,11 @@ public class DefaultContextCompressionService implements ContextCompressionServi
 
             List<ChatMessage> normalized = new ArrayList<ChatMessage>();
             String previousSummary = StrUtil.nullToEmpty(session.getCompressedSummary()).trim();
-            for (ChatMessage message : history) {
-                if (message.getRole() == ChatRole.ASSISTANT
-                        && StrUtil.startWithIgnoreCase(
-                                message.getContent(), CompressionConstants.SUMMARY_PREFIX)) {
+            int latestHistoryUserIndex = findLastUserIndex(history);
+            for (int i = 0; i < history.size(); i++) {
+                ChatMessage message = history.get(i);
+                if (CompressionConstants.isSummaryContent(message.getContent())
+                        && (message.getRole() != ChatRole.USER || i < latestHistoryUserIndex)) {
                     if (StrUtil.isBlank(previousSummary)) {
                         previousSummary = message.getContent().trim();
                     }
@@ -282,6 +284,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         String progress = collectByRole(middle, ChatRole.ASSISTANT, 3);
         String decisions = collectKeywords(middle, new String[] {"决定", "改为", "使用", "切换", "采用"});
         String files = collectFileMentions(middle);
+        String lastCompactedTurns = collectRecentCompactedTurns(middle, 6);
         String remainingWork = collectByRole(tail, ChatRole.USER, 1);
 
         StringBuilder buffer = new StringBuilder();
@@ -304,6 +307,9 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         buffer.append("Files\n")
                 .append(StrUtil.blankToDefault(files, "未提取到明确文件列表。"))
                 .append("\n\n");
+        if (StrUtil.isNotBlank(lastCompactedTurns)) {
+            buffer.append("Last Compacted Turns\n").append(lastCompactedTurns).append("\n\n");
+        }
         buffer.append("Remaining Work\n")
                 .append(StrUtil.blankToDefault(remainingWork, "记录最近用户要求，避免重复之前已完成的工作。"));
         return trimMultilineContent(
@@ -361,6 +367,42 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             }
         }
         return buffer.toString();
+    }
+
+    /** 保留被压缩窗口尾部的若干可恢复锚点，避免工具错误或关键交接被摘要抹平。 */
+    private String collectRecentCompactedTurns(List<ChatMessage> messages, int maxItems) {
+        List<String> turns = new ArrayList<String>();
+        for (int i = messages.size() - 1; i >= 0 && turns.size() < maxItems; i--) {
+            ChatMessage message = messages.get(i);
+            if (message == null || StrUtil.isBlank(message.getContent())) {
+                continue;
+            }
+            if (message.getRole() == ChatRole.USER) {
+                continue;
+            }
+            String label = message.getRole() == null ? "UNKNOWN" : message.getRole().name();
+            String content = compactCompactedTurnContent(message.getContent());
+            if (StrUtil.isBlank(content)) {
+                continue;
+            }
+            turns.add(0, "- " + label + ": " + content);
+        }
+        return String.join("\n", turns);
+    }
+
+    private String compactCompactedTurnContent(String content) {
+        String safe = SecretRedactor.redact(content, 700);
+        if (safe == null) {
+            return "";
+        }
+        safe = safe.replace('\r', ' ').replace('\n', ' ').trim();
+        while (safe.contains("  ")) {
+            safe = safe.replace("  ", " ");
+        }
+        if (safe.length() > 260) {
+            return safe.substring(0, 260) + "...";
+        }
+        return safe;
     }
 
     /** 归纳中间消息里出现的文件路径。 */
@@ -426,7 +468,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             if (CompressionConstants.PRUNED_TOOL_PLACEHOLDER.equals(content)) {
                 continue;
             }
-            if (StrUtil.startWithIgnoreCase(content, CompressionConstants.SUMMARY_PREFIX)) {
+            if (CompressionConstants.isSummaryContent(content)) {
                 continue;
             }
             return false;
@@ -526,10 +568,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
 
     /** 去掉旧摘要中再次嵌套的 “Previous Summary” 区块，避免摘要递归膨胀。 */
     private String normalizePreviousSummary(String previousSummary) {
-        String normalized =
-                StrUtil.nullToEmpty(previousSummary)
-                        .replace(CompressionConstants.SUMMARY_PREFIX, "")
-                        .trim();
+        String normalized = CompressionConstants.stripSummaryPrefix(previousSummary);
         if (StrUtil.isBlank(normalized)) {
             return "";
         }

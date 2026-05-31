@@ -1486,6 +1486,17 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "docker_compose_lifecycle",
+                                    "Docker Compose lifecycle command",
+                                    pattern(
+                                            "\\b(?:docker\\s+compose|docker-compose|podman\\s+compose)\\s+(?:restart|stop|kill|down)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "docker_container_lifecycle",
+                                    "Docker container lifecycle command",
+                                    pattern("\\b(?:docker|podman|nerdctl)\\s+(?:restart|stop|kill)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "docker_privileged_or_host_mount",
                                     "Docker privileged container or host mount",
                                     pattern(
@@ -3966,6 +3977,16 @@ public class DangerousCommandApprovalService {
                 || "file_search".equals(lower)) {
             return ToolNameConstants.CODESEARCH;
         }
+        if ("browser".equals(lower)
+                || "browser_create".equals(lower)
+                || "browser_navigate".equals(lower)
+                || "browser_click".equals(lower)
+                || "browser_type".equals(lower)
+                || "browser_screenshot".equals(lower)
+                || "browser_extract".equals(lower)
+                || "browser_close".equals(lower)) {
+            return ToolNameConstants.BROWSER;
+        }
         if ("read_file".equals(lower) || "file-read".equals(lower) || "file_read_file".equals(lower)) {
             return ToolNameConstants.FILE_READ;
         }
@@ -4107,7 +4128,8 @@ public class DangerousCommandApprovalService {
     private boolean isUrlSecurityTool(String toolName) {
         return ToolNameConstants.WEBFETCH.equals(toolName)
                 || ToolNameConstants.WEBSEARCH.equals(toolName)
-                || ToolNameConstants.CODESEARCH.equals(toolName);
+                || ToolNameConstants.CODESEARCH.equals(toolName)
+                || ToolNameConstants.BROWSER.equals(toolName);
     }
 
     private void clearGatewayInnerDecisionAfterApproval(
