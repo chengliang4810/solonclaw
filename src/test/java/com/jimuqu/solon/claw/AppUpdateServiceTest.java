@@ -342,6 +342,11 @@ public class AppUpdateServiceTest {
                 public UrlVerdict checkUrl(String url) {
                     return UrlVerdict.block(url, "blocked-by-test");
                 }
+
+                @Override
+                public UrlVerdict checkUrlBlockingPrivate(String url) {
+                    return UrlVerdict.block(url, "blocked-by-test");
+                }
             };
         }
 

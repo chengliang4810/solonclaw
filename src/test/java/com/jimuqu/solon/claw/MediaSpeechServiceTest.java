@@ -86,7 +86,7 @@ public class MediaSpeechServiceTest {
                                             "http://127.0.0.1:"
                                                     + server.getAddress().getPort()
                                                     + "/generated.png")),
-                            new SecurityPolicyService(config));
+                            new AllowLocalImageSecurityPolicyService(config));
 
             ImageGenerationService.ImageGenerationOutcome outcome =
                     service.generate("画一张图", "1:1", Collections.<String, Object>emptyMap());
@@ -222,6 +222,20 @@ public class MediaSpeechServiceTest {
         @Override
         public ImageGenResult generate(String prompt, String aspectRatio, Map<String, Object> options) {
             return ImageGenResult.ok(url);
+        }
+    }
+
+    private static class AllowLocalImageSecurityPolicyService extends SecurityPolicyService {
+        private AllowLocalImageSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrlBlockingPrivate(String url) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrlBlockingPrivate(url);
         }
     }
 
