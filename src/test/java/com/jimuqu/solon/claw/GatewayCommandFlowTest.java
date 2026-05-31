@@ -101,6 +101,12 @@ public class GatewayCommandFlowTest {
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "statusbar");
 
+        GatewayReply shortAliasReply = env.send("room-registry", "user-registry", "/sb");
+        assertThat(shortAliasReply.isError()).isTrue();
+        assertThat(shortAliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "statusbar");
+
         GatewayReply backgroundAliasReply = env.send("room-registry", "user-registry", "/bg nightly task");
         assertThat(backgroundAliasReply.isError()).isTrue();
         assertThat(backgroundAliasReply.getRuntimeMetadata())
@@ -113,6 +119,7 @@ public class GatewayCommandFlowTest {
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "background");
     }
+
     @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

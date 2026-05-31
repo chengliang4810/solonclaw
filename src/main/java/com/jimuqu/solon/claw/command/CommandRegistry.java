@@ -63,7 +63,7 @@ public final class CommandRegistry {
 
         register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
         register(terminal("tasks", "查看后台任务列表"));
-        register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar"));
+        register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar").alias("sb"));
         register(terminal("footer", "管理 TUI 底部栏显示"));
         register(terminal("copy", "复制终端选区或输出"));
         register(terminal("paste", "粘贴终端剪贴板内容"));

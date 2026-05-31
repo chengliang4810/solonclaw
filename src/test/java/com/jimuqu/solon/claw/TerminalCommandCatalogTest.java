@@ -40,7 +40,11 @@ public class TerminalCommandCatalogTest {
         assertThat(footer.getDescription()).isNotBlank();
         assertThat(footer.getScopes()).contains("cli", "gateway", "tui");
         assertThat(footer.isEnabledByDefault()).isTrue();
+
+        CommandDescriptor statusbar = CommandRegistry.get("statusbar");
+        assertThat(statusbar.getAliases()).contains("status-bar", "sb");
         assertThat(CommandRegistry.resolve("/status-bar").getName()).isEqualTo("statusbar");
+        assertThat(CommandRegistry.resolve("/sb").getName()).isEqualTo("statusbar");
 
         CommandDescriptor branch = CommandRegistry.get("branch");
         assertThat(branch.getAliases()).contains("fork");
