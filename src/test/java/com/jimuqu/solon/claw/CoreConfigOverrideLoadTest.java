@@ -771,7 +771,7 @@ public class CoreConfigOverrideLoadTest {
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  security:\n"
-                        + "    allow_private_urls: true\n",
+                        + "    allow_private_urls: false\n",
                 configFile);
 
         Props props = new Props();
@@ -779,7 +779,7 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
     }
 
     @Test
