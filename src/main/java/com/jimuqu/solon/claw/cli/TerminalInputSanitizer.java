@@ -9,6 +9,8 @@ public class TerminalInputSanitizer {
             Pattern.compile("(?:\\u001B\\[|\\^\\[\\[|\\u009B)\\d{1,5};\\d{1,5}R");
     private static final Pattern SGR_MOUSE_RESPONSE =
             Pattern.compile("(?:\\u001B\\[|\\^\\[\\[|\\u009B)?<\\d{1,5};\\d{1,5};\\d{1,5}[Mm]");
+    private static final Pattern DEGRADED_MOUSE_BURST_NOISE =
+            Pattern.compile("(?s)^(?=.*\\d)(?=.*;)(?=(?:[^Mm]*[Mm]){3})[\\d;<\\[\\]IMm \\u001B]+$");
     private static final Pattern OSC_RESPONSE =
             Pattern.compile("(?:\\u001B\\]|\\u009D)[\\s\\S]*?(?:\\u0007|\\u001B\\\\|\\u009C)");
     private static final Pattern OSC11_BACKGROUND_RESPONSE =
@@ -25,6 +27,9 @@ public class TerminalInputSanitizer {
         value = OSC11_BACKGROUND_RESPONSE.matcher(value).replaceAll("");
         value = BRACKETED_PASTE_WRAPPER.matcher(value).replaceAll("");
         value = DSR_RESPONSE.matcher(value).replaceAll("");
+        if (DEGRADED_MOUSE_BURST_NOISE.matcher(value).matches()) {
+            return "";
+        }
         value = SGR_MOUSE_RESPONSE.matcher(value).replaceAll("");
         return value;
     }

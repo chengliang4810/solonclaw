@@ -191,6 +191,101 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeCuratorCommandForSkillMaintenanceStatusAndRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/curator");
+        assertThat(status.isError()).isFalse();
+        assertThat(status.getContent())
+                .contains("curator_enabled=true")
+                .contains("paused=false")
+                .contains("reports=0")
+                .contains("improvements=0")
+                .contains("用法：/curator [status|list|improvements|run|pause|resume]");
+        assertThat(status.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "curator");
+
+        GatewayReply paused = env.send("admin-chat", "admin-user", "/curator pause");
+        assertThat(paused.getContent()).contains("技能后台维护已暂停");
+
+        GatewayReply pausedStatus = env.send("admin-chat", "admin-user", "/curator status");
+        assertThat(pausedStatus.getContent()).contains("paused=true");
+
+        GatewayReply resumed = env.send("admin-chat", "admin-user", "/curator resume");
+        assertThat(resumed.getContent()).contains("技能后台维护已恢复");
+
+        GatewayReply run = env.send("admin-chat", "admin-user", "/curator run");
+        assertThat(run.isError()).isFalse();
+        assertThat(run.getContent()).contains("技能维护运行 status=ok").contains("items=0");
+
+        GatewayReply list = env.send("admin-chat", "admin-user", "/curator list");
+        assertThat(list.getContent()).contains("技能维护报告：").contains("status=ok");
+    }
+
+    @Test
+    void shouldExposeToolsetsCommandFromDashboardCatalog() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "/toolsets");
+
+        assertThat(reply.isError()).isFalse();
+        assertThat(reply.getContent())
+                .contains("工具集：")
+                .contains("total=8")
+                .contains("code enabled=true tools=12")
+                .contains("skills enabled=true tools=12")
+                .contains("gateway enabled=true tools=1");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "toolsets")
+                .containsEntry("toolset_count", Integer.valueOf(8));
+    }
+
+    @Test
+    void shouldExposeBrowserRuntimeCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/browser");
+
+        assertThat(status.isError()).isFalse();
+        assertThat(status.getContent())
+                .contains("浏览器运行时：")
+                .contains("active_sessions=0")
+                .contains("用法：/browser [status|connect|disconnect <session-id>]");
+        assertThat(status.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "browser")
+                .containsEntry("browser_active_sessions", Integer.valueOf(0));
+    }
+
+    @Test
+    void shouldExposeDebugDiagnosticsCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "/debug");
+
+        assertThat(reply.isError()).isFalse();
+        assertThat(reply.getContent())
+                .contains("调试诊断：")
+                .contains("runtime_home=runtime://")
+                .contains("providers=")
+                .contains("channels=")
+                .contains("tools=")
+                .contains("security_probes_passed=");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "debug")
+                .containsKey("debug_provider_count")
+                .containsKey("debug_channel_count")
+                .containsKey("debug_tool_count");
+    }
+
+    @Test
     void shouldExposeApprovalManagementFormsInSlashHelp() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

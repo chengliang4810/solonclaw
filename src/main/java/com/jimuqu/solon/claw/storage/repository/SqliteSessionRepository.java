@@ -454,11 +454,7 @@ public class SqliteSessionRepository implements SessionRepository {
         Connection connection = database.openConnection();
         try {
             connection.setAutoCommit(false);
-            PreparedStatement deleteFts =
-                    connection.prepareStatement("delete from sessions_fts where session_id = ?");
-            deleteFts.setString(1, sessionId);
-            deleteFts.executeUpdate();
-            deleteFts.close();
+            deleteSearchIndex(connection, sessionId);
 
             PreparedStatement deleteBindings =
                     connection.prepareStatement("delete from bindings where session_id = ?");
@@ -604,24 +600,42 @@ public class SqliteSessionRepository implements SessionRepository {
     /** 将会话同步到 FTS5 索引。 */
     private void upsertSearchIndex(Connection connection, SessionRecord sessionRecord)
             throws Exception {
-        PreparedStatement delete =
-                connection.prepareStatement("delete from sessions_fts where session_id = ?");
-        delete.setString(1, sessionRecord.getSessionId());
-        delete.executeUpdate();
-        delete.close();
+        try {
+            deleteSearchIndex(connection, sessionRecord.getSessionId());
 
-        PreparedStatement insert =
-                connection.prepareStatement(
-                        "insert into sessions_fts (session_id, title, compressed_summary, ndjson, tool_names, tool_calls) values (?, ?, ?, ?, ?, ?)");
-        ToolIndex toolIndex = buildToolIndex(sessionRecord.getNdjson());
-        insert.setString(1, sessionRecord.getSessionId());
-        insert.setString(2, sessionRecord.getTitle());
-        insert.setString(3, sessionRecord.getCompressedSummary());
-        insert.setString(4, sessionRecord.getNdjson());
-        insert.setString(5, toolIndex.names);
-        insert.setString(6, toolIndex.calls);
-        insert.executeUpdate();
-        insert.close();
+            PreparedStatement insert =
+                    connection.prepareStatement(
+                            "insert into sessions_fts (session_id, title, compressed_summary, ndjson, tool_names, tool_calls) values (?, ?, ?, ?, ?, ?)");
+            try {
+                ToolIndex toolIndex = buildToolIndex(sessionRecord.getNdjson());
+                insert.setString(1, sessionRecord.getSessionId());
+                insert.setString(2, sessionRecord.getTitle());
+                insert.setString(3, sessionRecord.getCompressedSummary());
+                insert.setString(4, sessionRecord.getNdjson());
+                insert.setString(5, toolIndex.names);
+                insert.setString(6, toolIndex.calls);
+                insert.executeUpdate();
+            } finally {
+                insert.close();
+            }
+        } catch (Exception ignored) {
+            // Session persistence must survive runtimes where SQLite FTS5 is unavailable.
+        }
+    }
+
+    private void deleteSearchIndex(Connection connection, String sessionId) {
+        try {
+            PreparedStatement delete =
+                    connection.prepareStatement("delete from sessions_fts where session_id = ?");
+            try {
+                delete.setString(1, sessionId);
+                delete.executeUpdate();
+            } finally {
+                delete.close();
+            }
+        } catch (Exception ignored) {
+            // Search index is optional; table absence must not block primary session writes.
+        }
     }
 
     @SuppressWarnings("unchecked")

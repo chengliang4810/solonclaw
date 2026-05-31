@@ -28,6 +28,7 @@ public final class CommandRegistry {
         register(core("whoami", "info", "查看当前 slash 命令访问身份"));
         register(core("commands", "info", "浏览全部 slash 命令"));
         register(core("insights", "info", "查看使用洞察与运行摘要"));
+        register(core("debug", "info", "查看脱敏调试诊断摘要"));
         register(core("title", "session", "查看、设置或清空当前会话标题"));
         register(core("status", "session", "查看当前会话状态"));
         register(core("usage", "session", "查看当前会话运行信息"));
@@ -46,7 +47,10 @@ public final class CommandRegistry {
         register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
+        register(core("toolsets", "tool", "列出可用工具集"));
+        register(core("browser", "tool", "管理浏览器自动化运行时"));
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
+        register(core("curator", "skill", "管理技能后台维护状态与运行"));
         register(core("plugins", "tool", "查看插件加载状态"));
         register(core("reload-skills", "skill", "重新扫描本地技能目录").alias("reload_skills"));
         register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线").alias("reload_mcp"));
@@ -73,11 +77,14 @@ public final class CommandRegistry {
         register(terminal("tasks", "查看后台任务列表").alias("agents"));
         register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar").alias("sb"));
         register(terminal("footer", "管理 TUI 底部栏显示"));
+        register(terminal("skin", "查看或切换 TUI 皮肤"));
         register(terminal("copy", "复制终端选区或输出"));
         register(terminal("paste", "粘贴终端剪贴板内容"));
         register(terminal("image", "附加或管理图片输入"));
+        register(terminal("history", "预览当前终端会话的最近历史"));
         register(terminal("handoff", "生成会话交接信息"));
         register(terminal("subgoal", "管理当前目标的子目标"));
+        register(terminal("quit", "退出当前终端会话").alias("exit"));
     }
 
     private CommandRegistry() {}

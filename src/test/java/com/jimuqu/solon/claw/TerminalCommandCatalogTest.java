@@ -23,9 +23,15 @@ public class TerminalCommandCatalogTest {
                         "/commands",
                         "/insights",
                         "/plugins",
+                        "/curator",
+                        "/toolsets",
+                        "/browser",
+                        "/debug",
                         "/update",
+                        "/history",
                         "/reload-skills",
                         "/platform",
+                        "/skin",
                         "/fast",
                         "/queue",
                         "/steer",
@@ -38,7 +44,8 @@ public class TerminalCommandCatalogTest {
                         "/paste",
                         "/image",
                         "/handoff",
-                        "/subgoal")
+                        "/subgoal",
+                        "/quit")
                 .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security", "/sessions");
 
         CommandDescriptor footer = CommandRegistry.get("footer");
@@ -105,10 +112,47 @@ public class TerminalCommandCatalogTest {
         assertThat(plugins.getCategory()).isEqualTo("tool");
         assertThat(CommandRegistry.resolve("/plugins").getName()).isEqualTo("plugins");
 
+        CommandDescriptor curator = CommandRegistry.get("curator");
+        assertThat(curator).isNotNull();
+        assertThat(curator.getCategory()).isEqualTo("skill");
+        assertThat(CommandRegistry.resolve("/curator").getName()).isEqualTo("curator");
+
+        CommandDescriptor toolsets = CommandRegistry.get("toolsets");
+        assertThat(toolsets).isNotNull();
+        assertThat(toolsets.getCategory()).isEqualTo("tool");
+        assertThat(CommandRegistry.resolve("/toolsets").getName()).isEqualTo("toolsets");
+
+        CommandDescriptor browser = CommandRegistry.get("browser");
+        assertThat(browser).isNotNull();
+        assertThat(browser.getCategory()).isEqualTo("tool");
+        assertThat(CommandRegistry.resolve("/browser").getName()).isEqualTo("browser");
+
+        CommandDescriptor debug = CommandRegistry.get("debug");
+        assertThat(debug).isNotNull();
+        assertThat(debug.getCategory()).isEqualTo("info");
+        assertThat(CommandRegistry.resolve("/debug").getName()).isEqualTo("debug");
+
         CommandDescriptor update = CommandRegistry.get("update");
         assertThat(update).isNotNull();
         assertThat(update.getCategory()).isEqualTo("system");
         assertThat(CommandRegistry.resolve("/update").getName()).isEqualTo("update");
+
+        CommandDescriptor history = CommandRegistry.get("history");
+        assertThat(history).isNotNull();
+        assertThat(history.getCategory()).isEqualTo("terminal");
+        assertThat(CommandRegistry.resolve("/history").getName()).isEqualTo("history");
+
+        CommandDescriptor skin = CommandRegistry.get("skin");
+        assertThat(skin).isNotNull();
+        assertThat(skin.getCategory()).isEqualTo("terminal");
+        assertThat(CommandRegistry.resolve("/skin").getName()).isEqualTo("skin");
+
+        CommandDescriptor quit = CommandRegistry.get("quit");
+        assertThat(quit).isNotNull();
+        assertThat(quit.getCategory()).isEqualTo("terminal");
+        assertThat(quit.getAliases()).contains("exit");
+        assertThat(CommandRegistry.resolve("/quit").getName()).isEqualTo("quit");
+        assertThat(CommandRegistry.resolve("/exit").getName()).isEqualTo("quit");
     }
 
     @Test

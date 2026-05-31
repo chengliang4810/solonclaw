@@ -93,6 +93,7 @@ public class TuiShell {
                         .dumb(true)
                         .encoding(StandardCharsets.UTF_8)
                         .build();
+        TerminalDimensionSupport.sanitize(terminal);
         PrintWriter writer = terminal.writer();
         String sessionId = StrUtil.blankToDefault(mode.getSessionId(), "tui");
         if (StrUtil.isNotBlank(mode.getInput())) {

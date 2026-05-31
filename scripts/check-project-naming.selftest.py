@@ -14,6 +14,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = REPO_ROOT / "scripts"
 NAMING_SCRIPT = SCRIPT_DIR / "check-project-naming.py"
+GITHUB_PACKAGE_SCRIPT = SCRIPT_DIR / "check-github-package-name.py"
 RELEASE_NOTES_SCRIPT = SCRIPT_DIR / "write-release-notes.py"
 RELEASE_RANGE_SCRIPT = SCRIPT_DIR / "resolve-release-range.py"
 PUBLISHED_RELEASE_SCRIPT = SCRIPT_DIR / "check-release-naming.py"
@@ -99,6 +100,16 @@ def invoke_git_naming_check(
     if with_extra_fixture:
         args.extend(["--extra-blocked-terms", BLOCKED_FIXTURE])
     return run(args)
+
+
+def invoke_github_package_check(sandbox: Path, workflow_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    packages_workflow = sandbox / ".github" / "workflows" / "packages.yml"
+    packages_workflow.parent.mkdir(parents=True, exist_ok=True)
+    if workflow_text is None:
+        shutil.copy2(REPO_ROOT / ".github" / "workflows" / "packages.yml", packages_workflow)
+    else:
+        packages_workflow.write_text(workflow_text, encoding="utf-8")
+    return run(["python3", str(GITHUB_PACKAGE_SCRIPT), "--root-path", str(sandbox)], cwd=sandbox)
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -336,8 +347,16 @@ def main() -> int:
             raise AssertionError("Release notes generation should document source archive assets.")
         if "java -jar SolonClaw.jar" not in clean_release_text:
             raise AssertionError("Release notes generation should use the fixed release jar asset in quick start.")
-        if "jimuqu-agent-0.0.0-test.jar" in clean_release_text:
+        if "legacy-agent-0.0.0-test.jar" in clean_release_text:
             raise AssertionError("Release notes generation should not document the versioned repository jar asset name.")
+
+        package_name_check = invoke_github_package_check(sandbox)
+        require_success(package_name_check, "GitHub package name check should pass for the configured solon-claw package image")
+        unexpected_package_name_check = invoke_github_package_check(
+            sandbox,
+            "images: ghcr.io/chengliang4810/not-solon-claw\n",
+        )
+        require_failure(unexpected_package_name_check, "GitHub package name check should reject non solon-claw package images")
 
         reset_sandbox(sandbox)
         release_dir = sandbox / "dist"
@@ -374,10 +393,10 @@ def main() -> int:
 
         reset_sandbox(sandbox)
         published_release_fixture = {
-            "name": "jimuqu-agent v2099.01.04-def0123",
+            "name": "solon-claw v2099.01.04-def0123",
             "tag_name": "v2099.01.04-def0123",
             "body": "Published release body mentions " + BLOCKED_DEFAULT_ENV_FIXTURE,
-            "assets": [{"name": "jimuqu-agent-0.0.0-test.jar", "label": "", "content_type": "application/java-archive"}],
+            "assets": [{"name": "SolonClaw.jar", "label": "", "content_type": "application/java-archive"}],
         }
         published_release_path = sandbox / "published-release.json"
         published_release_path.write_text(json.dumps(published_release_fixture), encoding="utf-8")
@@ -386,10 +405,10 @@ def main() -> int:
         assert_no_raw_blocked_output(published_release.stdout + published_release.stderr, [BLOCKED_DEFAULT_ENV_FIXTURE], "published release metadata scan")
 
         clean_published_release_fixture = {
-            "name": "jimuqu-agent v2099.01.05-ef01234",
+            "name": "solon-claw v2099.01.05-ef01234",
             "tag_name": "v2099.01.05-ef01234",
             "body": "Clean published release body",
-            "assets": [{"name": "jimuqu-agent-0.0.0-test.jar", "label": "", "content_type": "application/java-archive"}],
+            "assets": [{"name": "SolonClaw.jar", "label": "", "content_type": "application/java-archive"}],
         }
         clean_published_release_path = sandbox / "published-release-clean.json"
         clean_published_release_path.write_text(json.dumps(clean_published_release_fixture), encoding="utf-8")
@@ -422,7 +441,7 @@ def main() -> int:
         reset_sandbox(sandbox)
         clean_archive_root = sandbox / "clean-archive-root"
         clean_archive_path = sandbox / "clean-fixture.jar"
-        write_text(clean_archive_root / "app.properties", "app.name=jimuqu-agent")
+        write_text(clean_archive_root / "app.properties", "app.name=solon-claw")
         create_zip(clean_archive_root, clean_archive_path)
         clean_archive_output = run(["python3", str(ARCHIVE_NAMING_SCRIPT), "--archive-path", str(clean_archive_path)])
         require_success(clean_archive_output, "Archive naming check should pass for clean packaged content")

@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.FileMemoryService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
+import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -82,14 +83,17 @@ import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -283,6 +287,17 @@ public class TestEnvironment {
                         gitHubSkillSource);
         CronJobService cronJobService = new CronJobService(config, cronJobRepository);
         DashboardMcpService dashboardMcpService = new DashboardMcpService(config, database);
+        DashboardCuratorService dashboardCuratorService =
+                new DashboardCuratorService(
+                        new SkillCuratorService(config, localSkillService), database);
+        DashboardSkillsService dashboardSkillsService =
+                new DashboardSkillsService(localSkillService, preferenceStore);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(config);
+        BrowserRuntimeService browserRuntimeService =
+                new BrowserRuntimeService(
+                        config,
+                        java.util.Collections.<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
+                        securityPolicyService);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -301,9 +316,10 @@ public class TestEnvironment {
                         attachmentCacheService,
                         runtimeSettingsService,
                         refreshService,
-                        new SecurityPolicyService(config),
+                        securityPolicyService,
                         processRegistry,
-                        null);
+                        null,
+                        browserRuntimeService);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
                 new AgentRunSupervisor(
@@ -380,7 +396,12 @@ public class TestEnvironment {
                         new SessionArtifactService(config),
                         null,
                         gatewayRestartCoordinator,
-                        slashConfirmService);
+                        slashConfirmService,
+                        null,
+                        null,
+                        dashboardCuratorService,
+                        dashboardSkillsService,
+                        browserRuntimeService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,

@@ -36,6 +36,9 @@ jobs:
       - name: Check project naming
         run: python3 scripts/check-project-naming.py
 
+      - name: Check GitHub package name
+        run: python3 scripts/check-github-package-name.py
+
       - name: Check raw exception logging self-test
         run: python3 scripts/check-raw-exception-logging.selftest.py
 
@@ -170,7 +173,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jimuqu-agent-release
+          name: solon-claw-release
           path: |
             ${{ steps.artifact.outputs.jar_path }}
             ${{ steps.artifact.outputs.source_zip_path }}
@@ -183,7 +186,7 @@ jobs:
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: jimuqu-agent ${{ steps.release.outputs.tag }}
+          name: solon-claw ${{ steps.release.outputs.tag }}
           body_path: ${{ steps.artifact.outputs.body_path }}
           generate_release_notes: false
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}

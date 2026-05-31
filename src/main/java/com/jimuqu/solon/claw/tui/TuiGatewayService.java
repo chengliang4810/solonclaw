@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.cli.TerminalDimensionSupport;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -39,6 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import org.jline.terminal.Size;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** Agent terminal gateway service. */
@@ -619,9 +621,17 @@ public class TuiGatewayService implements TuiGatewayEventSink {
     }
 
     private Map<String, Object> resize(TuiEnvelope envelope) {
+        Object rawCols = envelope.getParams().get("cols");
+        Object rawRows = envelope.getParams().get("rows");
+        Size size = TerminalDimensionSupport.sanitizeSize(rawCols, rawRows);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
-        payload.put("cols", envelope.getParams().get("cols"));
-        payload.put("rows", envelope.getParams().get("rows"));
+        payload.put("cols", Integer.valueOf(size.getColumns()));
+        payload.put("rows", Integer.valueOf(size.getRows()));
+        payload.put(
+                "sanitized",
+                Boolean.valueOf(
+                        !Integer.valueOf(size.getColumns()).equals(rawCols)
+                                || !Integer.valueOf(size.getRows()).equals(rawRows)));
         payload.put("ok", Boolean.TRUE);
         return payload;
     }

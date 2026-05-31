@@ -354,12 +354,14 @@ public class CliShell {
     }
 
     private Terminal newTerminal() throws Exception {
-        return TerminalBuilder.builder()
+        Terminal terminal = TerminalBuilder.builder()
                 .system(true)
                 .jansi(true)
                 .dumb(true)
                 .encoding(StandardCharsets.UTF_8)
                 .build();
+        TerminalDimensionSupport.sanitize(terminal);
+        return terminal;
     }
 
     private void configureWindowsUtf8() {
