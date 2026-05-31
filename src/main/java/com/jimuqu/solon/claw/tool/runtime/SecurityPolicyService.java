@@ -369,6 +369,10 @@ public class SecurityPolicyService {
         return checkUrl(url, Boolean.TRUE);
     }
 
+    public UrlVerdict checkUrlBlockingPrivate(String url) {
+        return checkUrl(url, Boolean.FALSE);
+    }
+
     public boolean isAlwaysBlockedUrl(String url) {
         return !checkAlwaysBlockedUrl(url).isAllowed();
     }

@@ -333,7 +333,19 @@ public class AppUpdateService {
 
         @Override
         public UrlVerdict checkUrl(String url) {
+            return checkUpdateAssetUrl(url, false);
+        }
+
+        @Override
+        public UrlVerdict checkUrlBlockingPrivate(String url) {
+            return checkUpdateAssetUrl(url, true);
+        }
+
+        private UrlVerdict checkUpdateAssetUrl(String url, boolean blockPrivate) {
             UrlVerdict verdict = super.checkUrl(url);
+            if (blockPrivate) {
+                verdict = super.checkUrlBlockingPrivate(url);
+            }
             if (!verdict.isAllowed()) {
                 return verdict;
             }

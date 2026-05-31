@@ -355,6 +355,14 @@ public class BoundedAttachmentIOTest {
         }
 
         @Override
+        public UrlVerdict checkUrlBlockingPrivate(String url) {
+            if (url != null && (url.contains("127.0.0.1") || url.contains("localhost"))) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrlBlockingPrivate(url);
+        }
+
+        @Override
         protected InetAddress[] resolveHost(String host) throws Exception {
             if ("127.0.0.1".equals(host)) {
                 return new InetAddress[] {InetAddress.getByName("8.8.8.8")};

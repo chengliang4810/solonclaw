@@ -127,7 +127,7 @@ public final class BoundedAttachmentIO {
         if (securityPolicyService == null) {
             return;
         }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlBlockingPrivate(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
                     "Attachment download URL blocked: "
