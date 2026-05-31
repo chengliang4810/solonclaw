@@ -1,21 +1,30 @@
 package com.jimuqu.solon.claw.gateway.service;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.noear.snack4.ONode;
 
 /** Coordinates gateway restart drain state inside the Java gateway. */
 public class GatewayRestartCoordinator {
+    public static final String RESTART_REQUESTER_MARKER = "restart-requester.json";
     private final AtomicBoolean draining = new AtomicBoolean(false);
     private final ScheduledExecutorService executorService;
     private final AgentRunControlService agentRunControlService;
     private final RestartExitHandler exitHandler;
+    private final File runtimeHome;
     private volatile boolean restartRequested;
     private volatile int activeRunCount;
     private volatile long requestedAt;
@@ -38,6 +47,12 @@ public class GatewayRestartCoordinator {
             RestartExitHandler exitHandler) {
         this.agentRunControlService = agentRunControlService;
         this.exitHandler = exitHandler == null ? new SystemExitRestartHandler() : exitHandler;
+        this.runtimeHome =
+                FileUtil.file(
+                                StrUtil.blankToDefault(
+                                        appConfig == null ? null : appConfig.getRuntime().getHome(),
+                                        RuntimePathConstants.RUNTIME_HOME))
+                        .getAbsoluteFile();
         this.drainTimeoutSeconds =
                 appConfig == null
                         ? 180
@@ -68,6 +83,7 @@ public class GatewayRestartCoordinator {
         requestedAt = System.currentTimeMillis();
         requesterSourceKey = StrUtil.nullToEmpty(sourceKey);
         requesterRouting = RequesterRouting.from(requesterSourceKey, requester);
+        persistRequesterMarker(count, requestedAt, requesterRouting);
         if (first) {
             scheduleDrainExit(count);
         }
@@ -122,6 +138,40 @@ public class GatewayRestartCoordinator {
 
     private int currentRunningRunCount() {
         return agentRunControlService == null ? activeRunCount : agentRunControlService.runningRunCount();
+    }
+
+    private void persistRequesterMarker(
+            int activeRuns, long requestedAtMillis, RequesterRouting routing) {
+        if (routing == null || routing.isEmpty()) {
+            return;
+        }
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        if (routing.getPlatform() != null) {
+            payload.put("platform", routing.getPlatform().name());
+        }
+        putIfNotBlank(payload, "chat_id", routing.getChatId());
+        putIfNotBlank(payload, "user_id", routing.getUserId());
+        putIfNotBlank(payload, "chat_type", routing.getChatType());
+        putIfNotBlank(payload, "thread_id", routing.getThreadId());
+        putIfNotBlank(payload, "source_key", routing.getSourceKey());
+        payload.put("active_run_count", Integer.valueOf(Math.max(0, activeRuns)));
+        payload.put("requested_at", Long.valueOf(requestedAtMillis));
+        payload.put("drain_timeout_seconds", Integer.valueOf(drainTimeoutSeconds));
+
+        File marker = FileUtil.file(runtimeHome, RESTART_REQUESTER_MARKER);
+        File temp = FileUtil.file(runtimeHome, RESTART_REQUESTER_MARKER + ".tmp");
+        FileUtil.mkParentDirs(marker);
+        FileUtil.writeString(ONode.serialize(payload), temp, StandardCharsets.UTF_8);
+        if (!temp.renameTo(marker)) {
+            FileUtil.copy(temp, marker, true);
+            FileUtil.del(temp);
+        }
+    }
+
+    private static void putIfNotBlank(Map<String, Object> payload, String key, String value) {
+        if (StrUtil.isNotBlank(value)) {
+            payload.put(key, value);
+        }
     }
 
     private static void sleepQuietly(long millis) {
@@ -291,6 +341,15 @@ public class GatewayRestartCoordinator {
 
         public String getSourceKey() {
             return sourceKey;
+        }
+
+        private boolean isEmpty() {
+            return platform == null
+                    && StrUtil.isBlank(chatId)
+                    && StrUtil.isBlank(userId)
+                    && StrUtil.isBlank(chatType)
+                    && StrUtil.isBlank(threadId)
+                    && StrUtil.isBlank(sourceKey);
         }
     }
 }
