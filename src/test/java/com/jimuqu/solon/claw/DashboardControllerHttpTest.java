@@ -167,6 +167,67 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldReturnStructuredErrorForInvalidProviderValidationRequest() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult result =
+                request(
+                        "POST",
+                        "/api/providers/validate",
+                        "{\"baseUrl\":\"\",\"dialect\":\"unsupported\"}",
+                        token);
+
+        assertThat(result.status).isEqualTo(400);
+        assertThat(result.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"PROVIDER_VALIDATE_BAD_REQUEST\"");
+    }
+
+    @Test
+    void shouldValidateConfiguredProviderThroughDashboardRoute() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        AppConfig.ProviderConfig provider =
+                Solon.context().getBean(AppConfig.class).getProviders().get("default");
+        String previousBaseUrl = provider.getBaseUrl();
+        String previousDialect = provider.getDialect();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"data\":[{\"id\":\"dashboard-runtime-model\"}]}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(200, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            provider.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+            provider.setDialect("openai");
+
+            HttpResult result =
+                    request(
+                            "POST",
+                            "/api/providers/validate",
+                            "{\"providerKey\":\"default\"}",
+                            token);
+
+            assertThat(result.status).isEqualTo(200);
+            assertThat(result.body)
+                    .contains("\"success\":true")
+                    .contains("\"ok\":true")
+                    .contains("\"reachable\":true")
+                    .contains("\"status\":\"valid\"")
+                    .contains("dashboard-runtime-model");
+        } finally {
+            provider.setBaseUrl(previousBaseUrl);
+            provider.setDialect(previousDialect);
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldPersistConfigAndExposeDashboardResources() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 

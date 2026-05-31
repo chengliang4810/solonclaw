@@ -330,28 +330,11 @@ public class DashboardProviderService {
     }
 
     public Map<String, Object> listRemoteModels(Map<String, Object> data) {
-        String providerKey = readString(data, "providerKey");
-        String baseUrl = readString(data, "baseUrl");
-        String apiKey = readString(data, "apiKey");
-        String dialect = LlmProviderSupport.normalizeDialect(readString(data, "dialect"));
-        AppConfig.ProviderConfig provider =
-                StrUtil.isBlank(providerKey) ? null : appConfig.getProviders().get(providerKey);
-        if (provider != null) {
-            baseUrl = StrUtil.blankToDefault(baseUrl, provider.getBaseUrl());
-            apiKey = StrUtil.blankToDefault(apiKey, provider.getApiKey());
-            dialect =
-                    LlmProviderSupport.normalizeDialect(
-                            StrUtil.blankToDefault(dialect, provider.getDialect()));
-        }
-        if (StrUtil.isBlank(baseUrl)) {
-            throw new IllegalArgumentException("baseUrl 不能为空。");
-        }
-        assertSafeProviderBaseUrl(baseUrl);
-        if (StrUtil.isBlank(dialect) || !LlmProviderSupport.isSupportedDialect(dialect)) {
-            throw new IllegalArgumentException("不支持的 dialect：" + dialect);
-        }
-
-        String url = LlmProviderSupport.buildModelListUrl(baseUrl, dialect);
+        ProviderProbe probe = resolveProviderProbe(data);
+        String providerKey = probe.providerKey;
+        String apiKey = probe.apiKey;
+        String dialect = probe.dialect;
+        String url = LlmProviderSupport.buildModelListUrl(probe.baseUrl, dialect);
         assertSafeProviderUrl(url);
         String cacheKey = modelListCacheKey(providerKey, url, dialect, apiKey);
         ModelListCacheEntry cached = cachedModelList(cacheKey);
@@ -385,6 +368,106 @@ public class DashboardProviderService {
             }
             throw e;
         }
+    }
+
+    public Map<String, Object> validateProvider(Map<String, Object> data) {
+        ProviderProbe probe = resolveProviderProbe(data);
+        String url = LlmProviderSupport.buildModelListUrl(probe.baseUrl, probe.dialect);
+        assertSafeProviderUrl(url);
+        try {
+            HttpResponse response = executeModelListRequest(url, probe.apiKey, probe.dialect, 0);
+            try {
+                int status = response.getStatus();
+                String body = response.body();
+                if (status >= 200 && status < 300) {
+                    Map<String, Object> result =
+                            providerValidationResult(
+                                    true,
+                                    true,
+                                    "valid",
+                                    "Provider reachable.",
+                                    url);
+                    result.put("models", parseModels(body, probe.dialect));
+                    return result;
+                }
+                if (status == 429) {
+                    return providerValidationResult(
+                            true,
+                            true,
+                            "rate_limited",
+                            "HTTP 429 " + trimForError(body),
+                            url);
+                }
+                if (status == 401 || status == 403) {
+                    return providerValidationResult(
+                            false,
+                            true,
+                            "rejected",
+                            "HTTP " + status + " " + trimForError(body),
+                            url);
+                }
+                return providerValidationResult(
+                        false,
+                        true,
+                        "error",
+                        "HTTP " + status + " " + trimForError(body),
+                        url);
+            } finally {
+                response.close();
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            return providerValidationResult(
+                    false,
+                    false,
+                    "unreachable",
+                    validationRuntimeMessage(e),
+                    url);
+        }
+    }
+
+    private ProviderProbe resolveProviderProbe(Map<String, Object> data) {
+        String providerKey = readString(data, "providerKey");
+        String baseUrl = readString(data, "baseUrl");
+        String apiKey = readString(data, "apiKey");
+        String dialect = LlmProviderSupport.normalizeDialect(readString(data, "dialect"));
+        AppConfig.ProviderConfig provider =
+                StrUtil.isBlank(providerKey) ? null : appConfig.getProviders().get(providerKey);
+        if (provider != null) {
+            baseUrl = StrUtil.blankToDefault(baseUrl, provider.getBaseUrl());
+            apiKey = StrUtil.blankToDefault(apiKey, provider.getApiKey());
+            dialect =
+                    LlmProviderSupport.normalizeDialect(
+                            StrUtil.blankToDefault(dialect, provider.getDialect()));
+        }
+        if (StrUtil.isBlank(baseUrl)) {
+            throw new IllegalArgumentException("baseUrl 不能为空。");
+        }
+        assertSafeProviderBaseUrl(baseUrl);
+        if (StrUtil.isBlank(dialect) || !LlmProviderSupport.isSupportedDialect(dialect)) {
+            throw new IllegalArgumentException("不支持的 dialect：" + dialect);
+        }
+        return new ProviderProbe(providerKey, baseUrl, apiKey, dialect);
+    }
+
+    private Map<String, Object> providerValidationResult(
+            boolean ok, boolean reachable, String status, String message, String url) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.valueOf(ok));
+        result.put("reachable", Boolean.valueOf(reachable));
+        result.put("status", status);
+        result.put("message", SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
+        result.put("url", SecretRedactor.maskUrl(StrUtil.nullToEmpty(url)));
+        return result;
+    }
+
+    private String validationRuntimeMessage(RuntimeException e) {
+        String message = e.getMessage();
+        if (StrUtil.isBlank(message) && e.getCause() != null) {
+            message = e.getCause().getMessage();
+        }
+        return SecretRedactor.redact(StrUtil.blankToDefault(message, e.getClass().getSimpleName()), 1000);
     }
 
     protected long currentTimeMillis() {
@@ -898,6 +981,20 @@ public class DashboardProviderService {
                             ? Collections.<String>emptyList()
                             : new ArrayList<String>(models);
             this.cachedAt = cachedAt;
+        }
+    }
+
+    private static class ProviderProbe {
+        private final String providerKey;
+        private final String baseUrl;
+        private final String apiKey;
+        private final String dialect;
+
+        private ProviderProbe(String providerKey, String baseUrl, String apiKey, String dialect) {
+            this.providerKey = providerKey;
+            this.baseUrl = baseUrl;
+            this.apiKey = apiKey;
+            this.dialect = dialect;
         }
     }
 }

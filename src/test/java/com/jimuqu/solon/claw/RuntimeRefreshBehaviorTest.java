@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -609,6 +610,118 @@ public class RuntimeRefreshBehaviorTest {
         }
     }
 
+    @Test
+    void shouldValidateProviderRuntimeSuccessAndRejectionStatuses() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/valid/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"data\":[{\"id\":\"runtime-model\"}]}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(200, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.createContext(
+                    "/rejected/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"error\":\"invalid api key\"}".getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(401, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.createContext(
+                    "/limited/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(429, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            DashboardProviderService providerService = localProviderService(new AppConfig());
+            int port = server.getAddress().getPort();
+
+            Map<String, Object> valid =
+                    providerService.validateProvider(
+                            providerProbe("http://127.0.0.1:" + port + "/valid", "openai"));
+            Map<String, Object> rejected =
+                    providerService.validateProvider(
+                            providerProbe("http://127.0.0.1:" + port + "/rejected", "openai"));
+            Map<String, Object> limited =
+                    providerService.validateProvider(
+                            providerProbe("http://127.0.0.1:" + port + "/limited", "openai"));
+
+            assertThat(valid.get("ok")).isEqualTo(Boolean.TRUE);
+            assertThat(valid.get("reachable")).isEqualTo(Boolean.TRUE);
+            assertThat(valid.get("status")).isEqualTo("valid");
+            assertThat(valid.get("models")).asList().containsExactly("runtime-model");
+            assertThat(rejected.get("ok")).isEqualTo(Boolean.FALSE);
+            assertThat(rejected.get("reachable")).isEqualTo(Boolean.TRUE);
+            assertThat(rejected.get("status")).isEqualTo("rejected");
+            assertThat(limited.get("ok")).isEqualTo(Boolean.TRUE);
+            assertThat(limited.get("reachable")).isEqualTo(Boolean.TRUE);
+            assertThat(limited.get("status")).isEqualTo("rate_limited");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactProviderRuntimeValidationErrors() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"error\":\"api_key=sk-provider-validate-secret token=ghp_providervalidate12345\"}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(500, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            DashboardProviderService providerService = localProviderService(new AppConfig());
+
+            Map<String, Object> result =
+                    providerService.validateProvider(
+                            providerProbe(
+                                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                                    "openai"));
+
+            assertThat(result.get("ok")).isEqualTo(Boolean.FALSE);
+            assertThat(result.get("reachable")).isEqualTo(Boolean.TRUE);
+            assertThat(result.get("status")).isEqualTo("error");
+            assertThat(String.valueOf(result.get("message")))
+                    .contains("HTTP 500")
+                    .contains("api_key=***")
+                    .contains("token=***")
+                    .doesNotContain("sk-provider-validate-secret")
+                    .doesNotContain("ghp_providervalidate12345");
+        } finally {
+            server.stop(0);
+        }
+
+        DashboardProviderService providerService =
+                new ThrowingDashboardProviderService(
+                        new AppConfig(), "connect failed token=ghp_unreachablevalidate12345");
+        Map<String, Object> unreachable =
+                providerService.validateProvider(
+                        providerProbe("http://127.0.0.1:1", "openai"));
+
+        assertThat(unreachable.get("ok")).isEqualTo(Boolean.FALSE);
+        assertThat(unreachable.get("reachable")).isEqualTo(Boolean.FALSE);
+        assertThat(unreachable.get("status")).isEqualTo("unreachable");
+        assertThat(String.valueOf(unreachable.get("message")))
+                .doesNotContain("ghp_unreachablevalidate12345")
+                .contains("***");
+    }
+
     private RuntimeSettingsService runtimeSettingsService(
             TestEnvironment env, RecordingChannelAdapter adapter) {
         Map<PlatformType, ChannelAdapter> adapters =
@@ -655,6 +768,21 @@ public class RuntimeRefreshBehaviorTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("security.websiteBlocklist.sharedFiles")
                 .hasMessageContaining(messagePart);
+    }
+
+    private DashboardProviderService localProviderService(AppConfig config) {
+        return new DashboardProviderService(
+                config,
+                null,
+                new LlmProviderService(config),
+                new AllowLocalButBlockMetadataSecurityPolicyService(config));
+    }
+
+    private Map<String, Object> providerProbe(String baseUrl, String dialect) {
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("baseUrl", baseUrl);
+        body.put("dialect", dialect);
+        return body;
     }
 
     private static class AllowLocalButBlockMetadataSecurityPolicyService
@@ -713,6 +841,25 @@ public class RuntimeRefreshBehaviorTest {
         @Override
         protected long modelListCacheTtlMillis() {
             return 1000L;
+        }
+    }
+
+    private static class ThrowingDashboardProviderService extends DashboardProviderService {
+        private final String message;
+
+        private ThrowingDashboardProviderService(AppConfig appConfig, String message) {
+            super(
+                    appConfig,
+                    null,
+                    new LlmProviderService(appConfig),
+                    new AllowLocalButBlockMetadataSecurityPolicyService(appConfig));
+            this.message = message;
+        }
+
+        @Override
+        protected HttpResponse executeModelListRequest(
+                String url, String apiKey, String dialect, int redirectCount) {
+            throw new IllegalStateException(message);
         }
     }
 

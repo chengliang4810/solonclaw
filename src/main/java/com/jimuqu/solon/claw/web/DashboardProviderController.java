@@ -57,6 +57,16 @@ public class DashboardProviderController {
         }
     }
 
+    @Mapping(value = "/api/providers/validate", method = MethodType.POST)
+    public Map<String, Object> validate(Context context) throws Exception {
+        try {
+            return DashboardResponse.ok(providerService.validateProvider(body(context)));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("PROVIDER_VALIDATE_BAD_REQUEST", e.getMessage());
+        }
+    }
+
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.PUT)
     public Map<String, Object> update(String providerKey, Context context) throws Exception {
         try {
