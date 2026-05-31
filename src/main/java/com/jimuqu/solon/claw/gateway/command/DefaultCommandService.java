@@ -728,6 +728,10 @@ public class DefaultCommandService implements CommandService {
             return handleCommands(args);
         }
 
+        if (GatewayCommandConstants.COMMAND_INSIGHTS.equals(command)) {
+            return handleInsights();
+        }
+
         if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
             return handleTrajectory(message, args);
         }
@@ -1541,6 +1545,40 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_COMMANDS);
         reply.getRuntimeMetadata().put("page", Integer.valueOf(page));
         reply.getRuntimeMetadata().put("total", Integer.valueOf(total));
+        return reply;
+    }
+
+    private GatewayReply handleInsights() throws Exception {
+        int sessionTotal = sessionRepository == null ? 0 : sessionRepository.countAll();
+        List<String> skillNames =
+                localSkillService == null
+                        ? Collections.<String>emptyList()
+                        : localSkillService.listSkillNames();
+        int skillAvailable = skillNames.size();
+        Runtime runtime = Runtime.getRuntime();
+        long usedMemoryMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        long maxMemoryMb = runtime.maxMemory() / (1024 * 1024);
+        int processors = runtime.availableProcessors();
+
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("使用洞察\n");
+        buffer.append("sessions.total=").append(sessionTotal).append('\n');
+        buffer.append("skills.available=").append(skillAvailable).append('\n');
+        buffer.append("runtime.memory=")
+                .append(usedMemoryMb)
+                .append("MB/")
+                .append(maxMemoryMb)
+                .append("MB")
+                .append('\n');
+        buffer.append("runtime.processors=").append(processors);
+
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_INSIGHTS);
+        reply.getRuntimeMetadata().put("session_total", Integer.valueOf(sessionTotal));
+        reply.getRuntimeMetadata().put("skill_available", Integer.valueOf(skillAvailable));
+        reply.getRuntimeMetadata().put("runtime_used_memory_mb", Long.valueOf(usedMemoryMb));
+        reply.getRuntimeMetadata().put("runtime_max_memory_mb", Long.valueOf(maxMemoryMb));
         return reply;
     }
 
@@ -4300,6 +4338,9 @@ public class DefaultCommandService implements CommandService {
                                 "浏览并搜索历史会话"),
                         helpLine(GatewayCommandConstants.SLASH_WHOAMI, "查看当前 slash 命令访问身份"),
                         helpLine(GatewayCommandConstants.SLASH_COMMANDS + " [page]", "浏览全部 slash 命令"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_INSIGHTS,
+                                "查看使用洞察与运行摘要"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
                                 "查看、设置或清空当前会话标题"),

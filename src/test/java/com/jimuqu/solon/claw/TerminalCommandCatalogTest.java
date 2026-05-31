@@ -21,6 +21,7 @@ public class TerminalCommandCatalogTest {
                         "/model",
                         "/whoami",
                         "/commands",
+                        "/insights",
                         "/reload-skills",
                         "/fast",
                         "/queue",
@@ -85,6 +86,11 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor reloadSkills = CommandRegistry.get("reload-skills");
         assertThat(reloadSkills.getAliases()).contains("reload_skills");
         assertThat(CommandRegistry.resolve("/reload_skills").getName()).isEqualTo("reload-skills");
+
+        CommandDescriptor insights = CommandRegistry.get("insights");
+        assertThat(insights).isNotNull();
+        assertThat(insights.getCategory()).isEqualTo("info");
+        assertThat(CommandRegistry.resolve("/insights").getName()).isEqualTo("insights");
     }
 
     @Test

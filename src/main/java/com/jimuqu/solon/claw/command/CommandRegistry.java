@@ -27,6 +27,7 @@ public final class CommandRegistry {
         register(core("sessions", "session", "浏览并搜索历史会话"));
         register(core("whoami", "info", "查看当前 slash 命令访问身份"));
         register(core("commands", "info", "浏览全部 slash 命令"));
+        register(core("insights", "info", "查看使用洞察与运行摘要"));
         register(core("title", "session", "查看、设置或清空当前会话标题"));
         register(core("status", "session", "查看当前会话状态"));
         register(core("usage", "session", "查看当前会话运行信息"));

@@ -83,6 +83,7 @@ public class GatewayCommandFlowTest {
         GatewayReply helpReply = env.send("room-help", "user-help", "/help");
         assertThat(helpReply.getContent()).contains("/new - 创建并切换到新会话");
         assertThat(helpReply.getContent()).contains("/help - 显示帮助信息");
+        assertThat(helpReply.getContent()).contains("/insights - 查看使用洞察与运行摘要");
         assertThat(helpReply.getContent()).contains("/reload-skills - 重新扫描本地技能目录");
         assertThat(Arrays.asList(helpReply.getContent().split("\\R")))
                 .isNotEmpty()
@@ -233,6 +234,39 @@ public class GatewayCommandFlowTest {
                 .containsEntry("command_status", "handled")
                 .containsEntry("command", "reload-skills")
                 .containsEntry("skill_count", Integer.valueOf(1));
+    }
+
+    @Test
+    void shouldRenderUsageInsightsFromSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-insights", "user-insights", "hello");
+        env.send("room-insights", "user-insights", "/pairing claim-admin");
+        File skillDir = new File(env.appConfig.getRuntime().getSkillsDir(), "ops/insight-demo");
+        Files.createDirectories(skillDir.toPath());
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
+                Arrays.asList(
+                        "---",
+                        "name: insight-demo",
+                        "description: Insight demo skill",
+                        "---",
+                        "Use this skill to verify slash command insights."),
+                StandardCharsets.UTF_8);
+        env.localSkillService.listSkillNames();
+
+        GatewayReply reply = env.send("room-insights", "user-insights", "/insights");
+
+        assertThat(reply.getContent())
+                .contains("使用洞察")
+                .contains("sessions.total=")
+                .contains("skills.available=1")
+                .contains("runtime.memory=");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "insights")
+                .containsKey("session_total")
+                .containsEntry("skill_available", Integer.valueOf(1));
     }
 
     @Test
