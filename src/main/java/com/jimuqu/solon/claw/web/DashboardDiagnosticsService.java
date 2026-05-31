@@ -6,10 +6,12 @@ import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -31,6 +33,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -56,6 +59,11 @@ import org.noear.snack4.ONode;
 
 /** Dashboard 统一诊断服务。 */
 public class DashboardDiagnosticsService {
+    private static final int RECOVERABLE_RUN_ITEM_LIMIT = 5;
+    private static final int RECOVERABLE_RUN_SCAN_LIMIT = 100;
+    private static final int PROCESS_SNAPSHOT_LIMIT = 5;
+    private static final int PROCESS_LIFECYCLE_EVENT_LIMIT = 10;
+
     private final AppConfig appConfig;
     private final DeliveryService deliveryService;
     private final LlmProviderService llmProviderService;
@@ -71,6 +79,8 @@ public class DashboardDiagnosticsService {
     private final ToolResultStorageService toolResultStorageService;
     private final ShutdownForensicsService shutdownForensicsService;
     private final RuntimeMemoryMonitorService runtimeMemoryMonitorService;
+    private final AgentRunRepository agentRunRepository;
+    private final ProcessRegistry processRegistry;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
@@ -98,6 +108,7 @@ public class DashboardDiagnosticsService {
                 approvalService,
                 securityPolicyService,
                 tirithSecurityService,
+                null,
                 null,
                 null,
                 null);
@@ -132,6 +143,7 @@ public class DashboardDiagnosticsService {
                 tirithSecurityService,
                 toolResultStorageService,
                 null,
+                null,
                 null);
     }
 
@@ -165,6 +177,7 @@ public class DashboardDiagnosticsService {
                 tirithSecurityService,
                 toolResultStorageService,
                 shutdownForensicsService,
+                null,
                 null);
     }
 
@@ -184,6 +197,80 @@ public class DashboardDiagnosticsService {
             ToolResultStorageService toolResultStorageService,
             ShutdownForensicsService shutdownForensicsService,
             RuntimeMemoryMonitorService runtimeMemoryMonitorService) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                shutdownForensicsService,
+                runtimeMemoryMonitorService,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                shutdownForensicsService,
+                runtimeMemoryMonitorService,
+                agentRunRepository,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository,
+            ProcessRegistry processRegistry) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -199,6 +286,8 @@ public class DashboardDiagnosticsService {
         this.toolResultStorageService = toolResultStorageService;
         this.shutdownForensicsService = shutdownForensicsService;
         this.runtimeMemoryMonitorService = runtimeMemoryMonitorService;
+        this.agentRunRepository = agentRunRepository;
+        this.processRegistry = processRegistry;
     }
 
     public Map<String, Object> diagnostics() {
@@ -209,6 +298,7 @@ public class DashboardDiagnosticsService {
         result.put("tools", tools());
         result.put("mcp", mcp());
         result.put("security", security());
+        result.put("runs", runs());
         return result;
     }
 
@@ -465,7 +555,76 @@ public class DashboardDiagnosticsService {
         map.put("state_parent_writable", canWriteParent(appConfig.getRuntime().getStateDb()));
         map.put("last_shutdown", shutdownSummary());
         map.put("memory_monitor", memoryMonitorSummary());
+        map.put("managed_processes", managedProcessSummary());
         return map;
+    }
+
+    private Map<String, Object> managedProcessSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.valueOf(processRegistry != null));
+        summary.put("running_count", Integer.valueOf(0));
+        summary.put("snapshot_limit", Integer.valueOf(PROCESS_SNAPSHOT_LIMIT));
+        summary.put("lifecycle_event_limit", Integer.valueOf(PROCESS_LIFECYCLE_EVENT_LIMIT));
+        summary.put("snapshots", Collections.emptyList());
+        summary.put("recent_lifecycle_events", Collections.emptyList());
+        summary.put("truncated", Boolean.FALSE);
+        if (processRegistry == null) {
+            return summary;
+        }
+        try {
+            Map<String, ProcessRegistry.ManagedProcess> snapshot = processRegistry.snapshot();
+            List<Map<String, Object>> snapshots = new ArrayList<Map<String, Object>>();
+            for (ProcessRegistry.ManagedProcess managed : snapshot.values()) {
+                if (snapshots.size() >= PROCESS_SNAPSHOT_LIMIT) {
+                    break;
+                }
+                snapshots.add(dashboardManagedProcessSnapshot(managed));
+            }
+            summary.put("running_count", Integer.valueOf(processRegistry.runningCount()));
+            summary.put("snapshots", snapshots);
+            summary.put(
+                    "recent_lifecycle_events",
+                    processRegistry.recentLifecycleEvents(PROCESS_LIFECYCLE_EVENT_LIMIT));
+            summary.put("truncated", Boolean.valueOf(snapshot.size() > PROCESS_SNAPSHOT_LIMIT));
+        } catch (Exception e) {
+            summary.put("available", Boolean.FALSE);
+            summary.put("error", safeObjectText(e.getMessage(), 300));
+        }
+        return summary;
+    }
+
+    private Map<String, Object> dashboardManagedProcessSnapshot(ProcessRegistry.ManagedProcess managed) {
+        Map<String, Object> source = managed.toRedactedMap();
+        Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
+        copyIfPresent(source, snapshot, "session_id");
+        copyIfPresent(source, snapshot, "id");
+        copyIfPresent(source, snapshot, "command");
+        copyIfPresent(source, snapshot, "cwd");
+        copyIfPresent(source, snapshot, "pid");
+        copyIfPresent(source, snapshot, "started_at");
+        copyIfPresent(source, snapshot, "started_at_iso");
+        copyIfPresent(source, snapshot, "uptime_seconds");
+        copyIfPresent(source, snapshot, "status");
+        copyIfPresent(source, snapshot, "exited");
+        copyIfPresent(source, snapshot, "running");
+        copyIfPresent(source, snapshot, "exit_code");
+        copyIfPresent(source, snapshot, "exit_code_meaning");
+        copyIfPresent(source, snapshot, "notify_on_complete");
+        copyIfPresent(source, snapshot, "watch_patterns");
+        copyIfPresent(source, snapshot, "watch_hits");
+        copyIfPresent(source, snapshot, "watch_suppressed");
+        copyIfPresent(source, snapshot, "watch_disabled");
+        copyIfPresent(source, snapshot, "output_preview");
+        copyIfPresent(source, snapshot, "truncated");
+        copyIfPresent(source, snapshot, "stdin_closed");
+        copyIfPresent(source, snapshot, "lifecycle_last_event");
+        return snapshot;
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source.containsKey(key)) {
+            target.put(key, source.get(key));
+        }
     }
 
     private Map<String, Object> memoryMonitorSummary() {
@@ -476,6 +635,53 @@ public class DashboardDiagnosticsService {
             return summary;
         }
         return runtimeMemoryMonitorService.status();
+    }
+
+    private Map<String, Object> runs() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.valueOf(agentRunRepository != null));
+        summary.put("limit", Integer.valueOf(RECOVERABLE_RUN_ITEM_LIMIT));
+        summary.put("recoverable_count", Integer.valueOf(0));
+        summary.put("truncated", Boolean.FALSE);
+        summary.put("recoverable_items", Collections.emptyList());
+        if (agentRunRepository == null) {
+            return summary;
+        }
+        try {
+            List<AgentRunRecord> records =
+                    agentRunRepository.listRecoverable(RECOVERABLE_RUN_SCAN_LIMIT);
+            List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+            int count = records == null ? 0 : records.size();
+            if (records != null) {
+                int end = Math.min(records.size(), RECOVERABLE_RUN_ITEM_LIMIT);
+                for (int i = 0; i < end; i++) {
+                    items.add(recoverableRunItem(records.get(i)));
+                }
+            }
+            summary.put("recoverable_count", Integer.valueOf(count));
+            summary.put("truncated", Boolean.valueOf(count > RECOVERABLE_RUN_ITEM_LIMIT));
+            summary.put("recoverable_items", items);
+        } catch (Exception e) {
+            summary.put("available", Boolean.FALSE);
+            summary.put("error", safeObjectText(e.getMessage(), 300));
+        }
+        return summary;
+    }
+
+    private Map<String, Object> recoverableRunItem(AgentRunRecord record) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("run_id", safeAuditPreview(record == null ? null : record.getRunId(), 200));
+        item.put("session_id", safeAuditPreview(record == null ? null : record.getSessionId(), 200));
+        item.put("source_key", safeAuditPreview(record == null ? null : record.getSourceKey(), 300));
+        item.put("status", safeAuditPreview(record == null ? null : record.getStatus(), 80));
+        item.put("phase", safeAuditPreview(record == null ? null : record.getPhase(), 80));
+        item.put("backgrounded", Boolean.valueOf(record != null && record.isBackgrounded()));
+        item.put("exit_reason", safeAuditPreview(record == null ? null : record.getExitReason(), 160));
+        item.put(
+                "last_activity_at",
+                Long.valueOf(record == null ? 0L : record.getLastActivityAt()));
+        item.put("recovery_hint", safeAuditPreview(record == null ? null : record.getRecoveryHint(), 500));
+        return item;
     }
 
     private Map<String, Object> shutdownSummary() {

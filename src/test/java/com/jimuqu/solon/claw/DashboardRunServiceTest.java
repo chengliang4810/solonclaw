@@ -242,6 +242,42 @@ public class DashboardRunServiceTest {
     }
 
     @Test
+    void shouldSummarizeRecoverableRunDecisionWithoutExposingRecoverySecrets() throws Exception {
+        FakeAgentRunRepository repository = new FakeAgentRunRepository();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-recoverable");
+        run.setSessionId("session-recoverable");
+        run.setStatus("recoverable");
+        run.setRecoverable(true);
+        run.setHeartbeatAt(0L);
+        run.setRecoveryHint("manual review required token=ghp_recoveryhintsecret12345");
+        repository.runs.add(run);
+
+        DashboardRunService service = new DashboardRunService(repository);
+        Map<String, Object> response = service.recoverable(10);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> runs = (List<Map<String, Object>>) response.get("runs");
+        assertThat(runs).hasSize(1);
+        Map<String, Object> item = runs.get(0);
+        assertThat(item.get("recovery_hint"))
+                .isEqualTo("manual review required token=***");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> diagnosis =
+                (Map<String, Object>) item.get("recovery_diagnosis");
+        assertThat(diagnosis)
+                .containsEntry("reason", "recoverable_run_requires_operator_review")
+                .containsEntry("heartbeat_age_ms", Long.valueOf(0L))
+                .containsEntry("suggested_action", "review_recovery_hint_before_resume")
+                .containsEntry("auto_recoverable", Boolean.FALSE)
+                .containsEntry("safe_to_auto_resume", Boolean.FALSE);
+
+        String serialized = ONode.serialize(response);
+        assertThat(serialized).doesNotContain("ghp_recoveryhintsecret12345");
+    }
+
+    @Test
     void shouldRedactControlPayloadWhenRunControlIsUnavailable() throws Exception {
         FakeAgentRunRepository repository = new FakeAgentRunRepository();
         AgentRunRecord run = new AgentRunRecord();
@@ -336,7 +372,7 @@ public class DashboardRunServiceTest {
 
         @Override
         public List<AgentRunRecord> listRecoverable(int limit) {
-            return Collections.emptyList();
+            return runs;
         }
 
         @Override

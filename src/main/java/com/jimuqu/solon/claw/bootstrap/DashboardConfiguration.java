@@ -43,6 +43,7 @@ import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
@@ -186,7 +187,9 @@ public class DashboardConfiguration {
             TirithSecurityService tirithSecurityService,
             ToolResultStorageService toolResultStorageService,
             ShutdownForensicsService shutdownForensicsService,
-            RuntimeMemoryMonitorService runtimeMemoryMonitorService) {
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository,
+            ProcessRegistry processRegistry) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -202,7 +205,9 @@ public class DashboardConfiguration {
                 tirithSecurityService,
                 toolResultStorageService,
                 shutdownForensicsService,
-                runtimeMemoryMonitorService);
+                runtimeMemoryMonitorService,
+                agentRunRepository,
+                processRegistry);
     }
 
     @Bean
