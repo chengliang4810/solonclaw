@@ -191,6 +191,40 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeCuratorCommandForSkillMaintenanceStatusAndRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/curator");
+        assertThat(status.isError()).isFalse();
+        assertThat(status.getContent())
+                .contains("curator_enabled=true")
+                .contains("paused=false")
+                .contains("reports=0")
+                .contains("improvements=0")
+                .contains("用法：/curator [status|list|improvements|run|pause|resume]");
+        assertThat(status.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "curator");
+
+        GatewayReply paused = env.send("admin-chat", "admin-user", "/curator pause");
+        assertThat(paused.getContent()).contains("技能后台维护已暂停");
+
+        GatewayReply pausedStatus = env.send("admin-chat", "admin-user", "/curator status");
+        assertThat(pausedStatus.getContent()).contains("paused=true");
+
+        GatewayReply resumed = env.send("admin-chat", "admin-user", "/curator resume");
+        assertThat(resumed.getContent()).contains("技能后台维护已恢复");
+
+        GatewayReply run = env.send("admin-chat", "admin-user", "/curator run");
+        assertThat(run.isError()).isFalse();
+        assertThat(run.getContent()).contains("技能维护运行 status=ok").contains("items=0");
+
+        GatewayReply list = env.send("admin-chat", "admin-user", "/curator list");
+        assertThat(list.getContent()).contains("技能维护报告：").contains("status=ok");
+    }
+
+    @Test
     void shouldExposeApprovalManagementFormsInSlashHelp() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

@@ -31,6 +31,20 @@ public class DashboardCuratorService {
         return sanitizeReport(report);
     }
 
+    public Map<String, Object> status() {
+        return sanitizeReport(skillCuratorService.status());
+    }
+
+    public Map<String, Object> pause() {
+        skillCuratorService.pause();
+        return status();
+    }
+
+    public Map<String, Object> resume() {
+        skillCuratorService.resume();
+        return status();
+    }
+
     public Map<String, Object> list(int limit) throws Exception {
         List<Map<String, Object>> reports = new ArrayList<Map<String, Object>>();
         Connection connection = database.openConnection();

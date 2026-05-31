@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.FileMemoryService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
+import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -87,6 +88,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -283,6 +285,9 @@ public class TestEnvironment {
                         gitHubSkillSource);
         CronJobService cronJobService = new CronJobService(config, cronJobRepository);
         DashboardMcpService dashboardMcpService = new DashboardMcpService(config, database);
+        DashboardCuratorService dashboardCuratorService =
+                new DashboardCuratorService(
+                        new SkillCuratorService(config, localSkillService), database);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -380,7 +385,10 @@ public class TestEnvironment {
                         new SessionArtifactService(config),
                         null,
                         gatewayRestartCoordinator,
-                        slashConfirmService);
+                        slashConfirmService,
+                        null,
+                        null,
+                        dashboardCuratorService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,

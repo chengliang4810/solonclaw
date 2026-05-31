@@ -72,6 +72,25 @@ public class SkillCuratorService {
         writeState(state);
     }
 
+    public synchronized Map<String, Object> status() {
+        Map<String, Object> state = readState();
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("enabled", Boolean.valueOf(appConfig.getCurator().isEnabled()));
+        result.put("paused", Boolean.valueOf(asBoolean(state.get("paused"))));
+        result.put("lastRunAt", Long.valueOf(asLong(state.get("lastRunAt"))));
+        result.put("intervalHours", Integer.valueOf(appConfig.getCurator().getIntervalHours()));
+        result.put("minIdleHours", Double.valueOf(appConfig.getCurator().getMinIdleHours()));
+        result.put("staleAfterDays", Integer.valueOf(appConfig.getCurator().getStaleAfterDays()));
+        result.put(
+                "archiveAfterDays",
+                Integer.valueOf(appConfig.getCurator().getArchiveAfterDays()));
+        Object skills = state.get("skills");
+        result.put(
+                "trackedSkills",
+                Integer.valueOf(skills instanceof Map ? ((Map<?, ?>) skills).size() : 0));
+        return result;
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> reviewSkill(
             SkillDescriptor descriptor, Map<String, Object> skillsState, long now) {
