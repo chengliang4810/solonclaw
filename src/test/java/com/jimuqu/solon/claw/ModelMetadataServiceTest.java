@@ -25,6 +25,23 @@ public class ModelMetadataServiceTest {
     }
 
     @Test
+    void shouldStripColonProviderPrefixWhenResolvingAliasesAndContextWindow() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setMaxTokens(4096);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("openai:gpt-5.4");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.getModel()).isEqualTo("openai:gpt-5.4");
+        assertThat(metadata.getAliases()).contains("gpt");
+        assertThat(metadata.getContextWindow()).isEqualTo(1000000);
+        assertThat(metadata.isSupportsVision()).isTrue();
+    }
+
+    @Test
     void shouldUseConservativeFallbackContextTierForUnknownModels() {
         AppConfig config = new AppConfig();
         config.getLlm().setContextWindowTokens(0);

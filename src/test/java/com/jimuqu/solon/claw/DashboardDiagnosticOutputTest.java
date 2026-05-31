@@ -89,6 +89,11 @@ public class DashboardDiagnosticOutputTest {
         channelStatus.setLastErrorCode("auth_failed");
         channelStatus.setLastErrorMessage(
                 "Authorization: Bearer ghp_doctorerror123 password=doctor-password");
+        channelStatus.setReconnecting(true);
+        channelStatus.setReconnectAttempt(2);
+        channelStatus.setLastReconnectAt(1000L);
+        channelStatus.setNextReconnectAt(6000L);
+        channelStatus.setLastReconnectError("retry token=ghp_doctorretry123 password=retry-password");
 
         FixedDeliveryService deliveryService = new FixedDeliveryService(channelStatus);
         GatewayRuntimeRefreshService refreshService =
@@ -103,7 +108,13 @@ public class DashboardDiagnosticOutputTest {
         assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(doctorJson).doesNotContain("ghp_doctordetail123");
         assertThat(doctorJson).doesNotContain("ghp_doctorerror123");
+        assertThat(doctorJson).doesNotContain("ghp_doctorretry123");
         assertThat(doctorJson).doesNotContain("doctor-password");
+        assertThat(doctorJson).doesNotContain("retry-password");
+        assertThat(doctorJson)
+                .contains("\"reconnecting\":true")
+                .contains("\"reconnect_attempt\":2")
+                .contains("\"next_reconnect_at\":6000");
 
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(

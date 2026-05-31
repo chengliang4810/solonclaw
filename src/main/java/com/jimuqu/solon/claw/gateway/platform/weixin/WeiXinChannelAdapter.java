@@ -56,6 +56,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final int LONG_POLL_TIMEOUT_MS = 35_000;
     private static final int CONFIG_TIMEOUT_MS = 10_000;
     private static final int MESSAGE_DEDUP_TTL_MILLIS = 5 * 60 * 1000;
+    private static final int MESSAGE_DEDUP_MAX_ENTRIES = 512;
     private static final int MAX_HTTP_REDIRECTS = 5;
 
     private static final int MSG_TYPE_BOT = 2;
@@ -654,7 +655,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             String chatType,
             String chatId,
             String contextToken) {
-        final String key = gatewayMessage.sourceKey();
+        final String key =
+                String.valueOf(gatewayMessage.getPlatform())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getChatId())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getUserId());
         PendingTextBatch batch =
                 pendingTextBatches.compute(
                         key,
@@ -1029,8 +1035,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isBlank(messageId)) {
             return false;
         }
-        Long previous = recentMessageIds.putIfAbsent(messageId, System.currentTimeMillis());
-        return previous != null;
+        long now = System.currentTimeMillis();
+        pruneRecentMessageIds(now);
+        Long previous = recentMessageIds.putIfAbsent(messageId, now);
+        if (previous != null) {
+            return true;
+        }
+        pruneRecentMessageIdsToMaxEntries();
+        return false;
     }
 
     private boolean isDuplicateText(String senderId, String text) {
@@ -1041,10 +1053,27 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private void pruneRecentMessageIds() {
-        long now = System.currentTimeMillis();
+        pruneRecentMessageIds(System.currentTimeMillis());
+    }
+
+    private void pruneRecentMessageIds(long now) {
         for (java.util.Map.Entry<String, Long> entry : recentMessageIds.entrySet()) {
             if (now - entry.getValue() >= MESSAGE_DEDUP_TTL_MILLIS) {
                 recentMessageIds.remove(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    private void pruneRecentMessageIdsToMaxEntries() {
+        while (recentMessageIds.size() > MESSAGE_DEDUP_MAX_ENTRIES) {
+            java.util.Map.Entry<String, Long> oldest = null;
+            for (java.util.Map.Entry<String, Long> entry : recentMessageIds.entrySet()) {
+                if (oldest == null || entry.getValue() < oldest.getValue()) {
+                    oldest = entry;
+                }
+            }
+            if (oldest == null || !recentMessageIds.remove(oldest.getKey(), oldest.getValue())) {
+                return;
             }
         }
     }

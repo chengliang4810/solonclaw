@@ -11,12 +11,14 @@ import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -193,6 +195,30 @@ public class WeixinInboundDispatchTest {
         assertThat(texts).containsExactly("重复内容");
 
         adapter.disconnect();
+    }
+
+    @Test
+    void shouldBoundRecentMessageIdsAndStillRecognizeRecentDuplicates() throws Throwable {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method isDuplicate =
+                WeiXinChannelAdapter.class.getDeclaredMethod("isDuplicate", String.class);
+        isDuplicate.setAccessible(true);
+        Field recentMessageIds =
+                WeiXinChannelAdapter.class.getDeclaredField("recentMessageIds");
+        recentMessageIds.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Long> entries = (Map<String, Long>) recentMessageIds.get(adapter);
+        assertThat((Boolean) invoke(isDuplicate, adapter, "msg-bound-oldest")).isFalse();
+        TimeUnit.MILLISECONDS.sleep(2L);
+        for (int i = 0; i < 512; i++) {
+            assertThat((Boolean) invoke(isDuplicate, adapter, "msg-bound-" + i)).isFalse();
+        }
+
+        assertThat(entries).hasSizeLessThanOrEqualTo(512);
+        assertThat(entries).doesNotContainKey("msg-bound-oldest");
+        assertThat((Boolean) invoke(isDuplicate, adapter, "msg-bound-511")).isTrue();
+        assertThat(entries).hasSizeLessThanOrEqualTo(512);
     }
 
     @Test
