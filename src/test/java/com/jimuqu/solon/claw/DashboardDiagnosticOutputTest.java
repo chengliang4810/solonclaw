@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -93,7 +94,8 @@ public class DashboardDiagnosticOutputTest {
                         config, new ChannelConnectionManager(Collections.emptyMap()));
 
         DashboardGatewayDoctorService doctorService =
-                new DashboardGatewayDoctorService(config, deliveryService, refreshService);
+                new DashboardGatewayDoctorService(
+                        config, deliveryService, new LlmProviderService(config), refreshService);
         String doctorJson = ONode.serialize(doctorService.doctor());
         assertThat(doctorJson).contains("runtime://");
         assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
@@ -153,6 +155,153 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).doesNotContain("dashboard-probe-password");
         assertThat(diagnosticsJson).doesNotContain("ghp_doctorerror123");
         assertThat(diagnosticsJson).doesNotContain("doctor-password");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeStaticModelDoctorWithoutLeakingSecrets() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-model-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime()
+                .setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("");
+
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setBaseUrl("https://user:provider-pass@example.com/v1?token=provider-token");
+        provider.setDefaultModel("gpt-test");
+        provider.setDialect("openai");
+        provider.setApiKey("");
+        config.getProviders().put("default", provider);
+
+        AppConfig.ProviderConfig local = new AppConfig.ProviderConfig();
+        local.setName("Local");
+        local.setBaseUrl("http://127.0.0.1:11434");
+        local.setDefaultModel("llama3");
+        local.setDialect("ollama");
+        local.setApiKey("");
+        config.getProviders().put("local", local);
+
+        AppConfig.FallbackProviderConfig missingFallback =
+                new AppConfig.FallbackProviderConfig();
+        missingFallback.setProvider("missing");
+        AppConfig.FallbackProviderConfig duplicateFallback =
+                new AppConfig.FallbackProviderConfig();
+        duplicateFallback.setProvider("local");
+        AppConfig.FallbackProviderConfig duplicateFallbackAgain =
+                new AppConfig.FallbackProviderConfig();
+        duplicateFallbackAgain.setProvider("local");
+        AppConfig.FallbackProviderConfig primaryFallback =
+                new AppConfig.FallbackProviderConfig();
+        primaryFallback.setProvider("default");
+        config.setFallbackProviders(
+                Arrays.asList(
+                        missingFallback,
+                        duplicateFallback,
+                        duplicateFallbackAgain,
+                        primaryFallback));
+
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())));
+
+        Map<String, Object> doctor = doctorService.doctor();
+
+        Map<String, Object> model = (Map<String, Object>) doctor.get("model");
+        assertThat(model).isNotNull();
+        assertThat(model.get("setup_state")).isEqualTo("warning");
+        assertThat(model.get("provider")).isEqualTo("default");
+        assertThat(model.get("effective_model")).isEqualTo("gpt-test");
+        assertThat(model.get("has_api_key")).isEqualTo(Boolean.FALSE);
+        assertThat(model.get("base_url"))
+                .isEqualTo("https://user:***@example.com/v1?token=***");
+
+        List<Map<String, Object>> checks = (List<Map<String, Object>>) model.get("checks");
+        assertThat(checkCodes(checks))
+                .contains(
+                        "provider_present",
+                        "model_present",
+                        "api_key_missing",
+                        "base_url_invalid",
+                        "fallback_missing",
+                        "fallback_duplicate",
+                        "fallback_matches_primary");
+
+        String doctorJson = ONode.serialize(doctor);
+        assertThat(doctorJson)
+                .doesNotContain("provider-pass")
+                .doesNotContain("provider-token")
+                .doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeRedactedShutdownForensicsSummary() throws Exception {
+        Path parent = Files.createTempDirectory("solon-claw-dashboard-forensics");
+        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_forensicshome123"));
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+
+        ShutdownForensicsService forensicsService = new ShutdownForensicsService(config);
+        forensicsService.persistShutdownRecord("SIGTERM token=ghp_shutdownsecret123");
+
+        FixedDeliveryService deliveryService = new FixedDeliveryService(null);
+        GatewayRuntimeRefreshService refreshService =
+                new GatewayRuntimeRefreshService(
+                        config, new ChannelConnectionManager(Collections.emptyMap()));
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        deliveryService,
+                        new LlmProviderService(config),
+                        refreshService,
+                        forensicsService);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        deliveryService,
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null,
+                        forensicsService);
+
+        Map<String, Object> doctor = doctorService.doctor();
+        Map<String, Object> shutdown = (Map<String, Object>) doctor.get("last_shutdown");
+        assertThat(shutdown).isNotNull();
+        assertThat(shutdown.get("available")).isEqualTo(Boolean.TRUE);
+        assertThat(shutdown.get("record")).isEqualTo("runtime://forensics/" + latestShutdownFile(runtimeHome));
+        assertThat(shutdown.get("reason")).isEqualTo("SIGTERM token=***");
+        assertThat(shutdown).containsKeys("timestamp", "timestamp_iso", "uptime_ms", "pid", "memory", "threads");
+        assertThat(shutdown).doesNotContainKeys("javaVersion", "osName");
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+        Map<String, Object> runtime = (Map<String, Object>) diagnostics.get("runtime");
+        Map<String, Object> diagnosticShutdown = (Map<String, Object>) runtime.get("last_shutdown");
+        assertThat(diagnosticShutdown).isNotNull();
+        assertThat(diagnosticShutdown.get("record")).isEqualTo(shutdown.get("record"));
+
+        String json = ONode.serialize(diagnostics);
+        assertThat(json).contains("runtime://forensics/shutdown-");
+        assertThat(json).doesNotContain(runtimeHome.toString());
+        assertThat(json).doesNotContain("ghp_forensicshome123");
+        assertThat(json).doesNotContain("ghp_shutdownsecret123");
     }
 
     @Test
@@ -4631,6 +4780,16 @@ public class DashboardDiagnosticOutputTest {
         return config;
     }
 
+    private static String latestShutdownFile(Path runtimeHome) {
+        File[] files = runtimeHome.resolve("forensics").toFile().listFiles();
+        assertThat(files).isNotNull();
+        return Arrays.stream(files)
+                .filter(file -> file.getName().startsWith("shutdown-"))
+                .findFirst()
+                .map(File::getName)
+                .orElseThrow(IllegalStateException::new);
+    }
+
     private static class FixedDeliveryService implements DeliveryService {
         private final ChannelStatus status;
 
@@ -4645,6 +4804,19 @@ public class DashboardDiagnosticOutputTest {
         public List<ChannelStatus> statuses() {
             return status == null ? Collections.<ChannelStatus>emptyList() : Collections.singletonList(status);
         }
+    }
+
+    private static List<String> checkCodes(List<Map<String, Object>> checks) {
+        List<String> codes = new ArrayList<String>();
+        if (checks == null) {
+            return codes;
+        }
+        for (Map<String, Object> check : checks) {
+            if (check != null && check.get("code") != null) {
+                codes.add(String.valueOf(check.get("code")));
+            }
+        }
+        return codes;
     }
 
     private static class FixedSessionRepository implements SessionRepository {

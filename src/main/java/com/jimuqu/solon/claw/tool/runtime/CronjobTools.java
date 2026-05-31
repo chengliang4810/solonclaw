@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
@@ -856,6 +857,9 @@ public class CronjobTools {
         origin.put("platform", parts[0]);
         origin.put("chat_id", parts[1]);
         origin.put("user_id", parts[2]);
+        if (StrUtil.isNotBlank(parts[3])) {
+            origin.put("thread_id", parts[3]);
+        }
         return origin;
     }
 

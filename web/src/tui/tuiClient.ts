@@ -1,4 +1,4 @@
-import { getApiKey, getBaseUrlValue } from '@/api/client'
+import { getApiKey, getBaseUrlValue } from '../api/sessionAuth.ts'
 import type { JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, TuiEvent } from './tuiTypes'
 
 type EventHandler = (event: TuiEvent) => void
@@ -25,14 +25,20 @@ export class TuiJsonRpcClient {
     this.closedByUser = false
     this.emitConnection(this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting')
     try {
-      this.ws = new WebSocket(this.buildUrl())
+      const ws = new WebSocket(this.buildUrl())
+      this.ws = ws
+      this.bindSocket(ws)
     } catch (error) {
       this.emitConnection('closed', error instanceof Error ? error.message : String(error))
       this.scheduleReconnect()
       return
     }
 
-    this.ws.onopen = () => {
+  }
+
+  private bindSocket(ws: WebSocket) {
+    ws.onopen = () => {
+      if (this.ws !== ws) return
       this.reconnectAttempt = 0
       this.emitConnection('connected')
       void this.notify('client.ready', {
@@ -41,9 +47,18 @@ export class TuiJsonRpcClient {
       })
     }
 
-    this.ws.onmessage = (event) => this.handleMessage(event.data)
-    this.ws.onerror = () => this.emitConnection('reconnecting', 'WebSocket 连接异常')
-    this.ws.onclose = () => {
+    ws.onmessage = (event) => {
+      if (this.ws !== ws) return
+      this.handleMessage(event.data)
+    }
+    ws.onerror = () => {
+      if (this.ws !== ws) return
+      this.emitConnection('reconnecting', 'WebSocket 连接异常')
+    }
+    ws.onclose = () => {
+      if (this.ws !== ws) {
+        return
+      }
       this.rejectAllPending('WebSocket 已关闭')
       if (this.closedByUser) {
         this.emitConnection('closed')

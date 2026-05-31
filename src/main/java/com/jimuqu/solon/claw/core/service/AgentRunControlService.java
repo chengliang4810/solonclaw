@@ -10,6 +10,11 @@ public interface AgentRunControlService {
     /** Request cancellation of the active run for a gateway source. */
     AgentRunStopResult stop(String sourceKey);
 
+    /** Request cancellation of an active sibling run in the same gateway thread. */
+    default AgentRunStopResult stopSiblingThreadRun(GatewayMessage message, String ownSourceKey) {
+        return AgentRunStopResult.none();
+    }
+
     /** Whether the gateway source currently has an active run. */
     boolean isRunning(String sourceKey);
 

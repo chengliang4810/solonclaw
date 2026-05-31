@@ -684,6 +684,35 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldRestoreThreadTargetWhenSendMessageDefaultsToThreadSource() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingDeliveryService deliveryService = new RecordingDeliveryService();
+        MessagingTools messagingTools =
+                new MessagingTools(
+                        deliveryService,
+                        "MEMORY:thread-room:topic-a:user-a",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        String result =
+                messagingTools.sendMessage(
+                        null,
+                        null,
+                        null,
+                        "thread reply",
+                        java.util.Collections.<String>emptyList(),
+                        null);
+
+        assertThat(result).contains("\"success\":true");
+        assertThat(deliveryService.requests).hasSize(1);
+        DeliveryRequest request = deliveryService.requests.get(0);
+        assertThat(request.getChatId()).isEqualTo("thread-room");
+        assertThat(request.getThreadId()).isEqualTo("topic-a");
+        assertThat(request.getUserId()).isEqualTo("user-a");
+        assertThat(request.getText()).isEqualTo("thread reply");
+    }
+
+    @Test
     void shouldSkipDuplicateSendMessageForAnyCronAutoDeliveryTarget() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

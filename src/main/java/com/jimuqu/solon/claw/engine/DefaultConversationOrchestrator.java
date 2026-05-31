@@ -722,6 +722,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         String[] parts = SourceKeySupport.split(sourceKey);
         PlatformType platform = PlatformType.fromName(parts[0]);
         GatewayMessage message = new GatewayMessage(platform, parts[1], parts[2], "");
+        message.setThreadId(parts[3]);
         message.setSourceKeyOverride(sourceKey);
         return message;
     }

@@ -569,6 +569,7 @@ public class DefaultCronScheduler {
                 GatewayMessage synthetic =
                         new GatewayMessage(
                                 PlatformType.fromName(parts[0]), parts[1], parts[2], prompt);
+                synthetic.setThreadId(parts[3]);
                 String override = modelOverride(job);
                 if (StrUtil.isNotBlank(override)) {
                     synthetic.setModelOverride(override);
@@ -1083,7 +1084,11 @@ public class DefaultCronScheduler {
         if (platform == null || StrUtil.isBlank(parts[1])) {
             return null;
         }
-        return new CronDeliveryTarget(platform, parts[1], normalizeBlank(job.getDeliverThreadId()));
+        return new CronDeliveryTarget(
+                platform,
+                parts[1],
+                normalizeBlank(
+                        StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
     }
 
     private CronDeliveryTarget targetFromOriginJson(String originJson) {

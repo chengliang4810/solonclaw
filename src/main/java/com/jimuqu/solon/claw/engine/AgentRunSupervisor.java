@@ -35,6 +35,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.usage.UsageEventRecord;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
@@ -139,6 +140,33 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         return AgentRunStopResult.stopped(
                 handle.runId, handle.sessionId, interruptSent, handle.startedAt);
+    }
+
+    @Override
+    public AgentRunStopResult stopSiblingThreadRun(GatewayMessage message, String ownSourceKey) {
+        if (message == null || StrUtil.isBlank(message.getThreadId())) {
+            return AgentRunStopResult.none();
+        }
+        String ownKey = normalizeSourceKey(ownSourceKey);
+        String prefix =
+                SourceKeySupport.threadPrefix(
+                        message.getPlatform(), message.getChatId(), message.getThreadId());
+        if (StrUtil.isBlank(prefix)) {
+            return AgentRunStopResult.none();
+        }
+        for (String sourceKey : new ArrayList<String>(runningRuns.keySet())) {
+            if (StrUtil.equals(sourceKey, ownKey)) {
+                continue;
+            }
+            if (!sourceKey.startsWith(prefix)) {
+                continue;
+            }
+            AgentRunStopResult result = stop(sourceKey);
+            if (result.isActiveRun()) {
+                return result;
+            }
+        }
+        return AgentRunStopResult.none();
     }
 
     @Override

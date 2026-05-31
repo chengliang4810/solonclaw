@@ -38,6 +38,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -182,7 +183,8 @@ public class DashboardConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService,
-            ToolResultStorageService toolResultStorageService) {
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -196,7 +198,8 @@ public class DashboardConfiguration {
                 dangerousCommandApprovalService,
                 securityPolicyService,
                 tirithSecurityService,
-                toolResultStorageService);
+                toolResultStorageService,
+                shutdownForensicsService);
     }
 
     @Bean
@@ -241,9 +244,15 @@ public class DashboardConfiguration {
     public DashboardGatewayDoctorService dashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
-            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+            LlmProviderService llmProviderService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            ShutdownForensicsService shutdownForensicsService) {
         return new DashboardGatewayDoctorService(
-                appConfig, deliveryService, gatewayRuntimeRefreshService);
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                gatewayRuntimeRefreshService,
+                shutdownForensicsService);
     }
 
     @Bean(destroyMethod = "shutdown")

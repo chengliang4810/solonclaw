@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
@@ -67,6 +68,7 @@ public class DashboardDiagnosticsService {
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
     private final ToolResultStorageService toolResultStorageService;
+    private final ShutdownForensicsService shutdownForensicsService;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
@@ -94,6 +96,7 @@ public class DashboardDiagnosticsService {
                 approvalService,
                 securityPolicyService,
                 tirithSecurityService,
+                null,
                 null);
     }
 
@@ -111,6 +114,38 @@ public class DashboardDiagnosticsService {
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService,
             ToolResultStorageService toolResultStorageService) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -124,6 +159,7 @@ public class DashboardDiagnosticsService {
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
         this.toolResultStorageService = toolResultStorageService;
+        this.shutdownForensicsService = shutdownForensicsService;
     }
 
     public Map<String, Object> diagnostics() {
@@ -388,7 +424,41 @@ public class DashboardDiagnosticsService {
         map.put("logs_dir", runtimeReference(appConfig.getRuntime().getLogsDir()));
         map.put("home_exists", new File(appConfig.getRuntime().getHome()).exists());
         map.put("state_parent_writable", canWriteParent(appConfig.getRuntime().getStateDb()));
+        map.put("last_shutdown", shutdownSummary());
         return map;
+    }
+
+    private Map<String, Object> shutdownSummary() {
+        if (shutdownForensicsService == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> record = shutdownForensicsService.lastShutdownRecord();
+        File file = shutdownForensicsService.lastShutdownRecordFile();
+        if (record == null || file == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.TRUE);
+        summary.put("record", runtimeReference(file.getAbsolutePath()));
+        summary.put("timestamp", record.get("timestamp"));
+        summary.put("timestamp_iso", safeObjectText(record.get("timestampIso"), 80));
+        summary.put("reason", safeObjectText(record.get("reason"), 200));
+        summary.put("uptime_ms", record.get("uptimeMs"));
+        summary.put("pid", safeObjectText(record.get("pid"), 80));
+        summary.put("memory", record.get("memory"));
+        summary.put("threads", record.get("threads"));
+        return summary;
+    }
+
+    private Map<String, Object> unavailableShutdownSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.FALSE);
+        return summary;
+    }
+
+    private String safeObjectText(Object value, int maxLength) {
+        return SecretRedactor.redact(
+                StrUtil.nullToEmpty(value == null ? null : String.valueOf(value)), maxLength);
     }
 
     private List<Map<String, Object>> providers() {

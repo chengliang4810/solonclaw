@@ -13,10 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/**
- * Shutdown forensics — captures context when the application receives shutdown signal.
- * Writes a durable record so "the gateway keeps dying" incidents can be diagnosed after the fact.
- */
+/** Shutdown forensics captures process context for post-exit diagnostics. */
 public class ShutdownForensicsService {
     private final AppConfig appConfig;
     private volatile long startedAt;
@@ -66,7 +63,26 @@ public class ShutdownForensicsService {
         }
     }
 
+    public void persistLifecycleShutdownRecord() {
+        persistShutdownRecord("lifecycle_shutdown");
+    }
+
     public Map<String, Object> lastShutdownRecord() {
+        try {
+            File latest = lastShutdownRecordFile();
+            if (latest == null) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) ONode.deserialize(
+                    FileUtil.readString(latest, StandardCharsets.UTF_8), Object.class);
+            return data;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public File lastShutdownRecordFile() {
         try {
             File forensicsDir = new File(appConfig.getRuntime().getHome(), "forensics");
             if (!forensicsDir.isDirectory()) {
@@ -84,13 +100,7 @@ public class ShutdownForensicsService {
                     }
                 }
             }
-            if (latest == null) {
-                return null;
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) ONode.deserialize(
-                    FileUtil.readString(latest, StandardCharsets.UTF_8), Object.class);
-            return data;
+            return latest;
         } catch (Exception e) {
             return null;
         }
