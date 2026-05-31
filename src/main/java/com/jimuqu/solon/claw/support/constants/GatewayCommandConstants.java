@@ -61,7 +61,9 @@ public interface GatewayCommandConstants {
     String COMMAND_MODEL = "model";
     String COMMAND_FAST = "fast";
     String COMMAND_TOOLS = "tools";
+    String COMMAND_TOOLSETS = "toolsets";
     String COMMAND_SKILLS = "skills";
+    String COMMAND_CURATOR = "curator";
     String COMMAND_PLUGINS = "plugins";
     String COMMAND_RELOAD_SKILLS = "reload-skills";
     String COMMAND_RELOAD_MCP = "reload-mcp";
@@ -114,7 +116,9 @@ public interface GatewayCommandConstants {
     String SLASH_MODEL = COMMAND_PREFIX + COMMAND_MODEL;
     String SLASH_FAST = COMMAND_PREFIX + COMMAND_FAST;
     String SLASH_TOOLS = COMMAND_PREFIX + COMMAND_TOOLS;
+    String SLASH_TOOLSETS = COMMAND_PREFIX + COMMAND_TOOLSETS;
     String SLASH_SKILLS = COMMAND_PREFIX + COMMAND_SKILLS;
+    String SLASH_CURATOR = COMMAND_PREFIX + COMMAND_CURATOR;
     String SLASH_PLUGINS = COMMAND_PREFIX + COMMAND_PLUGINS;
     String SLASH_RELOAD_SKILLS = COMMAND_PREFIX + COMMAND_RELOAD_SKILLS;
     String SLASH_RELOAD_MCP = COMMAND_PREFIX + COMMAND_RELOAD_MCP;

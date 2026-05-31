@@ -66,7 +66,9 @@ import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -140,6 +142,8 @@ public class DefaultCommandService implements CommandService {
     private final SlashConfirmService slashConfirmService;
     private final DefaultCronScheduler cronScheduler;
     private final GatewayRestartCoordinator gatewayRestartCoordinator;
+    private final DashboardCuratorService dashboardCuratorService;
+    private final DashboardSkillsService dashboardSkillsService;
     private final Map<String, CommandHandler> pluginCommands;
     private final AgentPluginManager pluginManager;
 
@@ -680,6 +684,8 @@ public class DefaultCommandService implements CommandService {
                 gatewayRestartCoordinator,
                 slashConfirmService,
                 pluginCommands,
+                null,
+                null,
                 null);
     }
 
@@ -714,6 +720,141 @@ public class DefaultCommandService implements CommandService {
             SlashConfirmService slashConfirmService,
             Map<String, CommandHandler> pluginCommands,
             AgentPluginManager pluginManager) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                pluginCommands,
+                pluginManager,
+                null,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands,
+            AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                pluginCommands,
+                pluginManager,
+                dashboardCuratorService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands,
+            AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardSkillsService dashboardSkillsService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -748,6 +889,8 @@ public class DefaultCommandService implements CommandService {
         this.cronScheduler = cronScheduler;
         this.gatewayRestartCoordinator =
                 gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;
+        this.dashboardCuratorService = dashboardCuratorService;
+        this.dashboardSkillsService = dashboardSkillsService;
         this.pluginCommands =
                 pluginCommands == null
                         ? Collections.<String, CommandHandler>emptyMap()
@@ -1065,8 +1208,16 @@ public class DefaultCommandService implements CommandService {
             return handleTools(message, args);
         }
 
+        if (GatewayCommandConstants.COMMAND_TOOLSETS.equals(command)) {
+            return handleToolsets();
+        }
+
         if (GatewayCommandConstants.COMMAND_SKILLS.equals(command)) {
             return handleSkills(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_CURATOR.equals(command)) {
+            return handleCurator(args);
         }
 
         if (GatewayCommandConstants.COMMAND_PLUGINS.equals(command)) {
@@ -2260,6 +2411,40 @@ public class DefaultCommandService implements CommandService {
                 "用法：" + GatewayCommandConstants.SLASH_TOOLS + " [list|enable|disable] [name...]");
     }
 
+    private GatewayReply handleToolsets() {
+        if (dashboardSkillsService == null) {
+            return GatewayReply.error("工具集命令当前运行时未启用。");
+        }
+        List<Map<String, Object>> toolsets = dashboardSkillsService.getToolsets();
+        GatewayReply reply = GatewayReply.ok(formatToolsets(toolsets));
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_TOOLSETS);
+        reply.getRuntimeMetadata().put("toolset_count", Integer.valueOf(toolsets.size()));
+        return reply;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatToolsets(List<Map<String, Object>> toolsets) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("工具集：total=").append(toolsets.size());
+        for (Map<String, Object> toolset : toolsets) {
+            List<Object> tools =
+                    toolset.get("tools") instanceof List
+                            ? (List<Object>) toolset.get("tools")
+                            : Collections.<Object>emptyList();
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(String.valueOf(toolset.get("name")), "-"))
+                    .append(" enabled=")
+                    .append(Boolean.TRUE.equals(toolset.get("enabled")))
+                    .append(" tools=")
+                    .append(tools.size())
+                    .append(" - ")
+                    .append(StrUtil.blankToDefault(String.valueOf(toolset.get("label")), "-"));
+        }
+        return buffer.toString();
+    }
+
     /** 处理技能命令。 */
     private GatewayReply handleSkills(GatewayMessage message, String args) throws Exception {
         String[] parts = args.split("\\s+", 2);
@@ -2362,6 +2547,184 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_RELOAD_SKILLS);
         reply.getRuntimeMetadata().put("skill_count", Integer.valueOf(names.size()));
         return reply;
+    }
+
+    private GatewayReply handleCurator(String args) throws Exception {
+        if (dashboardCuratorService == null) {
+            return GatewayReply.error("技能后台维护命令当前运行时未启用。");
+        }
+        String[] parts = StrUtil.nullToEmpty(args).trim().split("\\s+", 2);
+        String action =
+                parts.length == 0 || StrUtil.isBlank(parts[0])
+                        ? "status"
+                        : parts[0].trim().toLowerCase();
+        String tail = parts.length > 1 ? parts[1].trim() : "";
+        GatewayReply reply;
+        if ("status".equals(action)) {
+            reply = GatewayReply.ok(formatCuratorStatus(dashboardCuratorService.status()));
+        } else if (GatewayCommandConstants.ACTION_LIST.equals(action)) {
+            reply =
+                    GatewayReply.ok(
+                            formatCuratorReports(
+                                    dashboardCuratorService.list(parsePositiveInt(tail, 20))));
+        } else if ("improvements".equals(action)) {
+            reply =
+                    GatewayReply.ok(
+                            formatCuratorImprovements(
+                                    dashboardCuratorService.improvements(
+                                            parsePositiveInt(tail, 20))));
+        } else if (GatewayCommandConstants.ACTION_RUN.equals(action)) {
+            boolean force =
+                    StrUtil.isBlank(tail)
+                            || "force".equalsIgnoreCase(tail)
+                            || "--force".equalsIgnoreCase(tail);
+            reply = GatewayReply.ok(formatCuratorRun(dashboardCuratorService.run(force)));
+        } else if (GatewayCommandConstants.ACTION_PAUSE.equals(action)) {
+            reply =
+                    GatewayReply.ok(
+                            "技能后台维护已暂停。\n"
+                                    + formatCuratorStatus(dashboardCuratorService.pause()));
+        } else if (GatewayCommandConstants.ACTION_RESUME.equals(action)) {
+            reply =
+                    GatewayReply.ok(
+                            "技能后台维护已恢复。\n"
+                                    + formatCuratorStatus(dashboardCuratorService.resume()));
+        } else {
+            return GatewayReply.error(curatorUsage());
+        }
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_CURATOR);
+        reply.getRuntimeMetadata().put("action", action);
+        return reply;
+    }
+
+    private String formatCuratorStatus(Map<String, Object> status) throws Exception {
+        int reports = countList(dashboardCuratorService.list(20).get("reports"));
+        int improvements = countList(dashboardCuratorService.improvements(20).get("improvements"));
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("技能后台维护状态：\n");
+        buffer.append("curator_enabled=").append(bool(status.get("enabled"))).append('\n');
+        buffer.append("paused=").append(bool(status.get("paused"))).append('\n');
+        buffer.append("last_run_at=")
+                .append(formatNullableTimestamp(status.get("lastRunAt")))
+                .append('\n');
+        buffer.append("tracked_skills=").append(status.get("trackedSkills")).append('\n');
+        buffer.append("reports=").append(reports).append('\n');
+        buffer.append("improvements=").append(improvements).append('\n');
+        buffer.append("interval_hours=").append(status.get("intervalHours")).append('\n');
+        buffer.append("stale_after_days=").append(status.get("staleAfterDays")).append('\n');
+        buffer.append("archive_after_days=").append(status.get("archiveAfterDays")).append('\n');
+        buffer.append(curatorUsage());
+        return buffer.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatCuratorRun(Map<String, Object> report) {
+        List<Map<String, Object>> items =
+                report.get("items") instanceof List
+                        ? (List<Map<String, Object>>) report.get("items")
+                        : Collections.<Map<String, Object>>emptyList();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("技能维护运行 status=")
+                .append(StrUtil.blankToDefault(String.valueOf(report.get("status")), "unknown"))
+                .append(" items=")
+                .append(items.size())
+                .append(" state=")
+                .append(StrUtil.blankToDefault(String.valueOf(report.get("stateFile")), "-"));
+        appendCuratorItems(buffer, items);
+        return buffer.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatCuratorReports(Map<String, Object> result) {
+        List<Map<String, Object>> reports =
+                result.get("reports") instanceof List
+                        ? (List<Map<String, Object>>) result.get("reports")
+                        : Collections.<Map<String, Object>>emptyList();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("技能维护报告：");
+        if (reports.isEmpty()) {
+            buffer.append("暂无报告");
+            return buffer.toString();
+        }
+        for (Map<String, Object> report : reports) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(String.valueOf(report.get("report_id")), "-"))
+                    .append(" status=")
+                    .append(StrUtil.blankToDefault(String.valueOf(report.get("status")), "unknown"))
+                    .append(" summary=")
+                    .append(StrUtil.blankToDefault(String.valueOf(report.get("summary")), "-"))
+                    .append(" started=")
+                    .append(formatNullableTimestamp(report.get("started_at")));
+        }
+        return buffer.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatCuratorImprovements(Map<String, Object> result) {
+        List<Map<String, Object>> improvements =
+                result.get("improvements") instanceof List
+                        ? (List<Map<String, Object>>) result.get("improvements")
+                        : Collections.<Map<String, Object>>emptyList();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("技能改进记录：");
+        if (improvements.isEmpty()) {
+            buffer.append("暂无记录");
+            return buffer.toString();
+        }
+        for (Map<String, Object> item : improvements) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(String.valueOf(item.get("skill_name")), "-"))
+                    .append(" action=")
+                    .append(StrUtil.blankToDefault(String.valueOf(item.get("action")), "-"))
+                    .append(" review=")
+                    .append(Boolean.TRUE.equals(item.get("needs_review")))
+                    .append(" summary=")
+                    .append(StrUtil.blankToDefault(String.valueOf(item.get("summary")), "-"));
+        }
+        return buffer.toString();
+    }
+
+    private void appendCuratorItems(StringBuilder buffer, List<Map<String, Object>> items) {
+        for (Map<String, Object> item : items) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(String.valueOf(item.get("name")), "-"))
+                    .append(" status=")
+                    .append(StrUtil.blankToDefault(String.valueOf(item.get("status")), "-"))
+                    .append(" action=")
+                    .append(StrUtil.blankToDefault(String.valueOf(item.get("action")), "-"));
+        }
+    }
+
+    private String curatorUsage() {
+        return "用法："
+                + GatewayCommandConstants.SLASH_CURATOR
+                + " [status|list|improvements|run|pause|resume]";
+    }
+
+    private int countList(Object value) {
+        return value instanceof List ? ((List<?>) value).size() : 0;
+    }
+
+    private String bool(Object value) {
+        return Boolean.TRUE.equals(value) ? "true" : "false";
+    }
+
+    private String formatNullableTimestamp(Object value) {
+        long millis = 0L;
+        if (value instanceof Number) {
+            millis = ((Number) value).longValue();
+        } else {
+            try {
+                millis = Long.parseLong(String.valueOf(value));
+            } catch (Exception ignored) {
+                millis = 0L;
+            }
+        }
+        return millis <= 0L ? "-" : formatTimestamp(millis);
     }
 
     private GatewayReply handlePlugins() {
@@ -4543,10 +4906,15 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_TOOLS
                                         + " [list|enable|disable] [name...]",
                                 "查看或管理工具开关"),
+                        helpLine(GatewayCommandConstants.SLASH_TOOLSETS, "列出可用工具集"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_SKILLS
                                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",
                                 "管理本地技能与 Skills Hub"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_CURATOR
+                                        + " [status|list|improvements|run|pause|resume]",
+                                "管理技能后台维护状态与运行"),
                         helpLine(GatewayCommandConstants.SLASH_PLUGINS, "查看插件加载状态"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_RELOAD_SKILLS,

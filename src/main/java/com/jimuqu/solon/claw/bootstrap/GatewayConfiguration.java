@@ -55,9 +55,11 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.solon.annotation.Bean;
@@ -208,6 +210,8 @@ public class GatewayConfiguration {
             GatewayRestartCoordinator gatewayRestartCoordinator,
             SlashConfirmService slashConfirmService,
             AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardSkillsService dashboardSkillsService,
             Map<String, CommandHandler> pluginCommands) {
         return new DefaultCommandService(
                 sessionRepository,
@@ -239,7 +243,9 @@ public class GatewayConfiguration {
                 gatewayRestartCoordinator,
                 slashConfirmService,
                 pluginCommands,
-                pluginManager);
+                pluginManager,
+                dashboardCuratorService,
+                dashboardSkillsService);
     }
 
     @Bean
