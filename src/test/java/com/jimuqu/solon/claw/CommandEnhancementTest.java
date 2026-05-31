@@ -405,6 +405,36 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldPreserveRestartRequesterRoutingMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "admin-chat", "admin-user", "/restart");
+        message.setChatType("group");
+        message.setThreadId("topic-7");
+        message.setChatName("Ops Topic");
+
+        GatewayReply restart = env.gatewayService.handle(message);
+
+        assertThat(restart.getRuntimeMetadata())
+                .containsEntry("restart_requester_platform", "MEMORY")
+                .containsEntry("restart_requester_chat_id", "admin-chat")
+                .containsEntry("restart_requester_user_id", "admin-user")
+                .containsEntry("restart_requester_chat_type", "group")
+                .containsEntry("restart_requester_thread_id", "topic-7");
+        assertThat(env.gatewayRestartCoordinator.getRequesterRouting().getPlatform())
+                .isEqualTo(PlatformType.MEMORY);
+        assertThat(env.gatewayRestartCoordinator.getRequesterRouting().getChatId())
+                .isEqualTo("admin-chat");
+        assertThat(env.gatewayRestartCoordinator.getRequesterRouting().getUserId())
+                .isEqualTo("admin-user");
+        assertThat(env.gatewayRestartCoordinator.getRequesterRouting().getChatType())
+                .isEqualTo("group");
+        assertThat(env.gatewayRestartCoordinator.getRequesterRouting().getThreadId())
+                .isEqualTo("topic-7");
+    }
+
+    @Test
     void shouldSupportExplicitQueueAndSteerCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

@@ -30,6 +30,46 @@ public class TerminalModelPickerTest {
         assertThat(picker.resolveCommand("/model pick 9")).isEmpty();
     }
 
+    @Test
+    void shouldRenderGroupedProviderChoicesWithoutChangingPickNumbers() {
+        AppConfig config = config();
+        config.getFallbackProviders().clear();
+        AppConfig.ProviderConfig cnProvider = new AppConfig.ProviderConfig();
+        cnProvider.setName("Backup China");
+        cnProvider.setBaseUrl("https://api.openai.com");
+        cnProvider.setDefaultModel("gpt-cn");
+        cnProvider.setDialect("openai");
+        cnProvider.setGroupId("backup-group");
+        cnProvider.setGroupLabel("Backup Group");
+        cnProvider.setGroupDescription("Global and China endpoints");
+        cnProvider.setDisplayDescription("China endpoint");
+        config.getProviders().put("backup-cn", cnProvider);
+
+        AppConfig.ProviderConfig backup = config.getProviders().get("backup");
+        backup.setGroupId("backup-group");
+        backup.setGroupLabel("Backup Group");
+        backup.setGroupDescription("Global and China endpoints");
+        backup.setDisplayDescription("Global endpoint");
+        AppConfig.FallbackProviderConfig first = new AppConfig.FallbackProviderConfig();
+        first.setProvider("backup-cn");
+        first.setModel("gpt-cn");
+        AppConfig.FallbackProviderConfig second = new AppConfig.FallbackProviderConfig();
+        second.setProvider("backup");
+        second.setModel("gpt-backup");
+        config.getFallbackProviders().add(first);
+        config.getFallbackProviders().add(second);
+        TerminalModelPicker picker = new TerminalModelPicker(config, new LlmProviderService(config));
+
+        String text = picker.render();
+
+        assertThat(text)
+                .contains("2. Backup Group - Global and China endpoints")
+                .contains("   2. backup:gpt-backup - Global endpoint")
+                .contains("   3. backup-cn:gpt-cn - China endpoint");
+        assertThat(picker.resolveCommand("/model pick 2")).isEqualTo("/model backup:gpt-backup");
+        assertThat(picker.resolveCommand("/model pick 3")).isEqualTo("/model backup-cn:gpt-cn");
+    }
+
     private AppConfig config() {
         AppConfig config = new AppConfig();
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();

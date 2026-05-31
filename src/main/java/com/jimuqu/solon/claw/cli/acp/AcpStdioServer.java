@@ -477,7 +477,13 @@ public class AcpStdioServer {
         state.append("user", text);
 
         AcpEventSink sink = new AcpEventSink();
-        GatewayReply reply = cliRuntime.send(state.getSessionId(), text, attachments, sink);
+        GatewayReply reply =
+                cliRuntime.send(
+                        state.getSessionId(),
+                        text,
+                        attachments,
+                        sink,
+                        existingCwdOrNull(state.getCwd()));
         String finalText = sink.assistantText();
         if (StrUtil.isBlank(finalText) && reply != null) {
             finalText = StrUtil.nullToEmpty(reply.getContent());
@@ -753,7 +759,13 @@ public class AcpStdioServer {
                         read(params, "permission_id", read(params, "approval_id", read(params, "approvalId", ""))));
         String outcome = permissionOutcome(params);
         String command = approvalCommand(selector, outcome);
-        GatewayReply reply = cliRuntime.send(state.getSessionId(), command, ConversationEventSink.noop());
+        GatewayReply reply =
+                cliRuntime.send(
+                        state.getSessionId(),
+                        command,
+                        null,
+                        ConversationEventSink.noop(),
+                        existingCwdOrNull(state.getCwd()));
         sessionManager.refresh(state);
         String safeSelector = DangerousCommandApprovalService.safeApprovalSelectorToken(selector);
         if (safeSelector == null) {
@@ -1331,6 +1343,14 @@ public class AcpStdioServer {
             name = "cwd";
         }
         return "path://" + SecretRedactor.redact(name, 400);
+    }
+
+    private String existingCwdOrNull(String cwd) {
+        if (StrUtil.isBlank(cwd)) {
+            return null;
+        }
+        File dir = new File(cwd.trim());
+        return dir.exists() && dir.isDirectory() ? dir.getAbsolutePath() : null;
     }
 
     private String historyMessageText(Object content) {
