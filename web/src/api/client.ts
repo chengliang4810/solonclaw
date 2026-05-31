@@ -1,45 +1,16 @@
 import router from '@/router'
-
-declare global {
-  interface Window {
-    __APP_SESSION_TOKEN__?: string
-    __LOGIN_TOKEN__?: string
-  }
-}
-
-const DEFAULT_BASE_URL = ''
-const TOKEN_KEY = 'jimuqu_api_key'
-
-function getBaseUrl(): string {
-  return localStorage.getItem('jimuqu_server_url') || DEFAULT_BASE_URL
-}
-
-function getInjectedToken(): string {
-  return window.__LOGIN_TOKEN__ || window.__APP_SESSION_TOKEN__ || ''
-}
-
-export function getApiKey(): string {
-  return localStorage.getItem(TOKEN_KEY) || getInjectedToken()
-}
-
-export function setServerUrl(url: string) {
-  localStorage.setItem('jimuqu_server_url', url)
-}
-
-export function setApiKey(key: string) {
-  localStorage.setItem(TOKEN_KEY, key)
-}
-
-export function clearApiKey() {
-  localStorage.removeItem(TOKEN_KEY)
-}
-
-export function hasApiKey(): boolean {
-  return !!getApiKey()
-}
+export {
+  clearApiKey,
+  getApiKey,
+  getBaseUrlValue,
+  hasApiKey,
+  setApiKey,
+  setServerUrl,
+} from './sessionAuth.ts'
+import { clearApiKey, getApiKey, getBaseUrlValue } from './sessionAuth.ts'
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const base = getBaseUrl()
+  const base = getBaseUrlValue()
   const url = `${base}${path}`
   const headers = new Headers(options.headers || {})
 
@@ -77,8 +48,4 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
 
   return (await res.text()) as T
-}
-
-export function getBaseUrlValue(): string {
-  return getBaseUrl()
 }
