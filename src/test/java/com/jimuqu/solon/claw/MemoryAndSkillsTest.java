@@ -5,16 +5,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
+import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
+import com.jimuqu.solon.claw.context.DefaultMemoryManager;
+import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -269,6 +274,65 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldPassCompletedTurnContextToMemoryProviders() throws Exception {
+        CapturingMemoryProvider provider = new CapturingMemoryProvider();
+        DefaultMemoryManager manager =
+                new DefaultMemoryManager(java.util.Collections.singletonList(provider));
+        MemoryTurnContext context =
+                MemoryTurnContext.builder()
+                        .sourceKey("MEMORY:ctx-room:ctx-user")
+                        .sessionId("session-ctx")
+                        .userMessage("用户输入")
+                        .assistantMessage("助手输出")
+                        .conversationNdjson(
+                                MessageSupport.toNdjson(
+                                        java.util.Arrays.asList(
+                                                ChatMessage.ofUser("用户输入"),
+                                                ChatMessage.ofAssistant("助手输出"))))
+                        .provider("openai-responses")
+                        .model("gpt-5.4")
+                        .inputTokens(3L)
+                        .outputTokens(4L)
+                        .totalTokens(7L)
+                        .build();
+
+        manager.syncTurn(context);
+
+        assertThat(provider.context).isNotNull();
+        assertThat(provider.context.getSessionId()).isEqualTo("session-ctx");
+        assertThat(provider.context.getMessages()).hasSize(2);
+        assertThat(provider.context.getProvider()).isEqualTo("openai-responses");
+        assertThat(provider.context.getModel()).isEqualTo("gpt-5.4");
+        assertThat(provider.context.getTotalTokens()).isEqualTo(7L);
+        assertThat(provider.legacyCalls).isZero();
+    }
+
+    @Test
+    void shouldIncludePluginMemoryProvidersInConfiguredManager() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CapturingMemoryProvider provider = new CapturingMemoryProvider();
+        ContextConfiguration configuration = new ContextConfiguration();
+        com.jimuqu.solon.claw.core.service.MemoryManager manager =
+                configuration.memoryManager(
+                        new BuiltinMemoryProvider(env.memoryService),
+                        java.util.Collections.<MemoryProvider>singletonList(provider));
+        MemoryTurnContext context =
+                MemoryTurnContext.builder()
+                        .sourceKey("MEMORY:plugin-room:plugin-user")
+                        .sessionId("plugin-session")
+                        .userMessage("plugin user")
+                        .assistantMessage("plugin assistant")
+                        .build();
+
+        manager.syncTurn(context);
+
+        assertThat(env.memoryService.read("today")).contains("MEMORY:plugin-room:plugin-user");
+        assertThat(provider.context).isNotNull();
+        assertThat(provider.context.getSessionId()).isEqualTo("plugin-session");
+        assertThat(provider.legacyCalls).isZero();
+    }
+
+    @Test
     void shouldUpdateTodayMemoryAfterGatewayReply() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -283,6 +347,29 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldExposeCompletedTurnContextAfterGatewayReply() throws Exception {
+        CapturingMemoryProvider provider = new CapturingMemoryProvider();
+        TestEnvironment env =
+                TestEnvironment.withMemoryProviders(
+                        java.util.Arrays.asList(provider));
+
+        env.send("memory-context-chat", "memory-context-user", "hello");
+        env.send("memory-context-chat", "memory-context-user", "/pairing claim-admin");
+        env.send("memory-context-chat", "memory-context-user", "记录完整上下文");
+
+        assertThat(provider.context).isNotNull();
+        assertThat(provider.context.getSourceKey())
+                .isEqualTo("MEMORY:memory-context-chat:memory-context-user");
+        assertThat(provider.context.getSessionId()).isNotBlank();
+        assertThat(provider.context.getUserMessage()).contains("记录完整上下文");
+        assertThat(provider.context.getAssistantMessage()).contains("echo:记录完整上下文");
+        assertThat(provider.context.getMessages()).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(provider.context.getProvider()).isEqualTo("openai-responses");
+        assertThat(provider.context.getModel()).isEqualTo("gpt-5.4");
+        assertThat(provider.context.getTotalTokens()).isPositive();
+    }
+
+    @Test
     void shouldUpdateTodayMemoryWhenOrchestratorIsCalledDirectly() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -293,6 +380,36 @@ public class MemoryAndSkillsTest {
         assertThat(today).contains("MEMORY:dashboard:direct-session");
         assertThat(today).contains("dashboard 直接调用也要维护记忆");
         assertThat(today).contains("echo:dashboard 直接调用也要维护记忆");
+    }
+
+    private static class CapturingMemoryProvider implements MemoryProvider {
+        private MemoryTurnContext context;
+        private int legacyCalls;
+
+        @Override
+        public String name() {
+            return "capture";
+        }
+
+        @Override
+        public String systemPromptBlock(String sourceKey) {
+            return "";
+        }
+
+        @Override
+        public String prefetch(String sourceKey, String userMessage) {
+            return "";
+        }
+
+        @Override
+        public void syncTurn(String sourceKey, String userMessage, String assistantMessage) {
+            legacyCalls++;
+        }
+
+        @Override
+        public void syncTurn(MemoryTurnContext context) {
+            this.context = context;
+        }
     }
 
     @Test

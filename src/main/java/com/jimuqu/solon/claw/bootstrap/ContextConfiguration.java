@@ -168,9 +168,13 @@ public class ContextConfiguration {
     }
 
     @Bean
-    public MemoryManager memoryManager(MemoryProvider builtinMemoryProvider) {
+    public MemoryManager memoryManager(
+            MemoryProvider builtinMemoryProvider, java.util.List<MemoryProvider> pluginMemoryProviders) {
         java.util.List<MemoryProvider> providers = new java.util.ArrayList<MemoryProvider>();
         providers.add(builtinMemoryProvider);
+        if (pluginMemoryProviders != null) {
+            providers.addAll(pluginMemoryProviders);
+        }
         return new DefaultMemoryManager(providers);
     }
 

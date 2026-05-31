@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.core.service;
 
+import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
+
 /** 记忆提供方抽象。 */
 public interface MemoryProvider {
     /** 提供方名称。 */
@@ -13,4 +15,12 @@ public interface MemoryProvider {
 
     /** 在一轮对话完成后同步状态。 */
     void syncTurn(String sourceKey, String userMessage, String assistantMessage) throws Exception;
+
+    /** 在一轮对话完成后同步状态，并暴露完整完成轮次上下文。 */
+    default void syncTurn(MemoryTurnContext context) throws Exception {
+        syncTurn(
+                context == null ? null : context.getSourceKey(),
+                context == null ? null : context.getUserMessage(),
+                context == null ? null : context.getAssistantMessage());
+    }
 }

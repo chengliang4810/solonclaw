@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import java.util.ArrayList;
@@ -53,8 +54,18 @@ public class DefaultMemoryManager implements MemoryManager {
     @Override
     public void syncTurn(String sourceKey, String userMessage, String assistantMessage)
             throws Exception {
+        syncTurn(
+                MemoryTurnContext.builder()
+                        .sourceKey(sourceKey)
+                        .userMessage(userMessage)
+                        .assistantMessage(assistantMessage)
+                        .build());
+    }
+
+    @Override
+    public void syncTurn(MemoryTurnContext context) throws Exception {
         for (MemoryProvider provider : providers) {
-            provider.syncTurn(sourceKey, userMessage, assistantMessage);
+            provider.syncTurn(context);
         }
     }
 }

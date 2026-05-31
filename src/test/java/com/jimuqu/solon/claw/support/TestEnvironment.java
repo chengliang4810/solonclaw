@@ -144,6 +144,11 @@ public class TestEnvironment {
         return create(llmGateway);
     }
 
+    public static TestEnvironment withMemoryProviders(java.util.List<MemoryProvider> providers)
+            throws Exception {
+        return create(newConfig(), new FakeLlmGateway(), providers);
+    }
+
     public static TestEnvironment withLiveLlm() throws Exception {
         AppConfig config = newConfig();
         String dialect = runtimeConfigValue("providers.default.dialect", "openai");
@@ -179,6 +184,12 @@ public class TestEnvironment {
 
     private static TestEnvironment create(AppConfig config, LlmGateway llmGateway)
             throws Exception {
+        return create(config, llmGateway, null);
+    }
+
+    private static TestEnvironment create(
+            AppConfig config, LlmGateway llmGateway, java.util.List<MemoryProvider> memoryProviders)
+            throws Exception {
         SqliteDatabase database = new SqliteDatabase(config);
         SqlitePreferenceStore preferenceStore = new SqlitePreferenceStore(database);
         GlobalSettingRepository globalSettingRepository =
@@ -212,9 +223,12 @@ public class TestEnvironment {
                         config, preferenceStore, skillImportService, skillHubStateStore);
         MemoryService memoryService = new FileMemoryService(config);
         MemoryProvider builtinMemoryProvider = new BuiltinMemoryProvider(memoryService);
-        MemoryManager memoryManager =
-                new DefaultMemoryManager(
-                        java.util.Collections.singletonList(builtinMemoryProvider));
+        java.util.List<MemoryProvider> providerList = new java.util.ArrayList<MemoryProvider>();
+        providerList.add(builtinMemoryProvider);
+        if (memoryProviders != null) {
+            providerList.addAll(memoryProviders);
+        }
+        MemoryManager memoryManager = new DefaultMemoryManager(providerList);
         PersonaWorkspaceService personaWorkspaceService = new PersonaWorkspaceService(config);
         FileContextService contextService =
                 new FileContextService(
