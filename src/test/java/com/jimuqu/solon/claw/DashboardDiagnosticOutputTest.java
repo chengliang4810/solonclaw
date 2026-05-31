@@ -5,12 +5,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
+import com.jimuqu.solon.claw.core.model.RunControlCommand;
+import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
+import com.jimuqu.solon.claw.core.model.ToolCallRecord;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -379,6 +387,95 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("osName");
 
         monitorService.shutdown();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeRecoverableRunSummaryWithoutLeakingIdentifiersOrHints() {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-recoverable-runs").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        FixedAgentRunRepository repository = new FixedAgentRunRepository();
+        String runSecret = "ghp_dashboardrunsecret12345";
+        String sessionSecret = "ghp_dashboardsessionsecret12345";
+        String sourceSecret = "ghp_dashboardsourcesecret12345";
+        String hintSecret = "ghp_dashboardhintsecret12345";
+        long now = 1710000000000L;
+        for (int i = 0; i < 7; i++) {
+            AgentRunRecord run = new AgentRunRecord();
+            run.setRunId("run-" + i + "-" + runSecret);
+            run.setSessionId("session-" + i + "-" + sessionSecret);
+            run.setSourceKey("MEMORY:room-" + sourceSecret + "-" + i + ":user");
+            run.setStatus(i == 0 ? "recoverable" : "paused");
+            run.setPhase(i == 0 ? "recovery" : "tool");
+            run.setBackgrounded(i % 2 == 0);
+            run.setExitReason(i == 0 ? "stale_heartbeat" : "restart");
+            run.setRecoverable(true);
+            run.setRecoveryHint("retry with token=" + hintSecret + " password=dashboard-password");
+            run.setLastActivityAt(now - i);
+            repository.runs.add(run);
+        }
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null,
+                        null,
+                        null,
+                        repository);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+
+        Map<String, Object> runs = (Map<String, Object>) diagnostics.get("runs");
+        assertThat(runs).isNotNull();
+        assertThat(runs.get("recoverable_count")).isEqualTo(Integer.valueOf(7));
+        assertThat(runs.get("limit")).isEqualTo(Integer.valueOf(5));
+        assertThat(runs.get("truncated")).isEqualTo(Boolean.TRUE);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) runs.get("recoverable_items");
+        assertThat(items).hasSize(5);
+        Map<String, Object> first = items.get(0);
+        assertThat(first)
+                .containsKeys(
+                        "run_id",
+                        "session_id",
+                        "source_key",
+                        "status",
+                        "phase",
+                        "backgrounded",
+                        "exit_reason",
+                        "last_activity_at",
+                        "recovery_hint");
+        assertThat(first.get("status")).isEqualTo("recoverable");
+        assertThat(first.get("phase")).isEqualTo("recovery");
+        assertThat(first.get("backgrounded")).isEqualTo(Boolean.TRUE);
+        assertThat(first.get("exit_reason")).isEqualTo("stale_heartbeat");
+        assertThat(first.get("last_activity_at")).isEqualTo(Long.valueOf(now));
+
+        String json = ONode.serialize(diagnostics);
+        assertThat(json)
+                .contains("run-0-ghp_***")
+                .contains("session-0-ghp_***")
+                .contains("MEMORY:room-ghp_***")
+                .contains("token=***")
+                .doesNotContain(runSecret)
+                .doesNotContain(sessionSecret)
+                .doesNotContain(sourceSecret)
+                .doesNotContain(hintSecret)
+                .doesNotContain("dashboard-password");
     }
 
     @Test
@@ -5018,6 +5115,138 @@ public class DashboardDiagnosticOutputTest {
         public List<ApprovalAuditEvent> listRecent(int limit) {
             return events;
         }
+    }
+
+    private static class FixedAgentRunRepository implements AgentRunRepository {
+        private final List<AgentRunRecord> runs = new ArrayList<AgentRunRecord>();
+
+        @Override
+        public void saveRun(AgentRunRecord record) {}
+
+        @Override
+        public AgentRunRecord findRun(String runId) {
+            return null;
+        }
+
+        @Override
+        public List<AgentRunRecord> listBySession(String sessionId, int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<AgentRunRecord> listFinishedWithUsage(int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<AgentRunRecord> listRecoverable(int limit) {
+            return runs.subList(0, Math.min(Math.max(limit, 0), runs.size()));
+        }
+
+        @Override
+        public List<AgentRunRecord> listActiveBefore(long beforeEpochMillis, int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void markStaleRuns(long beforeEpochMillis, long now) {}
+
+        @Override
+        public List<AgentRunRecord> listActiveBySource(String sourceKey, int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<AgentRunRecord> searchRuns(
+                String sourceKey,
+                String sessionId,
+                String runId,
+                String query,
+                long timeFrom,
+                long timeTo,
+                int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void appendEvent(AgentRunEventRecord event) {}
+
+        @Override
+        public List<AgentRunEventRecord> listEvents(String runId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void saveRunControlCommand(RunControlCommand command) {}
+
+        @Override
+        public List<RunControlCommand> listRunControlCommands(String runId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public RunControlCommand findLatestPendingCommand(String runId, String command) {
+            return null;
+        }
+
+        @Override
+        public void markRunControlCommandHandled(String commandId, String status, long handledAt) {}
+
+        @Override
+        public void saveQueuedMessage(QueuedRunMessage message) {}
+
+        @Override
+        public QueuedRunMessage findNextQueuedMessage(String sourceKey, String sessionId) {
+            return null;
+        }
+
+        @Override
+        public int countQueuedMessages(String sourceKey, String sessionId) {
+            return 0;
+        }
+
+        @Override
+        public void markQueuedMessage(String queueId, String status, long timestamp, String error) {}
+
+        @Override
+        public void saveToolCall(ToolCallRecord record) {}
+
+        @Override
+        public List<ToolCallRecord> listToolCalls(String runId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<ToolCallRecord> searchToolCalls(
+                String sourceKey,
+                String sessionId,
+                String runId,
+                String toolName,
+                String query,
+                long timeFrom,
+                long timeTo,
+                int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void saveSubagentRun(SubagentRunRecord record) {}
+
+        @Override
+        public List<SubagentRunRecord> listSubagents(String parentRunId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void saveRecovery(RunRecoveryRecord record) {}
+
+        @Override
+        public List<RunRecoveryRecord> listRecoveries(String runId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void pruneBefore(long beforeEpochMillis) {}
     }
 
     private static class MemoryGlobalSettingRepository

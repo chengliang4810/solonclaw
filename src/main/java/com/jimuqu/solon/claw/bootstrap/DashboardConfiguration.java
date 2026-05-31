@@ -186,7 +186,8 @@ public class DashboardConfiguration {
             TirithSecurityService tirithSecurityService,
             ToolResultStorageService toolResultStorageService,
             ShutdownForensicsService shutdownForensicsService,
-            RuntimeMemoryMonitorService runtimeMemoryMonitorService) {
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -202,7 +203,8 @@ public class DashboardConfiguration {
                 tirithSecurityService,
                 toolResultStorageService,
                 shutdownForensicsService,
-                runtimeMemoryMonitorService);
+                runtimeMemoryMonitorService,
+                agentRunRepository);
     }
 
     @Bean
