@@ -263,6 +263,29 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeDebugDiagnosticsCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "/debug");
+
+        assertThat(reply.isError()).isFalse();
+        assertThat(reply.getContent())
+                .contains("调试诊断：")
+                .contains("runtime_home=runtime://")
+                .contains("providers=")
+                .contains("channels=")
+                .contains("tools=")
+                .contains("security_probes_passed=");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "debug")
+                .containsKey("debug_provider_count")
+                .containsKey("debug_channel_count")
+                .containsKey("debug_tool_count");
+    }
+
+    @Test
     void shouldExposeApprovalManagementFormsInSlashHelp() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

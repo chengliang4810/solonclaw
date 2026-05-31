@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
@@ -1019,6 +1020,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_INSIGHTS.equals(command)) {
             return handleInsights();
+        }
+
+        if (GatewayCommandConstants.COMMAND_DEBUG.equals(command)) {
+            return handleDebug();
         }
 
         if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
@@ -2588,6 +2593,91 @@ public class DefaultCommandService implements CommandService {
 
     private String browserUsage() {
         return "用法：" + GatewayCommandConstants.SLASH_BROWSER + " [status|connect|disconnect <session-id>]";
+    }
+
+    private GatewayReply handleDebug() throws Exception {
+        DebugSummary summary = debugSummary();
+        GatewayReply reply = GatewayReply.ok(formatDebugSummary(summary));
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_DEBUG);
+        reply.getRuntimeMetadata().put("debug_provider_count", Integer.valueOf(summary.providerCount));
+        reply.getRuntimeMetadata().put("debug_channel_count", Integer.valueOf(summary.channelCount));
+        reply.getRuntimeMetadata().put("debug_tool_count", Integer.valueOf(summary.toolCount));
+        reply.getRuntimeMetadata().put("debug_session_count", Integer.valueOf(summary.sessionCount));
+        reply.getRuntimeMetadata().put("debug_connected_channel_count", Integer.valueOf(summary.connectedChannelCount));
+        return reply;
+    }
+
+    private DebugSummary debugSummary() throws Exception {
+        DebugSummary summary = new DebugSummary();
+        summary.runtimeHome = "runtime://";
+        summary.providerCount = appConfig == null || appConfig.getProviders() == null ? 0 : appConfig.getProviders().size();
+        List<ChannelStatus> statuses =
+                deliveryService == null ? Collections.<ChannelStatus>emptyList() : deliveryService.statuses();
+        summary.channelCount = statuses.size();
+        for (ChannelStatus status : statuses) {
+            if (status == null) {
+                continue;
+            }
+            if (status.isEnabled()) {
+                summary.enabledChannelCount++;
+            }
+            if (status.isConnected()) {
+                summary.connectedChannelCount++;
+            }
+        }
+        summary.toolCount = toolRegistry == null ? 0 : toolRegistry.listToolNames().size();
+        summary.sessionCount = sessionRepository == null ? 0 : sessionRepository.countAll();
+        summary.mcpStatus = appConfig != null && appConfig.getMcp().isEnabled() ? "enabled" : "disabled";
+        summary.approvalsMode =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? ""
+                        : StrUtil.nullToEmpty(appConfig.getApprovals().getMode());
+        summary.securityProbesPassed = "not_run";
+        return summary;
+    }
+
+    private String formatDebugSummary(DebugSummary summary) {
+        return "调试诊断："
+                + "\nruntime_home="
+                + summary.runtimeHome
+                + "\nproviders="
+                + summary.providerCount
+                + "\nchannels="
+                + summary.channelCount
+                + " enabled="
+                + summary.enabledChannelCount
+                + " connected="
+                + summary.connectedChannelCount
+                + "\ntools="
+                + summary.toolCount
+                + "\nsessions="
+                + summary.sessionCount
+                + "\nmcp="
+                + summary.mcpStatus
+                + "\napprovals_mode="
+                + summary.approvalsMode
+                + "\nsecurity_probes_passed="
+                + summary.securityProbesPassed
+                + "\n"
+                + debugUsage();
+    }
+
+    private String debugUsage() {
+        return "用法：" + GatewayCommandConstants.SLASH_DEBUG + " [status]";
+    }
+
+    private static class DebugSummary {
+        private String runtimeHome;
+        private int providerCount;
+        private int channelCount;
+        private int enabledChannelCount;
+        private int connectedChannelCount;
+        private int toolCount;
+        private int sessionCount;
+        private String mcpStatus;
+        private String approvalsMode;
+        private String securityProbesPassed;
     }
 
     /** 处理技能命令。 */
@@ -5011,6 +5101,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_INSIGHTS,
                                 "查看使用洞察与运行摘要"),
+                        helpLine(GatewayCommandConstants.SLASH_DEBUG + " [status]", "查看脱敏调试诊断摘要"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
                                 "查看、设置或清空当前会话标题"),
