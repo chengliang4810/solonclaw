@@ -917,6 +917,49 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldNotExtractCronMediaTagsInsideInlineCode() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File attachment = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "cron-inline-report.txt");
+        FileUtil.mkParentDirs(attachment);
+        FileUtil.writeString("report body", attachment, StandardCharsets.UTF_8);
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "inline_media.py");
+        String content =
+                "preview `MEDIA:\""
+                        + attachment.getAbsolutePath().replace("\\", "\\\\")
+                        + "\"`";
+        FileUtil.writeString("print('" + content.replace("'", "\\'") + "')", script, StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "inline-media");
+        body.put("schedule", "30m");
+        body.put("script", "inline_media.py");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "origin");
+        CronJobRecord job = service.create("MEMORY:inline-media-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        new AttachmentCacheService(env.appConfig));
+        scheduler.tick();
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).contains(content).contains("MEDIA:");
+        assertThat(request.getAttachments()).isEmpty();
+    }
+
+    @Test
     void shouldKeepCronMediaTagVisibleWhenAttachmentCannotResolve() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File missing = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "missing-report.md");

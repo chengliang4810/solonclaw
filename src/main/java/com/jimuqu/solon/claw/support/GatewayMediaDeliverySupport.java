@@ -7,8 +7,6 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,10 +14,6 @@ import org.slf4j.LoggerFactory;
 /** 解析文本中的 MEDIA: 附件指令并转换为安全附件投递模型。 */
 public class GatewayMediaDeliverySupport {
     private static final Logger log = LoggerFactory.getLogger(GatewayMediaDeliverySupport.class);
-    private static final Pattern MEDIA_PATTERN =
-            Pattern.compile(
-                    "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
-                    Pattern.CASE_INSENSITIVE);
 
     private final AttachmentCacheService attachmentCacheService;
 
@@ -29,12 +23,12 @@ public class GatewayMediaDeliverySupport {
 
     public DeliveryMedia resolve(PlatformType platform, String content) {
         String value = StrUtil.nullToEmpty(content);
-        List<MediaRef> refs = parse(value);
+        List<MediaDirectiveSupport.MediaDirective> refs = MediaDirectiveSupport.parse(value);
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
-        List<MediaRef> resolved = new ArrayList<MediaRef>();
+        List<MediaDirectiveSupport.MediaDirective> resolved = new ArrayList<MediaDirectiveSupport.MediaDirective>();
         if (attachmentCacheService != null) {
-            for (MediaRef ref : refs) {
-                File file = FileUtil.file(ref.path);
+            for (MediaDirectiveSupport.MediaDirective ref : refs) {
+                File file = FileUtil.file(ref.getPath());
                 if (!file.isFile()) {
                     continue;
                 }
@@ -57,48 +51,6 @@ public class GatewayMediaDeliverySupport {
         return new DeliveryMedia(removeResolvedMediaTags(value, resolved), attachments);
     }
 
-    private List<MediaRef> parse(String content) {
-        List<MediaRef> refs = new ArrayList<MediaRef>();
-        Matcher matcher = MEDIA_PATTERN.matcher(StrUtil.nullToEmpty(content));
-        while (matcher.find()) {
-            String path = cleanupMediaPath(matcher.group("path"));
-            if (StrUtil.isNotBlank(path)) {
-                refs.add(new MediaRef(matcher.group(), path));
-            }
-        }
-        return refs;
-    }
-
-    private String cleanupMediaPath(String raw) {
-        String path = StrUtil.nullToEmpty(raw).trim();
-        if (path.length() >= 2) {
-            char first = path.charAt(0);
-            char last = path.charAt(path.length() - 1);
-            if ((first == '`' || first == '"' || first == '\'') && first == last) {
-                path = path.substring(1, path.length() - 1).trim();
-            }
-        }
-        while (path.startsWith("`") || path.startsWith("\"") || path.startsWith("'")) {
-            path = path.substring(1).trim();
-        }
-        while (path.endsWith("`")
-                || path.endsWith("\"")
-                || path.endsWith("'")
-                || path.endsWith(",")
-                || path.endsWith(".")
-                || path.endsWith(";")
-                || path.endsWith(":")
-                || path.endsWith(")")
-                || path.endsWith("}")
-                || path.endsWith("]")) {
-            path = path.substring(0, path.length() - 1).trim();
-        }
-        if (path.startsWith("~/")) {
-            return new File(System.getProperty("user.home"), path.substring(2)).getAbsolutePath();
-        }
-        return path;
-    }
-
     private String safePath(File file) {
         if (file == null) {
             return "[unknown]";
@@ -107,26 +59,17 @@ public class GatewayMediaDeliverySupport {
         return SecretRedactor.redact(name, 400);
     }
 
-    private String removeResolvedMediaTags(String text, List<MediaRef> resolved) {
+    private String removeResolvedMediaTags(
+            String text, List<MediaDirectiveSupport.MediaDirective> resolved) {
         String cleaned = StrUtil.nullToEmpty(text);
         if (resolved != null) {
-            for (MediaRef media : resolved) {
-                if (StrUtil.isNotBlank(media.token)) {
-                    cleaned = cleaned.replace(media.token, "");
+            for (MediaDirectiveSupport.MediaDirective media : resolved) {
+                if (StrUtil.isNotBlank(media.getToken())) {
+                    cleaned = cleaned.replace(media.getToken(), "");
                 }
             }
         }
         return cleaned.replaceAll("\\n{3,}", "\n\n").trim();
-    }
-
-    private static class MediaRef {
-        private final String token;
-        private final String path;
-
-        private MediaRef(String token, String path) {
-            this.token = StrUtil.nullToEmpty(token);
-            this.path = StrUtil.nullToEmpty(path);
-        }
     }
 
     @Getter

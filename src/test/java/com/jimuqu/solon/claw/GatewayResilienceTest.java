@@ -89,6 +89,31 @@ public class GatewayResilienceTest {
     }
 
     @Test
+    void shouldNotExtractGatewayReplyMediaTagsInsideInlineCode() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:inline-media-room:user");
+        File attachment = new File(env.appConfig.getRuntime().getCacheDir(), "gateway-media/report.md");
+        Files.createDirectories(attachment.getParentFile().toPath());
+        Files.write(attachment.toPath(), "report body".getBytes("UTF-8"));
+        String content = "失败路径预览：`MEDIA:\"" + attachment.getAbsolutePath() + "\"`";
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        replyingOrchestrator(session, content),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService(),
+                        new AttachmentCacheService(env.appConfig));
+
+        service.handle(env.message("inline-media-room", "user", "send report"));
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).isEqualTo(content);
+        assertThat(request.getAttachments()).isEmpty();
+    }
+
+    @Test
     void shouldPreserveGatewayReplyTextWhenNoMediaTagResolves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:plain-media-room:user");

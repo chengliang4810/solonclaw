@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.MediaDirectiveSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -76,10 +77,6 @@ public class DefaultCronScheduler {
     private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
     private static final ExecutorService MCP_WARMUP_EXECUTOR =
             BoundedExecutorFactory.fixed("cron-mcp-warmup", 1, 16);
-    private static final Pattern MEDIA_PATTERN =
-            Pattern.compile(
-                    "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
-                    Pattern.CASE_INSENSITIVE);
     private static final Pattern SAFE_CONTEXT_JOB_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
     private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: Cron assembled prompt";
     private static final String CRON_RUNTIME_HINT =
@@ -944,45 +941,11 @@ public class DefaultCronScheduler {
         boolean voice = value.contains("[[audio_as_voice]]");
         value = value.replace("[[audio_as_voice]]", "");
         List<CronMediaRef> media = new ArrayList<CronMediaRef>();
-        Matcher matcher = MEDIA_PATTERN.matcher(value);
-        while (matcher.find()) {
-            String path = cleanupMediaPath(matcher.group("path"));
-            if (StrUtil.isNotBlank(path)) {
-                media.add(new CronMediaRef(matcher.group(), path, voice));
-            }
+        for (MediaDirectiveSupport.MediaDirective directive : MediaDirectiveSupport.parse(value)) {
+            media.add(new CronMediaRef(directive.getToken(), directive.getPath(), voice));
         }
         String text = value.replaceAll("\\n{3,}", "\n\n").trim();
         return new CronDeliveryPayload(text, media);
-    }
-
-    private String cleanupMediaPath(String raw) {
-        String path = StrUtil.nullToEmpty(raw).trim();
-        if (path.length() >= 2) {
-            char first = path.charAt(0);
-            char last = path.charAt(path.length() - 1);
-            if ((first == '`' || first == '"' || first == '\'') && first == last) {
-                path = path.substring(1, path.length() - 1).trim();
-            }
-        }
-        while (path.startsWith("`") || path.startsWith("\"") || path.startsWith("'")) {
-            path = path.substring(1).trim();
-        }
-        while (path.endsWith("`")
-                || path.endsWith("\"")
-                || path.endsWith("'")
-                || path.endsWith(",")
-                || path.endsWith(".")
-                || path.endsWith(";")
-                || path.endsWith(":")
-                || path.endsWith(")")
-                || path.endsWith("}")
-                || path.endsWith("]")) {
-            path = path.substring(0, path.length() - 1).trim();
-        }
-        if (path.startsWith("~/")) {
-            return new File(System.getProperty("user.home"), path.substring(2)).getAbsolutePath();
-        }
-        return path;
     }
 
     private CronResolvedMedia resolveMediaAttachments(
