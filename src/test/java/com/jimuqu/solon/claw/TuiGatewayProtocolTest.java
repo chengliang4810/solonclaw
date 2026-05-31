@@ -2,7 +2,11 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.cli.TerminalDimensionSupport;
 import com.jimuqu.solon.claw.tui.TuiEnvelope;
+import com.jimuqu.solon.claw.tui.TuiGatewayService;
+import java.lang.reflect.Method;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class TuiGatewayProtocolTest {
@@ -28,5 +32,34 @@ class TuiGatewayProtocolTest {
         assertThat(envelope.getId()).isEqualTo("8");
         assertThat(envelope.getMethod()).isEqualTo("session.resume");
         assertThat(envelope.getSessionId()).isEqualTo("s2");
+    }
+
+    @Test
+    void shouldSanitizeTerminalResizeDimensions() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"9\",\"method\":\"terminal.resize\",\"sessionId\":\"s1\",\"params\":{\"cols\":131072,\"rows\":99999}}");
+
+            Map<String, Object> payload = resize(service, envelope);
+
+            assertThat(payload)
+                    .containsEntry("ok", Boolean.TRUE)
+                    .containsEntry("cols", Integer.valueOf(TerminalDimensionSupport.MAX_COLUMNS))
+                    .containsEntry("rows", Integer.valueOf(TerminalDimensionSupport.MAX_ROWS))
+                    .containsEntry("sanitized", Boolean.TRUE);
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
+            throws Exception {
+        Method method = TuiGatewayService.class.getDeclaredMethod("resize", TuiEnvelope.class);
+        method.setAccessible(true);
+        return (Map<String, Object>) method.invoke(service, envelope);
     }
 }
