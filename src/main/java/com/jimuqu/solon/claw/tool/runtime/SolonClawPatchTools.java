@@ -715,7 +715,7 @@ public class SolonClawPatchTools {
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
-        Files.write(target, value.getBytes(StandardCharsets.UTF_8));
+        AtomicFileWriteSupport.writeUtf8(target, value);
     }
 
     private boolean hasLeadingBom(Path target) {
