@@ -101,6 +101,11 @@ public class PluginConfiguration implements PluginRegistrationSink {
     }
 
     @Bean
+    public List<MemoryProvider> pluginMemoryProviders() {
+        return pluginMemoryProviders;
+    }
+
+    @Bean
     public List<ToolRegistration> pluginTools() {
         return pluginTools;
     }

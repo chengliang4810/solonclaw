@@ -132,8 +132,7 @@ public class SolonClawCodeExecutionSkills {
                     new SolonClawFileReadWriteSkill(
                             this.workDir,
                             securityPolicyService,
-                            maxFileReadLines(appConfig),
-                            maxFileReadLineLength(appConfig),
+                            appConfig,
                             fileStateTracker);
             this.patchTools = new SolonClawPatchTools(this.workDir, securityPolicyService, fileStateTracker);
             this.shellSkill =
@@ -987,17 +986,6 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
-        private static int maxFileReadLines(AppConfig appConfig) {
-            return appConfig == null || appConfig.getTask() == null
-                    ? 2000
-                    : appConfig.getTask().getToolOutputMaxLines();
-        }
-
-        private static int maxFileReadLineLength(AppConfig appConfig) {
-            return appConfig == null || appConfig.getTask() == null
-                    ? 2000
-                    : appConfig.getTask().getToolOutputMaxLineLength();
-        }
     }
 
     public static class SafePythonSkill extends PythonSkill {
@@ -1247,4 +1235,3 @@ public class SolonClawCodeExecutionSkills {
         return Math.max(256, value);
     }
 }
-

@@ -36,6 +36,7 @@ import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
@@ -184,7 +185,8 @@ public class DashboardConfiguration {
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService,
             ToolResultStorageService toolResultStorageService,
-            ShutdownForensicsService shutdownForensicsService) {
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -199,7 +201,8 @@ public class DashboardConfiguration {
                 securityPolicyService,
                 tirithSecurityService,
                 toolResultStorageService,
-                shutdownForensicsService);
+                shutdownForensicsService,
+                runtimeMemoryMonitorService);
     }
 
     @Bean

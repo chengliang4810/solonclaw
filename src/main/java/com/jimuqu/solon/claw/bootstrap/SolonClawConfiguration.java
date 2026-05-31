@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import org.noear.solon.Solon;
 import org.noear.solon.annotation.Bean;
@@ -17,5 +18,10 @@ public class SolonClawConfiguration {
     @Bean(destroyMethod = "persistLifecycleShutdownRecord")
     public ShutdownForensicsService shutdownForensicsService(AppConfig appConfig) {
         return new ShutdownForensicsService(appConfig);
+    }
+
+    @Bean(initMethod = "start", destroyMethod = "shutdown")
+    public RuntimeMemoryMonitorService runtimeMemoryMonitorService() {
+        return new RuntimeMemoryMonitorService();
     }
 }

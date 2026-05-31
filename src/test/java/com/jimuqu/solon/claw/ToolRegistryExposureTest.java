@@ -4949,6 +4949,79 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldApplyUpdatedToolOutputLimitsToExistingFileReadTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTask().setToolOutputMaxLines(2);
+        env.appConfig.getTask().setToolOutputMaxLineLength(10);
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("runtime-limits.txt"),
+                Arrays.asList(
+                        "alpha",
+                        "0123456789ABCDEFGHIJ",
+                        "charlie",
+                        "delta"),
+                StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1")) {
+            if (tool instanceof SolonClawFileReadWriteSkill) {
+                fileSkill = (SolonClawFileReadWriteSkill) tool;
+                break;
+            }
+        }
+        assertThat(fileSkill).isNotNull();
+
+        ONode firstPage = ONode.ofJson(fileSkill.read("runtime-limits.txt", 1, 99));
+        env.appConfig.getTask().setToolOutputMaxLines(3);
+        env.appConfig.getTask().setToolOutputMaxLineLength(20);
+        ONode updatedPage = ONode.ofJson(fileSkill.read("runtime-limits.txt", 1, 99));
+
+        assertThat(firstPage.get("limit").getInt()).isEqualTo(2);
+        assertThat(firstPage.get("content").getString())
+                .contains("2|0123456789... [truncated]")
+                .doesNotContain("3|charlie");
+        assertThat(updatedPage.get("limit").getInt()).isEqualTo(3);
+        assertThat(updatedPage.get("content").getString())
+                .contains("2|0123456789ABCDEFGHIJ")
+                .contains("3|charlie")
+                .doesNotContain("... [truncated]");
+    }
+
+    @Test
+    void shouldApplyUpdatedLineLengthToExistingFileReadToolForSamePage() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTask().setToolOutputMaxLines(3);
+        env.appConfig.getTask().setToolOutputMaxLineLength(10);
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("runtime-line-length.txt"),
+                Arrays.asList("0123456789ABCDEFGHIJ", "bravo", "charlie"),
+                StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1")) {
+            if (tool instanceof SolonClawFileReadWriteSkill) {
+                fileSkill = (SolonClawFileReadWriteSkill) tool;
+                break;
+            }
+        }
+        assertThat(fileSkill).isNotNull();
+
+        ONode firstPage = ONode.ofJson(fileSkill.read("runtime-line-length.txt", 1, 2));
+        env.appConfig.getTask().setToolOutputMaxLineLength(20);
+        ONode updatedPage = ONode.ofJson(fileSkill.read("runtime-line-length.txt", 1, 2));
+
+        assertThat(firstPage.get("content").getString())
+                .contains("1|0123456789... [truncated]")
+                .contains("2|bravo");
+        assertThat(updatedPage.get("success").getBoolean()).isTrue();
+        assertThat(updatedPage.get("dedup").getBoolean()).isFalse();
+        assertThat(updatedPage.get("content").getString())
+                .contains("1|0123456789ABCDEFGHIJ")
+                .contains("2|bravo")
+                .doesNotContain("... [truncated]");
+    }
+
+    @Test
     void shouldDeduplicateUnchangedRepeatedFileReadsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();

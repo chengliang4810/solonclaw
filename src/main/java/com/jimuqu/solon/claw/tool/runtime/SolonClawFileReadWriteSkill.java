@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -18,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntSupplier;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.file.FileReadWriteSkill;
@@ -33,8 +35,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private final Path rootPath;
     private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
-    private final int maxLines;
-    private final int maxLineLength;
+    private final IntSupplier maxLinesSupplier;
+    private final IntSupplier maxLineLengthSupplier;
     private final SolonClawFileStateTracker fileStateTracker;
     private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
     private ReadKey lastReadKey;
@@ -43,6 +45,26 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
 
     public SolonClawFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
         this(workDir, securityPolicyService, 2000, 2000, new SolonClawFileStateTracker());
+    }
+
+    public SolonClawFileReadWriteSkill(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            AppConfig appConfig) {
+        this(workDir, securityPolicyService, appConfig, new SolonClawFileStateTracker());
+    }
+
+    public SolonClawFileReadWriteSkill(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            AppConfig appConfig,
+            SolonClawFileStateTracker fileStateTracker) {
+        this(
+                workDir,
+                securityPolicyService,
+                appConfigMaxLines(appConfig),
+                appConfigMaxLineLength(appConfig),
+                fileStateTracker);
     }
 
     public SolonClawFileReadWriteSkill(
@@ -59,12 +81,27 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             int maxLines,
             int maxLineLength,
             SolonClawFileStateTracker fileStateTracker) {
+        this(
+                workDir,
+                securityPolicyService,
+                fixedLimit(maxLines),
+                fixedLimit(maxLineLength),
+                fileStateTracker);
+    }
+
+    private SolonClawFileReadWriteSkill(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            IntSupplier maxLinesSupplier,
+            IntSupplier maxLineLengthSupplier,
+            SolonClawFileStateTracker fileStateTracker) {
         super(workDir);
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
         this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
-        this.maxLines = Math.max(1, maxLines);
-        this.maxLineLength = Math.max(1, maxLineLength);
+        this.maxLinesSupplier = maxLinesSupplier == null ? fixedLimit(2000) : maxLinesSupplier;
+        this.maxLineLengthSupplier =
+                maxLineLengthSupplier == null ? fixedLimit(2000) : maxLineLengthSupplier;
         this.fileStateTracker = fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
     }
 
@@ -178,8 +215,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             return ToolResultEnvelope.error("fileName is required").toJson();
         }
         int safeOffset = Math.max(1, offset == null ? DEFAULT_READ_OFFSET : offset.intValue());
+        int safeMaxLineLength = resolveMaxLineLength();
         int safeLimit =
-                Math.max(1, Math.min(limit == null ? DEFAULT_READ_LIMIT : limit.intValue(), maxLines));
+                Math.max(
+                        1,
+                        Math.min(
+                                limit == null ? DEFAULT_READ_LIMIT : limit.intValue(),
+                                resolveMaxLines()));
         Path target;
         try {
             target = resolvePath(fileName);
@@ -208,7 +250,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     .data("resolved_path", resolvedPath)
                     .toJson();
         }
-        ReadKey readKey = new ReadKey(target.toAbsolutePath().normalize().toString(), safeOffset, safeLimit);
+        ReadKey readKey =
+                new ReadKey(
+                        target.toAbsolutePath().normalize().toString(),
+                        safeOffset,
+                        safeLimit,
+                        safeMaxLineLength);
         String duplicate = duplicateReadResult(fileName, readKey, targetFile);
         if (duplicate != null) {
             return duplicate;
@@ -225,7 +272,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     line = stripLeadingBom(line);
                 }
                 if (totalLines >= safeOffset && totalLines <= endLine) {
-                    selected.add(numberedLine(totalLines, line));
+                    selected.add(numberedLine(totalLines, line, safeMaxLineLength));
                 }
             }
             boolean truncated = totalLines > endLine;
@@ -288,12 +335,60 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return SecretRedactor.redact(message, 1000);
     }
 
-    private String numberedLine(int lineNumber, String line) {
+    private String numberedLine(int lineNumber, String line, int maxLineLength) {
         String value = StrUtil.nullToEmpty(line);
         if (value.length() > maxLineLength) {
             value = value.substring(0, maxLineLength) + "... [truncated]";
         }
         return lineNumber + "|" + value;
+    }
+
+    private int resolveMaxLines() {
+        return resolvePositiveLimit(maxLinesSupplier, 2000);
+    }
+
+    private int resolveMaxLineLength() {
+        return resolvePositiveLimit(maxLineLengthSupplier, 2000);
+    }
+
+    private static int resolvePositiveLimit(IntSupplier supplier, int fallback) {
+        try {
+            return Math.max(1, supplier == null ? fallback : supplier.getAsInt());
+        } catch (Exception ignored) {
+            return Math.max(1, fallback);
+        }
+    }
+
+    private static IntSupplier fixedLimit(final int value) {
+        final int safeValue = Math.max(1, value);
+        return new IntSupplier() {
+            @Override
+            public int getAsInt() {
+                return safeValue;
+            }
+        };
+    }
+
+    private static IntSupplier appConfigMaxLines(final AppConfig appConfig) {
+        return new IntSupplier() {
+            @Override
+            public int getAsInt() {
+                return appConfig == null || appConfig.getTask() == null
+                        ? 2000
+                        : appConfig.getTask().getToolOutputMaxLines();
+            }
+        };
+    }
+
+    private static IntSupplier appConfigMaxLineLength(final AppConfig appConfig) {
+        return new IntSupplier() {
+            @Override
+            public int getAsInt() {
+                return appConfig == null || appConfig.getTask() == null
+                        ? 2000
+                        : appConfig.getTask().getToolOutputMaxLineLength();
+            }
+        };
     }
 
     private String joinLines(List<String> lines) {
@@ -315,7 +410,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
-        Files.write(target, value.getBytes(StandardCharsets.UTF_8));
+        AtomicFileWriteSupport.writeUtf8(target, value);
     }
 
     private boolean hasLeadingBom(Path target) {
@@ -689,11 +784,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         private final String path;
         private final int offset;
         private final int limit;
+        private final int maxLineLength;
 
-        private ReadKey(String path, int offset, int limit) {
+        private ReadKey(String path, int offset, int limit, int maxLineLength) {
             this.path = path;
             this.offset = offset;
             this.limit = limit;
+            this.maxLineLength = maxLineLength;
         }
 
         @Override
@@ -702,7 +799,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 return false;
             }
             ReadKey other = (ReadKey) o;
-            return offset == other.offset && limit == other.limit && path.equals(other.path);
+            return offset == other.offset
+                    && limit == other.limit
+                    && maxLineLength == other.maxLineLength
+                    && path.equals(other.path);
         }
 
         @Override
@@ -710,6 +810,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             int result = path.hashCode();
             result = 31 * result + offset;
             result = 31 * result + limit;
+            result = 31 * result + maxLineLength;
             return result;
         }
     }

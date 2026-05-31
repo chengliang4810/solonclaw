@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -346,7 +347,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
             clearAgentPending(session);
-            syncMemory(session.getSourceKey(), resumedUserMessage, finalReply);
+            syncMemory(session.getSourceKey(), resumedUserMessage, finalReply, session, outcome);
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
@@ -507,7 +508,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
             invokeHook(AgentHookName.POST_LLM_CALL, session.getSessionId(), finalReply);
             invokeHook(AgentHookName.ON_SESSION_END, session.getSessionId(), null);
-            syncMemory(message.sourceKey(), effectiveUserText, finalReply);
+            syncMemory(message.sourceKey(), effectiveUserText, finalReply, session, outcome);
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
@@ -747,14 +748,58 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     }
 
     private void syncMemory(String sourceKey, String userMessage, String finalReply) {
+        syncMemory(sourceKey, userMessage, finalReply, null, null);
+    }
+
+    private void syncMemory(
+            String sourceKey,
+            String userMessage,
+            String finalReply,
+            SessionRecord session,
+            AgentRunOutcome outcome) {
         if (memoryManager == null) {
             return;
         }
         try {
-            memoryManager.syncTurn(sourceKey, userMessage, finalReply);
+            memoryManager.syncTurn(
+                    memoryTurnContext(sourceKey, userMessage, finalReply, session, outcome));
         } catch (Exception e) {
             log.warn("Memory sync failed: sourceKey={}, error={}", sourceKey, safeError(e));
         }
+    }
+
+    private MemoryTurnContext memoryTurnContext(
+            String sourceKey,
+            String userMessage,
+            String finalReply,
+            SessionRecord session,
+            AgentRunOutcome outcome) {
+        LlmResult result = outcome == null ? null : outcome.getResult();
+        return MemoryTurnContext.builder()
+                .sourceKey(sourceKey)
+                .sessionId(session == null ? null : session.getSessionId())
+                .userMessage(userMessage)
+                .assistantMessage(finalReply)
+                .conversationNdjson(
+                        StrUtil.blankToDefault(
+                                result == null ? null : result.getNdjson(),
+                                session == null ? null : session.getNdjson()))
+                .provider(
+                        StrUtil.blankToDefault(
+                                outcome == null ? null : outcome.getProvider(),
+                                result == null ? null : result.getProvider()))
+                .model(
+                        StrUtil.blankToDefault(
+                                outcome == null ? null : outcome.getModel(),
+                                result == null ? null : result.getModel()))
+                .streamed(result != null && result.isStreamed())
+                .inputTokens(result == null ? 0L : result.getInputTokens())
+                .outputTokens(result == null ? 0L : result.getOutputTokens())
+                .reasoningTokens(result == null ? 0L : result.getReasoningTokens())
+                .cacheReadTokens(result == null ? 0L : result.getCacheReadTokens())
+                .cacheWriteTokens(result == null ? 0L : result.getCacheWriteTokens())
+                .totalTokens(result == null ? 0L : result.getTotalTokens())
+                .build();
     }
 
     private String extractText(AssistantMessage assistantMessage) {

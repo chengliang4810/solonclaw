@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -49,6 +52,34 @@ public class SolonClawPatchToolsTest {
         assertThat(String.valueOf(result.get("files_modified"))).contains("src/app.txt");
         assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
                 .isEqualTo("hi\nworld\n");
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void shouldReplaceByAtomicFileSwap() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("target.txt");
+        Files.write(file, "before\n".getBytes(StandardCharsets.UTF_8));
+        Object beforeKey = Files.getAttribute(file, "unix:ino");
+
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String json = tools.patch("replace", "target.txt", "before", "after", false, null);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("after\n");
+        assertThat(Files.getAttribute(file, "unix:ino")).isNotEqualTo(beforeKey);
+        try (Stream<Path> files = Files.list(dir)) {
+            assertThat(
+                            files.filter(
+                                            path ->
+                                                    path.getFileName()
+                                                            .toString()
+                                                            .contains(".solonclaw-tmp"))
+                                    .count())
+                    .isZero();
+        }
     }
 
     @Test

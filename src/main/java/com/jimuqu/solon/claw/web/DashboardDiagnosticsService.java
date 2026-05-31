@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -69,6 +70,7 @@ public class DashboardDiagnosticsService {
     private final TirithSecurityService tirithSecurityService;
     private final ToolResultStorageService toolResultStorageService;
     private final ShutdownForensicsService shutdownForensicsService;
+    private final RuntimeMemoryMonitorService runtimeMemoryMonitorService;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
@@ -96,6 +98,7 @@ public class DashboardDiagnosticsService {
                 approvalService,
                 securityPolicyService,
                 tirithSecurityService,
+                null,
                 null,
                 null);
     }
@@ -128,6 +131,7 @@ public class DashboardDiagnosticsService {
                 securityPolicyService,
                 tirithSecurityService,
                 toolResultStorageService,
+                null,
                 null);
     }
 
@@ -146,6 +150,40 @@ public class DashboardDiagnosticsService {
             TirithSecurityService tirithSecurityService,
             ToolResultStorageService toolResultStorageService,
             ShutdownForensicsService shutdownForensicsService) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                shutdownForensicsService,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -160,6 +198,7 @@ public class DashboardDiagnosticsService {
         this.tirithSecurityService = tirithSecurityService;
         this.toolResultStorageService = toolResultStorageService;
         this.shutdownForensicsService = shutdownForensicsService;
+        this.runtimeMemoryMonitorService = runtimeMemoryMonitorService;
     }
 
     public Map<String, Object> diagnostics() {
@@ -425,7 +464,18 @@ public class DashboardDiagnosticsService {
         map.put("home_exists", new File(appConfig.getRuntime().getHome()).exists());
         map.put("state_parent_writable", canWriteParent(appConfig.getRuntime().getStateDb()));
         map.put("last_shutdown", shutdownSummary());
+        map.put("memory_monitor", memoryMonitorSummary());
         return map;
+    }
+
+    private Map<String, Object> memoryMonitorSummary() {
+        if (runtimeMemoryMonitorService == null) {
+            Map<String, Object> summary = new LinkedHashMap<String, Object>();
+            summary.put("enabled", Boolean.FALSE);
+            summary.put("running", Boolean.FALSE);
+            return summary;
+        }
+        return runtimeMemoryMonitorService.status();
     }
 
     private Map<String, Object> shutdownSummary() {
