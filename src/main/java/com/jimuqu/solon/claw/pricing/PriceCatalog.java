@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
@@ -73,7 +74,22 @@ public class PriceCatalog {
     }
 
     public ModelPrice find(String provider, String model) {
-        return prices.get(ModelPrice.normalize(provider) + "/" + ModelPrice.normalize(model));
+        String normalizedProvider = ModelPrice.normalize(provider);
+        String normalizedModel = ModelPrice.normalize(model);
+        ModelPrice exact = prices.get(normalizedProvider + "/" + normalizedModel);
+        if (exact != null) {
+            return exact;
+        }
+        String routeModel = stripMatchingProviderPrefix(normalizedProvider, normalizedModel);
+        ModelPrice routed = prices.get(normalizedProvider + "/" + routeModel);
+        if (routed != null) {
+            return routed;
+        }
+        String normalizedAlias = normalizeModelAlias(normalizedProvider, routeModel);
+        if (!StrUtil.equals(normalizedAlias, routeModel)) {
+            return prices.get(normalizedProvider + "/" + normalizedAlias);
+        }
+        return null;
     }
 
     public boolean isEmpty() {
@@ -88,5 +104,40 @@ public class PriceCatalog {
     private static long number(ONode node, String key) {
         ONode value = node.get(key);
         return value == null ? 0L : Math.max(0L, value.getLong());
+    }
+
+    private static String stripMatchingProviderPrefix(String provider, String model) {
+        if (StrUtil.isBlank(provider) || StrUtil.isBlank(model)) {
+            return model;
+        }
+        String slashPrefix = provider + "/";
+        if (model.startsWith(slashPrefix)) {
+            return model.substring(slashPrefix.length());
+        }
+        String colonPrefix = provider + ":";
+        if (model.startsWith(colonPrefix)) {
+            return model.substring(colonPrefix.length());
+        }
+        return model;
+    }
+
+    private static String normalizeModelAlias(String provider, String model) {
+        if (!"anthropic".equals(provider) || StrUtil.isBlank(model)) {
+            return model;
+        }
+        StringBuilder normalized = new StringBuilder(model.length());
+        for (int i = 0; i < model.length(); i++) {
+            char ch = model.charAt(i);
+            if (ch == '.'
+                    && i > 0
+                    && i + 1 < model.length()
+                    && Character.isDigit(model.charAt(i - 1))
+                    && Character.isDigit(model.charAt(i + 1))) {
+                normalized.append('-');
+            } else {
+                normalized.append(Character.toLowerCase(ch));
+            }
+        }
+        return normalized.toString().toLowerCase(Locale.ROOT);
     }
 }

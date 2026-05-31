@@ -62,6 +62,34 @@ public class UsagePricingTest {
     }
 
     @Test
+    void costCalculatorNormalizesProviderPrefixesAndAnthropicVersionDots() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{"
+                                + "\"prices\":[{"
+                                + "\"provider\":\"anthropic\","
+                                + "\"model\":\"claude-opus-4-7\","
+                                + "\"currency\":\"USD\","
+                                + "\"input_micros_per_token\":5,"
+                                + "\"output_micros_per_token\":25,"
+                                + "\"source\":\"test-catalog\""
+                                + "}]"
+                                + "}");
+
+        UsageCost slashPrefixed =
+                new UsageCostCalculator(catalog)
+                        .calculate("anthropic", "anthropic/claude-opus-4.7", 100, 20, 0, 0, 0);
+        assertThat(slashPrefixed.isPricingAvailable()).isTrue();
+        assertThat(slashPrefixed.getTotalMicros()).isEqualTo(1000L);
+
+        UsageCost colonPrefixed =
+                new UsageCostCalculator(catalog)
+                        .calculate("anthropic", "anthropic:claude-opus-4.7", 100, 20, 0, 0, 0);
+        assertThat(colonPrefixed.isPricingAvailable()).isTrue();
+        assertThat(colonPrefixed.getTotalMicros()).isEqualTo(1000L);
+    }
+
+    @Test
     void usageEventsInsertReadAndBackfillAreIdempotent() throws Exception {
         AppConfig config = testConfig();
         SqliteDatabase database = new SqliteDatabase(config);
