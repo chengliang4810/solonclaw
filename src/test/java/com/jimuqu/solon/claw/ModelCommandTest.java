@@ -32,6 +32,23 @@ public class ModelCommandTest {
     }
 
     @Test
+    void shouldSetSessionModelWithProviderAlias() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("provider-chat", "provider-user", "hello");
+        env.send("provider-chat", "provider-user", "/pairing claim-admin");
+
+        GatewayReply sessionReply =
+                env.send("provider-chat", "provider-user", "/provider default:gpt-5.3");
+
+        assertThat(sessionReply.getContent()).contains("default:gpt-5.3");
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:provider-chat:provider-user")
+                                .getModelOverride())
+                .isEqualTo("default:gpt-5.3");
+    }
+
+    @Test
     void shouldToggleSessionFastMode() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("admin-chat", "admin-user", "hello");

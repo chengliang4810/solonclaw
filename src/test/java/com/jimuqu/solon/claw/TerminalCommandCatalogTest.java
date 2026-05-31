@@ -49,6 +49,27 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor sethome = CommandRegistry.get("sethome");
         assertThat(sethome.getAliases()).contains("set-home");
         assertThat(CommandRegistry.resolve("/set-home").getName()).isEqualTo("sethome");
+
+        CommandDescriptor model = CommandRegistry.get("model");
+        assertThat(model.getAliases()).contains("provider");
+        assertThat(CommandRegistry.resolve("/provider").getName()).isEqualTo("model");
+
+        CommandDescriptor platforms = CommandRegistry.get("platforms");
+        assertThat(platforms.getAliases()).contains("gateway");
+        assertThat(CommandRegistry.resolve("/gateway").getName()).isEqualTo("platforms");
+
+        CommandDescriptor queue = CommandRegistry.get("queue");
+        assertThat(queue.getAliases()).contains("q");
+        assertThat(CommandRegistry.resolve("/q").getName()).isEqualTo("queue");
+
+        CommandDescriptor background = CommandRegistry.get("background");
+        assertThat(background.getAliases()).contains("bg", "btw");
+        assertThat(CommandRegistry.resolve("/bg").getName()).isEqualTo("background");
+        assertThat(CommandRegistry.resolve("/btw").getName()).isEqualTo("background");
+
+        CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
+        assertThat(reloadMcp.getAliases()).contains("reload_mcp");
+        assertThat(CommandRegistry.resolve("/reload_mcp").getName()).isEqualTo("reload-mcp");
     }
 
     @Test

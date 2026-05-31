@@ -100,6 +100,18 @@ public class GatewayCommandFlowTest {
         assertThat(aliasReply.getRuntimeMetadata())
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "statusbar");
+
+        GatewayReply backgroundAliasReply = env.send("room-registry", "user-registry", "/bg nightly task");
+        assertThat(backgroundAliasReply.isError()).isTrue();
+        assertThat(backgroundAliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "background");
+
+        GatewayReply backgroundBtwReply = env.send("room-registry", "user-registry", "/btw nightly task");
+        assertThat(backgroundBtwReply.isError()).isTrue();
+        assertThat(backgroundBtwReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "background");
     }
     @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {

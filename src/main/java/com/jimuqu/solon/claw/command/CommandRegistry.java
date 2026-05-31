@@ -29,7 +29,7 @@ public final class CommandRegistry {
         register(core("usage", "session", "查看当前会话运行信息"));
         register(core("goal", "agent", "设置跨轮长目标并由 judge 驱动自动继续"));
         register(core("busy", "runtime", "查看或切换运行中输入策略"));
-        register(core("queue", "runtime", "将提示排到当前任务之后执行"));
+        register(core("queue", "runtime", "将提示排到当前任务之后执行").alias("q"));
         register(core("steer", "runtime", "向运行中任务注入修正；空闲时按普通提示执行"));
         register(core("restart", "runtime", "等待运行中任务 drain 后重启网关"));
         register(core("stop", "runtime", "停止当前任务和后台进程"));
@@ -37,12 +37,12 @@ public final class CommandRegistry {
         register(core("security", "security", "查看安全策略、审批、审计与终端安全状态"));
         register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
-        register(core("model", "model", "查看或切换模型"));
+        register(core("model", "model", "查看或切换模型").alias("provider"));
         register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
-        register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线"));
+        register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线").alias("reload_mcp"));
         register(core("acp", "integration", "查看 ACP 本地适配器能力快照"));
         register(core("confirm", "security", "查看当前待确认 slash 命令"));
         register(core("agent", "agent", "切换或管理当前会话 Agent"));
@@ -59,9 +59,9 @@ public final class CommandRegistry {
         register(core("deny", "security", "拒绝待审批危险命令"));
         register(core("always", "security", "永久批准当前待确认 slash 命令"));
         register(core("cancel", "security", "取消当前待确认 slash 命令"));
-        register(core("platforms", "gateway", "查看平台连接与授权状态"));
+        register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
 
-        register(terminal("background", "管理后台任务运行方式"));
+        register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
         register(terminal("tasks", "查看后台任务列表"));
         register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar"));
         register(terminal("footer", "管理 TUI 底部栏显示"));
