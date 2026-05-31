@@ -141,6 +141,7 @@ public class DashboardProviderService {
         map.put("context_window", metadata.getContextWindow());
         map.put("max_output", metadata.getMaxOutput());
         map.put("tool_calling", Boolean.valueOf(metadata.isSupportsTools()));
+        map.put("vision", Boolean.valueOf(metadata.isSupportsVision()));
         map.put("streaming", Boolean.valueOf(metadata.isSupportsStreaming()));
         map.put("reasoning", Boolean.valueOf(metadata.isSupportsReasoning()));
         map.put("prompt_cache", Boolean.valueOf(metadata.isSupportsPromptCache()));

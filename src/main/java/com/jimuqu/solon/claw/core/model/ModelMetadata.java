@@ -18,6 +18,7 @@ public class ModelMetadata {
     private int contextWindow;
     private int maxOutput;
     private boolean supportsTools;
+    private boolean supportsVision;
     private boolean supportsReasoning;
     private boolean supportsPromptCache;
     private boolean supportsStreaming;

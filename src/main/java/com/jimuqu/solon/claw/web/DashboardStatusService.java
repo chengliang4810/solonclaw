@@ -191,7 +191,7 @@ public class DashboardStatusService {
 
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("supports_tools", true);
-        capabilities.put("supports_vision", false);
+        capabilities.put("supports_vision", true);
         capabilities.put("supports_reasoning", true);
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
         capabilities.put("max_output_tokens", appConfig.getLlm().getMaxTokens());

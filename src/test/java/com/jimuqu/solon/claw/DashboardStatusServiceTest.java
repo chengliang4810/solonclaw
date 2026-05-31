@@ -93,6 +93,34 @@ public class DashboardStatusServiceTest {
         assertThat(modelJson).doesNotContain("statusfallbackmodel12345");
     }
 
+    @Test
+    void shouldAdvertiseVisionCapabilityWhenImageInputsAreSupported() {
+        AppConfig config = new AppConfig();
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("gpt-vision");
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setBaseUrl("https://api.example.com/v1");
+        provider.setDefaultModel("gpt-vision");
+        provider.setDialect("openai");
+        config.getProviders().put("default", provider);
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(
+                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        Map<?, ?> capabilities = (Map<?, ?>) service.getModelInfo(false).get("capabilities");
+
+        assertThat(capabilities.get("supports_vision")).isEqualTo(Boolean.TRUE);
+    }
+
     private static class FixedDeliveryService implements DeliveryService {
         private final ChannelStatus status;
 

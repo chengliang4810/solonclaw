@@ -29,6 +29,7 @@ public class ModelMetadataService {
         metadata.setContextWindow(resolveContextWindow(dialect, normalizedModel));
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setSupportsTools(resolveSupportsTools(dialect));
+        metadata.setSupportsVision(resolveSupportsVision(dialect));
         metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
@@ -102,6 +103,10 @@ public class ModelMetadataService {
     }
 
     private boolean resolveSupportsTools(String dialect) {
+        return LlmProviderSupport.isSupportedDialect(dialect);
+    }
+
+    private boolean resolveSupportsVision(String dialect) {
         return LlmProviderSupport.isSupportedDialect(dialect);
     }
 

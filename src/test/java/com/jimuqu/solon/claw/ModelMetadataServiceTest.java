@@ -56,6 +56,7 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.getContextWindow()).isEqualTo(200000);
         assertThat(metadata.getMaxOutput()).isEqualTo(8192);
         assertThat(metadata.isSupportsTools()).isTrue();
+        assertThat(metadata.isSupportsVision()).isTrue();
         assertThat(metadata.isSupportsReasoning()).isTrue();
         assertThat(metadata.isSupportsPromptCache()).isTrue();
         assertThat(metadata.isDefaultModel()).isTrue();
