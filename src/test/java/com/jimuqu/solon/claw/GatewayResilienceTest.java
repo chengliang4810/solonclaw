@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -12,8 +13,11 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import java.io.File;
+import java.nio.file.Files;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -51,6 +55,109 @@ public class GatewayResilienceTest {
         assertThat(reply.getContent()).isEqualTo("ok");
         assertThat(reply.isError()).isFalse();
         assertThat(env.memoryChannelAdapter.getLastRequest().getText()).isEqualTo("ok");
+    }
+
+    @Test
+    void shouldExtractGatewayReplyMediaTagsIntoDeliveryAttachments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:media-room:user");
+        File attachment = new File(env.appConfig.getRuntime().getCacheDir(), "gateway-media/report.txt");
+        Files.createDirectories(attachment.getParentFile().toPath());
+        Files.write(attachment.toPath(), "report body".getBytes("UTF-8"));
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        replyingOrchestrator(
+                                session,
+                                "网关报告\nMEDIA:\"" + attachment.getAbsolutePath() + "\"\n请查收"),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService(),
+                        new AttachmentCacheService(env.appConfig));
+
+        GatewayReply reply = service.handle(env.message("media-room", "user", "send report"));
+
+        assertThat(reply.getContent()).contains("MEDIA:");
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).contains("网关报告").contains("请查收");
+        assertThat(request.getText()).doesNotContain("MEDIA:");
+        assertThat(request.getAttachments()).hasSize(1);
+        assertThat(request.getAttachments().get(0).getOriginalName()).isEqualTo("report.txt");
+        assertThat(request.getAttachments().get(0).getLocalPath())
+                .isEqualTo(attachment.getAbsolutePath());
+    }
+
+    @Test
+    void shouldPreserveGatewayReplyTextWhenNoMediaTagResolves() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:plain-media-room:user");
+        String content = "  第一行\n\n\n第二行  ";
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        replyingOrchestrator(session, content),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService(),
+                        new AttachmentCacheService(env.appConfig));
+
+        service.handle(env.message("plain-media-room", "user", "send text"));
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).isEqualTo(content);
+        assertThat(request.getAttachments()).isEmpty();
+    }
+
+    @Test
+    void shouldKeepGatewayReplyMediaTagVisibleWhenAttachmentIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:missing-media-room:user");
+        File missing = new File(env.appConfig.getRuntime().getCacheDir(), "missing-report.txt");
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        replyingOrchestrator(
+                                session,
+                                "网关报告\nMEDIA:\"" + missing.getAbsolutePath() + "\"\n请查收"),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService(),
+                        new AttachmentCacheService(env.appConfig));
+
+        service.handle(env.message("missing-media-room", "user", "send report"));
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).contains("MEDIA:").contains("missing-report.txt");
+        assertThat(request.getAttachments()).isEmpty();
+    }
+
+    @Test
+    void shouldKeepGatewayReplyMediaTagVisibleWhenAttachmentIsBlocked() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:blocked-media-room:user");
+        File config = new File(env.appConfig.getRuntime().getHome(), "config.yml");
+        Files.write(config.toPath(), "secret: value".getBytes("UTF-8"));
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        replyingOrchestrator(
+                                session,
+                                "网关报告\nMEDIA:\"" + config.getAbsolutePath() + "\"\n请查收"),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService(),
+                        new AttachmentCacheService(env.appConfig));
+
+        service.handle(env.message("blocked-media-room", "user", "send report"));
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request).isNotNull();
+        assertThat(request.getText()).contains("MEDIA:").contains("config.yml");
+        assertThat(request.getAttachments()).isEmpty();
     }
 
     @Test
@@ -304,6 +411,14 @@ public class GatewayResilienceTest {
             public boolean isAuthorized(GatewayMessage message) {
                 return true;
             }
+        };
+    }
+
+    private SkillLearningService noopLearningService() {
+        return new SkillLearningService() {
+            @Override
+            public void schedulePostReplyLearning(
+                    SessionRecord session, GatewayMessage message, GatewayReply reply) {}
         };
     }
 

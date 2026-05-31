@@ -409,7 +409,8 @@ public class TestEnvironment {
                         deliveryService,
                         sessionRepository,
                         gatewayAuthorizationService,
-                        skillLearningService);
+                        skillLearningService,
+                        attachmentCacheService);
         return new TestEnvironment(
                 config,
                 memoryAdapter,
