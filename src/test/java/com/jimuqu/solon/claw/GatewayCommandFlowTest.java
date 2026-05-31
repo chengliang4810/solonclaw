@@ -118,6 +118,12 @@ public class GatewayCommandFlowTest {
         assertThat(backgroundBtwReply.getRuntimeMetadata())
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "background");
+
+        GatewayReply agentsAliasReply = env.send("room-registry", "user-registry", "/agents");
+        assertThat(agentsAliasReply.isError()).isTrue();
+        assertThat(agentsAliasReply.getRuntimeMetadata())
+                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command", "tasks");
     }
 
     @Test

@@ -71,6 +71,10 @@ public class TerminalCommandCatalogTest {
         assertThat(CommandRegistry.resolve("/bg").getName()).isEqualTo("background");
         assertThat(CommandRegistry.resolve("/btw").getName()).isEqualTo("background");
 
+        CommandDescriptor tasks = CommandRegistry.get("tasks");
+        assertThat(tasks.getAliases()).contains("agents");
+        assertThat(CommandRegistry.resolve("/agents").getName()).isEqualTo("tasks");
+
         CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
         assertThat(reloadMcp.getAliases()).contains("reload_mcp");
         assertThat(CommandRegistry.resolve("/reload_mcp").getName()).isEqualTo("reload-mcp");

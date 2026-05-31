@@ -62,7 +62,7 @@ public final class CommandRegistry {
         register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
 
         register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
-        register(terminal("tasks", "查看后台任务列表"));
+        register(terminal("tasks", "查看后台任务列表").alias("agents"));
         register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar").alias("sb"));
         register(terminal("footer", "管理 TUI 底部栏显示"));
         register(terminal("copy", "复制终端选区或输出"));
