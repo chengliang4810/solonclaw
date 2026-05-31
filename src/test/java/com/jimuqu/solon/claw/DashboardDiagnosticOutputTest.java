@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -237,6 +238,70 @@ public class DashboardDiagnosticOutputTest {
                 .doesNotContain("provider-pass")
                 .doesNotContain("provider-token")
                 .doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeRedactedShutdownForensicsSummary() throws Exception {
+        Path parent = Files.createTempDirectory("solon-claw-dashboard-forensics");
+        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_forensicshome123"));
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+
+        ShutdownForensicsService forensicsService = new ShutdownForensicsService(config);
+        forensicsService.persistShutdownRecord("SIGTERM token=ghp_shutdownsecret123");
+
+        FixedDeliveryService deliveryService = new FixedDeliveryService(null);
+        GatewayRuntimeRefreshService refreshService =
+                new GatewayRuntimeRefreshService(
+                        config, new ChannelConnectionManager(Collections.emptyMap()));
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        deliveryService,
+                        new LlmProviderService(config),
+                        refreshService,
+                        forensicsService);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        deliveryService,
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null,
+                        forensicsService);
+
+        Map<String, Object> doctor = doctorService.doctor();
+        Map<String, Object> shutdown = (Map<String, Object>) doctor.get("last_shutdown");
+        assertThat(shutdown).isNotNull();
+        assertThat(shutdown.get("available")).isEqualTo(Boolean.TRUE);
+        assertThat(shutdown.get("record")).isEqualTo("runtime://forensics/" + latestShutdownFile(runtimeHome));
+        assertThat(shutdown.get("reason")).isEqualTo("SIGTERM token=***");
+        assertThat(shutdown).containsKeys("timestamp", "timestamp_iso", "uptime_ms", "pid", "memory", "threads");
+        assertThat(shutdown).doesNotContainKeys("javaVersion", "osName");
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+        Map<String, Object> runtime = (Map<String, Object>) diagnostics.get("runtime");
+        Map<String, Object> diagnosticShutdown = (Map<String, Object>) runtime.get("last_shutdown");
+        assertThat(diagnosticShutdown).isNotNull();
+        assertThat(diagnosticShutdown.get("record")).isEqualTo(shutdown.get("record"));
+
+        String json = ONode.serialize(diagnostics);
+        assertThat(json).contains("runtime://forensics/shutdown-");
+        assertThat(json).doesNotContain(runtimeHome.toString());
+        assertThat(json).doesNotContain("ghp_forensicshome123");
+        assertThat(json).doesNotContain("ghp_shutdownsecret123");
     }
 
     @Test
@@ -4713,6 +4778,16 @@ public class DashboardDiagnosticOutputTest {
         config.getSecurity().setTirithEnabled(true);
         config.getSecurity().setTirithPath("target/dashboard-tirith-probe");
         return config;
+    }
+
+    private static String latestShutdownFile(Path runtimeHome) {
+        File[] files = runtimeHome.resolve("forensics").toFile().listFiles();
+        assertThat(files).isNotNull();
+        return Arrays.stream(files)
+                .filter(file -> file.getName().startsWith("shutdown-"))
+                .findFirst()
+                .map(File::getName)
+                .orElseThrow(IllegalStateException::new);
     }
 
     private static class FixedDeliveryService implements DeliveryService {

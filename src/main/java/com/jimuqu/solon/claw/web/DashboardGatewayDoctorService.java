@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.io.File;
@@ -29,13 +30,19 @@ public class DashboardGatewayDoctorService {
     private final LlmProviderService llmProviderService;
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
+    private final ShutdownForensicsService shutdownForensicsService;
 
     public DashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService) {
-        this(appConfig, deliveryService, new LlmProviderService(appConfig), gatewayRuntimeRefreshService);
+        this(
+                appConfig,
+                deliveryService,
+                new LlmProviderService(appConfig),
+                gatewayRuntimeRefreshService,
+                null);
     }
 
     public DashboardGatewayDoctorService(
@@ -44,11 +51,36 @@ public class DashboardGatewayDoctorService {
             LlmProviderService llmProviderService,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService) {
+        this(appConfig, deliveryService, llmProviderService, gatewayRuntimeRefreshService, null);
+    }
+
+    public DashboardGatewayDoctorService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            ShutdownForensicsService shutdownForensicsService) {
+        this(
+                appConfig,
+                deliveryService,
+                new LlmProviderService(appConfig),
+                gatewayRuntimeRefreshService,
+                shutdownForensicsService);
+    }
+
+    public DashboardGatewayDoctorService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            ShutdownForensicsService shutdownForensicsService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService =
                 llmProviderService == null ? new LlmProviderService(appConfig) : llmProviderService;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
+        this.shutdownForensicsService = shutdownForensicsService;
     }
 
     public Map<String, Object> doctor() throws Exception {
@@ -66,8 +98,42 @@ public class DashboardGatewayDoctorService {
         result.put("generated_at", isoNow());
         result.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
         result.put("model", modelDoctor());
+        result.put("last_shutdown", shutdownSummary());
         result.put("platforms", platforms);
         return result;
+    }
+
+    private Map<String, Object> shutdownSummary() {
+        if (shutdownForensicsService == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> record = shutdownForensicsService.lastShutdownRecord();
+        File file = shutdownForensicsService.lastShutdownRecordFile();
+        if (record == null || file == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.TRUE);
+        summary.put("record", runtimeReference(file.getAbsolutePath()));
+        summary.put("timestamp", record.get("timestamp"));
+        summary.put("timestamp_iso", safeObjectText(record.get("timestampIso"), 80));
+        summary.put("reason", safeObjectText(record.get("reason"), 200));
+        summary.put("uptime_ms", record.get("uptimeMs"));
+        summary.put("pid", safeObjectText(record.get("pid"), 80));
+        summary.put("memory", record.get("memory"));
+        summary.put("threads", record.get("threads"));
+        return summary;
+    }
+
+    private Map<String, Object> unavailableShutdownSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.FALSE);
+        return summary;
+    }
+
+    private String safeObjectText(Object value, int maxLength) {
+        return SecretRedactor.redact(
+                StrUtil.nullToEmpty(value == null ? null : String.valueOf(value)), maxLength);
     }
 
     private ChannelStatus findStatus(List<ChannelStatus> statuses, String platformName) {

@@ -43,12 +43,27 @@ public class ShutdownForensicsServiceTest {
     }
 
     @Test
+    void shouldPersistLifecycleShutdownRecord() throws Exception {
+        File tempDir = Files.createTempDirectory("forensics-lifecycle").toFile();
+        AppConfig config = loadConfig(tempDir);
+        ShutdownForensicsService service = new ShutdownForensicsService(config);
+
+        service.persistLifecycleShutdownRecord();
+
+        Map<String, Object> last = service.lastShutdownRecord();
+        assertThat(last).isNotNull();
+        assertThat(last.get("reason")).isEqualTo("lifecycle_shutdown");
+        assertThat(service.lastShutdownRecordFile()).isNotNull();
+    }
+
+    @Test
     void shouldReturnNullWhenNoRecordExists() throws Exception {
         File tempDir = Files.createTempDirectory("forensics-empty").toFile();
         AppConfig config = loadConfig(tempDir);
         ShutdownForensicsService service = new ShutdownForensicsService(config);
 
         assertThat(service.lastShutdownRecord()).isNull();
+        assertThat(service.lastShutdownRecordFile()).isNull();
     }
 
     private static AppConfig loadConfig(File runtimeHome) {

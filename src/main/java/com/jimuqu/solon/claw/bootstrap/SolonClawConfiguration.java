@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import org.noear.solon.Solon;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -11,5 +12,10 @@ public class SolonClawConfiguration {
     @Bean
     public AppConfig appConfig() {
         return AppConfig.load(Solon.cfg());
+    }
+
+    @Bean(destroyMethod = "persistLifecycleShutdownRecord")
+    public ShutdownForensicsService shutdownForensicsService(AppConfig appConfig) {
+        return new ShutdownForensicsService(appConfig);
     }
 }
