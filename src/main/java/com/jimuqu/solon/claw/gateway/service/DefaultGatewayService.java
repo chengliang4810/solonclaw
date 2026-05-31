@@ -13,16 +13,16 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.GatewayMediaDeliverySupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** 网关主入口服务，负责把消息分流到授权、命令和对话主链。 */
-@RequiredArgsConstructor
 public class DefaultGatewayService {
     /** 网关日志器。 */
     private static final Logger log = LoggerFactory.getLogger(DefaultGatewayService.class);
@@ -48,9 +48,49 @@ public class DefaultGatewayService {
     /** 任务后自动学习服务。 */
     private final SkillLearningService skillLearningService;
 
+    /** 回复文本中的 MEDIA: 指令解析器。 */
+    private final GatewayMediaDeliverySupport mediaDeliverySupport;
+
     /** 进程内最近已处理的消息键，用于抑制渠道重复投递。 */
     private final ConcurrentMap<String, Long> recentMessageKeys =
             new ConcurrentHashMap<String, Long>();
+
+    public DefaultGatewayService(
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            SessionRepository sessionRepository,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            SkillLearningService skillLearningService) {
+        this(
+                commandService,
+                conversationOrchestrator,
+                deliveryService,
+                sessionRepository,
+                gatewayAuthorizationService,
+                skillLearningService,
+                null);
+    }
+
+    public DefaultGatewayService(
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            SessionRepository sessionRepository,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            SkillLearningService skillLearningService,
+            AttachmentCacheService attachmentCacheService) {
+        this.commandService = commandService;
+        this.conversationOrchestrator = conversationOrchestrator;
+        this.deliveryService = deliveryService;
+        this.sessionRepository = sessionRepository;
+        this.gatewayAuthorizationService = gatewayAuthorizationService;
+        this.skillLearningService = skillLearningService;
+        this.mediaDeliverySupport =
+                attachmentCacheService == null
+                        ? null
+                        : new GatewayMediaDeliverySupport(attachmentCacheService);
+    }
 
     /**
      * 处理单条统一网关消息。
@@ -289,7 +329,14 @@ public class DefaultGatewayService {
             request.setUserId(message.getUserId());
             request.setChatType(message.getChatType());
             request.setThreadId(message.getThreadId());
-            request.setText(reply.getContent());
+            GatewayMediaDeliverySupport.DeliveryMedia media =
+                    mediaDeliverySupport == null
+                            ? null
+                            : mediaDeliverySupport.resolve(message.getPlatform(), reply.getContent());
+            request.setText(media == null ? reply.getContent() : media.getText());
+            if (media != null) {
+                request.setAttachments(media.getAttachments());
+            }
             if (reply.getChannelExtras() != null) {
                 request.getChannelExtras().putAll(reply.getChannelExtras());
             }

@@ -259,6 +259,7 @@ public class GatewayConfiguration {
             SessionRepository sessionRepository,
             GatewayAuthorizationService gatewayAuthorizationService,
             SkillLearningService skillLearningService,
+            AttachmentCacheService attachmentCacheService,
             ChannelConnectionManager channelConnectionManager) {
         final DefaultGatewayService service =
                 new DefaultGatewayService(
@@ -267,7 +268,8 @@ public class GatewayConfiguration {
                         deliveryService,
                         sessionRepository,
                         gatewayAuthorizationService,
-                        skillLearningService);
+                        skillLearningService,
+                        attachmentCacheService);
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {

@@ -92,11 +92,7 @@ public class ToolConfiguration {
 
     @Bean
     public ToolResultStorageService toolResultStorageService(AppConfig appConfig) {
-        return new ToolResultStorageService(
-                appConfig.getRuntime().getCacheDir(),
-                appConfig.getTask().getToolOutputInlineLimit(),
-                appConfig.getTask().getToolOutputTurnBudget(),
-                appConfig.getTrace().getToolPreviewLength());
+        return new ToolResultStorageService(appConfig);
     }
 
     @Bean

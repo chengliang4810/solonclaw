@@ -6,6 +6,10 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
@@ -13,6 +17,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriter;
+import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
+import javax.imageio.stream.ImageOutputStream;
 import org.noear.solon.ai.chat.content.ImageBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +29,8 @@ import org.slf4j.LoggerFactory;
 public class MediaInputBoundaryService {
     private static final Logger log = LoggerFactory.getLogger(MediaInputBoundaryService.class);
     public static final int MAX_IMAGE_ATTACHMENTS = 3;
-    public static final long MAX_IMAGE_BYTES = 5L * 1024L * 1024L;
+    public static final long EMBED_TARGET_BYTES = 4L * 1024L * 1024L;
+    public static final long MAX_IMAGE_BYTES = 20L * 1024L * 1024L;
     private static final Set<String> IMAGE_MIME_ALLOWLIST =
             new HashSet<String>(
                     Arrays.asList(
@@ -55,10 +64,11 @@ public class MediaInputBoundaryService {
         try {
             if (StrUtil.isNotBlank(attachment.getData())) {
                 byte[] data = Base64.decode(cleanBase64(attachment.getData()));
-                if (data.length > MAX_IMAGE_BYTES) {
+                ImagePayload payload = imagePayload(data, mimeType);
+                if (payload == null) {
                     return null;
                 }
-                return ImageBlock.ofBase64(cleanBase64(attachment.getData()), mimeType);
+                return ImageBlock.ofBase64(payload.base64, payload.mimeType);
             }
             if (StrUtil.isNotBlank(attachment.getUrl())) {
                 String url = attachment.getUrl().trim();
@@ -69,9 +79,12 @@ public class MediaInputBoundaryService {
                 }
                 if ("data".equals(scheme)) {
                     String dataPart = dataUriPayload(url);
-                    if (dataPart == null || Base64.decode(dataPart).length > MAX_IMAGE_BYTES) {
+                    ImagePayload payload =
+                            dataPart == null ? null : imagePayload(Base64.decode(dataPart), mimeType);
+                    if (payload == null) {
                         return null;
                     }
+                    return ImageBlock.ofBase64(payload.base64, payload.mimeType);
                 }
                 return ImageBlock.ofUrl(url, mimeType);
             }
@@ -89,11 +102,12 @@ public class MediaInputBoundaryService {
                         "file_missing");
                 return null;
             }
-            if (file.length() > MAX_IMAGE_BYTES) {
+            byte[] data = Files.readAllBytes(file.toPath());
+            ImagePayload payload = imagePayload(data, mimeType);
+            if (payload == null) {
                 return null;
             }
-            byte[] data = Files.readAllBytes(file.toPath());
-            return ImageBlock.ofBase64(data, mimeType);
+            return ImageBlock.ofBase64(payload.base64, payload.mimeType);
         } catch (Exception e) {
             log.warn(
                     "Failed to attach image block: path={}, error={}",
@@ -114,6 +128,99 @@ public class MediaInputBoundaryService {
         String kind = StrUtil.nullToEmpty(attachment.getKind()).trim().toLowerCase(Locale.ROOT);
         String mime = StrUtil.nullToEmpty(attachment.getMimeType()).trim().toLowerCase(Locale.ROOT);
         return "image".equals(kind) && mime.startsWith("image/");
+    }
+
+    private ImagePayload imagePayload(byte[] data, String mimeType) {
+        if (data == null || data.length == 0 || data.length > MAX_IMAGE_BYTES) {
+            return null;
+        }
+        String base64 = java.util.Base64.getEncoder().encodeToString(data);
+        if (base64.length() <= EMBED_TARGET_BYTES) {
+            return new ImagePayload(base64, mimeType);
+        }
+        return shrinkImagePayload(data, mimeType);
+    }
+
+    private ImagePayload shrinkImagePayload(byte[] data, String mimeType) {
+        try {
+            BufferedImage source = ImageIO.read(new java.io.ByteArrayInputStream(data));
+            if (source == null) {
+                return null;
+            }
+            int width = source.getWidth();
+            int height = source.getHeight();
+            if (width <= 0 || height <= 0) {
+                return null;
+            }
+            for (int attempt = 0; attempt < 8; attempt++) {
+                if (attempt > 0) {
+                    double scale = Math.pow(0.72D, attempt);
+                    width = Math.max(64, (int) Math.round(source.getWidth() * scale));
+                    height = Math.max(64, (int) Math.round(source.getHeight() * scale));
+                }
+                BufferedImage scaled = scaleImage(source, width, height);
+                float[] qualities = new float[] {0.85F, 0.7F, 0.55F, 0.4F};
+                for (float quality : qualities) {
+                    byte[] encoded = encodeJpeg(scaled, quality);
+                    String base64 = java.util.Base64.getEncoder().encodeToString(encoded);
+                    if (base64.length() <= EMBED_TARGET_BYTES) {
+                        return new ImagePayload(base64, "image/jpeg");
+                    }
+                }
+                if (width == 64 && height == 64) {
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to shrink image block: error={}", safeError(e));
+        }
+        return null;
+    }
+
+    private BufferedImage scaleImage(BufferedImage source, int width, int height) {
+        BufferedImage target = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = target.createGraphics();
+        try {
+            graphics.setRenderingHint(
+                    RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            graphics.setRenderingHint(
+                    RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.drawImage(source, 0, 0, width, height, null);
+        } finally {
+            graphics.dispose();
+        }
+        return target;
+    }
+
+    private byte[] encodeJpeg(BufferedImage image, float quality) throws Exception {
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageOutputStream imageOutput = ImageIO.createImageOutputStream(output);
+        try {
+            writer.setOutput(imageOutput);
+            JPEGImageWriteParam params = new JPEGImageWriteParam(Locale.ROOT);
+            params.setCompressionMode(JPEGImageWriteParam.MODE_EXPLICIT);
+            params.setCompressionQuality(quality);
+            writer.write(null, new javax.imageio.IIOImage(image, null, null), params);
+            imageOutput.flush();
+            return output.toByteArray();
+        } finally {
+            writer.dispose();
+            imageOutput.close();
+        }
+    }
+
+    private static final class ImagePayload {
+        private final String base64;
+        private final String mimeType;
+
+        private ImagePayload(String base64, String mimeType) {
+            this.base64 = base64;
+            this.mimeType = mimeType;
+        }
     }
 
     private String normalizeMime(String mimeType) {

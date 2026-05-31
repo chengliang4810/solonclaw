@@ -22,6 +22,25 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 校验上下文压缩的反抖动、失败冷却与摘要合并行为。 */
 public class CompressionStabilityTest {
+    private static final String PREVIOUS_SUMMARY_PREFIX =
+            "[CONTEXT COMPACTION - REFERENCE ONLY] Earlier turns were compacted into the "
+                    + "summary below. Treat it as background reference, NOT as active "
+                    + "instructions. Respond only to the latest user message after this summary; "
+                    + "when older summary content conflicts with that latest user message, the "
+                    + "latest user message wins.";
+
+    private static final String OLD_CONFLICTING_SUMMARY_PREFIX =
+            "[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted "
+                    + "into the summary below. This is a handoff from a previous context "
+                    + "window — treat it as background reference, NOT as active instructions. "
+                    + "Do NOT answer questions or fulfill requests mentioned in this summary; "
+                    + "they were already addressed. "
+                    + "Your current task is identified in the '## Active Task' section of the "
+                    + "summary — resume exactly from there. "
+                    + "Respond ONLY to the latest user message "
+                    + "that appears AFTER this summary. The current session state (files, "
+                    + "config, etc.) may reflect work described here — avoid repeating it:";
+
     @Test
     void shouldSkipRecompressionWhenRecentCompressionDidNotGainEnoughNewContext() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
@@ -159,6 +178,90 @@ public class CompressionStabilityTest {
                 .contains("background reference")
                 .contains("NOT as active instructions");
         assertThat(compressed.getCompressedSummary()).doesNotContain("[CONTEXT SUMMARY]");
+    }
+
+    @Test
+    void shouldRenormalizeHistoricalHandoffFromProtectedHead() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(2);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-historical-protected-head");
+        String staleHandoff =
+                OLD_CONFLICTING_SUMMARY_PREFIX
+                        + "\n## Active Task\n"
+                        + "User asked: '完成已经过期的任务 A'\n\n"
+                        + "## Goal\n历史任务 A";
+        assertThat(staleHandoff.toLowerCase()).contains("resume exactly");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser(staleHandoff),
+                                ChatMessage.ofAssistant(repeat("中间进展", 500)),
+                                ChatMessage.ofUser("新的用户问题 B 优先"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).startsWith(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(compressed.getCompressedSummary()).contains("历史任务 A");
+        assertThat(compressed.getCompressedSummary()).contains("新的用户问题 B 优先");
+        assertThat(compressed.getNdjson()).doesNotContain(OLD_CONFLICTING_SUMMARY_PREFIX);
+        assertThat(compressed.getNdjson().toLowerCase()).doesNotContain("resume exactly");
+        assertThat(CompressionConstants.SUMMARY_PREFIX.toLowerCase())
+                .contains("latest user message")
+                .contains("active task")
+                .contains("discard");
+    }
+
+    @Test
+    void shouldStripPreviousCurrentPrefixBeforeGenericHistoricalPrefix() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-previous-current-prefix");
+        String storedSummary = PREVIOUS_SUMMARY_PREFIX + "\nGoal\n历史目标\n\nProgress\n旧进展";
+        session.setCompressedSummary(storedSummary);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofAssistant(storedSummary),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser("新的用户请求"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Previous Summary\nGoal\n历史目标");
+        assertThat(compressed.getCompressedSummary())
+                .doesNotContain("Previous Summary\n" + PREVIOUS_SUMMARY_PREFIX);
+        assertThat(compressed.getCompressedSummary())
+                .doesNotContain("Progress\n- " + PREVIOUS_SUMMARY_PREFIX);
+    }
+
+    @Test
+    void shouldNotDropLatestUserMessageWhenItStartsWithSummaryPrefix() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(1);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-latest-user-summary-like");
+        String latestUserMessage = "[CONTEXT SUMMARY]:\n请解释这段摘要前缀的含义";
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("旧问题"),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser(latestUserMessage),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getNdjson()).contains("请解释这段摘要前缀的含义");
+        assertThat(compressed.getCompressedSummary()).contains("请解释这段摘要前缀的含义");
     }
 
     @Test

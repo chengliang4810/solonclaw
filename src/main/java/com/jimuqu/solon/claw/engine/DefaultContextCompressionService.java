@@ -79,9 +79,11 @@ public class DefaultContextCompressionService implements ContextCompressionServi
 
             List<ChatMessage> normalized = new ArrayList<ChatMessage>();
             String previousSummary = StrUtil.nullToEmpty(session.getCompressedSummary()).trim();
-            for (ChatMessage message : history) {
-                if (message.getRole() == ChatRole.ASSISTANT
-                        && CompressionConstants.isSummaryContent(message.getContent())) {
+            int latestHistoryUserIndex = findLastUserIndex(history);
+            for (int i = 0; i < history.size(); i++) {
+                ChatMessage message = history.get(i);
+                if (CompressionConstants.isSummaryContent(message.getContent())
+                        && (message.getRole() != ChatRole.USER || i < latestHistoryUserIndex)) {
                     if (StrUtil.isBlank(previousSummary)) {
                         previousSummary = message.getContent().trim();
                     }

@@ -3002,7 +3002,7 @@ public class AppConfig {
                                                         props,
                                                         overrides,
                                                         "browser.allow_private_urls",
-                                                        false))))));
+                                                        true))))));
     }
 
     private static boolean readBrowserLoopbackRewriteEnabled(
@@ -3960,7 +3960,7 @@ public class AppConfig {
     @NoArgsConstructor
     public static class SecurityConfig {
         /** 是否允许 URL 工具访问内网/私有地址；云元数据地址始终阻断。 */
-        private boolean allowPrivateUrls = false;
+        private boolean allowPrivateUrls = true;
 
         /** 容器内浏览器访问宿主机服务时，是否改写页面导航里的 loopback 地址。 */
         private boolean rewriteBrowserLoopbackUrls = false;

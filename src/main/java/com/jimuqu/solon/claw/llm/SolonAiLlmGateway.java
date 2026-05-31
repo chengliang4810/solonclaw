@@ -1044,12 +1044,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         builder.defaultInterceptorAdd(toolCallLoopGuardrailService.buildInterceptor());
         builder.defaultInterceptorAdd(toolResultTransformService.buildInterceptor());
         ToolResultStorageService toolResultStorageService =
-                new ToolResultStorageService(
-                        appConfig.getRuntime().getCacheDir(),
-                        resolveWorkspace(runContext),
-                        appConfig.getTask().getToolOutputInlineLimit(),
-                        appConfig.getTask().getToolOutputTurnBudget(),
-                        appConfig.getTrace().getToolPreviewLength());
+                new ToolResultStorageService(appConfig, resolveWorkspace(runContext));
         builder.defaultInterceptorAdd(
                 new ToolResultStorageInterceptor(
                         toolResultStorageService,
