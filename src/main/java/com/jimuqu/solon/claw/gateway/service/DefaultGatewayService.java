@@ -379,7 +379,15 @@ public class DefaultGatewayService {
         if (StrUtil.isBlank(message.getThreadId())) {
             return null;
         }
-        return String.valueOf(message.getPlatform()) + ":" + message.getThreadId().trim();
+        return String.valueOf(message.getPlatform())
+                + ":"
+                + StrUtil.nullToEmpty(message.getChatId())
+                + ":"
+                + message.getThreadId().trim()
+                + ":"
+                + StrUtil.nullToEmpty(message.getUserId())
+                + ":"
+                + StrUtil.nullToEmpty(message.getText()).hashCode();
     }
 
     /** 记录并判断是否为重复消息。 */

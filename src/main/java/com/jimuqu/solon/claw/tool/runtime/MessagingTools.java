@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -47,8 +48,8 @@ public class MessagingTools {
                             required = false)
                     String channelExtrasJson)
             throws Exception {
-        String[] parts = sourceKey == null ? new String[0] : sourceKey.split(":", 3);
-        if (parts.length < 2) {
+        String[] parts = SourceKeySupport.split(sourceKey);
+        if (StrUtil.isBlank(parts[0]) || StrUtil.isBlank(parts[1])) {
             return error("invalid sourceKey");
         }
         PlatformType sourcePlatform = PlatformType.fromName(parts[0]);
@@ -62,8 +63,9 @@ public class MessagingTools {
             return error("invalid target platform: " + platform);
         }
         String targetChatId = StrUtil.isBlank(chatId) ? parts[1] : chatId;
+        String targetThreadId = StrUtil.blankToDefault(threadId, parts[3]);
         CronAutoDeliveryContext.Target autoTarget =
-                CronAutoDeliveryContext.matchingTarget(targetPlatform, targetChatId, threadId);
+                CronAutoDeliveryContext.matchingTarget(targetPlatform, targetChatId, targetThreadId);
         if (autoTarget != null) {
             return ToolResultEnvelope.ok("Skipped duplicate cron auto-delivery target")
                     .data("skipped", Boolean.TRUE)
@@ -76,13 +78,13 @@ public class MessagingTools {
                     .metadata("sourceKey", safeResult(sourceKey, 400))
                     .toJson();
         }
-        String targetUserId = parts.length > 2 ? parts[2] : null;
+        String targetUserId = StrUtil.blankToDefault(parts[2], null);
         List<MessageAttachment> attachments = resolveAttachments(targetPlatform, mediaPaths);
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(targetPlatform);
         request.setChatId(targetChatId);
         request.setUserId(targetUserId);
-        request.setThreadId(StrUtil.blankToDefault(threadId, null));
+        request.setThreadId(StrUtil.blankToDefault(targetThreadId, null));
         request.setText(text);
         request.setAttachments(attachments);
         request.setChannelExtras(parseChannelExtras(channelExtrasJson));

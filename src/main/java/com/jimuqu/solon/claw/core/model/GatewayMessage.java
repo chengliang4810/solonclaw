@@ -77,11 +77,20 @@ public class GatewayMessage {
     /**
      * 构造来源键，作为会话绑定与工具状态隔离的主键。
      *
-     * @return 平台:会话:用户 组成的来源键
+     * @return 平台:会话[:线程]:用户 组成的来源键
      */
     public String sourceKey() {
         if (StrUtil.isNotBlank(sourceKeyOverride)) {
             return sourceKeyOverride;
+        }
+        if (StrUtil.isNotBlank(threadId)) {
+            return String.valueOf(platform)
+                    + ":"
+                    + nullToEmpty(chatId)
+                    + ":"
+                    + threadId.trim()
+                    + ":"
+                    + nullToEmpty(userId);
         }
         return String.valueOf(platform) + ":" + nullToEmpty(chatId) + ":" + nullToEmpty(userId);
     }

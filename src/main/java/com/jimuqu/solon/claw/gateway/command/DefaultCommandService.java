@@ -1565,6 +1565,13 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService == null
                         ? AgentRunStopResult.none()
                         : agentRunControlService.stop(message.sourceKey());
+        if (!stopResult.isActiveRun()
+                && agentRunControlService != null
+                && StrUtil.isNotBlank(message.getThreadId())
+                && gatewayAuthorizationService.isAuthorized(message)) {
+            stopResult =
+                    agentRunControlService.stopSiblingThreadRun(message, message.sourceKey());
+        }
         int stoppedProcesses = processRegistry.stopAll();
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session != null && dangerousCommandApprovalService != null) {
