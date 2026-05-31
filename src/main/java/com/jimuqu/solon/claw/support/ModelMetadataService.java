@@ -29,7 +29,7 @@ public class ModelMetadataService {
         metadata.setContextWindow(resolveContextWindow(dialect, normalizedModel));
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setSupportsTools(resolveSupportsTools(dialect));
-        metadata.setSupportsVision(resolveSupportsVision(dialect));
+        metadata.setSupportsVision(resolveSupportsVision(dialect, normalizedModel, provider));
         metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
@@ -106,8 +106,24 @@ public class ModelMetadataService {
         return LlmProviderSupport.isSupportedDialect(dialect);
     }
 
-    private boolean resolveSupportsVision(String dialect) {
-        return LlmProviderSupport.isSupportedDialect(dialect);
+    private boolean resolveSupportsVision(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        if (provider != null && provider.getSupportsVision() != null) {
+            return provider.getSupportsVision().booleanValue();
+        }
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return LlmConstants.PROVIDER_GEMINI.equals(dialect)
+                || lower.contains("vision")
+                || lower.contains("vl")
+                || lower.contains("omni")
+                || lower.contains("gpt-4o")
+                || lower.contains("gpt-5")
+                || lower.contains("claude-3")
+                || lower.contains("claude-sonnet-4")
+                || lower.contains("claude-opus-4");
     }
 
     private boolean resolveSupportsReasoning(String dialect, String model) {

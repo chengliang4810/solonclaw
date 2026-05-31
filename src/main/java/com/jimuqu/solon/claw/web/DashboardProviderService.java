@@ -464,6 +464,9 @@ public class DashboardProviderService {
         result.put("apiKey", StrUtil.nullToEmpty(provider.getApiKey()).trim());
         result.put("defaultModel", StrUtil.nullToEmpty(provider.getDefaultModel()).trim());
         result.put("dialect", StrUtil.nullToEmpty(provider.getDialect()).trim());
+        if (provider.getSupportsVision() != null) {
+            result.put("supportsVision", provider.getSupportsVision());
+        }
         return result;
     }
 
@@ -501,6 +504,7 @@ public class DashboardProviderService {
                         : readString(base, "apiKey");
         String defaultModel = readString(source, "defaultModel");
         String dialect = LlmProviderSupport.normalizeDialect(readString(source, "dialect"));
+        Boolean supportsVision = readBooleanValue(source, "supportsVision", base, "supportsVision");
 
         if (StrUtil.isBlank(baseUrl)) {
             throw new IllegalArgumentException("baseUrl 不能为空。");
@@ -523,7 +527,35 @@ public class DashboardProviderService {
         result.put("apiKey", StrUtil.nullToEmpty(apiKey).trim());
         result.put("defaultModel", StrUtil.nullToEmpty(defaultModel).trim());
         result.put("dialect", dialect);
+        if (supportsVision != null) {
+            result.put("supportsVision", supportsVision);
+        }
         return result;
+    }
+
+    private Boolean readBooleanValue(
+            Map<String, Object> source, String sourceKey, Map<String, Object> base, String baseKey) {
+        if (source != null && source.containsKey(sourceKey)) {
+            return toOptionalBoolean(source.get(sourceKey));
+        }
+        if (base != null && base.containsKey(baseKey)) {
+            return toOptionalBoolean(base.get(baseKey));
+        }
+        return null;
+    }
+
+    private Boolean toOptionalBoolean(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        if (text.length() == 0) {
+            return null;
+        }
+        return Boolean.valueOf(
+                "true".equalsIgnoreCase(text)
+                        || "1".equals(text)
+                        || "yes".equalsIgnoreCase(text));
     }
 
     private void assertSafeProviderBaseUrl(String baseUrl) {

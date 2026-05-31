@@ -2087,6 +2087,7 @@ public class AppConfig {
             copy.setApiKey(source.getApiKey());
             copy.setDefaultModel(source.getDefaultModel());
             copy.setDialect(source.getDialect());
+            copy.setSupportsVision(source.getSupportsVision());
             this.providers.put(entry.getKey(), copy);
         }
     }
@@ -3086,6 +3087,7 @@ public class AppConfig {
             applyProviderString(rawProvider, "apiKey", provider, "apiKey");
             applyProviderString(rawProvider, "defaultModel", provider, "defaultModel");
             applyProviderString(rawProvider, "dialect", provider, "dialect");
+            applyProviderBoolean(rawProvider, "supportsVision", provider, "supportsVision");
             providers.put(key, provider);
         }
 
@@ -3100,8 +3102,20 @@ public class AppConfig {
             copy.setApiKey(source.getApiKey());
             copy.setDefaultModel(source.getDefaultModel());
             copy.setDialect(source.getDialect());
+            copy.setSupportsVision(source.getSupportsVision());
         }
         return copy;
+    }
+
+    private static void applyProviderBoolean(
+            Map<Object, Object> rawProvider, String key, ProviderConfig provider, String field) {
+        if (!rawProvider.containsKey(key)) {
+            return;
+        }
+        Boolean value = resolveOptionalBoolean(rawProvider.get(key));
+        if ("supportsVision".equals(field)) {
+            provider.setSupportsVision(value);
+        }
     }
 
     private static void applyProviderString(
@@ -3190,6 +3204,8 @@ public class AppConfig {
         provider.setApiKey(StrUtil.nullToEmpty(props.get("providers.default.apiKey")).trim());
         provider.setDefaultModel(defaultModel);
         provider.setDialect(LlmProviderSupport.normalizeDialect(dialect));
+        provider.setSupportsVision(
+                resolveOptionalBoolean(props.get("providers.default.supportsVision")));
         return provider;
     }
 
@@ -3519,6 +3535,7 @@ public class AppConfig {
         private String apiKey;
         private String defaultModel;
         private String dialect;
+        private Boolean supportsVision;
     }
 
     /** 当前主模型选择配置。 */

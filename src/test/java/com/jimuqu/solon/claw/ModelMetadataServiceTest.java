@@ -39,6 +39,50 @@ public class ModelMetadataServiceTest {
     }
 
     @Test
+    void shouldUseConservativeVisionCapabilityForUnknownModels() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("custom/unknown-small-model");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsVision()).isFalse();
+    }
+
+    @Test
+    void shouldLetProviderConfigOverrideVisionCapability() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("custom/unknown-small-model");
+        provider.setDialect("openai");
+        provider.setSupportsVision(Boolean.TRUE);
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsVision()).isTrue();
+
+        provider.setDefaultModel("gpt-4o");
+        provider.setSupportsVision(Boolean.FALSE);
+
+        metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsVision()).isFalse();
+    }
+
+    @Test
+    void shouldRecognizeKnownVisionModelsConservatively() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("gpt-4o");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsVision()).isTrue();
+    }
+
+    @Test
     void shouldResolveJimuquModelCapabilitiesFromProviderConfig() {
         AppConfig config = new AppConfig();
         config.getModel().setProviderKey("anthropic-main");

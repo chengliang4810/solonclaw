@@ -22,12 +22,14 @@ public class AppConfigProviderLoadTest {
                         + "    apiKey: test-key\n"
                         + "    defaultModel: gpt-5-mini\n"
                         + "    dialect: openai-responses\n"
+                        + "    supportsVision: true\n"
                         + "  backup:\n"
                         + "    name: 备用渠道\n"
                         + "    baseUrl: https://backup.example.com#\n"
                         + "    apiKey: backup-key\n"
                         + "    defaultModel: claude-sonnet-4\n"
                         + "    dialect: anthropic\n"
+                        + "    supportsVision: false\n"
                         + "model:\n"
                         + "  providerKey: openai-direct\n"
                         + "  default: \n"
@@ -45,6 +47,10 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getLlm().getDialect()).isEqualTo("openai-responses");
         assertThat(config.getLlm().getApiUrl()).isEqualTo("https://api.openai.com/v1/responses");
         assertThat(config.getLlm().getModel()).isEqualTo("gpt-5-mini");
+        assertThat(config.getProviders().get("openai-direct").getSupportsVision())
+                .isEqualTo(Boolean.TRUE);
+        assertThat(config.getProviders().get("backup").getSupportsVision())
+                .isEqualTo(Boolean.FALSE);
         assertThat(config.getFallbackProviders()).hasSize(1);
         assertThat(config.getFallbackProviders().get(0).getProvider()).isEqualTo("backup");
     }
