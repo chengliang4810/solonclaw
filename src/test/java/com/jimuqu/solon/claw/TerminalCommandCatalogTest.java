@@ -24,6 +24,7 @@ public class TerminalCommandCatalogTest {
                         "/insights",
                         "/plugins",
                         "/update",
+                        "/history",
                         "/reload-skills",
                         "/platform",
                         "/fast",
@@ -109,6 +110,11 @@ public class TerminalCommandCatalogTest {
         assertThat(update).isNotNull();
         assertThat(update.getCategory()).isEqualTo("system");
         assertThat(CommandRegistry.resolve("/update").getName()).isEqualTo("update");
+
+        CommandDescriptor history = CommandRegistry.get("history");
+        assertThat(history).isNotNull();
+        assertThat(history.getCategory()).isEqualTo("terminal");
+        assertThat(CommandRegistry.resolve("/history").getName()).isEqualTo("history");
     }
 
     @Test
