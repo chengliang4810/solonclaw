@@ -50,6 +50,9 @@ public class ProcessTools {
                 Arrays.asList(
                         "start",
                         "list",
+                        "status",
+                        "detail",
+                        "lifecycle",
                         "events",
                         "drain",
                         "poll",
@@ -95,9 +98,9 @@ public class ProcessTools {
     @ToolMapping(
             name = "process",
             description =
-                    "Manage tracked background processes. Actions: start, list, events/drain, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
+                    "Manage tracked background processes. Actions: start, list, status/detail, lifecycle, events/drain, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
     public String process(
-            @Param(name = "action", description = "start, list, events, drain, poll, log, wait, kill, stop, write, submit, close")
+            @Param(name = "action", description = "start, list, status, detail, lifecycle, events, drain, poll, log, wait, kill, stop, write, submit, close")
                     String action,
             @Param(name = "command", required = false, description = "Command for action=start")
                     String command,
@@ -140,10 +143,15 @@ public class ProcessTools {
             if ("list".equals(normalized)) {
                 return list();
             }
+            if ("lifecycle".equals(normalized)) {
+                return lifecycle(limit);
+            }
             if ("events".equals(normalized) || "drain".equals(normalized)) {
                 return events(limit);
             }
-            if ("poll".equals(normalized)) {
+            if ("poll".equals(normalized)
+                    || "status".equals(normalized)
+                    || "detail".equals(normalized)) {
                 return poll(sessionId);
             }
             if ("log".equals(normalized)) {
@@ -196,6 +204,7 @@ public class ProcessTools {
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
                 .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
+                .data("lifecycle", processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
                 .toJson();
@@ -262,6 +271,16 @@ public class ProcessTools {
                 .toJson();
     }
 
+    private String lifecycle(Integer limit) {
+        int safeLimit = limit == null ? 100 : Math.max(1, limit.intValue());
+        List<Map<String, Object>> events = processRegistry.recentLifecycleEvents(safeLimit);
+        return ToolResultEnvelope.ok("后台进程生命周期事件：" + events.size() + " 个")
+                .data("events", events)
+                .data("count", Integer.valueOf(events.size()))
+                .data("limit", Integer.valueOf(safeLimit))
+                .toJson();
+    }
+
     private String poll(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         String output = cleanOutput(managed.outputPreview(1000));
@@ -280,6 +299,7 @@ public class ProcessTools {
                 .data("running", Boolean.valueOf(!managed.isExited()))
                 .data("exit_code", managed.getExitCode())
                 .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
+                .data("lifecycle", processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("output", output)
                 .preview(output)
@@ -335,6 +355,7 @@ public class ProcessTools {
                 .data("pid", managed.getPid())
                 .data("exit_code", managed.getExitCode())
                 .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
+                .data("lifecycle", processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
                 .data("output", output)
                 .preview(output)
                 .truncated(managed.isTruncated());

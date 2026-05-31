@@ -2243,6 +2243,155 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldExposeManagedProcessLifecycleSnapshotsThroughProcessTool() throws Exception {
+        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        ProcessTools tools =
+                new ProcessTools(
+                        registry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode completedStart =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "printf 'ok token=secret123\\n'",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String completedId = completedStart.get("session_id").getString();
+        assertThat(
+                        registry.waitFor(
+                                completedId,
+                                5000L))
+                .isTrue();
+
+        ONode failedStart =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "printf 'bad token=secret123\\n'; exit 7",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String failedId = failedStart.get("session_id").getString();
+        assertThat(registry.waitFor(failedId, 5000L)).isTrue();
+
+        ONode lifecycle =
+                ONode.ofJson(
+                        tools.process(
+                                "lifecycle",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(10)));
+        ONode lifecycleAgain =
+                ONode.ofJson(
+                        tools.process(
+                                "lifecycle",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(10)));
+        ONode polled =
+                ONode.ofJson(
+                        tools.process(
+                                "detail",
+                                null,
+                                failedId,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+        String lifecycleJson = lifecycle.toJson();
+
+        assertThat(lifecycle.get("success").getBoolean()).isTrue();
+        assertThat(lifecycle.get("count").getInt()).isEqualTo(4);
+        assertThat(lifecycleJson)
+                .contains("\"type\":\"started\"")
+                .contains("\"type\":\"completed\"")
+                .contains("\"type\":\"failed\"")
+                .contains("\"exitCode\":7")
+                .contains(completedId)
+                .contains(failedId)
+                .contains("token=***")
+                .doesNotContain("secret123");
+        assertThat(lifecycleAgain.get("count").getInt()).isEqualTo(4);
+        assertThat(polled.get("lifecycle").toJson())
+                .contains("\"type\":\"started\"")
+                .contains("\"type\":\"failed\"");
+        assertThat(listed.toJson()).contains("lifecycle_last_event");
+    }
+
+    @Test
+    void shouldExposeKilledManagedProcessLifecycleSnapshot() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        ProcessTools tools =
+                new ProcessTools(
+                        registry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                javaSleepCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+        ONode killed =
+                ONode.ofJson(
+                        tools.process(
+                                "kill",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        ONode detail =
+                ONode.ofJson(
+                        tools.process(
+                                "status",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+
+        assertThat(killed.get("status").getString()).isEqualTo("killed");
+        assertThat(detail.get("lifecycle").toJson())
+                .contains("\"type\":\"started\"")
+                .contains("\"type\":\"killed\"")
+                .doesNotContain("\"type\":\"failed\"");
+    }
+
+    @Test
     void shouldAttachJimuquExitCodeMeaningToManagedProcessResults() throws Exception {
         assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();

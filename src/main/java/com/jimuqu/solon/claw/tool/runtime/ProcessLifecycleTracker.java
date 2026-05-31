@@ -1,6 +1,9 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -36,6 +39,11 @@ public class ProcessLifecycleTracker {
         record(new ProcessEvent(EventType.FAILED, processId, command, null, -1, error));
     }
 
+    public synchronized void recordFailed(
+            String processId, String command, int exitCode, String error) {
+        record(new ProcessEvent(EventType.FAILED, processId, command, null, exitCode, error));
+    }
+
     public synchronized void recordKilled(String processId, String command) {
         record(new ProcessEvent(EventType.KILLED, processId, command, null, -1, "killed by user"));
     }
@@ -52,6 +60,37 @@ public class ProcessLifecycleTracker {
             result.add(event.toMap());
         }
         return result;
+    }
+
+    public synchronized List<Map<String, Object>> eventsForProcessAsMap(
+            String processId, int limit) {
+        if (StrUtil.isBlank(processId)) {
+            return Collections.emptyList();
+        }
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (ProcessEvent event : recentEvents(maxEvents)) {
+            if (processId.equals(event.getProcessId())) {
+                result.add(event.toMap());
+            }
+        }
+        if (limit > 0 && result.size() > limit) {
+            return new ArrayList<Map<String, Object>>(
+                    result.subList(result.size() - limit, result.size()));
+        }
+        return result;
+    }
+
+    public synchronized Map<String, Object> lastEventForProcessAsMap(String processId) {
+        if (StrUtil.isBlank(processId)) {
+            return Collections.emptyMap();
+        }
+        for (int i = events.size() - 1; i >= 0; i--) {
+            ProcessEvent event = events.get(i);
+            if (processId.equals(event.getProcessId())) {
+                return event.toMap();
+            }
+        }
+        return Collections.emptyMap();
     }
 
     public synchronized int totalEvents() {
@@ -78,10 +117,10 @@ public class ProcessLifecycleTracker {
                 String workDir, int exitCode, String error) {
             this.type = type;
             this.processId = processId;
-            this.command = command;
-            this.workDir = workDir;
+            this.command = safeText(command);
+            this.workDir = safePath(workDir);
             this.exitCode = exitCode;
-            this.error = error;
+            this.error = safeOptionalText(error);
             this.timestamp = System.currentTimeMillis();
         }
 
@@ -109,6 +148,25 @@ public class ProcessLifecycleTracker {
             }
             map.put("timestamp", Long.valueOf(timestamp));
             return map;
+        }
+
+        private static String safeText(String text) {
+            return StrUtil.isBlank(text) ? "" : SecretRedactor.redact(text);
+        }
+
+        private static String safeOptionalText(String text) {
+            return StrUtil.isBlank(text) ? null : SecretRedactor.redact(text);
+        }
+
+        private static String safePath(String path) {
+            if (StrUtil.isBlank(path)) {
+                return null;
+            }
+            String name = new java.io.File(path).getName();
+            if (StrUtil.isBlank(name)) {
+                name = "workspace";
+            }
+            return "path://" + SecretRedactor.redact(name, 200);
         }
     }
 }
