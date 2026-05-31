@@ -330,8 +330,16 @@ public class CommandEnhancementTest {
         assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
                 .doesNotContain("run tests next");
 
+        GatewayReply queuedWithAlias = env.send("admin-chat", "admin-user", "/q inspect queue alias");
+        assertThat(queuedWithAlias.getContent()).contains("队列");
+        assertThat(queuedWithAlias.getRuntimeMetadata()).containsKey("queue_id");
+        assertThat(env.agentRunRepository
+                        .findRun(String.valueOf(queuedWithAlias.getRuntimeMetadata().get("run_id")))
+                        .getInputPreview())
+                .isEqualTo("inspect queue alias");
+
         GatewayReply busyWithQueue = env.send("admin-chat", "admin-user", "/busy status");
-        assertThat(busyWithQueue.getContent()).contains("queue_pending=1");
+        assertThat(busyWithQueue.getContent()).contains("queue_pending=2");
 
         GatewayReply idleSteer = env.send("admin-chat", "admin-user", "/steer summarize README");
 

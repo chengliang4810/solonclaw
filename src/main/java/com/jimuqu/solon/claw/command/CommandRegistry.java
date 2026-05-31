@@ -29,7 +29,7 @@ public final class CommandRegistry {
         register(core("usage", "session", "查看当前会话运行信息"));
         register(core("goal", "agent", "设置跨轮长目标并由 judge 驱动自动继续"));
         register(core("busy", "runtime", "查看或切换运行中输入策略"));
-        register(core("queue", "runtime", "将提示排到当前任务之后执行"));
+        register(core("queue", "runtime", "将提示排到当前任务之后执行").alias("q"));
         register(core("steer", "runtime", "向运行中任务注入修正；空闲时按普通提示执行"));
         register(core("restart", "runtime", "等待运行中任务 drain 后重启网关"));
         register(core("stop", "runtime", "停止当前任务和后台进程"));
