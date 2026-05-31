@@ -160,6 +160,11 @@ public class DashboardGatewayDoctorService {
         item.put("features", status.getFeatures());
         item.put("last_error_code", status.getLastErrorCode());
         item.put("last_error_message", SecretRedactor.redact(status.getLastErrorMessage(), 1000));
+        item.put("reconnecting", Boolean.valueOf(status.isReconnecting()));
+        item.put("reconnect_attempt", Integer.valueOf(status.getReconnectAttempt()));
+        item.put("last_reconnect_at", Long.valueOf(status.getLastReconnectAt()));
+        item.put("next_reconnect_at", Long.valueOf(status.getNextReconnectAt()));
+        item.put("last_reconnect_error", SecretRedactor.redact(status.getLastReconnectError(), 1000));
         item.put("next_step", nextStep(status));
         return item;
     }
@@ -173,6 +178,9 @@ public class DashboardGatewayDoctorService {
         }
         if ("connected".equalsIgnoreCase(status.getSetupState()) || status.isConnected()) {
             return "渠道已连通，可直接开始使用。";
+        }
+        if (status.isReconnecting()) {
+            return "渠道连接失败，已排队自动重连。";
         }
         if (StrUtil.isNotBlank(status.getLastErrorMessage())) {
             return "修复最近一次连接错误后重试。";

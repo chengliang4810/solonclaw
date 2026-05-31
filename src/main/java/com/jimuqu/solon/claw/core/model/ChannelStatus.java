@@ -42,6 +42,21 @@ public class ChannelStatus {
     /** 最近一次错误消息。 */
     private String lastErrorMessage;
 
+    /** 是否正在等待自动重连。 */
+    private boolean reconnecting;
+
+    /** 当前重连尝试次数。 */
+    private int reconnectAttempt;
+
+    /** 最近一次重连调度时间戳。 */
+    private long lastReconnectAt;
+
+    /** 下一次重连计划时间戳。 */
+    private long nextReconnectAt;
+
+    /** 最近一次重连错误。 */
+    private String lastReconnectError;
+
     public ChannelStatus(PlatformType platform, boolean enabled, boolean connected, String detail) {
         this.platform = platform;
         this.enabled = enabled;
