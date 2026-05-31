@@ -2088,8 +2088,16 @@ public class AppConfig {
             copy.setDefaultModel(source.getDefaultModel());
             copy.setDialect(source.getDialect());
             copy.setSupportsVision(source.getSupportsVision());
+            copyProviderDisplayFields(source, copy);
             this.providers.put(entry.getKey(), copy);
         }
+    }
+
+    private void copyProviderDisplayFields(ProviderConfig source, ProviderConfig target) {
+        target.setGroupId(source.getGroupId());
+        target.setGroupLabel(source.getGroupLabel());
+        target.setGroupDescription(source.getGroupDescription());
+        target.setDisplayDescription(source.getDisplayDescription());
     }
 
     private void copyModel(ModelConfig other) {
@@ -3087,6 +3095,10 @@ public class AppConfig {
             applyProviderString(rawProvider, "apiKey", provider, "apiKey");
             applyProviderString(rawProvider, "defaultModel", provider, "defaultModel");
             applyProviderString(rawProvider, "dialect", provider, "dialect");
+            applyProviderString(rawProvider, "groupId", provider, "groupId");
+            applyProviderString(rawProvider, "groupLabel", provider, "groupLabel");
+            applyProviderString(rawProvider, "groupDescription", provider, "groupDescription");
+            applyProviderString(rawProvider, "displayDescription", provider, "displayDescription");
             applyProviderBoolean(rawProvider, "supportsVision", provider, "supportsVision");
             providers.put(key, provider);
         }
@@ -3103,6 +3115,10 @@ public class AppConfig {
             copy.setDefaultModel(source.getDefaultModel());
             copy.setDialect(source.getDialect());
             copy.setSupportsVision(source.getSupportsVision());
+            copy.setGroupId(source.getGroupId());
+            copy.setGroupLabel(source.getGroupLabel());
+            copy.setGroupDescription(source.getGroupDescription());
+            copy.setDisplayDescription(source.getDisplayDescription());
         }
         return copy;
     }
@@ -3134,6 +3150,14 @@ public class AppConfig {
             provider.setDefaultModel(value);
         } else if ("dialect".equals(field)) {
             provider.setDialect(value);
+        } else if ("groupId".equals(field)) {
+            provider.setGroupId(value);
+        } else if ("groupLabel".equals(field)) {
+            provider.setGroupLabel(value);
+        } else if ("groupDescription".equals(field)) {
+            provider.setGroupDescription(value);
+        } else if ("displayDescription".equals(field)) {
+            provider.setDisplayDescription(value);
         }
     }
 
@@ -3536,6 +3560,10 @@ public class AppConfig {
         private String defaultModel;
         private String dialect;
         private Boolean supportsVision;
+        private String groupId;
+        private String groupLabel;
+        private String groupDescription;
+        private String displayDescription;
     }
 
     /** 当前主模型选择配置。 */

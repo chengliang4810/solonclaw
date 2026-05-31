@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
@@ -85,9 +86,13 @@ public class DashboardProviderService {
     public Map<String, Object> JimuquModels() {
         Map<String, Object> result = listProviders();
         List<Map<String, Object>> models = new ArrayList<Map<String, Object>>();
+        List<ProviderDisplayGrouping.Item> groupItems =
+                new ArrayList<ProviderDisplayGrouping.Item>();
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
                 appConfig.getProviders().entrySet()) {
             AppConfig.ProviderConfig provider = entry.getValue();
+            ProviderDisplayGrouping.ProviderDisplay display =
+                    ProviderDisplayGrouping.providerDisplay(entry.getKey(), provider);
             ModelMetadata metadata = modelMetadataService.resolve(entry.getKey(), provider);
             Map<String, Object> model = new LinkedHashMap<String, Object>();
             model.put("provider", entry.getKey());
@@ -100,9 +105,22 @@ public class DashboardProviderService {
             model.put("context_window", metadata.getContextWindow());
             model.put("max_output", metadata.getMaxOutput());
             model.put("reasoning_effort", appConfig.getLlm().getReasoningEffort());
+            appendProviderDisplay(model, display);
             models.add(model);
+            groupItems.add(
+                    new ProviderDisplayGrouping.Item(
+                            entry.getKey(),
+                            display.getLabel(),
+                            display.getGroupId(),
+                            display.getGroupLabel(),
+                            display.getGroupDescription(),
+                            display.getDisplayDescription(),
+                            model));
         }
         result.put("models", models);
+        List<Map<String, Object>> modelGroups = modelGroups(groupItems);
+        result.put("model_groups", modelGroups);
+        result.put("modelGroups", modelGroups);
         result.put("fallback_chain", cloneFallbackProviders(appConfig.getFallbackProviders()));
         return result;
     }
@@ -454,7 +472,50 @@ public class DashboardProviderService {
         item.put("hasApiKey", SecretValueGuard.hasUsableSecret(provider.getApiKey()));
         item.put("isDefault", StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         item.put("metadata", metadataMap(modelMetadataService.resolve(providerKey, provider)));
+        appendProviderDisplay(
+                item, ProviderDisplayGrouping.providerDisplay(providerKey, provider));
         return item;
+    }
+
+    private void appendProviderDisplay(
+            Map<String, Object> item, ProviderDisplayGrouping.ProviderDisplay display) {
+        if (item == null || display == null) {
+            return;
+        }
+        if (StrUtil.isNotBlank(display.getDisplayDescription())) {
+            item.put("display_description", display.getDisplayDescription());
+            item.put("displayDescription", display.getDisplayDescription());
+        }
+        if (StrUtil.isNotBlank(display.getGroupId())) {
+            item.put("group_id", display.getGroupId());
+            item.put("groupId", display.getGroupId());
+            item.put("group_label", display.getGroupLabel());
+            item.put("groupLabel", display.getGroupLabel());
+            item.put("group_description", display.getGroupDescription());
+            item.put("groupDescription", display.getGroupDescription());
+        }
+    }
+
+    private List<Map<String, Object>> modelGroups(List<ProviderDisplayGrouping.Item> items) {
+        List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
+        for (ProviderDisplayGrouping.Row row : ProviderDisplayGrouping.group(items)) {
+            if (!"group".equals(row.getKind())) {
+                continue;
+            }
+            Map<String, Object> group = new LinkedHashMap<String, Object>();
+            group.put("kind", "group");
+            group.put("group_id", row.getGroupId());
+            group.put("groupId", row.getGroupId());
+            group.put("label", row.getLabel());
+            group.put("description", row.getDescription());
+            List<Object> members = new ArrayList<Object>();
+            for (ProviderDisplayGrouping.Item member : row.getMembers()) {
+                members.add(member.getPayload());
+            }
+            group.put("members", members);
+            rows.add(group);
+        }
+        return rows;
     }
 
     private Map<String, Object> toProviderNode(AppConfig.ProviderConfig provider) {
@@ -467,6 +528,10 @@ public class DashboardProviderService {
         if (provider.getSupportsVision() != null) {
             result.put("supportsVision", provider.getSupportsVision());
         }
+        putIfNotBlank(result, "groupId", provider.getGroupId());
+        putIfNotBlank(result, "groupLabel", provider.getGroupLabel());
+        putIfNotBlank(result, "groupDescription", provider.getGroupDescription());
+        putIfNotBlank(result, "displayDescription", provider.getDisplayDescription());
         return result;
     }
 
@@ -505,6 +570,10 @@ public class DashboardProviderService {
         String defaultModel = readString(source, "defaultModel");
         String dialect = LlmProviderSupport.normalizeDialect(readString(source, "dialect"));
         Boolean supportsVision = readBooleanValue(source, "supportsVision", base, "supportsVision");
+        String groupId = readString(source, "groupId");
+        String groupLabel = readString(source, "groupLabel");
+        String groupDescription = readString(source, "groupDescription");
+        String displayDescription = readString(source, "displayDescription");
 
         if (StrUtil.isBlank(baseUrl)) {
             throw new IllegalArgumentException("baseUrl 不能为空。");
@@ -530,7 +599,17 @@ public class DashboardProviderService {
         if (supportsVision != null) {
             result.put("supportsVision", supportsVision);
         }
+        putIfNotBlank(result, "groupId", groupId);
+        putIfNotBlank(result, "groupLabel", groupLabel);
+        putIfNotBlank(result, "groupDescription", groupDescription);
+        putIfNotBlank(result, "displayDescription", displayDescription);
         return result;
+    }
+
+    private void putIfNotBlank(Map<String, Object> result, String key, String value) {
+        if (StrUtil.isNotBlank(value)) {
+            result.put(key, value.trim());
+        }
     }
 
     private Boolean readBooleanValue(
