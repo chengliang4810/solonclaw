@@ -69,7 +69,7 @@ public class DashboardRunService {
     public Map<String, Object> recoverable(int limit) throws Exception {
         List<Map<String, Object>> runs = new ArrayList<Map<String, Object>>();
         for (AgentRunRecord record : agentRunRepository.listRecoverable(limit <= 0 ? 50 : limit)) {
-            runs.add(toRun(record));
+            runs.add(toRecoverableRun(record));
         }
         return Collections.singletonMap("runs", runs);
     }
@@ -223,6 +223,30 @@ public class DashboardRunService {
         map.put("recovery_hint", redact(record.getRecoveryHint(), 2000));
         map.put("error", redact(record.getError(), 2000));
         return map;
+    }
+
+    private Map<String, Object> toRecoverableRun(AgentRunRecord record) {
+        Map<String, Object> map = toRun(record);
+        map.put("recovery_diagnosis", recoveryDiagnosis(record));
+        return map;
+    }
+
+    private Map<String, Object> recoveryDiagnosis(AgentRunRecord record) {
+        Map<String, Object> diagnosis = new LinkedHashMap<String, Object>();
+        diagnosis.put("reason", "recoverable_run_requires_operator_review");
+        diagnosis.put("heartbeat_age_ms", Long.valueOf(heartbeatAge(record)));
+        diagnosis.put("suggested_action", "review_recovery_hint_before_resume");
+        diagnosis.put("auto_recoverable", Boolean.FALSE);
+        diagnosis.put("safe_to_auto_resume", Boolean.FALSE);
+        return diagnosis;
+    }
+
+    private long heartbeatAge(AgentRunRecord record) {
+        long heartbeatAt = record.getHeartbeatAt();
+        if (heartbeatAt <= 0L) {
+            return 0L;
+        }
+        return Math.max(0L, System.currentTimeMillis() - heartbeatAt);
     }
 
     private Map<String, Object> toEvent(AgentRunEventRecord record) {
