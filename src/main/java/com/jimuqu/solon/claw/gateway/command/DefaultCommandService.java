@@ -1600,7 +1600,7 @@ public class DefaultCommandService implements CommandService {
         int activeRuns =
                 agentRunControlService == null ? 0 : agentRunControlService.runningRunCount();
         GatewayRestartCoordinator.RestartRequest request =
-                gatewayRestartCoordinator.requestRestartDrain(message.sourceKey(), activeRuns);
+                gatewayRestartCoordinator.requestRestartDrain(message, activeRuns);
         StringBuilder buffer = new StringBuilder();
         if (!request.isFirstRequest()) {
             buffer.append("网关重启已在进行中");
@@ -1626,11 +1626,34 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("restart_active_runs", Integer.valueOf(activeRuns));
         reply.getRuntimeMetadata()
                 .put("restart_drain_timeout_seconds", Integer.valueOf(request.getDrainTimeoutSeconds()));
+        putRestartRequesterMetadata(reply, request.getRequesterRouting());
         if (session != null) {
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
         }
         return reply;
+    }
+
+    private void putRestartRequesterMetadata(
+            GatewayReply reply, GatewayRestartCoordinator.RequesterRouting routing) {
+        if (reply == null || routing == null || reply.getRuntimeMetadata() == null) {
+            return;
+        }
+        if (routing.getPlatform() != null) {
+            reply.getRuntimeMetadata().put("restart_requester_platform", routing.getPlatform().name());
+        }
+        if (StrUtil.isNotBlank(routing.getChatId())) {
+            reply.getRuntimeMetadata().put("restart_requester_chat_id", routing.getChatId());
+        }
+        if (StrUtil.isNotBlank(routing.getUserId())) {
+            reply.getRuntimeMetadata().put("restart_requester_user_id", routing.getUserId());
+        }
+        if (StrUtil.isNotBlank(routing.getChatType())) {
+            reply.getRuntimeMetadata().put("restart_requester_chat_type", routing.getChatType());
+        }
+        if (StrUtil.isNotBlank(routing.getThreadId())) {
+            reply.getRuntimeMetadata().put("restart_requester_thread_id", routing.getThreadId());
+        }
     }
 
     private GatewayReply handleYolo(GatewayMessage message, String args) throws Exception {
