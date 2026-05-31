@@ -651,8 +651,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new SolonClawFileReadWriteSkill(
                         sysWorkDir,
                         securityPolicyService,
-                        appConfig.getTask().getToolOutputMaxLines(),
-                        appConfig.getTask().getToolOutputMaxLineLength(),
+                        appConfig,
                         fileStateTracker);
         SolonClawPatchTools patchTools =
                 new SolonClawPatchTools(sysWorkDir, securityPolicyService, fileStateTracker);
