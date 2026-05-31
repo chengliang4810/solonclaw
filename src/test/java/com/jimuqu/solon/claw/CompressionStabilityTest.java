@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 校验上下文压缩的反抖动、失败冷却与摘要合并行为。 */
 public class CompressionStabilityTest {
@@ -501,6 +502,28 @@ public class CompressionStabilityTest {
     }
 
     @Test
+    void shouldSanitizeStructuredToolCallArgumentsTogetherWithRawArguments() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                assistantWithRawAndStructuredToolCall(
+                                        "call_1", "read_file", "{\"path\":\"x"),
+                                ChatMessage.ofTool("ok", "read_file", "call_1")));
+
+        int repaired = ToolCallArgumentSanitizer.sanitize(messages);
+
+        assertThat(repaired).isEqualTo(1);
+        AssistantMessage assistant = (AssistantMessage) messages.get(0);
+        Map raw = assistant.getToolCallsRaw().get(0);
+        Map function = (Map) raw.get("function");
+        assertThat(function.get("arguments")).isEqualTo("{}");
+        assertThat(assistant.getToolCalls().get(0).getArgumentsStr()).isEqualTo("{}");
+        assertThat(assistant.getToolCalls().get(0).getArguments()).isEmpty();
+        assertThat(messages.get(1).getContent())
+                .startsWith(ToolCallArgumentSanitizer.CORRUPTION_MARKER);
+    }
+
+    @Test
     void shouldInsertMarkerToolMessageWhenCorruptedToolResultIsMissing() {
         List<ChatMessage> messages =
                 new ArrayList<ChatMessage>(
@@ -572,5 +595,23 @@ public class CompressionStabilityTest {
         List<Map> rawCalls = new ArrayList<Map>();
         rawCalls.add(call);
         return new AssistantMessage("", false, null, rawCalls, null, null);
+    }
+
+    private AssistantMessage assistantWithRawAndStructuredToolCall(
+            String callId, String name, String arguments) {
+        Map<String, Object> function = new LinkedHashMap<String, Object>();
+        function.put("name", name);
+        function.put("arguments", arguments);
+
+        Map<String, Object> call = new LinkedHashMap<String, Object>();
+        call.put("id", callId);
+        call.put("type", "function");
+        call.put("function", function);
+
+        List<Map> rawCalls = new ArrayList<Map>();
+        rawCalls.add(call);
+        List<ToolCall> toolCalls = new ArrayList<ToolCall>();
+        toolCalls.add(new ToolCall("0", callId, name, arguments, null));
+        return new AssistantMessage("", false, null, rawCalls, toolCalls, null);
     }
 }

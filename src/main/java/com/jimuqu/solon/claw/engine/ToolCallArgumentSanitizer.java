@@ -2,12 +2,16 @@ package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** Repairs corrupted assistant tool-call arguments in persisted history. */
 public final class ToolCallArgumentSanitizer {
@@ -33,6 +37,7 @@ public final class ToolCallArgumentSanitizer {
                 i++;
                 continue;
             }
+            messages.set(i, rebuildAssistantWithSanitizedToolCalls((AssistantMessage) message, corrupted));
             int insertAt = i + 1;
             for (CorruptedCall call : corrupted) {
                 repaired++;
@@ -84,6 +89,50 @@ public final class ToolCallArgumentSanitizer {
             corrupted.add(new CorruptedCall(toolCallId(raw), toolName(functionMap)));
         }
         return corrupted;
+    }
+
+    private static AssistantMessage rebuildAssistantWithSanitizedToolCalls(
+            AssistantMessage message, List<CorruptedCall> corrupted) {
+        return new AssistantMessage(
+                message.getContent(),
+                message.isThinking(),
+                message.getContentRaw(),
+                message.getToolCallsRaw(),
+                sanitizeStructuredToolCalls(message.getToolCalls(), corrupted),
+                message.getSearchResultsRaw());
+    }
+
+    private static List<ToolCall> sanitizeStructuredToolCalls(
+            List<ToolCall> toolCalls, List<CorruptedCall> corrupted) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return toolCalls;
+        }
+        Set<String> corruptedIds = new HashSet<String>();
+        for (CorruptedCall call : corrupted) {
+            if (StrUtil.isNotBlank(call.toolCallId)) {
+                corruptedIds.add(call.toolCallId);
+            }
+        }
+        if (corruptedIds.isEmpty()) {
+            return toolCalls;
+        }
+        List<ToolCall> sanitized = new ArrayList<ToolCall>(toolCalls.size());
+        for (ToolCall toolCall : toolCalls) {
+            if (toolCall != null && corruptedIds.contains(toolCall.getId())) {
+                ToolCall replacement =
+                        new ToolCall(
+                                toolCall.getIndex(),
+                                toolCall.getId(),
+                                toolCall.getName(),
+                                "{}",
+                                Collections.<String, Object>emptyMap());
+                replacement.setThoughtSignature(toolCall.getThoughtSignature());
+                sanitized.add(replacement);
+            } else {
+                sanitized.add(toolCall);
+            }
+        }
+        return sanitized;
     }
 
     private static boolean isValidJsonObject(String text) {
