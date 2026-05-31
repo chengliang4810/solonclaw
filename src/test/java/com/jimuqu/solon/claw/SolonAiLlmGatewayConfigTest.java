@@ -13,10 +13,13 @@ import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Random;
+import javax.imageio.ImageIO;
 import org.noear.solon.ai.chat.content.ImageBlock;
 import java.util.Collections;
 import java.util.Properties;
@@ -28,6 +31,8 @@ import org.noear.solon.ai.chat.prompt.Prompt;
 
 /** 校验 LLM provider 配置的前置失败逻辑。 */
 public class SolonAiLlmGatewayConfigTest {
+    private static final long IMAGE_EMBED_TARGET_BYTES = 4L * 1024L * 1024L;
+
     @Test
     void shouldLoadPromptCacheConfig() {
         Properties props = new Properties();
@@ -104,8 +109,9 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
-    void shouldRejectPrivateApiUrlForRemoteProviderByDefault() {
+    void shouldRejectPrivateApiUrlForRemoteProviderWhenStrictPolicyConfigured() {
         AppConfig config = remoteProviderConfig("http://127.0.0.1:8080/v1/chat/completions");
+        config.getSecurity().setAllowPrivateUrls(false);
 
         assertThatThrownBy(() -> validateLlmConfig(config))
                 .isInstanceOf(IllegalStateException.class)
@@ -317,6 +323,28 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
+    void shouldShrinkOversizedLocalImagesBeforeEmbedding() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome("target/test-runtime/image-shrink");
+        config.getRuntime().setCacheDir("target/test-runtime/image-shrink/cache");
+        AttachmentCacheService cacheService = new AttachmentCacheService(config);
+        File mediaDir = cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
+        Files.createDirectories(mediaDir.toPath());
+        File largeImage = new File(mediaDir, "large.png");
+        writeLargePng(largeImage, 2500, 2500);
+        assertThat(largeImage.length()).isGreaterThan(IMAGE_EMBED_TARGET_BYTES);
+
+        MessageAttachment attachment = imageWithLocalPath("image/png", largeImage.getAbsolutePath());
+        MediaInputBoundaryService service = new MediaInputBoundaryService(config);
+
+        ImageBlock image = service.toImageBlock(attachment);
+
+        assertThat(image).isNotNull();
+        assertThat((long) image.getData().length())
+                .isLessThanOrEqualTo(IMAGE_EMBED_TARGET_BYTES);
+    }
+
+    @Test
     void shouldRedactImageAttachmentReadFailureLogs() throws Exception {
         String leakedToken = "sk-image-path12345";
         AppConfig config = new AppConfig();
@@ -333,6 +361,17 @@ public class SolonAiLlmGatewayConfigTest {
         assertThat(SecretRedactor.redact(attachment.getLocalPath(), 400))
                 .contains("***")
                 .doesNotContain(leakedToken);
+    }
+
+    private void writeLargePng(File file, int width, int height) throws Exception {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Random random = new Random(12345L);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, random.nextInt(0x1000000));
+            }
+        }
+        ImageIO.write(image, "png", file);
     }
 
     private void assertLoggingDialect(String provider, String apiUrl, String model)
