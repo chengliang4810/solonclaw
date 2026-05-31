@@ -225,6 +225,23 @@ public class DashboardRunServiceTest {
     }
 
     @Test
+    void shouldClampNegativeContextTokenSentinelInRunDetails() throws Exception {
+        FakeAgentRunRepository repository = new FakeAgentRunRepository();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-context");
+        run.setSessionId("session-context");
+        run.setContextEstimateTokens(-1);
+        run.setContextWindowTokens(-200000);
+        repository.runs.add(run);
+
+        DashboardRunService service = new DashboardRunService(repository);
+        Map<String, Object> response = service.run("run-context");
+
+        assertThat(response.get("context_estimate_tokens")).isEqualTo(Integer.valueOf(0));
+        assertThat(response.get("context_window_tokens")).isEqualTo(Integer.valueOf(0));
+    }
+
+    @Test
     void shouldRedactControlPayloadWhenRunControlIsUnavailable() throws Exception {
         FakeAgentRunRepository repository = new FakeAgentRunRepository();
         AgentRunRecord run = new AgentRunRecord();

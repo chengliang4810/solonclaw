@@ -184,6 +184,8 @@ public class TuiRunProjector {
         map.put("provider", safe(record.getProvider(), 160));
         map.put("model", safe(record.getModel(), 400));
         map.put("attempts", Integer.valueOf(record.getAttempts()));
+        map.put("context_estimate_tokens", nonNegative(record.getContextEstimateTokens()));
+        map.put("context_window_tokens", nonNegative(record.getContextWindowTokens()));
         map.put("tool_call_count", Integer.valueOf(record.getToolCallCount()));
         map.put("subtask_count", Integer.valueOf(record.getSubtaskCount()));
         map.put("input_tokens", Long.valueOf(record.getInputTokens()));
@@ -217,6 +219,10 @@ public class TuiRunProjector {
         map.put("metadata", parseJson(record.getMetadataJson()));
         map.put("created_at", Long.valueOf(record.getCreatedAt()));
         return map;
+    }
+
+    private Integer nonNegative(int value) {
+        return Integer.valueOf(Math.max(0, value));
     }
 
     private Map<String, Object> toToolCall(ToolCallRecord record) {

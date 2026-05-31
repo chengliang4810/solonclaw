@@ -8,7 +8,10 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.content.TextBlock;
@@ -53,6 +56,95 @@ public class MessageSequenceRepairTest {
                 .extracting(ChatMessage::getRole)
                 .containsExactly(
                         ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+    }
+
+    @Test
+    void shouldRemoveAssistantToolCallsWithoutFollowingToolResults() {
+        AssistantMessage assistant = assistantWithToolCalls("Plan", "call_kept", "call_orphan");
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                assistant,
+                                ChatMessage.ofTool("done", "shell", "call_kept"),
+                                ChatMessage.ofUser("continue")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(1);
+        AssistantMessage repaired = (AssistantMessage) messages.get(1);
+        assertThat(repaired.getToolCalls()).extracting(ToolCall::getId).containsExactly("call_kept");
+        assertThat(repaired.getToolCallsRaw()).extracting(raw -> raw.get("id")).containsExactly("call_kept");
+        assertThat(messages)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(
+                        ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+    }
+
+    @Test
+    void shouldDemoteSignedThinkingWhenPruningAssistantToolCalls() {
+        AssistantMessage assistant =
+                assistantWithToolCalls(
+                        "<think>\n\nPlan: call both tools.</think>\n\nVisible note",
+                        "call_kept",
+                        "call_orphan");
+        Map<String, Object> raw = new LinkedHashMap<String, Object>();
+        raw.put("thinking", "Plan: call both tools.");
+        raw.put("thinkingSignature", "sig_dead");
+        assistant =
+                new AssistantMessage(
+                        assistant.getContent(),
+                        false,
+                        raw,
+                        assistant.getToolCallsRaw(),
+                        assistant.getToolCalls(),
+                        null);
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                assistant,
+                                ChatMessage.ofTool("done", "shell", "call_kept")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(1);
+        AssistantMessage repaired = (AssistantMessage) messages.get(1);
+        assertThat(repaired.getReasoning()).isEmpty();
+        assertThat(repaired.getContent()).contains("Plan: call both tools.").contains("Visible note");
+        assertThat(repaired.getContent()).doesNotContain("<think>").doesNotContain("</think>");
+        assertThat(repaired.getContentRaw()).isNotInstanceOf(Map.class);
+        assertThat(repaired.getToolCalls()).extracting(ToolCall::getId).containsExactly("call_kept");
+    }
+
+    @Test
+    void shouldKeepSignedThinkingWhenAllAssistantToolCallsHaveResults() {
+        Map<String, Object> raw = new LinkedHashMap<String, Object>();
+        raw.put("thinking", "Valid plan.");
+        raw.put("thinkingSignature", "sig_live");
+        AssistantMessage assistant =
+                new AssistantMessage(
+                        "<think>\n\nValid plan.</think>\n\n",
+                        false,
+                        raw,
+                        rawToolCalls("call_1"),
+                        toolCalls("call_1"),
+                        null);
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                assistant,
+                                ChatMessage.ofTool("done", "shell", "call_1")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(0);
+        AssistantMessage preserved = (AssistantMessage) messages.get(1);
+        assertThat(preserved.getReasoning()).isEqualTo("Valid plan.");
+        assertThat(((Map<?, ?>) preserved.getContentRaw()).get("thinkingSignature"))
+                .isEqualTo("sig_live");
+        assertThat(preserved.getToolCalls()).extracting(ToolCall::getId).containsExactly("call_1");
     }
 
     @Test
@@ -120,5 +212,38 @@ public class MessageSequenceRepairTest {
                                 "{}",
                                 Collections.<String, Object>emptyMap())),
                 null);
+    }
+
+    private static AssistantMessage assistantWithToolCalls(String content, String... ids) {
+        return new AssistantMessage(content, false, null, rawToolCalls(ids), toolCalls(ids), null);
+    }
+
+    private static List<ToolCall> toolCalls(String... ids) {
+        List<ToolCall> calls = new ArrayList<ToolCall>();
+        for (String id : ids) {
+            calls.add(
+                    new ToolCall(
+                            id,
+                            id,
+                            "shell",
+                            "{}",
+                            Collections.<String, Object>emptyMap()));
+        }
+        return calls;
+    }
+
+    private static List<Map> rawToolCalls(String... ids) {
+        List<Map> rawCalls = new ArrayList<Map>();
+        for (String id : ids) {
+            Map<String, Object> function = new HashMap<String, Object>();
+            function.put("name", "shell");
+            function.put("arguments", "{}");
+            Map<String, Object> raw = new HashMap<String, Object>();
+            raw.put("id", id);
+            raw.put("type", "function");
+            raw.put("function", function);
+            rawCalls.add(raw);
+        }
+        return rawCalls;
     }
 }

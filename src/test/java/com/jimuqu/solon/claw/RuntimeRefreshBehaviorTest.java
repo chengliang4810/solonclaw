@@ -558,6 +558,57 @@ public class RuntimeRefreshBehaviorTest {
         }
     }
 
+    @Test
+    void shouldReuseFreshProviderModelListCacheAndFallbackWhenRefreshFails()
+            throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            final int[] hits = new int[] {0};
+            final boolean[] fail = new boolean[] {false};
+            server.createContext(
+                    "/v1/models",
+                    exchange -> {
+                        hits[0]++;
+                        String body =
+                                fail[0]
+                                        ? "{\"error\":\"temporary failure\"}"
+                                        : "{\"data\":[{\"id\":\"cached-model\"}]}";
+                        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(fail[0] ? 500 : 200, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            AppConfig config = new AppConfig();
+            ExpiringDashboardProviderService providerService =
+                    new ExpiringDashboardProviderService(
+                            config,
+                            null,
+                            new LlmProviderService(config),
+                            new AllowLocalButBlockMetadataSecurityPolicyService(config));
+            providerService.now = 10_000L;
+            Map<String, Object> body = new LinkedHashMap<String, Object>();
+            body.put("baseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            body.put("dialect", "openai");
+
+            Map<String, Object> first = providerService.listRemoteModels(body);
+            providerService.now = 10_500L;
+            Map<String, Object> second = providerService.listRemoteModels(body);
+            fail[0] = true;
+            providerService.now = 12_000L;
+            Map<String, Object> third = providerService.listRemoteModels(body);
+
+            assertThat(first.get("models")).asList().containsExactly("cached-model");
+            assertThat(second.get("models")).asList().containsExactly("cached-model");
+            assertThat(third.get("models")).asList().containsExactly("cached-model");
+            assertThat(second.get("cache")).isEqualTo("hit");
+            assertThat(third.get("cache")).isEqualTo("stale");
+            assertThat(hits[0]).isEqualTo(2);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private RuntimeSettingsService runtimeSettingsService(
             TestEnvironment env, RecordingChannelAdapter adapter) {
         Map<PlatformType, ChannelAdapter> adapters =
@@ -640,6 +691,28 @@ public class RuntimeRefreshBehaviorTest {
         @Override
         protected InetAddress[] resolveHost(String host) throws Exception {
             return new InetAddress[] {InetAddress.getByName(ip)};
+        }
+    }
+
+    private static class ExpiringDashboardProviderService extends DashboardProviderService {
+        private long now;
+
+        private ExpiringDashboardProviderService(
+                AppConfig appConfig,
+                GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+                LlmProviderService llmProviderService,
+                SecurityPolicyService securityPolicyService) {
+            super(appConfig, gatewayRuntimeRefreshService, llmProviderService, securityPolicyService);
+        }
+
+        @Override
+        protected long currentTimeMillis() {
+            return now;
+        }
+
+        @Override
+        protected long modelListCacheTtlMillis() {
+            return 1000L;
         }
     }
 

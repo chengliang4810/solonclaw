@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { NModal, NInput } from 'naive-ui'
 import { useAppStore } from '@/stores/jimuqu/app'
 import { useI18n } from 'vue-i18n'
+import { nextPanelCursor, normalizePanelKey } from '@/shared/panelNavigation'
+import { visibleModelPickerItems } from '@/shared/modelPicker'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -10,6 +12,8 @@ const appStore = useAppStore()
 const showModal = ref(false)
 const searchQuery = ref('')
 const collapsedGroups = ref<Record<string, boolean>>({})
+const cursor = ref(0)
+const listRef = ref<HTMLElement | null>(null)
 
 const filteredGroups = computed(() => {
   const q = searchQuery.value.toLowerCase().trim()
@@ -22,8 +26,11 @@ const filteredGroups = computed(() => {
     .filter(g => g.models.length > 0 || g.label.toLowerCase().includes(q))
 })
 
+const selectableItems = computed(() => visibleModelPickerItems(filteredGroups.value, collapsedGroups.value))
+
 function toggleGroup(provider: string) {
   collapsedGroups.value[provider] = !collapsedGroups.value[provider]
+  cursor.value = nextPanelCursor(cursor.value, 'none', selectableItems.value.length)
 }
 
 function isGroupCollapsed(provider: string) {
@@ -34,13 +41,47 @@ function handleSelect(model: string, provider: string) {
   appStore.switchModel(model, provider)
   showModal.value = false
   searchQuery.value = ''
+  cursor.value = 0
 }
 
 function openModal() {
   collapsedGroups.value = {}
   searchQuery.value = ''
+  cursor.value = 0
   showModal.value = true
+  nextTick(() => listRef.value?.focus())
 }
+
+function handleListKey(event: KeyboardEvent) {
+  const action = normalizePanelKey(event.key)
+  if (action === 'none') return
+  event.preventDefault()
+  if (action === 'cancel') {
+    showModal.value = false
+    return
+  }
+  if (action === 'select') {
+    const item = selectableItems.value[cursor.value]
+    if (item) handleSelect(item.model, item.provider)
+    return
+  }
+  cursor.value = nextPanelCursor(cursor.value, action, selectableItems.value.length)
+}
+
+function modelItemClass(model: string, provider: string) {
+  const key = `${provider}:${model}`
+  const active = model === appStore.selectedModel && provider === appStore.selectedProvider
+  const cursorActive = selectableItems.value[cursor.value]?.key === key
+  return { active, cursor: cursorActive }
+}
+
+watch(searchQuery, () => {
+  cursor.value = 0
+})
+
+watch(selectableItems, (items) => {
+  cursor.value = nextPanelCursor(cursor.value, 'none', items.length)
+})
 </script>
 
 <template>
@@ -67,7 +108,7 @@ function openModal() {
         size="small"
         class="model-search"
       />
-      <div class="model-list">
+      <div class="model-list" ref="listRef" tabindex="0" @keydown="handleListKey">
         <div v-for="group in filteredGroups" :key="group.provider" class="model-group">
           <div class="model-group-header" @click="toggleGroup(group.provider)">
             <svg
@@ -85,7 +126,7 @@ function openModal() {
               v-for="model in group.models"
               :key="model"
               class="model-item"
-              :class="{ active: model === appStore.selectedModel && group.provider === appStore.selectedProvider }"
+              :class="modelItemClass(model, group.provider)"
               @click="handleSelect(model, group.provider)"
             >
               <span class="model-item-name">{{ model }}</span>
@@ -226,6 +267,11 @@ function openModal() {
   &.active {
     color: $accent-primary;
     font-weight: 500;
+  }
+
+  &.cursor {
+    outline: 2px solid $accent-primary;
+    outline-offset: 2px;
   }
 }
 

@@ -204,8 +204,8 @@ public class DashboardRunService {
         map.put("provider", redact(record.getProvider(), 400));
         map.put("model", redact(record.getModel(), 400));
         map.put("attempts", record.getAttempts());
-        map.put("context_estimate_tokens", record.getContextEstimateTokens());
-        map.put("context_window_tokens", record.getContextWindowTokens());
+        map.put("context_estimate_tokens", nonNegative(record.getContextEstimateTokens()));
+        map.put("context_window_tokens", nonNegative(record.getContextWindowTokens()));
         map.put("compression_count", record.getCompressionCount());
         map.put("fallback_count", record.getFallbackCount());
         map.put("tool_call_count", record.getToolCallCount());
@@ -248,6 +248,10 @@ public class DashboardRunService {
                                 record.getRunId(),
                                 record.getEventId())));
         return map;
+    }
+
+    private Integer nonNegative(int value) {
+        return Integer.valueOf(Math.max(0, value));
     }
 
     private Map<String, Object> toToolCall(ToolCallRecord record) {
