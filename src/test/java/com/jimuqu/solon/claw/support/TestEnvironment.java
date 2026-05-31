@@ -92,6 +92,7 @@ import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -288,6 +289,8 @@ public class TestEnvironment {
         DashboardCuratorService dashboardCuratorService =
                 new DashboardCuratorService(
                         new SkillCuratorService(config, localSkillService), database);
+        DashboardSkillsService dashboardSkillsService =
+                new DashboardSkillsService(localSkillService, preferenceStore);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -388,7 +391,8 @@ public class TestEnvironment {
                         slashConfirmService,
                         null,
                         null,
-                        dashboardCuratorService);
+                        dashboardCuratorService,
+                        dashboardSkillsService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,

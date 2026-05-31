@@ -68,6 +68,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -142,6 +143,7 @@ public class DefaultCommandService implements CommandService {
     private final DefaultCronScheduler cronScheduler;
     private final GatewayRestartCoordinator gatewayRestartCoordinator;
     private final DashboardCuratorService dashboardCuratorService;
+    private final DashboardSkillsService dashboardSkillsService;
     private final Map<String, CommandHandler> pluginCommands;
     private final AgentPluginManager pluginManager;
 
@@ -683,6 +685,7 @@ public class DefaultCommandService implements CommandService {
                 slashConfirmService,
                 pluginCommands,
                 null,
+                null,
                 null);
     }
 
@@ -748,6 +751,7 @@ public class DefaultCommandService implements CommandService {
                 slashConfirmService,
                 pluginCommands,
                 pluginManager,
+                null,
                 null);
     }
 
@@ -783,6 +787,74 @@ public class DefaultCommandService implements CommandService {
             Map<String, CommandHandler> pluginCommands,
             AgentPluginManager pluginManager,
             DashboardCuratorService dashboardCuratorService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                pluginCommands,
+                pluginManager,
+                dashboardCuratorService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands,
+            AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardSkillsService dashboardSkillsService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -818,6 +890,7 @@ public class DefaultCommandService implements CommandService {
         this.gatewayRestartCoordinator =
                 gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;
         this.dashboardCuratorService = dashboardCuratorService;
+        this.dashboardSkillsService = dashboardSkillsService;
         this.pluginCommands =
                 pluginCommands == null
                         ? Collections.<String, CommandHandler>emptyMap()
@@ -1133,6 +1206,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_TOOLS.equals(command)) {
             return handleTools(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_TOOLSETS.equals(command)) {
+            return handleToolsets();
         }
 
         if (GatewayCommandConstants.COMMAND_SKILLS.equals(command)) {
@@ -2332,6 +2409,40 @@ public class DefaultCommandService implements CommandService {
 
         return GatewayReply.error(
                 "用法：" + GatewayCommandConstants.SLASH_TOOLS + " [list|enable|disable] [name...]");
+    }
+
+    private GatewayReply handleToolsets() {
+        if (dashboardSkillsService == null) {
+            return GatewayReply.error("工具集命令当前运行时未启用。");
+        }
+        List<Map<String, Object>> toolsets = dashboardSkillsService.getToolsets();
+        GatewayReply reply = GatewayReply.ok(formatToolsets(toolsets));
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_TOOLSETS);
+        reply.getRuntimeMetadata().put("toolset_count", Integer.valueOf(toolsets.size()));
+        return reply;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatToolsets(List<Map<String, Object>> toolsets) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("工具集：total=").append(toolsets.size());
+        for (Map<String, Object> toolset : toolsets) {
+            List<Object> tools =
+                    toolset.get("tools") instanceof List
+                            ? (List<Object>) toolset.get("tools")
+                            : Collections.<Object>emptyList();
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(String.valueOf(toolset.get("name")), "-"))
+                    .append(" enabled=")
+                    .append(Boolean.TRUE.equals(toolset.get("enabled")))
+                    .append(" tools=")
+                    .append(tools.size())
+                    .append(" - ")
+                    .append(StrUtil.blankToDefault(String.valueOf(toolset.get("label")), "-"));
+        }
+        return buffer.toString();
     }
 
     /** 处理技能命令。 */
@@ -4795,6 +4906,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_TOOLS
                                         + " [list|enable|disable] [name...]",
                                 "查看或管理工具开关"),
+                        helpLine(GatewayCommandConstants.SLASH_TOOLSETS, "列出可用工具集"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_SKILLS
                                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",
