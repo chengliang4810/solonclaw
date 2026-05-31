@@ -101,6 +101,23 @@ public class AppConfigPathNormalizationTest {
     }
 
     @Test
+    void shouldExposeSecurityPolicyAtEffectiveTemplateScope() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-runtime-security-example").toFile();
+        File runtimeExample = new File(runtimeHome, "config.example.yml");
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig.load(props);
+
+        String content = FileUtil.readUtf8String(runtimeExample);
+        assertThat(content)
+                .contains("\nsecurity:\n")
+                .contains("  allowPrivateUrls: true")
+                .doesNotContain("solonclaw:\n  security:");
+    }
+
+    @Test
     void shouldCreateMinimalRuntimeConfigWhenMissing() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-runtime-init").toFile();
         File runtimeConfig = new File(runtimeHome, "config.yml");

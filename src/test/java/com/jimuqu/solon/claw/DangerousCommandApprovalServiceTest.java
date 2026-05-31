@@ -8490,8 +8490,9 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsLikeJimuqu() throws Exception {
+    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsWhenPrivateUrlsDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
         List<String> blocked =
@@ -8712,8 +8713,9 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockJimuquStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
+    void shouldBlockPrivateReservedAndSharedUrlsWhenPrivateUrlsDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
         List<String> blocked =
@@ -8744,6 +8746,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBlockSchemelessPrivateUrlsInToolArgsAndCommandsLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put(
@@ -9047,6 +9050,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBlockBareSecurityRelevantHostsInsideShellCommandsLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
         env.appConfig
                 .getSecurity()
@@ -9194,6 +9198,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeJimuquUrlSafety()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService benchmark =
                 new FixedDnsSecurityPolicyService(env.appConfig, "198.18.0.23");
         SecurityPolicyService loopback =

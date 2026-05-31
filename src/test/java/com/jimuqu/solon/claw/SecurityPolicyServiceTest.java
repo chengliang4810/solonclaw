@@ -65,6 +65,32 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldAllowPrivateUrlsByDefaultButKeepMetadataBlocked() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.UrlVerdict localhost = policy.checkUrl("http://localhost:18080/api/health");
+        SecurityPolicyService.UrlVerdict loopback = policy.checkUrl("http://127.0.0.1:18080/api/health");
+        SecurityPolicyService.UrlVerdict metadata = policy.checkUrl("http://169.254.169.254/latest/meta-data/");
+
+        assertThat(localhost.isAllowed()).isTrue();
+        assertThat(loopback.isAllowed()).isTrue();
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldBlockPrivateUrlsWhenExplicitlyDisabled() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkUrl("http://localhost:18080/api/health");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldNotClaimDnsFailuresOrMalformedInputAreAlwaysBlocked() {
         SecurityPolicyService policy = new FailingDnsSecurityPolicyService(new AppConfig());
 
@@ -388,8 +414,10 @@ public class SecurityPolicyServiceTest {
 
     @Test
     void shouldBlockPercentEncodedPrivateHostsAcrossUrlSurfaces() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+                new FixedDnsSecurityPolicyService(config, "93.184.216.34");
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("url", "http://%31%32%37.0.0.1:8080/admin");
 
