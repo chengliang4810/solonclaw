@@ -27,6 +27,7 @@ jobs:
         run: |
           python3 scripts/check-project-naming.selftest.py
           python3 scripts/check-project-naming.py
+          python3 scripts/check-github-package-name.py
           python3 scripts/check-raw-exception-logging.selftest.py
           python3 scripts/check-raw-exception-logging.py
 

@@ -27,6 +27,9 @@ jobs:
       - name: Check project naming
         run: python3 scripts/check-project-naming.py
 
+      - name: Check GitHub package name
+        run: python3 scripts/check-github-package-name.py
+
       - name: Check raw exception logging self-test
         run: python3 scripts/check-raw-exception-logging.selftest.py
 
@@ -50,7 +53,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/chengliang4810/jimuqu-agent
+          images: ghcr.io/chengliang4810/solon-claw
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch

@@ -158,7 +158,7 @@ def generate_release_notes(
     classified = {commit_entry_key(item) for item in features + fixes}
     others = [item for item in commits if commit_entry_key(item) not in classified]
 
-    body = f"""## jimuqu-agent {tag}
+    body = f"""## solon-claw {tag}
 
 本次发布说明按提交类型整理，并保留中英双语摘要；功能、缺陷修复和其他变更来自本次发布范围内的提交摘要。
 These release notes are grouped by commit type and keep bilingual summaries; features, fixes, and other changes are derived from commit summaries in this release range.

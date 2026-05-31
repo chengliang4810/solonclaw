@@ -318,7 +318,7 @@ solonclaw:
   # 终端/沙箱执行配置。
   terminal:
     # 对齐 terminal.credential_files。这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
-    # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到容器内 /root/.jimuqu-agent/<path>。
+    # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到容器内 /root/.solon-claw/<path>。
     credentialFiles: []
     # 对齐 terminal.env_passthrough。默认本地子进程不会继承 API key/token/secret。
     # 这里仅用于明确放行第三方技能变量；模型、渠道、网关等内置凭据仍会被强制拦截。
