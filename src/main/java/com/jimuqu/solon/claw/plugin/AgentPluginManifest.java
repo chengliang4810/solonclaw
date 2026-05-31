@@ -11,6 +11,7 @@ public class AgentPluginManifest {
     private String description;
     private String author;
     private String kind = "standalone";
+    private String entry;
     private String source;
     private Path directory;
     private List<EnvRequirement> requiresEnv = Collections.emptyList();
@@ -31,6 +32,9 @@ public class AgentPluginManifest {
 
     public String getKind() { return kind; }
     public void setKind(String kind) { this.kind = kind; }
+
+    public String getEntry() { return entry; }
+    public void setEntry(String entry) { this.entry = entry; }
 
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }

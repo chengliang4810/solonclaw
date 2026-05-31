@@ -10,8 +10,10 @@ public class KanbanTaskRecord {
     private String status;
     private int priority;
     private String tenant;
+    private String sessionId;
     private String workspaceKind;
     private String workspacePath;
+    private String branchName;
     private String createdBy;
     private String result;
     private String idempotencyKey;
@@ -97,6 +99,14 @@ public class KanbanTaskRecord {
         this.tenant = tenant;
     }
 
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
     public String getWorkspaceKind() {
         return workspaceKind;
     }
@@ -111,6 +121,14 @@ public class KanbanTaskRecord {
 
     public void setWorkspacePath(String workspacePath) {
         this.workspacePath = workspacePath;
+    }
+
+    public String getBranchName() {
+        return branchName;
+    }
+
+    public void setBranchName(String branchName) {
+        this.branchName = branchName;
     }
 
     public String getCreatedBy() {

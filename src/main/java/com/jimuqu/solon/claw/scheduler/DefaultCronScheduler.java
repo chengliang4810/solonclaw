@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -47,6 +48,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -72,6 +74,8 @@ public class DefaultCronScheduler {
             Arrays.asList("cronjob", "messaging", "clarify");
     private static final int DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS = 600;
     private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
+    private static final ExecutorService MCP_WARMUP_EXECUTOR =
+            BoundedExecutorFactory.fixed("cron-mcp-warmup", 1, 16);
     private static final Pattern MEDIA_PATTERN =
             Pattern.compile(
                     "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
@@ -670,6 +674,23 @@ public class DefaultCronScheduler {
             return;
         }
         try {
+            MCP_WARMUP_EXECUTOR.submit(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            warmupMcpToolsNow(job);
+                        }
+                    });
+        } catch (RejectedExecutionException e) {
+            log.warn(
+                    "Cron job '{}' MCP initialization skipped: {}",
+                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                    safeError(e));
+        }
+    }
+
+    private void warmupMcpToolsNow(CronJobRecord job) {
+        try {
             int count = 0;
             List<ToolProvider> providers = mcpRuntimeService.resolveEnabledToolProviders();
             for (ToolProvider provider : providers) {
@@ -890,12 +911,13 @@ public class DefaultCronScheduler {
         CronDeliveryPayload payload = parseDeliveryPayload(formatDelivery(job, reply.getContent()));
         CronDeliveryReport report = new CronDeliveryReport();
         for (CronDeliveryTarget target : targets) {
+            CronResolvedMedia resolvedMedia = resolveMediaAttachments(target.platform, payload.media);
             DeliveryRequest request = new DeliveryRequest();
             request.setPlatform(target.platform);
             request.setChatId(target.chatId);
             request.setThreadId(target.threadId);
-            request.setText(payload.text);
-            request.setAttachments(resolveMediaAttachments(target.platform, payload.media));
+            request.setText(removeResolvedMediaTags(payload.text, resolvedMedia.resolved));
+            request.setAttachments(resolvedMedia.attachments);
             try {
                 deliveryService.deliver(request);
                 report.addOk(target, request.getAttachments() == null ? 0 : request.getAttachments().size());
@@ -923,16 +945,13 @@ public class DefaultCronScheduler {
         value = value.replace("[[audio_as_voice]]", "");
         List<CronMediaRef> media = new ArrayList<CronMediaRef>();
         Matcher matcher = MEDIA_PATTERN.matcher(value);
-        StringBuffer cleaned = new StringBuffer();
         while (matcher.find()) {
             String path = cleanupMediaPath(matcher.group("path"));
             if (StrUtil.isNotBlank(path)) {
-                media.add(new CronMediaRef(path, voice));
+                media.add(new CronMediaRef(matcher.group(), path, voice));
             }
-            matcher.appendReplacement(cleaned, "");
         }
-        matcher.appendTail(cleaned);
-        String text = cleaned.toString().replaceAll("\\n{3,}", "\n\n").trim();
+        String text = value.replaceAll("\\n{3,}", "\n\n").trim();
         return new CronDeliveryPayload(text, media);
     }
 
@@ -966,11 +985,12 @@ public class DefaultCronScheduler {
         return path;
     }
 
-    private List<MessageAttachment> resolveMediaAttachments(
+    private CronResolvedMedia resolveMediaAttachments(
             PlatformType platform, List<CronMediaRef> mediaRefs) {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
+        List<CronMediaRef> resolved = new ArrayList<CronMediaRef>();
         if (attachmentCacheService == null || mediaRefs == null || mediaRefs.isEmpty()) {
-            return attachments;
+            return new CronResolvedMedia(attachments, resolved);
         }
         for (CronMediaRef media : mediaRefs) {
             if (StrUtil.isBlank(media.path)) {
@@ -984,8 +1004,21 @@ public class DefaultCronScheduler {
             attachments.add(
                     attachmentCacheService.fromLocalOrGeneratedFile(
                             platform, file, media.voice ? "voice" : null, false, null));
+            resolved.add(media);
         }
-        return attachments;
+        return new CronResolvedMedia(attachments, resolved);
+    }
+
+    private String removeResolvedMediaTags(String text, List<CronMediaRef> resolved) {
+        String cleaned = StrUtil.nullToEmpty(text);
+        if (resolved != null) {
+            for (CronMediaRef media : resolved) {
+                if (StrUtil.isNotBlank(media.token)) {
+                    cleaned = cleaned.replace(media.token, "");
+                }
+            }
+        }
+        return cleaned.replaceAll("\\n{3,}", "\n\n").trim();
     }
 
     private boolean isSilent(String content) {
@@ -1696,12 +1729,24 @@ public class DefaultCronScheduler {
     }
 
     private static class CronMediaRef {
+        private final String token;
         private final String path;
         private final boolean voice;
 
-        private CronMediaRef(String path, boolean voice) {
+        private CronMediaRef(String token, String path, boolean voice) {
+            this.token = token;
             this.path = path;
             this.voice = voice;
+        }
+    }
+
+    private static class CronResolvedMedia {
+        private final List<MessageAttachment> attachments;
+        private final List<CronMediaRef> resolved;
+
+        private CronResolvedMedia(List<MessageAttachment> attachments, List<CronMediaRef> resolved) {
+            this.attachments = attachments;
+            this.resolved = resolved;
         }
     }
 

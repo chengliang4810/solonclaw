@@ -91,6 +91,8 @@ export SOLONCLAW_GID="$(id -g)"
 docker compose up -d
 ```
 
+也兼容常见 NAS 平台使用的 `PUID` / `PGID` 环境变量；同时设置时，`SOLONCLAW_UID` / `SOLONCLAW_GID` 优先生效。
+
 ## 配置
 
 默认配置位于：

@@ -37,7 +37,7 @@ public class CompressionOutcome {
         CompressionOutcome outcome = new CompressionOutcome();
         outcome.setSession(session);
         outcome.setFailed(true);
-        outcome.setWarning("上下文压缩摘要生成失败，本轮已继续执行；较早对话可能没有被完整压缩。");
+        outcome.setWarning("上下文压缩摘要生成失败，本轮已继续执行；原始上下文已保留，未丢弃未压缩消息。");
         outcome.setErrorMessage(error == null ? "" : error.getMessage());
         return outcome;
     }

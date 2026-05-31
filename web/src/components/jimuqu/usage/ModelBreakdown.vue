@@ -10,6 +10,11 @@ function formatTokens(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
   return String(n)
 }
+
+function formatCost(micros: number, currency: string): string {
+  if (micros <= 0) return '--'
+  return `${currency || 'USD'} ${(micros / 1000000).toFixed(4)}`
+}
 </script>
 
 <template>
@@ -26,6 +31,9 @@ function formatTokens(n: number): string {
         </div>
         <span class="model-cache">
           {{ formatTokens(m.cacheReadTokens) }} / {{ formatTokens(m.cacheWriteTokens) }}
+        </span>
+        <span class="model-cost">
+          {{ m.pricingAvailable ? formatCost(m.costMicros, m.currency) : t('usage.unpriced') }}
         </span>
         <span class="model-tokens">{{ formatTokens(m.totalTokens) }}</span>
       </div>
@@ -103,6 +111,14 @@ function formatTokens(n: number): string {
 }
 
 .model-cache {
+  font-size: 11px;
+  color: $text-muted;
+  width: 86px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.model-cost {
   font-size: 11px;
   color: $text-muted;
   width: 86px;

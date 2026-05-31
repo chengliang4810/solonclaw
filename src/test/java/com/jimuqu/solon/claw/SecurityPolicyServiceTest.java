@@ -231,6 +231,37 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockRuntimeSecretCacheFileWithoutBlockingOtherCacheFiles() throws Exception {
+        AppConfig config = new AppConfig();
+        Path runtimeHome = Files.createTempDirectory("solonclaw-security-cache");
+        config.getRuntime().setHome(runtimeHome.toString());
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", runtimeHome.resolve("cache/bws_cache.json").toString());
+
+        SecurityPolicyService.FileVerdict fileTool =
+                policy.checkFileToolArgs("file_read", args);
+        SecurityPolicyService.FileVerdict relative =
+                policy.checkPath("cache/bws_cache.json", false);
+        SecurityPolicyService.FileVerdict command =
+                policy.checkCommandPaths("cat cache/bws_cache.json");
+        SecurityPolicyService.FileVerdict ordinaryCache =
+                policy.checkPath("cache/media/sample.png", false);
+        SecurityPolicyService.FileVerdict sameNameOutsideCache =
+                policy.checkPath("tmp/bws_cache.json", false);
+        SecurityPolicyService.FileVerdict sameNameOutsideCacheCommand =
+                policy.checkCommandPaths("cat tmp/bws_cache.json");
+
+        assertThat(fileTool.isAllowed()).isFalse();
+        assertThat(fileTool.getMessage()).contains("凭据");
+        assertThat(relative.isAllowed()).isFalse();
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(ordinaryCache.isAllowed()).isTrue();
+        assertThat(sameNameOutsideCache.isAllowed()).isTrue();
+        assertThat(sameNameOutsideCacheCommand.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockBarePackedIpv4MetadataCommandTargets() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 

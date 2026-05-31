@@ -11,6 +11,11 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
+function formatCost(micros: number, currency: string): string {
+  if (micros <= 0) return '--'
+  return `${currency || 'USD'} ${(micros / 1000000).toFixed(4)}`
+}
+
 const maxTokens = computed(() =>
   Math.max(...usageStore.dailyUsage.map(d => d.tokens), 1),
 )
@@ -41,6 +46,7 @@ import { computed } from 'vue'
           <div class="tooltip-row">{{ t('usage.tokens') }}: {{ formatTokens(d.tokens) }}</div>
           <div class="tooltip-row">{{ t('usage.cacheRead') }}: {{ formatTokens(d.cacheRead) }}</div>
           <div class="tooltip-row">{{ t('usage.cacheWrite') }}: {{ formatTokens(d.cacheWrite) }}</div>
+          <div class="tooltip-row">{{ t('usage.cost') }}: {{ d.pricingAvailable ? formatCost(d.costMicros, d.currency) : t('usage.unpriced') }}</div>
           <div class="tooltip-row">{{ t('usage.sessions') }}: {{ d.sessions }}</div>
         </div>
       </div>
@@ -58,6 +64,7 @@ import { computed } from 'vue'
             <th>{{ t('usage.tokens') }}</th>
             <th>{{ t('usage.cacheRead') }}</th>
             <th>{{ t('usage.cacheWrite') }}</th>
+            <th>{{ t('usage.cost') }}</th>
             <th>{{ t('usage.sessions') }}</th>
           </tr>
         </thead>
@@ -67,6 +74,7 @@ import { computed } from 'vue'
             <td>{{ formatTokens(d.tokens) }}</td>
             <td>{{ formatTokens(d.cacheRead) }}</td>
             <td>{{ formatTokens(d.cacheWrite) }}</td>
+            <td>{{ d.pricingAvailable ? formatCost(d.costMicros, d.currency) : t('usage.unpriced') }}</td>
             <td>{{ d.sessions }}</td>
           </tr>
         </tbody>

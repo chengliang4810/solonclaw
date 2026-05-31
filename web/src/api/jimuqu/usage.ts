@@ -8,6 +8,11 @@ export interface DailyUsageItem {
   cache_write_tokens: number
   reasoning_tokens: number
   sessions: number
+  cost_micros: number
+  currency: string
+  pricing_available: boolean
+  unpriced_total_tokens: number
+  backfill_approximate: boolean
 }
 
 export interface ModelUsageItem {
@@ -16,7 +21,13 @@ export interface ModelUsageItem {
   output_tokens: number
   cache_read_tokens: number
   cache_write_tokens: number
+  reasoning_tokens: number
   sessions: number
+  cost_micros: number
+  currency: string
+  pricing_available: boolean
+  unpriced_total_tokens: number
+  backfill_approximate: boolean
 }
 
 export interface UsageTotals {
@@ -26,6 +37,11 @@ export interface UsageTotals {
   total_cache_write: number
   total_reasoning: number
   total_sessions: number
+  total_cost_micros: number
+  currency: string
+  pricing_available: boolean
+  unpriced_total_tokens: number
+  backfill_approximate: boolean
 }
 
 export interface UsageAnalytics {

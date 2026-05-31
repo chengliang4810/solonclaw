@@ -330,8 +330,16 @@ public class CommandEnhancementTest {
         assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
                 .doesNotContain("run tests next");
 
+        GatewayReply queuedWithAlias = env.send("admin-chat", "admin-user", "/q inspect queue alias");
+        assertThat(queuedWithAlias.getContent()).contains("队列");
+        assertThat(queuedWithAlias.getRuntimeMetadata()).containsKey("queue_id");
+        assertThat(env.agentRunRepository
+                        .findRun(String.valueOf(queuedWithAlias.getRuntimeMetadata().get("run_id")))
+                        .getInputPreview())
+                .isEqualTo("inspect queue alias");
+
         GatewayReply busyWithQueue = env.send("admin-chat", "admin-user", "/busy status");
-        assertThat(busyWithQueue.getContent()).contains("queue_pending=1");
+        assertThat(busyWithQueue.getContent()).contains("queue_pending=2");
 
         GatewayReply idleSteer = env.send("admin-chat", "admin-user", "/steer summarize README");
 
@@ -1247,6 +1255,22 @@ public class CommandEnhancementTest {
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/reload-mcp [now|always]");
         assertThat(help.getContent()).contains("/approve [确认编号]");
+    }
+
+    @Test
+    void shouldSupportReloadMcpUnderscoreAliasWithConfirmationText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload_mcp");
+        assertThat(prompt.getContent())
+                .contains("/approve")
+                .contains("/always")
+                .contains("/cancel")
+                .contains("工具 schema");
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
+        assertThat(status.getContent()).contains("当前待确认 slash 命令：/reload-mcp");
     }
 
     @Test

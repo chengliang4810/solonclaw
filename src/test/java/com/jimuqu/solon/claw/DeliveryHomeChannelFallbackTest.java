@@ -43,4 +43,45 @@ public class DeliveryHomeChannelFallbackTest {
         assertThat(env.memoryChannelAdapter.getLastRequest().getChatId()).isEqualTo("group-1");
         assertThat(env.memoryChannelAdapter.getLastRequest().getThreadId()).isEqualTo("topic-1");
     }
+
+    @Test
+    void shouldDropShortSilenceNarrationBeforeAdapterSend() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.MEMORY);
+        request.setChatId("quiet-room");
+        request.setText("*(silent)*");
+        env.deliveryService.deliver(request);
+
+        assertThat(env.memoryChannelAdapter.getRequests()).isEmpty();
+    }
+
+    @Test
+    void shouldKeepRealMessagesThatMentionSilence() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.MEMORY);
+        request.setChatId("ops-room");
+        request.setText("Silent install completed");
+        env.deliveryService.deliver(request);
+
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText())
+                .isEqualTo("Silent install completed");
+    }
+
+    @Test
+    void shouldAllowSilenceNarrationWhenGatewayFilterIsDisabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getGateway().setFilterSilenceNarration(false);
+
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.MEMORY);
+        request.setChatId("quiet-room");
+        request.setText("*(silent)*");
+        env.deliveryService.deliver(request);
+
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText()).isEqualTo("*(silent)*");
+    }
 }

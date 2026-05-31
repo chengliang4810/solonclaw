@@ -22,6 +22,10 @@ public class SqlitePreferenceStore {
         return readScopedBoolean("tool_toggles", "tool_name", sourceKey, toolName, defaultValue);
     }
 
+    public boolean hasScopedToolToggle(String sourceKey, String toolName) throws SQLException {
+        return readBooleanIfPresent("tool_toggles", "tool_name", sourceKey, toolName) != null;
+    }
+
     public void setToolEnabled(String sourceKey, String toolName, boolean enabled)
             throws SQLException {
         writeBoolean("tool_toggles", "tool_name", sourceKey, toolName, enabled);

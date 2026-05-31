@@ -55,6 +55,9 @@ public class SqliteDatabase {
                 try {
                     statement.execute("pragma busy_timeout=5000");
                     statement.execute("pragma journal_mode=WAL");
+                    statement.execute("pragma secure_delete=ON");
+                    statement.execute("pragma cell_size_check=ON");
+                    statement.execute("pragma synchronous=FULL");
                 } finally {
                     statement.close();
                 }
@@ -123,6 +126,8 @@ public class SqliteDatabase {
                             + "branch_name text,"
                             + "parent_session_id text,"
                             + "model_override text,"
+                            + "service_tier_override text,"
+                            + "reasoning_effort_override text,"
                             + "active_agent_name text,"
                             + "platform_message_id text,"
                             + "metadata_json text,"
@@ -167,6 +172,8 @@ public class SqliteDatabase {
                 statement.execute("alter table sessions add column model_override text");
             } catch (Exception ignored) {
             }
+            addColumn(statement, "sessions", "service_tier_override text");
+            addColumn(statement, "sessions", "reasoning_effort_override text");
             try {
                 statement.execute("alter table sessions add column active_agent_name text");
             } catch (Exception ignored) {
@@ -553,6 +560,37 @@ public class SqliteDatabase {
             statement.execute(
                     "create index if not exists idx_agent_runs_status_activity on agent_runs(status, last_activity_at)");
             statement.execute(
+                    "create table if not exists usage_events ("
+                            + "event_id text primary key,"
+                            + "session_id text,"
+                            + "run_id text,"
+                            + "source_key text,"
+                            + "provider text,"
+                            + "model text,"
+                            + "input_tokens integer not null default 0,"
+                            + "output_tokens integer not null default 0,"
+                            + "cache_read_tokens integer not null default 0,"
+                            + "cache_write_tokens integer not null default 0,"
+                            + "reasoning_tokens integer not null default 0,"
+                            + "total_tokens integer not null default 0,"
+                            + "cost_micros integer not null default 0,"
+                            + "currency text,"
+                            + "price_source text,"
+                            + "pricing_available integer not null default 0,"
+                            + "unpriced_input_tokens integer not null default 0,"
+                            + "unpriced_output_tokens integer not null default 0,"
+                            + "unpriced_cache_read_tokens integer not null default 0,"
+                            + "unpriced_cache_write_tokens integer not null default 0,"
+                            + "unpriced_reasoning_tokens integer not null default 0,"
+                            + "priced_at integer not null default 0,"
+                            + "created_at integer not null,"
+                            + "backfill_approximate integer not null default 0"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_usage_events_created on usage_events(created_at desc)");
+            statement.execute(
+                    "create index if not exists idx_usage_events_run on usage_events(run_id)");
+            statement.execute(
                     "create table if not exists agent_run_events ("
                             + "event_id text primary key,"
                             + "run_id text not null,"
@@ -853,12 +891,14 @@ public class SqliteDatabase {
                             + "name text not null,"
                             + "description text,"
                             + "color text,"
+                            + "default_workspace_path text,"
                             + "current integer not null default 0,"
                             + "archived integer not null default 0,"
                             + "created_at integer not null,"
                             + "updated_at integer not null"
                             + ")");
             addColumn(statement, "kanban_boards", "archived integer not null default 0");
+            addColumn(statement, "kanban_boards", "default_workspace_path text");
             statement.execute(
                     "create table if not exists kanban_tasks ("
                             + "task_id text primary key,"
@@ -869,8 +909,10 @@ public class SqliteDatabase {
                             + "status text not null,"
                             + "priority integer not null default 0,"
                             + "tenant text,"
+                            + "session_id text,"
                             + "workspace_kind text,"
                             + "workspace_path text,"
+                            + "branch_name text,"
                             + "created_by text,"
                             + "result text,"
                             + "idempotency_key text,"
@@ -909,10 +951,14 @@ public class SqliteDatabase {
             addColumn(statement, "kanban_tasks", "workflow_template_id text");
             addColumn(statement, "kanban_tasks", "current_step_key text");
             addColumn(statement, "kanban_tasks", "skills_json text");
+            addColumn(statement, "kanban_tasks", "session_id text");
+            addColumn(statement, "kanban_tasks", "branch_name text");
             statement.execute(
                     "create index if not exists idx_kanban_tasks_board_status on kanban_tasks(board_slug, status, priority desc, updated_at desc)");
             statement.execute(
                     "create index if not exists idx_kanban_tasks_idempotency on kanban_tasks(board_slug, idempotency_key)");
+            statement.execute(
+                    "create index if not exists idx_kanban_tasks_session_id on kanban_tasks(session_id)");
             statement.execute(
                     "create table if not exists kanban_task_links ("
                             + "parent_id text not null,"
@@ -923,6 +969,19 @@ public class SqliteDatabase {
                     "create index if not exists idx_kanban_task_links_child on kanban_task_links(child_id)");
             statement.execute(
                     "create index if not exists idx_kanban_task_links_parent on kanban_task_links(parent_id)");
+            statement.execute(
+                    "create table if not exists kanban_task_attachments ("
+                            + "attachment_id text primary key,"
+                            + "task_id text not null,"
+                            + "filename text not null,"
+                            + "stored_path text not null,"
+                            + "content_type text,"
+                            + "size integer not null default 0,"
+                            + "uploaded_by text,"
+                            + "created_at integer not null"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_task_attachments_task on kanban_task_attachments(task_id, created_at asc)");
             statement.execute(
                     "create table if not exists kanban_runs ("
                             + "run_id text primary key,"

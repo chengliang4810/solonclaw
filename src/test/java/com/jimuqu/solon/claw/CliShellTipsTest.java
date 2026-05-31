@@ -3,17 +3,22 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliMode;
+import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.cli.CliShell;
 import com.jimuqu.solon.claw.cli.ConsoleEventSink;
 import com.jimuqu.solon.claw.cli.LocalTerminalHelp;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import java.util.Arrays;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class CliShellTipsTest {
@@ -79,6 +84,24 @@ public class CliShellTipsTest {
         int skinExitCode = sendOnce(shell, new PrintWriter(skinBuffer), "/skin mono");
         assertThat(skinExitCode).isEqualTo(0);
         assertThat(skinBuffer.toString()).contains("当前皮肤：mono").contains("/skin <名称>");
+    }
+
+    @Test
+    void shouldSanitizeTerminalResponsesBeforeLocalCliCommandRouting() throws Exception {
+        CliShell shell =
+                new CliShell(
+                        new StubCliRuntime(GatewayReply.ok("routed-to-model"), null),
+                        new CliMode(CliMode.Kind.CLI, null, null));
+        StringWriter buffer = new StringWriter();
+
+        int exitCode =
+                sendOnce(
+                        shell,
+                        new PrintWriter(buffer),
+                        "/tips]11;rgb:ffff/ffff/ffff\u0007");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString()).contains("终端提示");
     }
 
     @Test
@@ -429,6 +452,34 @@ public class CliShellTipsTest {
                 .contains("copy=ready");
     }
 
+    @Test
+    void shouldFailClosedWhenSinglePromptProducesEmptyResponse() throws Exception {
+        CliShell shell =
+                new CliShell(
+                        new StubCliRuntime(GatewayReply.ok(""), null),
+                        new CliMode(CliMode.Kind.CLI, null, null));
+        StringWriter buffer = new StringWriter();
+
+        int exitCode = sendOnce(shell, new PrintWriter(buffer), "hello");
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(buffer.toString()).contains("未产生最终回复");
+    }
+
+    @Test
+    void shouldFailClosedWhenSinglePromptThrowsRuntimeException() throws Exception {
+        CliShell shell =
+                new CliShell(
+                        new StubCliRuntime(null, new IllegalStateException("not a TTY")),
+                        new CliMode(CliMode.Kind.CLI, null, null));
+        StringWriter buffer = new StringWriter();
+
+        int exitCode = sendOnce(shell, new PrintWriter(buffer), "hello");
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(buffer.toString()).contains("执行失败").contains("not a TTY");
+    }
+
     private static String[] commandList() throws Exception {
         Field field = CliShell.class.getDeclaredField("COMMANDS");
         field.setAccessible(true);
@@ -488,5 +539,29 @@ public class CliShellTipsTest {
                 Integer.valueOf(tools),
                 Integer.valueOf(failures),
                 Arrays.asList("tool.start terminal", "run.failed session=cli-test"));
+    }
+
+    private static class StubCliRuntime extends CliRuntime {
+        private final GatewayReply reply;
+        private final Exception error;
+
+        private StubCliRuntime(GatewayReply reply, Exception error) {
+            super(null, null);
+            this.reply = reply;
+            this.error = error;
+        }
+
+        @Override
+        public GatewayReply send(
+                String sessionId,
+                String input,
+                List<MessageAttachment> attachments,
+                ConversationEventSink eventSink)
+                throws Exception {
+            if (error != null) {
+                throw error;
+            }
+            return reply;
+        }
     }
 }

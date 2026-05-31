@@ -11,6 +11,11 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
+function formatCost(micros: number, currency: string): string {
+  const amount = micros / 1000000
+  const code = currency || 'USD'
+  return `${code} ${amount.toFixed(amount >= 10 ? 2 : 4)}`
+}
 </script>
 
 <template>
@@ -36,6 +41,18 @@ function formatTokens(n: number): string {
         {{ formatTokens(usageStore.totalCacheWriteTokens) }} {{ t('usage.cacheWrite') }}
       </div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label">{{ t('usage.estimatedCost') }}</div>
+      <div class="stat-value">
+        {{ usageStore.pricingAvailable ? formatCost(usageStore.totalCostMicros, usageStore.currency) : '--' }}
+      </div>
+      <div class="stat-sub">
+        {{ usageStore.pricingAvailable ? t('usage.priced') : t('usage.unpriced') }}
+        <span v-if="usageStore.unpricedTokens > 0">
+          / {{ formatTokens(usageStore.unpricedTokens) }} {{ t('usage.unpricedTokens') }}
+        </span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -44,7 +61,7 @@ function formatTokens(n: number): string {
 
 .stat-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-bottom: 20px;
 }

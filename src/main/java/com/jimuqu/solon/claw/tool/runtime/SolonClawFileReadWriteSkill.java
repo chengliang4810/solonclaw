@@ -12,8 +12,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -23,6 +26,7 @@ import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private static final int DEFAULT_READ_OFFSET = 1;
     private static final int DEFAULT_READ_LIMIT = 500;
+    private static final String UTF8_BOM = "\ufeff";
     private static final String READ_DEDUP_STATUS_MESSAGE =
             "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 file_read 结果继续任务。";
 
@@ -71,20 +75,34 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         assertNotInternalFileStatusContent(content);
         Path target = resolvePath(fileName);
         String staleWarning = fileStateTracker.checkStaleness(fileName, target);
-        String result = super.write(fileName, content);
-        clearReadDedup(fileName);
-        fileStateTracker.recordWrite(target);
+        String result;
+        boolean success;
+        try {
+            writeTextPreservingBom(target, content);
+            result = "文件保存成功: " + fileName;
+            success = true;
+        } catch (Exception e) {
+            result = "写入失败: " + safeToolError(e);
+            success = false;
+        }
+        if (success) {
+            clearReadDedup(fileName);
+            fileStateTracker.recordWrite(target);
+        }
+        String safeResult = SecretRedactor.redact(result, 1000);
+        ToolResultEnvelope envelope =
+                success ? ToolResultEnvelope.ok(safeResult) : ToolResultEnvelope.error(safeResult);
+        String resolvedPath = resolvedOutputPath(target);
+        envelope.data("path", safeDisplayPath(fileName));
+        if (success) {
+            envelope.data("resolved_path", safeDisplayPath(resolvedPath))
+                    .data("files_modified", Collections.singletonList(safeDisplayPath(resolvedPath)));
+        }
         if (StrUtil.isNotBlank(staleWarning)) {
-            String safeResult = SecretRedactor.redact(result, 1000);
-            ToolResultEnvelope envelope =
-                    StrUtil.startWith(result, "写入失败")
-                            ? ToolResultEnvelope.error(safeResult)
-                            : ToolResultEnvelope.ok(safeResult);
-            return envelope.data("path", safeDisplayPath(fileName))
-                    .data("_warning", safeDisplayPath(staleWarning))
+            return envelope.data("_warning", safeDisplayPath(staleWarning))
                     .toJson();
         }
-        return SecretRedactor.redact(result, 1000);
+        return envelope.toJson();
     }
 
     public String read(@Param("fileName") String fileName) {
@@ -169,17 +187,25 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             return ToolResultEnvelope.error("读取失败: " + safeToolError(e)).toJson();
         }
         File targetFile = target.toFile();
+        String resolvedPath = safeDisplayPath(resolvedOutputPath(target));
         if (!targetFile.exists()) {
             String displayPath = safeDisplayPath(fileName);
-            return ToolResultEnvelope.error("文件不存在: " + displayPath)
+            ToolResultEnvelope envelope =
+                    ToolResultEnvelope.error("文件不存在: " + displayPath)
                     .data("path", displayPath)
-                    .toJson();
+                            .data("resolved_path", resolvedPath);
+            List<String> similarFiles = similarFiles(fileName, target);
+            if (!similarFiles.isEmpty()) {
+                envelope.data("similar_files", similarFiles);
+            }
+            return envelope.toJson();
         }
         if (targetFile.isDirectory()) {
             String displayPath = safeDisplayPath(fileName);
             return ToolResultEnvelope.error(
                             "读取失败：'" + displayPath + "' 是一个目录。请使用 file_list 查看其内容。")
                     .data("path", displayPath)
+                    .data("resolved_path", resolvedPath)
                     .toJson();
         }
         ReadKey readKey = new ReadKey(target.toAbsolutePath().normalize().toString(), safeOffset, safeLimit);
@@ -195,6 +221,9 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             String line;
             while ((line = reader.readLine()) != null) {
                 totalLines++;
+                if (totalLines == 1) {
+                    line = stripLeadingBom(line);
+                }
                 if (totalLines >= safeOffset && totalLines <= endLine) {
                     selected.add(numberedLine(totalLines, line));
                 }
@@ -206,6 +235,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             if (readStatus.blocked) {
                 return ToolResultEnvelope.error(readStatus.message)
                         .data("path", safeDisplayPath(fileName))
+                        .data("resolved_path", resolvedPath)
                         .data("already_read", Integer.valueOf(readStatus.count))
                         .toJson();
             }
@@ -213,6 +243,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             ToolResultEnvelope envelope =
                     ToolResultEnvelope.ok("文件读取完成：" + displayPath)
                             .data("path", displayPath)
+                            .data("resolved_path", resolvedPath)
                             .data("content", content)
                             .data("total_lines", Integer.valueOf(totalLines))
                             .data("file_size", Long.valueOf(Files.size(target)))
@@ -240,6 +271,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         } catch (Exception e) {
             return ToolResultEnvelope.error("读取失败: " + safeToolError(e))
                     .data("path", safeDisplayPath(fileName))
+                    .data("resolved_path", resolvedPath)
                     .toJson();
         }
     }
@@ -261,7 +293,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         if (value.length() > maxLineLength) {
             value = value.substring(0, maxLineLength) + "... [truncated]";
         }
-        return String.format("%6d|%s", Integer.valueOf(lineNumber), value);
+        return lineNumber + "|" + value;
     }
 
     private String joinLines(List<String> lines) {
@@ -273,6 +305,39 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             builder.append(lines.get(i));
         }
         return builder.toString();
+    }
+
+    private void writeTextPreservingBom(Path target, String content) throws Exception {
+        String value = StrUtil.nullToEmpty(content);
+        if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
+            value = UTF8_BOM + value;
+        }
+        if (target.getParent() != null) {
+            Files.createDirectories(target.getParent());
+        }
+        Files.write(target, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean hasLeadingBom(Path target) {
+        if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
+            return false;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(target);
+            return bytes.length >= 3
+                    && (bytes[0] & 0xFF) == 0xEF
+                    && (bytes[1] & 0xFF) == 0xBB
+                    && (bytes[2] & 0xFF) == 0xBF;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stripLeadingBom(String value) {
+        if (value != null && value.startsWith(UTF8_BOM)) {
+            return value.substring(UTF8_BOM.length());
+        }
+        return value;
     }
 
     private Path resolvePath(String name) {
@@ -325,6 +390,138 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    private String resolvedOutputPath(Path path) {
+        return safeRealPath(path).toString();
+    }
+
+    private List<String> similarFiles(String requestedPath, Path target) {
+        Path dir = target == null ? null : target.getParent();
+        if (dir == null || !Files.isDirectory(dir)) {
+            return Collections.emptyList();
+        }
+        Path fileNamePath = target.getFileName();
+        String requestedName = fileNamePath == null ? StrUtil.nullToEmpty(requestedPath) : fileNamePath.toString();
+        String lowerName = requestedName.toLowerCase(Locale.ROOT);
+        String requestedBase = basename(lowerName);
+        String requestedExt = extension(lowerName);
+        List<ScoredPath> scored = new ArrayList<ScoredPath>();
+        try (java.util.stream.Stream<Path> stream = Files.list(dir)) {
+            java.util.Iterator<Path> iterator = stream.iterator();
+            int scanned = 0;
+            while (iterator.hasNext() && scanned < 200) {
+                scanned++;
+                Path candidate = iterator.next();
+                if (!Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                String candidateName = candidate.getFileName() == null ? "" : candidate.getFileName().toString();
+                int score = similarityScore(lowerName, requestedBase, requestedExt, candidateName);
+                if (score <= 0 || !allowedSuggestion(candidate)) {
+                    continue;
+                }
+                scored.add(new ScoredPath(score, displayPathForCandidate(candidate)));
+            }
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+        Collections.sort(
+                scored,
+                new Comparator<ScoredPath>() {
+                    @Override
+                    public int compare(ScoredPath left, ScoredPath right) {
+                        int byScore = Integer.compare(right.score, left.score);
+                        if (byScore != 0) {
+                            return byScore;
+                        }
+                        return left.path.compareTo(right.path);
+                    }
+                });
+        List<String> result = new ArrayList<String>();
+        for (ScoredPath item : scored) {
+            result.add(safeDisplayPath(item.path));
+            if (result.size() >= 5) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private boolean allowedSuggestion(Path candidate) {
+        if (securityPolicyService == null) {
+            return true;
+        }
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", displayPathForCandidate(candidate));
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs(ToolNameConstants.FILE_READ, args);
+        return verdict.isAllowed();
+    }
+
+    private String displayPathForCandidate(Path candidate) {
+        Path normalized = candidate.toAbsolutePath().normalize();
+        if (normalized.startsWith(rootPath)) {
+            return rootPath.relativize(normalized).toString();
+        }
+        return normalized.toString();
+    }
+
+    private int similarityScore(
+            String lowerName, String requestedBase, String requestedExt, String candidateName) {
+        String candidateLower = candidateName.toLowerCase(Locale.ROOT);
+        String candidateBase = basename(candidateLower);
+        String candidateExt = extension(candidateLower);
+        if (candidateLower.equals(lowerName)) {
+            return 100;
+        }
+        if (candidateBase.equals(requestedBase)) {
+            return 90;
+        }
+        if (candidateLower.startsWith(lowerName) || lowerName.startsWith(candidateLower)) {
+            return 70;
+        }
+        if (candidateLower.contains(lowerName)) {
+            return 60;
+        }
+        if (lowerName.contains(candidateLower) && candidateLower.length() > 2) {
+            return 40;
+        }
+        if (StrUtil.isNotBlank(requestedExt) && requestedExt.equals(candidateExt)) {
+            int common = commonCharacterCount(lowerName, candidateLower);
+            int max = Math.max(lowerName.length(), candidateLower.length());
+            if (max > 0 && common >= Math.max(1, max * 4 / 10)) {
+                return 30;
+            }
+        }
+        if (StrUtil.isNotBlank(requestedBase) && candidateBase.contains(requestedBase)) {
+            return 20;
+        }
+        return 0;
+    }
+
+    private int commonCharacterCount(String left, String right) {
+        java.util.Set<Character> seen = new java.util.HashSet<Character>();
+        for (int i = 0; i < left.length(); i++) {
+            seen.add(Character.valueOf(left.charAt(i)));
+        }
+        int common = 0;
+        for (int i = 0; i < right.length(); i++) {
+            if (seen.contains(Character.valueOf(right.charAt(i)))) {
+                common++;
+            }
+        }
+        return common;
+    }
+
+    private String basename(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot <= 0 ? name : name.substring(0, dot);
+    }
+
+    private String extension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot <= 0 ? "" : name.substring(dot);
+    }
+
     private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
         resetDedupHitsAfterOtherToolCall();
         long modifiedAt = targetFile.lastModified();
@@ -340,11 +537,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                                         + safeDisplayPath(fileName)
                                         + "。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
                         .data("path", safeDisplayPath(fileName))
+                        .data("resolved_path", safeDisplayPath(resolvedOutputPath(targetFile.toPath())))
                         .data("already_read", Integer.valueOf(tracker.dedupHits + 1))
                         .toJson();
             }
             return ToolResultEnvelope.ok(READ_DEDUP_STATUS_MESSAGE)
                     .data("path", safeDisplayPath(fileName))
+                    .data("resolved_path", safeDisplayPath(resolvedOutputPath(targetFile.toPath())))
                     .data("dedup", Boolean.TRUE)
                     .data("content_returned", Boolean.FALSE)
                     .data("offset", Integer.valueOf(key.offset))
@@ -514,5 +713,14 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             return result;
         }
     }
-}
 
+    private static final class ScoredPath {
+        private final int score;
+        private final String path;
+
+        private ScoredPath(int score, String path) {
+            this.score = score;
+            this.path = path;
+        }
+    }
+}

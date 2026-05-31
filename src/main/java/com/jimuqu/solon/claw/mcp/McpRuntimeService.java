@@ -168,7 +168,7 @@ public class McpRuntimeService implements Closeable {
         List<ToolProvider> result = new ArrayList<ToolProvider>();
         for (McpServerConfig config : configs) {
             try {
-                result.add(new PrefixedMcpToolProvider(config, providerFor(config)));
+                result.add(new PrefixedMcpToolProvider(config));
             } catch (Exception e) {
                 updateStatus(config.getServerId(), "error", safeError(e), null, false);
             }
@@ -1149,14 +1149,14 @@ public class McpRuntimeService implements Closeable {
         private final McpServerConfig config;
         private McpClientProvider provider;
 
-        private PrefixedMcpToolProvider(McpServerConfig config, McpClientProvider provider) {
+        private PrefixedMcpToolProvider(McpServerConfig config) {
             this.config = config;
-            this.provider = provider;
         }
 
         @Override
         public Collection<FunctionTool> getTools() {
-            Collection<FunctionTool> remoteTools = filteredTools(config, provider.getTools());
+            McpClientProvider activeProvider = ensureProvider();
+            Collection<FunctionTool> remoteTools = filteredTools(config, activeProvider.getTools());
             List<FunctionTool> result = new ArrayList<FunctionTool>();
             for (final FunctionTool remote : remoteTools) {
                 FunctionToolDesc desc = new FunctionToolDesc(prefixedName(config.getServerId(), remote.name()));
@@ -1186,6 +1186,13 @@ public class McpRuntimeService implements Closeable {
                 result.add(getPromptTool());
             }
             return result;
+        }
+
+        private McpClientProvider ensureProvider() {
+            if (provider == null) {
+                provider = providerFor(config);
+            }
+            return provider;
         }
 
         private boolean supportsResourcesUtility() {
@@ -1562,8 +1569,9 @@ public class McpRuntimeService implements Closeable {
         }
 
         private <T> T callWithRecovery(String operation, RecoverableCall<T> call) {
+            McpClientProvider activeProvider = ensureProvider();
             try {
-                return callWithTimeout(operation, call, provider);
+                return callWithTimeout(operation, call, activeProvider);
             } catch (Throwable first) {
                 if (isAuthError(first)) {
                     @SuppressWarnings("unchecked")

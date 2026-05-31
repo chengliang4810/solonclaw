@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.gateway.feedback.GatewayConversationFeedbackSink;
 import com.jimuqu.solon.claw.goal.GoalDecision;
 import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.AgentHookName;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.noear.solon.ai.chat.ChatRole;
@@ -84,6 +86,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private final AgentRuntimeService agentRuntimeService;
     private final MemoryManager memoryManager;
     private final GoalService goalService;
+    private final SpeechService speechService;
     private final ConcurrentMap<String, Object> sourceLocks =
             new ConcurrentHashMap<String, Object>();
     private AgentHookRegistry hookRegistry;
@@ -112,6 +115,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 dangerousCommandApprovalService,
                 agentRunSupervisor,
                 runtimeFooterService,
+                null,
                 null,
                 null,
                 null);
@@ -144,6 +148,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 runtimeFooterService,
                 agentRuntimeService,
                 null,
+                null,
                 null);
     }
 
@@ -175,6 +180,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 runtimeFooterService,
                 agentRuntimeService,
                 memoryManager,
+                null,
                 null);
     }
 
@@ -193,6 +199,40 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager,
             GoalService goalService) {
+        this(
+                sessionRepository,
+                contextService,
+                contextCompressionService,
+                llmGateway,
+                toolRegistry,
+                deliveryService,
+                displaySettingsService,
+                runtimeSettingsService,
+                dangerousCommandApprovalService,
+                agentRunSupervisor,
+                runtimeFooterService,
+                agentRuntimeService,
+                memoryManager,
+                goalService,
+                null);
+    }
+
+    public DefaultConversationOrchestrator(
+            SessionRepository sessionRepository,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            LlmGateway llmGateway,
+            ToolRegistry toolRegistry,
+            DeliveryService deliveryService,
+            DisplaySettingsService displaySettingsService,
+            RuntimeSettingsService runtimeSettingsService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunSupervisor agentRunSupervisor,
+            RuntimeFooterService runtimeFooterService,
+            AgentRuntimeService agentRuntimeService,
+            MemoryManager memoryManager,
+            GoalService goalService,
+            SpeechService speechService) {
         this.sessionRepository = sessionRepository;
         this.contextService = contextService;
         this.contextCompressionService = contextCompressionService;
@@ -207,6 +247,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         this.agentRuntimeService = agentRuntimeService;
         this.memoryManager = memoryManager;
         this.goalService = goalService;
+        this.speechService = speechService;
     }
 
     public GatewayReply handleIncoming(GatewayMessage message) throws Exception {
@@ -420,6 +461,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
         try {
             applyTransientModelOverride(session, message);
+            transcribeVoiceAttachments(message);
             String effectiveUserText = MessageAttachmentSupport.composeEffectiveUserText(message);
             message.setText(effectiveUserText);
             if (!message.isHeartbeat()
@@ -490,6 +532,38 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         });
             }
         }
+    }
+
+    private void transcribeVoiceAttachments(GatewayMessage message) {
+        if (speechService == null || message == null || message.getAttachments() == null) {
+            return;
+        }
+        for (com.jimuqu.solon.claw.core.model.MessageAttachment attachment :
+                message.getAttachments()) {
+            if (attachment == null || StrUtil.isNotBlank(attachment.getTranscribedText())) {
+                continue;
+            }
+            if (!isVoiceAttachment(attachment)) {
+                continue;
+            }
+            SpeechService.TranscriptionOutcome outcome =
+                    speechService.transcribe(
+                            attachment, Collections.<String, Object>emptyMap());
+            if (outcome.isSuccess() && StrUtil.isNotBlank(outcome.getText())) {
+                attachment.setTranscribedText(outcome.getText());
+            } else if (!outcome.isSuccess()) {
+                log.warn(
+                        "Voice transcription skipped: source={}, error={}",
+                        message.sourceKey(),
+                        SecretRedactor.redact(outcome.getError(), 500));
+            }
+        }
+    }
+
+    private boolean isVoiceAttachment(com.jimuqu.solon.claw.core.model.MessageAttachment attachment) {
+        String kind = StrUtil.nullToEmpty(attachment.getKind()).toLowerCase(Locale.ROOT);
+        String mime = StrUtil.nullToEmpty(attachment.getMimeType()).toLowerCase(Locale.ROOT);
+        return "voice".equals(kind) || mime.startsWith("audio/");
     }
 
     private void applyTransientModelOverride(SessionRecord session, GatewayMessage message) {

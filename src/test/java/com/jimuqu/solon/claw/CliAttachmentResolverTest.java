@@ -190,6 +190,36 @@ public class CliAttachmentResolverTest {
                 .contains("token=***");
     }
 
+    @Test
+    void shouldPreviewWindowsDriveLetterAttachmentPathsCrossPlatform() throws Exception {
+        AppConfig config = testConfig();
+        CliAttachmentResolver resolver = resolver(config);
+
+        List<CliAttachmentResolver.AttachmentPreview> previews =
+                resolver.preview("查看 C:\\Users\\demo\\Pictures\\shot.png 和 D:/reports/result.pdf");
+
+        assertThat(previews).hasSize(2);
+        assertThat(previews)
+                .extracting(CliAttachmentResolver.AttachmentPreview::getStatus)
+                .containsExactly("missing", "missing");
+        assertThat(previews)
+                .extracting(CliAttachmentResolver.AttachmentPreview::getName)
+                .containsExactly("shot.png", "result.pdf");
+    }
+
+    @Test
+    void shouldIgnoreRelativeWindowsStyleAttachmentPaths() throws Exception {
+        AppConfig config = testConfig();
+        CliAttachmentResolver resolver = resolver(config);
+        String input = "相对路径 docs\\shot.png 只作为普通文本";
+
+        CliAttachmentResolver.ResolvedInput resolved = resolver.resolve(input);
+
+        assertThat(resolver.preview(input)).isEmpty();
+        assertThat(resolved.getText()).isEqualTo(input);
+        assertThat(resolved.getAttachments()).isEmpty();
+    }
+
     private CliAttachmentResolver resolver(AppConfig config) {
         return new CliAttachmentResolver(
                 new AttachmentCacheService(config), new SecurityPolicyService(config));
@@ -209,6 +239,9 @@ public class CliAttachmentResolverTest {
         Map<String, Object> summary = CliAttachmentResolver.policySummary();
 
         assertThat(summary.get("fileUriPercentDecoded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("windowsPathPreviewCrossPlatform")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("windowsDrivePathNotDuplicatedAsPosix"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("tildeHomeExpansion")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("canonicalPathResolvedBeforePolicy")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("duplicatePathDeduplicated")).isEqualTo(Boolean.TRUE);

@@ -8,6 +8,7 @@ import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
+import org.noear.solon.core.handle.UploadedFile;
 
 /** Dashboard Kanban API. */
 @Controller
@@ -85,7 +86,11 @@ public class DashboardKanbanController {
                 context.param("status"),
                 Boolean.parseBoolean(String.valueOf(context.param("archived"))),
                 context.param("assignee"),
-                context.param("tenant"));
+                context.param("tenant"),
+                taskOrderBy(context),
+                firstParam(context, "workflow_template_id", "workflow"),
+                firstParam(context, "current_step_key", "step"),
+                firstParam(context, "session_id", "session"));
     }
 
     @Mapping(value = "/api/kanban/tasks", method = MethodType.POST)
@@ -154,6 +159,18 @@ public class DashboardKanbanController {
                     @Override
                     public Map<String, Object> run() throws Exception {
                         return kanbanService.status(taskId, body(context));
+                    }
+                });
+    }
+
+    @Mapping(value = "/api/kanban/tasks/bulk", method = MethodType.POST)
+    public Map<String, Object> bulkTasks(Context context) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.bulkTasks(body(context));
                     }
                 });
     }
@@ -231,8 +248,11 @@ public class DashboardKanbanController {
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/runs", method = MethodType.GET)
-    public List<Map<String, Object>> runs(String taskId) throws Exception {
-        return kanbanService.runs(taskId);
+    public List<Map<String, Object>> runs(String taskId, Context context) throws Exception {
+        return kanbanService.runs(
+                taskId,
+                firstParam(context, "state_type", "stateType"),
+                firstParam(context, "state_name", "state"));
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/events", method = MethodType.GET)
@@ -534,6 +554,38 @@ public class DashboardKanbanController {
                 });
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/attachments", method = MethodType.GET)
+    public List<Map<String, Object>> attachments(String taskId) throws Exception {
+        return kanbanService.attachments(taskId);
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/attachments", method = MethodType.POST, multipart = true)
+    public Map<String, Object> addAttachment(String taskId, Context context, UploadedFile[] file) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        if (file != null && file.length > 0) {
+                            return kanbanService.uploadAttachment(taskId, file);
+                        }
+                        return kanbanService.addAttachment(taskId, body(context));
+                    }
+                });
+    }
+
+    @Mapping(value = "/api/kanban/attachments/{attachmentId}", method = MethodType.DELETE)
+    public Map<String, Object> deleteAttachment(String attachmentId) throws Exception {
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.deleteAttachment(attachmentId);
+                    }
+                });
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}", method = MethodType.DELETE)
     public Map<String, Object> delete(String taskId) throws Exception {
         return safeKanban(
@@ -592,6 +644,22 @@ public class DashboardKanbanController {
             }
             return DashboardResponse.error("KANBAN_BAD_REQUEST", e.getMessage());
         }
+    }
+
+    private String taskOrderBy(Context context) {
+        String orderBy = context == null ? null : context.param("order_by");
+        if (orderBy == null || orderBy.trim().isEmpty()) {
+            orderBy = context == null ? null : context.param("sort");
+        }
+        return orderBy;
+    }
+
+    private String firstParam(Context context, String first, String second) {
+        String value = context == null ? null : context.param(first);
+        if (value == null || value.trim().isEmpty()) {
+            value = context == null ? null : context.param(second);
+        }
+        return value;
     }
 
     private interface KanbanAction {

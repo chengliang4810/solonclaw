@@ -101,6 +101,23 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRequireApprovalForDockerLifecycleCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        assertDockerLifecyclePattern(env, "docker restart app", "docker_container_lifecycle");
+        assertDockerLifecyclePattern(env, "docker stop app", "docker_container_lifecycle");
+        assertDockerLifecyclePattern(env, "docker kill app", "docker_container_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose restart app", "docker_compose_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose stop app", "docker_compose_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose kill app", "docker_compose_lifecycle");
+        assertDockerLifecyclePattern(env, "docker compose down", "docker_compose_lifecycle");
+
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "docker ps")).isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "docker compose ps"))
+                .isNull();
+    }
+
+    @Test
     void shouldExposeApprovalPolicySummaryWithoutExecutingCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("smart");
@@ -13881,6 +13898,16 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect("execute_shell", command);
         assertThat(result)
                 .withFailMessage("expected danger detection for command: %s", command)
+                .isNotNull();
+        assertThat(result.getPatternKey()).isEqualTo(patternKey);
+    }
+
+    private void assertDockerLifecyclePattern(
+            TestEnvironment env, String command, String patternKey) {
+        DangerousCommandApprovalService.DetectionResult result =
+                env.dangerousCommandApprovalService.detect("execute_shell", command);
+        assertThat(result)
+                .withFailMessage("expected Docker lifecycle detection for command: %s", command)
                 .isNotNull();
         assertThat(result.getPatternKey()).isEqualTo(patternKey);
     }

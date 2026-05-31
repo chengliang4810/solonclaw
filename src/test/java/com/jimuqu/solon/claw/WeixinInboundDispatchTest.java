@@ -14,6 +14,7 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -54,11 +55,28 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
+    void shouldNormalizeOutboundTextNewlinesToCrLfForWeixinClients() throws Exception {
+        Method normalize =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "normalizeOutboundTextForWeixin", String.class);
+        normalize.setAccessible(true);
+
+        assertThat((String) normalize.invoke(null, "第一行\n第二行"))
+                .isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r第二行"))
+                .isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r\n第二行"))
+                .isEqualTo("第一行\r\n第二行");
+    }
+
+    @Test
     void shouldDispatchInboundOffThePollingThread() throws Exception {
         AppConfig config = newConfig();
         config.getChannels().getWeixin().setEnabled(true);
         config.getChannels().getWeixin().setAccountId("wx-bot");
         config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
 
         WeiXinChannelAdapter adapter =
                 new WeiXinChannelAdapter(
@@ -94,6 +112,85 @@ public class WeixinInboundDispatchTest {
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
         assertThat(handlerThread.get()).isNotBlank();
         assertThat(handlerThread.get()).isNotEqualTo(callerThread);
+
+        adapter.disconnect();
+    }
+
+    @Test
+    void shouldDebounceRapidInboundTextMessagesByConversation() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
+
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final List<String> texts = Collections.synchronizedList(new ArrayList<String>());
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    @Override
+                    public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        texts.add(message.getText());
+                        latch.countDown();
+                    }
+                });
+
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        processInbound.invoke(adapter, inboundText("msg-1", "room-1", "wx-user", "第一段"));
+        processInbound.invoke(adapter, inboundText("msg-2", "room-1", "wx-user", "第二段"));
+        processInbound.invoke(adapter, inboundText("msg-3", "room-1", "wx-user", "第三段"));
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        TimeUnit.MILLISECONDS.sleep(250L);
+        assertThat(texts).containsExactly("第一段\n第二段\n第三段");
+
+        adapter.disconnect();
+    }
+
+    @Test
+    void shouldDeduplicateRepeatedInboundTextContentFromSameSender() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
+
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final List<String> texts = Collections.synchronizedList(new ArrayList<String>());
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    @Override
+                    public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        texts.add(message.getText());
+                        latch.countDown();
+                    }
+                });
+
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        processInbound.invoke(adapter, inboundText("msg-dup-1", "room-1", "wx-user", "重复内容"));
+        processInbound.invoke(adapter, inboundText("msg-dup-2", "room-1", "wx-user", "重复内容"));
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        TimeUnit.MILLISECONDS.sleep(250L);
+        assertThat(texts).containsExactly("重复内容");
 
         adapter.disconnect();
     }
@@ -214,6 +311,24 @@ public class WeixinInboundDispatchTest {
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
         return config;
+    }
+
+    private ONode inboundText(String messageId, String roomId, String userId, String text) {
+        return ONode.ofJson(
+                "{"
+                        + "\"from_user_id\":\""
+                        + userId
+                        + "\","
+                        + "\"message_id\":\""
+                        + messageId
+                        + "\","
+                        + "\"room_id\":\""
+                        + roomId
+                        + "\","
+                        + "\"item_list\":[{\"type\":1,\"text_item\":{\"text\":\""
+                        + text
+                        + "\"}}]"
+                        + "}");
     }
 
     private static class InMemoryChannelStateRepository implements ChannelStateRepository {

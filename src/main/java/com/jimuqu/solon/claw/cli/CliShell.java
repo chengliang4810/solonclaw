@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
@@ -99,6 +100,7 @@ public class CliShell {
                         .completer(new StringsCompleter(COMMANDS))
                         .variable(LineReader.HISTORY_FILE, ".jimuqu-cli-history")
                         .build();
+        TerminalShortcuts.install(reader);
         writer.println("Jimuqu Agent CLI。输入 /help 查看命令，/exit 退出。");
         writer.flush();
         LocalTerminalTaskRunner taskRunner = new LocalTerminalTaskRunner(writer);
@@ -187,6 +189,7 @@ public class CliShell {
             String input,
             boolean verbose)
             throws Exception {
+        input = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
         String trimmed = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(trimmed)) {
             writer.println(LocalTerminalHelp.text());
@@ -267,11 +270,32 @@ public class CliShell {
             writer.println("已附加本地文件：" + resolved.getAttachments().size());
             writer.flush();
         }
-        GatewayReply reply =
-                cliRuntime.send(sessionId, resolved.getText(), resolved.getAttachments(), sink);
+        GatewayReply reply;
+        try {
+            reply = cliRuntime.send(sessionId, resolved.getText(), resolved.getAttachments(), sink);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            writer.println("执行已中断。");
+            writer.flush();
+            return 130;
+        } catch (Exception e) {
+            writer.println(
+                    "执行失败："
+                            + SecretRedactor.redact(
+                                    StrUtil.blankToDefault(
+                                            e.getMessage(), e.getClass().getSimpleName()),
+                                    1000));
+            writer.flush();
+            return 1;
+        }
         String finalText = reply == null ? "" : StrUtil.nullToEmpty(reply.getContent());
         if (StrUtil.isBlank(finalText)) {
             finalText = sink.assistantText();
+        }
+        if (StrUtil.isBlank(finalText)) {
+            writer.println("未产生最终回复，已按失败处理。");
+            writer.flush();
+            return 1;
         }
         if (StrUtil.isNotBlank(finalText)) {
             lastReply = finalText;

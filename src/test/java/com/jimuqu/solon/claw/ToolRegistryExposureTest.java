@@ -55,6 +55,7 @@ public class ToolRegistryExposureTest {
                         "codesearch",
                         "websearch",
                         "webfetch",
+                        "browser",
                         "security_audit",
                         "clarify",
                         "file_read",
@@ -102,6 +103,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeCodeSearchTool");
         assertThat(joined).contains("SafeWebsearchTool");
         assertThat(joined).contains("SafeWebfetchTool");
+        assertThat(joined).contains("BrowserTools");
         assertThat(joined).contains("SecurityAuditTools");
         assertThat(joined).contains("ClarifyTools");
         assertThat(joined).contains("SolonClawFileReadWriteSkill");
@@ -2957,6 +2959,19 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldDropBrowserToolsWhenDisabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        env.toolRegistry.disableTools(
+                sourceKey, java.util.Collections.singletonList("browser"));
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).doesNotContain("browser");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .doesNotContain("BrowserTools");
+    }
+
+    @Test
     void shouldExposeManagedToolGatewayWhenExplicitlyEnabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String sourceKey = "MEMORY:room-1:user-1";
@@ -4582,6 +4597,146 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReportResolvedAbsolutePathForFileWrite() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.write("notes/out.txt", "hello\n"));
+        String expected = workspace.resolve("notes/out.txt").toRealPath().toString();
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("resolved_path").getString()).isEqualTo(expected);
+        Object filesModified = result.get("files_modified").toData();
+        assertThat(String.valueOf(filesModified)).isEqualTo("[" + expected + "]");
+        assertThat(result.get("path").getString()).isEqualTo("notes/out.txt");
+        assertThat(new String(Files.readAllBytes(workspace.resolve("notes/out.txt")), StandardCharsets.UTF_8))
+                .isEqualTo("hello\n");
+    }
+
+    @Test
+    void shouldReportResolvedAbsolutePathForFileRead() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path file = workspace.resolve("notes/input.txt");
+        Files.createDirectories(file.getParent());
+        Files.write(file, Arrays.asList("alpha", "beta"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("notes/input.txt", 1, 2));
+        String expected = file.toRealPath().toString();
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("resolved_path").getString()).isEqualTo(expected);
+        assertThat(result.get("path").getString()).isEqualTo("notes/input.txt");
+        assertThat(result.get("content").getString()).contains("1|alpha").contains("2|beta");
+    }
+
+    @Test
+    void shouldSuggestSimilarFilesWhenFileReadPathIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.createDirectories(workspace.resolve("config"));
+        Files.write(workspace.resolve("config/app.yaml"), Arrays.asList("app: true"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("config/app.yml"), Arrays.asList("app: short"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("config/application.yaml"), Arrays.asList("app: long"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("config/readme.txt"), Arrays.asList("ignore"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("config/app.json", 1, 5));
+        Object suggestionsData = result.get("similar_files").toData();
+        String suggestions = String.valueOf(suggestionsData);
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString()).contains("config/app.json");
+        assertThat(suggestionsData).isNotNull();
+        assertThat(result.get("path").getString()).isEqualTo("config/app.json");
+        assertThat(result.get("resolved_path").getString())
+                .isEqualTo(workspace.resolve("config/app.json").toAbsolutePath().normalize().toString());
+        assertThat(suggestions)
+                .contains("config/app.yaml")
+                .contains("config/app.yml")
+                .contains("config/application.yaml")
+                .doesNotContain("config/readme.txt");
+    }
+
+    @Test
+    void shouldNotSuggestSensitiveFilesWhenFileReadPathIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(workspace.resolve("config.yml"), Arrays.asList("public: true"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("credentials.json"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("config.json", 1, 5));
+        Object suggestionsData = result.get("similar_files").toData();
+        String suggestions = String.valueOf(suggestionsData);
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(suggestions)
+                .contains("config.yml")
+                .doesNotContain("credentials.json")
+                .doesNotContain("TOKEN=secret");
+        assertThat(result.toJson()).doesNotContain("credentials.json").doesNotContain("TOKEN=secret");
+    }
+
+    @Test
+    void shouldHideUtf8BomOnFileReadAndPreserveItAcrossEdits() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path readTarget = workspace.resolve("bom-read.txt");
+        Path writeTarget = workspace.resolve("bom-write.txt");
+        Path patchTarget = workspace.resolve("bom-patch.txt");
+        byte[] bom = new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        Files.write(readTarget, concat(bom, "alpha\nbravo\n".getBytes(StandardCharsets.UTF_8)));
+        Files.write(writeTarget, concat(bom, "old\n".getBytes(StandardCharsets.UTF_8)));
+        Files.write(patchTarget, concat(bom, "first\nsecond\n".getBytes(StandardCharsets.UTF_8)));
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
+        SolonClawPatchTools patchTools =
+                new SolonClawPatchTools(env.appConfig.getRuntime().getHome(), policy);
+
+        ONode read = ONode.ofJson(fileSkill.read("bom-read.txt", 1, 2));
+        ONode write = ONode.ofJson(fileSkill.write("bom-write.txt", "new\n"));
+        ONode patch =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "replace",
+                                "bom-patch.txt",
+                                "first",
+                                "first updated",
+                                Boolean.FALSE,
+                                null));
+
+        assertThat(read.get("success").getBoolean()).isTrue();
+        assertThat(read.get("content").getString())
+                .contains("1|alpha")
+                .doesNotContain("     1|")
+                .doesNotContain("\ufeff");
+        assertThat(write.get("success").getBoolean()).isTrue();
+        assertThat(Files.readAllBytes(writeTarget))
+                .startsWith(bom)
+                .isEqualTo(concat(bom, "new\n".getBytes(StandardCharsets.UTF_8)));
+        assertThat(patch.get("success").getBoolean()).isTrue();
+        assertThat(Files.readAllBytes(patchTarget))
+                .startsWith(bom)
+                .isEqualTo(concat(bom, "first updated\nsecond\n".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void shouldRejectJarInternalFileToolPathsBeforeDelegating() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawFileReadWriteSkill fileSkill =
@@ -4779,16 +4934,18 @@ public class ToolRegistryExposureTest {
         assertThat(firstPage.get("truncated").getBoolean()).isTrue();
         assertThat(firstPage.get("hint").getString()).contains("offset=3");
         assertThat(firstPage.get("content").getString())
-                .contains("     1|alpha")
-                .contains("     2|0123456789... [truncated]")
+                .contains("1|alpha")
+                .contains("2|0123456789... [truncated]")
+                .doesNotContain("     1|")
                 .doesNotContain("charlie");
 
         ONode secondPage = ONode.ofJson(fileSkill.read("long-lines.txt", 3, 2));
 
         assertThat(secondPage.get("truncated").getBoolean()).isFalse();
         assertThat(secondPage.get("content").getString())
-                .contains("     3|charlie")
-                .contains("     4|delta");
+                .contains("3|charlie")
+                .contains("4|delta")
+                .doesNotContain("     3|");
     }
 
     @Test
@@ -4807,15 +4964,19 @@ public class ToolRegistryExposureTest {
         ONode first = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
         ONode second = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
         ONode third = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
+        String expected = workspace.resolve("repeat.txt").toRealPath().toString();
 
         assertThat(first.get("success").getBoolean()).isTrue();
         assertThat(first.get("content").getString()).contains("alpha").contains("bravo");
+        assertThat(first.get("resolved_path").getString()).isEqualTo(expected);
         assertThat(second.get("success").getBoolean()).isTrue();
         assertThat(second.get("dedup").getBoolean()).isTrue();
+        assertThat(second.get("resolved_path").getString()).isEqualTo(expected);
         assertThat(second.get("content_returned").getBoolean()).isFalse();
         assertThat(second.get("content").getString()).isNull();
         assertThat(third.get("success").getBoolean()).isFalse();
         assertThat(third.get("error").getString()).contains("BLOCKED").contains("重复");
+        assertThat(third.get("resolved_path").getString()).isEqualTo(expected);
 
         fileSkill.write("repeat.txt", "delta\n");
         ONode changed = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
@@ -5017,6 +5178,13 @@ public class ToolRegistryExposureTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private byte[] concat(byte[] prefix, byte[] suffix) {
+        byte[] result = new byte[prefix.length + suffix.length];
+        System.arraycopy(prefix, 0, result, 0, prefix.length);
+        System.arraycopy(suffix, 0, result, prefix.length, suffix.length);
+        return result;
     }
 
     private boolean createDirectoryLink(Path link, Path target) {

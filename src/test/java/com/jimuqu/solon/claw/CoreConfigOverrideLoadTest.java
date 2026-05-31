@@ -48,6 +48,16 @@ public class CoreConfigOverrideLoadTest {
                         + "    toolOutputMaxLines: 5000\n"
                         + "    toolOutputMaxLineLength: 3000\n"
                         + "    mediaCacheTtlHours: 72\n"
+                        + "  browser:\n"
+                        + "    rewriteLoopbackUrls: true\n"
+                        + "    loopbackHostAlias: host.containers.internal\n"
+                        + "  kanban:\n"
+                        + "    defaultAssignee: worker-default\n"
+                        + "    maxSpawn: 4\n"
+                        + "    maxInProgress: 8\n"
+                        + "    maxInProgressPerProfile: 2\n"
+                        + "    failureLimit: 5\n"
+                        + "    claimTtlSeconds: 3600\n"
                         + "  terminal:\n"
                         + "    foregroundMaxRetries: 4\n"
                         + "    foregroundRetryBaseDelaySeconds: 1\n"
@@ -86,6 +96,8 @@ public class CoreConfigOverrideLoadTest {
                         + "      cdnBaseUrl: https://cdn.example\n"
                         + "      longPollUrl: https://poll.example/ilink/bot/getupdates\n"
                         + "      splitMultilineMessages: true\n"
+                        + "      textBatchDelaySeconds: 0.8\n"
+                        + "      textBatchSplitDelaySeconds: 1.6\n"
                         + "      sendChunkRetries: 9\n"
                         + "jimuqu:\n"
                         + "  approvals:\n"
@@ -159,6 +171,15 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getWeb().getSearchBackend()).isEqualTo("brave-free");
         assertThat(config.getWeb().getBraveSearchApiKey()).isEqualTo("brv-test-key");
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
+        assertThat(config.getSecurity().isRewriteBrowserLoopbackUrls()).isTrue();
+        assertThat(config.getSecurity().getBrowserLoopbackHostAlias())
+                .isEqualTo("host.containers.internal");
+        assertThat(config.getKanban().getDefaultAssignee()).isEqualTo("worker-default");
+        assertThat(config.getKanban().getMaxSpawn()).isEqualTo(4);
+        assertThat(config.getKanban().getMaxInProgress()).isEqualTo(8);
+        assertThat(config.getKanban().getMaxInProgressPerProfile()).isEqualTo(2);
+        assertThat(config.getKanban().getFailureLimit()).isEqualTo(5);
+        assertThat(config.getKanban().getClaimTtlSeconds()).isEqualTo(3600);
         assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
                 .containsExactly("blocked.example");
@@ -192,7 +213,32 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getChannels().getWeixin().getLongPollUrl())
                 .isEqualTo("https://poll.example/ilink/bot/getupdates");
         assertThat(config.getChannels().getWeixin().isSplitMultilineMessages()).isTrue();
+        assertThat(config.getChannels().getWeixin().getTextBatchDelaySeconds()).isEqualTo(0.8D);
+        assertThat(config.getChannels().getWeixin().getTextBatchSplitDelaySeconds())
+                .isEqualTo(1.6D);
         assertThat(config.getChannels().getWeixin().getSendChunkRetries()).isEqualTo(9);
+    }
+
+    @Test
+    void shouldFallbackInvalidWeixinTextBatchDelaysToDefaults() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-weixin-text-batch").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  channels:\n"
+                        + "    weixin:\n"
+                        + "      textBatchDelaySeconds: NaN\n"
+                        + "      textBatchSplitDelaySeconds: -1\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getChannels().getWeixin().getTextBatchDelaySeconds()).isEqualTo(3.0D);
+        assertThat(config.getChannels().getWeixin().getTextBatchSplitDelaySeconds())
+                .isEqualTo(5.0D);
     }
 
     @Test

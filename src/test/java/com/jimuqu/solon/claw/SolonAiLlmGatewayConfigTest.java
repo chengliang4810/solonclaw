@@ -9,9 +9,11 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.io.File;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -19,10 +21,10 @@ import org.noear.solon.ai.chat.content.ImageBlock;
 import java.util.Collections;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
-import org.slf4j.LoggerFactory;
 
 /** 校验 LLM provider 配置的前置失败逻辑。 */
 public class SolonAiLlmGatewayConfigTest {
@@ -203,6 +205,51 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
+    void shouldApplyPriorityServiceTierForFastSession() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai");
+        config.getLlm().setDialect("openai");
+        config.getLlm().setApiUrl("https://example.com/v1/chat/completions");
+        config.getLlm().setModel("gpt-5.4");
+
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setServiceTierOverride("priority");
+        Method buildChatConfig =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "buildChatConfig", AppConfig.LlmConfig.class, SessionRecord.class);
+        buildChatConfig.setAccessible(true);
+
+        ChatConfig chatConfig =
+                (ChatConfig) buildChatConfig.invoke(gateway, config.getLlm(), session);
+
+        assertThat(chatConfig.getModelOptions().options()).containsEntry("service_tier", "priority");
+    }
+
+    @Test
+    void shouldApplySessionReasoningEffortOverride() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai-responses");
+        config.getLlm().setApiUrl("https://example.com/v1/responses");
+        config.getLlm().setModel("gpt-5.4");
+        config.getLlm().setReasoningEffort("medium");
+
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setReasoningEffortOverride("high");
+        Method buildChatConfig =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "buildChatConfig", AppConfig.LlmConfig.class, SessionRecord.class);
+        buildChatConfig.setAccessible(true);
+
+        ChatConfig chatConfig =
+                (ChatConfig) buildChatConfig.invoke(gateway, config.getLlm(), session);
+
+        assertThat(chatConfig.getModelOptions().options())
+                .containsEntry("reasoning", Collections.singletonMap("effort", "high"));
+    }
+
+    @Test
     void shouldBuildMultimodalPromptForImageAttachments() throws Exception {
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
         AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
@@ -230,36 +277,62 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
-    void shouldRedactImageAttachmentReadFailureLogs() throws Exception {
-        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
-        String leakedToken = "sk-image-path12345";
+    void shouldApplySafeImageAttachmentBoundaries() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome("target/test-runtime/image-boundaries");
+        config.getRuntime().setCacheDir("target/test-runtime/image-boundaries/cache");
+        AttachmentCacheService cacheService = new AttachmentCacheService(config);
+        File mediaDir = cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
+        Files.createDirectories(mediaDir.toPath());
+        File localImage = new File(mediaDir, "safe.png");
+        Files.write(localImage.toPath(), new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
+        File outsideImage = new File("target/outside-image.png");
+        Files.write(outsideImage.toPath(), new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
+
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
         AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        runContext.setUserAttachments(
+                Arrays.asList(
+                        imageWithData("image/png", "iVBORw0KGgo="),
+                        imageWithUrl("image/jpeg", "https://example.com/a.jpg"),
+                        imageWithLocalPath("image/png", localImage.getAbsolutePath()),
+                        imageWithData("text/plain", "aGVsbG8="),
+                        attachment("file", "image/png", "iVBORw0KGgo=", null, null),
+                        imageWithData("image/svg+xml", "PHN2Zz48L3N2Zz4="),
+                        imageWithData("image/png", java.util.Base64.getEncoder().encodeToString(new byte[6 * 1024 * 1024])),
+                        imageWithLocalPath("image/png", outsideImage.getAbsolutePath()),
+                        imageWithData("image/png", "iVBORw0KGgo=")));
+        Method userPrompt =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "userPrompt", String.class, AgentRunContext.class);
+        userPrompt.setAccessible(true);
+
+        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext);
+
+        UserMessage message = (UserMessage) prompt.getMessages().get(0);
+        assertThat(message.getBlocks()).hasSize(4);
+        assertThat(message.getBlocks())
+                .filteredOn(block -> block instanceof ImageBlock)
+                .hasSize(3);
+    }
+
+    @Test
+    void shouldRedactImageAttachmentReadFailureLogs() throws Exception {
+        String leakedToken = "sk-image-path12345";
+        AppConfig config = new AppConfig();
+        config.getRuntime().setCacheDir("target/test-runtime/redact-image/cache");
         MessageAttachment attachment = new MessageAttachment();
         attachment.setKind("image");
         attachment.setOriginalName("secret.png");
         attachment.setMimeType("image/png");
-        attachment.setLocalPath("C:/tmp/" + leakedToken + "/missing.png");
-        runContext.setUserAttachments(Arrays.asList(attachment));
-        Logger logger = (Logger) LoggerFactory.getLogger(SolonAiLlmGateway.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
-        appender.start();
-        logger.addAppender(appender);
+        File missing = new File(config.getRuntime().getCacheDir(), leakedToken + "/missing.png");
+        attachment.setLocalPath(missing.getAbsolutePath());
+        MediaInputBoundaryService service = new MediaInputBoundaryService(config);
 
-        try {
-            Method userPrompt =
-                    SolonAiLlmGateway.class.getDeclaredMethod(
-                            "userPrompt", String.class, AgentRunContext.class);
-            userPrompt.setAccessible(true);
-            userPrompt.invoke(gateway, "Describe it", runContext);
-        } finally {
-            logger.detachAppender(appender);
-        }
-
-        assertThat(appender.list)
-                .extracting(ILoggingEvent::getFormattedMessage)
-                .anyMatch(message -> message.contains("Failed to attach image block"))
-                .anyMatch(message -> message.contains("***"))
-                .noneMatch(message -> message.contains(leakedToken));
+        assertThat(service.toImageBlock(attachment)).isNull();
+        assertThat(SecretRedactor.redact(attachment.getLocalPath(), 400))
+                .contains("***")
+                .doesNotContain(leakedToken);
     }
 
     private void assertLoggingDialect(String provider, String apiUrl, String model)
@@ -310,5 +383,29 @@ public class SolonAiLlmGatewayConfigTest {
             }
             throw new IllegalStateException(cause);
         }
+    }
+
+    private MessageAttachment imageWithData(String mimeType, String data) {
+        return attachment("image", mimeType, data, null, null);
+    }
+
+    private MessageAttachment imageWithUrl(String mimeType, String url) {
+        return attachment("image", mimeType, null, url, null);
+    }
+
+    private MessageAttachment imageWithLocalPath(String mimeType, String localPath) {
+        return attachment("image", mimeType, null, null, localPath);
+    }
+
+    private MessageAttachment attachment(
+            String kind, String mimeType, String data, String url, String localPath) {
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(kind);
+        attachment.setOriginalName("image.png");
+        attachment.setMimeType(mimeType);
+        attachment.setData(data);
+        attachment.setUrl(url);
+        attachment.setLocalPath(localPath);
+        return attachment;
     }
 }
