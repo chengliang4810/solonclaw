@@ -37,6 +37,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import cn.hutool.core.io.FileUtil;
@@ -54,6 +55,83 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class DashboardDiagnosticOutputTest {
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeManagedProcessRuntimeDiagnosticsWithoutDrainingEvents() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-process-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        FileUtil.mkdir(runtimeHome);
+
+        ProcessRegistry processRegistry = new ProcessRegistry(config);
+        List<ProcessRegistry.ManagedProcess> managedProcesses = new ArrayList<ProcessRegistry.ManagedProcess>();
+        try {
+            for (int i = 0; i < 7; i++) {
+                managedProcesses.add(
+                        processRegistry.start(
+                                "sleep 30 # token=ghp_diagnosticprocess" + i,
+                                runtimeHome));
+            }
+            ProcessRegistry.ManagedProcess completed =
+                    processRegistry.start(
+                            "printf 'token=ghp_diagnosticcompletion123\\n'",
+                            runtimeHome,
+                            true,
+                            Collections.<String>emptyList());
+            processRegistry.waitFor(completed.getId(), 5000L);
+
+            DashboardDiagnosticsService diagnosticsService =
+                    new DashboardDiagnosticsService(
+                            config,
+                            new FixedDeliveryService(null),
+                            new LlmProviderService(config),
+                            new FixedToolRegistry(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            new SecurityPolicyService(config),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            processRegistry);
+
+            Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+
+            Map<String, Object> runtime = (Map<String, Object>) diagnostics.get("runtime");
+            assertThat(runtime).isNotNull();
+            Map<String, Object> processes = (Map<String, Object>) runtime.get("managed_processes");
+            assertThat(processes).isNotNull();
+            assertThat(processes.get("available")).isEqualTo(Boolean.TRUE);
+            assertThat(processes.get("running_count")).isEqualTo(Integer.valueOf(7));
+            assertThat(processes.get("snapshot_limit")).isEqualTo(Integer.valueOf(5));
+            assertThat(processes.get("lifecycle_event_limit")).isEqualTo(Integer.valueOf(10));
+            assertThat((List<Map<String, Object>>) processes.get("snapshots")).hasSize(5);
+            assertThat((List<Map<String, Object>>) processes.get("recent_lifecycle_events"))
+                    .isNotEmpty()
+                    .hasSizeLessThanOrEqualTo(10);
+
+            String diagnosticsJson = ONode.serialize(diagnostics);
+            assertThat(diagnosticsJson).contains("managed_processes");
+            assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticprocess");
+            assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticcompletion123");
+
+            List<Map<String, Object>> pendingEvents = processRegistry.drainEvents(10);
+            assertThat(pendingEvents).extracting(event -> event.get("type")).contains("completion");
+        } finally {
+            for (ProcessRegistry.ManagedProcess managed : managedProcesses) {
+                processRegistry.stop(managed.getId());
+            }
+        }
+    }
+
     @Test
     void shouldRedactGatewayDoctorAndDiagnosticsOutput() throws Exception {
         AppConfig config = new AppConfig();

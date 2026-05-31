@@ -33,6 +33,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -60,6 +61,8 @@ import org.noear.snack4.ONode;
 public class DashboardDiagnosticsService {
     private static final int RECOVERABLE_RUN_ITEM_LIMIT = 5;
     private static final int RECOVERABLE_RUN_SCAN_LIMIT = 100;
+    private static final int PROCESS_SNAPSHOT_LIMIT = 5;
+    private static final int PROCESS_LIFECYCLE_EVENT_LIMIT = 10;
 
     private final AppConfig appConfig;
     private final DeliveryService deliveryService;
@@ -77,6 +80,7 @@ public class DashboardDiagnosticsService {
     private final ShutdownForensicsService shutdownForensicsService;
     private final RuntimeMemoryMonitorService runtimeMemoryMonitorService;
     private final AgentRunRepository agentRunRepository;
+    private final ProcessRegistry processRegistry;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
@@ -229,6 +233,44 @@ public class DashboardDiagnosticsService {
             ShutdownForensicsService shutdownForensicsService,
             RuntimeMemoryMonitorService runtimeMemoryMonitorService,
             AgentRunRepository agentRunRepository) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                shutdownForensicsService,
+                runtimeMemoryMonitorService,
+                agentRunRepository,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository,
+            ProcessRegistry processRegistry) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -245,6 +287,7 @@ public class DashboardDiagnosticsService {
         this.shutdownForensicsService = shutdownForensicsService;
         this.runtimeMemoryMonitorService = runtimeMemoryMonitorService;
         this.agentRunRepository = agentRunRepository;
+        this.processRegistry = processRegistry;
     }
 
     public Map<String, Object> diagnostics() {
@@ -512,7 +555,42 @@ public class DashboardDiagnosticsService {
         map.put("state_parent_writable", canWriteParent(appConfig.getRuntime().getStateDb()));
         map.put("last_shutdown", shutdownSummary());
         map.put("memory_monitor", memoryMonitorSummary());
+        map.put("managed_processes", managedProcessSummary());
         return map;
+    }
+
+    private Map<String, Object> managedProcessSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.valueOf(processRegistry != null));
+        summary.put("running_count", Integer.valueOf(0));
+        summary.put("snapshot_limit", Integer.valueOf(PROCESS_SNAPSHOT_LIMIT));
+        summary.put("lifecycle_event_limit", Integer.valueOf(PROCESS_LIFECYCLE_EVENT_LIMIT));
+        summary.put("snapshots", Collections.emptyList());
+        summary.put("recent_lifecycle_events", Collections.emptyList());
+        summary.put("truncated", Boolean.FALSE);
+        if (processRegistry == null) {
+            return summary;
+        }
+        try {
+            Map<String, ProcessRegistry.ManagedProcess> snapshot = processRegistry.snapshot();
+            List<Map<String, Object>> snapshots = new ArrayList<Map<String, Object>>();
+            for (ProcessRegistry.ManagedProcess managed : snapshot.values()) {
+                if (snapshots.size() >= PROCESS_SNAPSHOT_LIMIT) {
+                    break;
+                }
+                snapshots.add(managed.toRedactedMap());
+            }
+            summary.put("running_count", Integer.valueOf(processRegistry.runningCount()));
+            summary.put("snapshots", snapshots);
+            summary.put(
+                    "recent_lifecycle_events",
+                    processRegistry.recentLifecycleEvents(PROCESS_LIFECYCLE_EVENT_LIMIT));
+            summary.put("truncated", Boolean.valueOf(snapshot.size() > PROCESS_SNAPSHOT_LIMIT));
+        } catch (Exception e) {
+            summary.put("available", Boolean.FALSE);
+            summary.put("error", safeObjectText(e.getMessage(), 300));
+        }
+        return summary;
     }
 
     private Map<String, Object> memoryMonitorSummary() {
