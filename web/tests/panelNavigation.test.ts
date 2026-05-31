@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { nextPanelCursor, normalizePanelKey } from '../src/tui/panelNavigation.ts'
+import { nextPanelCursor, normalizePanelKey } from '../src/shared/panelNavigation.ts'
 
 assert.equal(nextPanelCursor(0, 'down', 3), 1)
 assert.equal(nextPanelCursor(2, 'down', 3), 0)
