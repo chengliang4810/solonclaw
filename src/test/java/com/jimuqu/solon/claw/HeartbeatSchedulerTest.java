@@ -106,6 +106,37 @@ public class HeartbeatSchedulerTest {
     }
 
     @Test
+    void shouldPreserveHomeChannelThreadForSyntheticMessageAndDelivery() throws Exception {
+        AppConfig config = config();
+        InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
+        HomeChannelRecord home = home(PlatformType.FEISHU, "chat-1");
+        home.setThreadId("topic-7");
+        repository.saveHomeChannel(home);
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+        orchestrator.reply = GatewayReply.ok("线程提醒");
+        CapturingDeliveryService deliveryService = new CapturingDeliveryService();
+
+        HeartbeatScheduler scheduler =
+                new HeartbeatScheduler(
+                        config,
+                        repository,
+                        orchestrator,
+                        deliveryService,
+                        workspace(config, "- 检查今天是否有需要提醒的事项"));
+
+        scheduler.tick();
+
+        assertThat(orchestrator.calls).isEqualTo(1);
+        assertThat(orchestrator.lastMessage).isNotNull();
+        assertThat(orchestrator.lastMessage.getThreadId()).isEqualTo("topic-7");
+        assertThat(orchestrator.lastMessage.sourceKey())
+                .isEqualTo("FEISHU:chat-1:topic-7:__heartbeat__");
+        assertThat(deliveryService.requests).hasSize(1);
+        assertThat(deliveryService.requests.get(0).getThreadId()).isEqualTo("topic-7");
+        assertThat(deliveryService.requests.get(0).getText()).isEqualTo("线程提醒");
+    }
+
+    @Test
     void shouldSkipDeliveryForQuietToken() throws Exception {
         AppConfig config = config();
         InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();

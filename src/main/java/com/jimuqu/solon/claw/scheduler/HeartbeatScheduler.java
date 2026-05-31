@@ -104,10 +104,10 @@ public class HeartbeatScheduler {
         GatewayMessage message =
                 new GatewayMessage(platform, home.getChatId(), HEARTBEAT_USER, DEFAULT_PROMPT);
         message.setHeartbeat(true);
+        message.setThreadId(home.getThreadId());
         message.setChatName(home.getChatName());
         message.setUserName(HEARTBEAT_USER);
-        message.setSourceKeyOverride(
-                platform.name() + ":" + home.getChatId() + ":" + HEARTBEAT_USER);
+        message.setSourceKeyOverride(heartbeatSourceKey(platform, home));
 
         GatewayReply reply = conversationOrchestrator.runScheduled(message);
         if (!shouldDeliver(reply)) {
@@ -118,6 +118,7 @@ public class HeartbeatScheduler {
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(platform);
         request.setChatId(home.getChatId());
+        request.setThreadId(home.getThreadId());
         request.setText(reply.getContent());
         deliveryService.deliver(request);
         log.info(
@@ -132,6 +133,16 @@ public class HeartbeatScheduler {
             return false;
         }
         return !QUIET_TOKEN.equalsIgnoreCase(StrUtil.nullToEmpty(reply.getContent()).trim());
+    }
+
+    private String heartbeatSourceKey(PlatformType platform, HomeChannelRecord home) {
+        StringBuilder key = new StringBuilder();
+        key.append(platform.name()).append(":").append(home.getChatId()).append(":");
+        if (StrUtil.isNotBlank(home.getThreadId())) {
+            key.append(home.getThreadId().trim()).append(":");
+        }
+        key.append(HEARTBEAT_USER);
+        return key.toString();
     }
 
     private boolean hasHeartbeatTasks() {
