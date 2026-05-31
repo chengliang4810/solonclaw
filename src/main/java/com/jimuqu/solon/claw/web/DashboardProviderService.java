@@ -26,12 +26,23 @@ import org.yaml.snakeyaml.Yaml;
 
 /** Dashboard provider 配置管理服务。 */
 public class DashboardProviderService {
+    private static final long MODEL_LIST_CACHE_TTL_MILLIS = 60L * 60L * 1000L;
+    private static final int MODEL_LIST_CACHE_MAX_ENTRIES = 64;
+
     private final AppConfig appConfig;
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
     private final LlmProviderService llmProviderService;
     private final ModelMetadataService modelMetadataService;
     private final SecurityPolicyService securityPolicyService;
+    private final Map<String, ModelListCacheEntry> modelListCache =
+            new LinkedHashMap<String, ModelListCacheEntry>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<String, ModelListCacheEntry> eldest) {
+                    return size() > MODEL_LIST_CACHE_MAX_ENTRIES;
+                }
+            };
 
     public DashboardProviderService(
             AppConfig appConfig,
@@ -258,23 +269,84 @@ public class DashboardProviderService {
         }
 
         String url = LlmProviderSupport.buildModelListUrl(baseUrl, dialect);
-        HttpResponse response = executeModelListRequest(url, apiKey, dialect, 0);
-        String body;
-        try {
-            int status = response.getStatus();
-            body = response.body();
-            if (status < 200 || status >= 300) {
-                throw new IllegalStateException(
-                        "获取模型列表失败：HTTP " + status + " " + trimForError(body));
-            }
-        } finally {
-            response.close();
+        assertSafeProviderUrl(url);
+        String cacheKey = modelListCacheKey(providerKey, url, dialect, apiKey);
+        ModelListCacheEntry cached = cachedModelList(cacheKey);
+        if (isFresh(cached)) {
+            return modelListResult(cached, "hit");
         }
+        try {
+            HttpResponse response = executeModelListRequest(url, apiKey, dialect, 0);
+            String body;
+            try {
+                int status = response.getStatus();
+                body = response.body();
+                if (status < 200 || status >= 300) {
+                    throw new IllegalStateException(
+                            "获取模型列表失败：HTTP " + status + " " + trimForError(body));
+                }
+            } finally {
+                response.close();
+            }
 
-        List<String> models = parseModels(body, dialect);
+            ModelListCacheEntry refreshed =
+                    new ModelListCacheEntry(
+                            SecretRedactor.maskUrl(url), parseModels(body, dialect), currentTimeMillis());
+            cacheModelList(cacheKey, refreshed);
+            return modelListResult(refreshed, cached == null ? "miss" : "refresh");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            if (cached != null) {
+                return modelListResult(cached, "stale");
+            }
+            throw e;
+        }
+    }
+
+    protected long currentTimeMillis() {
+        return System.currentTimeMillis();
+    }
+
+    protected long modelListCacheTtlMillis() {
+        return MODEL_LIST_CACHE_TTL_MILLIS;
+    }
+
+    private ModelListCacheEntry cachedModelList(String cacheKey) {
+        synchronized (modelListCache) {
+            return modelListCache.get(cacheKey);
+        }
+    }
+
+    private void cacheModelList(String cacheKey, ModelListCacheEntry entry) {
+        synchronized (modelListCache) {
+            modelListCache.put(cacheKey, entry);
+        }
+    }
+
+    private boolean isFresh(ModelListCacheEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+        long ttl = Math.max(0L, modelListCacheTtlMillis());
+        return ttl > 0L && currentTimeMillis() - entry.cachedAt <= ttl;
+    }
+
+    private String modelListCacheKey(String providerKey, String url, String dialect, String apiKey) {
+        return StrUtil.nullToEmpty(providerKey)
+                + "|"
+                + StrUtil.nullToEmpty(dialect)
+                + "|"
+                + StrUtil.nullToEmpty(url)
+                + "|key:"
+                + Integer.toHexString(StrUtil.nullToEmpty(apiKey).hashCode());
+    }
+
+    private Map<String, Object> modelListResult(ModelListCacheEntry entry, String cacheStatus) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("url", SecretRedactor.maskUrl(url));
-        result.put("models", models);
+        result.put("url", entry.url);
+        result.put("models", new ArrayList<String>(entry.models));
+        result.put("cache", cacheStatus);
         return result;
     }
 
@@ -636,5 +708,20 @@ public class DashboardProviderService {
             }
         }
         return result;
+    }
+
+    private static class ModelListCacheEntry {
+        private final String url;
+        private final List<String> models;
+        private final long cachedAt;
+
+        private ModelListCacheEntry(String url, List<String> models, long cachedAt) {
+            this.url = url;
+            this.models =
+                    models == null
+                            ? Collections.<String>emptyList()
+                            : new ArrayList<String>(models);
+            this.cachedAt = cachedAt;
+        }
     }
 }
