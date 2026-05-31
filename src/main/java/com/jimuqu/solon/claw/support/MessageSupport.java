@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.content.ContentBlock;
@@ -39,6 +40,7 @@ public final class MessageSupport {
         }
 
         int repairs = dropStrayToolMessages(messages);
+        repairs += dropUnansweredAssistantToolCalls(messages);
         repairs += mergeConsecutiveTextUsers(messages);
         return repairs;
     }
@@ -123,6 +125,116 @@ public final class MessageSupport {
             messages.addAll(filtered);
         }
         return repairs;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static int dropUnansweredAssistantToolCalls(List<ChatMessage> messages) {
+        int repairs = 0;
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage message = messages.get(i);
+            if (!(message instanceof AssistantMessage)) {
+                continue;
+            }
+            AssistantMessage assistant = (AssistantMessage) message;
+            List<ToolCall> toolCalls = assistant.getToolCalls();
+            if (toolCalls == null || toolCalls.isEmpty()) {
+                continue;
+            }
+            Set<String> answered = followingToolResultIds(messages, i);
+            List<ToolCall> keptCalls = new ArrayList<ToolCall>();
+            for (ToolCall toolCall : toolCalls) {
+                if (toolCall != null
+                        && StrUtil.isNotBlank(toolCall.getId())
+                        && answered.contains(toolCall.getId())) {
+                    keptCalls.add(toolCall);
+                }
+            }
+            if (keptCalls.size() == toolCalls.size()) {
+                continue;
+            }
+            repairs += toolCalls.size() - keptCalls.size();
+            List<Map> keptRawCalls = filterRawToolCalls(assistant.getToolCallsRaw(), answered);
+            messages.set(i, rebuildAssistantAfterToolPrune(assistant, keptCalls, keptRawCalls));
+        }
+        return repairs;
+    }
+
+    private static Set<String> followingToolResultIds(List<ChatMessage> messages, int assistantIndex) {
+        Set<String> answered = new HashSet<String>();
+        for (int i = assistantIndex + 1; i < messages.size(); i++) {
+            ChatMessage next = messages.get(i);
+            if (next == null || next.getRole() == ChatRole.SYSTEM) {
+                continue;
+            }
+            if (next instanceof ToolMessage) {
+                String toolCallId = ((ToolMessage) next).getToolCallId();
+                if (StrUtil.isNotBlank(toolCallId)) {
+                    answered.add(toolCallId);
+                }
+                continue;
+            }
+            break;
+        }
+        return answered;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static List<Map> filterRawToolCalls(List<Map> rawCalls, Set<String> answered) {
+        if (rawCalls == null || rawCalls.isEmpty()) {
+            return rawCalls;
+        }
+        List<Map> kept = new ArrayList<Map>();
+        for (Map raw : rawCalls) {
+            String id = rawToolCallId(raw);
+            if (StrUtil.isNotBlank(id) && answered.contains(id)) {
+                kept.add(raw);
+            }
+        }
+        return kept.isEmpty() ? null : kept;
+    }
+
+    private static String rawToolCallId(Map raw) {
+        if (raw == null) {
+            return null;
+        }
+        Object id = raw.get("id");
+        return id == null ? null : String.valueOf(id);
+    }
+
+    private static AssistantMessage rebuildAssistantAfterToolPrune(
+            AssistantMessage assistant, List<ToolCall> keptCalls, List<Map> keptRawCalls) {
+        boolean demoteThinking = hasThinkingSignature(assistant.getContentRaw());
+        String content =
+                demoteThinking ? demotedThinkingContent(assistant) : assistant.getContent();
+        Object contentRaw = demoteThinking ? null : assistant.getContentRaw();
+        return new AssistantMessage(
+                content,
+                false,
+                contentRaw,
+                keptRawCalls == null || keptRawCalls.isEmpty() ? null : keptRawCalls,
+                keptCalls == null || keptCalls.isEmpty() ? null : keptCalls,
+                assistant.getSearchResultsRaw());
+    }
+
+    private static boolean hasThinkingSignature(Object contentRaw) {
+        if (!(contentRaw instanceof Map)) {
+            return false;
+        }
+        Object signature = ((Map<?, ?>) contentRaw).get("thinkingSignature");
+        return signature instanceof String && StrUtil.isNotBlank((String) signature);
+    }
+
+    private static String demotedThinkingContent(AssistantMessage assistant) {
+        String content = StrUtil.nullToEmpty(assistant.getContent());
+        String reasoning = StrUtil.nullToEmpty(assistant.getReasoning()).trim();
+        String visible = StrUtil.nullToEmpty(assistant.getResultContent()).trim();
+        if (StrUtil.isBlank(reasoning)) {
+            return visible;
+        }
+        if (StrUtil.isBlank(visible)) {
+            return reasoning;
+        }
+        return reasoning + "\n\n" + visible;
     }
 
     private static int mergeConsecutiveTextUsers(List<ChatMessage> messages) {
