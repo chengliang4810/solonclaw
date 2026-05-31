@@ -507,22 +507,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         if (StrUtil.isBlank(content)) {
             return 0;
         }
-
-        long asciiCount = 0L;
-        long nonAsciiCount = 0L;
-        for (int i = 0; i < content.length(); i++) {
-            if (content.charAt(i) <= 0x7F) {
-                asciiCount++;
-            } else {
-                nonAsciiCount++;
-            }
-        }
-
-        long asciiTokens =
-                (asciiCount + CompressionConstants.CHARS_PER_TOKEN - 1L)
-                        / CompressionConstants.CHARS_PER_TOKEN;
-        long estimated = nonAsciiCount + asciiTokens;
-        return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(1, (int) estimated);
+        return ContextTokenEstimator.estimate(content);
     }
 
     /** 限长文本。 */

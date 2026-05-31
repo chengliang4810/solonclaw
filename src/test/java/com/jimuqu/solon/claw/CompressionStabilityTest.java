@@ -344,6 +344,43 @@ public class CompressionStabilityTest {
     }
 
     @Test
+    void shouldNotTriggerCompressionOnlyBecauseInlineImageDataUriIsLarge() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-inline-image-compression");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser(
+                                        "请分析这张图 data:image/png;base64,"
+                                                + repeat("A", 16_384)))));
+
+        SessionRecord compressed = service.compressIfNeeded(session, "system", "继续");
+
+        assertThat(compressed.getCompressedSummary()).isNull();
+        assertThat(compressed.getLastCompressionInputTokens()).isZero();
+    }
+
+    @Test
+    void shouldStillTriggerCompressionForLongPlainText() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-long-text-compression");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("旧请求：" + repeat("A", 16_384)),
+                                ChatMessage.ofAssistant("已完成前置分析"),
+                                ChatMessage.ofUser("继续"))));
+
+        SessionRecord compressed = service.compressIfNeeded(session, "system", "继续");
+
+        assertThat(compressed.getCompressedSummary()).contains(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(compressed.getLastCompressionInputTokens()).isGreaterThanOrEqualTo(1000);
+    }
+
+    @Test
     void shouldReturnWarningOutcomeWhenCompressionFails() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
         SessionRecord session = new SessionRecord();
