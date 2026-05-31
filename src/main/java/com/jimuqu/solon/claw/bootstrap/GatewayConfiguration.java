@@ -39,6 +39,7 @@ import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
+import com.jimuqu.solon.claw.gateway.service.GatewayRestartNotificationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
@@ -176,6 +177,12 @@ public class GatewayConfiguration {
     }
 
     @Bean
+    public GatewayRestartNotificationService gatewayRestartNotificationService(
+            AppConfig appConfig, DeliveryService deliveryService) {
+        return new GatewayRestartNotificationService(appConfig, deliveryService);
+    }
+
+    @Bean
     public SlashConfirmService slashConfirmService(GlobalSettingRepository globalSettingRepository) {
         return new SlashConfirmService(globalSettingRepository);
     }
@@ -260,7 +267,8 @@ public class GatewayConfiguration {
             GatewayAuthorizationService gatewayAuthorizationService,
             SkillLearningService skillLearningService,
             AttachmentCacheService attachmentCacheService,
-            ChannelConnectionManager channelConnectionManager) {
+            ChannelConnectionManager channelConnectionManager,
+            GatewayRestartNotificationService gatewayRestartNotificationService) {
         final DefaultGatewayService service =
                 new DefaultGatewayService(
                         commandService,
@@ -279,6 +287,7 @@ public class GatewayConfiguration {
                     }
                 });
         channelConnectionManager.startAll();
+        gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
         return service;
     }
 
