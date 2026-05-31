@@ -60,6 +60,35 @@ class TuiRunProjectorTest {
         assertThat(afterRun).extracting(TuiEvent::getType).contains("run.event", "tool.call");
     }
 
+    @Test
+    void shouldClampNegativeContextTokenSentinelInRunSnapshot() {
+        FakeRunRepository repository = new FakeRunRepository();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-context");
+        run.setSessionId("session-context");
+        run.setSourceKey("MEMORY:tui:session-context");
+        run.setStatus("running");
+        run.setContextEstimateTokens(-1);
+        run.setContextWindowTokens(-200000);
+        run.setStartedAt(100L);
+        repository.runs.add(run);
+
+        TuiRunProjector projector = new TuiRunProjector(repository);
+
+        List<TuiEvent> events =
+                projector.replaySession("session-context", "MEMORY:tui:session-context", 0L);
+
+        TuiEvent snapshot =
+                events.stream()
+                        .filter(event -> "run.snapshot".equals(event.getType()))
+                        .findFirst()
+                        .orElseThrow(AssertionError::new);
+        assertThat(snapshot.getPayload().get("context_estimate_tokens"))
+                .isEqualTo(Integer.valueOf(0));
+        assertThat(snapshot.getPayload().get("context_window_tokens"))
+                .isEqualTo(Integer.valueOf(0));
+    }
+
     private static class FakeRunRepository implements AgentRunRepository {
         private final List<AgentRunRecord> runs = new ArrayList<AgentRunRecord>();
         private final List<AgentRunEventRecord> events = new ArrayList<AgentRunEventRecord>();
