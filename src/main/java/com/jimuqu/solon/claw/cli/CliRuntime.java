@@ -45,9 +45,19 @@ public class CliRuntime {
             List<MessageAttachment> attachments,
             ConversationEventSink eventSink)
             throws Exception {
+        return send(sessionId, input, attachments, eventSink, null);
+    }
+
+    public GatewayReply send(
+            String sessionId,
+            String input,
+            List<MessageAttachment> attachments,
+            ConversationEventSink eventSink,
+            String workspaceDir)
+            throws Exception {
         String sanitized = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
         ConversationEventSink sink = eventSink == null ? ConversationEventSink.noop() : eventSink;
-        GatewayMessage message = message(sessionId, sanitized, attachments);
+        GatewayMessage message = message(sessionId, sanitized, attachments, workspaceDir);
         String text = StrUtil.nullToEmpty(sanitized).trim();
         if (isSupportedSlashCommand(text)) {
             GatewayReply reply = commandService.handle(message, text, sink);
@@ -89,12 +99,23 @@ public class CliRuntime {
 
     private GatewayMessage message(
             String sessionId, String input, List<MessageAttachment> attachments) {
+        return message(sessionId, input, attachments, null);
+    }
+
+    private GatewayMessage message(
+            String sessionId,
+            String input,
+            List<MessageAttachment> attachments,
+            String workspaceDir) {
         String sid = StrUtil.blankToDefault(sessionId, "cli");
         GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "cli", "local", input);
         message.setChatType(GatewayBehaviorConstants.CHAT_TYPE_DM);
         message.setChatName("CLI");
         message.setUserName("local");
         message.setSourceKeyOverride(sourceKey(sid));
+        if (StrUtil.isNotBlank(workspaceDir)) {
+            message.setWorkspaceDirOverride(workspaceDir.trim());
+        }
         if (attachments != null && !attachments.isEmpty()) {
             message.setAttachments(new java.util.ArrayList<MessageAttachment>(attachments));
         }

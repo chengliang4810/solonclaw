@@ -690,6 +690,41 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldApplyLoadedAcpCwdToFollowingPrompt(@TempDir Path tempDir) throws Exception {
+        WorkspaceEchoGateway gateway = new WorkspaceEchoGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        Path initialDir = Files.createDirectories(tempDir.resolve("initial"));
+        Path loadedDir = Files.createDirectories(tempDir.resolve("loaded"));
+
+        String created =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":69,\"method\":\"session/new\",\"params\":{\"cwd\":\""
+                                + jsonEscape(initialDir.toString())
+                                + "\"}}");
+        String sessionId = extractSessionId(created);
+        server.handle(
+                "{\"jsonrpc\":\"2.0\",\"id\":70,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                        + sessionId
+                        + "\",\"cwd\":\""
+                        + jsonEscape(loadedDir.toString())
+                        + "\"}}");
+
+        String prompted =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":71,\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"prompt\":[{\"type\":\"text\",\"text\":\"workspace\"}]}}");
+
+        assertThat(prompted).contains("\"id\":71").contains("workspace=");
+        assertThat(gateway.lastWorkspace).isEqualTo(loadedDir.toFile().getAbsolutePath());
+    }
+
+    @Test
     void shouldReturnJimuquStylePromptUpdatesAndUsage() throws Exception {
         TestEnvironment env = TestEnvironment.withLlm(new ToolEventGateway());
         AcpStdioServer server =
@@ -1708,6 +1743,43 @@ public class AcpStdioServerTest {
                 AgentRunContext runContext)
                 throws Exception {
             String response = "model=" + resolved.getModel();
+            InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
+            if (session.getNdjson() != null && session.getNdjson().length() > 0) {
+                chatSession.loadNdjson(session.getNdjson());
+            }
+            chatSession.addMessage(ChatMessage.ofUser(userMessage));
+            chatSession.addMessage(ChatMessage.ofAssistant(response));
+
+            LlmResult result = new LlmResult();
+            result.setAssistantMessage(new AssistantMessage(response));
+            result.setNdjson(chatSession.toNdjson());
+            result.setRawResponse("fake");
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setInputTokens(1L);
+            result.setOutputTokens(1L);
+            result.setTotalTokens(2L);
+            return result;
+        }
+    }
+
+    private static class WorkspaceEchoGateway extends FakeLlmGateway {
+        private String lastWorkspace;
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                java.util.List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            lastWorkspace = runContext == null ? "" : runContext.getWorkspaceDir();
+            String response = "workspace=" + lastWorkspace;
             InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
             if (session.getNdjson() != null && session.getNdjson().length() > 0) {
                 chatSession.loadNdjson(session.getNdjson());
