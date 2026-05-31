@@ -27,6 +27,7 @@ public class TerminalCommandCatalogTest {
                         "/history",
                         "/reload-skills",
                         "/platform",
+                        "/skin",
                         "/fast",
                         "/queue",
                         "/steer",
@@ -115,6 +116,11 @@ public class TerminalCommandCatalogTest {
         assertThat(history).isNotNull();
         assertThat(history.getCategory()).isEqualTo("terminal");
         assertThat(CommandRegistry.resolve("/history").getName()).isEqualTo("history");
+
+        CommandDescriptor skin = CommandRegistry.get("skin");
+        assertThat(skin).isNotNull();
+        assertThat(skin.getCategory()).isEqualTo("terminal");
+        assertThat(CommandRegistry.resolve("/skin").getName()).isEqualTo("skin");
     }
 
     @Test
