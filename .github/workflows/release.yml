@@ -89,9 +89,6 @@ jobs:
         id: release_range
         run: python3 scripts/resolve-release-range.py
 
-      - name: Check release commit text
-        run: python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "${{ steps.release_range.outputs.git_range }}"
-
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'
         shell: bash

@@ -12,7 +12,6 @@ from guardlib import (
     GuardFailure,
     add_extra_blocked_terms_argument,
     blocked_regex,
-    check_git_text,
     parse_extra_blocked_terms,
     run_cmd,
 )
@@ -31,20 +30,6 @@ class CommitEntry:
 def assert_clean_release_text(text: str, regex: re.Pattern[str]) -> None:
     if text and regex.search(text):
         raise GuardFailure("Release notes input contains blocked legacy project naming. Rewrite the commit subject before publishing.")
-
-
-def invoke_project_naming_guard(root_path: Path, commit_range: str, extra_terms: list[str]) -> None:
-    if not commit_range.strip():
-        return
-    findings = check_git_text(
-        root_path,
-        extra_blocked_terms=extra_terms,
-        git_commit_range=commit_range,
-        check_git_commit_subjects=True,
-        check_git_object_text=True,
-    )
-    if findings:
-        raise GuardFailure("Release naming guard failed for commit range: {0}\n{1}".format(commit_range, "\n".join(findings)))
 
 
 def commit_files(root_path: Path, commit: str) -> list[str]:
@@ -74,6 +59,28 @@ def commit_entries(root_path: Path, commit_range: str) -> list[CommitEntry]:
 def head_commit_entry(root_path: Path) -> list[CommitEntry]:
     entries = commit_entries(root_path, "HEAD")
     return entries[:1]
+
+
+def single_head_commit_range(root_path: Path) -> tuple[str, str]:
+    head_result = run_cmd(["git", "rev-parse", "HEAD"], cwd=root_path, check=False)
+    short_result = run_cmd(["git", "rev-parse", "--short", "HEAD"], cwd=root_path, check=False)
+    head = head_result.stdout.strip()
+    short_head = short_result.stdout.strip()
+    if head_result.returncode != 0 or short_result.returncode != 0 or not head or not short_head:
+        raise GuardFailure("Cannot resolve the current release commit.")
+    return f"{head}^!", short_head
+
+
+def clean_commit_entries(items: list[CommitEntry], regex: re.Pattern[str]) -> tuple[list[CommitEntry], int]:
+    clean_items: list[CommitEntry] = []
+    omitted = 0
+    for item in items:
+        release_text_values = [item.subject, item.body, *item.files]
+        if any(regex.search(value) for value in release_text_values if value):
+            omitted += 1
+            continue
+        clean_items.append(item)
+    return clean_items, omitted
 
 
 def format_release_details(body: str, files: list[str]) -> str:
@@ -131,18 +138,26 @@ def generate_release_notes(
     regex = blocked_regex(extra_terms)
     for value in (tag, version, commit_range, display_range):
         assert_clean_release_text(value, regex)
-    invoke_project_naming_guard(root_path, commit_range, extra_terms)
 
     commits = commit_entries(root_path, commit_range)
     range_fallback_note = ""
     if not commits:
-        commits = head_commit_entry(root_path)
-        display_range = run_cmd(["git", "rev-parse", "--short", "HEAD"], cwd=root_path).stdout.strip()
+        fallback_range, short_head = single_head_commit_range(root_path)
+        commits = commit_entries(root_path, fallback_range)
+        display_range = short_head
         assert_clean_release_text(display_range, regex)
-        invoke_project_naming_guard(root_path, "HEAD", extra_terms)
-        range_fallback_note = (
+        range_fallback_note += (
             "空提交范围，已使用当前提交生成发布说明。\n"
             "Empty commit range; the current commit was used to generate these release notes.\n\n"
+        )
+
+    commits, omitted_count = clean_commit_entries(commits, regex)
+    if omitted_count:
+        plural = "entry was" if omitted_count == 1 else "entries were"
+        pronoun = "it" if omitted_count == 1 else "they"
+        range_fallback_note += (
+            f"历史发布范围中有 {omitted_count} 条提交摘要未通过命名检查，已从发布说明中省略。\n"
+            f"{omitted_count} commit summary {plural} omitted from these release notes because {pronoun} contained blocked naming.\n\n"
         )
 
     for commit in commits:

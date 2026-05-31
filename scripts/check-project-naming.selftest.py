@@ -329,6 +329,83 @@ def main() -> int:
         if re.search(r"v2000\.01\.01-deadbee", range_text):
             raise AssertionError("Release range resolver should not use an older polluted tag as the release base.")
 
+        reset_sandbox(sandbox)
+        git_init(sandbox)
+        write_text(sandbox / "README.md", "Clean release baseline")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "chore: clean release baseline / Clean release baseline")
+        clean_base = git(sandbox, "rev-parse", "HEAD")
+        write_text(sandbox / "README.md", BLOCKED_DEFAULT_ENV_FIXTURE + " legacy release detail")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "fix: historical release detail / Historical release detail")
+        write_text(sandbox / "README.md", "Clean release head")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "fix: clean release head / Clean release head")
+        head = git(sandbox, "rev-parse", "HEAD")
+        release_dir = sandbox / "dist"
+        release_dir.mkdir(parents=True, exist_ok=True)
+        release_notes_path = release_dir / "release-notes-polluted-range.md"
+        polluted_release_output = run([
+            "python3",
+            str(RELEASE_NOTES_SCRIPT),
+            "--root-path",
+            str(sandbox),
+            "--output-path",
+            str(release_notes_path),
+            "--tag",
+            "v2099.01.02-bcdef01",
+            "--version",
+            "0.0.0-test",
+            "--commit-range",
+            clean_base + ".." + head,
+            "--display-range",
+            "clean naming baseline.." + head[:7],
+        ], cwd=sandbox)
+        require_success(polluted_release_output, "Release notes generation should ignore historical object text that is not emitted")
+        assert_no_raw_blocked_output(polluted_release_output.stdout + polluted_release_output.stderr, [BLOCKED_DEFAULT_ENV_FIXTURE], "polluted release range fallback")
+        polluted_release_text = release_notes_path.read_text(encoding="utf-8")
+        if "fix: clean release head / Clean release head" not in polluted_release_text:
+            raise AssertionError("Release notes should still include the current clean commit.")
+        if "fix: historical release detail / Historical release detail" not in polluted_release_text:
+            raise AssertionError("Release notes should keep clean commit summaries even when historical object text is polluted.")
+        if "历史发布范围中有" in polluted_release_text:
+            raise AssertionError("Release notes should not claim summary omission when only historical object text was polluted.")
+        assert_no_raw_blocked_output(polluted_release_text, [BLOCKED_DEFAULT_ENV_FIXTURE], "polluted release notes file")
+
+        write_text(sandbox / "README.md", "Clean release after polluted summary")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "fix: clean after polluted summary / Clean after polluted summary")
+        clean_after_polluted_summary = git(sandbox, "rev-parse", "HEAD")
+        git(sandbox, "commit", "--allow-empty", "-m", "fix: " + BLOCKED_FIXTURE + " release summary")
+        polluted_summary_head = git(sandbox, "rev-parse", "HEAD")
+        release_notes_path = release_dir / "release-notes-polluted-summary.md"
+        polluted_summary_output = run([
+            "python3",
+            str(RELEASE_NOTES_SCRIPT),
+            "--root-path",
+            str(sandbox),
+            "--output-path",
+            str(release_notes_path),
+            "--tag",
+            "v2099.01.03-cdef012",
+            "--version",
+            "0.0.0-test",
+            "--commit-range",
+            clean_after_polluted_summary + ".." + polluted_summary_head,
+            "--display-range",
+            "summary fixture range",
+            "--extra-blocked-terms",
+            BLOCKED_FIXTURE,
+        ], cwd=sandbox)
+        require_success(polluted_summary_output, "Release notes generation should omit polluted summary entries instead of failing")
+        polluted_summary_text = release_notes_path.read_text(encoding="utf-8")
+        if BLOCKED_FIXTURE in polluted_summary_text:
+            raise AssertionError("Release notes should not emit blocked summary text.")
+        if "历史发布范围中有 1 条提交摘要未通过命名检查" not in polluted_summary_text:
+            raise AssertionError("Release notes should explain omitted polluted summary entries.")
+
+        reset_sandbox(sandbox)
+        git_init(sandbox)
         release_dir = sandbox / "dist"
         release_dir.mkdir(parents=True)
         release_notes_path = release_dir / "release-notes.md"
