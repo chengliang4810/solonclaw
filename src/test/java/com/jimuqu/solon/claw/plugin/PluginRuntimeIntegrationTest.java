@@ -20,14 +20,19 @@ import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.core.Props;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 
 class PluginRuntimeIntegrationTest {
+    @TempDir
+    Path tempDir;
 
     @Test
     void pluginToolIsExposedByToolRegistryWithoutOverridingBuiltinTool() throws Throwable {
@@ -126,55 +131,7 @@ class PluginRuntimeIntegrationTest {
         PluginConfiguration plugins = new PluginConfiguration();
         plugins.onCommandRegistered("plugin_echo", args -> "plugin:" + args, "Plugin echo");
         plugins.onCommandRegistered("help", args -> "must-not-override", "Help override");
-        AppVersionService versionService = new AppVersionService(env.appConfig);
-        LlmProviderService providerService = new LlmProviderService(env.appConfig);
-        DashboardConfigService dashboardConfigService =
-                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
-        DashboardRuntimeConfigService dashboardRuntimeConfigService =
-                new DashboardRuntimeConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
-        DashboardProviderService dashboardProviderService =
-                new DashboardProviderService(env.appConfig, env.gatewayRuntimeRefreshService, providerService);
-        RuntimeSettingsService runtimeSettingsService =
-                new RuntimeSettingsService(
-                        env.appConfig,
-                        env.globalSettingRepository,
-                        env.deliveryService,
-                        dashboardConfigService,
-                        dashboardRuntimeConfigService,
-                        versionService,
-                        providerService,
-                        dashboardProviderService);
-        DefaultCommandService commandService =
-                new DefaultCommandService(
-                        env.sessionRepository,
-                        env.toolRegistry,
-                        env.localSkillService,
-                        env.cronJobRepository,
-                        env.conversationOrchestrator,
-                        sourceKey -> "",
-                        env.contextCompressionService,
-                        env.deliveryService,
-                        env.gatewayAuthorizationService,
-                        env.checkpointService,
-                        env.skillHubService,
-                        env.appConfig,
-                        env.globalSettingRepository,
-                        env.processRegistry,
-                        runtimeSettingsService,
-                        new DisplaySettingsService(env.appConfig, env.globalSettingRepository),
-                        new AppUpdateService(env.appConfig, versionService),
-                        env.dangerousCommandApprovalService,
-                        env.agentRunControlService,
-                        env.agentProfileService,
-                        null,
-                        env.kanbanService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.gatewayRestartCoordinator,
-                        env.slashConfirmService,
-                        plugins.pluginCommands());
+        DefaultCommandService commandService = pluginCommandService(env, plugins, null);
 
         GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "room", "user", "/plugin_echo hello");
         GatewayReply reply = commandService.handle(message, "/plugin_echo hello");
@@ -183,6 +140,49 @@ class PluginRuntimeIntegrationTest {
         assertThat(reply.getContent()).isEqualTo("plugin:hello");
         assertThat(reply.isCommandHandled()).isTrue();
         assertThat(help.getContent()).doesNotContain("must-not-override");
+    }
+
+    @Test
+    void pluginsSlashCommandListsLoadedPluginDiagnostics() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path pluginDir = tempDir.resolve("status-plugin");
+        Files.createDirectories(pluginDir);
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
+                "name: status-plugin\n"
+                        + "version: 1.0.0\n"
+                        + "kind: backend\n"
+                        + "description: Status plugin\n"
+                        + "enabled: true\n"
+                        + "entry: StatusPlugin\n");
+        Files.writeString(
+                pluginDir.resolve("StatusPlugin.java"),
+                "import com.jimuqu.solon.claw.plugin.*;\n"
+                        + "public class StatusPlugin implements AgentPlugin {\n"
+                        + "  public void register(AgentPluginContext ctx) {}\n"
+                        + "}\n");
+        AgentPluginManager manager =
+                new AgentPluginManager(
+                        new AgentHookRegistry(),
+                        Collections.<String>emptySet(),
+                        Collections.<String>emptySet(),
+                        tempDir);
+        PluginConfiguration plugins = new PluginConfiguration();
+        manager.discoverAndLoad(plugins);
+        DefaultCommandService commandService = pluginCommandService(env, plugins, manager);
+        GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "room", "user", "/plugins");
+
+        GatewayReply reply = commandService.handle(message, "/plugins");
+
+        assertThat(reply.getContent())
+                .contains("插件状态")
+                .contains("loaded=1")
+                .contains("status-plugin")
+                .contains("loaded");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "plugins")
+                .containsEntry("plugin_loaded", Integer.valueOf(1));
     }
 
     @Test
@@ -214,5 +214,58 @@ class PluginRuntimeIntegrationTest {
 
         assertThat(config.getPlugins().getEnabled()).containsExactly("alpha", "beta");
         assertThat(config.getPlugins().getDisabled()).containsExactly("gamma", "delta");
+    }
+
+    private DefaultCommandService pluginCommandService(
+            TestEnvironment env, PluginConfiguration plugins, AgentPluginManager pluginManager) {
+        AppVersionService versionService = new AppVersionService(env.appConfig);
+        LlmProviderService providerService = new LlmProviderService(env.appConfig);
+        DashboardConfigService dashboardConfigService =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+        DashboardRuntimeConfigService dashboardRuntimeConfigService =
+                new DashboardRuntimeConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+        DashboardProviderService dashboardProviderService =
+                new DashboardProviderService(env.appConfig, env.gatewayRuntimeRefreshService, providerService);
+        RuntimeSettingsService runtimeSettingsService =
+                new RuntimeSettingsService(
+                        env.appConfig,
+                        env.globalSettingRepository,
+                        env.deliveryService,
+                        dashboardConfigService,
+                        dashboardRuntimeConfigService,
+                        versionService,
+                        providerService,
+                        dashboardProviderService);
+        return new DefaultCommandService(
+                env.sessionRepository,
+                env.toolRegistry,
+                env.localSkillService,
+                env.cronJobRepository,
+                env.conversationOrchestrator,
+                sourceKey -> "",
+                env.contextCompressionService,
+                env.deliveryService,
+                env.gatewayAuthorizationService,
+                env.checkpointService,
+                env.skillHubService,
+                env.appConfig,
+                env.globalSettingRepository,
+                env.processRegistry,
+                runtimeSettingsService,
+                new DisplaySettingsService(env.appConfig, env.globalSettingRepository),
+                new AppUpdateService(env.appConfig, versionService),
+                env.dangerousCommandApprovalService,
+                env.agentRunControlService,
+                env.agentProfileService,
+                null,
+                env.kanbanService,
+                null,
+                null,
+                null,
+                null,
+                env.gatewayRestartCoordinator,
+                env.slashConfirmService,
+                plugins.pluginCommands(),
+                pluginManager);
     }
 }

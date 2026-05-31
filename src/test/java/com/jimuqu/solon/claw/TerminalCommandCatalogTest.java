@@ -22,6 +22,7 @@ public class TerminalCommandCatalogTest {
                         "/whoami",
                         "/commands",
                         "/insights",
+                        "/plugins",
                         "/reload-skills",
                         "/fast",
                         "/queue",
@@ -91,6 +92,11 @@ public class TerminalCommandCatalogTest {
         assertThat(insights).isNotNull();
         assertThat(insights.getCategory()).isEqualTo("info");
         assertThat(CommandRegistry.resolve("/insights").getName()).isEqualTo("insights");
+
+        CommandDescriptor plugins = CommandRegistry.get("plugins");
+        assertThat(plugins).isNotNull();
+        assertThat(plugins.getCategory()).isEqualTo("tool");
+        assertThat(CommandRegistry.resolve("/plugins").getName()).isEqualTo("plugins");
     }
 
     @Test

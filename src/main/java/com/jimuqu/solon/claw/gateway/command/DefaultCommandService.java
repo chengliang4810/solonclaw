@@ -39,7 +39,11 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
+import com.jimuqu.solon.claw.plugin.AgentPluginManager;
+import com.jimuqu.solon.claw.plugin.AgentPluginManifest;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
+import com.jimuqu.solon.claw.plugin.PluginLoadDiagnostic;
+import com.jimuqu.solon.claw.plugin.PluginLoadStatus;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
@@ -137,6 +141,7 @@ public class DefaultCommandService implements CommandService {
     private final DefaultCronScheduler cronScheduler;
     private final GatewayRestartCoordinator gatewayRestartCoordinator;
     private final Map<String, CommandHandler> pluginCommands;
+    private final AgentPluginManager pluginManager;
 
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -645,6 +650,70 @@ public class DefaultCommandService implements CommandService {
             GatewayRestartCoordinator gatewayRestartCoordinator,
             SlashConfirmService slashConfirmService,
             Map<String, CommandHandler> pluginCommands) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                pluginCommands,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands,
+            AgentPluginManager pluginManager) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -683,6 +752,7 @@ public class DefaultCommandService implements CommandService {
                 pluginCommands == null
                         ? Collections.<String, CommandHandler>emptyMap()
                         : new LinkedHashMap<String, CommandHandler>(pluginCommands);
+        this.pluginManager = pluginManager;
     }
 
     /** 判断当前命令是否由默认命令服务承接。 */
@@ -985,6 +1055,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_SKILLS.equals(command)) {
             return handleSkills(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_PLUGINS.equals(command)) {
+            return handlePlugins();
         }
 
         if (GatewayCommandConstants.COMMAND_RELOAD_SKILLS.equals(command)) {
@@ -2274,6 +2348,81 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command_status", "handled");
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_RELOAD_SKILLS);
         reply.getRuntimeMetadata().put("skill_count", Integer.valueOf(names.size()));
+        return reply;
+    }
+
+    private GatewayReply handlePlugins() {
+        List<AgentPluginManifest> plugins =
+                pluginManager == null
+                        ? Collections.<AgentPluginManifest>emptyList()
+                        : pluginManager.listPlugins();
+        List<PluginLoadDiagnostic> diagnostics =
+                pluginManager == null
+                        ? Collections.<PluginLoadDiagnostic>emptyList()
+                        : pluginManager.diagnostics();
+        int loaded = 0;
+        int skipped = 0;
+        int failed = 0;
+        for (PluginLoadDiagnostic diagnostic : diagnostics) {
+            if (diagnostic == null || diagnostic.getStatus() == null) {
+                continue;
+            }
+            if (PluginLoadStatus.LOADED == diagnostic.getStatus()) {
+                loaded++;
+            } else if (PluginLoadStatus.SKIPPED == diagnostic.getStatus()) {
+                skipped++;
+            } else if (PluginLoadStatus.FAILED == diagnostic.getStatus()) {
+                failed++;
+            }
+        }
+        if (loaded == 0 && !plugins.isEmpty()) {
+            loaded = plugins.size();
+        }
+
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("插件状态 loaded=")
+                .append(loaded)
+                .append(" skipped=")
+                .append(skipped)
+                .append(" failed=")
+                .append(failed);
+        if (plugins.isEmpty() && diagnostics.isEmpty()) {
+            buffer.append('\n').append("未发现已加载插件。");
+        }
+        for (AgentPluginManifest manifest : plugins) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(manifest.getName(), "-"))
+                    .append(" loaded");
+            if (StrUtil.isNotBlank(manifest.getKind())) {
+                buffer.append(" kind=").append(manifest.getKind());
+            }
+            if (StrUtil.isNotBlank(manifest.getVersion())) {
+                buffer.append(" version=").append(manifest.getVersion());
+            }
+            if (StrUtil.isNotBlank(manifest.getDescription())) {
+                buffer.append(" - ").append(manifest.getDescription());
+            }
+        }
+        for (PluginLoadDiagnostic diagnostic : diagnostics) {
+            if (diagnostic == null || PluginLoadStatus.LOADED == diagnostic.getStatus()) {
+                continue;
+            }
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(diagnostic.getPluginName(), "-"))
+                    .append(' ')
+                    .append(String.valueOf(diagnostic.getStatus()).toLowerCase())
+                    .append(" reason=")
+                    .append(StrUtil.blankToDefault(diagnostic.getReason(), "-"));
+        }
+
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_PLUGINS);
+        reply.getRuntimeMetadata().put("plugin_loaded", Integer.valueOf(loaded));
+        reply.getRuntimeMetadata().put("plugin_skipped", Integer.valueOf(skipped));
+        reply.getRuntimeMetadata().put("plugin_failed", Integer.valueOf(failed));
         return reply;
     }
 
@@ -4384,6 +4533,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_SKILLS
                                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",
                                 "管理本地技能与 Skills Hub"),
+                        helpLine(GatewayCommandConstants.SLASH_PLUGINS, "查看插件加载状态"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_RELOAD_SKILLS,
                                 "重新扫描本地技能目录"),
