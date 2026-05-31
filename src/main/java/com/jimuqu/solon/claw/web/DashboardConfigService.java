@@ -397,6 +397,7 @@ public class DashboardConfigService {
                         "number",
                         "security",
                         "HTTP 网关注入重放窗口秒数"));
+        addPlatformToolsetFields();
         addField(
                 new FieldDefinition(
                         "security.allowPrivateUrls", "boolean", "security", "允许 URL 工具访问内网地址"));
@@ -736,11 +737,35 @@ public class DashboardConfigService {
                         channelLabel(name) + "是否允许所有用户"));
         addField(
                 new FieldDefinition(
-                                "channels." + name + ".unauthorizedDmBehavior",
-                                "select",
-                                "messaging",
-                                channelLabel(name) + "未授权私聊行为")
+                        "channels." + name + ".unauthorizedDmBehavior",
+                        "select",
+                        "messaging",
+                        channelLabel(name) + "未授权私聊行为")
                         .options("pair", "ignore"));
+    }
+
+    private void addPlatformToolsetFields() {
+        for (String name :
+                Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao")) {
+            addField(
+                    new FieldDefinition(
+                            "gateway.platforms." + name.toUpperCase() + ".enabledToolsets",
+                            "list",
+                            "security",
+                            channelLabel(name) + "允许工具集"));
+            addField(
+                    new FieldDefinition(
+                            "gateway.platforms." + name.toUpperCase() + ".disabledToolsets",
+                            "list",
+                            "security",
+                            channelLabel(name) + "禁用工具集"));
+            addField(
+                    new FieldDefinition(
+                            "gateway.platforms." + name.toUpperCase() + ".approvalRequired",
+                            "boolean",
+                            "security",
+                            channelLabel(name) + "强制审批"));
+        }
     }
 
     private String channelLabel(String name) {

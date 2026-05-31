@@ -184,6 +184,66 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldUpdateDashboardPlatformToolsetPolicy() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult overview = request("GET", "/api/tools/platform-toolsets", null, token);
+        assertThat(overview.status).isEqualTo(200);
+        assertThat(overview.body)
+                .contains("\"platforms\"")
+                .contains("\"feishu\"")
+                .contains("\"dingtalk\"")
+                .contains("\"wecom\"")
+                .contains("\"weixin\"")
+                .contains("\"qqbot\"")
+                .contains("\"yuanbao\"");
+
+        HttpResult update =
+                request(
+                        "PUT",
+                        "/api/tools/platform-toolsets/feishu",
+                        "{\"enabledToolsets\":[\"terminal\",\" file \",\"terminal\",\"\"],\"disabledToolsets\":\"browser, terminal , browser\",\"approvalRequired\":true}",
+                        token);
+        assertThat(update.status).isEqualTo(200);
+        assertThat(update.body)
+                .contains("\"enabledToolsets\":[\"terminal\",\"file\"]")
+                .contains("\"disabledToolsets\":[\"browser\",\"terminal\"]")
+                .contains("\"approvalRequired\":true");
+
+        File overrideFile = new File(runtimeHome, "config.yml");
+        assertThat(overrideFile).exists();
+        assertThat(FileUtil.readUtf8String(overrideFile))
+                .contains("gateway:")
+                .contains("platforms:")
+                .contains("FEISHU:")
+                .contains("enabledToolsets:")
+                .contains("- terminal")
+                .contains("- file")
+                .contains("disabledToolsets:")
+                .contains("- browser")
+                .contains("approvalRequired: true");
+
+        HttpResult refreshed = request("GET", "/api/tools/platform-toolsets", null, token);
+        assertThat(refreshed.status).isEqualTo(200);
+        assertThat(refreshed.body)
+                .contains("\"feishu\"")
+                .contains("\"enabledToolsets\":[\"terminal\",\"file\"]")
+                .contains("\"disabledToolsets\":[\"browser\",\"terminal\"]")
+                .contains("\"approvalRequired\":true");
+
+        HttpResult unsupported =
+                request(
+                        "PUT",
+                        "/api/tools/platform-toolsets/slack",
+                        "{\"enabledToolsets\":[\"terminal\"]}",
+                        token);
+        assertThat(unsupported.status).isEqualTo(400);
+        assertThat(unsupported.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"PLATFORM_TOOLSETS_BAD_REQUEST\"");
+    }
+
+    @Test
     void shouldValidateConfiguredProviderThroughDashboardRoute() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         AppConfig.ProviderConfig provider =

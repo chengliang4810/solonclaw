@@ -65,6 +65,7 @@ import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -246,6 +247,12 @@ public class DashboardConfiguration {
     public DashboardRuntimeConfigService dashboardRuntimeConfigService(
             AppConfig appConfig, GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
         return new DashboardRuntimeConfigService(appConfig, gatewayRuntimeRefreshService);
+    }
+
+    @Bean
+    public DashboardPlatformToolsetsService dashboardPlatformToolsetsService(
+            AppConfig appConfig, DashboardConfigService dashboardConfigService) {
+        return new DashboardPlatformToolsetsService(appConfig, dashboardConfigService);
     }
 
     @Bean
