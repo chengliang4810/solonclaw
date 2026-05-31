@@ -7,6 +7,8 @@ import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.yaml.snakeyaml.DumperOptions;
@@ -88,6 +91,7 @@ public class DashboardProviderService {
         List<Map<String, Object>> models = new ArrayList<Map<String, Object>>();
         List<ProviderDisplayGrouping.Item> groupItems =
                 new ArrayList<ProviderDisplayGrouping.Item>();
+        PriceCatalog priceCatalog = PriceCatalog.fromPrices(appConfig.getPricing().getPrices());
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
                 appConfig.getProviders().entrySet()) {
             AppConfig.ProviderConfig provider = entry.getValue();
@@ -105,6 +109,8 @@ public class DashboardProviderService {
             model.put("context_window", metadata.getContextWindow());
             model.put("max_output", metadata.getMaxOutput());
             model.put("reasoning_effort", appConfig.getLlm().getReasoningEffort());
+            appendPricingMetadata(
+                    model, priceCatalog.find(entry.getKey(), provider.getDefaultModel()));
             appendProviderDisplay(model, display);
             models.add(model);
             groupItems.add(
@@ -166,6 +172,64 @@ public class DashboardProviderService {
         map.put("default_model", Boolean.valueOf(metadata.isDefaultModel()));
         map.put("supported", Boolean.valueOf(metadata.isSupported()));
         return map;
+    }
+
+    private void appendPricingMetadata(Map<String, Object> model, ModelPrice price) {
+        if (model == null || price == null) {
+            return;
+        }
+        Map<String, Object> pricing = new LinkedHashMap<String, Object>();
+        String currency = normalizeCurrency(price.getCurrency());
+        pricing.put("currency", currency);
+        boolean free = isFree(price);
+        if (free) {
+            pricing.put("input", "free");
+            pricing.put("output", "free");
+            pricing.put("cache", "free");
+            pricing.put("cache_read", "free");
+            pricing.put("cache_write", "free");
+            pricing.put("reasoning", "free");
+        } else {
+            putPriceField(pricing, "input", price.getInputMicrosPerToken(), currency);
+            putPriceField(pricing, "output", price.getOutputMicrosPerToken(), currency);
+            putPriceField(pricing, "cache", price.getCacheReadMicrosPerToken(), currency);
+            putPriceField(pricing, "cache_read", price.getCacheReadMicrosPerToken(), currency);
+            putPriceField(
+                    pricing, "cache_write", price.getCacheWriteMicrosPerToken(), currency);
+            putPriceField(pricing, "reasoning", price.getReasoningMicrosPerToken(), currency);
+        }
+        pricing.put("free", Boolean.valueOf(free));
+        if (StrUtil.isNotBlank(price.getSource())) {
+            pricing.put("source", price.getSource());
+        }
+        model.put("pricing", pricing);
+    }
+
+    private void putPriceField(
+            Map<String, Object> pricing, String key, long microsPerToken, String currency) {
+        if (microsPerToken > 0L) {
+            pricing.put(key, formatPerMillionPrice(microsPerToken, currency));
+        }
+    }
+
+    private String formatPerMillionPrice(long microsPerToken, String currency) {
+        String amount = String.format(Locale.ROOT, "%.2f", Double.valueOf(microsPerToken));
+        if ("USD".equals(currency)) {
+            return "$" + amount;
+        }
+        return currency + " " + amount;
+    }
+
+    private String normalizeCurrency(String currency) {
+        return StrUtil.blankToDefault(currency, "USD").trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean isFree(ModelPrice price) {
+        return price.getInputMicrosPerToken() == 0L
+                && price.getOutputMicrosPerToken() == 0L
+                && price.getCacheReadMicrosPerToken() == 0L
+                && price.getCacheWriteMicrosPerToken() == 0L
+                && price.getReasoningMicrosPerToken() == 0L;
     }
 
     @SuppressWarnings("unchecked")
