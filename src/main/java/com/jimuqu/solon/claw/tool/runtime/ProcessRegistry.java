@@ -39,6 +39,7 @@ public class ProcessRegistry {
     private final long watchGlobalCooldownMillis;
     private final Map<String, ManagedProcess> processes =
             Collections.synchronizedMap(new LinkedHashMap<String, ManagedProcess>());
+    private final ProcessLifecycleTracker lifecycleTracker = new ProcessLifecycleTracker();
     private final Queue<Map<String, Object>> processEvents =
             new ConcurrentLinkedQueue<Map<String, Object>>();
     private final Set<String> completionConsumed =
@@ -85,6 +86,7 @@ public class ProcessRegistry {
                         this, id, "", null, process, System.currentTimeMillis(), MAX_OUTPUT_CHARS);
         managed.setPid(resolvePid(process));
         processes.put(id, managed);
+        recordStarted(managed);
         return id;
     }
 
@@ -120,6 +122,7 @@ public class ProcessRegistry {
         managed.setNotifyOnComplete(notifyOnComplete);
         managed.setWatchPatterns(watchPatterns);
         processes.put(id, managed);
+        recordStarted(managed);
         managed.startReader();
         return managed;
     }
@@ -240,6 +243,20 @@ public class ProcessRegistry {
             events.add(new LinkedHashMap<String, Object>(event));
         }
         return events;
+    }
+
+    public List<Map<String, Object>> recentLifecycleEvents(int limit) {
+        int safeLimit = limit <= 0 ? 100 : limit;
+        return lifecycleTracker.recentEventsAsMap(safeLimit);
+    }
+
+    public List<Map<String, Object>> lifecycleEventsForProcess(String id, int limit) {
+        int safeLimit = limit <= 0 ? 20 : limit;
+        return lifecycleTracker.eventsForProcessAsMap(id, safeLimit);
+    }
+
+    Map<String, Object> lastLifecycleEventForProcess(String id) {
+        return lifecycleTracker.lastEventForProcessAsMap(id);
     }
 
     public void markCompletionConsumed(String sessionId) {
@@ -429,6 +446,37 @@ public class ProcessRegistry {
         event.put("exit_code", managed.getExitCode());
         event.put("output", SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(tail(managed.getOutput(), 2000))));
         enqueueEvent(event);
+    }
+
+    private void recordStarted(ManagedProcess managed) {
+        if (managed == null) {
+            return;
+        }
+        lifecycleTracker.recordStarted(managed.getId(), managed.getCommand(), managed.getCwd());
+    }
+
+    private void recordExitIfNeeded(ManagedProcess managed) {
+        if (managed == null) {
+            return;
+        }
+        Integer exitCode = managed.getExitCodeDirect();
+        if (exitCode != null && exitCode.intValue() == 0) {
+            lifecycleTracker.recordCompleted(
+                    managed.getId(), managed.getCommand(), exitCode.intValue());
+        } else {
+            lifecycleTracker.recordFailed(
+                    managed.getId(),
+                    managed.getCommand(),
+                    exitCode == null ? -1 : exitCode.intValue(),
+                    exitCode == null ? "process exited" : "exit code " + exitCode);
+        }
+    }
+
+    private void recordKilledIfNeeded(ManagedProcess managed) {
+        if (managed == null) {
+            return;
+        }
+        lifecycleTracker.recordKilled(managed.getId(), managed.getCommand());
     }
 
     private Map<String, Object> baseEvent(String type, ManagedProcess managed) {
@@ -776,6 +824,8 @@ public class ProcessRegistry {
         private boolean watchStrikeCandidate;
         private int watchConsecutiveStrikes;
         private boolean completionEventQueued;
+        private boolean lifecycleExitEventRecorded;
+        private boolean lifecycleKillEventRecorded;
 
         ManagedProcess(
                 ProcessRegistry owner,
@@ -792,7 +842,6 @@ public class ProcessRegistry {
             this.process = process;
             this.startedAt = startedAt;
             this.maxOutputChars = maxOutputChars;
-            refreshExitState();
         }
 
         void startReader() {
@@ -855,6 +904,10 @@ public class ProcessRegistry {
                 exitCode = Integer.valueOf(process.exitValue());
                 exited = true;
                 if (owner != null) {
+                    if (!lifecycleExitEventRecorded && !lifecycleKillEventRecorded) {
+                        lifecycleExitEventRecorded = true;
+                        owner.recordExitIfNeeded(this);
+                    }
                     owner.enqueueCompletionIfNeeded(this);
                 }
                 return true;
@@ -879,6 +932,12 @@ public class ProcessRegistry {
         void stop() {
             refreshExitState();
             if (!isExited()) {
+                synchronized (this) {
+                    if (owner != null && !lifecycleKillEventRecorded) {
+                        lifecycleKillEventRecorded = true;
+                        owner.recordKilledIfNeeded(this);
+                    }
+                }
                 process.destroy();
                 try {
                     if (!process.waitFor(1500, TimeUnit.MILLISECONDS)) {
@@ -948,6 +1007,13 @@ public class ProcessRegistry {
             map.put("output_preview", SecretRedactor.redact(outputPreview(200)));
             map.put("truncated", Boolean.valueOf(truncated));
             map.put("stdin_closed", Boolean.valueOf(isStdinClosed()));
+            Map<String, Object> lifecycleLastEvent =
+                    owner == null
+                            ? Collections.<String, Object>emptyMap()
+                            : owner.lastLifecycleEventForProcess(id);
+            if (!lifecycleLastEvent.isEmpty()) {
+                map.put("lifecycle_last_event", lifecycleLastEvent);
+            }
             return map;
         }
 
@@ -1017,6 +1083,10 @@ public class ProcessRegistry {
 
         public synchronized Integer getExitCode() {
             refreshExitState();
+            return exitCode;
+        }
+
+        synchronized Integer getExitCodeDirect() {
             return exitCode;
         }
 

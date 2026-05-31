@@ -45,16 +45,6 @@ public class DefaultContextBudgetService implements ContextBudgetService {
             return 0;
         }
         String normalized = text.replace('\r', ' ').replace('\n', ' ').trim();
-        int cjk = 0;
-        int ascii = 0;
-        for (int i = 0; i < normalized.length(); i++) {
-            char ch = normalized.charAt(i);
-            if (ch <= 127) {
-                ascii++;
-            } else {
-                cjk++;
-            }
-        }
-        return Math.max(1, cjk + Math.max(1, ascii / 4));
+        return ContextTokenEstimator.estimateForBudget(normalized);
     }
 }

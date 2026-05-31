@@ -3,10 +3,12 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
+import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -190,14 +192,32 @@ public class DashboardStatusService {
         result.put("effective_context_length", appConfig.getLlm().getContextWindowTokens());
 
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        ModelMetadata metadata = currentModelMetadata(resolved);
         capabilities.put("supports_tools", true);
-        capabilities.put("supports_vision", false);
+        capabilities.put("supports_vision", Boolean.valueOf(metadata.isSupportsVision()));
         capabilities.put("supports_reasoning", true);
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
         capabilities.put("max_output_tokens", appConfig.getLlm().getMaxTokens());
         capabilities.put("model_family", safeText(resolved.getDialect(), 80));
         result.put("capabilities", capabilities);
         return result;
+    }
+
+    private ModelMetadata currentModelMetadata(LlmProviderService.ResolvedProvider resolved) {
+        AppConfig.ProviderConfig provider =
+                appConfig.getProviders().get(resolved.getProviderKey());
+        AppConfig.ProviderConfig effective = new AppConfig.ProviderConfig();
+        if (provider != null) {
+            effective.setName(provider.getName());
+            effective.setBaseUrl(provider.getBaseUrl());
+            effective.setApiKey(provider.getApiKey());
+            effective.setDefaultModel(provider.getDefaultModel());
+            effective.setDialect(provider.getDialect());
+            effective.setSupportsVision(provider.getSupportsVision());
+        }
+        effective.setDefaultModel(resolved.getModel());
+        effective.setDialect(resolved.getDialect());
+        return new ModelMetadataService(appConfig).resolve(resolved.getProviderKey(), effective);
     }
 
     private List<Map<String, Object>> safeFallbackProviders() {
