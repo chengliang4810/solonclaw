@@ -134,9 +134,9 @@ jobs:
           fi
 
           mkdir -p dist
-          RELEASE_JAR="dist/SolonClaw.jar"
-          SOURCE_ZIP="dist/SolonClaw-source.zip"
-          SOURCE_TAR="dist/SolonClaw-source.tar.gz"
+          RELEASE_JAR="dist/solon-claw.jar"
+          SOURCE_ZIP="dist/solon-claw-source.zip"
+          SOURCE_TAR="dist/solon-claw-source.tar.gz"
           cp "$JAR_PATH" "$RELEASE_JAR"
           git archive --format=zip --output="$SOURCE_ZIP" "$GITHUB_SHA"
           git archive --format=tar.gz --output="$SOURCE_TAR" "$GITHUB_SHA"

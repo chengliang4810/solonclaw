@@ -477,11 +477,11 @@ def main() -> int:
             raise AssertionError("Release notes generation did not classify scoped feat commits as features.")
         if not re.search(r"### 缺陷修复 / Fixes[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note", clean_release_text):
             raise AssertionError("Release notes generation did not classify scoped fix commits as fixes.")
-        if "`SolonClaw.jar`" not in clean_release_text:
+        if "`solon-claw.jar`" not in clean_release_text:
             raise AssertionError("Release notes generation should document the fixed release jar asset name.")
-        if "`SolonClaw-source.zip`" not in clean_release_text or "`SolonClaw-source.tar.gz`" not in clean_release_text:
+        if "`solon-claw-source.zip`" not in clean_release_text or "`solon-claw-source.tar.gz`" not in clean_release_text:
             raise AssertionError("Release notes generation should document source archive assets.")
-        if "java -jar SolonClaw.jar" not in clean_release_text:
+        if "java -jar solon-claw.jar" not in clean_release_text:
             raise AssertionError("Release notes generation should use the fixed release jar asset in quick start.")
         if "legacy-agent-0.0.0-test.jar" in clean_release_text:
             raise AssertionError("Release notes generation should not document the versioned repository jar asset name.")
@@ -532,7 +532,7 @@ def main() -> int:
             "name": "solon-claw v2099.01.04-def0123",
             "tag_name": "v2099.01.04-def0123",
             "body": "Published release body mentions " + BLOCKED_DEFAULT_ENV_FIXTURE,
-            "assets": [{"name": "SolonClaw.jar", "label": "", "content_type": "application/java-archive"}],
+            "assets": [{"name": "solon-claw.jar", "label": "", "content_type": "application/java-archive"}],
         }
         published_release_path = sandbox / "published-release.json"
         published_release_path.write_text(json.dumps(published_release_fixture), encoding="utf-8")
@@ -544,7 +544,7 @@ def main() -> int:
             "name": "solon-claw v2099.01.05-ef01234",
             "tag_name": "v2099.01.05-ef01234",
             "body": "Clean published release body",
-            "assets": [{"name": "SolonClaw.jar", "label": "", "content_type": "application/java-archive"}],
+            "assets": [{"name": "solon-claw.jar", "label": "", "content_type": "application/java-archive"}],
         }
         clean_published_release_path = sandbox / "published-release-clean.json"
         clean_published_release_path.write_text(json.dumps(clean_published_release_fixture), encoding="utf-8")
