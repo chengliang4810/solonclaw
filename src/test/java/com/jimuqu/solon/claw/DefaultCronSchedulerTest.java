@@ -917,6 +917,54 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExtractUnquotedCronMediaTagsWithSpaces() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File attachment =
+                FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "monthly report.pdf");
+        FileUtil.mkParentDirs(attachment);
+        FileUtil.writeString("report body", attachment, StandardCharsets.UTF_8);
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "media_space.py");
+        FileUtil.writeString(
+                "print('daily report')\nprint('MEDIA:"
+                        + attachment.getAbsolutePath().replace("\\", "\\\\")
+                        + "')",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "media-space");
+        body.put("schedule", "30m");
+        body.put("script", "media_space.py");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "origin");
+        CronJobRecord job = service.create("MEMORY:media-space-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        new AttachmentCacheService(env.appConfig));
+        scheduler.tick();
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).contains("daily report");
+        assertThat(request.getText()).doesNotContain("MEDIA:");
+        assertThat(request.getAttachments()).hasSize(1);
+        assertThat(request.getAttachments().get(0).getOriginalName())
+                .contains("monthly report.pdf");
+    }
+
+    @Test
     void shouldNotExtractCronMediaTagsInsideInlineCode() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File attachment = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "cron-inline-report.txt");

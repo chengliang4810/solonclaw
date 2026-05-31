@@ -89,6 +89,38 @@ public class GatewayResilienceTest {
     }
 
     @Test
+    void shouldExtractUnquotedGatewayMediaTagsWithSpaces() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:media-space-room:user");
+        File attachment =
+                new File(
+                        env.appConfig.getRuntime().getCacheDir(),
+                        "gateway-media/quarterly report.pdf");
+        Files.createDirectories(attachment.getParentFile().toPath());
+        Files.write(attachment.toPath(), "report body".getBytes("UTF-8"));
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        replyingOrchestrator(
+                                session,
+                                "网关报告\nMEDIA:" + attachment.getAbsolutePath() + "\n请查收"),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService(),
+                        new AttachmentCacheService(env.appConfig));
+
+        service.handle(env.message("media-space-room", "user", "send report"));
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getText()).contains("网关报告").contains("请查收");
+        assertThat(request.getText()).doesNotContain("MEDIA:");
+        assertThat(request.getAttachments()).hasSize(1);
+        assertThat(request.getAttachments().get(0).getOriginalName())
+                .isEqualTo("quarterly report.pdf");
+    }
+
+    @Test
     void shouldNotExtractGatewayReplyMediaTagsInsideInlineCode() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:inline-media-room:user");
