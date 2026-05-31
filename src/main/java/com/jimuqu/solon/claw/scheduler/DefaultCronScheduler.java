@@ -1675,6 +1675,14 @@ public class DefaultCronScheduler {
         if (dangerous == null) {
             return;
         }
+        if (isCronLifecycleBlocked(dangerous)) {
+            throw new IllegalStateException(
+                    "BLOCKED (lifecycle): Cron script "
+                            + job.getScript()
+                            + " matched "
+                            + dangerous.getDescription()
+                            + ". Gateway lifecycle commands cannot run from cron.");
+        }
         String mode = dangerousCommandApprovalService.cronApprovalMode();
         if (!"approve".equals(mode)) {
             throw new IllegalStateException(
@@ -1684,6 +1692,19 @@ public class DefaultCronScheduler {
                             + dangerous.getDescription()
                             + ") but cron runs without a user present to approve it. Set approvals.cronMode=approve to allow this.");
         }
+    }
+
+    private boolean isCronLifecycleBlocked(
+            DangerousCommandApprovalService.DetectionResult dangerous) {
+        if (dangerous == null) {
+            return false;
+        }
+        String key = StrUtil.nullToEmpty(dangerous.getPatternKey());
+        return "gateway_stop_restart".equals(key)
+                || "app_update_restart".equals(key)
+                || "gateway_run_detached".equals(key)
+                || "kill_agent_process".equals(key)
+                || "kill_pgrep_expansion".equals(key);
     }
 
     private String formatDelivery(CronJobRecord job, String content) {
