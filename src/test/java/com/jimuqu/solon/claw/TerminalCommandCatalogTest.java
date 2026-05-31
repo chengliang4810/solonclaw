@@ -23,6 +23,7 @@ public class TerminalCommandCatalogTest {
                         "/commands",
                         "/insights",
                         "/plugins",
+                        "/update",
                         "/reload-skills",
                         "/fast",
                         "/queue",
@@ -97,6 +98,11 @@ public class TerminalCommandCatalogTest {
         assertThat(plugins).isNotNull();
         assertThat(plugins.getCategory()).isEqualTo("tool");
         assertThat(CommandRegistry.resolve("/plugins").getName()).isEqualTo("plugins");
+
+        CommandDescriptor update = CommandRegistry.get("update");
+        assertThat(update).isNotNull();
+        assertThat(update.getCategory()).isEqualTo("system");
+        assertThat(CommandRegistry.resolve("/update").getName()).isEqualTo("update");
     }
 
     @Test

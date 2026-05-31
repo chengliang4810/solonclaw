@@ -40,6 +40,7 @@ public class LocalTerminalHelpTest {
                 .contains("/security audit|status|policy|audit-tool|approvals|slash-confirm|approval-card|approval-audit|mcp-reload|lifecycle|hardline|terminal-guardrails|tirith|tirith-approval|cron-approvals|subagent-approvals|smart-approval|urls|private-urls|website|paths|credentials|skill-credentials|tool-args|mcp|mcp-oauth|mcp-package|schema|attachments|terminal-paste|media-cache|tool-results|patch|code-execution|subprocess-env|terminal-output|sudo|process")
                 .contains("/insights")
                 .contains("/plugins")
+                .contains("/update")
                 .contains("/reload-skills")
                 .contains("/approve [确认编号|all] [session|always]")
                 .contains("/deny [确认编号]")

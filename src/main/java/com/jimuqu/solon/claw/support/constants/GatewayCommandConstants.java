@@ -57,6 +57,7 @@ public interface GatewayCommandConstants {
     String COMMAND_YOLO = "yolo";
     String COMMAND_PERSONALITY = "personality";
     String COMMAND_VERSION = "version";
+    String COMMAND_UPDATE = "update";
     String COMMAND_MODEL = "model";
     String COMMAND_FAST = "fast";
     String COMMAND_TOOLS = "tools";
@@ -108,6 +109,7 @@ public interface GatewayCommandConstants {
     String SLASH_YOLO = COMMAND_PREFIX + COMMAND_YOLO;
     String SLASH_PERSONALITY = COMMAND_PREFIX + COMMAND_PERSONALITY;
     String SLASH_VERSION = COMMAND_PREFIX + COMMAND_VERSION;
+    String SLASH_UPDATE = COMMAND_PREFIX + COMMAND_UPDATE;
     String SLASH_MODEL = COMMAND_PREFIX + COMMAND_MODEL;
     String SLASH_FAST = COMMAND_PREFIX + COMMAND_FAST;
     String SLASH_TOOLS = COMMAND_PREFIX + COMMAND_TOOLS;

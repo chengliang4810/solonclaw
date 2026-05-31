@@ -970,6 +970,18 @@ public class DefaultCommandService implements CommandService {
             return handlePersonality(args);
         }
 
+        if (GatewayCommandConstants.COMMAND_UPDATE.equals(command)) {
+            SessionRecord session = requireSession(message.sourceKey());
+            AppUpdateService.UpdateResult result = appUpdateService.startUpdate();
+            GatewayReply reply =
+                    result.isError()
+                            ? GatewayReply.error(result.getMessage())
+                            : GatewayReply.ok(result.getMessage());
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+
         if (GatewayCommandConstants.COMMAND_VERSION.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
             GatewayReply reply;
@@ -4514,6 +4526,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_VERSION + " [check|update]",
                                 "查看版本或执行更新"),
+                        helpLine(GatewayCommandConstants.SLASH_UPDATE, "执行应用更新"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_MODEL
                                         + " [--global] [provider:]<model>|clear",
