@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.bootstrap.ToolConfiguration;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
@@ -64,6 +66,30 @@ public class ToolResultStorageServiceTest {
         assertThat(result.getObservation()).isEqualTo("small output");
         assertThat(result.getResultRef()).isNull();
         assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
+    void shouldApplyUpdatedToolOutputLimitsOnEachObservation() {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setCacheDir(tempDir.getAbsolutePath());
+        config.getTask().setToolOutputInlineLimit(1024);
+        config.getTask().setToolOutputTurnBudget(2048);
+        ToolResultStorageService service = new ToolConfiguration().toolResultStorageService(config);
+        String medium = repeat("m", 400);
+
+        ToolResultStorageService.StoredResult before =
+                service.observe("webfetch", medium, "run-dynamic", "call-before");
+        config.getTask().setToolOutputInlineLimit(256);
+        config.getTask().setToolOutputTurnBudget(256);
+        ToolResultStorageService.StoredResult after =
+                service.observe("webfetch", medium, "run-dynamic", "call-after");
+
+        assertThat(before.isTruncated()).isFalse();
+        assertThat(before.getResultRef()).isNull();
+        assertThat(after.isTruncated()).isTrue();
+        assertThat(after.getResultRef()).startsWith("runtime://tool-results/run-dynamic/");
+        assertThat(service.policySummary().get("inlineLimitBytes")).isEqualTo(Integer.valueOf(256));
+        assertThat(service.policySummary().get("turnBudgetBytes")).isEqualTo(Integer.valueOf(256));
     }
 
     @Test
