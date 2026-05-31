@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
@@ -64,6 +65,7 @@ import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
+import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
@@ -144,6 +146,7 @@ public class DefaultCommandService implements CommandService {
     private final GatewayRestartCoordinator gatewayRestartCoordinator;
     private final DashboardCuratorService dashboardCuratorService;
     private final DashboardSkillsService dashboardSkillsService;
+    private final BrowserRuntimeService browserRuntimeService;
     private final Map<String, CommandHandler> pluginCommands;
     private final AgentPluginManager pluginManager;
 
@@ -686,6 +689,7 @@ public class DefaultCommandService implements CommandService {
                 pluginCommands,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -751,6 +755,7 @@ public class DefaultCommandService implements CommandService {
                 slashConfirmService,
                 pluginCommands,
                 pluginManager,
+                null,
                 null,
                 null);
     }
@@ -819,6 +824,7 @@ public class DefaultCommandService implements CommandService {
                 pluginCommands,
                 pluginManager,
                 dashboardCuratorService,
+                null,
                 null);
     }
 
@@ -855,6 +861,76 @@ public class DefaultCommandService implements CommandService {
             AgentPluginManager pluginManager,
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                pluginCommands,
+                pluginManager,
+                dashboardCuratorService,
+                dashboardSkillsService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands,
+            AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardSkillsService dashboardSkillsService,
+            BrowserRuntimeService browserRuntimeService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -891,6 +967,7 @@ public class DefaultCommandService implements CommandService {
                 gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;
         this.dashboardCuratorService = dashboardCuratorService;
         this.dashboardSkillsService = dashboardSkillsService;
+        this.browserRuntimeService = browserRuntimeService;
         this.pluginCommands =
                 pluginCommands == null
                         ? Collections.<String, CommandHandler>emptyMap()
@@ -943,6 +1020,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_INSIGHTS.equals(command)) {
             return handleInsights();
+        }
+
+        if (GatewayCommandConstants.COMMAND_DEBUG.equals(command)) {
+            return handleDebug();
         }
 
         if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
@@ -1210,6 +1291,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_TOOLSETS.equals(command)) {
             return handleToolsets();
+        }
+
+        if (GatewayCommandConstants.COMMAND_BROWSER.equals(command)) {
+            return handleBrowser(args);
         }
 
         if (GatewayCommandConstants.COMMAND_SKILLS.equals(command)) {
@@ -2443,6 +2528,156 @@ public class DefaultCommandService implements CommandService {
                     .append(StrUtil.blankToDefault(String.valueOf(toolset.get("label")), "-"));
         }
         return buffer.toString();
+    }
+
+    private GatewayReply handleBrowser(String args) {
+        if (browserRuntimeService == null) {
+            return GatewayReply.error("浏览器命令当前运行时未启用。");
+        }
+        String[] parts = StrUtil.nullToEmpty(args).trim().split("\\s+", 2);
+        String action =
+                parts.length == 0 || StrUtil.isBlank(parts[0])
+                        ? GatewayCommandConstants.COMMAND_STATUS
+                        : parts[0].trim().toLowerCase(java.util.Locale.ROOT);
+        String target = parts.length > 1 ? parts[1].trim() : "";
+
+        GatewayReply reply;
+        if (GatewayCommandConstants.COMMAND_STATUS.equals(action)) {
+            reply = GatewayReply.ok(formatBrowserStatus());
+        } else if ("connect".equals(action)) {
+            reply = browserReply(browserRuntimeService.create("slash-browser"), "浏览器会话已创建");
+        } else if ("disconnect".equals(action) || "close".equals(action)) {
+            if (StrUtil.isBlank(target)) {
+                reply = GatewayReply.error(browserUsage());
+            } else {
+                reply = browserReply(browserRuntimeService.close(target), "浏览器会话已关闭");
+            }
+        } else {
+            reply = GatewayReply.error(browserUsage());
+        }
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_BROWSER);
+        reply.getRuntimeMetadata()
+                .put("browser_active_sessions", Integer.valueOf(browserRuntimeService.activeLeaseCount()));
+        reply.getRuntimeMetadata().put("action", action);
+        return reply;
+    }
+
+    private GatewayReply browserReply(BrowserRuntimeService.BrowserResult result, String successMessage) {
+        if (result == null) {
+            return GatewayReply.error("浏览器运行时未返回结果。");
+        }
+        if (!result.isSuccess()) {
+            BrowserRuntimeService.BrowserError error = result.getError();
+            String code = error == null ? "browser_error" : error.getCode();
+            String message = error == null ? "浏览器运行时执行失败" : error.getMessage();
+            return GatewayReply.error("浏览器运行时失败：" + code + " - " + message);
+        }
+        StringBuilder buffer = new StringBuilder(successMessage);
+        if (StrUtil.isNotBlank(result.getSessionId())) {
+            buffer.append('\n').append("session_id=").append(result.getSessionId());
+        }
+        if (StrUtil.isNotBlank(result.getStatus())) {
+            buffer.append('\n').append("status=").append(result.getStatus());
+        }
+        return GatewayReply.ok(buffer.toString());
+    }
+
+    private String formatBrowserStatus() {
+        return "浏览器运行时："
+                + "\nactive_sessions="
+                + browserRuntimeService.activeLeaseCount()
+                + "\n"
+                + browserUsage();
+    }
+
+    private String browserUsage() {
+        return "用法：" + GatewayCommandConstants.SLASH_BROWSER + " [status|connect|disconnect <session-id>]";
+    }
+
+    private GatewayReply handleDebug() throws Exception {
+        DebugSummary summary = debugSummary();
+        GatewayReply reply = GatewayReply.ok(formatDebugSummary(summary));
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_DEBUG);
+        reply.getRuntimeMetadata().put("debug_provider_count", Integer.valueOf(summary.providerCount));
+        reply.getRuntimeMetadata().put("debug_channel_count", Integer.valueOf(summary.channelCount));
+        reply.getRuntimeMetadata().put("debug_tool_count", Integer.valueOf(summary.toolCount));
+        reply.getRuntimeMetadata().put("debug_session_count", Integer.valueOf(summary.sessionCount));
+        reply.getRuntimeMetadata().put("debug_connected_channel_count", Integer.valueOf(summary.connectedChannelCount));
+        return reply;
+    }
+
+    private DebugSummary debugSummary() throws Exception {
+        DebugSummary summary = new DebugSummary();
+        summary.runtimeHome = "runtime://";
+        summary.providerCount = appConfig == null || appConfig.getProviders() == null ? 0 : appConfig.getProviders().size();
+        List<ChannelStatus> statuses =
+                deliveryService == null ? Collections.<ChannelStatus>emptyList() : deliveryService.statuses();
+        summary.channelCount = statuses.size();
+        for (ChannelStatus status : statuses) {
+            if (status == null) {
+                continue;
+            }
+            if (status.isEnabled()) {
+                summary.enabledChannelCount++;
+            }
+            if (status.isConnected()) {
+                summary.connectedChannelCount++;
+            }
+        }
+        summary.toolCount = toolRegistry == null ? 0 : toolRegistry.listToolNames().size();
+        summary.sessionCount = sessionRepository == null ? 0 : sessionRepository.countAll();
+        summary.mcpStatus = appConfig != null && appConfig.getMcp().isEnabled() ? "enabled" : "disabled";
+        summary.approvalsMode =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? ""
+                        : StrUtil.nullToEmpty(appConfig.getApprovals().getMode());
+        summary.securityProbesPassed = "not_run";
+        return summary;
+    }
+
+    private String formatDebugSummary(DebugSummary summary) {
+        return "调试诊断："
+                + "\nruntime_home="
+                + summary.runtimeHome
+                + "\nproviders="
+                + summary.providerCount
+                + "\nchannels="
+                + summary.channelCount
+                + " enabled="
+                + summary.enabledChannelCount
+                + " connected="
+                + summary.connectedChannelCount
+                + "\ntools="
+                + summary.toolCount
+                + "\nsessions="
+                + summary.sessionCount
+                + "\nmcp="
+                + summary.mcpStatus
+                + "\napprovals_mode="
+                + summary.approvalsMode
+                + "\nsecurity_probes_passed="
+                + summary.securityProbesPassed
+                + "\n"
+                + debugUsage();
+    }
+
+    private String debugUsage() {
+        return "用法：" + GatewayCommandConstants.SLASH_DEBUG + " [status]";
+    }
+
+    private static class DebugSummary {
+        private String runtimeHome;
+        private int providerCount;
+        private int channelCount;
+        private int enabledChannelCount;
+        private int connectedChannelCount;
+        private int toolCount;
+        private int sessionCount;
+        private String mcpStatus;
+        private String approvalsMode;
+        private String securityProbesPassed;
     }
 
     /** 处理技能命令。 */
@@ -4866,6 +5101,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_INSIGHTS,
                                 "查看使用洞察与运行摘要"),
+                        helpLine(GatewayCommandConstants.SLASH_DEBUG + " [status]", "查看脱敏调试诊断摘要"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
                                 "查看、设置或清空当前会话标题"),
@@ -4907,6 +5143,10 @@ public class DefaultCommandService implements CommandService {
                                         + " [list|enable|disable] [name...]",
                                 "查看或管理工具开关"),
                         helpLine(GatewayCommandConstants.SLASH_TOOLSETS, "列出可用工具集"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_BROWSER
+                                        + " [status|connect|disconnect <session-id>]",
+                                "管理浏览器自动化运行时"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_SKILLS
                                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",

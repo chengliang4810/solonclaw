@@ -245,6 +245,47 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeBrowserRuntimeCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/browser");
+
+        assertThat(status.isError()).isFalse();
+        assertThat(status.getContent())
+                .contains("浏览器运行时：")
+                .contains("active_sessions=0")
+                .contains("用法：/browser [status|connect|disconnect <session-id>]");
+        assertThat(status.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "browser")
+                .containsEntry("browser_active_sessions", Integer.valueOf(0));
+    }
+
+    @Test
+    void shouldExposeDebugDiagnosticsCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "/debug");
+
+        assertThat(reply.isError()).isFalse();
+        assertThat(reply.getContent())
+                .contains("调试诊断：")
+                .contains("runtime_home=runtime://")
+                .contains("providers=")
+                .contains("channels=")
+                .contains("tools=")
+                .contains("security_probes_passed=");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "debug")
+                .containsKey("debug_provider_count")
+                .containsKey("debug_channel_count")
+                .containsKey("debug_tool_count");
+    }
+
+    @Test
     void shouldExposeApprovalManagementFormsInSlashHelp() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

@@ -304,24 +304,7 @@ public class SqliteDatabase {
             }
             statement.execute(
                     "create index if not exists idx_sessions_source on sessions(source_key)");
-            try {
-                ResultSetMetaSupport.close(
-                        statement.executeQuery("select tool_names from sessions_fts limit 1"));
-            } catch (Exception ignored) {
-                try {
-                    statement.execute("drop table if exists sessions_fts");
-                } catch (Exception ignoredDrop) {
-                }
-            }
-            statement.execute(
-                    "create virtual table if not exists sessions_fts using fts5(session_id, title, compressed_summary, ndjson, tool_names, tool_calls)");
-            try {
-                statement.execute(
-                        "insert into sessions_fts (session_id, title, compressed_summary, ndjson, tool_names, tool_calls) "
-                                + "select s.session_id, s.title, s.compressed_summary, s.ndjson, '', '' from sessions s "
-                                + "where not exists (select 1 from sessions_fts f where f.session_id = s.session_id)");
-            } catch (Exception ignored) {
-            }
+            initSessionSearchIndex(statement);
             statement.execute(
                     "create table if not exists bindings ("
                             + "source_key text primary key,"
@@ -610,8 +593,7 @@ public class SqliteDatabase {
             addColumn(statement, "agent_run_events", "severity text");
             statement.execute(
                     "create index if not exists idx_agent_run_events_run_time on agent_run_events(run_id, created_at asc)");
-            statement.execute(
-                    "create virtual table if not exists agent_run_events_fts using fts5(run_id, session_id, source_key, event_type, summary, metadata_json)");
+            initAgentRunEventSearchIndex(statement);
             statement.execute(
                     "create table if not exists run_control_commands ("
                             + "command_id text primary key,"
@@ -1056,6 +1038,37 @@ public class SqliteDatabase {
                 resultSet.close();
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    private void initSessionSearchIndex(Statement statement) {
+        try {
+            ResultSetMetaSupport.close(
+                    statement.executeQuery("select tool_names from sessions_fts limit 1"));
+        } catch (Exception ignored) {
+            try {
+                statement.execute("drop table if exists sessions_fts");
+            } catch (Exception ignoredDrop) {
+            }
+        }
+        try {
+            statement.execute(
+                    "create virtual table if not exists sessions_fts using fts5(session_id, title, compressed_summary, ndjson, tool_names, tool_calls)");
+            statement.execute(
+                    "insert into sessions_fts (session_id, title, compressed_summary, ndjson, tool_names, tool_calls) "
+                            + "select s.session_id, s.title, s.compressed_summary, s.ndjson, '', '' from sessions s "
+                            + "where not exists (select 1 from sessions_fts f where f.session_id = s.session_id)");
+        } catch (Exception ignored) {
+            // SQLite FTS5 can be absent in constrained runtimes; LIKE fallback remains available.
+        }
+    }
+
+    private void initAgentRunEventSearchIndex(Statement statement) {
+        try {
+            statement.execute(
+                    "create virtual table if not exists agent_run_events_fts using fts5(run_id, session_id, source_key, event_type, summary, metadata_json)");
+        } catch (Exception ignored) {
+            // Event search continues through ordinary tables when FTS5 is unavailable.
         }
     }
 
