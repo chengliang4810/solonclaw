@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { TuiJsonRpcClient } from './tuiClient'
+import { nextPanelCursor, normalizePanelKey } from './panelNavigation'
 import { createHistoryItem, initialTuiState, tuiReducer } from './tuiReducer'
 import { handleOsc52, openSafeUrl, readClipboard, sanitizeInputForDisplay, writeClipboard } from './tuiSafety'
 import type { BusyPolicy, TuiApproval, TuiIntegrationKind, TuiIntegrationSnapshot, TuiRunTimelineItem, TuiSession, TuiSessionControls, VirtualHistoryItem } from './tuiTypes'
@@ -12,6 +13,7 @@ export function TuiApp() {
   const [input, setInput] = useState('')
   const [activePanel, setActivePanel] = useState<'model' | 'session' | 'command' | 'integration' | null>(null)
   const [panelSearch, setPanelSearch] = useState('')
+  const [panelCursor, setPanelCursor] = useState(0)
   const [toast, setToast] = useState('')
   const clientRef = useRef<TuiJsonRpcClient | null>(null)
   const historyRef = useRef<HTMLDivElement | null>(null)
@@ -42,7 +44,7 @@ export function TuiApp() {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       const modifier = event.ctrlKey || event.metaKey
       if (!modifier) {
-        if (event.key === 'Escape') setActivePanel(null)
+        if (event.key === 'Escape') closePanel()
         return
       }
       const key = event.key.toLowerCase()
@@ -158,7 +160,18 @@ export function TuiApp() {
 
   function openPanel(panel: 'model' | 'session' | 'command' | 'integration') {
     setPanelSearch('')
+    setPanelCursor(0)
     setActivePanel(panel)
+  }
+
+  function closePanel() {
+    setActivePanel(null)
+    setPanelCursor(0)
+  }
+
+  function updatePanelSearch(value: string) {
+    setPanelSearch(value)
+    setPanelCursor(0)
   }
 
   function createSession() {
@@ -194,7 +207,7 @@ export function TuiApp() {
         sessions: state.sessions,
       },
     })
-    setActivePanel(null)
+    closePanel()
     const afterSeq = state.lastSeqBySession[sessionId] || 0
     void clientRef.current?.request('session.resume', { sessionId, after_seq: afterSeq })
     void clientRef.current?.request('session.controls', { sessionId })
@@ -202,14 +215,14 @@ export function TuiApp() {
 
   function switchModel(modelId: string) {
     dispatch({ type: 'model', payload: { activeModelId: modelId } })
-    setActivePanel(null)
+    closePanel()
     void clientRef.current?.request('model.switch', { sessionId: state.activeSessionId, model: modelId })
   }
 
   function runCommand(command: string) {
     dispatch({ type: 'command', payload: { recentCommand: command } })
     setInput(command)
-    setActivePanel(null)
+    closePanel()
     inputRef.current?.focus()
   }
 
@@ -307,10 +320,10 @@ export function TuiApp() {
 
       <div className="tui-workspace">
         <aside className="tui-sidebar">
-          <PanelButton active={activePanel === 'session'} label="会话" shortcut="Ctrl+N" onClick={() => activePanel === 'session' ? setActivePanel(null) : openPanel('session')} />
-          <PanelButton active={activePanel === 'model'} label="模型" shortcut="Ctrl+M" onClick={() => activePanel === 'model' ? setActivePanel(null) : openPanel('model')} />
-          <PanelButton active={activePanel === 'command'} label="命令" shortcut="Ctrl+K" onClick={() => activePanel === 'command' ? setActivePanel(null) : openPanel('command')} />
-          <PanelButton active={activePanel === 'integration'} label="状态" shortcut="Ctrl+I" onClick={() => activePanel === 'integration' ? setActivePanel(null) : openPanel('integration')} />
+          <PanelButton active={activePanel === 'session'} label="会话" shortcut="Ctrl+N" onClick={() => activePanel === 'session' ? closePanel() : openPanel('session')} />
+          <PanelButton active={activePanel === 'model'} label="模型" shortcut="Ctrl+M" onClick={() => activePanel === 'model' ? closePanel() : openPanel('model')} />
+          <PanelButton active={activePanel === 'command'} label="命令" shortcut="Ctrl+K" onClick={() => activePanel === 'command' ? closePanel() : openPanel('command')} />
+          <PanelButton active={activePanel === 'integration'} label="状态" shortcut="Ctrl+I" onClick={() => activePanel === 'integration' ? closePanel() : openPanel('integration')} />
           <div className="tui-policy">
             <span>忙碌输入</span>
             <select value={state.busyPolicy} onChange={(event) => setBusyPolicy(event.currentTarget.value as BusyPolicy)}>
@@ -379,7 +392,9 @@ export function TuiApp() {
             {activePanel === 'session' ? (
               <SessionPanel
                 search={panelSearch}
-                setSearch={setPanelSearch}
+                setSearch={updatePanelSearch}
+                cursor={panelCursor}
+                setCursor={setPanelCursor}
                 sessions={state.sessions}
                 recentSessions={state.recentSessions}
                 activeSessionId={state.activeSessionId}
@@ -388,13 +403,33 @@ export function TuiApp() {
                 onSwitch={switchSession}
                 onCreate={createSession}
                 onControl={runSessionControl}
+                onClose={closePanel}
               />
             ) : null}
             {activePanel === 'model' ? (
-              <ModelPanel search={panelSearch} setSearch={setPanelSearch} models={state.models} recentModels={state.recentModels} activeModelId={state.activeModelId} onSwitch={switchModel} />
+              <ModelPanel
+                search={panelSearch}
+                setSearch={updatePanelSearch}
+                cursor={panelCursor}
+                setCursor={setPanelCursor}
+                models={state.models}
+                recentModels={state.recentModels}
+                activeModelId={state.activeModelId}
+                onSwitch={switchModel}
+                onClose={closePanel}
+              />
             ) : null}
             {activePanel === 'command' ? (
-              <CommandPanel search={panelSearch} setSearch={setPanelSearch} commands={state.commands} recentCommands={state.recentCommands} onRun={runCommand} />
+              <CommandPanel
+                search={panelSearch}
+                setSearch={updatePanelSearch}
+                cursor={panelCursor}
+                setCursor={setPanelCursor}
+                commands={state.commands}
+                recentCommands={state.recentCommands}
+                onRun={runCommand}
+                onClose={closePanel}
+              />
             ) : null}
             {activePanel === 'integration' ? (
               <IntegrationPanel
@@ -500,21 +535,22 @@ function CodeBlock(props: { language?: string; code: string; onCopy: (text: stri
   )
 }
 
-function SessionPanel(props: { search: string; setSearch: (value: string) => void; sessions: TuiSession[]; recentSessions: string[]; activeSessionId: string; controls?: TuiSessionControls; busy: boolean; onSwitch: (id: string) => void; onCreate: () => void; onControl: (action: 'retry' | 'undo' | 'branch' | 'compress' | 'refresh') => void }) {
+function SessionPanel(props: { search: string; setSearch: (value: string) => void; cursor: number; setCursor: (value: number) => void; sessions: TuiSession[]; recentSessions: string[]; activeSessionId: string; controls?: TuiSessionControls; busy: boolean; onSwitch: (id: string) => void; onCreate: () => void; onControl: (action: 'retry' | 'undo' | 'branch' | 'compress' | 'refresh') => void; onClose: () => void }) {
   const sessions = filterSessions(props.sessions, props.search, props.recentSessions)
+  const cursor = normalizeCursor(props.cursor, sessions.length)
   return (
     <>
       <PanelHeader title="会话面板" action="新建" onAction={props.onCreate} />
       <SessionControlPanel controls={props.controls} busy={props.busy} onControl={props.onControl} />
       <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索会话、分支或模型" />
-      <div className="tui-panel-list">
-        {sessions.map((session) => (
-          <button className={session.id === props.activeSessionId ? 'active' : ''} type="button" key={session.id} onClick={() => props.onSwitch(session.id)}>
+      <PanelList itemCount={sessions.length} cursor={cursor} setCursor={props.setCursor} onSelect={(index) => props.onSwitch(sessions[index].id)} onClose={props.onClose}>
+        {sessions.map((session, index) => (
+          <button className={panelItemClass(index, cursor, session.id === props.activeSessionId)} type="button" key={session.id} onClick={() => props.onSwitch(session.id)}>
             <span>{session.title}</span>
             <small>{session.branch || 'main'} · {session.model || 'default'} · {session.cwd}</small>
           </button>
         ))}
-      </div>
+      </PanelList>
     </>
   )
 }
@@ -540,40 +576,78 @@ function SessionControlPanel(props: { controls?: TuiSessionControls; busy: boole
   )
 }
 
-function ModelPanel(props: { search: string; setSearch: (value: string) => void; models: { id: string; label: string; provider: string; context: string }[]; recentModels: string[]; activeModelId: string; onSwitch: (id: string) => void }) {
+function ModelPanel(props: { search: string; setSearch: (value: string) => void; cursor: number; setCursor: (value: number) => void; models: { id: string; label: string; provider: string; context: string }[]; recentModels: string[]; activeModelId: string; onSwitch: (id: string) => void; onClose: () => void }) {
   const models = filterModels(props.models, props.search, props.recentModels)
+  const cursor = normalizeCursor(props.cursor, models.length)
   return (
     <>
       <PanelHeader title="模型面板" />
       <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索模型、提供方或协议" />
-      <div className="tui-panel-list">
-        {models.map((model) => (
-          <button className={model.id === props.activeModelId ? 'active' : ''} type="button" key={model.id} onClick={() => props.onSwitch(model.id)}>
+      <PanelList itemCount={models.length} cursor={cursor} setCursor={props.setCursor} onSelect={(index) => props.onSwitch(models[index].id)} onClose={props.onClose}>
+        {models.map((model, index) => (
+          <button className={panelItemClass(index, cursor, model.id === props.activeModelId)} type="button" key={model.id} onClick={() => props.onSwitch(model.id)}>
             <span>{model.label}</span>
             <small>{model.provider} · {model.context || '运行时默认'}{props.recentModels.includes(model.id) ? ' · 最近使用' : ''}</small>
           </button>
         ))}
-      </div>
+      </PanelList>
     </>
   )
 }
 
-function CommandPanel(props: { search: string; setSearch: (value: string) => void; commands: { name: string; description: string; hotkey?: string }[]; recentCommands: string[]; onRun: (command: string) => void }) {
+function CommandPanel(props: { search: string; setSearch: (value: string) => void; cursor: number; setCursor: (value: number) => void; commands: { name: string; description: string; hotkey?: string }[]; recentCommands: string[]; onRun: (command: string) => void; onClose: () => void }) {
   const commands = filterCommands(props.commands, props.search, props.recentCommands)
+  const cursor = normalizeCursor(props.cursor, commands.length)
   return (
     <>
       <PanelHeader title="命令面板" />
       <PanelSearch value={props.search} onChange={props.setSearch} placeholder="搜索命令或说明" />
-      <div className="tui-panel-list">
-        {commands.map((command) => (
-          <button type="button" key={command.name} onClick={() => props.onRun(command.name)}>
+      <PanelList itemCount={commands.length} cursor={cursor} setCursor={props.setCursor} onSelect={(index) => props.onRun(commands[index].name)} onClose={props.onClose}>
+        {commands.map((command, index) => (
+          <button className={panelItemClass(index, cursor, false)} type="button" key={command.name} onClick={() => props.onRun(command.name)}>
             <span>{command.name}</span>
             <small>{command.description}{command.hotkey ? ` · ${command.hotkey}` : ''}{props.recentCommands.includes(command.name) ? ' · 最近使用' : ''}</small>
           </button>
         ))}
-      </div>
+      </PanelList>
     </>
   )
+}
+
+function PanelList(props: { itemCount: number; cursor: number; setCursor: (value: number) => void; onSelect: (index: number) => void; onClose: () => void; children: JSX.Element[] }) {
+  const listRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    listRef.current?.focus()
+  }, [])
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const action = normalizePanelKey(event.key)
+    if (action === 'none') return
+    event.preventDefault()
+    if (action === 'cancel') {
+      props.onClose()
+      return
+    }
+    if (action === 'select') {
+      if (props.itemCount > 0) props.onSelect(props.cursor)
+      return
+    }
+    props.setCursor(nextPanelCursor(props.cursor, action, props.itemCount))
+  }
+  return (
+    <div className="tui-panel-list" tabIndex={0} ref={listRef} onKeyDown={onKeyDown}>
+      {props.children}
+    </div>
+  )
+}
+
+function normalizeCursor(cursor: number, itemCount: number): number {
+  return nextPanelCursor(cursor, 'none', itemCount)
+}
+
+function panelItemClass(index: number, cursor: number, active: boolean): string {
+  return [active ? 'active' : '', index === cursor ? 'cursor' : ''].filter(Boolean).join(' ')
 }
 
 function IntegrationPanel(props: { snapshots: Record<string, TuiIntegrationSnapshot>; onRefresh: (kind: TuiIntegrationKind) => void; onRefreshAll: () => void }) {
