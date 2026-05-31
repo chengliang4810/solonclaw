@@ -31,7 +31,8 @@ jobs:
           python3 scripts/check-raw-exception-logging.selftest.py
           python3 scripts/check-raw-exception-logging.py
 
-      - name: Check new commit text
+      - name: Resolve new commit guard range
+        id: guard_range
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -39,12 +40,10 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            range="${BASE_SHA}..${HEAD_SHA}"
-          elif [ -z "$BEFORE_SHA" ] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
-            range="$HEAD_SHA"
-          else
-            range="${BEFORE_SHA}..${HEAD_SHA}"
-          fi
+          python3 scripts/resolve-guard-range.py
 
-          python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "$range"
+      - name: Check new commit text
+        shell: bash
+        run: |
+          echo "Guard commit range: ${{ steps.guard_range.outputs.git_range }} (${{ steps.guard_range.outputs.reason }})"
+          python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --git-commit-range "${{ steps.guard_range.outputs.git_range }}"

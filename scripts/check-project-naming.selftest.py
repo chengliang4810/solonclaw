@@ -17,6 +17,7 @@ NAMING_SCRIPT = SCRIPT_DIR / "check-project-naming.py"
 GITHUB_PACKAGE_SCRIPT = SCRIPT_DIR / "check-github-package-name.py"
 RELEASE_NOTES_SCRIPT = SCRIPT_DIR / "write-release-notes.py"
 RELEASE_RANGE_SCRIPT = SCRIPT_DIR / "resolve-release-range.py"
+GUARD_RANGE_SCRIPT = SCRIPT_DIR / "resolve-guard-range.py"
 PUBLISHED_RELEASE_SCRIPT = SCRIPT_DIR / "check-release-naming.py"
 ARCHIVE_NAMING_SCRIPT = SCRIPT_DIR / "check-archive-naming.py"
 
@@ -223,6 +224,64 @@ def main() -> int:
         all_refs_blocked = invoke_git_naming_check(sandbox, with_extra_fixture=True, check_object_text=True, check_all_git_refs=True)
         require_failure(all_refs_blocked, "Naming check did not block forbidden naming in all reachable git refs.")
         assert_no_raw_blocked_output(all_refs_blocked.stdout + all_refs_blocked.stderr, [BLOCKED_FIXTURE], "all refs git object text scan")
+
+        reset_sandbox(sandbox)
+        git_init(sandbox)
+        write_text(sandbox / "README.md", "Clean root")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "chore: clean root / Clean root")
+        root_commit = git(sandbox, "rev-parse", "HEAD")
+        write_text(sandbox / "README.md", BLOCKED_FIXTURE + " only in historical upstream")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "fix: historical upstream fixture / Historical upstream fixture")
+        write_text(sandbox / "README.md", "Clean upstream after historical fixture")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "fix: clean upstream after history / Clean upstream after history")
+        git(sandbox, "checkout", "-b", "clean-pr")
+        write_text(sandbox / "feature.txt", "Clean feature")
+        git(sandbox, "add", "feature.txt")
+        git(sandbox, "commit", "-m", "fix: clean feature / Clean feature")
+        git(sandbox, "checkout", "main")
+        git(sandbox, "merge", "--no-ff", "clean-pr", "-m", "merge: clean feature / Clean feature")
+        rewritten_head = git(sandbox, "rev-parse", "HEAD")
+        git(sandbox, "checkout", "-b", "clean-rewrite", root_commit)
+        write_text(sandbox / "README.md", "Clean rewritten main")
+        git(sandbox, "add", "README.md")
+        git(sandbox, "commit", "-m", "merge: clean rewritten main / Clean rewritten main")
+        previous_head = git(sandbox, "rev-parse", "HEAD")
+        unsafe_range = invoke_git_naming_check(
+            sandbox,
+            git_range=f"{previous_head}..{rewritten_head}",
+            with_extra_fixture=True,
+            check_object_text=True,
+        )
+        require_failure(unsafe_range, "Unsafe force-push range should reproduce historical object scan failures")
+        guard_range_output = run([
+            "python3",
+            str(GUARD_RANGE_SCRIPT),
+            "--root-path",
+            str(sandbox),
+            "--event-name",
+            "push",
+            "--before-sha",
+            previous_head,
+            "--head-sha",
+            rewritten_head,
+            "--github-output-path",
+            "",
+        ], cwd=sandbox)
+        require_success(guard_range_output, "Guard range resolver should handle non-fast-forward pushes")
+        guard_range_text = guard_range_output.stdout + guard_range_output.stderr
+        expected_guard_range = f"{rewritten_head}^..{rewritten_head}"
+        if f"git_range={expected_guard_range}" not in guard_range_text:
+            raise AssertionError("Guard range resolver should fall back to the head commit window for non-fast-forward pushes.")
+        safe_range = invoke_git_naming_check(
+            sandbox,
+            git_range=expected_guard_range,
+            with_extra_fixture=True,
+            check_object_text=True,
+        )
+        require_success(safe_range, "Resolved guard range should avoid unrelated historical object text")
 
         reset_sandbox(sandbox)
         git_init(sandbox)
