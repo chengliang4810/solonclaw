@@ -983,6 +983,10 @@ public class DefaultCommandService implements CommandService {
             return handleSkills(message, args);
         }
 
+        if (GatewayCommandConstants.COMMAND_RELOAD_SKILLS.equals(command)) {
+            return handleReloadSkills();
+        }
+
         if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(command)) {
             return handleReloadMcp(message, args);
         }
@@ -2211,13 +2215,28 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(localSkillService.inspect(target));
         }
         if (GatewayCommandConstants.ACTION_RELOAD.equalsIgnoreCase(action)) {
-            return GatewayReply.ok("已从 runtime 目录重新加载本地技能。");
+            return handleReloadSkills();
         }
 
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_SKILLS
                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload] ...");
+    }
+
+    private GatewayReply handleReloadSkills() throws Exception {
+        List<String> names = new ArrayList<String>(localSkillService.listSkillNames());
+        Collections.sort(names);
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("已重新加载本地技能，共 ").append(names.size()).append(" 个");
+        if (!names.isEmpty()) {
+            buffer.append("：").append(String.join(", ", names));
+        }
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_RELOAD_SKILLS);
+        reply.getRuntimeMetadata().put("skill_count", Integer.valueOf(names.size()));
+        return reply;
     }
 
     /** 处理人格命令。 */
@@ -4324,6 +4343,9 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_SKILLS
                                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",
                                 "管理本地技能与 Skills Hub"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_RELOAD_SKILLS,
+                                "重新扫描本地技能目录"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
                                         + " [now|always]；确认：/approve [确认编号]|/always|/cancel",

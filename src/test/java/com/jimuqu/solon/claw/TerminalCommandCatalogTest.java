@@ -21,6 +21,7 @@ public class TerminalCommandCatalogTest {
                         "/model",
                         "/whoami",
                         "/commands",
+                        "/reload-skills",
                         "/fast",
                         "/queue",
                         "/steer",
@@ -80,6 +81,10 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
         assertThat(reloadMcp.getAliases()).contains("reload_mcp");
         assertThat(CommandRegistry.resolve("/reload_mcp").getName()).isEqualTo("reload-mcp");
+
+        CommandDescriptor reloadSkills = CommandRegistry.get("reload-skills");
+        assertThat(reloadSkills.getAliases()).contains("reload_skills");
+        assertThat(CommandRegistry.resolve("/reload_skills").getName()).isEqualTo("reload-skills");
     }
 
     @Test

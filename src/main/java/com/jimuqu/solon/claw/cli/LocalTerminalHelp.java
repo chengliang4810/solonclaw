@@ -31,6 +31,7 @@ public final class LocalTerminalHelp {
                 + "/cron guide|capabilities|policy [--json] - 查看自动化字段、别名、技能绑定、执行和投递策略\n"
                 + "/kanban guide|drawer|pipeline|retry|history|dispatch - 查看或操作看板任务抽屉、流水和派发\n"
                 + "/security audit|status|policy|audit-tool|approvals|slash-confirm|approval-card|approval-audit|mcp-reload|lifecycle|hardline|terminal-guardrails|tirith|tirith-approval|cron-approvals|subagent-approvals|smart-approval|urls|private-urls|website|paths|credentials|skill-credentials|tool-args|mcp|mcp-oauth|mcp-package|schema|attachments|terminal-paste|media-cache|tool-results|patch|code-execution|subprocess-env|terminal-output|sudo|process - 查看安全审计、策略状态、审批、URL、路径、凭据、MCP、执行和工具策略摘要\n"
+                + "/reload-skills - 重新扫描本地技能目录\n"
                 + "/reload-mcp [now|always] - 重载 MCP 工具并刷新下一轮工具 schema\n"
                 + "/approve [确认编号|all] [session|always] - 批准危险命令审批\n"
                 + "/deny [确认编号] - 拒绝危险命令审批\n"
