@@ -654,7 +654,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             String chatType,
             String chatId,
             String contextToken) {
-        final String key = gatewayMessage.sourceKey();
+        final String key =
+                String.valueOf(gatewayMessage.getPlatform())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getChatId())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getUserId());
         PendingTextBatch batch =
                 pendingTextBatches.compute(
                         key,
