@@ -578,7 +578,7 @@ public class DashboardDiagnosticsService {
                 if (snapshots.size() >= PROCESS_SNAPSHOT_LIMIT) {
                     break;
                 }
-                snapshots.add(managed.toRedactedMap());
+                snapshots.add(dashboardManagedProcessSnapshot(managed));
             }
             summary.put("running_count", Integer.valueOf(processRegistry.runningCount()));
             summary.put("snapshots", snapshots);
@@ -591,6 +591,40 @@ public class DashboardDiagnosticsService {
             summary.put("error", safeObjectText(e.getMessage(), 300));
         }
         return summary;
+    }
+
+    private Map<String, Object> dashboardManagedProcessSnapshot(ProcessRegistry.ManagedProcess managed) {
+        Map<String, Object> source = managed.toRedactedMap();
+        Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
+        copyIfPresent(source, snapshot, "session_id");
+        copyIfPresent(source, snapshot, "id");
+        copyIfPresent(source, snapshot, "command");
+        copyIfPresent(source, snapshot, "cwd");
+        copyIfPresent(source, snapshot, "pid");
+        copyIfPresent(source, snapshot, "started_at");
+        copyIfPresent(source, snapshot, "started_at_iso");
+        copyIfPresent(source, snapshot, "uptime_seconds");
+        copyIfPresent(source, snapshot, "status");
+        copyIfPresent(source, snapshot, "exited");
+        copyIfPresent(source, snapshot, "running");
+        copyIfPresent(source, snapshot, "exit_code");
+        copyIfPresent(source, snapshot, "exit_code_meaning");
+        copyIfPresent(source, snapshot, "notify_on_complete");
+        copyIfPresent(source, snapshot, "watch_patterns");
+        copyIfPresent(source, snapshot, "watch_hits");
+        copyIfPresent(source, snapshot, "watch_suppressed");
+        copyIfPresent(source, snapshot, "watch_disabled");
+        copyIfPresent(source, snapshot, "output_preview");
+        copyIfPresent(source, snapshot, "truncated");
+        copyIfPresent(source, snapshot, "stdin_closed");
+        copyIfPresent(source, snapshot, "lifecycle_last_event");
+        return snapshot;
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source.containsKey(key)) {
+            target.put(key, source.get(key));
+        }
     }
 
     private Map<String, Object> memoryMonitorSummary() {

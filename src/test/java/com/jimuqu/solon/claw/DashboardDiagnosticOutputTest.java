@@ -69,19 +69,24 @@ public class DashboardDiagnosticOutputTest {
         ProcessRegistry processRegistry = new ProcessRegistry(config);
         List<ProcessRegistry.ManagedProcess> managedProcesses = new ArrayList<ProcessRegistry.ManagedProcess>();
         try {
+            String longOutputMarker = "diagnostic-output-unbounded-marker";
+            String longOutputCommand =
+                    "printf '\\144\\151\\141\\147\\156\\157\\163\\164\\151\\143\\055\\157\\165\\164\\160\\165\\164\\055\\165\\156\\142\\157\\165\\156\\144\\145\\144\\055\\155\\141\\162\\153\\145\\162'; "
+                            + "printf '%04096d' 0; "
+                            + "printf 'tail-preview token=ghp_diagnosticlongsecret12345\\n'";
+            ProcessRegistry.ManagedProcess completed =
+                    processRegistry.start(
+                            longOutputCommand,
+                            runtimeHome,
+                            true,
+                            Collections.<String>emptyList());
+            processRegistry.waitFor(completed.getId(), 5000L);
             for (int i = 0; i < 7; i++) {
                 managedProcesses.add(
                         processRegistry.start(
                                 "sleep 30 # token=ghp_diagnosticprocess" + i,
                                 runtimeHome));
             }
-            ProcessRegistry.ManagedProcess completed =
-                    processRegistry.start(
-                            "printf 'token=ghp_diagnosticcompletion123\\n'",
-                            runtimeHome,
-                            true,
-                            Collections.<String>emptyList());
-            processRegistry.waitFor(completed.getId(), 5000L);
 
             DashboardDiagnosticsService diagnosticsService =
                     new DashboardDiagnosticsService(
@@ -114,6 +119,14 @@ public class DashboardDiagnosticOutputTest {
             assertThat(processes.get("snapshot_limit")).isEqualTo(Integer.valueOf(5));
             assertThat(processes.get("lifecycle_event_limit")).isEqualTo(Integer.valueOf(10));
             assertThat((List<Map<String, Object>>) processes.get("snapshots")).hasSize(5);
+            List<Map<String, Object>> snapshots =
+                    (List<Map<String, Object>>) processes.get("snapshots");
+            Map<String, Object> completedSnapshot = snapshots.get(0);
+            assertThat(completedSnapshot).containsKey("output_preview");
+            assertThat(completedSnapshot).doesNotContainKey("output");
+            assertThat(String.valueOf(completedSnapshot.get("output_preview")))
+                    .contains("tail-preview token=***")
+                    .doesNotContain("diagnosticlongsecret12345");
             assertThat((List<Map<String, Object>>) processes.get("recent_lifecycle_events"))
                     .isNotEmpty()
                     .hasSizeLessThanOrEqualTo(10);
@@ -121,7 +134,9 @@ public class DashboardDiagnosticOutputTest {
             String diagnosticsJson = ONode.serialize(diagnostics);
             assertThat(diagnosticsJson).contains("managed_processes");
             assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticprocess");
-            assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticcompletion123");
+            assertThat(diagnosticsJson).doesNotContain(longOutputMarker);
+            assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticlongsecret12345");
+            assertThat(diagnosticsJson).doesNotContain("diagnosticlongsecret12345");
 
             List<Map<String, Object>> pendingEvents = processRegistry.drainEvents(10);
             assertThat(pendingEvents).extracting(event -> event.get("type")).contains("completion");
