@@ -241,9 +241,13 @@ public class DashboardConfiguration {
     public DashboardGatewayDoctorService dashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
         return new DashboardGatewayDoctorService(
-                appConfig, deliveryService, gatewayRuntimeRefreshService);
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                gatewayRuntimeRefreshService);
     }
 
     @Bean(destroyMethod = "shutdown")

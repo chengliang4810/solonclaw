@@ -93,7 +93,8 @@ public class DashboardDiagnosticOutputTest {
                         config, new ChannelConnectionManager(Collections.emptyMap()));
 
         DashboardGatewayDoctorService doctorService =
-                new DashboardGatewayDoctorService(config, deliveryService, refreshService);
+                new DashboardGatewayDoctorService(
+                        config, deliveryService, new LlmProviderService(config), refreshService);
         String doctorJson = ONode.serialize(doctorService.doctor());
         assertThat(doctorJson).contains("runtime://");
         assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
@@ -153,6 +154,89 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).doesNotContain("dashboard-probe-password");
         assertThat(diagnosticsJson).doesNotContain("ghp_doctorerror123");
         assertThat(diagnosticsJson).doesNotContain("doctor-password");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeStaticModelDoctorWithoutLeakingSecrets() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-model-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime()
+                .setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("");
+
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setBaseUrl("https://user:provider-pass@example.com/v1?token=provider-token");
+        provider.setDefaultModel("gpt-test");
+        provider.setDialect("openai");
+        provider.setApiKey("");
+        config.getProviders().put("default", provider);
+
+        AppConfig.ProviderConfig local = new AppConfig.ProviderConfig();
+        local.setName("Local");
+        local.setBaseUrl("http://127.0.0.1:11434");
+        local.setDefaultModel("llama3");
+        local.setDialect("ollama");
+        local.setApiKey("");
+        config.getProviders().put("local", local);
+
+        AppConfig.FallbackProviderConfig missingFallback =
+                new AppConfig.FallbackProviderConfig();
+        missingFallback.setProvider("missing");
+        AppConfig.FallbackProviderConfig duplicateFallback =
+                new AppConfig.FallbackProviderConfig();
+        duplicateFallback.setProvider("local");
+        AppConfig.FallbackProviderConfig duplicateFallbackAgain =
+                new AppConfig.FallbackProviderConfig();
+        duplicateFallbackAgain.setProvider("local");
+        AppConfig.FallbackProviderConfig primaryFallback =
+                new AppConfig.FallbackProviderConfig();
+        primaryFallback.setProvider("default");
+        config.setFallbackProviders(
+                Arrays.asList(
+                        missingFallback,
+                        duplicateFallback,
+                        duplicateFallbackAgain,
+                        primaryFallback));
+
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())));
+
+        Map<String, Object> doctor = doctorService.doctor();
+
+        Map<String, Object> model = (Map<String, Object>) doctor.get("model");
+        assertThat(model).isNotNull();
+        assertThat(model.get("setup_state")).isEqualTo("warning");
+        assertThat(model.get("provider")).isEqualTo("default");
+        assertThat(model.get("effective_model")).isEqualTo("gpt-test");
+        assertThat(model.get("has_api_key")).isEqualTo(Boolean.FALSE);
+        assertThat(model.get("base_url"))
+                .isEqualTo("https://user:***@example.com/v1?token=***");
+
+        List<Map<String, Object>> checks = (List<Map<String, Object>>) model.get("checks");
+        assertThat(checkCodes(checks))
+                .contains(
+                        "provider_present",
+                        "model_present",
+                        "api_key_missing",
+                        "base_url_invalid",
+                        "fallback_missing",
+                        "fallback_duplicate",
+                        "fallback_matches_primary");
+
+        String doctorJson = ONode.serialize(doctor);
+        assertThat(doctorJson)
+                .doesNotContain("provider-pass")
+                .doesNotContain("provider-token")
+                .doesNotContain(runtimeHome.getAbsolutePath());
     }
 
     @Test
@@ -4645,6 +4729,19 @@ public class DashboardDiagnosticOutputTest {
         public List<ChannelStatus> statuses() {
             return status == null ? Collections.<ChannelStatus>emptyList() : Collections.singletonList(status);
         }
+    }
+
+    private static List<String> checkCodes(List<Map<String, Object>> checks) {
+        List<String> codes = new ArrayList<String>();
+        if (checks == null) {
+            return codes;
+        }
+        for (Map<String, Object> check : checks) {
+            if (check != null && check.get("code") != null) {
+                codes.add(String.valueOf(check.get("code")));
+            }
+        }
+        return codes;
     }
 
     private static class FixedSessionRepository implements SessionRepository {
