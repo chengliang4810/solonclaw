@@ -180,6 +180,28 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldBrowseRegisteredCommandsFromSlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-commands", "user-commands", "hello");
+        env.send("room-commands", "user-commands", "/pairing claim-admin");
+
+        GatewayReply reply = env.send("room-commands", "user-commands", "/commands");
+
+        assertThat(reply.getContent())
+                .contains("命令目录")
+                .contains("/new")
+                .contains("/sessions")
+                .contains("/whoami")
+                .contains("/model")
+                .contains("page=1");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "commands")
+                .containsEntry("page", Integer.valueOf(1));
+    }
+
+    @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-resume-a", "user-resume", "hello"));

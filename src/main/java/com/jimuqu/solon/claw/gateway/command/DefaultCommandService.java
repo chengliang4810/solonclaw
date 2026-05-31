@@ -724,6 +724,10 @@ public class DefaultCommandService implements CommandService {
             return handleWhoami(message);
         }
 
+        if (GatewayCommandConstants.COMMAND_COMMANDS.equals(command)) {
+            return handleCommands(args);
+        }
+
         if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
             return handleTrajectory(message, args);
         }
@@ -1490,6 +1494,49 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_WHOAMI);
         reply.getRuntimeMetadata().put("role", role);
         reply.getRuntimeMetadata().put("authorized", Boolean.valueOf(authorized));
+        return reply;
+    }
+
+    private GatewayReply handleCommands(String args) {
+        int page = Math.max(1, parsePositiveInt(args, 1));
+        int pageSize = 30;
+        List<CommandDescriptor> descriptors =
+                new ArrayList<CommandDescriptor>(CommandRegistry.all());
+        int total = descriptors.size();
+        int totalPages = Math.max(1, (total + pageSize - 1) / pageSize);
+        if (page > totalPages) {
+            page = totalPages;
+        }
+        int from = (page - 1) * pageSize;
+        int to = Math.min(total, from + pageSize);
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("命令目录 page=")
+                .append(page)
+                .append("/")
+                .append(totalPages)
+                .append(" total=")
+                .append(total);
+        for (int i = from; i < to; i++) {
+            CommandDescriptor descriptor = descriptors.get(i);
+            buffer.append('\n')
+                    .append(descriptor.slashName())
+                    .append(" [")
+                    .append(descriptor.getCategory())
+                    .append("] - ")
+                    .append(descriptor.getDescription());
+        }
+        if (page < totalPages) {
+            buffer.append('\n')
+                    .append("下一页：")
+                    .append(GatewayCommandConstants.SLASH_COMMANDS)
+                    .append(' ')
+                    .append(page + 1);
+        }
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_COMMANDS);
+        reply.getRuntimeMetadata().put("page", Integer.valueOf(page));
+        reply.getRuntimeMetadata().put("total", Integer.valueOf(total));
         return reply;
     }
 
@@ -4233,6 +4280,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_SESSIONS + " [query]",
                                 "浏览并搜索历史会话"),
                         helpLine(GatewayCommandConstants.SLASH_WHOAMI, "查看当前 slash 命令访问身份"),
+                        helpLine(GatewayCommandConstants.SLASH_COMMANDS + " [page]", "浏览全部 slash 命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
                                 "查看、设置或清空当前会话标题"),
