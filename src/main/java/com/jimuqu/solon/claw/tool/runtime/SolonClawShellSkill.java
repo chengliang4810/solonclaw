@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -26,13 +27,17 @@ import org.noear.solon.ai.skills.sys.ShellSkill;
 
 /** Solon AI ShellSkill wrapper with local terminal safeguards. */
 public class SolonClawShellSkill extends ShellSkill {
+    private static final String CWD_MARKER_PREFIX = "__SOLON_CLAW_CWD__=";
+
     private final AppConfig appConfig;
     private final SecurityPolicyService securityPolicyService;
     private final ProcessRegistry processRegistry;
     private final String shellCmd;
     private final String extension;
+    private final File defaultWorkDir;
     private final List<TerminalOutputTransformer> outputTransformers =
             new CopyOnWriteArrayList<TerminalOutputTransformer>();
+    private volatile File liveWorkDir;
 
     public SolonClawShellSkill(String workDir, AppConfig appConfig) {
         this(workDir, defaultShellCmd(), defaultExtension(), appConfig, null, null);
@@ -78,6 +83,8 @@ public class SolonClawShellSkill extends ShellSkill {
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry) {
         super(checkedWorkDir(workDir));
+        this.defaultWorkDir = resolveSafeCwd(workPath.toString());
+        this.liveWorkDir = defaultWorkDir;
         this.appConfig = appConfig;
         this.securityPolicyService = securityPolicyService;
         this.processRegistry = processRegistry == null ? new ProcessRegistry() : processRegistry;
@@ -259,6 +266,7 @@ public class SolonClawShellSkill extends ShellSkill {
         if (effectiveTimeout == null) {
             return terminalError(foregroundTimeoutExceededMessage(Integer.valueOf(timeoutMs)));
         }
+        boolean explicitWorkdir = StrUtil.isNotBlank(workdir);
         File dir = resolveForegroundWorkdir(workdir);
         String executableCode = rewriteCompoundBackground(command);
         SudoTransform transform = transformSudoCommand(executableCode);
@@ -268,6 +276,9 @@ public class SolonClawShellSkill extends ShellSkill {
                         transform.getStdin(),
                         effectiveTimeout,
                         dir);
+        if (!explicitWorkdir) {
+            updateLiveWorkDir(result.getCwd());
+        }
         return terminalResult(command, result);
     }
 
@@ -680,8 +691,10 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private String executeWithStdin(String code, String stdin, Integer timeoutMs) {
+        File dir = resolveForegroundWorkdir(null);
         ForegroundResult result =
-                executeForeground(code, stdin, timeoutMs, resolveForegroundWorkdir(null));
+                executeForeground(code, stdin, timeoutMs, dir);
+        updateLiveWorkDir(result.getCwd());
         String output;
         if (result.getError() != null) {
             if (result.isTimedOut()) {
@@ -977,7 +990,7 @@ public class SolonClawShellSkill extends ShellSkill {
         try {
             File safeDirectory = directory == null ? resolveSafeCwd(workPath.toString()) : directory;
             tempScript = Files.createTempFile(safeDirectory.toPath(), "_script_", extension);
-            Files.write(tempScript, prependShellInit(code).getBytes(StandardCharsets.UTF_8));
+            writeShellScript(tempScript, code);
             java.util.List<String> command =
                     new java.util.ArrayList<String>(
                             java.util.Arrays.asList(shellCmd.split("\\s+")));
@@ -1018,8 +1031,14 @@ public class SolonClawShellSkill extends ShellSkill {
                         true);
             }
             outputFuture.get(1, TimeUnit.SECONDS);
-            String output = bufferedOutput(outputBuffer);
-            return new ForegroundResult(output, Integer.valueOf(process.exitValue()), null);
+            ParsedForegroundOutput parsed = parseForegroundOutput(bufferedOutput(outputBuffer));
+            return new ForegroundResult(
+                    parsed.output,
+                    Integer.valueOf(process.exitValue()),
+                    null,
+                    false,
+                    0,
+                    parsed.cwd);
         } catch (Exception e) {
             return new ForegroundResult("", Integer.valueOf(-1), "系统失败: " + safeError(e));
         } finally {
@@ -1067,7 +1086,10 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private File resolveBackgroundWorkdir(String workdir) {
-        String value = StrUtil.blankToDefault(workdir, workPath.toString());
+        if (StrUtil.isBlank(workdir)) {
+            return liveOrDefaultWorkDir();
+        }
+        String value = workdir;
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(value);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
@@ -1089,6 +1111,80 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private File resolveForegroundWorkdir(String workdir) {
         return resolveBackgroundWorkdir(workdir);
+    }
+
+    private File liveOrDefaultWorkDir() {
+        File live = liveWorkDir;
+        if (live != null && isAllowedWorkDir(live) && live.isDirectory()) {
+            return live;
+        }
+        return defaultWorkDir;
+    }
+
+    private void updateLiveWorkDir(String cwd) {
+        if (StrUtil.isBlank(cwd)) {
+            return;
+        }
+        File dir = resolveSafeCwd(cwd, liveOrDefaultWorkDir());
+        if (isAllowedWorkDir(dir) && dir.isDirectory()) {
+            liveWorkDir = dir;
+        }
+    }
+
+    private boolean isAllowedWorkDir(File dir) {
+        if (dir == null) {
+            return false;
+        }
+        String value = dir.getAbsolutePath();
+        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(value);
+        if (!verdict.isAllowed()) {
+            return false;
+        }
+        if (securityPolicyService != null) {
+            SecurityPolicyService.FileVerdict pathVerdict =
+                    securityPolicyService.checkPath(value, false);
+            return pathVerdict.isAllowed();
+        }
+        return true;
+    }
+
+    private void writeShellScript(Path tempScript, String code) throws Exception {
+        String script = prependShellInit(code);
+        if (isWindows()) {
+            Files.write(tempScript, script.getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        try (BufferedWriter writer = Files.newBufferedWriter(tempScript, StandardCharsets.UTF_8)) {
+            writer.write(script);
+            writer.newLine();
+            writer.write("__solon_claw_status=$?");
+            writer.newLine();
+            writer.write("printf '\\n" + CWD_MARKER_PREFIX + "%s\\n' \"$(pwd -P)\"");
+            writer.newLine();
+            writer.write("exit $__solon_claw_status");
+            writer.newLine();
+        }
+    }
+
+    private ParsedForegroundOutput parseForegroundOutput(String output) {
+        String value = StrUtil.nullToEmpty(output);
+        int marker = value.lastIndexOf(CWD_MARKER_PREFIX);
+        if (marker < 0) {
+            return new ParsedForegroundOutput(value, null);
+        }
+        int cwdStart = marker + CWD_MARKER_PREFIX.length();
+        int cwdEnd = value.indexOf('\n', cwdStart);
+        if (cwdEnd < 0) {
+            cwdEnd = value.length();
+        }
+        String cwd = value.substring(cwdStart, cwdEnd).trim();
+        String userOutput = value.substring(0, marker);
+        if (userOutput.endsWith("\r\n")) {
+            userOutput = userOutput.substring(0, userOutput.length() - 2);
+        } else if (userOutput.endsWith("\n")) {
+            userOutput = userOutput.substring(0, userOutput.length() - 1);
+        }
+        return new ParsedForegroundOutput(userOutput, cwd);
     }
 
     public static File resolveSafeCwd(String cwd) {
@@ -1308,6 +1404,7 @@ public class SolonClawShellSkill extends ShellSkill {
         private final String error;
         private final boolean timedOut;
         private final int retryCount;
+        private final String cwd;
 
         private ForegroundResult(String output, Integer exitCode, String error) {
             this(output, exitCode, error, false, 0);
@@ -1319,11 +1416,22 @@ public class SolonClawShellSkill extends ShellSkill {
 
         private ForegroundResult(
                 String output, Integer exitCode, String error, boolean timedOut, int retryCount) {
+            this(output, exitCode, error, timedOut, retryCount, null);
+        }
+
+        private ForegroundResult(
+                String output,
+                Integer exitCode,
+                String error,
+                boolean timedOut,
+                int retryCount,
+                String cwd) {
             this.output = output;
             this.exitCode = exitCode;
             this.error = error;
             this.timedOut = timedOut;
             this.retryCount = retryCount;
+            this.cwd = cwd;
         }
 
         public String getOutput() {
@@ -1346,9 +1454,22 @@ public class SolonClawShellSkill extends ShellSkill {
             return retryCount;
         }
 
+        public String getCwd() {
+            return cwd;
+        }
+
         public ForegroundResult withRetryCount(int retryCount) {
-            return new ForegroundResult(output, exitCode, error, timedOut, Math.max(0, retryCount));
+            return new ForegroundResult(output, exitCode, error, timedOut, Math.max(0, retryCount), cwd);
+        }
+    }
+
+    private static class ParsedForegroundOutput {
+        private final String output;
+        private final String cwd;
+
+        private ParsedForegroundOutput(String output, String cwd) {
+            this.output = output;
+            this.cwd = cwd;
         }
     }
 }
-

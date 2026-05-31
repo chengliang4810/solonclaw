@@ -914,6 +914,153 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldPreserveLiveTerminalCwdForForegroundCommands() throws Exception {
+        assumeTrue(!isWindows());
+        AppConfig config = new AppConfig();
+        Path workdir = Files.createTempDirectory("solonclaw-shell");
+        Path nested = Files.createDirectories(workdir.resolve("nested"));
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir.toString(), config);
+
+        ONode cd =
+                ONode.ofJson(
+                        skill.terminal(
+                                "cd nested",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+        ONode pwd =
+                ONode.ofJson(
+                        skill.terminal(
+                                "pwd -P",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(cd.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(lastOutputLine(pwd.get("output").getString()))
+                .isEqualTo(nested.toRealPath().toString());
+    }
+
+    @Test
+    void shouldNotTreatUserOutputCwdMarkerAsInternalTerminalCwd() throws Exception {
+        assumeTrue(!isWindows());
+        AppConfig config = new AppConfig();
+        Path workdir = Files.createTempDirectory("solonclaw-shell");
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir.toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "printf '%s\\n' '__SOLON_CLAW_CWD__=/not/internal'",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(result.get("output").getString()).contains("__SOLON_CLAW_CWD__=/not/internal");
+    }
+
+    @Test
+    void shouldKeepExplicitTerminalWorkdirAboveLiveCwd() throws Exception {
+        assumeTrue(!isWindows());
+        AppConfig config = new AppConfig();
+        Path workdir = Files.createTempDirectory("solonclaw-shell");
+        Path live = Files.createDirectories(workdir.resolve("live"));
+        Path explicit = Files.createDirectories(workdir.resolve("explicit"));
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir.toString(), config);
+
+        skill.terminal("cd live", Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE);
+        ONode pwd =
+                ONode.ofJson(
+                        skill.terminal(
+                                "pwd -P",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                explicit.toString(),
+                                Boolean.FALSE));
+
+        assertThat(lastOutputLine(pwd.get("output").getString()))
+                .isEqualTo(explicit.toRealPath().toString());
+        assertThat(lastOutputLine(pwd.get("output").getString()))
+                .isNotEqualTo(live.toRealPath().toString());
+    }
+
+    @Test
+    void shouldUseLiveTerminalCwdForBackgroundProcesses() throws Exception {
+        assumeTrue(!isWindows());
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        Path workdir = Files.createTempDirectory("solonclaw-shell");
+        Path nested = Files.createDirectories(workdir.resolve("nested"));
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(workdir.toString(), config, null, registry);
+
+        skill.terminal("cd nested", Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE);
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                null,
+                                Boolean.FALSE));
+        String sessionId = result.get("session_id").getString();
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(registry.get(sessionId).getCwd()).isEqualTo(nested.toRealPath().toString());
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
+    void shouldNotPersistBlockedLiveTerminalCwd() throws Exception {
+        assumeTrue(!isWindows());
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        Path workdir = Files.createTempDirectory("solonclaw-shell");
+        Path credentialDir = Files.createDirectories(workdir.resolve(".ssh"));
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(
+                        workdir.toString(), config, new SecurityPolicyService(config), registry);
+
+        ONode cd =
+                ONode.ofJson(
+                        skill.terminal(
+                                "cd .ssh",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+        ONode pwd =
+                ONode.ofJson(
+                        skill.terminal(
+                                "pwd -P",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+        ONode background =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                null,
+                                Boolean.FALSE));
+        String sessionId = background.get("session_id").getString();
+
+        assertThat(cd.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(lastOutputLine(pwd.get("output").getString()))
+                .isEqualTo(workdir.toRealPath().toString());
+        assertThat(registry.get(sessionId).getCwd())
+                .isEqualTo(workdir.toRealPath().toString())
+                .isNotEqualTo(credentialDir.toRealPath().toString());
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldStoreJimuquWatchPatternsForManagedBackgroundTerminalProcesses()
             throws Exception {
         AppConfig config = new AppConfig();
@@ -1992,4 +2139,3 @@ public class SolonClawShellSkillTest {
         return "";
     }
 }
-
