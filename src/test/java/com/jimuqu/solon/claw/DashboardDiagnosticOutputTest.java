@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -34,6 +35,7 @@ import cn.hutool.core.io.FileUtil;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -302,6 +304,70 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain(runtimeHome.toString());
         assertThat(json).doesNotContain("ghp_forensicshome123");
         assertThat(json).doesNotContain("ghp_shutdownsecret123");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeRuntimeMemoryMonitorSummaryWithoutLeakingPaths() {
+        Path runtimeHome = Paths.get("target/dashboard-memory-monitor-token=ghp_memorysecret123")
+                .toAbsolutePath();
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+
+        RuntimeMemoryMonitorService monitorService = new RuntimeMemoryMonitorService();
+        monitorService.start();
+        monitorService.captureSnapshot("periodic");
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null,
+                        null,
+                        monitorService);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+        Map<String, Object> runtime = (Map<String, Object>) diagnostics.get("runtime");
+        Map<String, Object> memoryMonitor = (Map<String, Object>) runtime.get("memory_monitor");
+        assertThat(memoryMonitor).isNotNull();
+        assertThat(memoryMonitor.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(memoryMonitor.get("running")).isEqualTo(Boolean.TRUE);
+        assertThat(memoryMonitor.get("baseline")).isInstanceOf(Map.class);
+        assertThat(memoryMonitor.get("latest")).isInstanceOf(Map.class);
+
+        Map<String, Object> latest = (Map<String, Object>) memoryMonitor.get("latest");
+        assertThat(latest)
+                .containsKeys(
+                        "tag",
+                        "used_mb",
+                        "max_mb",
+                        "free_mb",
+                        "thread_count",
+                        "uptime_ms",
+                        "timestamp",
+                        "timestamp_iso");
+        assertThat(latest.get("tag")).isEqualTo("periodic");
+
+        String json = ONode.serialize(diagnostics);
+        assertThat(json).doesNotContain(runtimeHome.toString());
+        assertThat(json).doesNotContain("ghp_memorysecret123");
+        assertThat(json).doesNotContain("javaVersion");
+        assertThat(json).doesNotContain("osName");
+
+        monitorService.shutdown();
     }
 
     @Test
