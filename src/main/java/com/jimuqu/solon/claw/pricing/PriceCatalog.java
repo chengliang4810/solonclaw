@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.pricing;
 
 import cn.hutool.core.util.StrUtil;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,18 +77,11 @@ public class PriceCatalog {
     public ModelPrice find(String provider, String model) {
         String normalizedProvider = ModelPrice.normalize(provider);
         String normalizedModel = ModelPrice.normalize(model);
-        ModelPrice exact = prices.get(normalizedProvider + "/" + normalizedModel);
-        if (exact != null) {
-            return exact;
-        }
-        String routeModel = stripMatchingProviderPrefix(normalizedProvider, normalizedModel);
-        ModelPrice routed = prices.get(normalizedProvider + "/" + routeModel);
-        if (routed != null) {
-            return routed;
-        }
-        String normalizedAlias = normalizeModelAlias(normalizedProvider, routeModel);
-        if (!StrUtil.equals(normalizedAlias, routeModel)) {
-            return prices.get(normalizedProvider + "/" + normalizedAlias);
+        for (String candidateProvider : providerCandidates(normalizedProvider)) {
+            ModelPrice price = findByProvider(candidateProvider, normalizedProvider, normalizedModel);
+            if (price != null) {
+                return price;
+            }
         }
         return null;
     }
@@ -139,5 +133,34 @@ public class PriceCatalog {
             }
         }
         return normalized.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private ModelPrice findByProvider(
+            String candidateProvider, String originalProvider, String normalizedModel) {
+        ModelPrice exact = prices.get(candidateProvider + "/" + normalizedModel);
+        if (exact != null) {
+            return exact;
+        }
+        String routeModel = stripMatchingProviderPrefix(originalProvider, normalizedModel);
+        routeModel = stripMatchingProviderPrefix(candidateProvider, routeModel);
+        ModelPrice routed = prices.get(candidateProvider + "/" + routeModel);
+        if (routed != null) {
+            return routed;
+        }
+        String normalizedAlias = normalizeModelAlias(candidateProvider, routeModel);
+        if (!StrUtil.equals(normalizedAlias, routeModel)) {
+            return prices.get(candidateProvider + "/" + normalizedAlias);
+        }
+        return null;
+    }
+
+    private static List<String> providerCandidates(String provider) {
+        if (StrUtil.isBlank(provider)) {
+            return Collections.emptyList();
+        }
+        if ("default".equals(provider) || "openai-responses".equals(provider)) {
+            return Arrays.asList(provider, "openai");
+        }
+        return Collections.singletonList(provider);
     }
 }

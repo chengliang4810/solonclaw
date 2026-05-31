@@ -48,6 +48,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
     private static final int MAX_HISTORY_EVENTS = 400;
     private static final int MAX_SESSION_LIST = 50;
     private static final String DEFAULT_BUSY_MODE = "interrupt";
+    private static final int CLIENT_CONTRACT = 1;
 
     private final AppConfig appConfig;
     private final SessionRepository sessionRepository;
@@ -111,6 +112,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         payload.put("connection_id", safe(connection.id(), 120));
         payload.put("commands", TerminalCommandCatalog.slashCommands());
         payload.put("busy_modes", java.util.Arrays.asList("queue", "steer", "interrupt"));
+        payload.put("client_contract", Integer.valueOf(CLIENT_CONTRACT));
         payload.put("status", "ready");
         connection.sendEvent("gateway.ready", null, payload);
         try {
@@ -641,6 +643,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         result.put("status", "ready");
         result.put("commands", TerminalCommandCatalog.slashCommands());
         result.put("running_count", Integer.valueOf(runningCount()));
+        result.put("client_contract", Integer.valueOf(CLIENT_CONTRACT));
         result.put("sessions", listSessions().get("sessions"));
         result.put("models", modelOptions().get("providers"));
         result.put("integrations", extensionProjector.snapshot());
@@ -710,6 +713,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         payload.put("last_active", Long.valueOf(record.getUpdatedAt()));
         payload.put("started_at", Long.valueOf(record.getCreatedAt()));
         payload.put("preview", safe(StrUtil.blankToDefault(MessageSupport.getLastUserMessage(record.getNdjson()), record.getCompressedSummary()), 280));
+        payload.put("client_contract", Integer.valueOf(CLIENT_CONTRACT));
         return payload;
     }
 

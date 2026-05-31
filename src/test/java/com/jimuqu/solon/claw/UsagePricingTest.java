@@ -90,6 +90,39 @@ public class UsagePricingTest {
     }
 
     @Test
+    void costCalculatorMatchesDefaultProviderToOpenAiCatalogConservatively() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{"
+                                + "\"prices\":[{"
+                                + "\"provider\":\"openai\","
+                                + "\"model\":\"gpt-5.4\","
+                                + "\"currency\":\"USD\","
+                                + "\"input_micros_per_token\":3,"
+                                + "\"output_micros_per_token\":15,"
+                                + "\"source\":\"test-catalog\""
+                                + "}]"
+                                + "}");
+
+        UsageCost localProviderKey =
+                new UsageCostCalculator(catalog)
+                        .calculate("default", "gpt-5.4", 100, 20, 0, 0, 0);
+        assertThat(localProviderKey.isPricingAvailable()).isTrue();
+        assertThat(localProviderKey.getTotalMicros()).isEqualTo(600L);
+
+        UsageCost responsesDialect =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai-responses", "openai/gpt-5.4", 100, 20, 0, 0, 0);
+        assertThat(responsesDialect.isPricingAvailable()).isTrue();
+        assertThat(responsesDialect.getTotalMicros()).isEqualTo(600L);
+
+        UsageCost unknownProvider =
+                new UsageCostCalculator(catalog)
+                        .calculate("custom-provider", "gpt-5.4", 100, 20, 0, 0, 0);
+        assertThat(unknownProvider.isPricingAvailable()).isFalse();
+    }
+
+    @Test
     void usageEventsInsertReadAndBackfillAreIdempotent() throws Exception {
         AppConfig config = testConfig();
         SqliteDatabase database = new SqliteDatabase(config);

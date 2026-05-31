@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.TerminalDimensionSupport;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.tui.TuiEnvelope;
 import com.jimuqu.solon.claw.tui.TuiGatewayService;
 import java.lang.reflect.Method;
@@ -55,11 +56,41 @@ class TuiGatewayProtocolTest {
         }
     }
 
+    @Test
+    void shouldExposeClientContractOnSessionPayload() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            SessionRecord record = new SessionRecord();
+            record.setSessionId("contract-session");
+            record.setSourceKey("MEMORY:tui:contract-session");
+            record.setBranchName("main");
+            record.setTitle("contract check");
+            record.setNdjson("");
+            record.setCreatedAt(1700000000000L);
+            record.setUpdatedAt(1700000001000L);
+
+            Map<String, Object> payload = sessionPayload(service, record);
+
+            assertThat(payload).containsEntry("client_contract", Integer.valueOf(1));
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
             throws Exception {
         Method method = TuiGatewayService.class.getDeclaredMethod("resize", TuiEnvelope.class);
         method.setAccessible(true);
         return (Map<String, Object>) method.invoke(service, envelope);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sessionPayload(TuiGatewayService service, SessionRecord record)
+            throws Exception {
+        Method method = TuiGatewayService.class.getDeclaredMethod("sessionPayload", SessionRecord.class);
+        method.setAccessible(true);
+        return (Map<String, Object>) method.invoke(service, record);
     }
 }
