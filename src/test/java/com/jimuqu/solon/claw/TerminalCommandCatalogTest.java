@@ -21,6 +21,11 @@ public class TerminalCommandCatalogTest {
                         "/model",
                         "/whoami",
                         "/commands",
+                        "/insights",
+                        "/plugins",
+                        "/update",
+                        "/reload-skills",
+                        "/platform",
                         "/fast",
                         "/queue",
                         "/steer",
@@ -64,6 +69,11 @@ public class TerminalCommandCatalogTest {
         assertThat(platforms.getAliases()).contains("gateway");
         assertThat(CommandRegistry.resolve("/gateway").getName()).isEqualTo("platforms");
 
+        CommandDescriptor platform = CommandRegistry.get("platform");
+        assertThat(platform).isNotNull();
+        assertThat(platform.getCategory()).isEqualTo("gateway");
+        assertThat(CommandRegistry.resolve("/platform").getName()).isEqualTo("platform");
+
         CommandDescriptor queue = CommandRegistry.get("queue");
         assertThat(queue.getAliases()).contains("q");
         assertThat(CommandRegistry.resolve("/q").getName()).isEqualTo("queue");
@@ -80,6 +90,25 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
         assertThat(reloadMcp.getAliases()).contains("reload_mcp");
         assertThat(CommandRegistry.resolve("/reload_mcp").getName()).isEqualTo("reload-mcp");
+
+        CommandDescriptor reloadSkills = CommandRegistry.get("reload-skills");
+        assertThat(reloadSkills.getAliases()).contains("reload_skills");
+        assertThat(CommandRegistry.resolve("/reload_skills").getName()).isEqualTo("reload-skills");
+
+        CommandDescriptor insights = CommandRegistry.get("insights");
+        assertThat(insights).isNotNull();
+        assertThat(insights.getCategory()).isEqualTo("info");
+        assertThat(CommandRegistry.resolve("/insights").getName()).isEqualTo("insights");
+
+        CommandDescriptor plugins = CommandRegistry.get("plugins");
+        assertThat(plugins).isNotNull();
+        assertThat(plugins.getCategory()).isEqualTo("tool");
+        assertThat(CommandRegistry.resolve("/plugins").getName()).isEqualTo("plugins");
+
+        CommandDescriptor update = CommandRegistry.get("update");
+        assertThat(update).isNotNull();
+        assertThat(update.getCategory()).isEqualTo("system");
+        assertThat(CommandRegistry.resolve("/update").getName()).isEqualTo("update");
     }
 
     @Test

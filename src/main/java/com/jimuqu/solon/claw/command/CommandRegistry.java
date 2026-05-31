@@ -27,6 +27,7 @@ public final class CommandRegistry {
         register(core("sessions", "session", "浏览并搜索历史会话"));
         register(core("whoami", "info", "查看当前 slash 命令访问身份"));
         register(core("commands", "info", "浏览全部 slash 命令"));
+        register(core("insights", "info", "查看使用洞察与运行摘要"));
         register(core("title", "session", "查看、设置或清空当前会话标题"));
         register(core("status", "session", "查看当前会话状态"));
         register(core("usage", "session", "查看当前会话运行信息"));
@@ -40,11 +41,14 @@ public final class CommandRegistry {
         register(core("security", "security", "查看安全策略、审批、审计与终端安全状态"));
         register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
+        register(core("update", "system", "执行应用更新"));
         register(core("model", "model", "查看或切换模型").alias("provider"));
         register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
+        register(core("plugins", "tool", "查看插件加载状态"));
+        register(core("reload-skills", "skill", "重新扫描本地技能目录").alias("reload_skills"));
         register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线").alias("reload_mcp"));
         register(core("acp", "integration", "查看 ACP 本地适配器能力快照"));
         register(core("confirm", "security", "查看当前待确认 slash 命令"));
@@ -63,6 +67,7 @@ public final class CommandRegistry {
         register(core("always", "security", "永久批准当前待确认 slash 命令"));
         register(core("cancel", "security", "取消当前待确认 slash 命令"));
         register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
+        register(core("platform", "gateway", "查看平台连接与授权状态"));
 
         register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
         register(terminal("tasks", "查看后台任务列表").alias("agents"));
