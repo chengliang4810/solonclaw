@@ -61,7 +61,7 @@ public final class CommandRegistry {
         register(core("cancel", "security", "取消当前待确认 slash 命令"));
         register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
 
-        register(terminal("background", "管理后台任务运行方式"));
+        register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
         register(terminal("tasks", "查看后台任务列表"));
         register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar"));
         register(terminal("footer", "管理 TUI 底部栏显示"));
