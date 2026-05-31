@@ -1230,7 +1230,8 @@ public class DefaultCommandService implements CommandService {
                     "已回滚到指定 checkpoint：" + checkpointService.rollback(args).getCheckpointId());
         }
 
-        if (GatewayCommandConstants.COMMAND_PLATFORMS.equals(command)) {
+        if (GatewayCommandConstants.COMMAND_PLATFORMS.equals(command)
+                || GatewayCommandConstants.COMMAND_PLATFORM.equals(command)) {
             return GatewayReply.ok(
                     gatewayAuthorizationService.formatPlatformStatus(deliveryService.statuses()));
         }
@@ -4602,6 +4603,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_DENY + " list|status|all",
                                 "查看或批量拒绝待审批命令"),
                         helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"),
+                        helpLine(GatewayCommandConstants.SLASH_PLATFORM, "查看平台连接与授权状态"),
                         helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息"),
                         registryHelpLine("background"),
                         registryHelpLine("tasks"),

@@ -25,6 +25,7 @@ public class TerminalCommandCatalogTest {
                         "/plugins",
                         "/update",
                         "/reload-skills",
+                        "/platform",
                         "/fast",
                         "/queue",
                         "/steer",
@@ -67,6 +68,11 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor platforms = CommandRegistry.get("platforms");
         assertThat(platforms.getAliases()).contains("gateway");
         assertThat(CommandRegistry.resolve("/gateway").getName()).isEqualTo("platforms");
+
+        CommandDescriptor platform = CommandRegistry.get("platform");
+        assertThat(platform).isNotNull();
+        assertThat(platform.getCategory()).isEqualTo("gateway");
+        assertThat(CommandRegistry.resolve("/platform").getName()).isEqualTo("platform");
 
         CommandDescriptor queue = CommandRegistry.get("queue");
         assertThat(queue.getAliases()).contains("q");
