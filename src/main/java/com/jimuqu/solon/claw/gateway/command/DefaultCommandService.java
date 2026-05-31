@@ -716,6 +716,18 @@ public class DefaultCommandService implements CommandService {
             return handleRecap(message, args);
         }
 
+        if (GatewayCommandConstants.COMMAND_SESSIONS.equals(command)) {
+            return handleSessions(args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_WHOAMI.equals(command)) {
+            return handleWhoami(message);
+        }
+
+        if (GatewayCommandConstants.COMMAND_COMMANDS.equals(command)) {
+            return handleCommands(args);
+        }
+
         if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
             return handleTrajectory(message, args);
         }
@@ -1382,6 +1394,149 @@ public class DefaultCommandService implements CommandService {
                 GatewayReply.ok(sessionArtifactService.recapText(session, parsePositiveInt(args, 10)));
         reply.setSessionId(session.getSessionId());
         reply.setBranchName(session.getBranchName());
+        return reply;
+    }
+
+    private GatewayReply handleSessions(String args) throws Exception {
+        String query = StrUtil.nullToEmpty(args).trim();
+        List<SessionRecord> records =
+                StrUtil.isBlank(query)
+                        ? sessionRepository.listRecent(10)
+                        : sessionRepository.search(query, 10);
+        if (StrUtil.isNotBlank(query) && (records == null || records.isEmpty())) {
+            records = filterRecentSessions(query, 10);
+        }
+        GatewayReply reply = GatewayReply.ok(formatSessions(records, query));
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_SESSIONS);
+        if (StrUtil.isNotBlank(query)) {
+            reply.getRuntimeMetadata().put("query", query);
+        }
+        return reply;
+    }
+
+    private List<SessionRecord> filterRecentSessions(String query, int limit) throws Exception {
+        List<SessionRecord> records = sessionRepository.listRecent(50);
+        List<SessionRecord> result = new ArrayList<SessionRecord>();
+        if (records == null) {
+            return result;
+        }
+        for (SessionRecord record : records) {
+            if (sessionMatches(record, query)) {
+                result.add(record);
+                if (result.size() >= limit) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean sessionMatches(SessionRecord record, String query) {
+        if (record == null || StrUtil.isBlank(query)) {
+            return false;
+        }
+        return containsIgnoreCase(record.getSessionId(), query)
+                || containsIgnoreCase(record.getTitle(), query)
+                || containsIgnoreCase(record.getBranchName(), query)
+                || containsIgnoreCase(record.getSourceKey(), query);
+    }
+
+    private boolean containsIgnoreCase(String text, String query) {
+        return StrUtil.nullToEmpty(text)
+                .toLowerCase(java.util.Locale.ROOT)
+                .contains(StrUtil.nullToEmpty(query).toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private String formatSessions(List<SessionRecord> records, String query) {
+        if (records == null || records.isEmpty()) {
+            return StrUtil.isBlank(query) ? "没有找到可浏览的会话。" : "没有找到匹配的会话：" + query;
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(StrUtil.isBlank(query) ? "最近会话：" : "最近会话（搜索：").append(query).append("）：");
+        for (int i = 0; i < records.size(); i++) {
+            SessionRecord record = records.get(i);
+            if (record == null || StrUtil.isBlank(record.getSessionId())) {
+                continue;
+            }
+            buffer.append('\n')
+                    .append(i + 1)
+                    .append(". ")
+                    .append(record.getSessionId())
+                    .append("  ")
+                    .append(StrUtil.blankToDefault(record.getTitle(), "(未命名会话)"))
+                    .append("  branch=")
+                    .append(StrUtil.blankToDefault(record.getBranchName(), "-"))
+                    .append("  updated=")
+                    .append(formatTimestamp(record.getUpdatedAt()))
+                    .append("  tokens=")
+                    .append(record.getCumulativeTotalTokens());
+        }
+        buffer.append('\n').append("使用：/resume <session-id|title> 恢复会话。");
+        return buffer.toString();
+    }
+
+    private GatewayReply handleWhoami(GatewayMessage message) throws Exception {
+        boolean admin = gatewayAuthorizationService.isAdmin(message);
+        boolean authorized = gatewayAuthorizationService.isAuthorized(message);
+        String role = admin ? "admin" : authorized ? "user" : "unauthorized";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("platform=").append(message.getPlatform()).append('\n');
+        buffer.append("user=").append(StrUtil.blankToDefault(message.getUserId(), "-")).append('\n');
+        buffer.append("chat=").append(StrUtil.blankToDefault(message.getChatId(), "-")).append('\n');
+        buffer.append("chat_type=")
+                .append(StrUtil.blankToDefault(message.getChatType(), "-"))
+                .append('\n');
+        buffer.append("role=").append(role).append('\n');
+        buffer.append("authorized=").append(authorized);
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_WHOAMI);
+        reply.getRuntimeMetadata().put("role", role);
+        reply.getRuntimeMetadata().put("authorized", Boolean.valueOf(authorized));
+        return reply;
+    }
+
+    private GatewayReply handleCommands(String args) {
+        int page = Math.max(1, parsePositiveInt(args, 1));
+        int pageSize = 30;
+        List<CommandDescriptor> descriptors =
+                new ArrayList<CommandDescriptor>(CommandRegistry.all());
+        int total = descriptors.size();
+        int totalPages = Math.max(1, (total + pageSize - 1) / pageSize);
+        if (page > totalPages) {
+            page = totalPages;
+        }
+        int from = (page - 1) * pageSize;
+        int to = Math.min(total, from + pageSize);
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("命令目录 page=")
+                .append(page)
+                .append("/")
+                .append(totalPages)
+                .append(" total=")
+                .append(total);
+        for (int i = from; i < to; i++) {
+            CommandDescriptor descriptor = descriptors.get(i);
+            buffer.append('\n')
+                    .append(descriptor.slashName())
+                    .append(" [")
+                    .append(descriptor.getCategory())
+                    .append("] - ")
+                    .append(descriptor.getDescription());
+        }
+        if (page < totalPages) {
+            buffer.append('\n')
+                    .append("下一页：")
+                    .append(GatewayCommandConstants.SLASH_COMMANDS)
+                    .append(' ')
+                    .append(page + 1);
+        }
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_COMMANDS);
+        reply.getRuntimeMetadata().put("page", Integer.valueOf(page));
+        reply.getRuntimeMetadata().put("total", Integer.valueOf(total));
         return reply;
     }
 
@@ -4121,6 +4276,11 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_RESUME + " <session-or-branch>",
                                 "恢复指定会话或分支"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_SESSIONS + " [query]",
+                                "浏览并搜索历史会话"),
+                        helpLine(GatewayCommandConstants.SLASH_WHOAMI, "查看当前 slash 命令访问身份"),
+                        helpLine(GatewayCommandConstants.SLASH_COMMANDS + " [page]", "浏览全部 slash 命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
                                 "查看、设置或清空当前会话标题"),

@@ -24,6 +24,9 @@ public final class CommandRegistry {
         register(core("undo", "session", "撤销上一轮对话"));
         register(core("branch", "session", "从当前会话创建分支").alias("fork"));
         register(core("resume", "session", "恢复指定会话或分支"));
+        register(core("sessions", "session", "浏览并搜索历史会话"));
+        register(core("whoami", "info", "查看当前 slash 命令访问身份"));
+        register(core("commands", "info", "浏览全部 slash 命令"));
         register(core("title", "session", "查看、设置或清空当前会话标题"));
         register(core("status", "session", "查看当前会话状态"));
         register(core("usage", "session", "查看当前会话运行信息"));
@@ -62,8 +65,8 @@ public final class CommandRegistry {
         register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
 
         register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
-        register(terminal("tasks", "查看后台任务列表"));
-        register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar"));
+        register(terminal("tasks", "查看后台任务列表").alias("agents"));
+        register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar").alias("sb"));
         register(terminal("footer", "管理 TUI 底部栏显示"));
         register(terminal("copy", "复制终端选区或输出"));
         register(terminal("paste", "粘贴终端剪贴板内容"));

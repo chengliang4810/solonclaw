@@ -19,6 +19,8 @@ public class TerminalCommandCatalogTest {
                         "/retry",
                         "/undo",
                         "/model",
+                        "/whoami",
+                        "/commands",
                         "/fast",
                         "/queue",
                         "/steer",
@@ -32,7 +34,7 @@ public class TerminalCommandCatalogTest {
                         "/image",
                         "/handoff",
                         "/subgoal")
-                .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security");
+                .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security", "/sessions");
 
         CommandDescriptor footer = CommandRegistry.get("footer");
         assertThat(footer).isNotNull();
@@ -40,7 +42,11 @@ public class TerminalCommandCatalogTest {
         assertThat(footer.getDescription()).isNotBlank();
         assertThat(footer.getScopes()).contains("cli", "gateway", "tui");
         assertThat(footer.isEnabledByDefault()).isTrue();
+
+        CommandDescriptor statusbar = CommandRegistry.get("statusbar");
+        assertThat(statusbar.getAliases()).contains("status-bar", "sb");
         assertThat(CommandRegistry.resolve("/status-bar").getName()).isEqualTo("statusbar");
+        assertThat(CommandRegistry.resolve("/sb").getName()).isEqualTo("statusbar");
 
         CommandDescriptor branch = CommandRegistry.get("branch");
         assertThat(branch.getAliases()).contains("fork");
@@ -66,6 +72,10 @@ public class TerminalCommandCatalogTest {
         assertThat(background.getAliases()).contains("bg", "btw");
         assertThat(CommandRegistry.resolve("/bg").getName()).isEqualTo("background");
         assertThat(CommandRegistry.resolve("/btw").getName()).isEqualTo("background");
+
+        CommandDescriptor tasks = CommandRegistry.get("tasks");
+        assertThat(tasks.getAliases()).contains("agents");
+        assertThat(CommandRegistry.resolve("/agents").getName()).isEqualTo("tasks");
 
         CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
         assertThat(reloadMcp.getAliases()).contains("reload_mcp");
