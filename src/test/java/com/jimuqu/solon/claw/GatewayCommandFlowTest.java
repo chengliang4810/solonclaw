@@ -159,6 +159,27 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldReportSlashCommandAccessIdentity() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-whoami", "user-whoami", "hello");
+        env.send("room-whoami", "user-whoami", "/pairing claim-admin");
+
+        GatewayReply reply = env.send("room-whoami", "user-whoami", "/whoami");
+
+        assertThat(reply.getContent())
+                .contains("platform=MEMORY")
+                .contains("user=user-whoami")
+                .contains("chat=room-whoami")
+                .contains("role=admin")
+                .contains("authorized=true");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "whoami")
+                .containsEntry("role", "admin");
+    }
+
+    @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-resume-a", "user-resume", "hello"));

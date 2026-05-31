@@ -43,6 +43,7 @@ public interface GatewayCommandConstants {
     String COMMAND_BRANCH = "branch";
     String COMMAND_RESUME = "resume";
     String COMMAND_SESSIONS = "sessions";
+    String COMMAND_WHOAMI = "whoami";
     String COMMAND_TITLE = "title";
     String COMMAND_STATUS = "status";
     String COMMAND_USAGE = "usage";
@@ -89,6 +90,7 @@ public interface GatewayCommandConstants {
     String SLASH_BRANCH = COMMAND_PREFIX + COMMAND_BRANCH;
     String SLASH_RESUME = COMMAND_PREFIX + COMMAND_RESUME;
     String SLASH_SESSIONS = COMMAND_PREFIX + COMMAND_SESSIONS;
+    String SLASH_WHOAMI = COMMAND_PREFIX + COMMAND_WHOAMI;
     String SLASH_TITLE = COMMAND_PREFIX + COMMAND_TITLE;
     String SLASH_STATUS = COMMAND_PREFIX + COMMAND_STATUS;
     String SLASH_USAGE = COMMAND_PREFIX + COMMAND_USAGE;

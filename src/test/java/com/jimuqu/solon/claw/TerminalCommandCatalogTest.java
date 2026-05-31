@@ -19,6 +19,7 @@ public class TerminalCommandCatalogTest {
                         "/retry",
                         "/undo",
                         "/model",
+                        "/whoami",
                         "/fast",
                         "/queue",
                         "/steer",

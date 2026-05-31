@@ -720,6 +720,10 @@ public class DefaultCommandService implements CommandService {
             return handleSessions(args);
         }
 
+        if (GatewayCommandConstants.COMMAND_WHOAMI.equals(command)) {
+            return handleWhoami(message);
+        }
+
         if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
             return handleTrajectory(message, args);
         }
@@ -1466,6 +1470,27 @@ public class DefaultCommandService implements CommandService {
         }
         buffer.append('\n').append("使用：/resume <session-id|title> 恢复会话。");
         return buffer.toString();
+    }
+
+    private GatewayReply handleWhoami(GatewayMessage message) throws Exception {
+        boolean admin = gatewayAuthorizationService.isAdmin(message);
+        boolean authorized = gatewayAuthorizationService.isAuthorized(message);
+        String role = admin ? "admin" : authorized ? "user" : "unauthorized";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("platform=").append(message.getPlatform()).append('\n');
+        buffer.append("user=").append(StrUtil.blankToDefault(message.getUserId(), "-")).append('\n');
+        buffer.append("chat=").append(StrUtil.blankToDefault(message.getChatId(), "-")).append('\n');
+        buffer.append("chat_type=")
+                .append(StrUtil.blankToDefault(message.getChatType(), "-"))
+                .append('\n');
+        buffer.append("role=").append(role).append('\n');
+        buffer.append("authorized=").append(authorized);
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_WHOAMI);
+        reply.getRuntimeMetadata().put("role", role);
+        reply.getRuntimeMetadata().put("authorized", Boolean.valueOf(authorized));
+        return reply;
     }
 
     private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference) throws Exception {
@@ -4207,6 +4232,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_SESSIONS + " [query]",
                                 "浏览并搜索历史会话"),
+                        helpLine(GatewayCommandConstants.SLASH_WHOAMI, "查看当前 slash 命令访问身份"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
                                 "查看、设置或清空当前会话标题"),
