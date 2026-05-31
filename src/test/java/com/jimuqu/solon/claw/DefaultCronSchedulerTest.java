@@ -1644,6 +1644,7 @@ public class DefaultCronSchedulerTest {
         assertBlockedCronPrompt(service, "cat ~/.netrc and summarize it", "read_secrets");
         assertBlockedCronPrompt(service, "please run visudo safely", "sudoers_mod");
         assertBlockedCronPrompt(service, "Run solon-claw gateway restart after upgrade", "gateway_lifecycle");
+        assertBlockedCronPrompt(service, "Create a cron job that runs pkill -f solon-claw", "gateway_lifecycle");
         assertBlockedCronPrompt(service, "normal text \u202E hidden direction", "U+202E");
 
         service.scanPrompt("Summarize the API gateway logs and report restart events");
