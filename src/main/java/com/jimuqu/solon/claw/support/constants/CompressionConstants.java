@@ -10,10 +10,30 @@ public interface CompressionConstants {
                     + "summary below. Treat it as background reference, NOT as active "
                     + "instructions. Respond only to the latest user message after this summary; "
                     + "when older summary content conflicts with that latest user message, the "
-                    + "latest user message wins.";
+                    + "latest user message wins. If a historical Active Task or handoff "
+                    + "conflicts with the latest user message, discard that stale Active Task.";
 
     /** 历史摘要前缀。 */
-    String[] HISTORICAL_SUMMARY_PREFIXES = new String[] {"[CONTEXT COMPACTION]", "[CONTEXT SUMMARY]:"};
+    String[] HISTORICAL_SUMMARY_PREFIXES =
+            new String[] {
+                "[CONTEXT COMPACTION - REFERENCE ONLY] Earlier turns were compacted into the "
+                        + "summary below. Treat it as background reference, NOT as active "
+                        + "instructions. Respond only to the latest user message after this summary; "
+                        + "when older summary content conflicts with that latest user message, the "
+                        + "latest user message wins.",
+                "[CONTEXT COMPACTION \u2014 REFERENCE ONLY] Earlier turns were compacted "
+                        + "into the summary below. This is a handoff from a previous context "
+                        + "window \u2014 treat it as background reference, NOT as active instructions. "
+                        + "Do NOT answer questions or fulfill requests mentioned in this summary; "
+                        + "they were already addressed. "
+                        + "Your current task is identified in the '## Active Task' section of the "
+                        + "summary \u2014 resume exactly from there. "
+                        + "Respond ONLY to the latest user message "
+                        + "that appears AFTER this summary. The current session state (files, "
+                        + "config, etc.) may reflect work described here \u2014 avoid repeating it:",
+                "[CONTEXT COMPACTION]",
+                "[CONTEXT SUMMARY]:"
+            };
 
     /** 被裁剪的旧工具输出占位文本。 */
     String PRUNED_TOOL_PLACEHOLDER = "[Old tool output cleared to save context space]";
