@@ -25,6 +25,15 @@ import java.util.TimeZone;
 
 /** Dashboard 网关 doctor 聚合服务。 */
 public class DashboardGatewayDoctorService {
+    private static final Set<String> GENERIC_API_KEY_HEALTH_CHECK_DIALECTS =
+            new HashSet<String>(
+                    Arrays.asList(
+                            LlmConstants.PROVIDER_OPENAI,
+                            LlmConstants.PROVIDER_OPENAI_RESPONSES));
+    private static final Set<String> DEDICATED_HEALTH_CHECK_DIALECTS =
+            new HashSet<String>(
+                    Arrays.asList(LlmConstants.PROVIDER_GEMINI, LlmConstants.PROVIDER_ANTHROPIC));
+
     private final AppConfig appConfig;
     private final DeliveryService deliveryService;
     private final LlmProviderService llmProviderService;
@@ -263,12 +272,56 @@ public class DashboardGatewayDoctorService {
         result.put("provider_name", primary == null ? "" : safeText(primary.getName(), 200));
         result.put("dialect", primary == null ? "" : safeText(primary.getDialect(), 80));
         result.put("base_url", primary == null ? "" : SecretRedactor.maskUrl(primary.getBaseUrl()));
+        result.put("model_list_url", primary == null ? "" : modelListUrl(primary));
         result.put(
                 "has_api_key",
                 Boolean.valueOf(primary != null && StrUtil.isNotBlank(primary.getApiKey())));
         result.put("effective_model", safeText(effectiveModel, 200));
+        result.put("health_checks", healthCheckSummary(primary));
         result.put("checks", checks);
         return result;
+    }
+
+    private Map<String, Object> healthCheckSummary(AppConfig.ProviderConfig provider) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        String dialect = provider == null ? "" : LlmProviderSupport.normalizeDialect(provider.getDialect());
+        String mode = "unavailable";
+        String reason = "provider is missing";
+        boolean genericBearer = false;
+        boolean dedicated = false;
+        boolean skipped = true;
+        if (provider != null) {
+            if (GENERIC_API_KEY_HEALTH_CHECK_DIALECTS.contains(dialect)) {
+                mode = "generic_bearer_models";
+                reason = "generic API-key model-list check is supported";
+                genericBearer = true;
+                skipped = false;
+            } else if (DEDICATED_HEALTH_CHECK_DIALECTS.contains(dialect)) {
+                mode = "dedicated";
+                reason = "dedicated provider protocol is used; skip generic Bearer model-list check";
+                dedicated = true;
+            } else if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+                mode = "local_runtime";
+                reason = "local Ollama runtime does not require API-key health check";
+            } else {
+                mode = "static_only";
+                reason = "provider dialect is not in the generic API-key health-check allowlist";
+            }
+        }
+        summary.put("mode", mode);
+        summary.put("generic_bearer", Boolean.valueOf(genericBearer));
+        summary.put("dedicated", Boolean.valueOf(dedicated));
+        summary.put("skipped", Boolean.valueOf(skipped));
+        summary.put("reason", reason);
+        return summary;
+    }
+
+    private String modelListUrl(AppConfig.ProviderConfig provider) {
+        if (provider == null) {
+            return "";
+        }
+        return SecretRedactor.maskUrl(
+                LlmProviderSupport.buildModelListUrl(provider.getBaseUrl(), provider.getDialect()));
     }
 
     private void addFallbackChecks(
