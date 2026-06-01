@@ -168,6 +168,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             } else if ("session.status".equals(method)) {
                 Map<String, Object> result = sessionStatus(connection, envelope);
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
+            } else if ("session.usage".equals(method)) {
+                Map<String, Object> result = sessionUsage(connection, envelope);
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.delete".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), deleteSession(envelope.getSessionId()));
             } else if ("session.branch".equals(method)) {
@@ -393,6 +396,16 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             throw new IllegalArgumentException("session not found: " + sid);
         }
         return sessionStatusPayload(session);
+    }
+
+    private Map<String, Object> sessionUsage(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        SessionRecord session = sessionRepository.findById(sid);
+        if (session == null) {
+            throw new IllegalArgumentException("session not found: " + sid);
+        }
+        return sessionUsagePayload(session);
     }
 
     private Map<String, Object> branchSession(TuiConnection connection, TuiEnvelope envelope)
@@ -807,6 +820,51 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         payload.put("queued_count", Integer.valueOf(state.queue.size()));
         payload.put("output", statusOutput(payload, totalTokens, state.running, state.queue.size(), model, provider));
         return payload;
+    }
+
+    private Map<String, Object> sessionUsagePayload(SessionRecord record) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        if (record == null) {
+            return payload;
+        }
+        int calls = usageCalls(record);
+        payload.put("session_id", safe(record.getSessionId(), 120));
+        payload.put("calls", Integer.valueOf(calls));
+        payload.put("calls_estimated", Boolean.TRUE);
+        payload.put("input", Long.valueOf(record.getCumulativeInputTokens()));
+        payload.put("output", Long.valueOf(record.getCumulativeOutputTokens()));
+        payload.put("reasoning", Long.valueOf(record.getCumulativeReasoningTokens()));
+        payload.put("cache_read", Long.valueOf(record.getCumulativeCacheReadTokens()));
+        payload.put("cache_write", Long.valueOf(record.getCumulativeCacheWriteTokens()));
+        payload.put("total", Long.valueOf(record.getCumulativeTotalTokens()));
+        payload.put("input_tokens", Long.valueOf(record.getCumulativeInputTokens()));
+        payload.put("output_tokens", Long.valueOf(record.getCumulativeOutputTokens()));
+        payload.put("reasoning_tokens", Long.valueOf(record.getCumulativeReasoningTokens()));
+        payload.put("cache_read_tokens", Long.valueOf(record.getCumulativeCacheReadTokens()));
+        payload.put("cache_write_tokens", Long.valueOf(record.getCumulativeCacheWriteTokens()));
+        payload.put("total_tokens", Long.valueOf(record.getCumulativeTotalTokens()));
+        payload.put("last_input_tokens", Long.valueOf(record.getLastInputTokens()));
+        payload.put("last_output_tokens", Long.valueOf(record.getLastOutputTokens()));
+        payload.put("last_reasoning_tokens", Long.valueOf(record.getLastReasoningTokens()));
+        payload.put("last_cache_read_tokens", Long.valueOf(record.getLastCacheReadTokens()));
+        payload.put("last_cache_write_tokens", Long.valueOf(record.getLastCacheWriteTokens()));
+        payload.put("last_total_tokens", Long.valueOf(record.getLastTotalTokens()));
+        payload.put("last_usage_at", Long.valueOf(record.getLastUsageAt()));
+        return payload;
+    }
+
+    private int usageCalls(SessionRecord record) {
+        if (record == null) {
+            return 0;
+        }
+        return record.getCumulativeTotalTokens() > 0L
+                        || record.getCumulativeInputTokens() > 0L
+                        || record.getCumulativeOutputTokens() > 0L
+                        || record.getLastTotalTokens() > 0L
+                        || record.getLastInputTokens() > 0L
+                        || record.getLastOutputTokens() > 0L
+                ? 1
+                : 0;
     }
 
     private String statusOutput(

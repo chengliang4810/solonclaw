@@ -123,6 +123,57 @@ class TuiGatewayProtocolTest {
     }
 
     @Test
+    void shouldBuildSessionUsagePayloadForTui() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            SessionRecord record = new SessionRecord();
+            record.setSessionId("usage-session");
+            record.setCumulativeInputTokens(11L);
+            record.setCumulativeOutputTokens(22L);
+            record.setCumulativeReasoningTokens(33L);
+            record.setCumulativeCacheReadTokens(44L);
+            record.setCumulativeCacheWriteTokens(55L);
+            record.setCumulativeTotalTokens(165L);
+            record.setLastInputTokens(1L);
+            record.setLastOutputTokens(2L);
+            record.setLastReasoningTokens(3L);
+            record.setLastCacheReadTokens(4L);
+            record.setLastCacheWriteTokens(5L);
+            record.setLastTotalTokens(15L);
+            record.setLastUsageAt(1700000009000L);
+
+            Map<String, Object> payload = sessionUsagePayload(service, record);
+
+            assertThat(payload)
+                    .containsEntry("session_id", "usage-session")
+                    .containsEntry("calls", Integer.valueOf(1))
+                    .containsEntry("calls_estimated", Boolean.TRUE)
+                    .containsEntry("input", Long.valueOf(11L))
+                    .containsEntry("output", Long.valueOf(22L))
+                    .containsEntry("reasoning", Long.valueOf(33L))
+                    .containsEntry("cache_read", Long.valueOf(44L))
+                    .containsEntry("cache_write", Long.valueOf(55L))
+                    .containsEntry("total", Long.valueOf(165L))
+                    .containsEntry("input_tokens", Long.valueOf(11L))
+                    .containsEntry("output_tokens", Long.valueOf(22L))
+                    .containsEntry("reasoning_tokens", Long.valueOf(33L))
+                    .containsEntry("cache_read_tokens", Long.valueOf(44L))
+                    .containsEntry("cache_write_tokens", Long.valueOf(55L))
+                    .containsEntry("total_tokens", Long.valueOf(165L))
+                    .containsEntry("last_input_tokens", Long.valueOf(1L))
+                    .containsEntry("last_output_tokens", Long.valueOf(2L))
+                    .containsEntry("last_reasoning_tokens", Long.valueOf(3L))
+                    .containsEntry("last_cache_read_tokens", Long.valueOf(4L))
+                    .containsEntry("last_cache_write_tokens", Long.valueOf(5L))
+                    .containsEntry("last_total_tokens", Long.valueOf(15L))
+                    .containsEntry("last_usage_at", Long.valueOf(1700000009000L));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
     void shouldResolveSessionIdFromRpcParams() throws Exception {
         TuiGatewayService service =
                 new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
@@ -219,6 +270,16 @@ class TuiGatewayProtocolTest {
         Method method =
                 TuiGatewayService.class.getDeclaredMethod(
                         "sessionStatusPayload", SessionRecord.class);
+        method.setAccessible(true);
+        return (Map<String, Object>) method.invoke(service, record);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sessionUsagePayload(TuiGatewayService service, SessionRecord record)
+            throws Exception {
+        Method method =
+                TuiGatewayService.class.getDeclaredMethod(
+                        "sessionUsagePayload", SessionRecord.class);
         method.setAccessible(true);
         return (Map<String, Object>) method.invoke(service, record);
     }
