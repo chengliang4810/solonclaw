@@ -69,7 +69,8 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
                     ToolNameConstants.BROWSER,
-                    ToolNameConstants.SECURITY_AUDIT);
+                    ToolNameConstants.SECURITY_AUDIT,
+                    ToolNameConstants.CLARIFY);
 
     private AgentRuntimePolicy() {}
 
@@ -290,6 +291,10 @@ public final class AgentRuntimePolicy {
         }
         if ("message".equals(key) || "messaging".equals(key) || "send".equals(key)) {
             output.add(ToolNameConstants.SEND_MESSAGE);
+            return;
+        }
+        if ("clarify".equals(key) || "clarification".equals(key)) {
+            output.add(ToolNameConstants.CLARIFY);
             return;
         }
         if ("cron".equals(key) || "cronjob".equals(key)) {

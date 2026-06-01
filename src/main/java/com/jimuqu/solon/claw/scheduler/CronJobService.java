@@ -25,6 +25,8 @@ import org.noear.snack4.ONode;
 
 /** Jimuqu 风格 Cron 任务管理服务。 */
 public class CronJobService {
+    public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
+            Arrays.asList("cronjob", "messaging", "clarify");
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_PAUSED = "PAUSED";
     private static final String STATUS_COMPLETED = "COMPLETED";
@@ -116,7 +118,7 @@ public class CronJobService {
         record.setWorkdir(workdir);
         record.setNoAgent(noAgent);
         record.setContextFromJson(json(dependencyRefs));
-        record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
+        record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
         applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         record.setWrapResponse(
                 bool(body.get("wrap_response"), bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
@@ -189,8 +191,8 @@ public class CronJobService {
             validateContextFrom(refs);
             record.setContextFromJson(json(refs));
         }
-        if (body.containsKey("enabled_toolsets")) {
-            record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
+        if (body.containsKey("enabled_toolsets") || body.containsKey("enabledToolsets")) {
+            record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
         }
         if (body.containsKey("model")
                 || body.containsKey("provider")
@@ -481,7 +483,7 @@ public class CronJobService {
         List<String> contextFrom = parseList(record.getContextFromJson());
         result.put("context_from", contextFrom);
         result.put("depends_on", contextFrom);
-        result.put("enabled_toolsets", parseList(record.getEnabledToolsetsJson()));
+        result.put("enabled_toolsets", filterProtectedCronToolsets(parseList(record.getEnabledToolsetsJson())));
         result.put("model", record.getModel());
         result.put("provider", record.getProvider());
         result.put("base_url", record.getBaseUrl());
@@ -520,6 +522,7 @@ public class CronJobService {
                         "context_from",
                         "depends_on",
                         "enabled_toolsets",
+                        "enabledToolsets",
                         "model",
                         "provider",
                         "base_url",
@@ -654,6 +657,7 @@ public class CronJobService {
                         "context_from",
                         "depends_on",
                         "enabled_toolsets",
+                        "enabledToolsets",
                         "model",
                         "provider",
                         "base_url",
@@ -672,6 +676,7 @@ public class CronJobService {
                         "context_from",
                         "depends_on",
                         "enabled_toolsets",
+                        "enabledToolsets",
                         "model",
                         "provider",
                         "base_url"));
@@ -747,6 +752,10 @@ public class CronJobService {
                         "--clear-context-from",
                         "--clear-depends-on"));
         skillBinding.put("enabledToolsetsSupported", Boolean.TRUE);
+        skillBinding.put("enabledToolsetsAliasSupported", Boolean.TRUE);
+        skillBinding.put("enabledToolsetsFields", Arrays.asList("enabled_toolsets", "enabledToolsets"));
+        skillBinding.put("protectedDisabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        skillBinding.put("protectedDisabledOverridesEnabledToolsets", Boolean.TRUE);
         skillBinding.put("dedupeApplied", Boolean.TRUE);
         policy.put("skill_binding", skillBinding);
 
@@ -777,8 +786,11 @@ public class CronJobService {
         isolation.put("sourceBoundSessionRuns", Boolean.TRUE);
         isolation.put("sessionBinding", "source_key");
         isolation.put("sourceScopedLock", Boolean.TRUE);
-        isolation.put("disabledToolsets", Arrays.asList("cronjob", "messaging", "clarify"));
+        isolation.put("disabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        isolation.put("protectedDisabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         isolation.put("enabledToolsetsOverrideSupported", Boolean.TRUE);
+        isolation.put("enabledToolsetsAliasSupported", Boolean.TRUE);
+        isolation.put("protectedDisabledOverridesEnabledToolsets", Boolean.TRUE);
         isolation.put("autoDeliveryContext", Boolean.TRUE);
         isolation.put("selfDeliveryDiscouraged", Boolean.TRUE);
         isolation.put("localDeliveryHistoryOnly", Boolean.TRUE);
@@ -860,6 +872,9 @@ public class CronJobService {
                         "--depends-on job-id",
                         "--clear-context-from",
                         "--clear-depends-on"));
+        result.put("enabled_toolset_fields", Arrays.asList("enabled_toolsets", "enabledToolsets"));
+        result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("protected_disabled_overrides_enabled_toolsets", Boolean.TRUE);
         result.put("dedupe", Boolean.TRUE);
         return result;
     }
@@ -900,7 +915,9 @@ public class CronJobService {
         result.put("no_agent", "脚本直投模式，必须提供 script，stdout 可按投递策略发送。");
         result.put("runtime_isolation", cronRuntimeIsolationPolicy());
         result.put("session_binding", "按 source_key 绑定运行会话；同一来源串行执行，不同来源可并行执行。");
-        result.put("disabled_toolsets", Arrays.asList("cronjob", "messaging", "clarify"));
+        result.put("disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("protected_disabled_overrides_enabled_toolsets", Boolean.TRUE);
         result.put("local_delivery", "deliver=local 时只写入运行历史，不外投消息。");
         result.put("inactivity_timeout", "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 JIMUQU_CRON_TIMEOUT 控制。");
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
@@ -938,6 +955,8 @@ public class CronJobService {
         result.put("script_validation", "script 禁止绝对路径、父目录跳转、shell 片段、控制字符和 URL。");
         result.put("workdir_validation", "workdir 会规范化到 runtime home 内部，禁止逃逸工作目录。");
         result.put("delivery_validation", "deliver 只允许本地、origin 或已支持平台。");
+        result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("enabled_toolsets_policy", "protected disabled toolsets override per-job and scheduler enabled_toolsets.");
         result.put("approval_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
@@ -1310,6 +1329,42 @@ public class CronJobService {
 
     private Object first(List<String> values) {
         return values.isEmpty() ? null : values.get(0);
+    }
+
+    private List<String> cronEnabledToolsets(Map<String, Object> body) {
+        if (body == null) {
+            return new ArrayList<String>();
+        }
+        Object value = body.containsKey("enabled_toolsets") ? body.get("enabled_toolsets") : body.get("enabledToolsets");
+        return filterProtectedCronToolsets(stringList(value));
+    }
+
+    public static List<String> filterProtectedCronToolsets(List<String> values) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            String normalized = normalizeToolsetName(value);
+            if (StrUtil.isBlank(normalized) || PROTECTED_CRON_DISABLED_TOOLSETS.contains(normalized)) {
+                continue;
+            }
+            if (!result.contains(normalized)) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private static String normalizeToolsetName(String value) {
+        String normalized = StrUtil.nullToEmpty(value).trim().toLowerCase(Locale.ROOT);
+        if ("cron".equals(normalized)) {
+            return "cronjob";
+        }
+        if ("message".equals(normalized) || "send".equals(normalized)) {
+            return "messaging";
+        }
+        return normalized;
     }
 
     @SuppressWarnings("unchecked")
