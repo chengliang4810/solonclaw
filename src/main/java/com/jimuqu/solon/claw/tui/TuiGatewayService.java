@@ -298,13 +298,41 @@ public class TuiGatewayService implements TuiGatewayEventSink {
 
     private Map<String, Object> listSessions() throws Exception {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        for (SessionRecord record : sessionRepository.listRecent(MAX_SESSION_LIST, 0)) {
+        for (SessionRecord record : filterHumanSessions(sessionRepository.listRecent(MAX_SESSION_LIST * 2, 0))) {
+            if (items.size() >= MAX_SESSION_LIST) {
+                break;
+            }
             items.add(sessionPayload(record));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("sessions", items);
         result.put("limit", Integer.valueOf(MAX_SESSION_LIST));
         return result;
+    }
+
+    private List<SessionRecord> filterHumanSessions(List<SessionRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<SessionRecord> result = new ArrayList<SessionRecord>();
+        for (SessionRecord record : records) {
+            if (record == null) {
+                continue;
+            }
+            if (isDelegateChildSession(record)) {
+                continue;
+            }
+            result.add(record);
+        }
+        return result;
+    }
+
+    private boolean isDelegateChildSession(SessionRecord record) {
+        if (record == null) {
+            return false;
+        }
+        String sourceKey = StrUtil.nullToEmpty(record.getSourceKey());
+        return sourceKey.contains(":delegate:");
     }
 
     private Map<String, Object> deleteSession(String sessionId) throws Exception {

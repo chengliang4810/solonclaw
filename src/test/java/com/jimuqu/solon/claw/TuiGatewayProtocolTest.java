@@ -7,6 +7,8 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.tui.TuiEnvelope;
 import com.jimuqu.solon.claw.tui.TuiGatewayService;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -78,6 +80,27 @@ class TuiGatewayProtocolTest {
         }
     }
 
+    @Test
+    void shouldHideDelegateChildSessionsFromTuiSessionList() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            List<SessionRecord> filtered =
+                    filterHumanSessions(
+                            service,
+                            Arrays.asList(
+                                    session("parent", "MEMORY:room:user"),
+                                    session("tool-room", "MEMORY:tool-room:user"),
+                                    session("child", "MEMORY:room:user:delegate:abc123")));
+
+            assertThat(filtered)
+                    .extracting(SessionRecord::getSessionId)
+                    .containsExactly("parent", "tool-room");
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
             throws Exception {
@@ -92,5 +115,25 @@ class TuiGatewayProtocolTest {
         Method method = TuiGatewayService.class.getDeclaredMethod("sessionPayload", SessionRecord.class);
         method.setAccessible(true);
         return (Map<String, Object>) method.invoke(service, record);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<SessionRecord> filterHumanSessions(
+            TuiGatewayService service, List<SessionRecord> records) throws Exception {
+        Method method = TuiGatewayService.class.getDeclaredMethod("filterHumanSessions", List.class);
+        method.setAccessible(true);
+        return (List<SessionRecord>) method.invoke(service, records);
+    }
+
+    private SessionRecord session(String id, String sourceKey) {
+        SessionRecord record = new SessionRecord();
+        record.setSessionId(id);
+        record.setSourceKey(sourceKey);
+        record.setBranchName("main");
+        record.setTitle(id);
+        record.setNdjson("");
+        record.setCreatedAt(1700000000000L);
+        record.setUpdatedAt(1700000001000L);
+        return record;
     }
 }
