@@ -158,14 +158,17 @@ public class TirithSecurityService {
         String resolvedPath = resolvePath(configuredPath);
         boolean configured = StrUtil.isNotBlank(configuredPath);
         boolean available = enabled && isExecutableAvailable(resolvedPath);
-        String mode = failOpen ? "fail-open" : "fail-closed";
+        String scannerState = scannerState(enabled, configured, available);
+        String failureMode = failOpen ? "fail-open" : "fail-closed";
+        String failureBehavior =
+                failOpen ? "allow_on_operational_failure" : "block_on_operational_failure";
         String summary;
         if (!enabled) {
             summary = "tirith security scan is disabled";
         } else if (available) {
-            summary = "tirith executable is available";
+            summary = "tirith executable is available (" + failureMode + ")";
         } else {
-            summary = "tirith executable is unavailable (" + mode + ")";
+            summary = "tirith executable is unavailable (" + failureMode + ")";
         }
         return new Diagnostic(
                 enabled,
@@ -175,6 +178,9 @@ public class TirithSecurityService {
                 available,
                 timeoutSeconds,
                 failOpen,
+                scannerState,
+                failureMode,
+                failureBehavior,
                 summary);
     }
 
@@ -186,6 +192,9 @@ public class TirithSecurityService {
         summary.put("available", Boolean.valueOf(diagnostic.isAvailable()));
         summary.put("timeoutSeconds", Integer.valueOf(diagnostic.getTimeoutSeconds()));
         summary.put("failOpen", Boolean.valueOf(diagnostic.isFailOpen()));
+        summary.put("scannerState", diagnostic.getScannerState());
+        summary.put("failureMode", diagnostic.getFailureMode());
+        summary.put("failureBehavior", diagnostic.getFailureBehavior());
         summary.put("diagnostic", diagnostic.toMap());
         summary.put("actions", java.util.Arrays.asList("allow", "warn", "block"));
         summary.put("warnRequiresApproval", Boolean.TRUE);
@@ -205,10 +214,36 @@ public class TirithSecurityService {
         summary.put("findingLimit", Integer.valueOf(MAX_FINDINGS));
         summary.put("summaryLimit", Integer.valueOf(MAX_SUMMARY_LENGTH));
         summary.put("secretRedaction", Boolean.TRUE);
+        summary.put("redactedSummaryFields", redactedSummaryFields());
+        summary.put("rawConfiguredPathExposed", Boolean.FALSE);
+        summary.put("rawResolvedPathExposed", Boolean.FALSE);
+        summary.put("rawFindingsExposed", Boolean.FALSE);
         summary.put("shellDetection", java.util.Arrays.asList("posix", "powershell", "cmd"));
-        summary.put("failOpenMode", diagnostic.isFailOpen() ? "allow_on_operational_failure" : "block_on_operational_failure");
+        summary.put("failOpenMode", diagnostic.getFailureBehavior());
         summary.put("description", "Tirith scans command text through an external checker, maps warn/block findings into approval-required security results, and redacts diagnostics before exposing them.");
         return summary;
+    }
+
+    private String scannerState(boolean enabled, boolean configured, boolean available) {
+        if (!enabled) {
+            return "disabled";
+        }
+        if (available) {
+            return "available";
+        }
+        return configured ? "configured_unavailable" : "unconfigured";
+    }
+
+    private List<String> redactedSummaryFields() {
+        return java.util.Arrays.asList(
+                "diagnostic.configuredPath",
+                "diagnostic.resolvedPath",
+                "diagnostic.summary",
+                "scan.summary",
+                "finding.ruleId",
+                "finding.severity",
+                "finding.title",
+                "finding.description");
     }
 
     private String shellForToolCommand(String toolName, String command) {
@@ -476,6 +511,9 @@ public class TirithSecurityService {
         private final boolean available;
         private final int timeoutSeconds;
         private final boolean failOpen;
+        private final String scannerState;
+        private final String failureMode;
+        private final String failureBehavior;
         private final String summary;
 
         private Diagnostic(
@@ -486,6 +524,9 @@ public class TirithSecurityService {
                 boolean available,
                 int timeoutSeconds,
                 boolean failOpen,
+                String scannerState,
+                String failureMode,
+                String failureBehavior,
                 String summary) {
             this.enabled = enabled;
             this.configured = configured;
@@ -496,6 +537,9 @@ public class TirithSecurityService {
             this.available = available;
             this.timeoutSeconds = timeoutSeconds;
             this.failOpen = failOpen;
+            this.scannerState = safeText(scannerState, 100);
+            this.failureMode = safeText(failureMode, 100);
+            this.failureBehavior = safeText(failureBehavior, 200);
             this.summary = safeText(summary, MAX_SUMMARY_LENGTH);
         }
 
@@ -527,6 +571,18 @@ public class TirithSecurityService {
             return failOpen;
         }
 
+        public String getScannerState() {
+            return scannerState;
+        }
+
+        public String getFailureMode() {
+            return failureMode;
+        }
+
+        public String getFailureBehavior() {
+            return failureBehavior;
+        }
+
         public String getSummary() {
             return summary;
         }
@@ -540,6 +596,9 @@ public class TirithSecurityService {
             map.put("available", Boolean.valueOf(available));
             map.put("timeoutSeconds", Integer.valueOf(timeoutSeconds));
             map.put("failOpen", Boolean.valueOf(failOpen));
+            map.put("scannerState", scannerState);
+            map.put("failureMode", failureMode);
+            map.put("failureBehavior", failureBehavior);
             map.put("summary", summary);
             return map;
         }
