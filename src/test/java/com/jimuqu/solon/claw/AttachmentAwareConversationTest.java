@@ -73,6 +73,11 @@ public class AttachmentAwareConversationTest {
         assertThat(llmGateway.lastUserMessage).contains("localPath=path://diagram.png");
         assertThat(llmGateway.lastUserMessage).doesNotContain("D:\\temp");
         assertThat(llmGateway.lastUserMessage).contains("fromQuote=true");
+        assertThat(llmGateway.lastUserMessage).contains("sizeBytes=unknown");
+        assertThat(llmGateway.lastUserMessage).contains("estimatedTokens=1500");
+        assertThat(llmGateway.lastUserMessage).contains("availability=vision_payload_candidate");
+        assertThat(llmGateway.lastUserMessage).contains("availability=metadata_only");
+        assertThat(llmGateway.lastUserMessage).contains("availability=transcript_available");
         assertThat(llmGateway.lastUserMessage).contains("transcribedText=客户说先别发版");
 
         SessionRecord session = env.sessionRepository.getBoundSession(message.sourceKey());
@@ -250,6 +255,32 @@ public class AttachmentAwareConversationTest {
         assertThat(String.valueOf(summary))
                 .contains("runtime://cache/media")
                 .doesNotContain(env.appConfig.getRuntime().getHome());
+    }
+
+    @Test
+    void shouldGateImageAttachmentsAfterMultimodalLimit() throws Exception {
+        CapturingLlmGateway llmGateway = new CapturingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        env.appConfig.getGateway().setAllowAllUsers(true);
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "room-image-limit", "user-1", "看图");
+        message.setAttachments(new ArrayList<MessageAttachment>());
+        for (int i = 1; i <= 4; i++) {
+            message.getAttachments()
+                    .add(
+                            attachment(
+                                    "image",
+                                    "diagram-" + i + ".png",
+                                    "image/png",
+                                    "D:\\temp\\diagram-" + i + ".png",
+                                    false,
+                                    null));
+        }
+
+        env.conversationOrchestrator.handleIncoming(message);
+
+        assertThat(llmGateway.lastUserMessage).contains("diagram-4.png");
+        assertThat(llmGateway.lastUserMessage).contains("hint=image_limit_exceeded_for_vision");
     }
 
     @Test

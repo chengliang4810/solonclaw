@@ -1555,6 +1555,7 @@ public class AcpStdioServer {
             byte[] data = readFilePrefix(path, (int) size);
             MessageAttachment attachment = imageAttachment(uri, name, title, imageMime);
             attachment.setLocalPath(path.toAbsolutePath().toString());
+            attachment.setSizeBytes(data.length);
             attachment.setData(Base64.getEncoder().encodeToString(data));
             attachments.add(attachment);
         } catch (Exception ignored) {
@@ -1582,6 +1583,7 @@ public class AcpStdioServer {
         String uri = read(resource, "uri", "");
         MessageAttachment attachment =
                 imageAttachment(uri, read(resource, "name", ""), read(resource, "title", ""), imageMime);
+        attachment.setSizeBytes(data.length);
         attachment.setData(Base64.getEncoder().encodeToString(data));
         attachments.add(attachment);
     }
@@ -1604,6 +1606,7 @@ public class AcpStdioServer {
             if (bytes.length > MAX_ACP_RESOURCE_BYTES) {
                 return;
             }
+            attachment.setSizeBytes(bytes.length);
             attachment.setData(Base64.getEncoder().encodeToString(bytes));
         } else {
             attachment.setUrl(uri);

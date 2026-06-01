@@ -128,8 +128,10 @@ public class MessagingToolsAttachmentTest {
         assertThat(request.getAttachments()).hasSize(2);
         assertThat(request.getAttachments().get(0).getKind()).isEqualTo("image");
         assertThat(request.getAttachments().get(0).getLocalPath()).endsWith("demo.png");
+        assertThat(request.getAttachments().get(0).getSizeBytes()).isEqualTo(3L);
         assertThat(request.getAttachments().get(1).getKind()).isEqualTo("voice");
         assertThat(request.getAttachments().get(1).getLocalPath()).endsWith("note.silk");
+        assertThat(request.getAttachments().get(1).getSizeBytes()).isEqualTo(3L);
     }
 
     @Test

@@ -21,6 +21,9 @@ public class MessageAttachment {
     /** MIME 类型。 */
     private String mimeType;
 
+    /** 附件体积，未知时为 0。 */
+    private long sizeBytes;
+
     /** 内联 base64 数据，主要用于 ACP image/resource blob。 */
     private String data;
 
