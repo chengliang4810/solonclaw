@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
@@ -492,6 +493,63 @@ class TuiGatewayProtocolTest {
             Map<String, Object> payload = (Map<String, Object>) result.get("payload");
             assertThat(payload).containsEntry("code", "TUI_FAILED");
             assertThat(String.valueOf(payload.get("message"))).contains("session is not live");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldReturnStoredConversationHistoryForTuiSession() throws Exception {
+        SessionRecord target = session("history-session", "MEMORY:tui:history-session");
+        target.setNdjson(
+                com.jimuqu.solon.claw.support.MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("hello api_key=sk-abc1234567890"),
+                                ChatMessage.ofAssistant("answer text"))));
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(Arrays.asList(target)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket socket = new FakeWebSocket("history-connection");
+            TuiConnection connection = new TuiConnection(socket);
+            service.onOpen(connection);
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"15\",\"method\":\"session.history\",\"params\":{\"session_id\":\"history-session\"}}");
+            service.handle(connection, envelope);
+
+            Map<String, Object> result = socket.lastSentMap();
+            assertThat(result)
+                    .containsEntry("type", "rpc.result")
+                    .containsEntry("id", "15")
+                    .containsEntry("sessionId", "history-session");
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload)
+                    .containsEntry("session_id", "history-session")
+                    .containsEntry("count", Integer.valueOf(2));
+            List<Map<String, Object>> messages =
+                    (List<Map<String, Object>>) payload.get("messages");
+            assertThat(messages).hasSize(2);
+            assertThat(messages.get(0))
+                    .containsEntry("role", "user")
+                    .containsEntry("content", "hello api_key=***");
+            assertThat(messages.get(1))
+                    .containsEntry("role", "assistant")
+                    .containsEntry("content", "answer text");
+            assertThat(connection.getActiveSessionId()).isEqualTo("history-session");
         } finally {
             service.shutdown();
         }

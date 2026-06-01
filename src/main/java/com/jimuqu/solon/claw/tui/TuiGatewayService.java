@@ -42,7 +42,10 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import org.jline.terminal.Size;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** Agent terminal gateway service. */
 public class TuiGatewayService implements TuiGatewayEventSink {
@@ -183,6 +186,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.usage".equals(method)) {
                 Map<String, Object> result = sessionUsage(connection, envelope);
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
+            } else if ("session.history".equals(method)) {
+                Map<String, Object> result = sessionHistory(connection, envelope);
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.delete".equals(method)) {
                 Map<String, Object> result = deleteSession(resolveTargetSessionId(envelope));
@@ -579,6 +585,62 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             throw new IllegalArgumentException("session not found: " + sid);
         }
         return sessionUsagePayload(session);
+    }
+
+    private Map<String, Object> sessionHistory(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        SessionRecord session = sessionRepository.findById(sid);
+        if (session == null) {
+            throw new IllegalArgumentException("session not found: " + sid);
+        }
+        List<ChatMessage> loaded = MessageSupport.loadMessages(session.getNdjson());
+        List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
+        for (ChatMessage message : loaded) {
+            messages.add(historyMessage(message));
+        }
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("session_id", safe(sid, 120));
+        payload.put("count", Integer.valueOf(messages.size()));
+        payload.put("messages", messages);
+        return payload;
+    }
+
+    private Map<String, Object> historyMessage(ChatMessage message) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        String role =
+                message == null || message.getRole() == null
+                        ? ""
+                        : message.getRole().name().toLowerCase(Locale.ROOT);
+        item.put("role", safe(role, 40));
+        item.put("content", safe(message == null ? "" : message.getContent(), 12000));
+        if (message instanceof AssistantMessage) {
+            List<ToolCall> toolCalls = ((AssistantMessage) message).getToolCalls();
+            if (toolCalls != null && !toolCalls.isEmpty()) {
+                item.put("tool_calls", historyToolCalls(toolCalls));
+            }
+        }
+        if (message instanceof ToolMessage) {
+            ToolMessage tool = (ToolMessage) message;
+            item.put("tool_call_id", safe(tool.getToolCallId(), 160));
+            item.put("name", safe(tool.getName(), 160));
+        }
+        return item;
+    }
+
+    private List<Map<String, Object>> historyToolCalls(List<ToolCall> toolCalls) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (ToolCall toolCall : toolCalls) {
+            if (toolCall == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("id", safe(toolCall.getId(), 160));
+            item.put("name", safe(toolCall.getName(), 160));
+            item.put("arguments", safe(toolCall.getArgumentsStr(), 4000));
+            result.add(item);
+        }
+        return result;
     }
 
     private Map<String, Object> branchSession(TuiConnection connection, TuiEnvelope envelope)
