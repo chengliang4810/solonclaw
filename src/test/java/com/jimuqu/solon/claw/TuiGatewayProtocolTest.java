@@ -555,6 +555,78 @@ class TuiGatewayProtocolTest {
         }
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldGetAndUpdateTuiSessionTitle() throws Exception {
+        SessionRecord target = session("title-session", "MEMORY:tui:title-session");
+        target.setTitle("Original title");
+        TrackingSessionRepository repository =
+                new TrackingSessionRepository(Arrays.asList(target));
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        repository,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket socket = new FakeWebSocket("title-connection");
+            TuiConnection connection = new TuiConnection(socket);
+            service.onOpen(connection);
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"16\",\"method\":\"session.title\",\"params\":{\"session_id\":\"title-session\"}}"));
+
+            Map<String, Object> readResult = socket.lastSentMap();
+            assertThat(readResult).containsEntry("type", "rpc.result").containsEntry("id", "16");
+            assertThat((Map<String, Object>) readResult.get("payload"))
+                    .containsEntry("session_id", "title-session")
+                    .containsEntry("session_key", "MEMORY:tui:title-session")
+                    .containsEntry("title", "Original title");
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"17\",\"method\":\"session.title\",\"params\":{\"session_id\":\"title-session\",\"title\":\"Updated title\"}}"));
+
+            Map<String, Object> updateResult = socket.lastSentMap();
+            assertThat(updateResult).containsEntry("type", "rpc.result").containsEntry("id", "17");
+            assertThat((Map<String, Object>) updateResult.get("payload"))
+                    .containsEntry("session_id", "title-session")
+                    .containsEntry("session_key", "MEMORY:tui:title-session")
+                    .containsEntry("title", "Updated title")
+                    .containsEntry("pending", Boolean.FALSE);
+            assertThat(target.getTitle()).isEqualTo("Updated title");
+            assertThat(repository.saveCount).isEqualTo(1);
+            assertThat(repository.savedSessionId).isEqualTo("title-session");
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"18\",\"method\":\"session.title\",\"params\":{\"session_id\":\"title-session\",\"title\":\"   \"}}"));
+
+            Map<String, Object> blankResult = socket.lastSentMap();
+            assertThat(blankResult).containsEntry("type", "rpc.error").containsEntry("id", "18");
+            assertThat((Map<String, Object>) blankResult.get("payload"))
+                    .containsEntry("code", "TUI_FAILED");
+            assertThat(String.valueOf(((Map<String, Object>) blankResult.get("payload")).get("message")))
+                    .contains("title is required");
+            assertThat(target.getTitle()).isEqualTo("Updated title");
+            assertThat(repository.saveCount).isEqualTo(1);
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
             throws Exception {
@@ -656,6 +728,22 @@ class TuiGatewayProtocolTest {
         record.setCreatedAt(1700000000000L);
         record.setUpdatedAt(1700000001000L);
         return record;
+    }
+
+    private static class TrackingSessionRepository
+            extends TerminalSessionBrowserTest.FakeSessionRepository {
+        private int saveCount;
+        private String savedSessionId;
+
+        TrackingSessionRepository(List<SessionRecord> records) {
+            super(records);
+        }
+
+        @Override
+        public void save(SessionRecord sessionRecord) {
+            saveCount++;
+            savedSessionId = sessionRecord == null ? null : sessionRecord.getSessionId();
+        }
     }
 
     private static class FakeWebSocket implements WebSocket {

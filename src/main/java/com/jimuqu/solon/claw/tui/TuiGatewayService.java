@@ -190,6 +190,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             } else if ("session.history".equals(method)) {
                 Map<String, Object> result = sessionHistory(connection, envelope);
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
+            } else if ("session.title".equals(method)) {
+                Map<String, Object> result = sessionTitle(connection, envelope);
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.delete".equals(method)) {
                 Map<String, Object> result = deleteSession(resolveTargetSessionId(envelope));
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
@@ -641,6 +644,32 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             result.add(item);
         }
         return result;
+    }
+
+    private Map<String, Object> sessionTitle(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        SessionRecord session = sessionRepository.findById(sid);
+        if (session == null) {
+            throw new IllegalArgumentException("session not found: " + sid);
+        }
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("session_id", safe(sid, 120));
+        payload.put("session_key", safe(session.getSourceKey(), 400));
+        if (!envelope.getParams().containsKey("title")) {
+            payload.put("title", safe(session.getTitle(), 400));
+            return payload;
+        }
+        String title = stringValue(envelope.getParams().get("title")).trim();
+        if (StrUtil.isBlank(title)) {
+            throw new IllegalArgumentException("title is required");
+        }
+        session.setTitle(trimTitle(title));
+        session.setUpdatedAt(System.currentTimeMillis());
+        sessionRepository.save(session);
+        payload.put("title", safe(session.getTitle(), 400));
+        payload.put("pending", Boolean.FALSE);
+        return payload;
     }
 
     private Map<String, Object> branchSession(TuiConnection connection, TuiEnvelope envelope)
