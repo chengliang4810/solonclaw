@@ -81,6 +81,65 @@ class TuiGatewayProtocolTest {
     }
 
     @Test
+    void shouldBuildSessionStatusPayloadForTui() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            SessionRecord record = new SessionRecord();
+            record.setSessionId("status-session");
+            record.setSourceKey("MEMORY:tui:status-session");
+            record.setBranchName("main");
+            record.setTitle("Status check");
+            record.setNdjson("");
+            record.setModelOverride("fallback-model");
+            record.setLastResolvedModel("chat-model");
+            record.setLastResolvedProvider("local-provider");
+            record.setCumulativeTotalTokens(12345L);
+            record.setCreatedAt(1700000000000L);
+            record.setUpdatedAt(1700000005000L);
+
+            Map<String, Object> payload = sessionStatusPayload(service, record);
+
+            assertThat(payload)
+                    .containsEntry("session_id", "status-session")
+                    .containsEntry("title", "Status check")
+                    .containsEntry("model", "chat-model")
+                    .containsEntry("provider", "local-provider")
+                    .containsEntry("total_tokens", Long.valueOf(12345L))
+                    .containsEntry("running", Boolean.FALSE)
+                    .containsEntry("queued_count", Integer.valueOf(0))
+                    .containsEntry("started_at", Long.valueOf(1700000000000L))
+                    .containsEntry("last_active", Long.valueOf(1700000005000L));
+            assertThat((String) payload.get("output"))
+                    .contains("solon-claw TUI Status")
+                    .contains("Session ID: status-session")
+                    .contains("Title: Status check")
+                    .contains("Model: chat-model (local-provider)")
+                    .contains("Tokens: 12,345")
+                    .contains("Agent Running: No");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void shouldResolveSessionIdFromRpcParams() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"10\",\"method\":\"session.status\",\"params\":{\"session_id\":\"params-session\"}}");
+
+            String sessionId = resolveSessionId(service, null, envelope);
+
+            assertThat(sessionId).isEqualTo("params-session");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
     void shouldHideDelegateChildSessionsFromTuiSessionList() throws Exception {
         TuiGatewayService service =
                 new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
@@ -152,6 +211,27 @@ class TuiGatewayProtocolTest {
         Method method = TuiGatewayService.class.getDeclaredMethod("sessionPayload", SessionRecord.class);
         method.setAccessible(true);
         return (Map<String, Object>) method.invoke(service, record);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sessionStatusPayload(TuiGatewayService service, SessionRecord record)
+            throws Exception {
+        Method method =
+                TuiGatewayService.class.getDeclaredMethod(
+                        "sessionStatusPayload", SessionRecord.class);
+        method.setAccessible(true);
+        return (Map<String, Object>) method.invoke(service, record);
+    }
+
+    private String resolveSessionId(TuiGatewayService service, Object connection, TuiEnvelope envelope)
+            throws Exception {
+        Method method =
+                TuiGatewayService.class.getDeclaredMethod(
+                        "resolveSessionId",
+                        com.jimuqu.solon.claw.tui.TuiConnection.class,
+                        TuiEnvelope.class);
+        method.setAccessible(true);
+        return (String) method.invoke(service, connection, envelope);
     }
 
     @SuppressWarnings("unchecked")

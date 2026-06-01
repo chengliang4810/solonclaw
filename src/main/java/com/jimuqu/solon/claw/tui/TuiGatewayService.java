@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.web.DashboardCronService;
 import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import java.text.NumberFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -164,6 +165,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), listSessions());
             } else if ("session.most_recent".equals(method)) {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), mostRecentSession());
+            } else if ("session.status".equals(method)) {
+                Map<String, Object> result = sessionStatus(connection, envelope);
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.delete".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), deleteSession(envelope.getSessionId()));
             } else if ("session.branch".equals(method)) {
@@ -379,6 +383,16 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         result.put("ok", Boolean.TRUE);
         result.put("session_id", safe(sessionId, 120));
         return result;
+    }
+
+    private Map<String, Object> sessionStatus(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = requireSessionId(connection, envelope);
+        SessionRecord session = sessionRepository.findById(sid);
+        if (session == null) {
+            throw new IllegalArgumentException("session not found: " + sid);
+        }
+        return sessionStatusPayload(session);
     }
 
     private Map<String, Object> branchSession(TuiConnection connection, TuiEnvelope envelope)
@@ -779,6 +793,51 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         return payload;
     }
 
+    private Map<String, Object> sessionStatusPayload(SessionRecord record) throws Exception {
+        Map<String, Object> payload = sessionPayload(record);
+        if (record == null) {
+            return payload;
+        }
+        TuiSessionState state = state(record.getSessionId());
+        String model = stringValue(payload.get("model"));
+        String provider = stringValue(payload.get("provider"));
+        long totalTokens = record.getCumulativeTotalTokens();
+        payload.put("total_tokens", Long.valueOf(totalTokens));
+        payload.put("running", Boolean.valueOf(state.running));
+        payload.put("queued_count", Integer.valueOf(state.queue.size()));
+        payload.put("output", statusOutput(payload, totalTokens, state.running, state.queue.size(), model, provider));
+        return payload;
+    }
+
+    private String statusOutput(
+            Map<String, Object> payload,
+            long totalTokens,
+            boolean running,
+            int queuedCount,
+            String model,
+            String provider) {
+        List<String> lines = new ArrayList<String>();
+        lines.add("solon-claw TUI Status");
+        lines.add("");
+        lines.add("Session ID: " + stringValue(payload.get("session_id")));
+        String title = stringValue(payload.get("title")).trim();
+        if (StrUtil.isNotBlank(title)) {
+            lines.add("Title: " + title);
+        }
+        lines.add(
+                "Model: "
+                        + StrUtil.blankToDefault(model, "(unknown)")
+                        + " ("
+                        + StrUtil.blankToDefault(provider, "unknown")
+                        + ")");
+        lines.add("Started: " + stringValue(payload.get("started_at")));
+        lines.add("Last Active: " + stringValue(payload.get("last_active")));
+        lines.add("Tokens: " + NumberFormat.getIntegerInstance(Locale.US).format(totalTokens));
+        lines.add("Agent Running: " + (running ? "Yes" : "No"));
+        lines.add("Queued: " + queuedCount);
+        return String.join("\n", lines);
+    }
+
     private Map<String, Object> runStatePayload(TuiSessionState state) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("running", Boolean.valueOf(state.running));
@@ -878,11 +937,21 @@ public class TuiGatewayService implements TuiGatewayEventSink {
     }
 
     private String requireSessionId(TuiConnection connection, TuiEnvelope envelope) {
-        String sid = StrUtil.blankToDefault(envelope.getSessionId(), connection.getActiveSessionId());
+        String sid = resolveSessionId(connection, envelope);
         if (StrUtil.isBlank(sid)) {
             throw new IllegalArgumentException("session_id is required");
         }
-        connection.setActiveSessionId(sid);
+        if (connection != null) {
+            connection.setActiveSessionId(sid);
+        }
+        return sid;
+    }
+
+    private String resolveSessionId(TuiConnection connection, TuiEnvelope envelope) {
+        String sid = StrUtil.blankToDefault(envelope.getSessionId(), textParam(envelope, "session_id", ""));
+        if (StrUtil.isBlank(sid) && connection != null) {
+            sid = connection.getActiveSessionId();
+        }
         return sid;
     }
 
