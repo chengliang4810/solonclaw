@@ -461,18 +461,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (session == null || StrUtil.isBlank(session.getSessionId())) {
             return null;
         }
-        SessionRecord current = session;
-        String currentId = current.getSessionId();
-        LinkedHashSet<String> visited = new LinkedHashSet<String>();
-        while (StrUtil.isNotBlank(current.getParentSessionId()) && visited.add(currentId)) {
-            SessionRecord parent = sessionRepository.findById(current.getParentSessionId());
-            if (parent == null) {
-                break;
-            }
-            current = parent;
-            currentId = current.getSessionId();
-        }
-        return currentId;
+        return sessionRepository.resolveRootSessionId(session.getSessionId());
     }
 
     private String resolveTitle(SessionRecord display, SessionRecord representative) {

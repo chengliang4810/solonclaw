@@ -2723,8 +2723,11 @@ public class AppConfig {
             price.setProvider(stringValue(map, "provider"));
             price.setModel(stringValue(map, "model"));
             price.setCurrency(StrUtil.blankToDefault(stringValue(map, "currency"), "USD"));
-            price.setInputMicrosPerToken(longValue(map, "input_micros_per_token"));
-            price.setOutputMicrosPerToken(longValue(map, "output_micros_per_token"));
+            price.setInputMicrosPerToken(
+                    firstLongValue(map, "input_micros_per_token", "prompt_micros_per_token"));
+            price.setOutputMicrosPerToken(
+                    firstLongValue(
+                            map, "output_micros_per_token", "completion_micros_per_token"));
             price.setCacheReadMicrosPerToken(longValue(map, "cache_read_micros_per_token"));
             price.setCacheWriteMicrosPerToken(longValue(map, "cache_write_micros_per_token"));
             price.setReasoningMicrosPerToken(longValue(map, "reasoning_micros_per_token"));
@@ -2751,6 +2754,19 @@ public class AppConfig {
         } catch (Exception ignored) {
             return 0L;
         }
+    }
+
+    private static long firstLongValue(Map<String, Object> map, String... keys) {
+        if (keys == null) {
+            return 0L;
+        }
+        for (String key : keys) {
+            long value = longValue(map, key);
+            if (value > 0L) {
+                return value;
+            }
+        }
+        return 0L;
     }
 
     /** 解析 personalities 配置映射。 */

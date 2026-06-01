@@ -176,6 +176,51 @@ public class StorageRepositoryTest {
                 .contains(first.getSessionId(), second.getSessionId());
     }
 
+    @Test
+    void shouldListSessionLineageFromRootAndResolveLatestDescendantPath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord root = env.sessionRepository.bindNewSession("MEMORY:lineage-storage-root:user");
+        root.setTitle("root");
+        root.setCreatedAt(100L);
+        root.setUpdatedAt(100L);
+        env.sessionRepository.save(root);
+
+        SessionRecord oldChild =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:lineage-storage-old:user", root.getSessionId(), "old");
+        oldChild.setTitle("old");
+        oldChild.setCreatedAt(200L);
+        oldChild.setUpdatedAt(200L);
+        env.sessionRepository.save(oldChild);
+
+        SessionRecord newChild =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:lineage-storage-new:user", root.getSessionId(), "new");
+        newChild.setTitle("new");
+        newChild.setCreatedAt(300L);
+        newChild.setUpdatedAt(300L);
+        env.sessionRepository.save(newChild);
+
+        SessionRecord grandchild =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:lineage-storage-grand:user", newChild.getSessionId(), "grand");
+        grandchild.setTitle("grand");
+        grandchild.setCreatedAt(400L);
+        grandchild.setUpdatedAt(400L);
+        env.sessionRepository.save(grandchild);
+
+        List<SessionRecord> lineage = env.sessionRepository.listLineage(newChild.getSessionId());
+        List<String> latestPath = env.sessionRepository.latestDescendantPath(root.getSessionId());
+
+        assertThat(lineage)
+                .extracting(SessionRecord::getSessionId)
+                .contains(root.getSessionId(), oldChild.getSessionId(), newChild.getSessionId(), grandchild.getSessionId());
+        assertThat(env.sessionRepository.resolveRootSessionId(grandchild.getSessionId()))
+                .isEqualTo(root.getSessionId());
+        assertThat(latestPath)
+                .containsExactly(root.getSessionId(), newChild.getSessionId(), grandchild.getSessionId());
+    }
+
     private void assertStoragePragmas(Connection connection) throws Exception {
         try {
             assertThat(pragmaInt(connection, "secure_delete")).isEqualTo(1);

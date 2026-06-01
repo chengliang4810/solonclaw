@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.llm.LlmUsage;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.pricing.UsageCost;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
@@ -77,6 +78,43 @@ public class UsagePricingTest {
         assertThat(cost.isPricingAvailable()).isTrue();
         assertThat(cost.getTotalMicros()).isEqualTo(370L);
         assertThat(cost.getRequestCount()).isEqualTo(3L);
+    }
+
+    @Test
+    void costCalculatorSupportsCanonicalUsageObject() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{\"prices\":[{\"provider\":\"default\",\"model\":\"gpt-5.4\",\"currency\":\"USD\",\"input_micros_per_token\":2,\"output_micros_per_token\":10,\"cache_read_micros_per_token\":1,\"cache_write_micros_per_token\":4,\"reasoning_micros_per_token\":20,\"request_micros_per_request\":30,\"source\":\"test-catalog\"}]}");
+        LlmUsage usage =
+                LlmUsage.builder()
+                        .inputTokens(100)
+                        .outputTokens(25)
+                        .cacheReadTokens(40)
+                        .cacheWriteTokens(10)
+                        .reasoningTokens(3)
+                        .requestCount(2)
+                        .build();
+
+        UsageCost cost = new UsageCostCalculator(catalog).calculate("default", "gpt-5.4", usage);
+
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(650L);
+        assertThat(cost.getRequestCount()).isEqualTo(2L);
+    }
+
+    @Test
+    void priceCatalogSupportsPromptAndCompletionAliases() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{\"prices\":[{\"provider\":\"default\",\"model\":\"gpt-5.4\",\"currency\":\"USD\",\"prompt_micros_per_token\":2,\"completion_micros_per_token\":10,\"source\":\"test-catalog\"}]}");
+
+        UsageCost cost =
+                new UsageCostCalculator(catalog)
+                        .calculate("default", "gpt-5.4", 100, 20, 0, 0, 0);
+
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(400L);
+        assertThat(cost.getPriceSource()).isEqualTo("test-catalog");
     }
 
     @Test

@@ -335,6 +335,23 @@ public class DashboardDiagnosticsService {
         return fallback;
     }
 
+    public Map<String, Object> subprocessEnvironmentProbe(Map<String, Object> body) {
+        Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
+        List<String> requestedNames = envProbeNames(input.get("names"));
+        List<Map<String, Object>> decisions =
+                SubprocessEnvironmentSanitizer.probeDecisions(envProbeInput(requestedNames), appConfig, true);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("success", Boolean.TRUE);
+        result.put("surface", "subprocess_environment");
+        result.put("summary", requestedNames.isEmpty() ? "未提供环境变量名。" : "已返回子进程环境变量 probe 决策。");
+        result.put("requested_count", Integer.valueOf(requestedNames.size()));
+        result.put("requested_names", redactedTextList(requestedNames, 120));
+        result.put("decision_categories", SubprocessEnvironmentSanitizer.decisionCategories());
+        result.put("decisions", decisions);
+        result.put("policy", safeSubprocessEnvironmentPolicySummary());
+        return result;
+    }
+
     public Map<String, Object> pendingApprovals(int limit) throws Exception {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         int sessionScanLimit = Math.max(effectiveLimit, Math.min(effectiveLimit * 5, 300));
@@ -7305,6 +7322,44 @@ public class DashboardDiagnosticsService {
             }
         }
         return values;
+    }
+
+    private Map<String, String> envProbeInput(List<String> names) {
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        if (names == null) {
+            return values;
+        }
+        for (String name : names) {
+            if (StrUtil.isNotBlank(name)) {
+                values.put(name, "__redacted__");
+            }
+        }
+        return values;
+    }
+
+    private List<String> envProbeNames(Object value) {
+        List<String> values = new ArrayList<String>();
+        if (value instanceof List) {
+            for (Object item : (List<?>) value) {
+                addEnvProbeName(values, item == null ? null : String.valueOf(item));
+            }
+            return values;
+        }
+        String text = value == null ? "" : SecretRedactor.stripDisplayControls(String.valueOf(value));
+        if (StrUtil.isBlank(text)) {
+            return values;
+        }
+        for (String item : text.split("[,\\r\\n]+")) {
+            addEnvProbeName(values, item);
+        }
+        return values;
+    }
+
+    private void addEnvProbeName(List<String> values, String raw) {
+        String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw)).trim();
+        if (value.length() > 0) {
+            values.add(value);
+        }
     }
 
     private List<String> approvalRuleSources(

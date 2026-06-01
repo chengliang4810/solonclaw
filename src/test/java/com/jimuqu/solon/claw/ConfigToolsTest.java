@@ -300,6 +300,47 @@ public class ConfigToolsTest {
         assertThat(readResponse.toString()).doesNotContain("sk-test-real-secret-12345");
     }
 
+
+    @Test
+    void shouldExposeConfigEnvProbeToolWithoutLeakingSecretLikeNames() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configGetTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configEnvProbe".equals(method.getName())) {
+                    configGetTool = tool;
+                    break;
+                }
+            }
+            if (configGetTool != null) {
+                break;
+            }
+        }
+
+        assertThat(configGetTool).isNotNull();
+        Method method = configGetTool.getClass().getMethod("configEnvProbe", String.class);
+        ONode response =
+                ONode.ofJson(
+                        (String)
+                                method.invoke(
+                                        configGetTool,
+                                        "[\"PATH\",\"TENOR_API_KEY\",\"OPENAI_API_KEY\",\"_JIMUQU_FORCE_CUSTOM_TOKEN\",\"ghp_probe1234567890\"]"));
+
+        assertThat(response.get("success").getBoolean()).isTrue();
+        assertThat(response.get("requestedCount").getInt()).isEqualTo(5);
+        assertThat(response.get("decisionCategories").toJson())
+                .contains("force")
+                .contains("provider-blocked")
+                .contains("high-risk");
+        String json = response.toJson();
+        assertThat(json)
+                .contains("PATH")
+                .contains("decision")
+                .contains("provider-blocked")
+                .contains("force")
+                .contains("***")
+                .doesNotContain("ghp_probe1234567890");
+    }
     @Test
     void shouldKeepRegularWritesSeparateFromSecretUpdates() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

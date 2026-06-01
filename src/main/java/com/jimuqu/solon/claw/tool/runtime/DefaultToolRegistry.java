@@ -644,7 +644,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
-        ConfigTools configTools = new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService);
+        ConfigTools configTools =
+                new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
         String sysWorkDir = resolveWorkDir(agentScope);
         SolonClawFileStateTracker fileStateTracker = new SolonClawFileStateTracker();
         SolonClawFileReadWriteSkill fileSkill =

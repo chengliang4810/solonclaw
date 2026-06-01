@@ -174,6 +174,28 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"action\":\"policy\"");
     }
 
+
+    @Test
+    void shouldExposeSubprocessEnvironmentProbeHttpEndpoint() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult result =
+                request(
+                        "POST",
+                        "/api/diagnostics/subprocess-environment/probe",
+                        "{\"names\":[\"PATH\",\"OPENAI_API_KEY\",\"_JIMUQU_FORCE_CUSTOM_TOKEN\",\"ghp_httpdiag1234567890\"]}",
+                        token);
+
+        assertThat(result.status).isEqualTo(200);
+        assertThat(result.body)
+                .contains("\"success\":true")
+                .contains("\"subprocess_environment\"")
+                .contains("\"requested_count\":4")
+                .contains("provider-blocked")
+                .contains("force")
+                .contains("***")
+                .doesNotContain("ghp_httpdiag1234567890");
+    }
     @Test
     void shouldReturnStructuredErrorForInvalidProviderValidationRequest() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
@@ -191,6 +213,25 @@ public class DashboardControllerHttpTest {
                 .contains("\"code\":\"PROVIDER_VALIDATE_BAD_REQUEST\"");
     }
 
+
+    @Test
+    void shouldReturnStructuredErrorForInvalidSubprocessEnvironmentProbeJson() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult result =
+                request(
+                        "POST",
+                        "/api/diagnostics/subprocess-environment/probe",
+                        "{\"names\":[\"PATH\",\"ghp_invalidprobe1234567890\"",
+                        token);
+
+        assertThat(result.status).isEqualTo(200);
+        assertThat(result.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"DIAGNOSTICS_BAD_REQUEST\"")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidprobe1234567890");
+    }
     @Test
     void shouldUpdateDashboardPlatformToolsetPolicy() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);

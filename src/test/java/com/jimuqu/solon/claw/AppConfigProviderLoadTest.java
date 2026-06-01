@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.pricing.ModelPrice;
 import java.io.File;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,40 @@ public class AppConfigProviderLoadTest {
         assertThatThrownBy(() -> AppConfig.load(props))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("fallbackProviders");
+    }
+
+    @Test
+    void shouldLoadPricingAliasesFromRuntimeConfig() throws Exception {
+        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-pricing").toFile();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  openai-direct:\n"
+                        + "    name: OpenAI渠道\n"
+                        + "    baseUrl: https://api.openai.com\n"
+                        + "    defaultModel: gpt-5-mini\n"
+                        + "    dialect: openai-responses\n"
+                        + "model:\n"
+                        + "  providerKey: openai-direct\n"
+                        + "pricing:\n"
+                        + "  prices:\n"
+                        + "    - provider: openai-direct\n"
+                        + "      model: gpt-5-mini\n"
+                        + "      prompt_micros_per_token: 3\n"
+                        + "      completion_micros_per_token: 15\n"
+                        + "      source: alias-catalog\n",
+                new File(runtimeHome, "config.yml"));
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getPricing().getPrices()).hasSize(1);
+        ModelPrice price = config.getPricing().getPrices().get(0);
+        assertThat(price.getInputMicrosPerToken()).isEqualTo(3L);
+        assertThat(price.getOutputMicrosPerToken()).isEqualTo(15L);
+        assertThat(price.getPromptMicrosPerToken()).isEqualTo(3L);
+        assertThat(price.getCompletionMicrosPerToken()).isEqualTo(15L);
+        assertThat(price.getSource()).isEqualTo("alias-catalog");
     }
 
     @Test

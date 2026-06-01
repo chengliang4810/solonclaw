@@ -63,6 +63,8 @@ public final class MessageAttachmentSupport {
             buffer.append(", sizeBytes=").append(insight.sizeBytes < 0 ? "unknown" : String.valueOf(insight.sizeBytes));
             buffer.append(", estimatedTokens=").append(insight.estimatedTokens);
             buffer.append(", availability=").append(insight.availability);
+            buffer.append(", payloadMode=").append(insight.payloadMode);
+            buffer.append(", signal=").append(insight.signal);
             if (StrUtil.isNotBlank(insight.hint)) {
                 buffer.append(", hint=").append(insight.hint);
             }
@@ -87,6 +89,19 @@ public final class MessageAttachmentSupport {
 
     public static String multimodalAvailability(MessageAttachment attachment) {
         return inspect(attachment, 0).availability;
+    }
+
+    public static String multimodalPayloadMode(MessageAttachment attachment) {
+        return inspect(attachment, 0).payloadMode;
+    }
+
+    public static String multimodalSignal(MessageAttachment attachment) {
+        return inspect(attachment, 0).signal;
+    }
+
+    public static boolean canSendAsVisionPayload(MessageAttachment attachment, boolean providerSupportsVision) {
+        AttachmentInsight insight = inspect(attachment, 0);
+        return providerSupportsVision && insight.visionCandidate;
     }
 
     public static int estimateAttachmentTokensFromSummary(String text) {
@@ -149,36 +164,59 @@ public final class MessageAttachmentSupport {
         long sizeBytes = attachmentSizeBytes(attachment);
         int estimatedTokens = estimateTokens(kind, sizeBytes, attachment);
         String availability = "metadata_only";
+        String payloadMode = "metadata_only";
+        String signal = "degrade_to_metadata";
         String hint = "llm_can_use_attachment_metadata";
         boolean visionCandidate = false;
         if ("image".equals(kind)) {
             if (!mime.startsWith("image/") || !IMAGE_MIME_ALLOWLIST.contains(mime)) {
                 availability = "blocked";
+                payloadMode = "reject_payload";
+                signal = "reject_unsupported_image";
                 hint = "image_mime_not_supported_for_vision";
             } else if (sizeBytes > MediaInputBoundaryService.MAX_IMAGE_BYTES) {
                 availability = "blocked";
+                payloadMode = "reject_payload";
+                signal = "reject_image_too_large";
                 hint = "image_too_large_for_vision";
             } else if (acceptedImageCount >= MediaInputBoundaryService.MAX_IMAGE_ATTACHMENTS) {
                 availability = "metadata_only";
+                payloadMode = "metadata_only";
+                signal = "degrade_image_limit";
                 hint = "image_limit_exceeded_for_vision";
             } else {
                 availability = "vision_payload_candidate";
+                payloadMode = "vision_payload";
+                signal = "accept_vision_payload";
                 hint = "image_may_be_sent_as_multimodal_payload";
                 visionCandidate = true;
             }
         } else if ("voice".equals(kind)) {
             if (StrUtil.isNotBlank(attachment == null ? null : attachment.getTranscribedText())) {
                 availability = "transcript_available";
+                payloadMode = "transcript_only";
+                signal = "degrade_to_transcript";
                 hint = "voice_transcript_injected";
             } else {
                 availability = "needs_transcription";
+                payloadMode = "await_transcription";
+                signal = "reject_until_transcribed";
                 hint = "voice_requires_speech_transcribe_before_llm_can_read_audio";
             }
         } else if ("video".equals(kind)) {
             availability = "metadata_only";
+            payloadMode = "metadata_only";
+            signal = "degrade_video_metadata";
             hint = "video_payload_not_sent_to_llm";
         }
-        return new AttachmentInsight(sizeBytes, estimatedTokens, availability, hint, visionCandidate);
+        return new AttachmentInsight(
+                sizeBytes,
+                estimatedTokens,
+                availability,
+                payloadMode,
+                signal,
+                hint,
+                visionCandidate);
     }
 
     private static int estimateTokens(String kind, long sizeBytes, MessageAttachment attachment) {
@@ -238,6 +276,8 @@ public final class MessageAttachmentSupport {
         private final long sizeBytes;
         private final int estimatedTokens;
         private final String availability;
+        private final String payloadMode;
+        private final String signal;
         private final String hint;
         private final boolean visionCandidate;
 
@@ -245,11 +285,15 @@ public final class MessageAttachmentSupport {
                 long sizeBytes,
                 int estimatedTokens,
                 String availability,
+                String payloadMode,
+                String signal,
                 String hint,
                 boolean visionCandidate) {
             this.sizeBytes = sizeBytes;
             this.estimatedTokens = estimatedTokens;
             this.availability = availability;
+            this.payloadMode = payloadMode;
+            this.signal = signal;
             this.hint = hint;
             this.visionCandidate = visionCandidate;
         }

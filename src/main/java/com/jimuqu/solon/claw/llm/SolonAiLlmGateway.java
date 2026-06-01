@@ -20,6 +20,8 @@ import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
@@ -103,6 +105,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final ToolCallLoopGuardrailService toolCallLoopGuardrailService;
     private final SecurityPolicyService securityPolicyService;
     private final MediaInputBoundaryService mediaInputBoundaryService;
+    private final ModelMetadataService modelMetadataService;
     private volatile PdfSkill pdfSkill;
     private HookBridgeInterceptor hookBridgeInterceptor;
 
@@ -192,6 +195,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                         ? new SecurityPolicyService(appConfig)
                         : securityPolicyService;
         this.mediaInputBoundaryService = new MediaInputBoundaryService(appConfig);
+        this.modelMetadataService = new ModelMetadataService(appConfig);
         if (this.dangerousCommandApprovalService != null) {
             this.dangerousCommandApprovalService.setSmartApprovalJudge(
                     new SolonAiSmartApprovalJudge());
@@ -447,7 +451,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     usageCollector,
                     runContext);
         }
-        ReActResponse response = callAgent(agent, agentSession, userMessage, resume, runContext);
+        ReActResponse response =
+                callAgent(agent, agentSession, userMessage, resume, resolved, runContext);
 
         AssistantMessage assistantMessage = response.getMessage();
         LlmResult result = new LlmResult();
@@ -467,7 +472,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private ReActResponse callAgent(
             ReActAgent agent, SqliteAgentSession agentSession, String userMessage, boolean resume)
             throws Exception {
-        return callAgent(agent, agentSession, userMessage, resume, null);
+        return callAgent(agent, agentSession, userMessage, resume, null, null);
     }
 
     private ReActResponse callAgent(
@@ -475,13 +480,14 @@ public class SolonAiLlmGateway implements LlmGateway {
             SqliteAgentSession agentSession,
             String userMessage,
             boolean resume,
+            AppConfig.LlmConfig resolved,
             AgentRunContext runContext)
             throws Exception {
         try {
             if (resume) {
                 return agent.prompt().session(agentSession).call();
             }
-            return agent.prompt(userPrompt(userMessage, runContext))
+            return agent.prompt(userPrompt(userMessage, runContext, resolved))
                     .session(agentSession)
                     .options(options -> options.toolContextPut("user_message", userMessage))
                     .call();
@@ -526,7 +532,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                         .blockLast();
             } else {
                 agent
-                        .prompt(userPrompt(userMessage, runContext))
+                        .prompt(userPrompt(userMessage, runContext, resolved))
                         .session(agentSession)
                         .options(options -> options.toolContextPut("user_message", userMessage))
                         .stream()
@@ -868,8 +874,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
     }
 
-    private Prompt userPrompt(String userMessage, AgentRunContext runContext) {
-        List<ContentBlock> blocks = userContentBlocks(userMessage, runContext);
+    private Prompt userPrompt(
+            String userMessage, AgentRunContext runContext, AppConfig.LlmConfig resolved) {
+        List<ContentBlock> blocks = userContentBlocks(userMessage, runContext, resolved);
         if (blocks.isEmpty()) {
             return Prompt.of(userMessage);
         }
@@ -879,7 +886,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         return Prompt.of(ChatMessage.ofUser(StrUtil.nullToEmpty(userMessage), blocks));
     }
 
-    private List<ContentBlock> userContentBlocks(String userMessage, AgentRunContext runContext) {
+    private List<ContentBlock> userContentBlocks(
+            String userMessage, AgentRunContext runContext, AppConfig.LlmConfig resolved) {
         List<MessageAttachment> attachments =
                 runContext == null
                         ? Collections.<MessageAttachment>emptyList()
@@ -887,9 +895,17 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (attachments.isEmpty()) {
             return Collections.emptyList();
         }
+        boolean providerSupportsVision = supportsVisionPayload(resolved);
+        if (!providerSupportsVision) {
+            return Collections.emptyList();
+        }
         List<ContentBlock> blocks = new ArrayList<ContentBlock>();
         for (MessageAttachment attachment : attachments) {
             if (blocks.size() >= mediaInputBoundaryService.maxImageAttachments()) {
+                continue;
+            }
+            if (!MessageAttachmentSupport.canSendAsVisionPayload(
+                    attachment, providerSupportsVision)) {
                 continue;
             }
             ImageBlock image = mediaInputBoundaryService.toImageBlock(attachment);
@@ -902,6 +918,23 @@ public class SolonAiLlmGateway implements LlmGateway {
 
     private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved) {
         return buildChatConfig(resolved, null);
+    }
+
+    private boolean supportsVisionPayload(AppConfig.LlmConfig resolved) {
+        if (resolved == null) {
+            return false;
+        }
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(resolved.getProvider());
+        AppConfig.ProviderConfig effective = new AppConfig.ProviderConfig();
+        if (provider != null) {
+            effective.setName(provider.getName());
+            effective.setBaseUrl(provider.getBaseUrl());
+            effective.setApiKey(provider.getApiKey());
+            effective.setSupportsVision(provider.getSupportsVision());
+        }
+        effective.setDialect(resolved.getDialect());
+        effective.setDefaultModel(resolved.getModel());
+        return modelMetadataService.resolve(resolved.getProvider(), effective).isSupportsVision();
     }
 
     private ChatConfig buildChatConfig(AppConfig.LlmConfig resolved, SessionRecord session) {

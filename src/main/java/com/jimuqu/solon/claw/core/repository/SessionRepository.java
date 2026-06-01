@@ -1,7 +1,12 @@
 package com.jimuqu.solon.claw.core.repository;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 /** 会话仓储接口。 */
 public interface SessionRepository {
@@ -46,6 +51,129 @@ public interface SessionRepository {
     /** 返回会话总数。 */
     int countAll() throws Exception;
 
+    /** 返回指定会话所在 lineage 的所有节点（祖先、当前节点、后代）。 */
+    default List<SessionRecord> listLineage(String sessionId) throws Exception {
+        SessionRecord root = findById(resolveRootSessionId(sessionId));
+        if (root == null) {
+            return Collections.emptyList();
+        }
+        int total = Math.max(countAll(), 1);
+        List<SessionRecord> records = listRecent(Math.min(Math.max(total, 200), 5000), 0);
+        Map<String, SessionRecord> byId = new LinkedHashMap<String, SessionRecord>();
+        for (SessionRecord record : records) {
+            if (record != null && record.getSessionId() != null) {
+                byId.put(record.getSessionId(), record);
+            }
+        }
+        if (!byId.containsKey(root.getSessionId())) {
+            byId.put(root.getSessionId(), root);
+        }
+
+        LinkedHashSet<String> selected = new LinkedHashSet<String>();
+        String cursor = root.getSessionId();
+        while (isNotBlank(cursor) && selected.add(cursor)) {
+            SessionRecord current = byId.get(cursor);
+            if (current == null) {
+                break;
+            }
+            cursor = current.getParentSessionId();
+        }
+
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (SessionRecord record : byId.values()) {
+                String parent = record.getParentSessionId();
+                if (isNotBlank(parent)
+                        && selected.contains(parent)
+                        && selected.add(record.getSessionId())) {
+                    changed = true;
+                }
+            }
+        }
+
+        List<SessionRecord> result = new ArrayList<SessionRecord>();
+        for (SessionRecord record : byId.values()) {
+            if (selected.contains(record.getSessionId())) {
+                result.add(record);
+            }
+        }
+        return result;
+    }
+
+    /** 返回指定会话沿最新子分支向下追踪到的最后一个节点。 */
+    default List<String> latestDescendantPath(String sessionId) throws Exception {
+        SessionRecord root = findById(sessionId);
+        if (root == null) {
+            return Collections.emptyList();
+        }
+        List<SessionRecord> records = listLineage(root.getSessionId());
+        Map<String, List<SessionRecord>> childrenByParent = new LinkedHashMap<String, List<SessionRecord>>();
+        for (SessionRecord record : records) {
+            String parent = record.getParentSessionId();
+            if (!isNotBlank(parent)) {
+                continue;
+            }
+            List<SessionRecord> children = childrenByParent.get(parent);
+            if (children == null) {
+                children = new ArrayList<SessionRecord>();
+                childrenByParent.put(parent, children);
+            }
+            children.add(record);
+        }
+
+        List<String> path = new ArrayList<String>();
+        String current = root.getSessionId();
+        path.add(current);
+        LinkedHashSet<String> seen = new LinkedHashSet<String>();
+        seen.add(current);
+
+        while (childrenByParent.containsKey(current)) {
+            List<SessionRecord> children = childrenByParent.get(current);
+            SessionRecord newest = null;
+            for (SessionRecord candidate : children) {
+                if (candidate == null || seen.contains(candidate.getSessionId())) {
+                    continue;
+                }
+                if (newest == null || candidate.getCreatedAt() > newest.getCreatedAt()) {
+                    newest = candidate;
+                }
+            }
+            if (newest == null) {
+                break;
+            }
+            current = newest.getSessionId();
+            path.add(current);
+            seen.add(current);
+        }
+        return path;
+    }
+
+    /** 解析 lineage 根会话 ID。 */
+    default String resolveRootSessionId(String sessionId) throws Exception {
+        SessionRecord root = resolveRootSession(sessionId);
+        return root == null ? sessionId : root.getSessionId();
+    }
+
+    /** 解析 lineage 根会话。 */
+    default SessionRecord resolveRootSession(String sessionId) throws Exception {
+        SessionRecord current = findById(sessionId);
+        if (current == null || !isNotBlank(current.getSessionId())) {
+            return null;
+        }
+        String currentId = current.getSessionId();
+        LinkedHashSet<String> visited = new LinkedHashSet<String>();
+        while (isNotBlank(current.getParentSessionId()) && visited.add(currentId)) {
+            SessionRecord parent = findById(current.getParentSessionId());
+            if (parent == null || !isNotBlank(parent.getSessionId())) {
+                break;
+            }
+            current = parent;
+            currentId = current.getSessionId();
+        }
+        return current;
+    }
+
     /** 删除指定会话。 */
     void delete(String sessionId) throws Exception;
 
@@ -70,4 +198,8 @@ public interface SessionRepository {
 
     /** 更新最近一次学习闭环执行时间，不覆盖会话正文或运行态字段。 */
     void setLastLearningAt(String sessionId, long lastLearningAt) throws Exception;
+
+    default boolean isNotBlank(String value) {
+        return value != null && value.trim().length() > 0;
+    }
 }

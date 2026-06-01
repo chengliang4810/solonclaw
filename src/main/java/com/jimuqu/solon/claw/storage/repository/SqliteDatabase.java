@@ -304,6 +304,8 @@ public class SqliteDatabase {
             }
             statement.execute(
                     "create index if not exists idx_sessions_source on sessions(source_key)");
+            statement.execute(
+                    "create index if not exists idx_sessions_parent on sessions(parent_session_id)");
             initSessionSearchIndex(statement);
             statement.execute(
                     "create table if not exists bindings ("
