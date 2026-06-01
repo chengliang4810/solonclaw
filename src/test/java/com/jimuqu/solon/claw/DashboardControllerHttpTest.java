@@ -133,6 +133,14 @@ public class DashboardControllerHttpTest {
         assertThat(authorizedDoctor.status).isEqualTo(200);
         assertThat(authorizedDoctor.body).contains("\"platforms\"");
 
+        HttpResult diagnosticsDoctor = request("GET", "/api/diagnostics/doctor", null, token);
+        assertThat(diagnosticsDoctor.status).isEqualTo(200);
+        assertThat(diagnosticsDoctor.body)
+                .contains("\"runtime_home\"")
+                .contains("\"model\"")
+                .contains("\"health_checks\"")
+                .contains("\"platforms\"");
+
         HttpResult login = request("GET", "/login", null, null);
         assertThat(login.status).isEqualTo(200);
         assertThat(login.body).contains("__APP_SESSION_TOKEN__");
