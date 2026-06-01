@@ -6,6 +6,8 @@ import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 /** Shared rough token estimator for context budget checks. */
 final class ContextTokenEstimator {
     private static final String DATA_URI_MARKER = "[inline-media]";
+    private static final String IMAGE_MARKER = "[image]";
+    private static final int IMAGE_ATTACHMENT_TOKEN_COST = 256;
 
     private ContextTokenEstimator() {}
 
@@ -21,7 +23,8 @@ final class ContextTokenEstimator {
         if (StrUtil.isBlank(content)) {
             return 0;
         }
-        String text = maskInlineDataUris(content);
+        ImageTokenEstimate imageEstimate = maskImagePlaceholders(maskInlineDataUris(content));
+        String text = imageEstimate.text;
         long asciiCount = 0L;
         long nonAsciiCount = 0L;
         for (int i = 0; i < text.length(); i++) {
@@ -39,7 +42,8 @@ final class ContextTokenEstimator {
                         : asciiCount / CompressionConstants.CHARS_PER_TOKEN;
         long estimated =
                 nonAsciiCount
-                        + (minimumAsciiToken ? Math.max(1L, asciiTokens) : asciiTokens);
+                        + (minimumAsciiToken ? Math.max(1L, asciiTokens) : asciiTokens)
+                        + imageEstimate.imageCount * IMAGE_ATTACHMENT_TOKEN_COST;
         return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(1, (int) estimated);
     }
 
@@ -76,6 +80,55 @@ final class ContextTokenEstimator {
         }
         buffer.append(content, scanFrom, content.length());
         return buffer.toString();
+    }
+
+    private static ImageTokenEstimate maskImagePlaceholders(String content) {
+        if (StrUtil.isBlank(content)) {
+            return new ImageTokenEstimate(content, 0);
+        }
+        StringBuilder buffer = new StringBuilder(content.length());
+        int imageCount = 0;
+        int scanFrom = 0;
+        while (scanFrom < content.length()) {
+            int marker = indexOfImageMarker(content, scanFrom);
+            if (marker < 0) {
+                buffer.append(content, scanFrom, content.length());
+                break;
+            }
+            buffer.append(content, scanFrom, marker).append(IMAGE_MARKER);
+            imageCount++;
+            int lineEnd = content.indexOf('\n', marker);
+            scanFrom = lineEnd < 0 ? content.length() : lineEnd;
+        }
+        if (imageCount == 0) {
+            return new ImageTokenEstimate(content, 0);
+        }
+        return new ImageTokenEstimate(buffer.toString(), imageCount);
+    }
+
+    private static int indexOfImageMarker(String content, int fromIndex) {
+        for (int i = fromIndex; i < content.length(); i++) {
+            if (startsWithIgnoreCase(content, i, "MEDIA:")) {
+                return i;
+            }
+            if (startsWithIgnoreCase(content, i, "ATTACHMENT:")) {
+                return i;
+            }
+            if (startsWithIgnoreCase(content, i, "image_url")) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static final class ImageTokenEstimate {
+        private final String text;
+        private final int imageCount;
+
+        private ImageTokenEstimate(String text, int imageCount) {
+            this.text = text;
+            this.imageCount = imageCount;
+        }
     }
 
     private static int indexOfDataUriPrefix(String content, int fromIndex) {
