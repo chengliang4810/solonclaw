@@ -121,6 +121,35 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldExpandInlineShellWhenSkillsConfigEnablesIt() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSkills().setInlineShell(true);
+        env.appConfig.getSkills().setInlineShellTimeoutSeconds(3);
+        env.localSkillService.createSkill(
+                "inline-shell-skill",
+                null,
+                "---\n"
+                        + "name: inline-shell-skill\n"
+                        + "description: inline shell\n"
+                        + "---\n\n"
+                        + "Expanded: !`printf inline-ok`\n"
+                        + "Session: ${SOLONCLAW_SESSION_ID}\n");
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:inline:user");
+        env.sessionRepository.bindNewSession("MEMORY:inline:user");
+
+        SkillView directView = env.localSkillService.viewSkill("inline-shell-skill", null);
+        String toolView = tools.skillView("inline-shell-skill", null);
+
+        assertThat(directView.getContent()).contains("Expanded: inline-ok");
+        assertThat(toolView).contains("Expanded: inline-ok");
+    }
+
+    @Test
     void shouldRegisterSkillDeclaredEnvironmentPassthroughOnSkillViewLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
@@ -19,6 +20,7 @@ import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
@@ -39,6 +42,11 @@ public class LocalSkillService implements SkillCatalogService {
     /** SKILL.md 中允许安全替换的模板变量。 */
     private static final Pattern SKILL_TEMPLATE_VARIABLE_PATTERN =
             Pattern.compile("\\$\\{(SOLONCLAW_SKILL_DIR|SOLONCLAW_SESSION_ID)\\}");
+
+    /** inline shell 片段，形如 !`date +%s`。 */
+    private static final Pattern INLINE_SHELL_PATTERN = Pattern.compile("!`([^`\\n]+)`");
+
+    private static final int INLINE_SHELL_MAX_OUTPUT = 4000;
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -286,6 +294,18 @@ public class LocalSkillService implements SkillCatalogService {
         if (StrUtil.isEmpty(content)) {
             return content;
         }
+        String processed = content;
+        if (appConfig.getSkills().isTemplateVars()) {
+            processed = substituteTemplateVars(processed, descriptor, sessionId);
+        }
+        if (appConfig.getSkills().isInlineShell()) {
+            processed = expandInlineShell(processed, descriptor);
+        }
+        return processed;
+    }
+
+    private String substituteTemplateVars(
+            String content, SkillDescriptor descriptor, String sessionId) {
         final String skillDir = canonicalSkillDir(descriptor);
         final String resolvedSessionId = StrUtil.blankToDefault(sessionId, null);
         Matcher matcher = SKILL_TEMPLATE_VARIABLE_PATTERN.matcher(content);
@@ -306,6 +326,73 @@ public class LocalSkillService implements SkillCatalogService {
         }
         matcher.appendTail(buffer);
         return buffer.toString();
+    }
+
+    private String expandInlineShell(String content, SkillDescriptor descriptor) {
+        if (!content.contains("!`")) {
+            return content;
+        }
+        Matcher matcher = INLINE_SHELL_PATTERN.matcher(content);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String command = StrUtil.nullToEmpty(matcher.group(1)).trim();
+            String replacement = command.length() == 0 ? "" : runInlineShell(command, descriptor);
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private String runInlineShell(String command, SkillDescriptor descriptor) {
+        int timeoutSeconds = Math.max(1, appConfig.getSkills().getInlineShellTimeoutSeconds());
+        Process process = null;
+        try {
+            process = new ProcessBuilder("bash", "-c", command)
+                    .directory(FileUtil.file(descriptor.getSkillDir()))
+                    .redirectErrorStream(false)
+                    .start();
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return "[inline-shell timeout after " + timeoutSeconds + "s: " + command + "]";
+            }
+            String stdout = streamText(process.getInputStream());
+            String stderr = streamText(process.getErrorStream());
+            String output = StrUtil.isNotBlank(stdout) ? stdout : stderr;
+            if (output.length() > INLINE_SHELL_MAX_OUTPUT) {
+                output = output.substring(0, INLINE_SHELL_MAX_OUTPUT) + "...[truncated]";
+            }
+            return output;
+        } catch (Exception e) {
+            return "[inline-shell error: "
+                    + SecretRedactor.redact(
+                            StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                            200)
+                    + "]";
+        } finally {
+            if (process != null) {
+                try {
+                    process.getInputStream().close();
+                } catch (Exception ignored) {
+                }
+                try {
+                    process.getErrorStream().close();
+                } catch (Exception ignored) {
+                }
+                try {
+                    process.getOutputStream().close();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    private String streamText(java.io.InputStream inputStream) throws Exception {
+        if (inputStream == null) {
+            return "";
+        }
+        byte[] bytes = IoUtil.readBytes(inputStream);
+        return StrUtil.nullToEmpty(new String(bytes, StandardCharsets.UTF_8)).replaceAll("\\r?\\n$", "");
     }
 
     private String canonicalSkillDir(SkillDescriptor descriptor) {
