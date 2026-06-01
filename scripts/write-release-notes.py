@@ -17,9 +17,6 @@ from guardlib import (
 )
 
 
-CHANGED_FILE_DISPLAY_LIMIT = 8
-
-
 @dataclass
 class CommitEntry:
     subject: str
@@ -85,19 +82,12 @@ def clean_commit_entries(items: list[CommitEntry], regex: re.Pattern[str]) -> tu
 
 def format_release_details(body: str, files: list[str]) -> str:
     body_lines = [line.strip() for line in re.split(r"\r?\n", body or "") if line.strip()]
-    if not body_lines and not files:
+    if not body_lines:
         return ""
 
-    formatted = ["  详情 / Details:" if body_lines else "  影响文件 / Changed files:"]
+    formatted = ["  详情 / Details:"]
     for line in body_lines:
         formatted.append("  - " + re.sub(r"^[-*]\s+", "", line))
-    if not body_lines:
-        shown_files = files[:CHANGED_FILE_DISPLAY_LIMIT]
-        for file_name in shown_files:
-            formatted.append("  - " + file_name)
-        remaining = len(files) - len(shown_files)
-        if remaining > 0:
-            formatted.append(f"  - 另有 {remaining} 个文件未展开。 / {remaining} more files omitted.")
     return "\n".join(formatted)
 
 
