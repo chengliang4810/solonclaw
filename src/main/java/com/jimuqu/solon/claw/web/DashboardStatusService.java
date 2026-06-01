@@ -195,7 +195,11 @@ public class DashboardStatusService {
         ModelMetadata metadata = currentModelMetadata(resolved);
         capabilities.put("supports_tools", true);
         capabilities.put("supports_vision", Boolean.valueOf(metadata.isSupportsVision()));
+        capabilities.put("supports_audio", Boolean.valueOf(metadata.isSupportsAudio()));
+        capabilities.put("supports_attachment", Boolean.valueOf(metadata.isSupportsAttachment()));
+        capabilities.put("supports_multimodal", Boolean.valueOf(metadata.isSupportsMultimodal()));
         capabilities.put("supports_reasoning", true);
+        capabilities.put("source", metadata.getSource());
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
         capabilities.put("max_output_tokens", appConfig.getLlm().getMaxTokens());
         capabilities.put("model_family", safeText(resolved.getDialect(), 80));

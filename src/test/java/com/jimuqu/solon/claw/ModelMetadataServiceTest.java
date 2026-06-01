@@ -174,6 +174,38 @@ public class ModelMetadataServiceTest {
     }
 
     @Test
+    void shouldExposeMultimodalAttachmentAndSourceCapabilityFlags() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("gemini-2.5-pro");
+        provider.setDialect("gemini");
+        provider.setBaseUrl("https://generativelanguage.googleapis.com/v1beta");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("gemini-main", provider);
+
+        assertThat(metadata.isSupportsVision()).isTrue();
+        assertThat(metadata.isSupportsAudio()).isTrue();
+        assertThat(metadata.isSupportsAttachment()).isTrue();
+        assertThat(metadata.isSupportsMultimodal()).isTrue();
+        assertThat(metadata.getSource()).isEqualTo("provider_config");
+    }
+
+    @Test
+    void shouldKeepTextOnlyUnknownModelsOutOfMultimodalFlags() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("custom/unknown-small-model");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsAudio()).isFalse();
+        assertThat(metadata.isSupportsAttachment()).isFalse();
+        assertThat(metadata.isSupportsMultimodal()).isFalse();
+        assertThat(metadata.getSource()).isEqualTo("static_inference");
+    }
+
+    @Test
     void shouldResolveJimuquModelCapabilitiesFromProviderConfig() {
         AppConfig config = new AppConfig();
         config.getModel().setProviderKey("anthropic-main");
@@ -192,8 +224,11 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.getMaxOutput()).isEqualTo(8192);
         assertThat(metadata.isSupportsTools()).isTrue();
         assertThat(metadata.isSupportsVision()).isTrue();
+        assertThat(metadata.isSupportsAttachment()).isTrue();
+        assertThat(metadata.isSupportsMultimodal()).isTrue();
         assertThat(metadata.isSupportsReasoning()).isTrue();
         assertThat(metadata.isSupportsPromptCache()).isTrue();
+        assertThat(metadata.getSource()).isEqualTo("static_inference");
         assertThat(metadata.isDefaultModel()).isTrue();
         assertThat(metadata.isSupported()).isTrue();
     }

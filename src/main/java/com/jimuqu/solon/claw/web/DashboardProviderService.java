@@ -166,9 +166,13 @@ public class DashboardProviderService {
         map.put("max_output", metadata.getMaxOutput());
         map.put("tool_calling", Boolean.valueOf(metadata.isSupportsTools()));
         map.put("vision", Boolean.valueOf(metadata.isSupportsVision()));
+        map.put("audio", Boolean.valueOf(metadata.isSupportsAudio()));
+        map.put("attachment", Boolean.valueOf(metadata.isSupportsAttachment()));
+        map.put("multimodal", Boolean.valueOf(metadata.isSupportsMultimodal()));
         map.put("streaming", Boolean.valueOf(metadata.isSupportsStreaming()));
         map.put("reasoning", Boolean.valueOf(metadata.isSupportsReasoning()));
         map.put("prompt_cache", Boolean.valueOf(metadata.isSupportsPromptCache()));
+        map.put("source", metadata.getSource());
         map.put("default_model", Boolean.valueOf(metadata.isDefaultModel()));
         map.put("supported", Boolean.valueOf(metadata.isSupported()));
         return map;
