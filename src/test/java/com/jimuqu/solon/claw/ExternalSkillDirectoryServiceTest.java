@@ -96,6 +96,11 @@ public class ExternalSkillDirectoryServiceTest {
         File tempDir = Files.createTempDirectory("ext-skill-status").toFile();
         File extDir = new File(tempDir, "skills-ext");
         extDir.mkdirs();
+        File skillDir = new File(extDir, "summary-skill");
+        skillDir.mkdirs();
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
+                "# Summary".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
@@ -107,7 +112,99 @@ public class ExternalSkillDirectoryServiceTest {
 
         assertThat(status).containsKey("directories");
         assertThat(status).containsKey("totalDirs");
+        assertThat(status).containsKey("configuredDirs");
+        assertThat(status).containsKey("normalizedDirs");
+        assertThat(status).containsKey("duplicateDirs");
+        assertThat(status).containsKey("cacheHit");
         assertThat(((Number) status.get("totalDirs")).intValue()).isEqualTo(1);
+        assertThat(((Number) status.get("configuredDirs")).intValue()).isEqualTo(1);
+        assertThat(((Number) status.get("normalizedDirs")).intValue()).isEqualTo(1);
+        assertThat(((Number) status.get("duplicateDirs")).intValue()).isEqualTo(0);
+        assertThat(status.get("cacheHit")).isEqualTo(Boolean.TRUE);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> directories = (List<Map<String, Object>>) status.get("directories");
+        assertThat(directories).hasSize(1);
+        assertThat(directories.get(0).get("path")).isEqualTo(directories.get(0).get("normalizedPath"));
+        assertThat(directories.get(0).get("configuredPath")).isEqualTo(extDir.getAbsolutePath());
+        assertThat(directories.get(0).get("normalizedPath")).isEqualTo(service.getExternalDirs().get(0).getAbsolutePath());
+        assertThat(directories.get(0).get("included")).isEqualTo(Boolean.TRUE);
+        assertThat(directories.get(0).get("duplicate")).isEqualTo(Boolean.FALSE);
+        assertThat(directories.get(0).get("local")).isEqualTo(Boolean.FALSE);
+        assertThat(directories.get(0).get("skillCount")).isEqualTo(Integer.valueOf(1));
+    }
+
+    @Test
+    void shouldExposeNormalizedSummaryForDuplicateAndLocalRoots() throws Exception {
+        File tempDir = Files.createTempDirectory("ext-skill-status-summary").toFile();
+        File localDir = new File(tempDir, "skills");
+        File extDir = new File(tempDir, "skills-ext");
+        localDir.mkdirs();
+        extDir.mkdirs();
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+        config.getSkills()
+                .setExternalDirs(
+                        Arrays.asList(
+                                config.getRuntime().getSkillsDir(),
+                                extDir.getAbsolutePath(),
+                                new File(tempDir, "skills-ext/../skills-ext").getPath()));
+
+        ExternalSkillDirectoryService service = new ExternalSkillDirectoryService(config);
+        Map<String, Object> status = service.status();
+
+        assertThat(((Number) status.get("totalDirs")).intValue()).isEqualTo(1);
+        assertThat(((Number) status.get("configuredDirs")).intValue()).isEqualTo(3);
+        assertThat(((Number) status.get("normalizedDirs")).intValue()).isEqualTo(1);
+        assertThat(((Number) status.get("duplicateDirs")).intValue()).isEqualTo(1);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> directories = (List<Map<String, Object>>) status.get("directories");
+        assertThat(directories).hasSize(3);
+        assertThat(directories.get(0).get("local")).isEqualTo(Boolean.TRUE);
+        assertThat(directories.get(0).get("included")).isEqualTo(Boolean.FALSE);
+        assertThat(directories.get(1).get("duplicate")).isEqualTo(Boolean.FALSE);
+        assertThat(directories.get(1).get("included")).isEqualTo(Boolean.TRUE);
+        assertThat(directories.get(2).get("duplicate")).isEqualTo(Boolean.TRUE);
+        assertThat(directories.get(2).get("included")).isEqualTo(Boolean.FALSE);
+        assertThat(directories.get(1).get("normalizedPath")).isEqualTo(directories.get(2).get("normalizedPath"));
+        assertThat(directories.get(1).get("normalizedPath")).isEqualTo(service.getExternalDirs().get(0).getAbsolutePath());
+    }
+
+    @Test
+    void shouldReuseCachedScanResultWhenDirectoryStateUnchanged() throws Exception {
+        File tempDir = Files.createTempDirectory("ext-skill-cache").toFile();
+        File extDir = new File(tempDir, "external-skills");
+        extDir.mkdirs();
+
+        File skillDir = new File(extDir, "cached-skill");
+        skillDir.mkdirs();
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
+                "# Cached Skill".getBytes(StandardCharsets.UTF_8));
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.skills.externalDirs", extDir.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+
+        ExternalSkillDirectoryService service = new ExternalSkillDirectoryService(config);
+        List<SkillDescriptor> firstScan = service.scanExternalSkills();
+        List<SkillDescriptor> secondScan = service.scanExternalSkills();
+
+        assertThat(firstScan).hasSize(1);
+        assertThat(secondScan).hasSize(1);
+        assertThat(firstScan).isNotSameAs(secondScan);
+        assertThat(firstScan.get(0)).isSameAs(secondScan.get(0));
+
+        Map<String, Object> firstStatus = service.status();
+        Map<String, Object> secondStatus = service.status();
+
+        assertThat(firstStatus.get("cacheHit")).isEqualTo(Boolean.TRUE);
+        assertThat(secondStatus.get("cacheHit")).isEqualTo(Boolean.TRUE);
+        assertThat(firstStatus.get("directories")).isEqualTo(secondStatus.get("directories"));
     }
 
     @Test

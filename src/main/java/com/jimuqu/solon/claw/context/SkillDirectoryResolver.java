@@ -16,6 +16,41 @@ public class SkillDirectoryResolver {
     private final File runtimeHome;
     private final File skillsDir;
 
+    public static final class ExternalSkillDirectorySummary {
+        private final String configuredPath;
+        private final File directory;
+        private final boolean local;
+        private final boolean duplicate;
+
+        public ExternalSkillDirectorySummary(
+                String configuredPath, File directory, boolean local, boolean duplicate) {
+            this.configuredPath = configuredPath;
+            this.directory = directory;
+            this.local = local;
+            this.duplicate = duplicate;
+        }
+
+        public String getConfiguredPath() {
+            return configuredPath;
+        }
+
+        public File getDirectory() {
+            return directory;
+        }
+
+        public String getNormalizedPath() {
+            return directory.getAbsolutePath();
+        }
+
+        public boolean isLocal() {
+            return local;
+        }
+
+        public boolean isDuplicate() {
+            return duplicate;
+        }
+    }
+
     public SkillDirectoryResolver(AppConfig appConfig) {
         this.appConfig = appConfig;
         String home =
@@ -44,6 +79,21 @@ public class SkillDirectoryResolver {
     }
 
     public List<File> externalSkillsDirs() {
+        List<ExternalSkillDirectorySummary> summaries = externalSkillDirSummaries();
+        if (summaries.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<File> dirs = new ArrayList<File>();
+        for (ExternalSkillDirectorySummary summary : summaries) {
+            File dir = summary.getDirectory();
+            if (!summary.isLocal() && !summary.isDuplicate() && dir.isDirectory()) {
+                dirs.add(dir);
+            }
+        }
+        return dirs;
+    }
+
+    public List<ExternalSkillDirectorySummary> externalSkillDirSummaries() {
         List<String> configured =
                 appConfig == null || appConfig.getSkills() == null
                         ? Collections.<String>emptyList()
@@ -51,7 +101,8 @@ public class SkillDirectoryResolver {
         if (configured == null || configured.isEmpty()) {
             return Collections.emptyList();
         }
-        List<File> dirs = new ArrayList<File>();
+        List<ExternalSkillDirectorySummary> summaries =
+                new ArrayList<ExternalSkillDirectorySummary>();
         Map<String, Boolean> seen = new LinkedHashMap<String, Boolean>();
         File localSkills = canonicalOrAbsolute(skillsDir);
         for (String entry : configured) {
@@ -60,20 +111,15 @@ public class SkillDirectoryResolver {
                 continue;
             }
             File resolved = canonicalOrAbsolute(resolveExternalSkillsDir(text));
-            if (!resolved.isDirectory()) {
-                continue;
-            }
-            if (isSameFile(resolved, localSkills)) {
-                continue;
-            }
             String key = resolved.getAbsolutePath();
-            if (seen.containsKey(key)) {
-                continue;
+            boolean duplicate = seen.containsKey(key);
+            boolean local = isSameFile(resolved, localSkills);
+            summaries.add(new ExternalSkillDirectorySummary(text, resolved, local, duplicate));
+            if (!duplicate) {
+                seen.put(key, Boolean.TRUE);
             }
-            seen.put(key, Boolean.TRUE);
-            dirs.add(resolved);
         }
-        return dirs;
+        return summaries;
     }
 
     private File resolveExternalSkillsDir(String rawPath) {
