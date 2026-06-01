@@ -101,6 +101,43 @@ class TuiGatewayProtocolTest {
         }
     }
 
+    @Test
+    void shouldReturnMostRecentHumanTuiSession() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            Map<String, Object> payload =
+                    sessionMostRecent(
+                            service,
+                            Arrays.asList(
+                                    session("child", "MEMORY:room:user:delegate:abc123"),
+                                    session("human", "MEMORY:room:user")));
+
+            assertThat(payload)
+                    .containsEntry("session_id", "human")
+                    .containsEntry("title", "human")
+                    .containsEntry("source_key", "MEMORY:room:user");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void shouldReturnNullMostRecentWhenOnlyDelegateSessionsExist() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            Map<String, Object> payload =
+                    sessionMostRecent(
+                            service,
+                            Arrays.asList(session("child", "MEMORY:room:user:delegate:abc123")));
+
+            assertThat(payload).containsEntry("session_id", null);
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
             throws Exception {
@@ -123,6 +160,14 @@ class TuiGatewayProtocolTest {
         Method method = TuiGatewayService.class.getDeclaredMethod("filterHumanSessions", List.class);
         method.setAccessible(true);
         return (List<SessionRecord>) method.invoke(service, records);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sessionMostRecent(
+            TuiGatewayService service, List<SessionRecord> records) throws Exception {
+        Method method = TuiGatewayService.class.getDeclaredMethod("sessionMostRecent", List.class);
+        method.setAccessible(true);
+        return (Map<String, Object>) method.invoke(service, records);
     }
 
     private SessionRecord session(String id, String sourceKey) {

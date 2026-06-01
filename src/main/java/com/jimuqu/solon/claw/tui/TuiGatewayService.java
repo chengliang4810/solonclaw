@@ -162,6 +162,8 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.list".equals(method)) {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), listSessions());
+            } else if ("session.most_recent".equals(method)) {
+                connection.sendResult(envelope.getId(), connection.getActiveSessionId(), mostRecentSession());
             } else if ("session.delete".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), deleteSession(envelope.getSessionId()));
             } else if ("session.branch".equals(method)) {
@@ -308,6 +310,38 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         result.put("sessions", items);
         result.put("limit", Integer.valueOf(MAX_SESSION_LIST));
         return result;
+    }
+
+    private Map<String, Object> mostRecentSession() {
+        if (sessionRepository == null) {
+            return nullMostRecentSession();
+        }
+        try {
+            return sessionMostRecent(sessionRepository.listRecent(MAX_SESSION_LIST * 2, 0));
+        } catch (Exception e) {
+            return nullMostRecentSession();
+        }
+    }
+
+    private Map<String, Object> sessionMostRecent(List<SessionRecord> records) {
+        List<SessionRecord> filtered = filterHumanSessions(records);
+        if (filtered.isEmpty()) {
+            return nullMostRecentSession();
+        }
+        SessionRecord record = filtered.get(0);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("session_id", safe(record.getSessionId(), 120));
+        payload.put("title", safe(record.getTitle(), 400));
+        payload.put("started_at", Long.valueOf(record.getCreatedAt()));
+        payload.put("last_active", Long.valueOf(record.getUpdatedAt()));
+        payload.put("source_key", safe(record.getSourceKey(), 400));
+        return payload;
+    }
+
+    private Map<String, Object> nullMostRecentSession() {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("session_id", null);
+        return payload;
     }
 
     private List<SessionRecord> filterHumanSessions(List<SessionRecord> records) {
