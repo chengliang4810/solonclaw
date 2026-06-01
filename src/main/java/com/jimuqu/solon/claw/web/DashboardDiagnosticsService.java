@@ -1498,6 +1498,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "secretSubstringCount");
             copyPolicyValue(summary, safe, "providerBlocklistCount");
             copyPolicyValue(summary, safe, "configuredPassthroughCount");
+            copyPolicyValue(summary, safe, "decisionProbeSupported");
+            copyPolicyValue(summary, safe, "decisionProbeValueRedacted");
+            copyPolicyValue(summary, safe, "decisionCategories");
             copyPolicyValue(summary, safe, "skillScopedPassthroughSupported");
             copyPolicyValue(summary, safe, "skillScopedPassthroughThreadLocal");
             copyPolicyValue(summary, safe, "providerBlocklistOverridesPassthrough");
@@ -2040,6 +2043,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "available");
             copyPolicyValue(summary, safe, "timeoutSeconds");
             copyPolicyValue(summary, safe, "failOpen");
+            copyPolicyValue(summary, safe, "scannerState");
+            copyPolicyValue(summary, safe, "failureMode");
+            copyPolicyValue(summary, safe, "failureBehavior");
             copyPolicyValue(summary, safe, "actions");
             copyPolicyValue(summary, safe, "warnRequiresApproval");
             copyPolicyValue(summary, safe, "blockRequiresApproval");
@@ -2058,9 +2064,24 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "findingLimit");
             copyPolicyValue(summary, safe, "summaryLimit");
             copyPolicyValue(summary, safe, "secretRedaction");
+            copyPolicyValue(summary, safe, "redactedSummaryFields");
+            copyPolicyValue(summary, safe, "rawConfiguredPathExposed");
+            copyPolicyValue(summary, safe, "rawResolvedPathExposed");
+            copyPolicyValue(summary, safe, "rawFindingsExposed");
             copyPolicyValue(summary, safe, "shellDetection");
             copyPolicyValue(summary, safe, "failOpenMode");
             return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeTirithDiagnostic() {
+        if (tirithSecurityService == null) {
+            return unavailablePolicy("tirith security service is unavailable");
+        }
+        try {
+            return tirithSecurityService.diagnose().toMap();
         } catch (Exception e) {
             return unavailablePolicy(e);
         }
@@ -2210,6 +2231,9 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(security, safe, "tirithTimeoutSeconds");
         copyPolicyValue(security, safe, "tirithFailOpen");
         copyPolicyValue(security, safe, "tirithAvailable");
+        if (security.get("tirithDiagnostic") instanceof Map) {
+            safe.put("tirithDiagnostic", safeTirithDiagnostic());
+        }
         if (security.get("tirithPolicy") instanceof Map) {
             safe.put("tirithPolicy", safeTirithPolicySummary());
         }
@@ -6006,9 +6030,13 @@ public class DashboardDiagnosticsService {
         env.put("HOME", "/home/dashboard");
         env.put("OPENAI_API_KEY", "sk-dashboard-probe-secret");
         env.put("FEISHU_APP_SECRET", "dashboard-feishu-secret");
+        env.put("TENOR_API_KEY", "dashboard-third-party-secret");
+        env.put("CUSTOM_TOKEN", "dashboard-custom-token");
         env.put("MY_UNKNOWN_ENV", "drop-me");
         env.put(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN", "keep-me");
         try {
+            List<Map<String, Object>> decisions =
+                    SubprocessEnvironmentSanitizer.probeDecisions(env, appConfig);
             SubprocessEnvironmentSanitizer.sanitize(env, appConfig);
             boolean allowed =
                     env.containsKey("PATH")
@@ -6018,14 +6046,19 @@ public class DashboardDiagnosticsService {
                             && !env.containsKey("FEISHU_APP_SECRET")
                             && !env.containsKey("MY_UNKNOWN_ENV")
                             && !env.containsKey(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN");
-            return policyProbeItem(
-                    key,
-                    label,
-                    "subprocess_environment",
-                    true,
-                    allowed,
-                    "PATH, HOME, provider secret, channel secret, unknown env, force prefix",
-                    allowed ? "子进程环境已保留安全变量、剔除敏感变量并应用显式放行前缀。" : "子进程环境净化结果不完整。");
+            Map<String, Object> item =
+                    policyProbeItem(
+                            key,
+                            label,
+                            "subprocess_environment",
+                            true,
+                            allowed,
+                            "PATH, HOME, provider secret, channel secret, unknown env, force prefix",
+                            allowed
+                                    ? "子进程环境已保留安全变量、剔除敏感变量并应用显式放行前缀。"
+                                    : "子进程环境净化结果不完整。");
+            item.put("decisions", decisions);
+            return item;
         } catch (Exception e) {
             return policyProbeItem(
                     key,
