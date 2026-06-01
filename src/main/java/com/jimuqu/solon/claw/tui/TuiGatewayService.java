@@ -65,6 +65,7 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             new ConcurrentHashMap<String, TuiSessionState>();
     private final ConcurrentMap<String, TuiConnection> connections =
             new ConcurrentHashMap<String, TuiConnection>();
+    private final List<String> connectionOrder = Collections.synchronizedList(new ArrayList<String>());
     private final AtomicLong fallbackSeq = new AtomicLong(System.currentTimeMillis() * 1000L);
 
     public TuiGatewayService(
@@ -109,6 +110,10 @@ public class TuiGatewayService implements TuiGatewayEventSink {
 
     public void onOpen(TuiConnection connection) {
         connections.put(connection.id(), connection);
+        synchronized (connectionOrder) {
+            connectionOrder.remove(connection.id());
+            connectionOrder.add(connection.id());
+        }
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("connection_id", safe(connection.id(), 120));
         payload.put("commands", TerminalCommandCatalog.slashCommands());
@@ -127,6 +132,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
     public void onClose(TuiConnection connection) {
         if (connection != null) {
             connections.remove(connection.id());
+            synchronized (connectionOrder) {
+                connectionOrder.remove(connection.id());
+            }
         }
     }
 
@@ -165,6 +173,8 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), listSessions());
             } else if ("session.most_recent".equals(method)) {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), mostRecentSession());
+            } else if ("session.active_list".equals(method)) {
+                connection.sendResult(envelope.getId(), connection.getActiveSessionId(), activeList(connection, envelope));
             } else if ("session.status".equals(method)) {
                 Map<String, Object> result = sessionStatus(connection, envelope);
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
@@ -350,6 +360,89 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("session_id", null);
         return payload;
+    }
+
+    private Map<String, Object> activeList(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String currentSessionId =
+                StrUtil.blankToDefault(
+                        textParam(envelope, "current_session_id", ""),
+                        connection == null ? "" : connection.getActiveSessionId());
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        List<String> seenSessionIds = new ArrayList<String>();
+        for (String connectionId : activeConnectionIds()) {
+            TuiConnection candidate = connections.get(connectionId);
+            if (candidate == null || StrUtil.isBlank(candidate.getActiveSessionId())) {
+                continue;
+            }
+            String sessionId = candidate.getActiveSessionId();
+            if (seenSessionIds.contains(sessionId)) {
+                continue;
+            }
+            seenSessionIds.add(sessionId);
+            items.add(activeSessionItem(sessionId, currentSessionId));
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("sessions", items);
+        return result;
+    }
+
+    private List<String> activeConnectionIds() {
+        synchronized (connectionOrder) {
+            return new ArrayList<String>(connectionOrder);
+        }
+    }
+
+    private Map<String, Object> activeSessionItem(String sessionId, String currentSessionId)
+            throws Exception {
+        SessionRecord record = findSessionQuietly(sessionId);
+        Map<String, Object> payload =
+                record == null ? fallbackActiveSessionPayload(sessionId) : sessionPayload(record);
+        TuiSessionState state = state(sessionId);
+        payload.put("session_id", safe(sessionId, 120));
+        payload.put("id", safe(sessionId, 120));
+        payload.put("current", Boolean.valueOf(StrUtil.equals(sessionId, currentSessionId)));
+        payload.put("running", Boolean.valueOf(state.running));
+        payload.put("queued_count", Integer.valueOf(state.queue.size()));
+        payload.put("status", activeSessionStatus(state));
+        return payload;
+    }
+
+    private SessionRecord findSessionQuietly(String sessionId) {
+        if (sessionRepository == null || StrUtil.isBlank(sessionId)) {
+            return null;
+        }
+        try {
+            return sessionRepository.findById(sessionId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Map<String, Object> fallbackActiveSessionPayload(String sessionId) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("session_id", safe(sessionId, 120));
+        payload.put("id", safe(sessionId, 120));
+        payload.put("title", safe(sessionId, 400));
+        payload.put("branch_name", "main");
+        payload.put("parent_session_id", "");
+        payload.put("model", "");
+        payload.put("provider", "");
+        payload.put("message_count", Integer.valueOf(0));
+        payload.put("total_tokens", Long.valueOf(0L));
+        long now = System.currentTimeMillis();
+        payload.put("last_active", Long.valueOf(now));
+        payload.put("started_at", Long.valueOf(now));
+        payload.put("preview", "");
+        payload.put("client_contract", Integer.valueOf(CLIENT_CONTRACT));
+        return payload;
+    }
+
+    private String activeSessionStatus(TuiSessionState state) {
+        if (state != null && state.running) {
+            return "working";
+        }
+        return "idle";
     }
 
     private List<SessionRecord> filterHumanSessions(List<SessionRecord> records) {
