@@ -343,13 +343,54 @@ public class DashboardDiagnosticsService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("success", Boolean.TRUE);
         result.put("surface", "subprocess_environment");
-        result.put("summary", requestedNames.isEmpty() ? "未提供环境变量名。" : "已返回子进程环境变量 probe 决策。");
+        result.put("summary", subprocessEnvironmentProbeSummary(requestedNames, decisions));
         result.put("requested_count", Integer.valueOf(requestedNames.size()));
         result.put("requested_names", redactedTextList(requestedNames, 120));
         result.put("decision_categories", SubprocessEnvironmentSanitizer.decisionCategories());
         result.put("decisions", decisions);
         result.put("policy", safeSubprocessEnvironmentPolicySummary());
         return result;
+    }
+
+    private String subprocessEnvironmentProbeSummary(
+            List<String> requestedNames, List<Map<String, Object>> decisions) {
+        if (requestedNames == null || requestedNames.isEmpty()) {
+            return "未提供环境变量名。";
+        }
+        int allowCount = 0;
+        int blockedCount = 0;
+        int redactedCount = 0;
+        int hiddenCount = 0;
+        int forceCount = 0;
+        for (Map<String, Object> decision : decisions) {
+            String decisionValue = text(decision, "decision");
+            String visibilityValue = text(decision, "visibility");
+            if ("force".equals(decisionValue)) {
+                forceCount++;
+            }
+            if ("allow".equals(decisionValue) || "force".equals(decisionValue)) {
+                allowCount++;
+            } else {
+                blockedCount++;
+            }
+            if ("redacted".equals(visibilityValue)) {
+                redactedCount++;
+            } else if ("hidden".equals(visibilityValue)) {
+                hiddenCount++;
+            }
+        }
+        return "已返回子进程环境变量 probe 决策："
+                + "allow="
+                + allowCount
+                + " blocked="
+                + blockedCount
+                + " force="
+                + forceCount
+                + " redacted="
+                + redactedCount
+                + " hidden="
+                + hiddenCount
+                + "。";
     }
 
     public Map<String, Object> pendingApprovals(int limit) throws Exception {
@@ -1580,6 +1621,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "configuredPassthroughCount");
             copyPolicyValue(summary, safe, "decisionProbeSupported");
             copyPolicyValue(summary, safe, "decisionProbeValueRedacted");
+            copyPolicyValue(summary, safe, "decisionProbeEffectiveNameSupported");
+            copyPolicyValue(summary, safe, "decisionProbeVisibilitySupported");
+            copyPolicyValue(summary, safe, "decisionProbeSourceSupported");
             copyPolicyValue(summary, safe, "decisionCategories");
             copyPolicyValue(summary, safe, "skillScopedPassthroughSupported");
             copyPolicyValue(summary, safe, "skillScopedPassthroughThreadLocal");

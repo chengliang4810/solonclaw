@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,8 +28,29 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(summary.get("forcePrefix")).isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
         assertThat(summary.get("decisionProbeSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("decisionProbeValueRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("decisionProbeEffectiveNameSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("decisionProbeVisibilitySupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("decisionProbeSourceSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("decisionCategories"))
-                .isEqualTo(Arrays.asList("force", "allow", "provider-blocked", "high-risk", "block"));
+                .isEqualTo(
+                        Arrays.<Map<String, Object>>asList(
+                                category("decision", "force"),
+                                category("decision", "allow"),
+                                category("decision", "provider-blocked"),
+                                category("decision", "high-risk"),
+                                category("decision", "block"),
+                                category("visibility", "visible"),
+                                category("visibility", "redacted"),
+                                category("visibility", "hidden"),
+                                category("source", "force-prefix"),
+                                category("source", "configured-or-skill-passthrough"),
+                                category("source", "safe-prefix-or-context"),
+                                category("source", "provider-blocklist-overrides-passthrough"),
+                                category("source", "provider-blocklist"),
+                                category("source", "secret-name-substring"),
+                                category("source", "high-risk-runtime-name"),
+                                category("source", "default-deny-unknown"),
+                                category("source", "invalid-env-name")));
         assertThat(String.valueOf(summary))
                 .contains("skillScopedPassthroughSupported")
                 .contains("toolBackendSecretsBlocked")
@@ -57,30 +79,48 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(decisions.get("PATH"))
                 .containsEntry("decision", "allow")
                 .containsEntry("reason", "safe-prefix-or-context")
+                .containsEntry("source", "safe-prefix-or-context")
+                .containsEntry("visibility", "visible")
+                .containsEntry("effectiveName", "PATH")
                 .containsEntry("allowed", Boolean.TRUE);
         assertThat(decisions.get("TENOR_API_KEY"))
                 .containsEntry("decision", "allow")
                 .containsEntry("reason", "configured-or-skill-passthrough")
+                .containsEntry("source", "configured-or-skill-passthrough")
+                .containsEntry("visibility", "visible")
                 .containsEntry("configuredPassthrough", Boolean.TRUE);
         assertThat(decisions.get("OPENAI_API_KEY"))
                 .containsEntry("decision", "provider-blocked")
                 .containsEntry("reason", "provider-blocklist-overrides-passthrough")
+                .containsEntry("source", "provider-blocklist-overrides-passthrough")
+                .containsEntry("visibility", "redacted")
+                .containsEntry("effectiveName", "OPENAI_API_KEY")
                 .containsEntry("providerBlocked", Boolean.TRUE);
         assertThat(decisions.get("CUSTOM_TOKEN"))
                 .containsEntry("decision", "high-risk")
                 .containsEntry("reason", "secret-name-substring")
+                .containsEntry("source", "secret-name-substring")
+                .containsEntry("visibility", "redacted")
                 .containsEntry("highRisk", Boolean.TRUE);
         assertThat(decisions.get("MY_UNKNOWN_ENV"))
                 .containsEntry("decision", "block")
                 .containsEntry("reason", "default-deny-unknown")
+                .containsEntry("source", "default-deny-unknown")
+                .containsEntry("visibility", "redacted")
                 .containsEntry("blocked", Boolean.TRUE);
         assertThat(decisions.get(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN"))
                 .containsEntry("decision", "force")
                 .containsEntry("reason", "force-prefix")
+                .containsEntry("source", "force-prefix")
+                .containsEntry("visibility", "visible")
+                .containsEntry("effectiveName", "CUSTOM_TOKEN")
                 .containsEntry("outputName", "CUSTOM_TOKEN");
         assertThat(decisions.get("BAD-NAME"))
                 .containsEntry("decision", "block")
                 .containsEntry("reason", "invalid-env-name")
+                .containsEntry("source", "invalid-env-name")
+                .containsEntry("visibility", "hidden")
+                .containsEntry("effectiveName", "")
                 .containsEntry("validName", Boolean.FALSE);
         assertThat(String.valueOf(decisions))
                 .doesNotContain("tenor-secret")
@@ -100,12 +140,63 @@ public class SubprocessEnvironmentSanitizerTest {
             assertThat(decision)
                     .containsEntry("decision", "allow")
                     .containsEntry("reason", "configured-or-skill-passthrough")
+                    .containsEntry("source", "configured-or-skill-passthrough")
+                    .containsEntry("visibility", "visible")
                     .containsEntry("configuredPassthrough", Boolean.TRUE)
                     .containsEntry("highRisk", Boolean.TRUE)
                     .containsEntry("valueIncluded", Boolean.FALSE);
         } finally {
             scope.close();
         }
+    }
+
+    @Test
+    void shouldMatchDashboardProbeSummaryAndDecisionCategories() {
+        AppConfig config = new AppConfig();
+        config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
+        config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put(
+                "names",
+                Arrays.asList(
+                        "PATH",
+                        "TENOR_API_KEY",
+                        "OPENAI_API_KEY",
+                        SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN",
+                        "BAD-NAME"));
+
+        Map<String, Object> result = diagnosticsService.subprocessEnvironmentProbe(body);
+
+        assertThat(result.get("summary"))
+                .isEqualTo("已返回子进程环境变量 probe 决策：allow=3 blocked=2 force=1 redacted=1 hidden=1。");
+        assertThat(String.valueOf(result.get("decision_categories")))
+                .contains("dimension=decision")
+                .contains("dimension=visibility")
+                .contains("dimension=source")
+                .contains("value=force")
+                .contains("value=redacted")
+                .contains("value=invalid-env-name");
+    }
+
+    private static Map<String, Object> category(String dimension, String value) {
+        Map<String, Object> category = new LinkedHashMap<String, Object>();
+        category.put("dimension", dimension);
+        category.put("value", value);
+        return category;
     }
 
     private Map<String, Map<String, Object>> decisionsByName(List<Map<String, Object>> decisions) {
