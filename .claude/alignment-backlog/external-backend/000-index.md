@@ -10,10 +10,11 @@
 
 ## 推荐首批并行开发
 
-1. [003-tool-result-persistence-artifacts](003-tool-result-persistence-artifacts.md) — 对齐工具结果持久化与 artifacts
-2. [007-cron-prompt-ingestion-validation](007-cron-prompt-ingestion-validation.md) — 强化 Cron prompt 写入校验
-3. [009-dashboard-doctor-output](009-dashboard-doctor-output.md) — 对齐 Dashboard doctor 后端输出
-4. [012-usage-pricing-canonical-buckets](012-usage-pricing-canonical-buckets.md) — 归一化 usage 与 pricing token buckets
+1. [023-health-detailed-runtime](023-health-detailed-runtime.md) — 扩展 `/health` 详细运行时视图
+2. [024-env-probe-granularity](024-env-probe-granularity.md) — 细化子进程环境探针分级输出
+3. [025-skill-external-dir-cache-and-normalization](025-skill-external-dir-cache-and-normalization.md) — 外部技能目录缓存与归一去重
+4. [026-model-metadata-modalities-and-provenance](026-model-metadata-modalities-and-provenance.md) — 扩展模型元数据模态与来源字段
+5. [027-context-estimator-image-cost](027-context-estimator-image-cost.md) — 为图片输入补粗略 token 成本估算
 
 ## 高优先级候选
 
@@ -29,6 +30,16 @@
 - [010-config-write-reveal-safety](010-config-write-reveal-safety.md) — 对齐 外部对标配置写入与 reveal 安全
 - [011-model-metadata-capability-flags](011-model-metadata-capability-flags.md) — 扩展模型元数据能力标记
 - [012-usage-pricing-canonical-buckets](012-usage-pricing-canonical-buckets.md) — 归一化 usage 与 pricing token buckets
+- [028-config-drift-diagnostics](028-config-drift-diagnostics.md) — 增加配置漂移与未知字段诊断
+- [029-runtime-refresh-failure-record](029-runtime-refresh-failure-record.md) — 记录 runtime config refresh 最近失败
+- [030-browser-automation-doctor](030-browser-automation-doctor.md) — 增加浏览器自动化 doctor 依赖探测
+- [031-doctor-issue-summary](031-doctor-issue-summary.md) — 汇总 doctor issues 与 next actions
+- [032-approval-timeout-denied-outcome](032-approval-timeout-denied-outcome.md) — 结构化审批超时与拒绝结果
+- [033-approval-context-session-isolation](033-approval-context-session-isolation.md) — 绑定审批上下文避免并发串线
+- [034-gateway-undo-soft-rewind](034-gateway-undo-soft-rewind.md) — 使用软删除语义回退会话 turn
+- [035-gateway-shutdown-drain](035-gateway-shutdown-drain.md) — 停机先 drain 再 interrupt 并清理工具进程
+- [036-restart-notification-marker](036-restart-notification-marker.md) — 重启恢复标记与启动后通知
+- [038-skill-ignore-scan-filter](038-skill-ignore-scan-filter.md) — 技能扫描支持 ignore 文件
 
 ## 中优先级候选
 
@@ -42,6 +53,11 @@
 - [020-tirith-security-diagnostics](020-tirith-security-diagnostics.md) — 对齐 Tirith 安全诊断与外部对标 audit surface
 - [021-provider-model-list-url-resolution](021-provider-model-list-url-resolution.md) — 增加 provider-aware model-list URL resolution
 - [022-multimodal-attachment-payloads](022-multimodal-attachment-payloads.md) — 让附件与语音/图像 payload 具备多模态感知
+- [037-mcp-discovery-nonblocking](037-mcp-discovery-nonblocking.md) — 启动期 MCP discovery 不阻塞网关事件循环
+- [039-skill-usage-atomic-sidecar](039-skill-usage-atomic-sidecar.md) — 技能 usage sidecar 原子写与跨进程保护
+- [040-skill-hub-path-guard](040-skill-hub-path-guard.md) — Hub 安装/卸载路径防逃逸
+- [041-memory-provider-rewound-hook](041-memory-provider-rewound-hook.md) — MemoryProvider session switch 补 rewound 语义
+- [042-skill-curator-archive-report](042-skill-curator-archive-report.md) — Curator 自动归档报告链
 
 ## 跳过项
 
