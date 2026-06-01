@@ -77,6 +77,7 @@ public class UsageBackfillService {
         event.setInputTokens(input);
         event.setOutputTokens(output);
         event.setTotalTokens(total);
+        event.setRequestCount(1L);
         event.setCreatedAt(run.getFinishedAt() > 0 ? run.getFinishedAt() : run.getStartedAt());
         applyCost(event);
         return event;
@@ -102,6 +103,7 @@ public class UsageBackfillService {
         event.setCacheWriteTokens(Math.max(0L, session.getCumulativeCacheWriteTokens()));
         event.setReasoningTokens(Math.max(0L, session.getCumulativeReasoningTokens()));
         event.setTotalTokens(total);
+        event.setRequestCount(1L);
         event.setCreatedAt(
                 session.getLastUsageAt() > 0
                         ? session.getLastUsageAt()
@@ -126,7 +128,8 @@ public class UsageBackfillService {
                         event.getOutputTokens(),
                         event.getCacheReadTokens(),
                         event.getCacheWriteTokens(),
-                        event.getReasoningTokens());
+                        event.getReasoningTokens(),
+                        event.getRequestCount());
         event.setCostMicros(cost.getTotalMicros());
         event.setCurrency(cost.getCurrency());
         event.setPriceSource(cost.getPriceSource());

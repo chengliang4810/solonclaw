@@ -556,6 +556,7 @@ public class SqliteDatabase {
                             + "cache_write_tokens integer not null default 0,"
                             + "reasoning_tokens integer not null default 0,"
                             + "total_tokens integer not null default 0,"
+                            + "request_count integer not null default 0,"
                             + "cost_micros integer not null default 0,"
                             + "currency text,"
                             + "price_source text,"
@@ -569,6 +570,7 @@ public class SqliteDatabase {
                             + "created_at integer not null,"
                             + "backfill_approximate integer not null default 0"
                             + ")");
+            addColumn(statement, "usage_events", "request_count integer not null default 0");
             statement.execute(
                     "create index if not exists idx_usage_events_created on usage_events(created_at desc)");
             statement.execute(

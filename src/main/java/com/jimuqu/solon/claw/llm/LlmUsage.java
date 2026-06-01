@@ -9,6 +9,7 @@ public class LlmUsage {
     private final long cacheReadTokens;
     private final long cacheWriteTokens;
     private final long reasoningTokens;
+    private final long requestCount;
     private final long latencyMs;
 
     private LlmUsage(Builder builder) {
@@ -17,6 +18,7 @@ public class LlmUsage {
         this.cacheReadTokens = builder.cacheReadTokens;
         this.cacheWriteTokens = builder.cacheWriteTokens;
         this.reasoningTokens = builder.reasoningTokens;
+        this.requestCount = builder.requestCount;
         this.latencyMs = builder.latencyMs;
     }
 
@@ -40,6 +42,10 @@ public class LlmUsage {
         return reasoningTokens;
     }
 
+    public long getRequestCount() {
+        return requestCount;
+    }
+
     public long getLatencyMs() {
         return latencyMs;
     }
@@ -55,6 +61,7 @@ public class LlmUsage {
                 .cacheReadTokens(result.getCacheReadTokens())
                 .cacheWriteTokens(result.getCacheWriteTokens())
                 .reasoningTokens(result.getReasoningTokens())
+                .requestCount(result.getRequestCount())
                 .build();
     }
 
@@ -74,6 +81,7 @@ public class LlmUsage {
         private long cacheReadTokens;
         private long cacheWriteTokens;
         private long reasoningTokens;
+        private long requestCount;
         private long latencyMs;
 
         public Builder promptTokens(long promptTokens) {
@@ -98,6 +106,11 @@ public class LlmUsage {
 
         public Builder reasoningTokens(long reasoningTokens) {
             this.reasoningTokens = reasoningTokens;
+            return this;
+        }
+
+        public Builder requestCount(long requestCount) {
+            this.requestCount = requestCount;
             return this;
         }
 

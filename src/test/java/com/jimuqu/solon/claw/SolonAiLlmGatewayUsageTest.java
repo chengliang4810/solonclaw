@@ -32,6 +32,7 @@ public class SolonAiLlmGatewayUsageTest {
         assertThat(result.getCacheWriteTokens()).isEqualTo(0L);
         assertThat(result.getReasoningTokens()).isEqualTo(7L);
         assertThat(result.getTotalTokens()).isEqualTo(1050L);
+        assertThat(result.getRequestCount()).isEqualTo(1L);
     }
 
     @Test
@@ -54,6 +55,7 @@ public class SolonAiLlmGatewayUsageTest {
         assertThat(result.getCacheWriteTokens()).isEqualTo(100L);
         assertThat(result.getReasoningTokens()).isEqualTo(9L);
         assertThat(result.getTotalTokens()).isEqualTo(1050L);
+        assertThat(result.getRequestCount()).isEqualTo(1L);
     }
 
     @Test
@@ -74,6 +76,26 @@ public class SolonAiLlmGatewayUsageTest {
         assertThat(result.getCacheReadTokens()).isEqualTo(200L);
         assertThat(result.getCacheWriteTokens()).isEqualTo(100L);
         assertThat(result.getTotalTokens()).isEqualTo(1350L);
+        assertThat(result.getRequestCount()).isEqualTo(1L);
+    }
+
+    @Test
+    void shouldReadExplicitRequestCountFromRawUsage() throws Exception {
+        ONode source =
+                ONode.ofJson(
+                        "{"
+                                + "\"prompt_tokens\":10,"
+                                + "\"completion_tokens\":5,"
+                                + "\"total_tokens\":15,"
+                                + "\"request_count\":3"
+                                + "}");
+
+        LlmResult result = collect(new AiUsage(10L, 0L, 5L, 15L, source));
+
+        assertThat(result.getInputTokens()).isEqualTo(10L);
+        assertThat(result.getOutputTokens()).isEqualTo(5L);
+        assertThat(result.getTotalTokens()).isEqualTo(15L);
+        assertThat(result.getRequestCount()).isEqualTo(3L);
     }
 
     private LlmResult collect(AiUsage usage) throws Exception {

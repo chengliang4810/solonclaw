@@ -1241,7 +1241,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         long cacheRead = Math.max(0L, result.getCacheReadTokens());
         long cacheWrite = Math.max(0L, result.getCacheWriteTokens());
         long reasoning = Math.max(0L, result.getReasoningTokens());
+        long requestCount = Math.max(0L, result.getRequestCount());
         long total = Math.max(Math.max(0L, result.getTotalTokens()), input + output + reasoning);
+        if (requestCount <= 0L && total > 0L) {
+            requestCount = 1L;
+        }
         if (total <= 0
                 && input <= 0
                 && output <= 0
@@ -1263,6 +1267,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         event.setCacheWriteTokens(cacheWrite);
         event.setReasoningTokens(reasoning);
         event.setTotalTokens(total);
+        event.setRequestCount(requestCount);
         event.setCreatedAt(
                 runRecord.getFinishedAt() > 0
                         ? runRecord.getFinishedAt()
@@ -1299,7 +1304,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         event.getOutputTokens(),
                         event.getCacheReadTokens(),
                         event.getCacheWriteTokens(),
-                        event.getReasoningTokens());
+                        event.getReasoningTokens(),
+                        event.getRequestCount());
         event.setCostMicros(cost.getTotalMicros());
         event.setCurrency(cost.getCurrency());
         event.setPriceSource(cost.getPriceSource());
@@ -1327,6 +1333,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
         extra.setCacheWriteTokens(
                 Math.max(0L, extra.getCacheWriteTokens())
                         + Math.max(0L, base.getCacheWriteTokens()));
+        extra.setRequestCount(
+                Math.max(0L, extra.getRequestCount()) + Math.max(0L, base.getRequestCount()));
         extra.setTotalTokens(
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
     }

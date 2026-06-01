@@ -36,6 +36,7 @@ public class UsagePricingTest {
                                 + "\"cache_read_micros_per_token\":1,"
                                 + "\"cache_write_micros_per_token\":4,"
                                 + "\"reasoning_micros_per_token\":20,"
+                                + "\"request_micros_per_request\":30,"
                                 + "\"source\":\"test-catalog\""
                                 + "}]"
                                 + "}");
@@ -45,7 +46,8 @@ public class UsagePricingTest {
                         .calculate("default", "gpt-5.4", 100, 25, 40, 10, 3);
         assertThat(priced.isPricingAvailable()).isTrue();
         assertThat(priced.getCurrency()).isEqualTo("USD");
-        assertThat(priced.getTotalMicros()).isEqualTo(590L);
+        assertThat(priced.getTotalMicros()).isEqualTo(620L);
+        assertThat(priced.getRequestCount()).isEqualTo(1L);
         assertThat(priced.getPriceSource()).isEqualTo("test-catalog");
         assertThat(priced.getUnpricedTotalTokens()).isZero();
 
@@ -59,6 +61,22 @@ public class UsagePricingTest {
         assertThat(unpriced.getUnpricedCacheReadTokens()).isEqualTo(40L);
         assertThat(unpriced.getUnpricedCacheWriteTokens()).isEqualTo(10L);
         assertThat(unpriced.getUnpricedReasoningTokens()).isEqualTo(3L);
+        assertThat(unpriced.getRequestCount()).isEqualTo(1L);
+    }
+
+    @Test
+    void costCalculatorSupportsExplicitRequestCountPricing() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{\"prices\":[{\"provider\":\"openrouter\",\"model\":\"charged\",\"currency\":\"USD\",\"input_micros_per_token\":2,\"output_micros_per_token\":10,\"request_micros_per_request\":100,\"source\":\"test-catalog\"}]}");
+
+        UsageCost cost =
+                new UsageCostCalculator(catalog)
+                        .calculate("openrouter", "charged", 10, 5, 0, 0, 0, 3);
+
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(370L);
+        assertThat(cost.getRequestCount()).isEqualTo(3L);
     }
 
     @Test
@@ -143,6 +161,7 @@ public class UsagePricingTest {
         event.setCacheWriteTokens(10);
         event.setReasoningTokens(5);
         event.setTotalTokens(160);
+        event.setRequestCount(2L);
         event.setCostMicros(420);
         event.setCurrency("USD");
         event.setPriceSource("test-catalog");
@@ -155,6 +174,7 @@ public class UsagePricingTest {
         List<UsageEventRecord> stored = usageRepository.listRecent(10);
         assertThat(stored).hasSize(1);
         assertThat(stored.get(0).getCostMicros()).isEqualTo(420L);
+        assertThat(stored.get(0).getRequestCount()).isEqualTo(2L);
 
         AgentRunRecord run = new AgentRunRecord();
         run.setRunId("run-2");

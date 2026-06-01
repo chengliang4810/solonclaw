@@ -44,6 +44,7 @@ public class PriceCatalog {
             price.setCacheReadMicrosPerToken(number(node, "cache_read_micros_per_token"));
             price.setCacheWriteMicrosPerToken(number(node, "cache_write_micros_per_token"));
             price.setReasoningMicrosPerToken(number(node, "reasoning_micros_per_token"));
+            price.setRequestMicrosPerRequest(number(node, "request_micros_per_request"));
             price.setSource(text(node, "source"));
             if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
                 parsed.put(price.key(), price);

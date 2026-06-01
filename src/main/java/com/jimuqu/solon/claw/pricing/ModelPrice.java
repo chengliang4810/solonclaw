@@ -18,6 +18,7 @@ public class ModelPrice {
     private long cacheReadMicrosPerToken;
     private long cacheWriteMicrosPerToken;
     private long reasoningMicrosPerToken;
+    private long requestMicrosPerRequest;
     private String source;
 
     public String key() {
