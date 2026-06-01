@@ -60,6 +60,38 @@ public class ExternalSkillDirectoryServiceTest {
     }
 
     @Test
+    void shouldNormalizeAndDedupeExternalSkillRoots() throws Exception {
+        File tempDir = Files.createTempDirectory("ext-skill-roots").toFile();
+        File localDir = new File(tempDir, "skills");
+        File extDir = new File(tempDir, "external-skills");
+        new File(localDir, "local-only").mkdirs();
+        extDir.mkdirs();
+        Files.write(new File(localDir, "local-only/SKILL.md").toPath(),
+                "# Local".getBytes(StandardCharsets.UTF_8));
+        File skillDir = new File(extDir, "external-only");
+        skillDir.mkdirs();
+        Files.write(new File(skillDir, "SKILL.md").toPath(),
+                "# External".getBytes(StandardCharsets.UTF_8));
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+        config.getSkills()
+                .setExternalDirs(
+                        Arrays.asList(
+                                config.getRuntime().getSkillsDir(),
+                                extDir.getAbsolutePath(),
+                                new File(tempDir, "external-skills/../external-skills").getPath()));
+
+        ExternalSkillDirectoryService service = new ExternalSkillDirectoryService(config);
+        List<SkillDescriptor> skills = service.scanExternalSkills();
+
+        assertThat(service.getExternalDirs()).hasSize(1);
+        assertThat(service.getExternalDirs().get(0).getCanonicalFile()).isEqualTo(extDir.getCanonicalFile());
+        assertThat(skills).extracting(SkillDescriptor::getName).containsExactly("external-only");
+    }
+
+    @Test
     void shouldReportStatus() throws Exception {
         File tempDir = Files.createTempDirectory("ext-skill-status").toFile();
         File extDir = new File(tempDir, "skills-ext");

@@ -27,12 +27,18 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
 /** 本地技能目录服务，支持 Jimuqu 风格分类目录与渐进披露读取。 */
 public class LocalSkillService implements SkillCatalogService {
     /** 技能名允许字符。 */
     private static final String VALID_NAME_PATTERN = "^[a-z0-9][a-z0-9._-]*$";
+
+    /** SKILL.md 中允许安全替换的模板变量。 */
+    private static final Pattern SKILL_TEMPLATE_VARIABLE_PATTERN =
+            Pattern.compile("\\$\\{(SOLONCLAW_SKILL_DIR|SOLONCLAW_SESSION_ID)\\}");
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -228,6 +234,22 @@ public class LocalSkillService implements SkillCatalogService {
 
     public SkillView viewSkill(String nameOrPath, String filePath, AgentRuntimeScope agentScope)
             throws Exception {
+        return viewSkill(nameOrPath, filePath, agentScope, null);
+    }
+
+    public SkillView viewSkill(
+            String nameOrPath, String filePath, AgentRuntimeScope agentScope, String sessionId)
+            throws Exception {
+        return loadSkillView(nameOrPath, filePath, agentScope, sessionId, true);
+    }
+
+    private SkillView loadSkillView(
+            String nameOrPath,
+            String filePath,
+            AgentRuntimeScope agentScope,
+            String sessionId,
+            boolean preprocess)
+            throws Exception {
         processPendingImportsQuietly();
         SkillDescriptor descriptor = findDescriptor(nameOrPath, agentScope);
         if (descriptor == null) {
@@ -240,12 +262,58 @@ public class LocalSkillService implements SkillCatalogService {
                     "Skill file not found: " + safeSkillFilePath(descriptor, target));
         }
 
+        String content = FileUtil.readUtf8String(target);
+        if (preprocess && shouldPreprocessSkillContent(filePath)) {
+            content = preprocessSkillContent(content, descriptor, sessionId);
+        }
+
         SkillView view = new SkillView();
         view.setDescriptor(descriptor);
         view.setFilePath(filePath);
-        view.setContent(FileUtil.readUtf8String(target));
+        view.setContent(content);
         view.setLinkedFiles(new ArrayList<String>(descriptor.getLinkedFiles()));
         return view;
+    }
+
+    private boolean shouldPreprocessSkillContent(String filePath) {
+        String normalized = StrUtil.nullToEmpty(filePath).trim().replace('\\', '/');
+        return StrUtil.isBlank(normalized)
+                || SkillConstants.SKILL_FILE_NAME.equalsIgnoreCase(normalized);
+    }
+
+    private String preprocessSkillContent(
+            String content, SkillDescriptor descriptor, String sessionId) {
+        if (StrUtil.isEmpty(content)) {
+            return content;
+        }
+        final String skillDir = canonicalSkillDir(descriptor);
+        final String resolvedSessionId = StrUtil.blankToDefault(sessionId, null);
+        Matcher matcher = SKILL_TEMPLATE_VARIABLE_PATTERN.matcher(content);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String token = matcher.group(1);
+            String replacement = null;
+            if ("SOLONCLAW_SKILL_DIR".equals(token)) {
+                replacement = skillDir;
+            } else if ("SOLONCLAW_SESSION_ID".equals(token)) {
+                replacement = resolvedSessionId;
+            }
+            matcher.appendReplacement(
+                    buffer,
+                    replacement == null
+                            ? Matcher.quoteReplacement(matcher.group(0))
+                            : Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private String canonicalSkillDir(SkillDescriptor descriptor) {
+        try {
+            return FileUtil.file(descriptor.getSkillDir()).getCanonicalPath();
+        } catch (Exception ignored) {
+            return FileUtil.file(descriptor.getSkillDir()).getAbsolutePath();
+        }
     }
 
     public synchronized void bumpUsage(String nameOrPath, String kind) {
@@ -374,7 +442,7 @@ public class LocalSkillService implements SkillCatalogService {
     /** 在技能主文件或支持文件中做定点替换。 */
     public String patchSkill(String nameOrPath, String oldText, String newText, String filePath)
             throws Exception {
-        SkillView view = viewSkill(nameOrPath, filePath);
+        SkillView view = loadSkillView(nameOrPath, filePath, null, null, false);
         if (StrUtil.isBlank(oldText) || !view.getContent().contains(oldText)) {
             throw new IllegalStateException("Patch target not found.");
         }
