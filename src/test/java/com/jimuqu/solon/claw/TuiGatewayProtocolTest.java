@@ -389,6 +389,114 @@ class TuiGatewayProtocolTest {
         }
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldActivateLiveSessionForCallingConnectionOnly() throws Exception {
+        SessionRecord target = session("target-live", "MEMORY:tui:target-live");
+        target.setTitle("Target live");
+        target.setLastResolvedModel("model-x");
+        target.setLastResolvedProvider("provider-y");
+        target.setCumulativeTotalTokens(19L);
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(
+                                Arrays.asList(target)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket targetSocket = new FakeWebSocket("target-connection");
+            TuiConnection targetConnection = new TuiConnection(targetSocket);
+            targetConnection.setActiveSessionId("target-live");
+            FakeWebSocket callerSocket = new FakeWebSocket("caller-connection");
+            TuiConnection callerConnection = new TuiConnection(callerSocket);
+            callerConnection.setActiveSessionId("other-live");
+            service.onOpen(targetConnection);
+            service.onOpen(callerConnection);
+            int targetFramesBeforeActivate = targetSocket.sentCount();
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"13\",\"method\":\"session.activate\",\"params\":{\"session_id\":\"target-live\"}}");
+            service.handle(callerConnection, envelope);
+
+            assertThat(callerConnection.getActiveSessionId()).isEqualTo("target-live");
+            assertThat(targetConnection.getActiveSessionId()).isEqualTo("target-live");
+            Map<String, Object> result = callerSocket.lastSentMap();
+            assertThat(result).containsEntry("type", "rpc.result").containsEntry("id", "13");
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload)
+                    .containsEntry("session_id", "target-live")
+                    .containsEntry("id", "target-live")
+                    .containsEntry("session_key", "MEMORY:tui:target-live")
+                    .containsEntry("title", "Target live")
+                    .containsEntry("model", "model-x")
+                    .containsEntry("provider", "provider-y")
+                    .containsEntry("message_count", Integer.valueOf(0))
+                    .containsEntry("running", Boolean.FALSE)
+                    .containsEntry("status", "idle")
+                    .containsEntry("started_at", Long.valueOf(1700000000000L))
+                    .containsEntry("last_active", Long.valueOf(1700000001000L))
+                    .containsEntry("client_contract", Integer.valueOf(1));
+            assertThat(((List<Object>) payload.get("messages"))).isEmpty();
+            assertThat((Map<String, Object>) payload.get("info"))
+                    .containsEntry("session_key", "MEMORY:tui:target-live")
+                    .containsEntry("status", "idle");
+            assertThat(((Number) payload.get("total_tokens")).longValue()).isEqualTo(19L);
+            assertThat(targetSocket.sentCount()).isEqualTo(targetFramesBeforeActivate);
+            assertThat(callerSocket.lastSentMap()).containsEntry("type", "rpc.result");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectActivatingStoredSessionThatIsNotLive() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(
+                                Arrays.asList(session("stored-only", "MEMORY:tui:stored-only"))),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket callerSocket = new FakeWebSocket("caller-connection");
+            TuiConnection callerConnection = new TuiConnection(callerSocket);
+            service.onOpen(callerConnection);
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"14\",\"method\":\"session.activate\",\"params\":{\"session_id\":\"stored-only\"}}");
+            service.handle(callerConnection, envelope);
+
+            Map<String, Object> result = callerSocket.lastSentMap();
+            assertThat(result).containsEntry("type", "rpc.error").containsEntry("id", "14");
+            assertThat(callerConnection.getActiveSessionId()).isNull();
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload).containsEntry("code", "TUI_FAILED");
+            assertThat(String.valueOf(payload.get("message"))).contains("session is not live");
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
             throws Exception {
@@ -504,6 +612,10 @@ class TuiGatewayProtocolTest {
         Map<String, Object> lastSentMap() {
             assertThat(sent).isNotEmpty();
             return (Map<String, Object>) ONode.deserialize(sent.get(sent.size() - 1), Map.class);
+        }
+
+        int sentCount() {
+            return sent.size();
         }
 
         @Override

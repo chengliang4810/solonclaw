@@ -175,6 +175,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), mostRecentSession());
             } else if ("session.active_list".equals(method)) {
                 connection.sendResult(envelope.getId(), connection.getActiveSessionId(), activeList(connection, envelope));
+            } else if ("session.activate".equals(method)) {
+                Map<String, Object> result = activateSession(connection, envelope);
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.status".equals(method)) {
                 Map<String, Object> result = sessionStatus(connection, envelope);
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
@@ -443,6 +446,67 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             return "working";
         }
         return "idle";
+    }
+
+    private Map<String, Object> activateSession(TuiConnection connection, TuiEnvelope envelope)
+            throws Exception {
+        String sid = resolveTargetSessionId(envelope);
+        if (StrUtil.isBlank(sid)) {
+            throw new IllegalArgumentException("session_id is required");
+        }
+        if (!isLiveSession(sid)) {
+            throw new IllegalArgumentException("session is not live: " + sid);
+        }
+        SessionRecord session = findSessionQuietly(sid);
+        if (session == null && sessionRepository != null) {
+            session = sessionRepository.findById(sid);
+        }
+        connection.setActiveSessionId(sid);
+        TuiSessionState state = state(sid);
+        Long afterSeq = longParam(envelope.getParams().get("after_seq"));
+        long replayAfter = afterSeq == null ? 0L : afterSeq.longValue();
+        replay(connection, sid, Long.valueOf(replayAfter));
+        replayProjected(connection, sid, replayAfter);
+        connection.sendEvent("approval.snapshot", sid, approvalProjector.pendingSnapshot(sid));
+        pushExtensionSnapshots(connection, sid);
+        Map<String, Object> result =
+                session == null ? fallbackActiveSessionPayload(sid) : sessionPayload(session);
+        result.put("session_key", safe(session == null ? sourceKey(sid) : session.getSourceKey(), 400));
+        result.put("running", Boolean.valueOf(state.running));
+        result.put("queued_count", Integer.valueOf(state.queue.size()));
+        result.put("busy_mode", state.busyMode);
+        result.put("status", activeSessionStatus(state));
+        result.put("messages", Collections.emptyList());
+        result.put("info", sessionInfo(result, state));
+        connection.sendEvent("session.activated", sid, result);
+        return result;
+    }
+
+    private boolean isLiveSession(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return false;
+        }
+        for (TuiConnection candidate : connections.values()) {
+            if (candidate != null && StrUtil.equals(sessionId, candidate.getActiveSessionId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<String, Object> sessionInfo(Map<String, Object> payload, TuiSessionState state) {
+        Map<String, Object> info = new LinkedHashMap<String, Object>();
+        info.put("session_id", payload.get("session_id"));
+        info.put("session_key", payload.get("session_key"));
+        info.put("title", payload.get("title"));
+        info.put("model", payload.get("model"));
+        info.put("provider", payload.get("provider"));
+        info.put("running", Boolean.valueOf(state != null && state.running));
+        info.put("status", activeSessionStatus(state));
+        info.put("started_at", payload.get("started_at"));
+        info.put("last_active", payload.get("last_active"));
+        info.put("message_count", payload.get("message_count"));
+        return info;
     }
 
     private List<SessionRecord> filterHumanSessions(List<SessionRecord> records) {
