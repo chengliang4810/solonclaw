@@ -416,7 +416,7 @@ public class RuntimeSettingsService {
     }
 
     public void setSecretValue(String key, String value) {
-        dashboardRuntimeConfigService.set(key, value, shouldReconnectChannelsForRuntimeKey(key));
+        dashboardRuntimeConfigService.updateSecret(key, value, shouldReconnectChannelsForRuntimeKey(key));
     }
 
     private void ensureConfigKeyAllowed(String key) {
@@ -689,16 +689,25 @@ public class RuntimeSettingsService {
         if (key == null) {
             return false;
         }
-        if ("providers.default.apiKey".equals(key)
-                || "gateway.injectionSecret".equals(key)
-                || "terminal.sudoPassword".equals(key)) {
+        String normalized = key.trim();
+        String lower = normalized.toLowerCase(java.util.Locale.ROOT);
+        if ("providers.default.apikey".equals(lower)
+                || "gateway.injectionsecret".equals(lower)
+                || "solonclaw.gateway.injectionsecret".equals(lower)
+                || "terminal.sudopassword".equals(lower)
+                || "solonclaw.dashboard.accesstoken".equals(lower)) {
             return true;
         }
-        return key.endsWith(".apiKey")
-                || key.endsWith(".appSecret")
-                || key.endsWith(".clientSecret")
-                || key.endsWith(".secret")
-                || key.endsWith(".token");
+        return lower.endsWith(".apikey")
+                || lower.endsWith(".api_key")
+                || lower.endsWith(".appsecret")
+                || lower.endsWith(".app_secret")
+                || lower.endsWith(".clientsecret")
+                || lower.endsWith(".client_secret")
+                || lower.endsWith(".access_token")
+                || lower.endsWith(".accesstoken")
+                || lower.endsWith(".secret")
+                || lower.endsWith(".token");
     }
 
     public static class ResolvedModel {

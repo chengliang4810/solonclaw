@@ -33,10 +33,17 @@ public class ModelMetadataService {
         metadata.setContextWindow(resolveContextWindow(dialect, normalizedModel));
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setSupportsTools(resolveSupportsTools(dialect));
-        metadata.setSupportsVision(resolveSupportsVision(dialect, normalizedModel, provider));
+        boolean supportsVision = resolveSupportsVision(dialect, normalizedModel, provider);
+        boolean supportsAudio = resolveSupportsAudio(dialect, normalizedModel);
+        boolean supportsAttachment = resolveSupportsAttachment(dialect, normalizedModel, supportsVision, supportsAudio);
+        metadata.setSupportsVision(supportsVision);
+        metadata.setSupportsAudio(supportsAudio);
+        metadata.setSupportsAttachment(supportsAttachment);
+        metadata.setSupportsMultimodal(supportsVision || supportsAudio || supportsAttachment);
         metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
+        metadata.setSource(resolveSource(provider, normalizedModel));
         metadata.setDefaultModel(StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         metadata.setSupported(LlmProviderSupport.isSupportedDialect(dialect));
         return metadata;
@@ -203,6 +210,49 @@ public class ModelMetadataService {
                 || lower.contains("claude-sonnet-4")
                 || lower.contains("claude-opus-4")
                 || lower.contains("grok-2-vision");
+    }
+
+    private boolean resolveSupportsAudio(String dialect, String model) {
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return LlmConstants.PROVIDER_GEMINI.equals(dialect)
+                || lower.contains("audio")
+                || lower.contains("tts")
+                || lower.contains("transcribe")
+                || lower.contains("realtime")
+                || lower.contains("omni")
+                || lower.contains("gpt-4o-audio")
+                || lower.contains("gpt-4o-transcribe")
+                || lower.contains("gpt-4o-mini-transcribe");
+    }
+
+    private boolean resolveSupportsAttachment(
+            String dialect, String model, boolean supportsVision, boolean supportsAudio) {
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return supportsVision
+                || supportsAudio
+                || LlmConstants.PROVIDER_GEMINI.equals(dialect)
+                || lower.contains("vision")
+                || lower.contains("multimodal")
+                || lower.contains("omni")
+                || lower.contains("-vl")
+                || lower.contains("_vl")
+                || lower.contains("/vl");
+    }
+
+    private String resolveSource(AppConfig.ProviderConfig provider, String model) {
+        if (provider != null && StrUtil.isNotBlank(provider.getBaseUrl())) {
+            return "provider_config";
+        }
+        if (StrUtil.isNotBlank(model)) {
+            return "static_inference";
+        }
+        return "default";
     }
 
     private boolean resolveSupportsReasoning(String dialect, String model) {

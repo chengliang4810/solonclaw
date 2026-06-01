@@ -299,4 +299,65 @@ public class ConfigToolsTest {
         assertThat(readResponse.get("preview").getString()).isEqualTo("gateway.injectionSecret=***");
         assertThat(readResponse.toString()).doesNotContain("sk-test-real-secret-12345");
     }
+
+    @Test
+    void shouldKeepRegularWritesSeparateFromSecretUpdates() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configSetTool = null;
+        Object configSetSecretTool = null;
+        Object configGetTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configSet".equals(method.getName())) {
+                    configSetTool = tool;
+                } else if ("configSetSecret".equals(method.getName())) {
+                    configSetSecretTool = tool;
+                } else if ("configGet".equals(method.getName())) {
+                    configGetTool = tool;
+                }
+            }
+        }
+
+        assertThat(configSetTool).isNotNull();
+        assertThat(configSetSecretTool).isNotNull();
+        assertThat(configGetTool).isNotNull();
+
+        Method write = configSetTool.getClass().getMethod("configSet", String.class, String.class);
+        ONode nonSecretWrite =
+                ONode.ofJson((String) write.invoke(configSetTool, "react.delegateMaxSteps", "25"));
+        assertThat(nonSecretWrite.get("success").getBoolean()).isTrue();
+        assertThat(env.appConfig.getReact().getDelegateMaxSteps()).isEqualTo(25);
+
+        ONode rejectedSecretWrite =
+                ONode.ofJson((String) write.invoke(configSetTool, "providers.default.apiKey", "sk-regular-write-secret-12345"));
+        assertThat(rejectedSecretWrite.get("success").getBoolean()).isFalse();
+        assertThat(rejectedSecretWrite.get("error").getString())
+                .contains("config_set_secret")
+                .doesNotContain("sk-regular-write-secret-12345");
+
+        Method writeSecret =
+                configSetSecretTool.getClass().getMethod("configSetSecret", String.class, String.class);
+        ONode rejectedNonSecret =
+                ONode.ofJson((String) writeSecret.invoke(configSetSecretTool, "providers.default.defaultModel", "gpt-5"));
+        assertThat(rejectedNonSecret.get("success").getBoolean()).isFalse();
+        assertThat(rejectedNonSecret.get("error").getString()).contains("不是密钥配置");
+
+        ONode secretWrite =
+                ONode.ofJson(
+                        (String)
+                                writeSecret.invoke(
+                                        configSetSecretTool,
+                                        "providers.default.apiKey",
+                                        "sk-secret-update-real-12345"));
+        assertThat(secretWrite.get("success").getBoolean()).isTrue();
+        assertThat(secretWrite.toString()).doesNotContain("sk-secret-update-real-12345");
+
+        Method read = configGetTool.getClass().getMethod("configGet", String.class);
+        ONode secretRead =
+                ONode.ofJson((String) read.invoke(configGetTool, "providers.default.apiKey"));
+        assertThat(secretRead.get("success").getBoolean()).isTrue();
+        assertThat(secretRead.get("value").getString()).isEqualTo("***");
+        assertThat(secretRead.get("redacted").getBoolean()).isTrue();
+        assertThat(secretRead.toString()).doesNotContain("sk-secret-update-real-12345");
+    }
 }

@@ -24,7 +24,11 @@ public class DefaultSkillGuardService implements SkillGuardService {
 
     private static final Set<String> TRUSTED_REPOS =
             new LinkedHashSet<String>(
-                    java.util.Arrays.asList("openai/skills", "anthropics/skills"));
+                    java.util.Arrays.asList(
+                            "openai/skills",
+                            "anthropics/skills",
+                            "huggingface/skills",
+                            "NVIDIA/skills"));
 
     private static final List<ThreatPattern> THREAT_PATTERNS =
             java.util.Arrays.asList(
@@ -134,13 +138,13 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "runtime_env_access",
                             "critical",
                             "exfiltration",
-                            "\\$HOME/\\.jimuqu-agent/\\.env|~/\\.jimuqu-agent/\\.env|runtime/\\.env",
-                            "directly references local runtime secrets file"),
+                            "\\$HOME/\\.jimuqu-agent/\\.env|~/\\.jimuqu-agent/\\.env|runtime/\\.env|runtime/auth\\.json|runtime/cache/bws_cache\\.json|runtime/mcp-tokens",
+                            "directly references local runtime secrets or token stores"),
                     new ThreatPattern(
                             "read_secrets_file",
                             "critical",
                             "exfiltration",
-                            "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc)",
+                            "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|id_rsa|id_ed25519|token\\.json|auth\\.json|bws_cache\\.json)",
                             "reads known secrets file"),
                     new ThreatPattern(
                             "powershell_read_secrets_file",
@@ -170,8 +174,26 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "secret_file_http_upload",
                             "critical",
                             "exfiltration",
-                            "\\b(requests|httpx|axios)\\.(post|put|patch)\\s*\\([^\\n]*(open\\s*\\(|readFileSync|Files\\.(readString|readAllBytes))[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json)",
+                            "\\b(requests|httpx|axios)\\.(post|put|patch)\\s*\\([^\\n]*(open\\s*\\(|readFileSync|Files\\.(readString|readAllBytes))[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json|bws_cache\\.json)",
                             "uploads a known secrets file through an HTTP client"),
+                    new ThreatPattern(
+                            "scp_secret_upload",
+                            "critical",
+                            "exfiltration",
+                            "\\b(scp|rsync)\\b[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|id_rsa|id_ed25519|token\\.json|auth\\.json|bws_cache\\.json)",
+                            "copies known secrets to another host"),
+                    new ThreatPattern(
+                            "curl_file_upload",
+                            "critical",
+                            "exfiltration",
+                            "curl\\s+[^\\n]*(-F|--form|--data-binary|--upload-file|--data)\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|id_rsa|id_ed25519|token\\.json|auth\\.json|bws_cache\\.json)",
+                            "uploads a known secrets file with curl"),
+                    new ThreatPattern(
+                            "env_http_upload",
+                            "critical",
+                            "exfiltration",
+                            "(curl|wget|requests\\.(post|put|patch)|httpx?\\.(post|put|patch)|fetch)\\s*[\\(]?[^\\n]*(printenv|os\\.environ|process\\.env|ENV\\[)",
+                            "sends environment data through a network client"),
                     new ThreatPattern(
                             "dump_all_env",
                             "high",
@@ -488,8 +510,14 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "shell_rc_mod",
                             "medium",
                             "persistence",
-                            "\\.(bashrc|zshrc|profile|bash_profile|bash_login|zprofile|zlogin)\\b",
+                            "\\.(bashrc|zshrc|profile|bash_profile|bash_login|zprofile|zlogin|config/fish/config\\.fish)\\b",
                             "references shell startup file"),
+                    new ThreatPattern(
+                            "shell_rc_write",
+                            "high",
+                            "persistence",
+                            "(>>|>|tee\\s+-a?)\\s+[^\\n]*(\\.(bashrc|zshrc|profile|bash_profile|bash_login|zprofile|zlogin)|config/fish/config\\.fish)",
+                            "writes to a shell startup file"),
                     new ThreatPattern(
                             "ssh_backdoor",
                             "critical",
@@ -518,7 +546,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "macos_launchd",
                             "medium",
                             "persistence",
-                            "launchctl\\s+load|LaunchAgents|LaunchDaemons",
+                            "launchctl\\s+(load|bootstrap|enable)|LaunchAgents|LaunchDaemons",
                             "macOS launch agent or daemon persistence"),
                     new ThreatPattern(
                             "sudoers_mod",
@@ -532,6 +560,18 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "persistence",
                             "git\\s+config\\s+--global\\s+",
                             "modifies global git configuration"),
+                    new ThreatPattern(
+                            "autostart_entry",
+                            "high",
+                            "persistence",
+                            "\\.config/autostart|StartupItems|RunOnce|CurrentVersion\\\\Run",
+                            "references desktop or OS autostart locations"),
+                    new ThreatPattern(
+                            "ssh_config_persistence",
+                            "high",
+                            "persistence",
+                            "\\.ssh/(config|authorized_keys|rc)",
+                            "references SSH persistence or credential files"),
                     new ThreatPattern(
                             "agent_config_mod",
                             "critical",
@@ -828,6 +868,12 @@ public class DefaultSkillGuardService implements SkillGuardService {
             return decision;
         }
 
+        if ("trusted".equals(trustLevel) && "dangerous".equals(verdict)) {
+            decision.setAllowed(false);
+            decision.setReason("Blocked trusted source with dangerous verdict; force does not override");
+            return decision;
+        }
+
         if ("agent-created".equals(trustLevel)) {
             if ("safe".equals(verdict) || "caution".equals(verdict)) {
                 decision.setAllowed(true);
@@ -841,9 +887,15 @@ public class DefaultSkillGuardService implements SkillGuardService {
             return decision;
         }
 
-        if (force && ("caution".equals(verdict) || "dangerous".equals(verdict))) {
+        if (force && "caution".equals(verdict)) {
             decision.setAllowed(true);
-            decision.setReason("Force installed despite " + verdict + " verdict");
+            decision.setReason("Force installed despite caution verdict");
+            return decision;
+        }
+
+        if ("community".equals(trustLevel) && "dangerous".equals(verdict)) {
+            decision.setAllowed(false);
+            decision.setReason("Blocked community source with dangerous verdict; force does not override");
             return decision;
         }
 
@@ -1010,7 +1062,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
         if (hasCritical) {
             return "dangerous";
         }
-        if (hasHigh || !findings.isEmpty()) {
+        if (hasHigh) {
             return "caution";
         }
         return "safe";
@@ -1020,14 +1072,30 @@ public class DefaultSkillGuardService implements SkillGuardService {
         if (StrUtil.isBlank(source)) {
             return "community";
         }
-        if ("agent-created".equals(source)) {
+        String normalized = source.trim().replace('\\', '/');
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        for (String prefix : java.util.Arrays.asList("skills-sh/", "skills.sh/", "skils-sh/", "skils.sh/")) {
+            if (lower.startsWith(prefix)) {
+                normalized = normalized.substring(prefix.length());
+                lower = normalized.toLowerCase(Locale.ROOT);
+                break;
+            }
+        }
+        if ("agent-created".equals(lower) || "local".equals(lower) || "manual".equals(lower)) {
             return "agent-created";
         }
-        if ("official".equals(source) || source.startsWith("official/")) {
+        if ("community".equals(lower)
+                || "clawhub".equals(lower)
+                || "lobehub".equals(lower)
+                || "well-known".equals(lower)
+                || "claude-marketplace".equals(lower)) {
+            return "community";
+        }
+        if ("official".equals(lower)) {
             return "builtin";
         }
         for (String trusted : TRUSTED_REPOS) {
-            if (source.equals(trusted) || source.startsWith(trusted)) {
+            if (normalized.equals(trusted) || normalized.startsWith(trusted + "/")) {
                 return "trusted";
             }
         }

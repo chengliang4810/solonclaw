@@ -12,14 +12,27 @@ import org.noear.solon.core.handle.MethodType;
 @Controller
 public class DashboardDiagnosticsController {
     private final DashboardDiagnosticsService diagnosticsService;
+    private final DashboardGatewayDoctorService doctorService;
 
-    public DashboardDiagnosticsController(DashboardDiagnosticsService diagnosticsService) {
+    public DashboardDiagnosticsController(
+            DashboardDiagnosticsService diagnosticsService, DashboardGatewayDoctorService doctorService) {
         this.diagnosticsService = diagnosticsService;
+        this.doctorService = doctorService;
     }
 
     @Mapping(value = "/api/diagnostics", method = MethodType.GET)
     public Map<String, Object> diagnostics() {
         return DashboardResponse.ok(diagnosticsService.diagnostics());
+    }
+
+    @Mapping(value = "/api/diagnostics/doctor", method = MethodType.GET)
+    public Map<String, Object> doctor() throws Exception {
+        DashboardGatewayDoctorService service = doctorService;
+        if (service == null) {
+            return DashboardResponse.error(
+                    "DIAGNOSTICS_DOCTOR_UNAVAILABLE", "Doctor 诊断服务尚未启用。");
+        }
+        return DashboardResponse.ok(service.doctor());
     }
 
     @SuppressWarnings("unchecked")

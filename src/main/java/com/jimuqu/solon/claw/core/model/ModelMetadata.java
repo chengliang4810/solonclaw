@@ -19,9 +19,13 @@ public class ModelMetadata {
     private int maxOutput;
     private boolean supportsTools;
     private boolean supportsVision;
+    private boolean supportsAudio;
+    private boolean supportsAttachment;
+    private boolean supportsMultimodal;
     private boolean supportsReasoning;
     private boolean supportsPromptCache;
     private boolean supportsStreaming;
+    private String source;
     private boolean defaultModel;
     private boolean supported;
 }

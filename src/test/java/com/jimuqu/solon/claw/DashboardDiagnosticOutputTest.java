@@ -38,6 +38,7 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsController;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import cn.hutool.core.io.FileUtil;
@@ -425,6 +426,65 @@ public class DashboardDiagnosticOutputTest {
         String doctorJson = ONode.serialize(doctor);
         assertThat(doctorJson).doesNotContain("sk-ant-test-providersecret");
         assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldServeDoctorPayloadThroughDiagnosticsController() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-controller-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getModel().setProviderKey("anthropic-main");
+        config.getModel().setDefault("claude-sonnet-4.6");
+
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Anthropic Main");
+        provider.setBaseUrl("https://api.anthropic.com");
+        provider.setDefaultModel("claude-sonnet-4.6");
+        provider.setDialect("anthropic");
+        provider.setApiKey("sk-ant-test-controllersecret");
+        config.getProviders().put("anthropic-main", provider);
+
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())));
+        DashboardDiagnosticsController controller =
+                new DashboardDiagnosticsController(
+                        new DashboardDiagnosticsService(
+                                config,
+                                new FixedDeliveryService(null),
+                                new LlmProviderService(config),
+                                new FixedToolRegistry(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                new SecurityPolicyService(config),
+                                null),
+                        doctorService);
+
+        Map<String, Object> response = controller.doctor();
+        assertThat(response.get("success")).isEqualTo(Boolean.TRUE);
+
+        Map<String, Object> data = (Map<String, Object>) response.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("runtime_home")).isEqualTo("runtime://");
+        assertThat(data).containsKeys("generated_at", "model", "last_shutdown", "platforms");
+        Map<String, Object> model = (Map<String, Object>) data.get("model");
+        assertThat(model).isNotNull();
+        assertThat(model.get("provider")).isEqualTo("anthropic-main");
+        Map<String, Object> healthChecks = (Map<String, Object>) model.get("health_checks");
+        assertThat(healthChecks.get("mode")).isEqualTo("dedicated");
+
+        String json = ONode.serialize(response);
+        assertThat(json).doesNotContain("sk-ant-test-controllersecret");
+        assertThat(json).doesNotContain(runtimeHome.getAbsolutePath());
     }
 
     @Test

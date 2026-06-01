@@ -523,16 +523,40 @@ public class DashboardRuntimeConfigService {
 
     public Map<String, Object> set(String key, String value, boolean reconnectChannels) {
         ConfigItemDefinition definition = requireSupported(key);
-        if (definition.password && SecretValueGuard.isPlaceholderSecret(value)) {
+        if (definition.password) {
+            return updateSecret(key, value, reconnectChannels);
+        }
+        return writeNonSecret(key, value, reconnectChannels);
+    }
+
+    public Map<String, Object> writeNonSecret(String key, String value, boolean reconnectChannels) {
+        ConfigItemDefinition definition = requireSupported(key);
+        if (definition.password) {
+            throw new IllegalArgumentException(key + " 是密钥配置，请使用 secret update/reveal 流程。");
+        }
+        persist(key, value, reconnectChannels);
+        return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    public Map<String, Object> updateSecret(String key, String value, boolean reconnectChannels) {
+        ConfigItemDefinition definition = requireSupported(key);
+        if (!definition.password) {
+            throw new IllegalArgumentException(key + " 不是密钥配置，请使用普通配置写入流程。");
+        }
+        if (SecretValueGuard.isPlaceholderSecret(value)) {
             throw new IllegalArgumentException(key + " 不能使用示例或占位符密钥。");
         }
+        persist(key, value, reconnectChannels);
+        return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    private void persist(String key, String value, boolean reconnectChannels) {
         configResolver.setFileValue(key, value);
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();
         } else {
             gatewayRuntimeRefreshService.refreshConfigOnly();
         }
-        return Collections.<String, Object>singletonMap("ok", true);
     }
 
     public Map<String, Object> remove(String key) {

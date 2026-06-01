@@ -93,7 +93,9 @@ public class DashboardGatewayDoctorService {
     }
 
     public Map<String, Object> doctor() throws Exception {
-        gatewayRuntimeRefreshService.refreshIfNeeded();
+        if (gatewayRuntimeRefreshService != null) {
+            gatewayRuntimeRefreshService.refreshIfNeeded();
+        }
         List<Map<String, Object>> platforms = new ArrayList<Map<String, Object>>();
         List<ChannelStatus> statuses = deliveryService.statuses();
         for (String platform : Arrays.asList("feishu", "dingtalk", "wecom", "weixin")) {
