@@ -1,16 +1,26 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.cli.TerminalDimensionSupport;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.tui.TuiConnection;
 import com.jimuqu.solon.claw.tui.TuiEnvelope;
 import com.jimuqu.solon.claw.tui.TuiGatewayService;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.core.util.MultiMap;
+import org.noear.solon.net.websocket.WebSocket;
 
 class TuiGatewayProtocolTest {
     @Test
@@ -191,6 +201,53 @@ class TuiGatewayProtocolTest {
     }
 
     @Test
+    void shouldResolveDeleteSessionIdFromRpcParams() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
+        try {
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"11\",\"method\":\"session.delete\",\"params\":{\"session_id\":\"delete-session\"}}");
+
+            String sessionId = resolveTargetSessionId(service, envelope);
+
+            assertThat(sessionId).isEqualTo("delete-session");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void shouldRejectDeletingActiveTuiSession() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(
+                                Arrays.asList(session("active-session", "MEMORY:tui:active-session"))),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            TuiConnection connection = new TuiConnection(new FakeWebSocket("active-connection"));
+            connection.setActiveSessionId("active-session");
+            service.onOpen(connection);
+
+            assertThatThrownBy(() -> deleteSession(service, "active-session"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("cannot delete an active session");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
     void shouldHideDelegateChildSessionsFromTuiSessionList() throws Exception {
         TuiGatewayService service =
                 new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
@@ -295,6 +352,34 @@ class TuiGatewayProtocolTest {
         return (String) method.invoke(service, connection, envelope);
     }
 
+    private String resolveTargetSessionId(TuiGatewayService service, TuiEnvelope envelope)
+            throws Exception {
+        Method method =
+                TuiGatewayService.class.getDeclaredMethod("resolveTargetSessionId", TuiEnvelope.class);
+        method.setAccessible(true);
+        return (String) method.invoke(service, envelope);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> deleteSession(
+            TuiGatewayService service, String sessionId) throws Exception {
+        Method method =
+                TuiGatewayService.class.getDeclaredMethod("deleteSession", String.class);
+        method.setAccessible(true);
+        try {
+            return (Map<String, Object>) method.invoke(service, sessionId);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw e;
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private List<SessionRecord> filterHumanSessions(
             TuiGatewayService service, List<SessionRecord> records) throws Exception {
@@ -321,5 +406,124 @@ class TuiGatewayProtocolTest {
         record.setCreatedAt(1700000000000L);
         record.setUpdatedAt(1700000001000L);
         return record;
+    }
+
+    private static class FakeWebSocket implements WebSocket {
+        private final String id;
+
+        FakeWebSocket(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public String id() {
+            return id;
+        }
+
+        @Override
+        public String name() {
+            return "";
+        }
+
+        @Override
+        public void nameAs(String name) {}
+
+        @Override
+        public boolean isValid() {
+            return true;
+        }
+
+        @Override
+        public boolean isSecure() {
+            return false;
+        }
+
+        @Override
+        public String url() {
+            return "";
+        }
+
+        @Override
+        public String path() {
+            return "";
+        }
+
+        @Override
+        public void pathNew(String path) {}
+
+        @Override
+        public MultiMap<String> paramMap() {
+            return new MultiMap<String>();
+        }
+
+        @Override
+        public String param(String name) {
+            return null;
+        }
+
+        @Override
+        public String paramOrDefault(String name, String def) {
+            return def;
+        }
+
+        @Override
+        public void param(String name, String value) {}
+
+        @Override
+        public InetSocketAddress remoteAddress() {
+            return null;
+        }
+
+        @Override
+        public InetSocketAddress localAddress() {
+            return null;
+        }
+
+        @Override
+        public Map<String, Object> attrMap() {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public boolean attrHas(String name) {
+            return false;
+        }
+
+        @Override
+        public <T> T attr(String name) {
+            return null;
+        }
+
+        @Override
+        public <T> T attrOrDefault(String name, T def) {
+            return def;
+        }
+
+        @Override
+        public <T> void attr(String name, T value) {}
+
+        @Override
+        public long getIdleTimeout() {
+            return 0L;
+        }
+
+        @Override
+        public void setIdleTimeout(long timeout) {}
+
+        @Override
+        public Future<Void> send(String text) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public Future<Void> send(ByteBuffer binary) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public void close(int code, String reason) {}
     }
 }

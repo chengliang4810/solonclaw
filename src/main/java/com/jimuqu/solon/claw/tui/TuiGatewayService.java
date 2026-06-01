@@ -172,7 +172,8 @@ public class TuiGatewayService implements TuiGatewayEventSink {
                 Map<String, Object> result = sessionUsage(connection, envelope);
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.delete".equals(method)) {
-                connection.sendResult(envelope.getId(), envelope.getSessionId(), deleteSession(envelope.getSessionId()));
+                Map<String, Object> result = deleteSession(resolveTargetSessionId(envelope));
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.branch".equals(method)) {
                 connection.sendResult(envelope.getId(), envelope.getSessionId(), branchSession(connection, envelope));
             } else if ("session.compress".equals(method)) {
@@ -380,12 +381,27 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         if (StrUtil.isBlank(sessionId)) {
             throw new IllegalArgumentException("session_id is required");
         }
+        if (isActiveSession(sessionId)) {
+            throw new IllegalArgumentException("cannot delete an active session");
+        }
         sessionRepository.delete(sessionId);
         states.remove(sessionId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", Boolean.TRUE);
         result.put("session_id", safe(sessionId, 120));
         return result;
+    }
+
+    private boolean isActiveSession(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return false;
+        }
+        for (TuiConnection candidate : connections.values()) {
+            if (candidate != null && StrUtil.equals(sessionId, candidate.getActiveSessionId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Map<String, Object> sessionStatus(TuiConnection connection, TuiEnvelope envelope)
@@ -1011,6 +1027,10 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             sid = connection.getActiveSessionId();
         }
         return sid;
+    }
+
+    private String resolveTargetSessionId(TuiEnvelope envelope) {
+        return StrUtil.blankToDefault(envelope.getSessionId(), textParam(envelope, "session_id", ""));
     }
 
     private TuiSessionState state(String sessionId) {
