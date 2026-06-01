@@ -31,6 +31,23 @@ public class CronJobService {
     private static final String STATUS_PAUSED = "PAUSED";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String DEFAULT_SOURCE = "MEMORY:dashboard:cron";
+    private static final String CRON_SECRET_VAR =
+            "\\$\\{?\\w*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)\\w*\\}?";
+    private static final Pattern CRON_GITHUB_AUTH_HEADER =
+            Pattern.compile(
+                    "curl\\s+[^\\n]*(?:-H|--header)\\s+[\"']Authorization:\\s*token\\s+"
+                            + CRON_SECRET_VAR
+                            + "[\"']\\s+[\"']?https://api\\.github\\.com(?:/|\\b)",
+                    Pattern.CASE_INSENSITIVE);
+    private static final int VARIATION_SELECTOR_CP = 0xFE0F;
+    private static final int[][] EMOJI_NEIGHBOUR_CP_RANGES =
+            new int[][] {
+                new int[] {0x1F000, 0x1FFFF},
+                new int[] {0x2600, 0x27BF},
+                new int[] {0x2300, 0x23FF},
+                new int[] {0x1F1E6, 0x1F1FF},
+                new int[] {0x20E3, 0x20E3}
+            };
     private static final CronPromptThreat[] CRON_PROMPT_THREATS =
             new CronPromptThreat[] {
                 threat(
@@ -42,11 +59,23 @@ public class CronJobService {
                         "disregard_rules",
                         "disregard\\s+(your|all|any)\\s+(instructions|rules|guidelines)"),
                 threat(
+                        "exfil_curl_data",
+                        "curl\\s+[^\\n]*(?:--data(?:-raw|-binary|-urlencode)?|-d|--form|-F)\\s+[^\\n]*"
+                                + CRON_SECRET_VAR),
+                threat(
+                        "exfil_wget_post",
+                        "wget\\s+[^\\n]*--post-(?:data|file)=[^\\n]*" + CRON_SECRET_VAR),
+                threat(
+                        "exfil_curl_auth_header",
+                        "curl\\s+[^\\n]*(?:-H|--header)\\s+[\"']Authorization:\\s*(?:Bearer|token)\\s+"
+                                + CRON_SECRET_VAR
+                                + "[\"']"),
+                threat(
                         "exfil_curl",
-                        "curl\\s+[^\\n]*\\$\\{?\\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)"),
+                        "curl\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
                 threat(
                         "exfil_wget",
-                        "wget\\s+[^\\n]*\\$\\{?\\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)"),
+                        "wget\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
                 threat("read_secrets", "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass)"),
                 threat("ssh_backdoor", "authorized_keys"),
                 threat("sudoers_mod", "/etc/sudoers|visudo"),
@@ -1172,9 +1201,10 @@ public class CronJobService {
         if (StrUtil.isBlank(prompt)) {
             return;
         }
-        for (int i = 0; i < prompt.length(); i++) {
-            char ch = prompt.charAt(i);
-            if (isInvisibleInjectionChar(ch)) {
+        String promptToScan = stripCronSafeConstructs(prompt);
+        for (int i = 0; i < promptToScan.length(); i++) {
+            char ch = promptToScan.charAt(i);
+            if (isInvisibleInjectionChar(ch, promptToScan, i)) {
                 throw new IllegalStateException(
                         "Blocked invisible unicode U+"
                                 + String.format(Locale.ROOT, "%04X", Integer.valueOf(ch))
@@ -1182,14 +1212,21 @@ public class CronJobService {
             }
         }
         for (CronPromptThreat threat : CRON_PROMPT_THREATS) {
-            if (threat.pattern.matcher(prompt).find()) {
+            if (threat.pattern.matcher(promptToScan).find()) {
                 throw new IllegalStateException(
                         "Blocked unsafe cron prompt pattern: " + threat.id);
             }
         }
     }
 
-    private static boolean isInvisibleInjectionChar(char ch) {
+    private static String stripCronSafeConstructs(String prompt) {
+        return CRON_GITHUB_AUTH_HEADER.matcher(prompt).replaceAll("curl https://api.github.com/user");
+    }
+
+    private static boolean isInvisibleInjectionChar(char ch, String text, int index) {
+        if (ch == '\u200d' && zwjHasEmojiNeighbour(text, index)) {
+            return false;
+        }
         return ch == '\u200b'
                 || ch == '\u200c'
                 || ch == '\u200d'
@@ -1200,6 +1237,30 @@ public class CronJobService {
                 || ch == '\u202c'
                 || ch == '\u202d'
                 || ch == '\u202e';
+    }
+
+    private static boolean zwjHasEmojiNeighbour(String text, int index) {
+        int left = index - 1;
+        while (left >= 0 && text.charAt(left) == VARIATION_SELECTOR_CP) {
+            left--;
+        }
+        int right = index + 1;
+        while (right < text.length() && text.charAt(right) == VARIATION_SELECTOR_CP) {
+            right++;
+        }
+        return left >= 0 && right < text.length()
+                && isEmojiCodePoint(text.codePointBefore(left + 1))
+                && isEmojiCodePoint(text.codePointAt(right));
+    }
+
+    private static boolean isEmojiCodePoint(int codePoint) {
+        for (int i = 0; i < EMOJI_NEIGHBOUR_CP_RANGES.length; i++) {
+            int[] range = EMOJI_NEIGHBOUR_CP_RANGES[i];
+            if (codePoint >= range[0] && codePoint <= range[1]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static CronPromptThreat threat(String id, String regex) {
