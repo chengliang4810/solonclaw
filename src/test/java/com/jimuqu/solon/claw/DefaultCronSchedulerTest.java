@@ -896,6 +896,53 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldKeepAgentCronOnFullLoopWhenScriptRequestsWakeAgentFalse() throws Exception {
+        RecordingUserMessageOrchestrator orchestrator = new RecordingUserMessageOrchestrator();
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "agent-gate.py");
+        FileUtil.writeString(
+                "print('checked')\nprint('{\"wakeAgent\": false}')",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "agent-gate");
+        body.put("schedule", "30m");
+        body.put("prompt", "Use the script output.");
+        body.put("script", "agent-gate.py");
+        body.put("deliver", "origin");
+        CronJobRecord job = service.create("MEMORY:agent-gate-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        orchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastStatus()).isEqualTo("ok");
+        assertThat(updated.getLastOutput()).isEqualTo("agent saw script error");
+        assertThat(orchestrator.userMessage)
+                .contains("## Script Output")
+                .contains("checked")
+                .contains("{\"wakeAgent\": false}")
+                .contains("Use the script output.");
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText())
+                .contains("agent saw script error")
+                .doesNotContain("silent (wakeAgent=false)");
+    }
+
+    @Test
     void shouldExtractCronMediaTagsIntoDeliveryAttachments() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File attachment = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "report.txt");

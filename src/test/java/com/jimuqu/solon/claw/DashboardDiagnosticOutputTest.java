@@ -160,6 +160,7 @@ public class DashboardDiagnosticOutputTest {
         config.getRuntime().setStateDb(externalState.getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getLlm().setStream(true);
 
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default");
@@ -232,8 +233,20 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         new SecurityPolicyService(config),
                         null);
-        String diagnosticsJson = ONode.serialize(diagnosticsService.diagnostics());
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+        Map<String, Object> streamHealth = (Map<String, Object>) diagnostics.get("stream_health");
+        assertThat(streamHealth).isNotNull();
+        assertThat(streamHealth.get("configured")).isEqualTo(Boolean.TRUE);
+        assertThat(streamHealth.get("provider_supports_streaming")).isEqualTo(Boolean.TRUE);
+        assertThat(streamHealth.get("gateway_stream_transport")).isEqualTo(Boolean.FALSE);
+        assertThat(streamHealth.get("enabled_channels")).isEqualTo(Integer.valueOf(1));
+        assertThat(streamHealth.get("connected_channels")).isEqualTo(Integer.valueOf(0));
+        assertThat(streamHealth.get("reconnecting_channels")).isEqualTo(Integer.valueOf(1));
+        assertThat(streamHealth.get("state")).isEqualTo("healthy");
+
+        String diagnosticsJson = ONode.serialize(diagnostics);
         assertThat(diagnosticsJson).contains("path://state.db");
+        assertThat(diagnosticsJson).contains("stream_health");
         assertThat(diagnosticsJson).contains("audit_policy");
         assertThat(diagnosticsJson).contains("codeExecutionPolicy");
         assertThat(diagnosticsJson).contains("credentialMountPolicy");
@@ -549,6 +562,65 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain(runtimeHome.toString());
         assertThat(json).doesNotContain("ghp_forensicshome123");
         assertThat(json).doesNotContain("ghp_shutdownsecret123");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldReportDegradedStreamHealthForDisconnectedStreamGateway() {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-stream-health-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getLlm().setStream(true);
+        config.getModel().setProviderKey("default");
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setBaseUrl("https://api.example.com/v1");
+        provider.setDefaultModel("gpt-test");
+        provider.setDialect("openai");
+        provider.setApiKey("sk-test-providersecret");
+        config.getProviders().put("default", provider);
+
+        ChannelStatus channelStatus =
+                new ChannelStatus(PlatformType.DINGTALK, true, false, "stream mode connect failed");
+        channelStatus.setConnectionMode("stream");
+        channelStatus.setSetupState("error");
+        channelStatus.setReconnecting(true);
+        channelStatus.setReconnectAttempt(1);
+        channelStatus.setLastErrorMessage("Bearer ghp_streamhealth123 password=stream-pass");
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(channelStatus),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+        Map<String, Object> streamHealth = (Map<String, Object>) diagnostics.get("stream_health");
+        assertThat(streamHealth).isNotNull();
+        assertThat(streamHealth.get("configured")).isEqualTo(Boolean.TRUE);
+        assertThat(streamHealth.get("provider_supports_streaming")).isEqualTo(Boolean.TRUE);
+        assertThat(streamHealth.get("gateway_stream_transport")).isEqualTo(Boolean.TRUE);
+        assertThat(streamHealth.get("enabled_channels")).isEqualTo(Integer.valueOf(1));
+        assertThat(streamHealth.get("connected_channels")).isEqualTo(Integer.valueOf(0));
+        assertThat(streamHealth.get("reconnecting_channels")).isEqualTo(Integer.valueOf(1));
+        assertThat(streamHealth.get("state")).isEqualTo("degraded");
+
+        String json = ONode.serialize(diagnostics);
+        assertThat(json).contains("stream_health");
+        assertThat(json).doesNotContain("ghp_streamhealth123");
+        assertThat(json).doesNotContain("stream-pass");
     }
 
     @Test

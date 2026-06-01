@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
@@ -28,6 +29,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
@@ -295,6 +297,7 @@ public class DashboardDiagnosticsService {
         result.put("runtime", runtime());
         result.put("providers", providers());
         result.put("channels", channels());
+        result.put("stream_health", streamHealth());
         result.put("tools", tools());
         result.put("mcp", mcp());
         result.put("security", security());
@@ -752,6 +755,66 @@ public class DashboardDiagnosticsService {
             items.add(item);
         }
         return items;
+    }
+
+    private Map<String, Object> streamHealth() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        AppConfig.ProviderConfig provider =
+                appConfig.getProviders().get(appConfig.getModel().getProviderKey());
+        ModelMetadata metadata =
+                new ModelMetadataService(appConfig)
+                        .resolve(appConfig.getModel().getProviderKey(), provider);
+        List<ChannelStatus> statuses = deliveryService == null ? Collections.<ChannelStatus>emptyList() : deliveryService.statuses();
+        int enabledChannels = 0;
+        int connectedChannels = 0;
+        int reconnectingChannels = 0;
+        boolean hasStreamTransport = false;
+        boolean hasStreamFailure = false;
+        for (ChannelStatus status : statuses) {
+            if (status == null || !status.isEnabled()) {
+                continue;
+            }
+            enabledChannels++;
+            if (status.isConnected()) {
+                connectedChannels++;
+            }
+            if (status.isReconnecting()) {
+                reconnectingChannels++;
+            }
+            if ("stream".equalsIgnoreCase(status.getConnectionMode())) {
+                hasStreamTransport = true;
+                if (!status.isConnected()) {
+                    hasStreamFailure = true;
+                }
+            }
+        }
+        boolean configured = appConfig.getLlm().isStream();
+        boolean providerSupportsStreaming = metadata.isSupportsStreaming();
+        String state = "disabled";
+        if (configured) {
+            if (!providerSupportsStreaming) {
+                state = "unsupported";
+            } else if (hasStreamFailure) {
+                state = reconnectingChannels > 0 ? "degraded" : "disconnected";
+            } else if (!hasStreamTransport) {
+                state = "healthy";
+            } else if (connectedChannels > 0) {
+                state = "healthy";
+            } else {
+                state = "starting";
+            }
+        }
+        summary.put("configured", Boolean.valueOf(configured));
+        summary.put("provider_supports_streaming", Boolean.valueOf(providerSupportsStreaming));
+        summary.put("provider", safeAuditPreview(metadata.getProvider(), 160));
+        summary.put("model", safeAuditPreview(metadata.getModel(), 200));
+        summary.put("dialect", safeAuditPreview(metadata.getDialect(), 80));
+        summary.put("gateway_stream_transport", Boolean.valueOf(hasStreamTransport));
+        summary.put("enabled_channels", Integer.valueOf(enabledChannels));
+        summary.put("connected_channels", Integer.valueOf(connectedChannels));
+        summary.put("reconnecting_channels", Integer.valueOf(reconnectingChannels));
+        summary.put("state", state);
+        return summary;
     }
 
     private Map<String, Object> tools() {

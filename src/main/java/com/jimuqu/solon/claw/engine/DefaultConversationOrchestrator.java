@@ -306,15 +306,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     }
 
     public GatewayReply resumePending(String sourceKey) throws Exception {
-        return resumePending(sourceKey, ConversationEventSink.noop());
+        return resumePending(sourceKey, null, ConversationEventSink.noop());
+    }
+
+    public GatewayReply resumePending(String sourceKey, String sessionId) throws Exception {
+        return resumePending(sourceKey, sessionId, ConversationEventSink.noop());
     }
 
     public GatewayReply resumePending(String sourceKey, ConversationEventSink eventSink)
             throws Exception {
+        return resumePending(sourceKey, null, eventSink);
+    }
+
+    public GatewayReply resumePending(
+            String sourceKey, String sessionId, ConversationEventSink eventSink)
+            throws Exception {
         synchronized (lockFor(sourceKey)) {
-            SessionRecord session = sessionRepository.getBoundSession(sourceKey);
+            SessionRecord session = findPendingSession(sourceKey, sessionId);
             if (session == null) {
-                return GatewayReply.error("当前来源键没有可恢复的会话。");
+                return missingPendingSessionReply(sessionId);
             }
             String resumedUserMessage = MessageSupport.getLastUserMessage(session.getNdjson());
 
@@ -376,6 +386,44 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                     session == null ? "" : session.getSessionId(),
                     safeError(e));
             return systemPrompt;
+        }
+    }
+
+    private SessionRecord findPendingSession(String sourceKey, String sessionId) throws Exception {
+        SessionRecord bound = sessionRepository.getBoundSession(sourceKey);
+        if (StrUtil.isBlank(sessionId)) {
+            return isPendingSession(bound) ? bound : null;
+        }
+        SessionRecord target = sessionRepository.findById(sessionId);
+        if (!matchesSourceKey(sourceKey, target) || !isPendingSession(target)) {
+            return null;
+        }
+        return target;
+    }
+
+    private GatewayReply missingPendingSessionReply(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return GatewayReply.error("当前来源键没有可恢复的 pending 会话。");
+        }
+        return GatewayReply.error("指定会话不是当前来源键下可恢复的 pending 会话。");
+    }
+
+    private boolean matchesSourceKey(String sourceKey, SessionRecord session) {
+        return session != null && StrUtil.equals(sourceKey, session.getSourceKey());
+    }
+
+    private boolean isPendingSession(SessionRecord session) {
+        if (session == null) {
+            return false;
+        }
+        try {
+            return new SqliteAgentSession(session).isPending();
+        } catch (Exception e) {
+            log.debug(
+                    "skip invalid pending session snapshot: sessionId={}, error={}",
+                    session.getSessionId(),
+                    safeError(e));
+            return false;
         }
     }
 

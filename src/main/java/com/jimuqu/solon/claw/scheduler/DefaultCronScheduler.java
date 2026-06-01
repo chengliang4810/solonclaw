@@ -524,42 +524,6 @@ public class DefaultCronScheduler {
                         prompt = withScriptError(prompt, safeError(scriptError));
                         scanAssembledPrompt(prompt, job);
                     }
-                    if (scriptResult != null && !scriptResult.wakeAgent) {
-                        output = silentCronOutput(job, "wakeAgent=false");
-                        reply = GatewayReply.ok(SILENT_MARKER);
-                        cronJobRepository.markRunResult(
-                                job.getJobId(),
-                                now,
-                                nextRunAt,
-                                runStatus,
-                                null,
-                                AgentRunPreview.safe(output),
-                                completed,
-                                nextStatus);
-                        CronDeliveryReport deliveryReport = deliverBestEffort(job, reply);
-                        deliveryError = deliveryReport.errorSummary();
-                        deliveryResultJson = deliveryReport.toJson();
-                        recordRun(job, now, runStatus, null, output, deliveryError, deliveryResultJson, completed, triggerType);
-                        return;
-                    }
-                    if (scriptResult != null && StrUtil.isBlank(scriptResult.output)) {
-                        output = silentCronOutput(job, "empty script output");
-                        reply = GatewayReply.ok(SILENT_MARKER);
-                        cronJobRepository.markRunResult(
-                                job.getJobId(),
-                                now,
-                                nextRunAt,
-                                runStatus,
-                                null,
-                                AgentRunPreview.safe(output),
-                                completed,
-                                nextStatus);
-                        CronDeliveryReport deliveryReport = deliverBestEffort(job, reply);
-                        deliveryError = deliveryReport.errorSummary();
-                        deliveryResultJson = deliveryReport.toJson();
-                        recordRun(job, now, runStatus, null, output, deliveryError, deliveryResultJson, completed, triggerType);
-                        return;
-                    }
                     if (scriptResult != null) {
                         prompt = withScriptOutput(prompt, scriptResult.output);
                         scanAssembledPrompt(prompt, job);
