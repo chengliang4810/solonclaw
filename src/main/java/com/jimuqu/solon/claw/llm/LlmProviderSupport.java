@@ -111,6 +111,10 @@ public final class LlmProviderSupport {
             return normalized + "/api/chat";
         }
         if (LlmConstants.PROVIDER_GEMINI.equals(normalizedDialect)) {
+            if (StrUtil.endWithIgnoreCase(normalized, "/v1beta")
+                    || StrUtil.endWithIgnoreCase(normalized, "/v1")) {
+                return normalized;
+            }
             return normalized + "/v1beta";
         }
         if (LlmConstants.PROVIDER_ANTHROPIC.equals(normalizedDialect)) {
@@ -125,11 +129,14 @@ public final class LlmProviderSupport {
             return "";
         }
         if (raw.endsWith("#")) {
-            return stripTrailingSlash(raw.substring(0, raw.length() - 1));
+            raw = raw.substring(0, raw.length() - 1).trim();
         }
 
         String normalized = stripTrailingSlash(raw);
         String normalizedDialect = normalizeDialect(dialect);
+        if (isProviderAwareModelListBase(normalized, normalizedDialect)) {
+            return normalized + "/models";
+        }
         if (LlmConstants.PROVIDER_OPENAI.equals(normalizedDialect)
                 || LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(normalizedDialect)) {
             if (StrUtil.endWithIgnoreCase(normalized, "/v1/chat/completions")) {
@@ -210,6 +217,22 @@ public final class LlmProviderSupport {
             current = current.substring(0, current.length() - 1);
         }
         return current;
+    }
+
+    private static boolean isProviderAwareModelListBase(String normalizedBaseUrl, String dialect) {
+        if (StrUtil.isBlank(normalizedBaseUrl)) {
+            return false;
+        }
+        if (!(LlmConstants.PROVIDER_OPENAI.equals(dialect)
+                || LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect))) {
+            return false;
+        }
+        return baseUrlHostMatches(normalizedBaseUrl, "openrouter.ai")
+                || baseUrlHostMatches(normalizedBaseUrl, "moonshot.ai")
+                || baseUrlHostMatches(normalizedBaseUrl, "deepseek.com")
+                || baseUrlHostMatches(normalizedBaseUrl, "x.ai")
+                || baseUrlHostMatches(normalizedBaseUrl, "api.x.ai")
+                || baseUrlHostMatches(normalizedBaseUrl, "siliconflow.cn");
     }
 
     private static String normalizedBaseCandidate(String baseUrl) {

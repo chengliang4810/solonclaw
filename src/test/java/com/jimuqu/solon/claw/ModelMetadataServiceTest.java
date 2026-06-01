@@ -187,6 +187,10 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsAudio()).isTrue();
         assertThat(metadata.isSupportsAttachment()).isTrue();
         assertThat(metadata.isSupportsMultimodal()).isTrue();
+        assertThat(metadata.getApiUrl())
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta");
+        assertThat(metadata.getModelListUrl())
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models");
         assertThat(metadata.getSource()).isEqualTo("provider_config");
     }
 
@@ -228,9 +232,26 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsMultimodal()).isTrue();
         assertThat(metadata.isSupportsReasoning()).isTrue();
         assertThat(metadata.isSupportsPromptCache()).isTrue();
+        assertThat(metadata.getApiUrl()).isEmpty();
+        assertThat(metadata.getModelListUrl()).isEmpty();
         assertThat(metadata.getSource()).isEqualTo("static_inference");
         assertThat(metadata.isDefaultModel()).isTrue();
         assertThat(metadata.isSupported()).isTrue();
+    }
+
+    @Test
+    void shouldResolveProviderAwareModelListUrlForOpenAiCompatibleHosts() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("moonshot-v1-8k");
+        provider.setDialect("openai");
+        provider.setBaseUrl("https://api.moonshot.ai/v1");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("moonshot-main", provider);
+
+        assertThat(metadata.getApiUrl()).isEqualTo("https://api.moonshot.ai/v1/chat/completions");
+        assertThat(metadata.getModelListUrl()).isEqualTo("https://api.moonshot.ai/v1/models");
+        assertThat(metadata.getSource()).isEqualTo("provider_config");
     }
 
     private int resolveContext(AppConfig config, String dialect, String model) {
