@@ -57,6 +57,9 @@ public final class SubprocessEnvironmentSanitizer {
         summary.put("configuredPassthroughCount", Integer.valueOf(envPassthrough(appConfig).size()));
         summary.put("decisionProbeSupported", Boolean.TRUE);
         summary.put("decisionProbeValueRedacted", Boolean.TRUE);
+        summary.put("decisionProbeEffectiveNameSupported", Boolean.TRUE);
+        summary.put("decisionProbeVisibilitySupported", Boolean.TRUE);
+        summary.put("decisionProbeSourceSupported", Boolean.TRUE);
         summary.put("decisionCategories", decisionCategories());
         summary.put("skillScopedPassthroughSupported", Boolean.TRUE);
         summary.put("skillScopedPassthroughThreadLocal", Boolean.TRUE);
@@ -74,13 +77,25 @@ public final class SubprocessEnvironmentSanitizer {
         return summary;
     }
 
-    public static List<String> decisionCategories() {
-        List<String> categories = new ArrayList<String>();
-        categories.add("force");
-        categories.add("allow");
-        categories.add("provider-blocked");
-        categories.add("high-risk");
-        categories.add("block");
+    public static List<Map<String, Object>> decisionCategories() {
+        List<Map<String, Object>> categories = new ArrayList<Map<String, Object>>();
+        categories.add(category("decision", "force"));
+        categories.add(category("decision", "allow"));
+        categories.add(category("decision", "provider-blocked"));
+        categories.add(category("decision", "high-risk"));
+        categories.add(category("decision", "block"));
+        categories.add(category("visibility", "visible"));
+        categories.add(category("visibility", "redacted"));
+        categories.add(category("visibility", "hidden"));
+        categories.add(category("source", "force-prefix"));
+        categories.add(category("source", "configured-or-skill-passthrough"));
+        categories.add(category("source", "safe-prefix-or-context"));
+        categories.add(category("source", "provider-blocklist-overrides-passthrough"));
+        categories.add(category("source", "provider-blocklist"));
+        categories.add(category("source", "secret-name-substring"));
+        categories.add(category("source", "high-risk-runtime-name"));
+        categories.add(category("source", "default-deny-unknown"));
+        categories.add(category("source", "invalid-env-name"));
         return categories;
     }
 
@@ -128,45 +143,65 @@ public final class SubprocessEnvironmentSanitizer {
         String decision;
         String reason;
         String outputName = forced ? forcedName : (validName ? normalizedName : null);
+        String source;
+        String visibility;
         boolean allowed;
         if (forced) {
             decision = "force";
             reason = "force-prefix";
+            source = "force-prefix";
             allowed = true;
         } else if (configuredPassthrough && providerBlocked) {
             decision = "provider-blocked";
             reason = "provider-blocklist-overrides-passthrough";
+            source = "provider-blocklist-overrides-passthrough";
             allowed = false;
         } else if (configuredPassthrough) {
             decision = "allow";
             reason = "configured-or-skill-passthrough";
+            source = "configured-or-skill-passthrough";
             allowed = true;
         } else if (providerBlocked) {
             decision = "provider-blocked";
             reason = "provider-blocklist";
+            source = "provider-blocklist";
             allowed = false;
         } else if (secretName) {
             decision = "high-risk";
             reason = "secret-name-substring";
+            source = "secret-name-substring";
             allowed = false;
         } else if (highRisk && !safeName) {
             decision = "high-risk";
             reason = "high-risk-runtime-name";
+            source = "high-risk-runtime-name";
             allowed = false;
         } else if (safeName) {
             decision = "allow";
             reason = "safe-prefix-or-context";
+            source = "safe-prefix-or-context";
             allowed = true;
         } else {
             decision = "block";
             reason = validName ? "default-deny-unknown" : "invalid-env-name";
+            source = validName ? "default-deny-unknown" : "invalid-env-name";
             allowed = false;
+        }
+        if (allowed) {
+            visibility = "visible";
+        } else if (forced || validName) {
+            visibility = "redacted";
+        } else {
+            visibility = "hidden";
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("name", safeProbeText(rawName, redactNames));
         result.put("normalizedName", safeProbeText(normalizedName, redactNames));
+        result.put("effectiveName", safeProbeText(outputName, redactNames));
         result.put("outputName", safeProbeText(outputName, redactNames));
         result.put("decision", decision);
+        result.put("visibility", visibility);
+        result.put("source", source);
         result.put("allowed", Boolean.valueOf(allowed));
         result.put("blocked", Boolean.valueOf(!allowed));
         result.put("reason", reason);
@@ -180,6 +215,13 @@ public final class SubprocessEnvironmentSanitizer {
         result.put("valueIncluded", Boolean.FALSE);
         result.put("policyOnly", Boolean.TRUE);
         return result;
+    }
+
+    private static Map<String, Object> category(String dimension, String value) {
+        Map<String, Object> category = new LinkedHashMap<String, Object>();
+        category.put("dimension", dimension);
+        category.put("value", value);
+        return category;
     }
 
     public static void sanitize(Map<String, String> env) {

@@ -15,6 +15,8 @@ public class ModelMetadata {
     private String model;
     private String dialect;
     private List<String> aliases = new ArrayList<String>();
+    private List<String> inputModalities = new ArrayList<String>();
+    private List<String> outputModalities = new ArrayList<String>();
     private int contextWindow;
     private int maxOutput;
     private boolean supportsTools;
@@ -28,6 +30,7 @@ public class ModelMetadata {
     private String apiUrl;
     private String modelListUrl;
     private String source;
+    private String provenance;
     private boolean defaultModel;
     private boolean supported;
 }
