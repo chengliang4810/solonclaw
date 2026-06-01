@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -53,6 +54,9 @@ public final class SubprocessEnvironmentSanitizer {
                 "configPassthroughBlocklistCount",
                 Integer.valueOf(CONFIG_ENV_PASSTHROUGH_BLOCKLIST.size()));
         summary.put("configuredPassthroughCount", Integer.valueOf(envPassthrough(appConfig).size()));
+        summary.put("decisionProbeSupported", Boolean.TRUE);
+        summary.put("decisionProbeValueRedacted", Boolean.TRUE);
+        summary.put("decisionCategories", decisionCategories());
         summary.put("skillScopedPassthroughSupported", Boolean.TRUE);
         summary.put("skillScopedPassthroughThreadLocal", Boolean.TRUE);
         summary.put("providerBlocklistOverridesPassthrough", Boolean.TRUE);
@@ -67,6 +71,105 @@ public final class SubprocessEnvironmentSanitizer {
         summary.put("pathFallbackEnabledForPosix", Boolean.TRUE);
         summary.put("windowsPathFallbackDisabled", Boolean.TRUE);
         return summary;
+    }
+
+    public static List<String> decisionCategories() {
+        List<String> categories = new ArrayList<String>();
+        categories.add("force");
+        categories.add("allow");
+        categories.add("provider-blocked");
+        categories.add("high-risk");
+        categories.add("block");
+        return categories;
+    }
+
+    public static List<Map<String, Object>> probeDecisions(
+            Map<String, String> env, AppConfig appConfig) {
+        List<Map<String, Object>> decisions = new ArrayList<Map<String, Object>>();
+        if (env == null || env.isEmpty()) {
+            return decisions;
+        }
+        Set<String> passthrough = envPassthrough(appConfig);
+        passthrough.addAll(currentSkillEnvironmentPassthrough());
+        for (String name : env.keySet()) {
+            decisions.add(probeDecision(name, appConfig, passthrough));
+        }
+        return decisions;
+    }
+
+    public static Map<String, Object> probeDecision(String name, AppConfig appConfig) {
+        Set<String> passthrough = envPassthrough(appConfig);
+        passthrough.addAll(currentSkillEnvironmentPassthrough());
+        return probeDecision(name, appConfig, passthrough);
+    }
+
+    private static Map<String, Object> probeDecision(
+            String name, AppConfig appConfig, Set<String> passthrough) {
+        String rawName = StrUtil.nullToEmpty(name);
+        String normalizedName = normalizeEnvName(rawName);
+        String forcedName = forcedName(rawName);
+        boolean validName = normalizedName != null;
+        boolean forced = forcedName != null;
+        boolean configuredPassthrough = isEnvPassthrough(rawName, passthrough);
+        boolean providerBlocked = isProviderEnvBlocked(rawName);
+        boolean highRisk = isHighRiskEnvName(rawName);
+        boolean secretName = isSecretEnvName(rawName);
+        boolean safeName = isSafeEnvName(rawName);
+        String decision;
+        String reason;
+        String outputName = forced ? forcedName : (validName ? normalizedName : null);
+        boolean allowed;
+        if (forced) {
+            decision = "force";
+            reason = "force-prefix";
+            allowed = true;
+        } else if (configuredPassthrough && providerBlocked) {
+            decision = "provider-blocked";
+            reason = "provider-blocklist-overrides-passthrough";
+            allowed = false;
+        } else if (configuredPassthrough) {
+            decision = "allow";
+            reason = "configured-or-skill-passthrough";
+            allowed = true;
+        } else if (providerBlocked) {
+            decision = "provider-blocked";
+            reason = "provider-blocklist";
+            allowed = false;
+        } else if (secretName) {
+            decision = "high-risk";
+            reason = "secret-name-substring";
+            allowed = false;
+        } else if (highRisk && !safeName) {
+            decision = "high-risk";
+            reason = "high-risk-runtime-name";
+            allowed = false;
+        } else if (safeName) {
+            decision = "allow";
+            reason = "safe-prefix-or-context";
+            allowed = true;
+        } else {
+            decision = "block";
+            reason = validName ? "default-deny-unknown" : "invalid-env-name";
+            allowed = false;
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("name", rawName);
+        result.put("normalizedName", normalizedName);
+        result.put("outputName", outputName);
+        result.put("decision", decision);
+        result.put("allowed", Boolean.valueOf(allowed));
+        result.put("blocked", Boolean.valueOf(!allowed));
+        result.put("reason", reason);
+        result.put("forced", Boolean.valueOf(forced));
+        result.put("configuredPassthrough", Boolean.valueOf(configuredPassthrough));
+        result.put("providerBlocked", Boolean.valueOf(providerBlocked));
+        result.put("highRisk", Boolean.valueOf(highRisk));
+        result.put("secretName", Boolean.valueOf(secretName));
+        result.put("safeName", Boolean.valueOf(safeName));
+        result.put("validName", Boolean.valueOf(validName || forced));
+        result.put("valueIncluded", Boolean.FALSE);
+        result.put("policyOnly", Boolean.TRUE);
+        return result;
     }
 
     public static void sanitize(Map<String, String> env) {
@@ -133,6 +236,14 @@ public final class SubprocessEnvironmentSanitizer {
 
     public static boolean isProviderEnvBlocked(String name) {
         return PROVIDER_ENV_BLOCKLIST.contains(StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT));
+    }
+
+    public static boolean isHighRiskEnvName(String name) {
+        String normalized = normalizeEnvName(name);
+        return normalized != null
+                && (isProviderEnvBlocked(normalized)
+                        || CONFIG_ENV_PASSTHROUGH_BLOCKLIST.contains(normalized)
+                        || isSecretEnvName(normalized));
     }
 
     public static void validateConfiguredEnvPassthrough(List<String> names, String configKey) {
@@ -221,8 +332,11 @@ public final class SubprocessEnvironmentSanitizer {
     }
 
     private static boolean isEnvPassthrough(String name, Set<String> passthrough) {
-        return passthrough != null
-                && passthrough.contains(StrUtil.nullToEmpty(name).trim().toUpperCase(Locale.ROOT));
+        if (passthrough == null || passthrough.isEmpty()) {
+            return false;
+        }
+        String normalized = normalizeEnvName(name);
+        return normalized != null && passthrough.contains(normalized);
     }
 
     private static Set<String> envPassthrough(AppConfig appConfig) {

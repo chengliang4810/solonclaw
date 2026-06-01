@@ -33,6 +33,7 @@ public class CliAttachmentResolverTest {
         assertThat(attachment.getOriginalName()).isEqualTo("report.txt");
         assertThat(attachment.getKind()).isEqualTo("file");
         assertThat(attachment.getMimeType()).isEqualTo("text/plain");
+        assertThat(attachment.getSizeBytes()).isEqualTo(5L);
         assertThat(new File(attachment.getLocalPath())).exists();
     }
 

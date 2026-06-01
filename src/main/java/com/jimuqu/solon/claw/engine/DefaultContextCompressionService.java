@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
@@ -534,6 +535,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         long estimated =
                 (long) estimateTokens(systemPrompt)
                         + estimateTokens(userMessage)
+                        + estimateAttachmentTokens(userMessage)
                         + estimateTokens(session == null ? null : session.getNdjson());
 
         if (session != null) {
@@ -549,6 +551,13 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         }
 
         return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) estimated;
+    }
+
+    private int estimateAttachmentTokens(String userMessage) {
+        if (StrUtil.isBlank(userMessage) || !userMessage.contains("estimatedTokens=")) {
+            return 0;
+        }
+        return MessageAttachmentSupport.estimateAttachmentTokensFromSummary(userMessage);
     }
 
     /** 去掉旧摘要中再次嵌套的 “Previous Summary” 区块，避免摘要递归膨胀。 */

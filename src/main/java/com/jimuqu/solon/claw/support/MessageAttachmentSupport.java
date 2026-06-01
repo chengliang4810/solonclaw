@@ -3,11 +3,32 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** 入站附件提示组装辅助类。 */
 public final class MessageAttachmentSupport {
+    private static final int IMAGE_ESTIMATED_TOKENS = 1500;
+    private static final int VOICE_TRANSCRIPT_MIN_TOKENS = 80;
+    private static final int VIDEO_METADATA_MIN_TOKENS = 300;
+    private static final int FILE_METADATA_MIN_TOKENS = 32;
+    private static final int BYTES_PER_ESTIMATED_TOKEN = 4096;
+    private static final long UNKNOWN_SIZE_BYTES = -1L;
+    private static final Set<String> IMAGE_MIME_ALLOWLIST =
+            new HashSet<String>(
+                    Arrays.asList(
+                            "image/png",
+                            "image/jpeg",
+                            "image/gif",
+                            "image/webp",
+                            "image/bmp",
+                            "image/heic",
+                            "image/heif"));
+
     private MessageAttachmentSupport() {}
 
     /** 将附件元信息注入为会话可见文本。 */
@@ -24,8 +45,14 @@ public final class MessageAttachmentSupport {
             buffer.append(text).append("\n\n");
         }
         buffer.append("[attachments]");
+        int imageCandidates = 0;
         for (MessageAttachment attachment : message.getAttachments()) {
-            buffer.append("\n- kind=").append(StrUtil.blankToDefault(attachment.getKind(), "file"));
+            String kind = normalizedKind(attachment);
+            AttachmentInsight insight = inspect(attachment, imageCandidates);
+            if ("image".equals(kind) && insight.visionCandidate) {
+                imageCandidates++;
+            }
+            buffer.append("\n- kind=").append(kind);
             buffer.append(", originalName=")
                     .append(safeAttachmentName(attachment.getOriginalName()));
             buffer.append(", mimeType=")
@@ -33,6 +60,12 @@ public final class MessageAttachmentSupport {
             buffer.append(", localPath=")
                     .append(safeAttachmentPath(attachment.getLocalPath(), true));
             buffer.append(", fromQuote=").append(attachment.isFromQuote());
+            buffer.append(", sizeBytes=").append(insight.sizeBytes < 0 ? "unknown" : String.valueOf(insight.sizeBytes));
+            buffer.append(", estimatedTokens=").append(insight.estimatedTokens);
+            buffer.append(", availability=").append(insight.availability);
+            if (StrUtil.isNotBlank(insight.hint)) {
+                buffer.append(", hint=").append(insight.hint);
+            }
             if (StrUtil.isNotBlank(attachment.getTranscribedText())) {
                 buffer.append(", transcribedText=")
                         .append(safeInline(attachment.getTranscribedText()));
@@ -46,6 +79,40 @@ public final class MessageAttachmentSupport {
         return message == null
                 ? java.util.Collections.<MessageAttachment>emptyList()
                 : message.getAttachments();
+    }
+
+    public static int estimatedTokenCost(MessageAttachment attachment) {
+        return inspect(attachment, 0).estimatedTokens;
+    }
+
+    public static String multimodalAvailability(MessageAttachment attachment) {
+        return inspect(attachment, 0).availability;
+    }
+
+    public static int estimateAttachmentTokensFromSummary(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        int total = 0;
+        int from = 0;
+        String marker = "estimatedTokens=";
+        while (from < value.length()) {
+            int index = value.indexOf(marker, from);
+            if (index < 0) {
+                break;
+            }
+            int start = index + marker.length();
+            int end = start;
+            while (end < value.length() && Character.isDigit(value.charAt(end))) {
+                end++;
+            }
+            if (end > start) {
+                try {
+                    total = safeAdd(total, Integer.parseInt(value.substring(start, end)));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            from = Math.max(end, start + 1);
+        }
+        return total;
     }
 
     public static String fileNotFoundMessage(String platform, MessageAttachment attachment) {
@@ -67,6 +134,125 @@ public final class MessageAttachmentSupport {
             message.append(" (path=").append(safePath).append(")");
         }
         return SecretRedactor.redact(message.toString(), 1000);
+    }
+
+    private static int safeAdd(int left, int right) {
+        long value = (long) left + right;
+        return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
+    }
+
+    private static AttachmentInsight inspect(MessageAttachment attachment, int acceptedImageCount) {
+        String kind = normalizedKind(attachment);
+        String mime = StrUtil.nullToEmpty(attachment == null ? null : attachment.getMimeType())
+                .trim()
+                .toLowerCase(Locale.ROOT);
+        long sizeBytes = attachmentSizeBytes(attachment);
+        int estimatedTokens = estimateTokens(kind, sizeBytes, attachment);
+        String availability = "metadata_only";
+        String hint = "llm_can_use_attachment_metadata";
+        boolean visionCandidate = false;
+        if ("image".equals(kind)) {
+            if (!mime.startsWith("image/") || !IMAGE_MIME_ALLOWLIST.contains(mime)) {
+                availability = "blocked";
+                hint = "image_mime_not_supported_for_vision";
+            } else if (sizeBytes > MediaInputBoundaryService.MAX_IMAGE_BYTES) {
+                availability = "blocked";
+                hint = "image_too_large_for_vision";
+            } else if (acceptedImageCount >= MediaInputBoundaryService.MAX_IMAGE_ATTACHMENTS) {
+                availability = "metadata_only";
+                hint = "image_limit_exceeded_for_vision";
+            } else {
+                availability = "vision_payload_candidate";
+                hint = "image_may_be_sent_as_multimodal_payload";
+                visionCandidate = true;
+            }
+        } else if ("voice".equals(kind)) {
+            if (StrUtil.isNotBlank(attachment == null ? null : attachment.getTranscribedText())) {
+                availability = "transcript_available";
+                hint = "voice_transcript_injected";
+            } else {
+                availability = "needs_transcription";
+                hint = "voice_requires_speech_transcribe_before_llm_can_read_audio";
+            }
+        } else if ("video".equals(kind)) {
+            availability = "metadata_only";
+            hint = "video_payload_not_sent_to_llm";
+        }
+        return new AttachmentInsight(sizeBytes, estimatedTokens, availability, hint, visionCandidate);
+    }
+
+    private static int estimateTokens(String kind, long sizeBytes, MessageAttachment attachment) {
+        long sizeTokens = sizeBytes <= 0 ? 0 : (sizeBytes + BYTES_PER_ESTIMATED_TOKEN - 1L) / BYTES_PER_ESTIMATED_TOKEN;
+        int tokens;
+        if ("image".equals(kind)) {
+            tokens = IMAGE_ESTIMATED_TOKENS;
+        } else if ("voice".equals(kind)) {
+            tokens = Math.max(VOICE_TRANSCRIPT_MIN_TOKENS, safeInline(attachment == null ? null : attachment.getTranscribedText()).length() / 2);
+        } else if ("video".equals(kind)) {
+            tokens = VIDEO_METADATA_MIN_TOKENS;
+        } else {
+            tokens = FILE_METADATA_MIN_TOKENS;
+        }
+        long estimated = Math.max((long) tokens, sizeTokens);
+        return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) estimated;
+    }
+
+    private static long attachmentSizeBytes(MessageAttachment attachment) {
+        if (attachment == null) {
+            return UNKNOWN_SIZE_BYTES;
+        }
+        if (attachment.getSizeBytes() > 0) {
+            return attachment.getSizeBytes();
+        }
+        if (StrUtil.isNotBlank(attachment.getData())) {
+            return Math.max(1L, cleanBase64(attachment.getData()).length() * 3L / 4L);
+        }
+        String path = StrUtil.nullToEmpty(attachment.getLocalPath()).trim();
+        if (StrUtil.isBlank(path) || path.startsWith("media://")) {
+            return UNKNOWN_SIZE_BYTES;
+        }
+        try {
+            java.io.File file = new java.io.File(path);
+            if (file.isFile()) {
+                return file.length();
+            }
+        } catch (Exception ignored) {
+        }
+        return UNKNOWN_SIZE_BYTES;
+    }
+
+    private static String cleanBase64(String data) {
+        String value = StrUtil.nullToEmpty(data).trim();
+        int comma = value.indexOf(',');
+        return comma >= 0 ? value.substring(comma + 1).trim() : value;
+    }
+
+    private static String normalizedKind(MessageAttachment attachment) {
+        String kind = StrUtil.nullToEmpty(attachment == null ? null : attachment.getKind())
+                .trim()
+                .toLowerCase(Locale.ROOT);
+        return StrUtil.blankToDefault(kind, "file");
+    }
+
+    private static final class AttachmentInsight {
+        private final long sizeBytes;
+        private final int estimatedTokens;
+        private final String availability;
+        private final String hint;
+        private final boolean visionCandidate;
+
+        private AttachmentInsight(
+                long sizeBytes,
+                int estimatedTokens,
+                String availability,
+                String hint,
+                boolean visionCandidate) {
+            this.sizeBytes = sizeBytes;
+            this.estimatedTokens = estimatedTokens;
+            this.availability = availability;
+            this.hint = hint;
+            this.visionCandidate = visionCandidate;
+        }
     }
 
     private static String safeInline(String text) {

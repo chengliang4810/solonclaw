@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -24,12 +25,95 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(summary.get("configuredPassthroughCount")).isEqualTo(Integer.valueOf(2));
         assertThat(summary.get("providerBlocklistOverridesPassthrough")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("forcePrefix")).isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
+        assertThat(summary.get("decisionProbeSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("decisionProbeValueRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("decisionCategories"))
+                .isEqualTo(Arrays.asList("force", "allow", "provider-blocked", "high-risk", "block"));
         assertThat(String.valueOf(summary))
                 .contains("skillScopedPassthroughSupported")
                 .contains("toolBackendSecretsBlocked")
                 .contains("pathFallbackEnabledForPosix")
                 .doesNotContain("OPENAI_API_KEY")
                 .doesNotContain("TENOR_API_KEY");
+    }
+
+    @Test
+    void shouldProbePerVariableDecisionsWithoutValues() {
+        AppConfig config = new AppConfig();
+        config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
+        config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
+        Map<String, String> env = new LinkedHashMap<String, String>();
+        env.put("PATH", "/usr/bin");
+        env.put("TENOR_API_KEY", "tenor-secret");
+        env.put("OPENAI_API_KEY", "sk-provider");
+        env.put("CUSTOM_TOKEN", "custom-secret");
+        env.put("MY_UNKNOWN_ENV", "drop-me");
+        env.put(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN", "forced-secret");
+        env.put("BAD-NAME", "bad");
+
+        Map<String, Map<String, Object>> decisions = decisionsByName(
+                SubprocessEnvironmentSanitizer.probeDecisions(env, config));
+
+        assertThat(decisions.get("PATH"))
+                .containsEntry("decision", "allow")
+                .containsEntry("reason", "safe-prefix-or-context")
+                .containsEntry("allowed", Boolean.TRUE);
+        assertThat(decisions.get("TENOR_API_KEY"))
+                .containsEntry("decision", "allow")
+                .containsEntry("reason", "configured-or-skill-passthrough")
+                .containsEntry("configuredPassthrough", Boolean.TRUE);
+        assertThat(decisions.get("OPENAI_API_KEY"))
+                .containsEntry("decision", "provider-blocked")
+                .containsEntry("reason", "provider-blocklist-overrides-passthrough")
+                .containsEntry("providerBlocked", Boolean.TRUE);
+        assertThat(decisions.get("CUSTOM_TOKEN"))
+                .containsEntry("decision", "high-risk")
+                .containsEntry("reason", "secret-name-substring")
+                .containsEntry("highRisk", Boolean.TRUE);
+        assertThat(decisions.get("MY_UNKNOWN_ENV"))
+                .containsEntry("decision", "block")
+                .containsEntry("reason", "default-deny-unknown")
+                .containsEntry("blocked", Boolean.TRUE);
+        assertThat(decisions.get(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN"))
+                .containsEntry("decision", "force")
+                .containsEntry("reason", "force-prefix")
+                .containsEntry("outputName", "CUSTOM_TOKEN");
+        assertThat(decisions.get("BAD-NAME"))
+                .containsEntry("decision", "block")
+                .containsEntry("reason", "invalid-env-name")
+                .containsEntry("validName", Boolean.FALSE);
+        assertThat(String.valueOf(decisions))
+                .doesNotContain("tenor-secret")
+                .doesNotContain("sk-provider")
+                .doesNotContain("forced-secret");
+    }
+
+    @Test
+    void shouldProbeSkillScopedPassthroughDecision() throws Exception {
+        AutoCloseable scope =
+                SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
+                        Arrays.asList("MAPBOX_TOKEN"));
+        try {
+            Map<String, Object> decision =
+                    SubprocessEnvironmentSanitizer.probeDecision("MAPBOX_TOKEN", null);
+
+            assertThat(decision)
+                    .containsEntry("decision", "allow")
+                    .containsEntry("reason", "configured-or-skill-passthrough")
+                    .containsEntry("configuredPassthrough", Boolean.TRUE)
+                    .containsEntry("highRisk", Boolean.TRUE)
+                    .containsEntry("valueIncluded", Boolean.FALSE);
+        } finally {
+            scope.close();
+        }
+    }
+
+    private Map<String, Map<String, Object>> decisionsByName(List<Map<String, Object>> decisions) {
+        Map<String, Map<String, Object>> result = new LinkedHashMap<String, Map<String, Object>>();
+        for (Map<String, Object> decision : decisions) {
+            result.put(String.valueOf(decision.get("name")), decision);
+        }
+        return result;
     }
 
     @Test

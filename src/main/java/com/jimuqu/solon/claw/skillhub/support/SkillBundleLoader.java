@@ -7,10 +7,13 @@ import com.jimuqu.solon.claw.skillhub.model.SkillBundle;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * Skill bundle loader and manager.
@@ -19,49 +22,51 @@ import org.noear.snack4.ONode;
 public class SkillBundleLoader {
     private final File bundlesDir;
     private volatile List<SkillBundle> cachedBundles;
+    private volatile long cachedFingerprint = Long.MIN_VALUE;
 
     public SkillBundleLoader(AppConfig appConfig) {
         this.bundlesDir = new File(appConfig.getRuntime().getSkillsDir(), "bundles");
     }
 
     public List<SkillBundle> listBundles() {
-        if (cachedBundles != null) {
-            return new ArrayList<SkillBundle>(cachedBundles);
+        long fingerprint = fingerprint();
+        List<SkillBundle> cached = cachedBundles;
+        if (cached != null && cachedFingerprint == fingerprint) {
+            return new ArrayList<SkillBundle>(cached);
         }
         return reload();
     }
 
     public synchronized List<SkillBundle> reload() {
         List<SkillBundle> bundles = new ArrayList<SkillBundle>();
-        if (!bundlesDir.isDirectory()) {
-            cachedBundles = bundles;
-            return bundles;
-        }
-        File[] files = bundlesDir.listFiles();
-        if (files == null) {
-            cachedBundles = bundles;
-            return bundles;
-        }
-        for (File file : files) {
-            if (!file.isFile()) {
-                continue;
-            }
-            String name = file.getName().toLowerCase();
-            if (!name.endsWith(".json") && !name.endsWith(".yml") && !name.endsWith(".yaml")) {
-                continue;
-            }
-            SkillBundle bundle = loadBundle(file);
-            if (bundle != null) {
+        Map<String, SkillBundle> bySlug = new LinkedHashMap<String, SkillBundle>();
+        File[] files = bundleFiles();
+        if (files != null) {
+            for (File file : files) {
+                SkillBundle bundle = loadBundle(file);
+                if (bundle == null || StrUtil.isBlank(bundle.getName())) {
+                    continue;
+                }
+                String slug = slugify(bundle.getName());
+                if (StrUtil.isBlank(slug) || bySlug.containsKey(slug)) {
+                    continue;
+                }
+                bySlug.put(slug, bundle);
                 bundles.add(bundle);
             }
         }
         cachedBundles = bundles;
+        cachedFingerprint = fingerprint(files);
         return new ArrayList<SkillBundle>(bundles);
     }
 
     public SkillBundle getBundle(String name) {
+        String slug = slugify(name);
+        if (StrUtil.isBlank(slug)) {
+            return null;
+        }
         for (SkillBundle bundle : listBundles()) {
-            if (name.equalsIgnoreCase(bundle.getName())) {
+            if (slug.equals(slugify(bundle.getName()))) {
                 return bundle;
             }
         }
@@ -70,8 +75,11 @@ public class SkillBundleLoader {
 
     public synchronized void saveBundle(SkillBundle bundle) {
         FileUtil.mkdir(bundlesDir);
-        String fileName = StrUtil.nullToEmpty(bundle.getName()).trim().toLowerCase() + ".json";
-        File file = new File(bundlesDir, fileName);
+        String slug = slugify(bundle == null ? null : bundle.getName());
+        if (StrUtil.isBlank(slug)) {
+            throw new IllegalArgumentException("Bundle name is required");
+        }
+        File file = new File(bundlesDir, slug + ".json");
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("name", bundle.getName());
         data.put("files", bundle.getFiles());
@@ -83,14 +91,14 @@ public class SkillBundleLoader {
         }
         String json = ONode.serialize(data);
         FileUtil.writeString(json, file, StandardCharsets.UTF_8);
-        cachedBundles = null;
+        invalidateCache();
     }
 
     public synchronized boolean deleteBundle(String name) {
         File file = findBundleFile(name);
         if (file != null && file.isFile()) {
             file.delete();
-            cachedBundles = null;
+            invalidateCache();
             return true;
         }
         return false;
@@ -114,11 +122,11 @@ public class SkillBundleLoader {
     }
 
     private File findBundleFile(String name) {
-        if (!bundlesDir.isDirectory()) {
+        String slug = slugify(name);
+        if (StrUtil.isBlank(slug)) {
             return null;
         }
-        String lower = StrUtil.nullToEmpty(name).trim().toLowerCase();
-        File[] files = bundlesDir.listFiles();
+        File[] files = bundleFiles();
         if (files == null) {
             return null;
         }
@@ -128,7 +136,11 @@ public class SkillBundleLoader {
             if (dot > 0) {
                 base = base.substring(0, dot);
             }
-            if (base.equalsIgnoreCase(lower)) {
+            if (slug.equals(slugify(base))) {
+                return file;
+            }
+            SkillBundle bundle = loadBundle(file);
+            if (bundle != null && slug.equals(slugify(bundle.getName()))) {
                 return file;
             }
         }
@@ -142,13 +154,13 @@ public class SkillBundleLoader {
             if (StrUtil.isBlank(content)) {
                 return null;
             }
-            Object parsed = ONode.deserialize(content, Object.class);
+            Object parsed = parseBundleContent(file, content);
             if (!(parsed instanceof Map)) {
                 return null;
             }
             Map<String, Object> data = (Map<String, Object>) parsed;
             SkillBundle bundle = new SkillBundle();
-            bundle.setName(StrUtil.nullToEmpty((String) data.get("name")).trim());
+            bundle.setName(StrUtil.nullToEmpty(stringValue(data.get("name"))).trim());
             if (StrUtil.isBlank(bundle.getName())) {
                 String fileName = file.getName();
                 int dot = fileName.lastIndexOf('.');
@@ -162,9 +174,9 @@ public class SkillBundleLoader {
                 }
                 bundle.setFiles(files);
             }
-            bundle.setSource((String) data.get("source"));
-            bundle.setIdentifier((String) data.get("identifier"));
-            bundle.setTrustLevel((String) data.get("trustLevel"));
+            bundle.setSource(stringValue(data.get("source")));
+            bundle.setIdentifier(stringValue(data.get("identifier")));
+            bundle.setTrustLevel(stringValue(data.get("trustLevel")));
             Object meta = data.get("metadata");
             if (meta instanceof Map) {
                 bundle.setMetadata(new LinkedHashMap<String, Object>((Map<String, Object>) meta));
@@ -173,5 +185,87 @@ public class SkillBundleLoader {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private File[] bundleFiles() {
+        if (!bundlesDir.isDirectory()) {
+            return null;
+        }
+        File[] files =
+                bundlesDir.listFiles(
+                        file -> file.isFile() && isBundleFileName(file.getName().toLowerCase()));
+        if (files != null) {
+            Arrays.sort(
+                    files,
+                    new Comparator<File>() {
+                        @Override
+                        public int compare(File left, File right) {
+                            return left.getName().compareToIgnoreCase(right.getName());
+                        }
+                    });
+        }
+        return files;
+    }
+
+    private boolean isBundleFileName(String name) {
+        return name.endsWith(".json") || name.endsWith(".yml") || name.endsWith(".yaml");
+    }
+
+    private Object parseBundleContent(File file, String content) {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".yml") || name.endsWith(".yaml")) {
+            return new Yaml().load(content);
+        }
+        return ONode.deserialize(content, Object.class);
+    }
+
+    private long fingerprint() {
+        return fingerprint(bundleFiles());
+    }
+
+    private long fingerprint(File[] files) {
+        long result = bundlesDir.exists() ? bundlesDir.lastModified() : 0L;
+        if (files == null || files.length == 0) {
+            return result;
+        }
+        for (File file : files) {
+            result = 31L * result + file.getName().hashCode();
+            result = 31L * result + file.lastModified();
+            result = 31L * result + file.length();
+        }
+        return result;
+    }
+
+    private String slugify(String value) {
+        String text = StrUtil.nullToEmpty(value).trim().toLowerCase().replace('_', '-');
+        StringBuilder builder = new StringBuilder();
+        boolean previousHyphen = false;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            boolean hyphen = ch == '-' || Character.isWhitespace(ch);
+            if (hyphen) {
+                if (!previousHyphen && builder.length() > 0) {
+                    builder.append('-');
+                    previousHyphen = true;
+                }
+            } else if (ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9') {
+                builder.append(ch);
+                previousHyphen = false;
+            }
+        }
+        int length = builder.length();
+        if (length > 0 && builder.charAt(length - 1) == '-') {
+            builder.deleteCharAt(length - 1);
+        }
+        return builder.toString();
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private void invalidateCache() {
+        cachedBundles = null;
+        cachedFingerprint = Long.MIN_VALUE;
     }
 }

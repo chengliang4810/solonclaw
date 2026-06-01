@@ -104,7 +104,7 @@ public class SkillTools {
             @Param(name = "filePath", description = "可选支持文件相对路径", required = false) String filePath)
             throws Exception {
         try {
-            SkillView view = localSkillService.viewSkill(name, filePath, agentScope);
+            SkillView view = localSkillService.viewSkill(name, filePath, agentScope, currentSessionId());
             registerSkillEnvironmentPassthrough(filePath, view);
             return safeResult(ONode.serialize(view), 20000);
         } catch (Exception e) {
@@ -208,6 +208,16 @@ public class SkillTools {
         SubprocessEnvironmentSanitizer.registerSkillEnvironmentPassthrough(
                 SkillFrontmatterSupport.resolveRequiredEnvironmentVariables(
                         view.getDescriptor().getMetadata()));
+    }
+
+    private String currentSessionId() {
+        try {
+            SessionRecord session =
+                    sessionRepository == null ? null : sessionRepository.getBoundSession(sourceKey);
+            return session == null ? null : session.getSessionId();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /** 创建 checkpoint。 */

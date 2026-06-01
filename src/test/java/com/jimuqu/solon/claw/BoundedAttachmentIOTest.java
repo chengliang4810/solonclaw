@@ -28,6 +28,7 @@ public class BoundedAttachmentIOTest {
         assertThat(summary.get("crossHostHeaderForwardingBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("contentLengthChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("streamReadBounded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("contentTypeCaptured")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("defaultMaxBytes"))
                 .isEqualTo(Long.valueOf(BoundedAttachmentIO.DEFAULT_MAX_BYTES));
         assertThat(summary.get("maxRedirects")).isEqualTo(Integer.valueOf(5));

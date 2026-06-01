@@ -30,7 +30,7 @@ public class DefaultMemoryManager implements MemoryManager {
             if (buffer.length() > 0) {
                 buffer.append("\n\n");
             }
-            buffer.append(block.trim());
+            buffer.append(MemoryContextBoundary.ensureContextBlock(block));
         }
         return buffer.toString();
     }
@@ -46,7 +46,7 @@ public class DefaultMemoryManager implements MemoryManager {
             if (buffer.length() > 0) {
                 buffer.append("\n\n");
             }
-            buffer.append(block.trim());
+            buffer.append(MemoryContextBoundary.ensureContextBlock(block));
         }
         return buffer.toString();
     }

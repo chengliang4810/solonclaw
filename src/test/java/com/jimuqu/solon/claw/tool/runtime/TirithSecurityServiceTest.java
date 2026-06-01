@@ -169,11 +169,16 @@ public class TirithSecurityServiceTest {
         assertThat(diagnostic.isConfigured()).isTrue();
         assertThat(diagnostic.isAvailable()).isFalse();
         assertThat(diagnostic.isFailOpen()).isFalse();
+        assertThat(diagnostic.getScannerState()).isEqualTo("configured_unavailable");
+        assertThat(diagnostic.getFailureMode()).isEqualTo("fail-closed");
+        assertThat(diagnostic.getFailureBehavior()).isEqualTo("block_on_operational_failure");
         assertThat(diagnostic.getSummary()).contains("unavailable").contains("fail-closed");
         assertThat(diagnostic.getConfiguredPath()).contains("***").doesNotContain(token);
         assertThat(diagnostic.getResolvedPath()).contains("***").doesNotContain(token);
         assertThat(String.valueOf(diagnostic.toMap()))
                 .contains("path://tirith-")
+                .contains("configured_unavailable")
+                .contains("block_on_operational_failure")
                 .doesNotContain("jimuqu-missing-tirith")
                 .doesNotContain(token);
     }
@@ -192,6 +197,9 @@ public class TirithSecurityServiceTest {
         assertThat(summary.get("available")).isEqualTo(Boolean.FALSE);
         assertThat(summary.get("timeoutSeconds")).isEqualTo(Integer.valueOf(7));
         assertThat(summary.get("failOpen")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("scannerState")).isEqualTo("configured_unavailable");
+        assertThat(summary.get("failureMode")).isEqualTo("fail-closed");
+        assertThat(summary.get("failureBehavior")).isEqualTo("block_on_operational_failure");
         assertThat(String.valueOf(summary.get("actions")))
                 .contains("allow")
                 .contains("warn")
@@ -201,6 +209,12 @@ public class TirithSecurityServiceTest {
         assertThat(summary.get("findingLimit")).isEqualTo(Integer.valueOf(50));
         assertThat(summary.get("summaryLimit")).isEqualTo(Integer.valueOf(500));
         assertThat(summary.get("secretRedaction")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("redactedSummaryFields")))
+                .contains("diagnostic.configuredPath")
+                .contains("finding.description");
+        assertThat(summary.get("rawConfiguredPathExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("rawResolvedPathExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("rawFindingsExposed")).isEqualTo(Boolean.FALSE);
         assertThat(String.valueOf(summary.get("shellDetection")))
                 .contains("posix")
                 .contains("powershell")
@@ -221,6 +235,9 @@ public class TirithSecurityServiceTest {
 
         assertThat(diagnostic.isEnabled()).isTrue();
         assertThat(diagnostic.isAvailable()).isTrue();
+        assertThat(diagnostic.getScannerState()).isEqualTo("available");
+        assertThat(diagnostic.getFailureMode()).isEqualTo("fail-open");
+        assertThat(diagnostic.getFailureBehavior()).isEqualTo("allow_on_operational_failure");
         assertThat(diagnostic.getResolvedPath()).contains(binary.getFileName().toString());
         assertThat(diagnostic.getSummary()).contains("available");
     }

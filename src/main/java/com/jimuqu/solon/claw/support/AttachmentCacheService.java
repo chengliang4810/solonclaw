@@ -93,6 +93,7 @@ public class AttachmentCacheService {
         attachment.setLocalPath(target.getAbsolutePath());
         attachment.setOriginalName(safeName(originalName));
         attachment.setMimeType(normalizedMimeType);
+        attachment.setSizeBytes(data.length);
         attachment.setFromQuote(fromQuote);
         attachment.setTranscribedText(StrUtil.nullToEmpty(transcribedText).trim());
         return attachment;
@@ -122,6 +123,7 @@ public class AttachmentCacheService {
         attachment.setLocalPath(canonical.getAbsolutePath());
         attachment.setOriginalName(safeName(canonical.getName()));
         attachment.setMimeType(normalizedMimeType);
+        attachment.setSizeBytes(canonical.length());
         attachment.setFromQuote(fromQuote);
         attachment.setTranscribedText(StrUtil.nullToEmpty(transcribedText).trim());
         return attachment;

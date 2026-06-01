@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.llm;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
@@ -506,6 +507,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         final StringBuilder emittedText = new StringBuilder();
         final ReActResponse[] finalResponse = new ReActResponse[1];
         final ThinkingStreamSplitter thinkingSplitter = new ThinkingStreamSplitter();
+        final MemoryContextBoundary.StreamingScrubber memoryScrubber =
+                new MemoryContextBoundary.StreamingScrubber();
 
         try {
             if (resume) {
@@ -518,7 +521,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                                 thinkingSplitter,
                                                 eventSink,
                                                 feedbackSink,
-                                                finalResponse))
+                                                finalResponse,
+                                                memoryScrubber))
                         .blockLast();
             } else {
                 agent
@@ -534,7 +538,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                                 thinkingSplitter,
                                                 eventSink,
                                                 feedbackSink,
-                                                finalResponse))
+                                                finalResponse,
+                                                memoryScrubber))
                         .blockLast();
             }
         } catch (Throwable e) {
@@ -543,16 +548,21 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
             throw new IllegalStateException("ReActAgent stream failed", e);
         }
-        emitThinking(thinkingSplitter.flushPending(), emittedText, eventSink, feedbackSink);
+        emitThinking(thinkingSplitter.flushPending(), emittedText, eventSink, feedbackSink, memoryScrubber);
+        String remainingVisible = memoryScrubber.flush();
+        if (StrUtil.isNotBlank(remainingVisible)) {
+            emittedText.append(remainingVisible);
+            eventSink.onAssistantDelta(remainingVisible);
+        }
 
         AssistantMessage assistantMessage =
                 finalResponse[0] == null
                         ? ChatMessage.ofAssistant(emittedText.toString())
                         : finalResponse[0].getMessage();
-        String finalText = extractText(assistantMessage);
+        String finalText = MemoryContextBoundary.scrubVisibleText(extractText(assistantMessage));
         String emitted = emittedText.toString();
         if (StrUtil.isNotBlank(finalText) && finalText.startsWith(emitted)) {
-            String tail = finalText.substring(emitted.length());
+            String tail = MemoryContextBoundary.scrubVisibleText(finalText.substring(emitted.length()));
             if (StrUtil.isNotBlank(tail)) {
                 eventSink.onAssistantDelta(tail);
             }
@@ -586,7 +596,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             ThinkingStreamSplitter thinkingSplitter,
             ConversationEventSink eventSink,
             ConversationFeedbackSink feedbackSink,
-            ReActResponse[] finalResponse) {
+            ReActResponse[] finalResponse,
+            MemoryContextBoundary.StreamingScrubber memoryScrubber) {
         if (chunk instanceof org.noear.solon.ai.agent.react.task.ReasonChunk) {
             org.noear.solon.ai.agent.react.task.ReasonChunk reasonChunk =
                     (org.noear.solon.ai.agent.react.task.ReasonChunk) chunk;
@@ -604,7 +615,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     thinkingSplitter.accept(delta, message.isThinking()),
                     emittedText,
                     eventSink,
-                    feedbackSink);
+                    feedbackSink,
+                    memoryScrubber);
             return;
         }
 
@@ -634,7 +646,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             ThinkingStreamSplitter.Delta delta,
             StringBuilder emittedText,
             ConversationEventSink eventSink,
-            ConversationFeedbackSink feedbackSink) {
+            ConversationFeedbackSink feedbackSink,
+            MemoryContextBoundary.StreamingScrubber memoryScrubber) {
         if (delta == null) {
             return;
         }
@@ -645,8 +658,11 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
         }
         if (StrUtil.isNotBlank(delta.visible)) {
-            emittedText.append(delta.visible);
-            eventSink.onAssistantDelta(delta.visible);
+            String visible = memoryScrubber.feed(delta.visible);
+            if (StrUtil.isNotBlank(visible)) {
+                emittedText.append(visible);
+                eventSink.onAssistantDelta(visible);
+            }
         }
     }
 

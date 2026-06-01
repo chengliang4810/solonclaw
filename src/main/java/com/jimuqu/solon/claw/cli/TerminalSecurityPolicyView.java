@@ -1624,6 +1624,13 @@ public final class TerminalSecurityPolicyView {
                 .append(value(env, "runtimeSafetyTogglesBlocked"))
                 .append(" forcePrefix=")
                 .append(value(env, "forcePrefix"));
+        buffer.append('\n')
+                .append("- 探针：supported=")
+                .append(value(env, "decisionProbeSupported"))
+                .append(" categories=")
+                .append(value(env, "decisionCategories"))
+                .append(" valuesRedacted=")
+                .append(value(env, "decisionProbeValueRedacted"));
         return buffer.toString();
     }
 

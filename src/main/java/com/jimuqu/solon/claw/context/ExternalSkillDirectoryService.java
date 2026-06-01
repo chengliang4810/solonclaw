@@ -1,11 +1,8 @@
 package com.jimuqu.solon.claw.context;
 
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -17,12 +14,10 @@ import java.util.Map;
  * Loads skills from user-configured external directories (outside runtime home).
  */
 public class ExternalSkillDirectoryService {
-    private final AppConfig appConfig;
     private final List<File> externalDirs;
 
     public ExternalSkillDirectoryService(AppConfig appConfig) {
-        this.appConfig = appConfig;
-        this.externalDirs = resolveExternalDirs();
+        this.externalDirs = new SkillDirectoryResolver(appConfig).externalSkillsDirs();
     }
 
     public List<SkillDescriptor> scanExternalSkills() {
@@ -77,24 +72,6 @@ public class ExternalSkillDirectoryService {
         return result;
     }
 
-    private List<File> resolveExternalDirs() {
-        List<File> dirs = new ArrayList<File>();
-        if (appConfig.getSkills() == null) {
-            return dirs;
-        }
-        List<String> paths = appConfig.getSkills().getExternalDirs();
-        if (paths == null) {
-            return dirs;
-        }
-        for (String path : paths) {
-            if (StrUtil.isNotBlank(path)) {
-                String expanded = expandHome(path.trim());
-                dirs.add(new File(expanded));
-            }
-        }
-        return dirs;
-    }
-
     private SkillDescriptor loadSkillFromDir(File dir, File parentDir) {
         File skillFile = new File(dir, "SKILL.md");
         if (!skillFile.isFile()) {
@@ -137,13 +114,6 @@ public class ExternalSkillDirectoryService {
             }
         }
         return count;
-    }
-
-    private String expandHome(String path) {
-        if (path.startsWith("~/") || path.startsWith("~\\")) {
-            return System.getProperty("user.home") + path.substring(1);
-        }
-        return path;
     }
 
     private boolean isUnderDirectory(File file, File dir) {

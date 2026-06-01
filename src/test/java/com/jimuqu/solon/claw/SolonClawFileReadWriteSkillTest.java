@@ -1,7 +1,10 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -12,6 +15,22 @@ import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 public class SolonClawFileReadWriteSkillTest {
+    @Test
+    void shouldBlockRuntimeCredentialCacheRead() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-file-read-safety-test");
+        Files.createDirectories(dir.resolve("cache"));
+        Files.write(dir.resolve("cache/bws_cache.json"), "secret".getBytes(StandardCharsets.UTF_8));
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(dir.toString());
+        SolonClawFileReadWriteSkill skill =
+                new SolonClawFileReadWriteSkill(dir.toString(), new SecurityPolicyService(config));
+
+        assertThatThrownBy(() -> skill.read("cache/bws_cache.json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("读取敏感系统/凭据文件被阻断")
+                .hasMessageNotContaining("secret");
+    }
+
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void shouldWriteByAtomicFileSwap() throws Exception {

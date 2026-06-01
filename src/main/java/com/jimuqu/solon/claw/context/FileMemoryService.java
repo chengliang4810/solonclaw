@@ -61,7 +61,7 @@ public class FileMemoryService implements MemoryService {
 
         String normalized = normalizeEntry(content);
         if (shouldReject(normalized)) {
-            return "该内容更像临时任务状态，不会写入长期记忆。";
+            return "该内容更像临时任务状态或内部上下文，不会写入长期记忆。";
         }
 
         List<String> entries = readEntries(target);
@@ -81,7 +81,7 @@ public class FileMemoryService implements MemoryService {
 
         String normalizedNew = normalizeEntry(newContent);
         if (shouldReject(normalizedNew)) {
-            return "该内容更像临时任务状态，不会写入长期记忆。";
+            return "该内容更像临时任务状态或内部上下文，不会写入长期记忆。";
         }
 
         List<String> entries = readEntries(target);
@@ -193,6 +193,10 @@ public class FileMemoryService implements MemoryService {
             return true;
         }
         if (content.length() > 300) {
+            return true;
+        }
+        if (MemoryContextBoundary.containsFence(content)
+                || StrUtil.containsIgnoreCase(content, "System note: The following is recalled memory context")) {
             return true;
         }
         for (String pattern : TRANSIENT_PATTERNS) {
