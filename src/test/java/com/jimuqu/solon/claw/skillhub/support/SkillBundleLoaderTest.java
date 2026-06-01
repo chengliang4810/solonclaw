@@ -49,6 +49,44 @@ class SkillBundleLoaderTest {
     }
 
     @Test
+    void shouldAutoReloadWhenBundleFileMtimeChanges() throws Exception {
+        File skillsDir = Files.createTempDirectory("skill-bundle-loader-mtime").toFile();
+        File bundlesDir = new File(skillsDir, "bundles");
+        FileUtil.mkdir(bundlesDir);
+        SkillBundleLoader loader = new SkillBundleLoader(config(skillsDir));
+        File bundleFile = new File(bundlesDir, "alpha.json");
+
+        writeBundle(bundleFile, "Alpha Bundle", "SKILL.md", "alpha-v1");
+        assertThat(loader.getBundle("alpha-bundle").getFiles()).containsEntry("SKILL.md", "alpha-v1");
+
+        long nextTouchedAt = bundleFile.lastModified() + 2000L;
+        writeBundle(bundleFile, "Alpha Bundle", "SKILL.md", "alpha-v2");
+        touch(bundleFile, nextTouchedAt);
+
+        assertThat(loader.getBundle("alpha_bundle").getFiles()).containsEntry("SKILL.md", "alpha-v2");
+    }
+
+    @Test
+    void shouldPromoteNextDuplicateBundleWhenWinningFileRemoved() throws Exception {
+        File skillsDir = Files.createTempDirectory("skill-bundle-loader-promote").toFile();
+        File bundlesDir = new File(skillsDir, "bundles");
+        FileUtil.mkdir(bundlesDir);
+        SkillBundleLoader loader = new SkillBundleLoader(config(skillsDir));
+        File first = new File(bundlesDir, "01-first.json");
+        File second = new File(bundlesDir, "02-second.json");
+
+        writeBundle(first, "Demo Bundle", "SKILL.md", "first");
+        writeBundle(second, "Demo_Bundle", "SKILL.md", "second");
+        assertThat(loader.getBundle("demo-bundle").getFiles()).containsEntry("SKILL.md", "first");
+
+        long nextTouchedAt = Math.max(first.lastModified(), second.lastModified()) + 2000L;
+        assertThat(first.delete()).isTrue();
+        touch(bundlesDir, nextTouchedAt);
+
+        assertThat(loader.getBundle("demo_bundle").getFiles()).containsEntry("SKILL.md", "second");
+    }
+
+    @Test
     void shouldLoadYamlBundleAndFallbackToFileName() throws Exception {
         File skillsDir = Files.createTempDirectory("skill-bundle-loader-yaml").toFile();
         File bundlesDir = new File(skillsDir, "bundles");
@@ -87,5 +125,9 @@ class SkillBundleLoaderTest {
                         + "\"}}",
                 file,
                 StandardCharsets.UTF_8);
+    }
+
+    private void touch(File file, long lastModified) {
+        assertThat(file.setLastModified(lastModified)).isTrue();
     }
 }

@@ -22,16 +22,16 @@ import org.yaml.snakeyaml.Yaml;
 public class SkillBundleLoader {
     private final File bundlesDir;
     private volatile List<SkillBundle> cachedBundles;
-    private volatile long cachedFingerprint = Long.MIN_VALUE;
+    private volatile long cachedLastTouchedAt = Long.MIN_VALUE;
 
     public SkillBundleLoader(AppConfig appConfig) {
         this.bundlesDir = new File(appConfig.getRuntime().getSkillsDir(), "bundles");
     }
 
     public List<SkillBundle> listBundles() {
-        long fingerprint = fingerprint();
+        long lastTouchedAt = lastTouchedAt();
         List<SkillBundle> cached = cachedBundles;
-        if (cached != null && cachedFingerprint == fingerprint) {
+        if (cached != null && cachedLastTouchedAt == lastTouchedAt) {
             return new ArrayList<SkillBundle>(cached);
         }
         return reload();
@@ -56,7 +56,7 @@ public class SkillBundleLoader {
             }
         }
         cachedBundles = bundles;
-        cachedFingerprint = fingerprint(files);
+        cachedLastTouchedAt = lastTouchedAt(files);
         return new ArrayList<SkillBundle>(bundles);
     }
 
@@ -200,7 +200,11 @@ public class SkillBundleLoader {
                     new Comparator<File>() {
                         @Override
                         public int compare(File left, File right) {
-                            return left.getName().compareToIgnoreCase(right.getName());
+                            int compare = left.getName().compareToIgnoreCase(right.getName());
+                            if (compare != 0) {
+                                return compare;
+                            }
+                            return left.getAbsolutePath().compareTo(right.getAbsolutePath());
                         }
                     });
         }
@@ -219,21 +223,19 @@ public class SkillBundleLoader {
         return ONode.deserialize(content, Object.class);
     }
 
-    private long fingerprint() {
-        return fingerprint(bundleFiles());
+    private long lastTouchedAt() {
+        return lastTouchedAt(bundleFiles());
     }
 
-    private long fingerprint(File[] files) {
-        long result = bundlesDir.exists() ? bundlesDir.lastModified() : 0L;
+    private long lastTouchedAt(File[] files) {
+        long latest = bundlesDir.exists() ? bundlesDir.lastModified() : 0L;
         if (files == null || files.length == 0) {
-            return result;
+            return latest;
         }
         for (File file : files) {
-            result = 31L * result + file.getName().hashCode();
-            result = 31L * result + file.lastModified();
-            result = 31L * result + file.length();
+            latest = Math.max(latest, file.lastModified());
         }
-        return result;
+        return latest;
     }
 
     private String slugify(String value) {
@@ -266,6 +268,6 @@ public class SkillBundleLoader {
 
     private void invalidateCache() {
         cachedBundles = null;
-        cachedFingerprint = Long.MIN_VALUE;
+        cachedLastTouchedAt = Long.MIN_VALUE;
     }
 }
