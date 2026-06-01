@@ -250,7 +250,7 @@ public class DashboardSessionService {
         if (root == null) {
             return Collections.singletonMap("nodes", Collections.emptyList());
         }
-        List<SessionRecord> lineage = lineageRecords(root);
+        List<SessionRecord> lineage = sessionRepository.listLineage(root.getSessionId());
         List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
         for (SessionRecord record : lineage) {
             Map<String, Object> node = toSessionInfo(record);
@@ -275,96 +275,14 @@ public class DashboardSessionService {
             return missing;
         }
 
-        List<SessionRecord> records = lineageRecords(root);
-        Map<String, List<SessionRecord>> childrenByParent =
-                new LinkedHashMap<String, List<SessionRecord>>();
-        for (SessionRecord record : records) {
-            String parent = record.getParentSessionId();
-            if (StrUtil.isBlank(parent)) {
-                continue;
-            }
-            List<SessionRecord> children = childrenByParent.get(parent);
-            if (children == null) {
-                children = new ArrayList<SessionRecord>();
-                childrenByParent.put(parent, children);
-            }
-            children.add(record);
-        }
-
-        List<String> path = new ArrayList<String>();
-        String current = root.getSessionId();
-        path.add(current);
-        java.util.HashSet<String> seen = new java.util.HashSet<String>();
-        seen.add(current);
-
-        while (childrenByParent.containsKey(current)) {
-            List<SessionRecord> children = childrenByParent.get(current);
-            SessionRecord newest = null;
-            for (SessionRecord candidate : children) {
-                if (seen.contains(candidate.getSessionId())) {
-                    continue;
-                }
-                if (newest == null || candidate.getCreatedAt() > newest.getCreatedAt()) {
-                    newest = candidate;
-                }
-            }
-            if (newest == null) {
-                break;
-            }
-            current = newest.getSessionId();
-            path.add(current);
-            seen.add(current);
-        }
+        List<String> path = sessionRepository.latestDescendantPath(root.getSessionId());
+        String current = path.isEmpty() ? root.getSessionId() : path.get(path.size() - 1);
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("requested_session_id", safe(root.getSessionId(), 400));
         result.put("session_id", safe(current, 400));
         result.put("path", safeList(path, 400));
         result.put("changed", Boolean.valueOf(!root.getSessionId().equals(current)));
-        return result;
-    }
-
-    private List<SessionRecord> lineageRecords(SessionRecord root) throws Exception {
-        int total = Math.max(sessionRepository.countAll(), 1);
-        List<SessionRecord> records =
-                sessionRepository.listRecent(Math.min(Math.max(total, 200), 5000), 0);
-        Map<String, SessionRecord> byId = new LinkedHashMap<String, SessionRecord>();
-        for (SessionRecord record : records) {
-            byId.put(record.getSessionId(), record);
-        }
-        if (!byId.containsKey(root.getSessionId())) {
-            byId.put(root.getSessionId(), root);
-        }
-
-        java.util.LinkedHashSet<String> selected = new java.util.LinkedHashSet<String>();
-        String cursor = root.getSessionId();
-        while (StrUtil.isNotBlank(cursor) && selected.add(cursor)) {
-            SessionRecord current = byId.get(cursor);
-            if (current == null) {
-                break;
-            }
-            cursor = current.getParentSessionId();
-        }
-
-        boolean changed = true;
-        while (changed) {
-            changed = false;
-            for (SessionRecord record : byId.values()) {
-                String parent = record.getParentSessionId();
-                if (StrUtil.isNotBlank(parent)
-                        && selected.contains(parent)
-                        && selected.add(record.getSessionId())) {
-                    changed = true;
-                }
-            }
-        }
-
-        List<SessionRecord> result = new ArrayList<SessionRecord>();
-        for (SessionRecord record : byId.values()) {
-            if (selected.contains(record.getSessionId())) {
-                result.add(record);
-            }
-        }
         return result;
     }
 

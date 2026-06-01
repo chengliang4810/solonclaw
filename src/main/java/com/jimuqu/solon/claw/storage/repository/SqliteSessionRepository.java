@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -447,6 +448,72 @@ public class SqliteSessionRepository implements SessionRepository {
         } finally {
             connection.close();
         }
+    }
+
+    @Override
+    public List<SessionRecord> listLineage(String sessionId) throws Exception {
+        if (StrUtil.isBlank(sessionId)) {
+            return new ArrayList<SessionRecord>();
+        }
+        String rootSessionId = resolveRootSessionId(sessionId);
+        if (StrUtil.isBlank(rootSessionId)) {
+            return new ArrayList<SessionRecord>();
+        }
+        List<SessionRecord> result = new ArrayList<SessionRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "with recursive lineage(session_id) as ("
+                                    + "select session_id from sessions where session_id = ? "
+                                    + "union "
+                                    + "select s.session_id from sessions s join lineage l on s.parent_session_id = l.session_id"
+                                    + ") select "
+                                    + SELECT_COLUMNS
+                                    + " from sessions where session_id in (select session_id from lineage)"
+                                    + " order by created_at asc, session_id asc");
+            statement.setString(1, rootSessionId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    result.add(map(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return result;
+    }
+
+    @Override
+    public List<String> latestDescendantPath(String sessionId) throws Exception {
+        SessionRecord root = findById(sessionId);
+        if (root == null) {
+            return new ArrayList<String>();
+        }
+        List<SessionRecord> records = listLineage(root.getSessionId());
+        List<String> path = new ArrayList<String>();
+        LinkedHashSet<String> seen = new LinkedHashSet<String>();
+        SessionRecord current = root;
+        while (current != null && seen.add(current.getSessionId())) {
+            path.add(current.getSessionId());
+            SessionRecord newest = null;
+            for (SessionRecord candidate : records) {
+                if (candidate == null
+                        || !current.getSessionId().equals(candidate.getParentSessionId())
+                        || seen.contains(candidate.getSessionId())) {
+                    continue;
+                }
+                if (newest == null || candidate.getCreatedAt() > newest.getCreatedAt()) {
+                    newest = candidate;
+                }
+            }
+            current = newest;
+        }
+        return path;
     }
 
     @Override
