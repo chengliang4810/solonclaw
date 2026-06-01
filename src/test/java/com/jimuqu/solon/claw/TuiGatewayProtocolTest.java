@@ -13,12 +13,15 @@ import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
@@ -127,6 +130,59 @@ class TuiGatewayProtocolTest {
                     .contains("Model: chat-model (local-provider)")
                     .contains("Tokens: 12,345")
                     .contains("Agent Running: No");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldCreateSessionWithCompatibilityPayload() throws Exception {
+        CreateSessionRepository repository = new CreateSessionRepository();
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        repository,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket socket = new FakeWebSocket("create-connection");
+            TuiConnection connection = new TuiConnection(socket);
+            service.onOpen(connection);
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"create-1\",\"method\":\"session.create\",\"params\":{\"session_id\":\"created-session\",\"title\":\"Created title\",\"busy_mode\":\"queue\"}}"));
+
+            Map<String, Object> result = socket.lastSentMap();
+            assertThat(result)
+                    .containsEntry("type", "rpc.result")
+                    .containsEntry("id", "create-1")
+                    .containsEntry("sessionId", "created-session");
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload)
+                    .containsEntry("session_id", "created-session")
+                    .containsEntry("stored_session_id", "created-session")
+                    .containsEntry("title", "Created title")
+                    .containsEntry("message_count", Integer.valueOf(0));
+            assertThat((List<Map<String, Object>>) payload.get("messages")).isEmpty();
+            Map<String, Object> info = (Map<String, Object>) payload.get("info");
+            assertThat(info)
+                    .containsEntry("model", "")
+                    .containsEntry("tools", Collections.emptyList())
+                    .containsEntry("skills", Collections.emptyList())
+                    .containsEntry("lazy", Boolean.TRUE);
+            assertThat(connection.getActiveSessionId()).isEqualTo("created-session");
+            assertThat(repository.findById("created-session").getTitle()).isEqualTo("Created title");
         } finally {
             service.shutdown();
         }
@@ -305,6 +361,325 @@ class TuiGatewayProtocolTest {
         }
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldReturnOnlyLiveActiveTuiSessionsInConnectionOrder() throws Exception {
+        SessionRecord first = session("first-live", "MEMORY:tui:first-live");
+        first.setTitle("First live");
+        first.setCumulativeTotalTokens(7L);
+        SessionRecord second = session("second-live", "MEMORY:tui:second-live");
+        second.setTitle("Second live");
+        second.setCumulativeTotalTokens(11L);
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(
+                                Arrays.asList(
+                                        first,
+                                        session("stored-only", "MEMORY:tui:stored-only"),
+                                        second)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket firstSocket = new FakeWebSocket("connection-1");
+            TuiConnection firstConnection = new TuiConnection(firstSocket);
+            firstConnection.setActiveSessionId("first-live");
+            TuiConnection inactiveConnection = new TuiConnection(new FakeWebSocket("connection-2"));
+            TuiConnection secondConnection = new TuiConnection(new FakeWebSocket("connection-3"));
+            secondConnection.setActiveSessionId("second-live");
+            TuiConnection duplicateConnection = new TuiConnection(new FakeWebSocket("connection-4"));
+            duplicateConnection.setActiveSessionId("first-live");
+            service.onOpen(firstConnection);
+            service.onOpen(inactiveConnection);
+            service.onOpen(secondConnection);
+            service.onOpen(duplicateConnection);
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"12\",\"method\":\"session.active_list\",\"params\":{\"current_session_id\":\"second-live\"}}");
+            service.handle(firstConnection, envelope);
+
+            Map<String, Object> result = firstSocket.lastSentMap();
+            assertThat(result).containsEntry("type", "rpc.result").containsEntry("id", "12");
+            List<Map<String, Object>> sessions =
+                    (List<Map<String, Object>>) ((Map<String, Object>) result.get("payload")).get("sessions");
+            assertThat(sessions)
+                    .extracting(item -> item.get("session_id"))
+                    .containsExactly("first-live", "second-live");
+            assertThat(sessions.get(0))
+                    .containsEntry("id", "first-live")
+                    .containsEntry("title", "First live")
+                    .containsEntry("current", Boolean.FALSE)
+                    .containsEntry("running", Boolean.FALSE)
+                    .containsEntry("queued_count", Integer.valueOf(0))
+                    .containsEntry("message_count", Integer.valueOf(0))
+                    .containsEntry("client_contract", Integer.valueOf(1))
+                    .containsEntry("status", "idle");
+            assertThat(sessions.get(0)).containsKeys("started_at", "last_active");
+            assertThat(((Number) sessions.get(0).get("total_tokens")).longValue()).isEqualTo(7L);
+            assertThat(sessions.get(1))
+                    .containsEntry("id", "second-live")
+                    .containsEntry("title", "Second live")
+                    .containsEntry("current", Boolean.TRUE)
+                    .containsKeys(
+                            "running",
+                            "queued_count",
+                            "started_at",
+                            "last_active",
+                            "message_count",
+                            "client_contract",
+                            "status");
+            assertThat(((Number) sessions.get(1).get("total_tokens")).longValue()).isEqualTo(11L);
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldActivateLiveSessionForCallingConnectionOnly() throws Exception {
+        SessionRecord target = session("target-live", "MEMORY:tui:target-live");
+        target.setTitle("Target live");
+        target.setLastResolvedModel("model-x");
+        target.setLastResolvedProvider("provider-y");
+        target.setCumulativeTotalTokens(19L);
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(
+                                Arrays.asList(target)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket targetSocket = new FakeWebSocket("target-connection");
+            TuiConnection targetConnection = new TuiConnection(targetSocket);
+            targetConnection.setActiveSessionId("target-live");
+            FakeWebSocket callerSocket = new FakeWebSocket("caller-connection");
+            TuiConnection callerConnection = new TuiConnection(callerSocket);
+            callerConnection.setActiveSessionId("other-live");
+            service.onOpen(targetConnection);
+            service.onOpen(callerConnection);
+            int targetFramesBeforeActivate = targetSocket.sentCount();
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"13\",\"method\":\"session.activate\",\"params\":{\"session_id\":\"target-live\"}}");
+            service.handle(callerConnection, envelope);
+
+            assertThat(callerConnection.getActiveSessionId()).isEqualTo("target-live");
+            assertThat(targetConnection.getActiveSessionId()).isEqualTo("target-live");
+            Map<String, Object> result = callerSocket.lastSentMap();
+            assertThat(result).containsEntry("type", "rpc.result").containsEntry("id", "13");
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload)
+                    .containsEntry("session_id", "target-live")
+                    .containsEntry("id", "target-live")
+                    .containsEntry("session_key", "MEMORY:tui:target-live")
+                    .containsEntry("title", "Target live")
+                    .containsEntry("model", "model-x")
+                    .containsEntry("provider", "provider-y")
+                    .containsEntry("message_count", Integer.valueOf(0))
+                    .containsEntry("running", Boolean.FALSE)
+                    .containsEntry("status", "idle")
+                    .containsEntry("started_at", Long.valueOf(1700000000000L))
+                    .containsEntry("last_active", Long.valueOf(1700000001000L))
+                    .containsEntry("client_contract", Integer.valueOf(1));
+            assertThat(((List<Object>) payload.get("messages"))).isEmpty();
+            assertThat((Map<String, Object>) payload.get("info"))
+                    .containsEntry("session_key", "MEMORY:tui:target-live")
+                    .containsEntry("status", "idle");
+            assertThat(((Number) payload.get("total_tokens")).longValue()).isEqualTo(19L);
+            assertThat(targetSocket.sentCount()).isEqualTo(targetFramesBeforeActivate);
+            assertThat(callerSocket.lastSentMap()).containsEntry("type", "rpc.result");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectActivatingStoredSessionThatIsNotLive() throws Exception {
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(
+                                Arrays.asList(session("stored-only", "MEMORY:tui:stored-only"))),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket callerSocket = new FakeWebSocket("caller-connection");
+            TuiConnection callerConnection = new TuiConnection(callerSocket);
+            service.onOpen(callerConnection);
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"14\",\"method\":\"session.activate\",\"params\":{\"session_id\":\"stored-only\"}}");
+            service.handle(callerConnection, envelope);
+
+            Map<String, Object> result = callerSocket.lastSentMap();
+            assertThat(result).containsEntry("type", "rpc.error").containsEntry("id", "14");
+            assertThat(callerConnection.getActiveSessionId()).isNull();
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload).containsEntry("code", "TUI_FAILED");
+            assertThat(String.valueOf(payload.get("message"))).contains("session is not live");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldReturnStoredConversationHistoryForTuiSession() throws Exception {
+        SessionRecord target = session("history-session", "MEMORY:tui:history-session");
+        target.setNdjson(
+                com.jimuqu.solon.claw.support.MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("hello api_key=sk-abc1234567890"),
+                                ChatMessage.ofAssistant("answer text"))));
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        new TerminalSessionBrowserTest.FakeSessionRepository(Arrays.asList(target)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket socket = new FakeWebSocket("history-connection");
+            TuiConnection connection = new TuiConnection(socket);
+            service.onOpen(connection);
+
+            TuiEnvelope envelope =
+                    TuiEnvelope.parse(
+                            "{\"id\":\"15\",\"method\":\"session.history\",\"params\":{\"session_id\":\"history-session\"}}");
+            service.handle(connection, envelope);
+
+            Map<String, Object> result = socket.lastSentMap();
+            assertThat(result)
+                    .containsEntry("type", "rpc.result")
+                    .containsEntry("id", "15")
+                    .containsEntry("sessionId", "history-session");
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload)
+                    .containsEntry("session_id", "history-session")
+                    .containsEntry("count", Integer.valueOf(2));
+            List<Map<String, Object>> messages =
+                    (List<Map<String, Object>>) payload.get("messages");
+            assertThat(messages).hasSize(2);
+            assertThat(messages.get(0))
+                    .containsEntry("role", "user")
+                    .containsEntry("content", "hello api_key=***");
+            assertThat(messages.get(1))
+                    .containsEntry("role", "assistant")
+                    .containsEntry("content", "answer text");
+            assertThat(connection.getActiveSessionId()).isEqualTo("history-session");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldGetAndUpdateTuiSessionTitle() throws Exception {
+        SessionRecord target = session("title-session", "MEMORY:tui:title-session");
+        target.setTitle("Original title");
+        TrackingSessionRepository repository =
+                new TrackingSessionRepository(Arrays.asList(target));
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        repository,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket socket = new FakeWebSocket("title-connection");
+            TuiConnection connection = new TuiConnection(socket);
+            service.onOpen(connection);
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"16\",\"method\":\"session.title\",\"params\":{\"session_id\":\"title-session\"}}"));
+
+            Map<String, Object> readResult = socket.lastSentMap();
+            assertThat(readResult).containsEntry("type", "rpc.result").containsEntry("id", "16");
+            assertThat((Map<String, Object>) readResult.get("payload"))
+                    .containsEntry("session_id", "title-session")
+                    .containsEntry("session_key", "MEMORY:tui:title-session")
+                    .containsEntry("title", "Original title");
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"17\",\"method\":\"session.title\",\"params\":{\"session_id\":\"title-session\",\"title\":\"Updated title\"}}"));
+
+            Map<String, Object> updateResult = socket.lastSentMap();
+            assertThat(updateResult).containsEntry("type", "rpc.result").containsEntry("id", "17");
+            assertThat((Map<String, Object>) updateResult.get("payload"))
+                    .containsEntry("session_id", "title-session")
+                    .containsEntry("session_key", "MEMORY:tui:title-session")
+                    .containsEntry("title", "Updated title")
+                    .containsEntry("pending", Boolean.FALSE);
+            assertThat(target.getTitle()).isEqualTo("Updated title");
+            assertThat(repository.saveCount).isEqualTo(1);
+            assertThat(repository.savedSessionId).isEqualTo("title-session");
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"18\",\"method\":\"session.title\",\"params\":{\"session_id\":\"title-session\",\"title\":\"   \"}}"));
+
+            Map<String, Object> blankResult = socket.lastSentMap();
+            assertThat(blankResult).containsEntry("type", "rpc.error").containsEntry("id", "18");
+            assertThat((Map<String, Object>) blankResult.get("payload"))
+                    .containsEntry("code", "TUI_FAILED");
+            assertThat(String.valueOf(((Map<String, Object>) blankResult.get("payload")).get("message")))
+                    .contains("title is required");
+            assertThat(target.getTitle()).isEqualTo("Updated title");
+            assertThat(repository.saveCount).isEqualTo(1);
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resize(TuiGatewayService service, TuiEnvelope envelope)
             throws Exception {
@@ -408,11 +783,66 @@ class TuiGatewayProtocolTest {
         return record;
     }
 
+    private static class TrackingSessionRepository
+            extends TerminalSessionBrowserTest.FakeSessionRepository {
+        private int saveCount;
+        private String savedSessionId;
+
+        TrackingSessionRepository(List<SessionRecord> records) {
+            super(records);
+        }
+
+        @Override
+        public void save(SessionRecord sessionRecord) {
+            saveCount++;
+            savedSessionId = sessionRecord == null ? null : sessionRecord.getSessionId();
+        }
+    }
+
+    private static class CreateSessionRepository extends TerminalSessionBrowserTest.FakeSessionRepository {
+        private final List<SessionRecord> records = new ArrayList<SessionRecord>();
+
+        CreateSessionRepository() {
+            super(Collections.emptyList());
+        }
+
+        @Override
+        public SessionRecord findById(String sessionId) {
+            for (SessionRecord record : records) {
+                if (record.getSessionId().equals(sessionId)) {
+                    return record;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void save(SessionRecord sessionRecord) {
+            records.add(sessionRecord);
+        }
+
+        @Override
+        public List<SessionRecord> listRecent(int limit, int offset) {
+            return records;
+        }
+    }
+
     private static class FakeWebSocket implements WebSocket {
         private final String id;
+        private final List<String> sent = new ArrayList<String>();
 
         FakeWebSocket(String id) {
             this.id = id;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastSentMap() {
+            assertThat(sent).isNotEmpty();
+            return (Map<String, Object>) ONode.deserialize(sent.get(sent.size() - 1), Map.class);
+        }
+
+        int sentCount() {
+            return sent.size();
         }
 
         @Override
@@ -512,6 +942,7 @@ class TuiGatewayProtocolTest {
 
         @Override
         public Future<Void> send(String text) {
+            sent.add(text);
             return CompletableFuture.completedFuture(null);
         }
 
