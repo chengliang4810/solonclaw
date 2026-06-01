@@ -187,11 +187,14 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsAudio()).isTrue();
         assertThat(metadata.isSupportsAttachment()).isTrue();
         assertThat(metadata.isSupportsMultimodal()).isTrue();
+        assertThat(metadata.getInputModalities()).containsExactly("text", "image", "audio", "file");
+        assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.getApiUrl())
                 .isEqualTo("https://generativelanguage.googleapis.com/v1beta");
         assertThat(metadata.getModelListUrl())
                 .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models");
         assertThat(metadata.getSource()).isEqualTo("provider_config");
+        assertThat(metadata.getProvenance()).isEqualTo("provider_config:base_url");
     }
 
     @Test
@@ -203,10 +206,13 @@ public class ModelMetadataServiceTest {
 
         ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
 
+        assertThat(metadata.getInputModalities()).containsExactly("text");
+        assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.isSupportsAudio()).isFalse();
         assertThat(metadata.isSupportsAttachment()).isFalse();
         assertThat(metadata.isSupportsMultimodal()).isFalse();
         assertThat(metadata.getSource()).isEqualTo("static_inference");
+        assertThat(metadata.getProvenance()).isEqualTo("static_inference:model_family");
     }
 
     @Test
@@ -232,11 +238,31 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsMultimodal()).isTrue();
         assertThat(metadata.isSupportsReasoning()).isTrue();
         assertThat(metadata.isSupportsPromptCache()).isTrue();
+        assertThat(metadata.getInputModalities()).containsExactly("text", "image");
+        assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.getApiUrl()).isEmpty();
         assertThat(metadata.getModelListUrl()).isEmpty();
         assertThat(metadata.getSource()).isEqualTo("static_inference");
+        assertThat(metadata.getProvenance()).isEqualTo("static_inference:model_family");
         assertThat(metadata.isDefaultModel()).isTrue();
         assertThat(metadata.isSupported()).isTrue();
+    }
+
+    @Test
+    void shouldKeepKnownVisionModelsStableAcrossLegacyFlagsAndModalities() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("gpt-4o");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsVision()).isTrue();
+        assertThat(metadata.isSupportsAttachment()).isTrue();
+        assertThat(metadata.isSupportsMultimodal()).isTrue();
+        assertThat(metadata.getInputModalities()).containsExactly("text", "image");
+        assertThat(metadata.getOutputModalities()).containsExactly("text");
+        assertThat(metadata.getProvenance()).isEqualTo("static_inference:model_family");
     }
 
     @Test

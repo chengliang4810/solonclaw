@@ -6,7 +6,9 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /** 模型能力元数据解析服务。 */
@@ -42,10 +44,14 @@ public class ModelMetadataService {
         metadata.setSupportsAudio(supportsAudio);
         metadata.setSupportsAttachment(supportsAttachment);
         metadata.setSupportsMultimodal(supportsVision || supportsAudio || supportsAttachment);
+        metadata.setInputModalities(
+                resolveInputModalities(dialect, supportsVision, supportsAudio, supportsAttachment));
+        metadata.setOutputModalities(resolveOutputModalities(dialect, normalizedModel, supportsAudio));
         metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
         metadata.setSource(resolveSource(provider, normalizedModel));
+        metadata.setProvenance(resolveProvenance(provider, normalizedModel));
         metadata.setDefaultModel(StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         metadata.setSupported(LlmProviderSupport.isSupportedDialect(dialect));
         return metadata;
@@ -247,6 +253,35 @@ public class ModelMetadataService {
                 || lower.contains("/vl");
     }
 
+    private List<String> resolveInputModalities(
+            String dialect, boolean supportsVision, boolean supportsAudio, boolean supportsAttachment) {
+        Set<String> modalities = new LinkedHashSet<String>();
+        modalities.add("text");
+        if (supportsVision) {
+            modalities.add("image");
+        }
+        if (supportsAudio) {
+            modalities.add("audio");
+        }
+        if (supportsAttachment && LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
+            modalities.add("file");
+        }
+        return new ArrayList<String>(modalities);
+    }
+
+    private List<String> resolveOutputModalities(String dialect, String model, boolean supportsAudio) {
+        Set<String> modalities = new LinkedHashSet<String>();
+        modalities.add("text");
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        if (lower.contains("tts") || lower.contains("speech")) {
+            modalities.add("audio");
+        }
+        if (LlmConstants.PROVIDER_GEMINI.equals(dialect) && lower.contains("image")) {
+            modalities.add("image");
+        }
+        return new ArrayList<String>(modalities);
+    }
+
     private String resolveApiUrl(AppConfig.ProviderConfig provider, String dialect) {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
             return "";
@@ -269,6 +304,16 @@ public class ModelMetadataService {
             return "static_inference";
         }
         return "default";
+    }
+
+    private String resolveProvenance(AppConfig.ProviderConfig provider, String model) {
+        if (provider != null && StrUtil.isNotBlank(provider.getBaseUrl())) {
+            return "provider_config:base_url";
+        }
+        if (StrUtil.isNotBlank(model)) {
+            return "static_inference:model_family";
+        }
+        return "default:fallback";
     }
 
     private boolean resolveSupportsReasoning(String dialect, String model) {
