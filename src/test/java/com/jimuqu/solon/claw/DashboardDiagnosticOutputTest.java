@@ -935,6 +935,56 @@ public class DashboardDiagnosticOutputTest {
                 .doesNotContain("sk-status-alias-secret");
     }
 
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeSubprocessEnvironmentProbeDiagnosticsWithoutLeakingTokenLikeNames() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put(
+                "names",
+                Arrays.asList(
+                        "PATH",
+                        "TENOR_API_KEY",
+                        "OPENAI_API_KEY",
+                        "_JIMUQU_FORCE_CUSTOM_TOKEN",
+                        "ghp_probe1234567890"));
+
+        Map<String, Object> result = diagnosticsService.subprocessEnvironmentProbe(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("surface")).isEqualTo("subprocess_environment");
+        assertThat(result.get("requested_count")).isEqualTo(Integer.valueOf(5));
+        assertThat(String.valueOf(result.get("decision_categories")))
+                .contains("force")
+                .contains("provider-blocked")
+                .contains("high-risk");
+        List<Map<String, Object>> decisions = (List<Map<String, Object>>) result.get("decisions");
+        assertThat(decisions).hasSize(5);
+        String json = ONode.serialize(result);
+        assertThat(json)
+                .contains("provider-blocked")
+                .contains("force")
+                .contains("configured-or-skill-passthrough")
+                .contains("***")
+                .doesNotContain("ghp_probe1234567890");
+    }
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() throws Exception {

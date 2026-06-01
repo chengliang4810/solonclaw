@@ -45,6 +45,16 @@ public class DashboardDiagnosticsController {
         return DashboardResponse.ok(diagnosticsService.securityAudit(payload.getPayload()));
     }
 
+    @SuppressWarnings("unchecked")
+    @Mapping(value = "/api/diagnostics/subprocess-environment/probe", method = MethodType.POST)
+    public Map<String, Object> subprocessEnvironmentProbe(Context context) throws Exception {
+        PayloadResult payload = payload(context);
+        if (!payload.isSuccess()) {
+            return payload.error();
+        }
+        return DashboardResponse.ok(diagnosticsService.subprocessEnvironmentProbe(payload.getPayload()));
+    }
+
     @Mapping(value = "/api/diagnostics/approvals", method = MethodType.GET)
     public Map<String, Object> pendingApprovals(Context context) throws Exception {
         return DashboardResponse.ok(diagnosticsService.pendingApprovals(limit(context.param("limit"))));

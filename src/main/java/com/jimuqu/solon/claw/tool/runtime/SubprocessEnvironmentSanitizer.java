@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -85,6 +86,11 @@ public final class SubprocessEnvironmentSanitizer {
 
     public static List<Map<String, Object>> probeDecisions(
             Map<String, String> env, AppConfig appConfig) {
+        return probeDecisions(env, appConfig, false);
+    }
+
+    public static List<Map<String, Object>> probeDecisions(
+            Map<String, String> env, AppConfig appConfig, boolean redactNames) {
         List<Map<String, Object>> decisions = new ArrayList<Map<String, Object>>();
         if (env == null || env.isEmpty()) {
             return decisions;
@@ -92,19 +98,23 @@ public final class SubprocessEnvironmentSanitizer {
         Set<String> passthrough = envPassthrough(appConfig);
         passthrough.addAll(currentSkillEnvironmentPassthrough());
         for (String name : env.keySet()) {
-            decisions.add(probeDecision(name, appConfig, passthrough));
+            decisions.add(probeDecision(name, appConfig, passthrough, redactNames));
         }
         return decisions;
     }
 
     public static Map<String, Object> probeDecision(String name, AppConfig appConfig) {
+        return probeDecision(name, appConfig, false);
+    }
+
+    public static Map<String, Object> probeDecision(String name, AppConfig appConfig, boolean redactNames) {
         Set<String> passthrough = envPassthrough(appConfig);
         passthrough.addAll(currentSkillEnvironmentPassthrough());
-        return probeDecision(name, appConfig, passthrough);
+        return probeDecision(name, appConfig, passthrough, redactNames);
     }
 
     private static Map<String, Object> probeDecision(
-            String name, AppConfig appConfig, Set<String> passthrough) {
+            String name, AppConfig appConfig, Set<String> passthrough, boolean redactNames) {
         String rawName = StrUtil.nullToEmpty(name);
         String normalizedName = normalizeEnvName(rawName);
         String forcedName = forcedName(rawName);
@@ -153,9 +163,9 @@ public final class SubprocessEnvironmentSanitizer {
             allowed = false;
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("name", rawName);
-        result.put("normalizedName", normalizedName);
-        result.put("outputName", outputName);
+        result.put("name", safeProbeText(rawName, redactNames));
+        result.put("normalizedName", safeProbeText(normalizedName, redactNames));
+        result.put("outputName", safeProbeText(outputName, redactNames));
         result.put("decision", decision);
         result.put("allowed", Boolean.valueOf(allowed));
         result.put("blocked", Boolean.valueOf(!allowed));
@@ -388,6 +398,14 @@ public final class SubprocessEnvironmentSanitizer {
             }
         }
         return value + ":" + SANE_POSIX_PATH;
+    }
+
+    private static String safeProbeText(String value, boolean redactNames) {
+        String clean = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
+        if (!redactNames) {
+            return clean;
+        }
+        return SecretRedactor.redactTokensOnly(clean, 200);
     }
 
     private static String forcedName(String name) {

@@ -45,6 +45,7 @@ public class ToolCallLoopGuardrailService {
                                     "browser_get_images",
                                     ToolNameConstants.CONFIG_GET,
                                     "config_read",
+                                    "config_env_probe",
                                     ToolNameConstants.SECURITY_AUDIT,
                                     "mcp_filesystem_read_file",
                                     "mcp_filesystem_read_text_file",
