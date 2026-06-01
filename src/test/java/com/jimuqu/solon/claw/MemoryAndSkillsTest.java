@@ -431,6 +431,43 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldKeepBuiltinFirstAndRejectSecondExternalMemoryProvider() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.memoryService.add("memory", "内建记忆优先");
+        CapturingMemoryProvider firstExternal = new CapturingMemoryProvider("first-external");
+        CapturingMemoryProvider secondExternal = new CapturingMemoryProvider("second-external");
+        firstExternal.systemPromptBlock = "第一个外部系统提示";
+        firstExternal.prefetchBlock = "第一个外部预取";
+        secondExternal.systemPromptBlock = "第二个外部系统提示";
+        secondExternal.prefetchBlock = "第二个外部预取";
+        DefaultMemoryManager manager =
+                new DefaultMemoryManager(
+                        java.util.Arrays.<MemoryProvider>asList(
+                                firstExternal,
+                                new BuiltinMemoryProvider(env.memoryService),
+                                secondExternal));
+        MemoryTurnContext context =
+                MemoryTurnContext.builder()
+                        .sourceKey("MEMORY:single-provider-room:single-provider-user")
+                        .sessionId("single-provider-session")
+                        .userMessage("用户输入")
+                        .assistantMessage("助手输出")
+                        .build();
+
+        String prompt = manager.buildSystemPrompt("MEMORY:single-provider-room:single-provider-user");
+        String prefetch = manager.prefetch("MEMORY:single-provider-room:single-provider-user", "用户输入");
+        manager.syncTurn(context);
+
+        assertThat(prompt.indexOf("内建记忆优先")).isLessThan(prompt.indexOf("第一个外部系统提示"));
+        assertThat(prompt).contains("第一个外部系统提示").doesNotContain("第二个外部系统提示");
+        assertThat(prefetch).contains("第一个外部预取").doesNotContain("第二个外部预取");
+        assertThat(firstExternal.context).isNotNull();
+        assertThat(secondExternal.context).isNull();
+        assertThat(env.memoryService.read("today"))
+                .contains("MEMORY:single-provider-room:single-provider-user");
+    }
+
+    @Test
     void shouldUpdateTodayMemoryAfterGatewayReply() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -481,14 +518,23 @@ public class MemoryAndSkillsTest {
     }
 
     private static class CapturingMemoryProvider implements MemoryProvider {
+        private final String name;
         private MemoryTurnContext context;
         private int legacyCalls;
         private String systemPromptBlock = "";
         private String prefetchBlock = "";
 
+        private CapturingMemoryProvider() {
+            this("capture");
+        }
+
+        private CapturingMemoryProvider(String name) {
+            this.name = name;
+        }
+
         @Override
         public String name() {
-            return "capture";
+            return name;
         }
 
         @Override
