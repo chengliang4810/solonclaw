@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.engine;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
@@ -342,7 +343,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             true,
                             agentScope);
             String finalReply =
-                    StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK);
+                    sanitizeFinalReply(StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
             finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
@@ -498,7 +499,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             agentScope,
                             MessageAttachmentSupport.safeAttachments(message));
             shouldDrainQueue = true;
-            String finalReply = StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK);
+            String finalReply = sanitizeFinalReply(StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
             if (MessageDeliveryTracker.consumeDuplicateFinalReply(message.sourceKey(), finalReply)) {
                 finalReply = "";
             } else {
@@ -621,6 +622,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             allowed.removeAll(AgentRuntimePolicy.expandToolSelectors(disabled));
         }
         agentScope.setAllowedToolsJson(org.noear.snack4.ONode.serialize(new ArrayList<String>(allowed)));
+    }
+
+    private String sanitizeFinalReply(String finalReply) {
+        String sanitized = MemoryContextBoundary.scrubVisibleText(finalReply);
+        return StrUtil.blankToDefault(sanitized, EMPTY_REPLY_FALLBACK);
     }
 
     private String decorateFinalReply(
