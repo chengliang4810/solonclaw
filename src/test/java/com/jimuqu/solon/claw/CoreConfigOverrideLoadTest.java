@@ -558,6 +558,27 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldLoadSkillPreprocessAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-skill-preprocess").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "skills:\n"
+                        + "  template_vars: false\n"
+                        + "  inline_shell: true\n"
+                        + "  inline_shell_timeout: 7\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSkills().isTemplateVars()).isFalse();
+        assertThat(config.getSkills().isInlineShell()).isTrue();
+        assertThat(config.getSkills().getInlineShellTimeoutSeconds()).isEqualTo(7);
+    }
+
+    @Test
     void shouldLoadJimuquTerminalSudoPasswordAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-sudo").toFile();
         File configFile = new File(runtimeHome, "config.yml");

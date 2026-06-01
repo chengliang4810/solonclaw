@@ -405,6 +405,70 @@ public class AppConfig {
                                                         overrides,
                                                         "skills.external_dirs",
                                                         "")))));
+        config.getSkills()
+                .setTemplateVars(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.skills.templateVars",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "solonclaw.skills.template_vars",
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "skills.templateVars",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "skills.template_vars",
+                                                                true))))));
+        config.getSkills()
+                .setInlineShell(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.skills.inlineShell",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "solonclaw.skills.inline_shell",
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "skills.inlineShell",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "skills.inline_shell",
+                                                                false))))));
+        config.getSkills()
+                .setInlineShellTimeoutSeconds(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.skills.inlineShellTimeoutSeconds",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.skills.inline_shell_timeout_seconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "skills.inlineShellTimeoutSeconds",
+                                                        readInt(
+                                                                props,
+                                                                overrides,
+                                                                "skills.inline_shell_timeout_seconds",
+                                                                readInt(
+                                                                        props,
+                                                                        overrides,
+                                                                        "skills.inline_shell_timeout",
+                                                                        10)))))));
 
         config.getRollback()
                 .setEnabled(
@@ -2159,6 +2223,9 @@ public class AppConfig {
 
     private void copySkills(SkillsConfig other) {
         this.skills.setExternalDirs(new ArrayList<String>(other.getExternalDirs()));
+        this.skills.setTemplateVars(other.isTemplateVars());
+        this.skills.setInlineShell(other.isInlineShell());
+        this.skills.setInlineShellTimeoutSeconds(other.getInlineShellTimeoutSeconds());
     }
 
     private void copyRollback(RollbackConfig other) {
@@ -3699,6 +3766,15 @@ public class AppConfig {
     public static class SkillsConfig {
         /** 对齐 Jimuqu skills.external_dirs，额外只读技能目录清单。 */
         private List<String> externalDirs = new ArrayList<String>();
+
+        /** 是否启用 SKILL.md 模板变量替换。 */
+        private boolean templateVars = true;
+
+        /** 是否启用 SKILL.md inline shell 预处理。 */
+        private boolean inlineShell = false;
+
+        /** inline shell 预处理超时时间，单位秒。 */
+        private int inlineShellTimeoutSeconds = 10;
     }
 
     /** 文件快照与回滚配置。 */
