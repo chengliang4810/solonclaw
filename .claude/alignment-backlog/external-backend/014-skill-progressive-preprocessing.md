@@ -8,9 +8,9 @@
 - risk: low
 - parallelSafe: true
 
-## Hermes 参考
-- `/Users/chengliang/code-repositories/hermes-agent/agent/skill_preprocessing.py`
-- `/Users/chengliang/code-repositories/hermes-agent/agent/skill_commands.py`
+## 外部对标参考
+- `对标实现路径：agent/skill_preprocessing.py`
+- `对标实现路径：agent/skill_commands.py`
 
 ## 当前项目目标文件
 - `src/main/java/com/jimuqu/solon/claw/context/LocalSkillService.java`
@@ -18,7 +18,7 @@
 - `src/main/java/com/jimuqu/solon/claw/context/SkillDirectoryResolver.java`
 
 ## 当前缺口
-Hermes 在 skill 装载前会做模板变量替换、可选 inline shell 预处理，并严格按受信任根目录解析技能；当前技能读取更偏 raw markdown，渐进加载与预处理不够前置。
+外部对标在 skill 装载前会做模板变量替换、可选 inline shell 预处理，并严格按受信任根目录解析技能；当前技能读取更偏 raw markdown，渐进加载与预处理不够前置。
 
 ## 实现范围
 在后端技能装配链增加可控预处理阶段，并继续收紧本地/外部技能根目录解析与去重规则，不扩展到前端或市场迁移。

@@ -37,7 +37,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldKeepDangerousTrustedAndCommunityBlockedEvenWhenForcedLikeHermes() {
+    void shouldKeepDangerousTrustedAndCommunityBlockedEvenWhenForced() {
         InstallDecision trusted = service.shouldAllowInstall(scan("trusted", "dangerous"), true);
         InstallDecision community = service.shouldAllowInstall(scan("community", "dangerous"), true);
 

@@ -1,4 +1,4 @@
-# Hermes 后端对齐 Backlog
+# 外部对标后端 Backlog
 
 生成时间：2026-06-01
 
@@ -26,7 +26,7 @@
 - [007-cron-prompt-ingestion-validation](007-cron-prompt-ingestion-validation.md) — 强化 Cron prompt 写入校验
 - [008-cron-runtime-assembled-prompt-safety](008-cron-runtime-assembled-prompt-safety.md) — 增加 Cron 运行时 assembled-prompt 安全检查
 - [009-dashboard-doctor-output](009-dashboard-doctor-output.md) — 对齐 Dashboard doctor 后端输出
-- [010-config-write-reveal-safety](010-config-write-reveal-safety.md) — 对齐 Hermes 配置写入与 reveal 安全
+- [010-config-write-reveal-safety](010-config-write-reveal-safety.md) — 对齐 外部对标配置写入与 reveal 安全
 - [011-model-metadata-capability-flags](011-model-metadata-capability-flags.md) — 扩展模型元数据能力标记
 - [012-usage-pricing-canonical-buckets](012-usage-pricing-canonical-buckets.md) — 归一化 usage 与 pricing token buckets
 
@@ -39,7 +39,7 @@
 - [017-headless-cron-execution-path](017-headless-cron-execution-path.md) — 拆分 headless Cron 与完整 agent loop
 - [018-env-probe-diagnostics](018-env-probe-diagnostics.md) — 增加 subprocess policy 的 env probe 诊断
 - [019-stream-diagnostics-health-output](019-stream-diagnostics-health-output.md) — 在后端健康输出中暴露 stream diagnostics
-- [020-tirith-security-diagnostics](020-tirith-security-diagnostics.md) — 对齐 Tirith 安全诊断与 Hermes audit surface
+- [020-tirith-security-diagnostics](020-tirith-security-diagnostics.md) — 对齐 Tirith 安全诊断与外部对标 audit surface
 - [021-provider-model-list-url-resolution](021-provider-model-list-url-resolution.md) — 增加 provider-aware model-list URL resolution
 - [022-multimodal-attachment-payloads](022-multimodal-attachment-payloads.md) — 让附件与语音/图像 payload 具备多模态感知
 
