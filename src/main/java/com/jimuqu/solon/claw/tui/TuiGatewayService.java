@@ -169,6 +169,9 @@ public class TuiGatewayService implements TuiGatewayEventSink {
             } else if ("session.start".equals(method)) {
                 Map<String, Object> result = startSession(connection, envelope.getParams());
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
+            } else if ("session.create".equals(method)) {
+                Map<String, Object> result = createSession(connection, envelope.getParams());
+                connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
             } else if ("session.resume".equals(method)) {
                 Map<String, Object> result = resumeSession(connection, envelope.getSessionId(), envelope.getParams());
                 connection.sendResult(envelope.getId(), stringValue(result.get("session_id")), result);
@@ -293,6 +296,33 @@ public class TuiGatewayService implements TuiGatewayEventSink {
         pushExtensionSnapshots(connection, sessionId);
         connection.sendEvent("session.created", sessionId, result);
         return result;
+    }
+
+    private Map<String, Object> createSession(TuiConnection connection, Map<String, Object> params)
+            throws Exception {
+        Map<String, Object> result = startSession(connection, params);
+        return createSessionPayload(result, state(stringValue(result.get("session_id"))));
+    }
+
+    private Map<String, Object> createSessionPayload(
+            Map<String, Object> started, TuiSessionState state) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>(started);
+        String sessionId = stringValue(payload.get("session_id"));
+        payload.put("stored_session_id", safe(sessionId, 120));
+        payload.put("messages", Collections.emptyList());
+        payload.put("info", createSessionInfo(payload, state));
+        return payload;
+    }
+
+    private Map<String, Object> createSessionInfo(
+            Map<String, Object> payload, TuiSessionState state) {
+        Map<String, Object> info = sessionInfo(payload, state);
+        info.put("model", safe(stringValue(payload.get("model")), 400));
+        info.put("tools", Collections.emptyList());
+        info.put("skills", Collections.emptyList());
+        info.put("cwd", safe(System.getProperty("user.dir"), 800));
+        info.put("lazy", Boolean.TRUE);
+        return info;
     }
 
     private Map<String, Object> resumeSession(

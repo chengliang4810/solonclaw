@@ -136,6 +136,59 @@ class TuiGatewayProtocolTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldCreateSessionWithCompatibilityPayload() throws Exception {
+        CreateSessionRepository repository = new CreateSessionRepository();
+        TuiGatewayService service =
+                new TuiGatewayService(
+                        null,
+                        repository,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        try {
+            FakeWebSocket socket = new FakeWebSocket("create-connection");
+            TuiConnection connection = new TuiConnection(socket);
+            service.onOpen(connection);
+
+            service.handle(
+                    connection,
+                    TuiEnvelope.parse(
+                            "{\"id\":\"create-1\",\"method\":\"session.create\",\"params\":{\"session_id\":\"created-session\",\"title\":\"Created title\",\"busy_mode\":\"queue\"}}"));
+
+            Map<String, Object> result = socket.lastSentMap();
+            assertThat(result)
+                    .containsEntry("type", "rpc.result")
+                    .containsEntry("id", "create-1")
+                    .containsEntry("sessionId", "created-session");
+            Map<String, Object> payload = (Map<String, Object>) result.get("payload");
+            assertThat(payload)
+                    .containsEntry("session_id", "created-session")
+                    .containsEntry("stored_session_id", "created-session")
+                    .containsEntry("title", "Created title")
+                    .containsEntry("message_count", Integer.valueOf(0));
+            assertThat((List<Map<String, Object>>) payload.get("messages")).isEmpty();
+            Map<String, Object> info = (Map<String, Object>) payload.get("info");
+            assertThat(info)
+                    .containsEntry("model", "")
+                    .containsEntry("tools", Collections.emptyList())
+                    .containsEntry("skills", Collections.emptyList())
+                    .containsEntry("lazy", Boolean.TRUE);
+            assertThat(connection.getActiveSessionId()).isEqualTo("created-session");
+            assertThat(repository.findById("created-session").getTitle()).isEqualTo("Created title");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
     void shouldBuildSessionUsagePayloadForTui() throws Exception {
         TuiGatewayService service =
                 new TuiGatewayService(null, null, null, null, null, null, null, null, null, null, null, null);
@@ -743,6 +796,34 @@ class TuiGatewayProtocolTest {
         public void save(SessionRecord sessionRecord) {
             saveCount++;
             savedSessionId = sessionRecord == null ? null : sessionRecord.getSessionId();
+        }
+    }
+
+    private static class CreateSessionRepository extends TerminalSessionBrowserTest.FakeSessionRepository {
+        private final List<SessionRecord> records = new ArrayList<SessionRecord>();
+
+        CreateSessionRepository() {
+            super(Collections.emptyList());
+        }
+
+        @Override
+        public SessionRecord findById(String sessionId) {
+            for (SessionRecord record : records) {
+                if (record.getSessionId().equals(sessionId)) {
+                    return record;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void save(SessionRecord sessionRecord) {
+            records.add(sessionRecord);
+        }
+
+        @Override
+        public List<SessionRecord> listRecent(int limit, int offset) {
+            return records;
         }
     }
 
