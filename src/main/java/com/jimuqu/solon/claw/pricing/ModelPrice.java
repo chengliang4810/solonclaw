@@ -21,6 +21,22 @@ public class ModelPrice {
     private long requestMicrosPerRequest;
     private String source;
 
+    public long getPromptMicrosPerToken() {
+        return inputMicrosPerToken;
+    }
+
+    public void setPromptMicrosPerToken(long promptMicrosPerToken) {
+        this.inputMicrosPerToken = Math.max(0L, promptMicrosPerToken);
+    }
+
+    public long getCompletionMicrosPerToken() {
+        return outputMicrosPerToken;
+    }
+
+    public void setCompletionMicrosPerToken(long completionMicrosPerToken) {
+        this.outputMicrosPerToken = Math.max(0L, completionMicrosPerToken);
+    }
+
     public String key() {
         return normalize(provider) + "/" + normalize(model);
     }

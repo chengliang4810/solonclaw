@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.pricing;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.llm.LlmUsage;
 
 /** Calculates model usage cost with micros precision. */
 public class UsageCostCalculator {
@@ -27,6 +28,19 @@ public class UsageCostCalculator {
                 cacheWriteTokens,
                 reasoningTokens,
                 1L);
+    }
+
+    public UsageCost calculate(String provider, String model, LlmUsage usage) {
+        LlmUsage value = usage == null ? LlmUsage.empty() : usage;
+        return calculate(
+                provider,
+                model,
+                value.getInputTokens(),
+                value.getOutputTokens(),
+                value.getCacheReadTokens(),
+                value.getCacheWriteTokens(),
+                value.getReasoningTokens(),
+                value.getRequestCount() <= 0L ? 1L : value.getRequestCount());
     }
 
     public UsageCost calculate(

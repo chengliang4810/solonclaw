@@ -257,7 +257,11 @@ public class SolonAiLlmGatewayConfigTest {
 
     @Test
     void shouldBuildMultimodalPromptForImageAttachments() throws Exception {
-        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai");
+        config.getLlm().setDialect("openai");
+        config.getLlm().setModel("gpt-4o");
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
         AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
         MessageAttachment attachment = new MessageAttachment();
         attachment.setKind("image");
@@ -267,10 +271,10 @@ public class SolonAiLlmGatewayConfigTest {
         runContext.setUserAttachments(Arrays.asList(attachment));
         Method userPrompt =
                 SolonAiLlmGateway.class.getDeclaredMethod(
-                        "userPrompt", String.class, AgentRunContext.class);
+                        "userPrompt", String.class, AgentRunContext.class, AppConfig.LlmConfig.class);
         userPrompt.setAccessible(true);
 
-        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext);
+        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext, config.getLlm());
 
         assertThat(prompt.getMessages()).hasSize(1);
         assertThat(prompt.getMessages().get(0)).isInstanceOf(UserMessage.class);
@@ -287,6 +291,9 @@ public class SolonAiLlmGatewayConfigTest {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome("target/test-runtime/image-boundaries");
         config.getRuntime().setCacheDir("target/test-runtime/image-boundaries/cache");
+        config.getLlm().setProvider("openai");
+        config.getLlm().setDialect("openai");
+        config.getLlm().setModel("gpt-4o");
         AttachmentCacheService cacheService = new AttachmentCacheService(config);
         File mediaDir = cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
         Files.createDirectories(mediaDir.toPath());
@@ -310,16 +317,36 @@ public class SolonAiLlmGatewayConfigTest {
                         imageWithData("image/png", "iVBORw0KGgo=")));
         Method userPrompt =
                 SolonAiLlmGateway.class.getDeclaredMethod(
-                        "userPrompt", String.class, AgentRunContext.class);
+                        "userPrompt", String.class, AgentRunContext.class, AppConfig.LlmConfig.class);
         userPrompt.setAccessible(true);
 
-        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext);
+        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext, config.getLlm());
 
         UserMessage message = (UserMessage) prompt.getMessages().get(0);
         assertThat(message.getBlocks()).hasSize(4);
         assertThat(message.getBlocks())
                 .filteredOn(block -> block instanceof ImageBlock)
                 .hasSize(3);
+    }
+
+    @Test
+    void shouldSkipImagePayloadForTextOnlyModels() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai");
+        config.getLlm().setDialect("openai");
+        config.getLlm().setModel("custom/unknown-small-model");
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        runContext.setUserAttachments(Arrays.asList(imageWithData("image/png", "iVBORw0KGgo=")));
+        Method userContentBlocks =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "userContentBlocks", String.class, AgentRunContext.class, AppConfig.LlmConfig.class);
+        userContentBlocks.setAccessible(true);
+
+        java.util.List<?> blocks =
+                (java.util.List<?>) userContentBlocks.invoke(gateway, "Describe it", runContext, config.getLlm());
+
+        assertThat(blocks).isEmpty();
     }
 
     @Test

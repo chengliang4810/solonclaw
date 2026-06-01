@@ -26,7 +26,15 @@ public class LlmUsage {
         return promptTokens;
     }
 
+    public long getInputTokens() {
+        return promptTokens;
+    }
+
     public long getCompletionTokens() {
+        return completionTokens;
+    }
+
+    public long getOutputTokens() {
         return completionTokens;
     }
 
@@ -48,6 +56,14 @@ public class LlmUsage {
 
     public long getLatencyMs() {
         return latencyMs;
+    }
+
+    public long getTotalTokens() {
+        return promptTokens
+                + completionTokens
+                + cacheReadTokens
+                + cacheWriteTokens
+                + reasoningTokens;
     }
 
     /** 从 LlmResult 中提取 usage 快照。 */
@@ -89,8 +105,18 @@ public class LlmUsage {
             return this;
         }
 
+        public Builder inputTokens(long inputTokens) {
+            this.promptTokens = inputTokens;
+            return this;
+        }
+
         public Builder completionTokens(long completionTokens) {
             this.completionTokens = completionTokens;
+            return this;
+        }
+
+        public Builder outputTokens(long outputTokens) {
+            this.completionTokens = outputTokens;
             return this;
         }
 

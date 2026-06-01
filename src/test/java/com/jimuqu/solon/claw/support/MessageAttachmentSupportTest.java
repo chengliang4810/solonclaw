@@ -68,6 +68,48 @@ public class MessageAttachmentSupportTest {
 
         assertThat(text)
                 .contains("localPath=path://report.pdf")
+                .contains("payloadMode=metadata_only")
+                .contains("signal=degrade_to_metadata")
                 .doesNotContain("D:/runtime/cache/media");
+    }
+
+    @Test
+    void shouldExposeVisionPayloadSignalsForImageAndVoiceAttachments() {
+        MessageAttachment image = new MessageAttachment();
+        image.setKind("image");
+        image.setMimeType("image/png");
+        image.setData("iVBORw0KGgo=");
+
+        MessageAttachment voice = new MessageAttachment();
+        voice.setKind("voice");
+        voice.setMimeType("audio/wav");
+
+        MessageAttachment transcribedVoice = new MessageAttachment();
+        transcribedVoice.setKind("voice");
+        transcribedVoice.setMimeType("audio/wav");
+        transcribedVoice.setTranscribedText("转写文本");
+
+        assertThat(MessageAttachmentSupport.multimodalAvailability(image))
+                .isEqualTo("vision_payload_candidate");
+        assertThat(MessageAttachmentSupport.multimodalPayloadMode(image))
+                .isEqualTo("vision_payload");
+        assertThat(MessageAttachmentSupport.multimodalSignal(image))
+                .isEqualTo("accept_vision_payload");
+        assertThat(MessageAttachmentSupport.canSendAsVisionPayload(image, true)).isTrue();
+        assertThat(MessageAttachmentSupport.canSendAsVisionPayload(image, false)).isFalse();
+
+        assertThat(MessageAttachmentSupport.multimodalAvailability(voice))
+                .isEqualTo("needs_transcription");
+        assertThat(MessageAttachmentSupport.multimodalPayloadMode(voice))
+                .isEqualTo("await_transcription");
+        assertThat(MessageAttachmentSupport.multimodalSignal(voice))
+                .isEqualTo("reject_until_transcribed");
+
+        assertThat(MessageAttachmentSupport.multimodalAvailability(transcribedVoice))
+                .isEqualTo("transcript_available");
+        assertThat(MessageAttachmentSupport.multimodalPayloadMode(transcribedVoice))
+                .isEqualTo("transcript_only");
+        assertThat(MessageAttachmentSupport.multimodalSignal(transcribedVoice))
+                .isEqualTo("degrade_to_transcript");
     }
 }

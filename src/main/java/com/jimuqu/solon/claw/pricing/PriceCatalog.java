@@ -39,8 +39,10 @@ public class PriceCatalog {
             price.setProvider(text(node, "provider"));
             price.setModel(text(node, "model"));
             price.setCurrency(StrUtil.blankToDefault(text(node, "currency"), "USD"));
-            price.setInputMicrosPerToken(number(node, "input_micros_per_token"));
-            price.setOutputMicrosPerToken(number(node, "output_micros_per_token"));
+            price.setInputMicrosPerToken(
+                    firstNumber(node, "input_micros_per_token", "prompt_micros_per_token"));
+            price.setOutputMicrosPerToken(
+                    firstNumber(node, "output_micros_per_token", "completion_micros_per_token"));
             price.setCacheReadMicrosPerToken(number(node, "cache_read_micros_per_token"));
             price.setCacheWriteMicrosPerToken(number(node, "cache_write_micros_per_token"));
             price.setReasoningMicrosPerToken(number(node, "reasoning_micros_per_token"));
@@ -99,6 +101,19 @@ public class PriceCatalog {
     private static long number(ONode node, String key) {
         ONode value = node.get(key);
         return value == null ? 0L : Math.max(0L, value.getLong());
+    }
+
+    private static long firstNumber(ONode node, String... keys) {
+        if (keys == null) {
+            return 0L;
+        }
+        for (String key : keys) {
+            long value = number(node, key);
+            if (value > 0L) {
+                return value;
+            }
+        }
+        return 0L;
     }
 
     private static String stripMatchingProviderPrefix(String provider, String model) {
