@@ -121,6 +121,36 @@ public class SqliteAgentSessionTest {
     }
 
     @Test
+    void shouldResumeSpecifiedPendingSessionEvenWhenCurrentBindingMoved() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:moved-pending-room:user";
+        SessionRecord pending = env.sessionRepository.bindNewSession(sourceKey);
+        SqliteAgentSession pendingAgentSession =
+                new SqliteAgentSession(pending, env.sessionRepository);
+        pendingAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("恢复旧的 pending 会话")));
+        pendingAgentSession.pending(true, "restart_interrupted");
+        pendingAgentSession.updateSnapshot();
+
+        SessionRecord rebound = env.sessionRepository.bindNewSession(sourceKey);
+        rebound.setTitle("current-session");
+        env.sessionRepository.save(rebound);
+
+        GatewayReply reply =
+                env.conversationOrchestrator.resumePending(sourceKey, pending.getSessionId());
+
+        assertThat(reply.getSessionId()).isEqualTo(pending.getSessionId());
+        assertThat(reply.getContent()).contains("echo:resume");
+        assertThat(new SqliteAgentSession(env.sessionRepository.findById(pending.getSessionId()))
+                        .isPending())
+                .isFalse();
+        assertThat(new SqliteAgentSession(env.sessionRepository.findById(rebound.getSessionId()))
+                        .isPending())
+                .isFalse();
+        assertThat(env.sessionRepository.getBoundSession(sourceKey).getSessionId())
+                .isEqualTo(rebound.getSessionId());
+    }
+
+    @Test
     void shouldNotAddGatewayInterruptionNoteWhenResumingApprovalPendingSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session =
@@ -136,6 +166,27 @@ public class SqliteAgentSessionTest {
         assertThat(reply.getContent()).contains("echo:resume");
         assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
                 .doesNotContain("上一轮执行被网关");
+    }
+
+    @Test
+    void shouldRejectPendingResumeForDifferentSourceBinding() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:source-a:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("只允许原 source 恢复")));
+        agentSession.pending(true, "restart_timeout");
+        agentSession.updateSnapshot();
+
+        GatewayReply reply =
+                env.conversationOrchestrator.resumePending(
+                        "MEMORY:source-b:user", session.getSessionId());
+
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("不是当前来源键下可恢复的 pending 会话");
+        assertThat(new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()))
+                        .isPending())
+                .isTrue();
     }
 
     @Test

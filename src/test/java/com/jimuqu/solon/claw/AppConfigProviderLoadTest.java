@@ -47,6 +47,16 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getLlm().getDialect()).isEqualTo("openai-responses");
         assertThat(config.getLlm().getApiUrl()).isEqualTo("https://api.openai.com/v1/responses");
         assertThat(config.getLlm().getModel()).isEqualTo("gpt-5-mini");
+        assertThat(
+                        com.jimuqu.solon.claw.llm.LlmProviderSupport.buildModelListUrl(
+                                config.getProviders().get("openai-direct").getBaseUrl(),
+                                config.getProviders().get("openai-direct").getDialect()))
+                .isEqualTo("https://api.openai.com/v1/models");
+        assertThat(
+                        com.jimuqu.solon.claw.llm.LlmProviderSupport.buildModelListUrl(
+                                config.getProviders().get("backup").getBaseUrl(),
+                                config.getProviders().get("backup").getDialect()))
+                .isEqualTo("https://backup.example.com/v1/models");
         assertThat(config.getProviders().get("openai-direct").getSupportsVision())
                 .isEqualTo(Boolean.TRUE);
         assertThat(config.getProviders().get("backup").getSupportsVision())

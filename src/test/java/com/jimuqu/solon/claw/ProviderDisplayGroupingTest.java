@@ -118,6 +118,39 @@ public class ProviderDisplayGroupingTest {
         assertThat(pricing.get("output")).isEqualTo("CNY 15.00");
     }
 
+    @Test
+    void shouldExposeProviderAwareModelListAndApiUrlsInDashboardModels() {
+        AppConfig config = config();
+        AppConfig.ProviderConfig moonshotProvider = new AppConfig.ProviderConfig();
+        moonshotProvider.setName("Moonshot");
+        moonshotProvider.setBaseUrl("https://api.moonshot.ai/v1");
+        moonshotProvider.setDefaultModel("moonshot-v1-8k");
+        moonshotProvider.setDialect("openai");
+        config.getProviders().put("moonshot", moonshotProvider);
+
+        DashboardProviderService service =
+                new DashboardProviderService(config, null, new LlmProviderService(config));
+
+        Map<String, Object> result = service.JimuquModels();
+        List<?> models = (List<?>) result.get("models");
+        Map<?, ?> moonshot = null;
+        for (Object item : models) {
+            Map<?, ?> row = (Map<?, ?>) item;
+            if ("moonshot".equals(row.get("provider"))) {
+                moonshot = row;
+                break;
+            }
+        }
+
+        assertThat(moonshot).isNotNull();
+        assertThat(moonshot.get("api_url"))
+                .isEqualTo("https://api.moonshot.ai/v1/chat/completions");
+        assertThat(moonshot.get("model_list_url"))
+                .isEqualTo("https://api.moonshot.ai/v1/models");
+        assertThat(((Map<?, ?>) moonshot.get("metadata")).get("model_list_url"))
+                .isEqualTo("https://api.moonshot.ai/v1/models");
+    }
+
     private AppConfig config() {
         AppConfig config = new AppConfig();
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();

@@ -467,12 +467,10 @@ def main() -> int:
         clean_release_text = release_notes_path.read_text(encoding="utf-8")
         if "fix: clean release notes / Clean release notes" not in clean_release_text:
             raise AssertionError("Release notes generation did not include the clean commit subject.")
-        if not re.search(r"fix: clean release notes / Clean release notes[\s\S]*影响文件 / Changed files:[\s\S]*README\.md", clean_release_text):
-            raise AssertionError("Release notes generation did not include changed files for commits without body details.")
-        if "另有 2 个文件未展开。 / 2 more files omitted." not in clean_release_text:
-            raise AssertionError("Release notes generation did not limit long changed-file lists with a bilingual omission note.")
-        if "changed-9.txt" in clean_release_text:
-            raise AssertionError("Release notes generation should omit files beyond the display limit.")
+        if "影响文件 / Changed files:" in clean_release_text:
+            raise AssertionError("Release notes generation should not include changed-file details for commits without body details.")
+        if "README.md" in clean_release_text or "changed-1.txt" in clean_release_text:
+            raise AssertionError("Release notes generation should not list changed files for commits without body details.")
         if not re.search(r"### 功能 / Features[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note", clean_release_text):
             raise AssertionError("Release notes generation did not classify scoped feat commits as features.")
         if not re.search(r"### 缺陷修复 / Fixes[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note", clean_release_text):

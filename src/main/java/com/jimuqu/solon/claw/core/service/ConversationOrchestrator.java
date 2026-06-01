@@ -26,9 +26,21 @@ public interface ConversationOrchestrator {
     /** 恢复当前来源键下因危险命令审批而挂起的会话。 */
     GatewayReply resumePending(String sourceKey) throws Exception;
 
+    /** 按会话 ID 恢复指定 pending 会话。 */
+    default GatewayReply resumePending(String sourceKey, String sessionId) throws Exception {
+        return resumePending(sourceKey);
+    }
+
     /** 恢复当前来源键下因危险命令审批而挂起的会话，并输出运行过程。 */
     default GatewayReply resumePending(String sourceKey, ConversationEventSink eventSink)
             throws Exception {
         return resumePending(sourceKey);
+    }
+
+    /** 按会话 ID 恢复指定 pending 会话，并输出运行过程。 */
+    default GatewayReply resumePending(
+            String sourceKey, String sessionId, ConversationEventSink eventSink)
+            throws Exception {
+        return resumePending(sourceKey, eventSink);
     }
 }

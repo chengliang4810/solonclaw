@@ -25,6 +25,8 @@ public class ModelMetadata {
     private boolean supportsReasoning;
     private boolean supportsPromptCache;
     private boolean supportsStreaming;
+    private String apiUrl;
+    private String modelListUrl;
     private String source;
     private boolean defaultModel;
     private boolean supported;

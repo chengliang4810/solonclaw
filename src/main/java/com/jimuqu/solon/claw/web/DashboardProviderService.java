@@ -105,6 +105,8 @@ public class DashboardProviderService {
             model.put("role", entry.getKey().equals(appConfig.getModel().getProviderKey()) ? "primary" : "auxiliary");
             model.put("status", providerStatus(provider));
             model.put("metadata", metadataMap(metadata));
+            model.put("api_url", SecretRedactor.maskUrl(metadata.getApiUrl()));
+            model.put("model_list_url", SecretRedactor.maskUrl(metadata.getModelListUrl()));
             model.put("aliases", metadata.getAliases());
             model.put("context_window", metadata.getContextWindow());
             model.put("max_output", metadata.getMaxOutput());
@@ -164,6 +166,8 @@ public class DashboardProviderService {
         map.put("dialect", metadata.getDialect());
         map.put("context_window", metadata.getContextWindow());
         map.put("max_output", metadata.getMaxOutput());
+        map.put("api_url", SecretRedactor.maskUrl(metadata.getApiUrl()));
+        map.put("model_list_url", SecretRedactor.maskUrl(metadata.getModelListUrl()));
         map.put("tool_calling", Boolean.valueOf(metadata.isSupportsTools()));
         map.put("vision", Boolean.valueOf(metadata.isSupportsVision()));
         map.put("audio", Boolean.valueOf(metadata.isSupportsAudio()));
