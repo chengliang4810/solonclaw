@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -278,9 +279,21 @@ public class SessionArtifactService {
 
     private String toolResponseXml(ToolMessage tool, String name) {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
+        String content = tool == null ? "" : tool.getContent();
+        ToolResultStorageService.StoredResult stored =
+                ToolResultStorageService.describeObservation(content);
         body.put("tool_call_id", tool == null ? "" : tool.getToolCallId());
         body.put("name", StrUtil.blankToDefault(tool == null ? null : tool.getName(), name));
-        body.put("content", parseJsonLike(tool == null ? "" : tool.getContent()));
+        body.put("content", parseJsonLike(stored.getPreview()));
+        if (stored.isTruncated()) {
+            body.put("truncated", Boolean.TRUE);
+        }
+        if (StrUtil.isNotBlank(stored.getResultRef())) {
+            body.put("result_ref", stored.getResultRef());
+        }
+        if (stored.getSizeBytes() > 0L) {
+            body.put("size", Long.valueOf(stored.getSizeBytes()));
+        }
         return "<tool_response>\n" + ONode.serialize(body) + "\n</tool_response>";
     }
 

@@ -25,10 +25,29 @@ import org.noear.snack4.ONode;
 
 /** Jimuqu 风格 Cron 任务管理服务。 */
 public class CronJobService {
+    public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
+            Arrays.asList("cronjob", "messaging", "clarify");
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_PAUSED = "PAUSED";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String DEFAULT_SOURCE = "MEMORY:dashboard:cron";
+    private static final String CRON_SECRET_VAR =
+            "\\$\\{?\\w*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)\\w*\\}?";
+    private static final Pattern CRON_GITHUB_AUTH_HEADER =
+            Pattern.compile(
+                    "curl\\s+[^\\n]*(?:-H|--header)\\s+[\"']Authorization:\\s*token\\s+"
+                            + CRON_SECRET_VAR
+                            + "[\"']\\s+[\"']?https://api\\.github\\.com(?:/|\\b)",
+                    Pattern.CASE_INSENSITIVE);
+    private static final int VARIATION_SELECTOR_CP = 0xFE0F;
+    private static final int[][] EMOJI_NEIGHBOUR_CP_RANGES =
+            new int[][] {
+                new int[] {0x1F000, 0x1FFFF},
+                new int[] {0x2600, 0x27BF},
+                new int[] {0x2300, 0x23FF},
+                new int[] {0x1F1E6, 0x1F1FF},
+                new int[] {0x20E3, 0x20E3}
+            };
     private static final CronPromptThreat[] CRON_PROMPT_THREATS =
             new CronPromptThreat[] {
                 threat(
@@ -40,11 +59,23 @@ public class CronJobService {
                         "disregard_rules",
                         "disregard\\s+(your|all|any)\\s+(instructions|rules|guidelines)"),
                 threat(
+                        "exfil_curl_data",
+                        "curl\\s+[^\\n]*(?:--data(?:-raw|-binary|-urlencode)?|-d|--form|-F)\\s+[^\\n]*"
+                                + CRON_SECRET_VAR),
+                threat(
+                        "exfil_wget_post",
+                        "wget\\s+[^\\n]*--post-(?:data|file)=[^\\n]*" + CRON_SECRET_VAR),
+                threat(
+                        "exfil_curl_auth_header",
+                        "curl\\s+[^\\n]*(?:-H|--header)\\s+[\"']Authorization:\\s*(?:Bearer|token)\\s+"
+                                + CRON_SECRET_VAR
+                                + "[\"']"),
+                threat(
                         "exfil_curl",
-                        "curl\\s+[^\\n]*\\$\\{?\\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)"),
+                        "curl\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
                 threat(
                         "exfil_wget",
-                        "wget\\s+[^\\n]*\\$\\{?\\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)"),
+                        "wget\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
                 threat("read_secrets", "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass)"),
                 threat("ssh_backdoor", "authorized_keys"),
                 threat("sudoers_mod", "/etc/sudoers|visudo"),
@@ -116,7 +147,7 @@ public class CronJobService {
         record.setWorkdir(workdir);
         record.setNoAgent(noAgent);
         record.setContextFromJson(json(dependencyRefs));
-        record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
+        record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
         applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         record.setWrapResponse(
                 bool(body.get("wrap_response"), bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
@@ -189,8 +220,8 @@ public class CronJobService {
             validateContextFrom(refs);
             record.setContextFromJson(json(refs));
         }
-        if (body.containsKey("enabled_toolsets")) {
-            record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
+        if (body.containsKey("enabled_toolsets") || body.containsKey("enabledToolsets")) {
+            record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
         }
         if (body.containsKey("model")
                 || body.containsKey("provider")
@@ -481,7 +512,7 @@ public class CronJobService {
         List<String> contextFrom = parseList(record.getContextFromJson());
         result.put("context_from", contextFrom);
         result.put("depends_on", contextFrom);
-        result.put("enabled_toolsets", parseList(record.getEnabledToolsetsJson()));
+        result.put("enabled_toolsets", filterProtectedCronToolsets(parseList(record.getEnabledToolsetsJson())));
         result.put("model", record.getModel());
         result.put("provider", record.getProvider());
         result.put("base_url", record.getBaseUrl());
@@ -520,6 +551,7 @@ public class CronJobService {
                         "context_from",
                         "depends_on",
                         "enabled_toolsets",
+                        "enabledToolsets",
                         "model",
                         "provider",
                         "base_url",
@@ -654,6 +686,7 @@ public class CronJobService {
                         "context_from",
                         "depends_on",
                         "enabled_toolsets",
+                        "enabledToolsets",
                         "model",
                         "provider",
                         "base_url",
@@ -672,6 +705,7 @@ public class CronJobService {
                         "context_from",
                         "depends_on",
                         "enabled_toolsets",
+                        "enabledToolsets",
                         "model",
                         "provider",
                         "base_url"));
@@ -747,6 +781,10 @@ public class CronJobService {
                         "--clear-context-from",
                         "--clear-depends-on"));
         skillBinding.put("enabledToolsetsSupported", Boolean.TRUE);
+        skillBinding.put("enabledToolsetsAliasSupported", Boolean.TRUE);
+        skillBinding.put("enabledToolsetsFields", Arrays.asList("enabled_toolsets", "enabledToolsets"));
+        skillBinding.put("protectedDisabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        skillBinding.put("protectedDisabledOverridesEnabledToolsets", Boolean.TRUE);
         skillBinding.put("dedupeApplied", Boolean.TRUE);
         policy.put("skill_binding", skillBinding);
 
@@ -777,8 +815,11 @@ public class CronJobService {
         isolation.put("sourceBoundSessionRuns", Boolean.TRUE);
         isolation.put("sessionBinding", "source_key");
         isolation.put("sourceScopedLock", Boolean.TRUE);
-        isolation.put("disabledToolsets", Arrays.asList("cronjob", "messaging", "clarify"));
+        isolation.put("disabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        isolation.put("protectedDisabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         isolation.put("enabledToolsetsOverrideSupported", Boolean.TRUE);
+        isolation.put("enabledToolsetsAliasSupported", Boolean.TRUE);
+        isolation.put("protectedDisabledOverridesEnabledToolsets", Boolean.TRUE);
         isolation.put("autoDeliveryContext", Boolean.TRUE);
         isolation.put("selfDeliveryDiscouraged", Boolean.TRUE);
         isolation.put("localDeliveryHistoryOnly", Boolean.TRUE);
@@ -860,6 +901,9 @@ public class CronJobService {
                         "--depends-on job-id",
                         "--clear-context-from",
                         "--clear-depends-on"));
+        result.put("enabled_toolset_fields", Arrays.asList("enabled_toolsets", "enabledToolsets"));
+        result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("protected_disabled_overrides_enabled_toolsets", Boolean.TRUE);
         result.put("dedupe", Boolean.TRUE);
         return result;
     }
@@ -900,7 +944,9 @@ public class CronJobService {
         result.put("no_agent", "脚本直投模式，必须提供 script，stdout 可按投递策略发送。");
         result.put("runtime_isolation", cronRuntimeIsolationPolicy());
         result.put("session_binding", "按 source_key 绑定运行会话；同一来源串行执行，不同来源可并行执行。");
-        result.put("disabled_toolsets", Arrays.asList("cronjob", "messaging", "clarify"));
+        result.put("disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("protected_disabled_overrides_enabled_toolsets", Boolean.TRUE);
         result.put("local_delivery", "deliver=local 时只写入运行历史，不外投消息。");
         result.put("inactivity_timeout", "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 JIMUQU_CRON_TIMEOUT 控制。");
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
@@ -938,6 +984,8 @@ public class CronJobService {
         result.put("script_validation", "script 禁止绝对路径、父目录跳转、shell 片段、控制字符和 URL。");
         result.put("workdir_validation", "workdir 会规范化到 runtime home 内部，禁止逃逸工作目录。");
         result.put("delivery_validation", "deliver 只允许本地、origin 或已支持平台。");
+        result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
+        result.put("enabled_toolsets_policy", "protected disabled toolsets override per-job and scheduler enabled_toolsets.");
         result.put("approval_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
@@ -1153,9 +1201,10 @@ public class CronJobService {
         if (StrUtil.isBlank(prompt)) {
             return;
         }
-        for (int i = 0; i < prompt.length(); i++) {
-            char ch = prompt.charAt(i);
-            if (isInvisibleInjectionChar(ch)) {
+        String promptToScan = stripCronSafeConstructs(prompt);
+        for (int i = 0; i < promptToScan.length(); i++) {
+            char ch = promptToScan.charAt(i);
+            if (isInvisibleInjectionChar(ch, promptToScan, i)) {
                 throw new IllegalStateException(
                         "Blocked invisible unicode U+"
                                 + String.format(Locale.ROOT, "%04X", Integer.valueOf(ch))
@@ -1163,14 +1212,21 @@ public class CronJobService {
             }
         }
         for (CronPromptThreat threat : CRON_PROMPT_THREATS) {
-            if (threat.pattern.matcher(prompt).find()) {
+            if (threat.pattern.matcher(promptToScan).find()) {
                 throw new IllegalStateException(
                         "Blocked unsafe cron prompt pattern: " + threat.id);
             }
         }
     }
 
-    private static boolean isInvisibleInjectionChar(char ch) {
+    private static String stripCronSafeConstructs(String prompt) {
+        return CRON_GITHUB_AUTH_HEADER.matcher(prompt).replaceAll("curl https://api.github.com/user");
+    }
+
+    private static boolean isInvisibleInjectionChar(char ch, String text, int index) {
+        if (ch == '\u200d' && zwjHasEmojiNeighbour(text, index)) {
+            return false;
+        }
         return ch == '\u200b'
                 || ch == '\u200c'
                 || ch == '\u200d'
@@ -1181,6 +1237,30 @@ public class CronJobService {
                 || ch == '\u202c'
                 || ch == '\u202d'
                 || ch == '\u202e';
+    }
+
+    private static boolean zwjHasEmojiNeighbour(String text, int index) {
+        int left = index - 1;
+        while (left >= 0 && text.charAt(left) == VARIATION_SELECTOR_CP) {
+            left--;
+        }
+        int right = index + 1;
+        while (right < text.length() && text.charAt(right) == VARIATION_SELECTOR_CP) {
+            right++;
+        }
+        return left >= 0 && right < text.length()
+                && isEmojiCodePoint(text.codePointBefore(left + 1))
+                && isEmojiCodePoint(text.codePointAt(right));
+    }
+
+    private static boolean isEmojiCodePoint(int codePoint) {
+        for (int i = 0; i < EMOJI_NEIGHBOUR_CP_RANGES.length; i++) {
+            int[] range = EMOJI_NEIGHBOUR_CP_RANGES[i];
+            if (codePoint >= range[0] && codePoint <= range[1]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static CronPromptThreat threat(String id, String regex) {
@@ -1310,6 +1390,42 @@ public class CronJobService {
 
     private Object first(List<String> values) {
         return values.isEmpty() ? null : values.get(0);
+    }
+
+    private List<String> cronEnabledToolsets(Map<String, Object> body) {
+        if (body == null) {
+            return new ArrayList<String>();
+        }
+        Object value = body.containsKey("enabled_toolsets") ? body.get("enabled_toolsets") : body.get("enabledToolsets");
+        return filterProtectedCronToolsets(stringList(value));
+    }
+
+    public static List<String> filterProtectedCronToolsets(List<String> values) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            String normalized = normalizeToolsetName(value);
+            if (StrUtil.isBlank(normalized) || PROTECTED_CRON_DISABLED_TOOLSETS.contains(normalized)) {
+                continue;
+            }
+            if (!result.contains(normalized)) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private static String normalizeToolsetName(String value) {
+        String normalized = StrUtil.nullToEmpty(value).trim().toLowerCase(Locale.ROOT);
+        if ("cron".equals(normalized)) {
+            return "cronjob";
+        }
+        if ("message".equals(normalized) || "send".equals(normalized)) {
+            return "messaging";
+        }
+        return normalized;
     }
 
     @SuppressWarnings("unchecked")

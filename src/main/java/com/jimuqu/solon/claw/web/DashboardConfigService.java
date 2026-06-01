@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -947,8 +948,15 @@ public class DashboardConfigService {
 
     private void validateValues(Map<String, Object> values) {
         validateCredentialFiles(values.get("terminal.credentialFiles"));
+        validateEnvPassthrough(values.get("terminal.envPassthrough"), "terminal.envPassthrough");
+        validateEnvPassthrough(values.get("terminal.env_passthrough"), "terminal.env_passthrough");
         validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
         validateWebsiteSharedFiles(values.get("security.website_blocklist.shared_files"));
+    }
+
+    private void validateEnvPassthrough(Object rawValue, String configKey) {
+        SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                normalizeStringList(rawValue, configKey), configKey);
     }
 
     private void validateCredentialFiles(Object rawValue) {
@@ -997,8 +1005,12 @@ public class DashboardConfigService {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private List<String> normalizePathList(Object rawValue) {
+        return normalizeStringList(rawValue, "Path list config");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> normalizeStringList(Object rawValue, String configKey) {
         if (rawValue == null) {
             return Collections.emptyList();
         }
@@ -1021,7 +1033,7 @@ public class DashboardConfigService {
             }
             return values;
         }
-        throw new IllegalStateException("Path list config must be a list or comma-separated string");
+        throw new IllegalStateException(configKey + " must be a list or comma-separated string");
     }
 
     private boolean containsControlCharacter(String value) {

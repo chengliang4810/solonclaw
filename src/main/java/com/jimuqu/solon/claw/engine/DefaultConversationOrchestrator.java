@@ -967,6 +967,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         extra.setCacheWriteTokens(
                 Math.max(0L, extra.getCacheWriteTokens())
                         + Math.max(0L, base.getCacheWriteTokens()));
+        extra.setRequestCount(
+                Math.max(0L, extra.getRequestCount()) + Math.max(0L, base.getRequestCount()));
         extra.setTotalTokens(
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
     }

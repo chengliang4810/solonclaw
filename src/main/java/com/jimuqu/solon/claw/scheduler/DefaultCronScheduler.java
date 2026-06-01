@@ -72,7 +72,7 @@ public class DefaultCronScheduler {
     private static final String EMPTY_AGENT_RESPONSE_OUTPUT = "(No response generated)";
     private static final int MAX_CONTEXT_FROM_CHARS = 8000;
     private static final List<String> CRON_DISABLED_TOOLSETS =
-            Arrays.asList("cronjob", "messaging", "clarify");
+            CronJobService.PROTECTED_CRON_DISABLED_TOOLSETS;
     private static final int DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS = 600;
     private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
     private static final ExecutorService MCP_WARMUP_EXECUTOR =
@@ -1368,7 +1368,7 @@ public class DefaultCronScheduler {
     private List<String> resolveCronEnabledToolsets(CronJobRecord job) {
         List<String> perJob = enabledToolsets(job);
         if (!perJob.isEmpty()) {
-            return perJob;
+            return CronJobService.filterProtectedCronToolsets(perJob);
         }
         if (appConfig == null || appConfig.getScheduler() == null) {
             return perJob;
@@ -1377,7 +1377,7 @@ public class DefaultCronScheduler {
         if (fallback == null || fallback.isEmpty()) {
             return perJob;
         }
-        return new ArrayList<String>(fallback);
+        return CronJobService.filterProtectedCronToolsets(fallback);
     }
 
     private String runScript(CronJobRecord job) throws Exception {

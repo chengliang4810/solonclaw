@@ -7,9 +7,13 @@ import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /** 模型能力元数据解析服务。 */
 public class ModelMetadataService {
+    private static final Pattern OLLAMA_TAG_PATTERN =
+            Pattern.compile("^(\\d+\\.?\\d*b|latest|stable|q\\d|fp?\\d|instruct|chat|coder|vision|text)");
+
     private final AppConfig appConfig;
 
     public ModelMetadataService(AppConfig appConfig) {
@@ -46,7 +50,11 @@ public class ModelMetadataService {
         }
         int colon = value.indexOf(':');
         if (colon > 0 && colon + 1 < value.length() && isProviderPrefix(value.substring(0, colon))) {
-            return value.substring(colon + 1).trim();
+            String suffix = value.substring(colon + 1).trim();
+            if (looksLikeOllamaTag(suffix)) {
+                return value;
+            }
+            return suffix;
         }
         return value;
     }
@@ -58,6 +66,10 @@ public class ModelMetadataService {
                 || "anthropic".equals(value)
                 || "gemini".equals(value)
                 || "google".equals(value);
+    }
+
+    private boolean looksLikeOllamaTag(String suffix) {
+        return OLLAMA_TAG_PATTERN.matcher(StrUtil.nullToEmpty(suffix).trim().toLowerCase()).find();
     }
 
     private List<String> aliases(String model) {
@@ -103,16 +115,63 @@ public class ModelMetadataService {
             return configured;
         }
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
-        if (lower.contains("gpt-5") || lower.contains("gemini-2.5") || lower.contains("gemini-3")) {
-            return 1000000;
-        }
-        if (lower.contains("claude")) {
-            return 200000;
-        }
         if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
             return 32768;
         }
+        if (matchesAny(
+                lower,
+                "claude-opus-4-8",
+                "claude-opus-4.8",
+                "claude-opus-4-7",
+                "claude-opus-4.7",
+                "claude-opus-4-6",
+                "claude-opus-4.6",
+                "claude-sonnet-4-8",
+                "claude-sonnet-4.8",
+                "claude-sonnet-4-7",
+                "claude-sonnet-4.7",
+                "claude-sonnet-4-6",
+                "claude-sonnet-4.6",
+                "deepseek-chat",
+                "deepseek-reasoner",
+                "deepseek-v4")) {
+            return 1000000;
+        }
+        if (matchesAny(lower, "gpt-5.5", "gpt-5.4")
+                && !matchesAny(lower, "gpt-5.4-mini", "gpt-5.4-nano")) {
+            return 1050000;
+        }
+        if (matchesAny(lower, "gemini", "qwen3.6-plus", "qwen3-coder-plus")) {
+            return 1000000;
+        }
+        if (lower.contains("gpt-4.1")) {
+            return 1047576;
+        }
+        if (lower.contains("grok-4-fast") || lower.contains("grok-4.20")) {
+            return 2000000;
+        }
+        if (matchesAny(lower, "gpt-5", "gpt-5.4-mini", "gpt-5.4-nano")) {
+            return 400000;
+        }
+        if (matchesAny(lower, "qwen3-coder", "kimi", "grok-4", "gemma-4", "gemma4")) {
+            return 262144;
+        }
+        if (matchesAny(lower, "claude", "minimax", "glm")) {
+            return 200000;
+        }
+        if (matchesAny(lower, "gpt-4", "qwen", "deepseek", "llama", "grok")) {
+            return 131072;
+        }
         return 64000;
+    }
+
+    private boolean matchesAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean resolveSupportsTools(String dialect) {
@@ -130,13 +189,20 @@ public class ModelMetadataService {
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
         return LlmConstants.PROVIDER_GEMINI.equals(dialect)
                 || lower.contains("vision")
-                || lower.contains("vl")
+                || lower.contains("-vl")
+                || lower.contains("_vl")
+                || lower.contains("/vl")
                 || lower.contains("omni")
                 || lower.contains("gpt-4o")
                 || lower.contains("gpt-5")
+                || lower.contains("qwen-vl")
+                || lower.contains("qwen2-vl")
+                || lower.contains("qwen2.5-vl")
+                || lower.contains("qwen3-vl")
                 || lower.contains("claude-3")
                 || lower.contains("claude-sonnet-4")
-                || lower.contains("claude-opus-4");
+                || lower.contains("claude-opus-4")
+                || lower.contains("grok-2-vision");
     }
 
     private boolean resolveSupportsReasoning(String dialect, String model) {
@@ -144,9 +210,16 @@ public class ModelMetadataService {
         return LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
                 || LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
                 || lower.contains("reason")
+                || lower.contains("thinking")
+                || lower.startsWith("o1")
                 || lower.startsWith("o3")
                 || lower.startsWith("o4")
-                || lower.contains("thinking");
+                || lower.contains("/o1")
+                || lower.contains("/o3")
+                || lower.contains("/o4")
+                || lower.contains("grok-3-mini")
+                || lower.contains("grok-4.20-multi-agent")
+                || lower.contains("grok-4.3");
     }
 
     private boolean resolveSupportsPromptCache(String dialect) {

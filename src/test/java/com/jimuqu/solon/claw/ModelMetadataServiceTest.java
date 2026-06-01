@@ -21,7 +21,7 @@ public class ModelMetadataServiceTest {
 
         assertThat(metadata.getModel()).isEqualTo("openai/gpt-5.4");
         assertThat(metadata.getAliases()).contains("gpt");
-        assertThat(metadata.getContextWindow()).isEqualTo(1000000);
+        assertThat(metadata.getContextWindow()).isEqualTo(1050000);
     }
 
     @Test
@@ -37,8 +37,53 @@ public class ModelMetadataServiceTest {
 
         assertThat(metadata.getModel()).isEqualTo("openai:gpt-5.4");
         assertThat(metadata.getAliases()).contains("gpt");
-        assertThat(metadata.getContextWindow()).isEqualTo(1000000);
+        assertThat(metadata.getContextWindow()).isEqualTo(1050000);
         assertThat(metadata.isSupportsVision()).isTrue();
+    }
+
+    @Test
+    void shouldPreserveOllamaModelTagsWhenPrefixLooksLikeProvider() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setMaxTokens(4096);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("qwen:7b");
+        provider.setDialect("ollama");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.getModel()).isEqualTo("qwen:7b");
+        assertThat(metadata.getAliases()).contains("qwen");
+        assertThat(metadata.getContextWindow()).isEqualTo(32768);
+    }
+
+    @Test
+    void shouldPreserveOllamaLatestTagWhenPrefixLooksLikeProvider() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setMaxTokens(4096);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("qwen:latest");
+        provider.setDialect("ollama");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.getAliases()).contains("qwen");
+        assertThat(metadata.getContextWindow()).isEqualTo(32768);
+    }
+
+    @Test
+    void shouldResolveBroadContextFallbacksForCommonModelFamilies() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setMaxTokens(4096);
+
+        assertThat(resolveContext(config, "anthropic", "claude-sonnet-4.8")).isEqualTo(1000000);
+        assertThat(resolveContext(config, "openai", "gpt-4.1-mini")).isEqualTo(1047576);
+        assertThat(resolveContext(config, "openai", "gpt-5.4-mini")).isEqualTo(400000);
+        assertThat(resolveContext(config, "gemini", "gemini-2.5-pro")).isEqualTo(1000000);
+        assertThat(resolveContext(config, "openai", "deepseek-reasoner")).isEqualTo(1000000);
+        assertThat(resolveContext(config, "openai", "grok-4-fast-reasoning")).isEqualTo(2000000);
     }
 
     @Test
@@ -100,6 +145,35 @@ public class ModelMetadataServiceTest {
     }
 
     @Test
+    void shouldRecognizeReasoningModelsConservatively() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("o1-mini");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsReasoning()).isTrue();
+
+        provider.setDefaultModel("x-ai/grok-4.3");
+        metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsReasoning()).isTrue();
+    }
+
+    @Test
+    void shouldRecognizeQwenVlAsVisionModel() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("qwen2.5-vl-72b-instruct");
+        provider.setDialect("openai");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsVision()).isTrue();
+    }
+
+    @Test
     void shouldResolveJimuquModelCapabilitiesFromProviderConfig() {
         AppConfig config = new AppConfig();
         config.getModel().setProviderKey("anthropic-main");
@@ -122,5 +196,12 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsPromptCache()).isTrue();
         assertThat(metadata.isDefaultModel()).isTrue();
         assertThat(metadata.isSupported()).isTrue();
+    }
+
+    private int resolveContext(AppConfig config, String dialect, String model) {
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel(model);
+        provider.setDialect(dialect);
+        return new ModelMetadataService(config).resolve("default", provider).getContextWindow();
     }
 }

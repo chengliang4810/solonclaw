@@ -43,6 +43,9 @@ public class LlmResult {
     /** 本轮 ReAct/模型调用累计总 token。 */
     private long totalTokens;
 
+    /** 本轮累计 LLM API 请求次数。 */
+    private long requestCount;
+
     /** 本轮最终实际使用的 provider。 */
     private String provider;
 

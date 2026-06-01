@@ -335,6 +335,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(model.get("has_api_key")).isEqualTo(Boolean.FALSE);
         assertThat(model.get("base_url"))
                 .isEqualTo("https://user:***@example.com/v1?token=***");
+        assertThat(String.valueOf(model.get("model_list_url")))
+                .doesNotContain("provider-pass")
+                .doesNotContain("provider-token");
+        Map<String, Object> healthChecks = (Map<String, Object>) model.get("health_checks");
+        assertThat(healthChecks).isNotNull();
+        assertThat(healthChecks.get("mode")).isEqualTo("generic_bearer_models");
+        assertThat(healthChecks.get("generic_bearer")).isEqualTo(Boolean.TRUE);
+        assertThat(healthChecks.get("dedicated")).isEqualTo(Boolean.FALSE);
+        assertThat(healthChecks.get("skipped")).isEqualTo(Boolean.FALSE);
 
         List<Map<String, Object>> checks = (List<Map<String, Object>>) model.get("checks");
         assertThat(checkCodes(checks))
@@ -352,6 +361,70 @@ public class DashboardDiagnosticOutputTest {
                 .doesNotContain("provider-pass")
                 .doesNotContain("provider-token")
                 .doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeDedicatedProviderHealthCheckSkipLogic() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-dedicated-provider-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getModel().setProviderKey("anthropic-main");
+        config.getModel().setDefault("claude-sonnet-4.6");
+
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Anthropic Main");
+        provider.setBaseUrl("https://api.anthropic.com");
+        provider.setDefaultModel("claude-sonnet-4.6");
+        provider.setDialect("anthropic");
+        provider.setApiKey("sk-ant-test-providersecret");
+        config.getProviders().put("anthropic-main", provider);
+
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())));
+
+        Map<String, Object> doctor = doctorService.doctor();
+
+        assertThat(doctor.get("runtime_home")).isEqualTo("runtime://");
+        assertThat(doctor).containsKeys("generated_at", "model", "last_shutdown", "platforms");
+        Map<String, Object> shutdown = (Map<String, Object>) doctor.get("last_shutdown");
+        assertThat(shutdown).isNotNull();
+        assertThat(shutdown.get("available")).isEqualTo(Boolean.FALSE);
+
+        Map<String, Object> model = (Map<String, Object>) doctor.get("model");
+        assertThat(model).isNotNull();
+        assertThat(model.get("setup_state")).isEqualTo("ready");
+        assertThat(model.get("provider")).isEqualTo("anthropic-main");
+        assertThat(model.get("provider_exists")).isEqualTo(Boolean.TRUE);
+        assertThat(model.get("dialect")).isEqualTo("anthropic");
+        assertThat(model.get("model_list_url")).isEqualTo("https://api.anthropic.com/v1/models");
+
+        Map<String, Object> healthChecks = (Map<String, Object>) model.get("health_checks");
+        assertThat(healthChecks).isNotNull();
+        assertThat(healthChecks.get("mode")).isEqualTo("dedicated");
+        assertThat(healthChecks.get("generic_bearer")).isEqualTo(Boolean.FALSE);
+        assertThat(healthChecks.get("dedicated")).isEqualTo(Boolean.TRUE);
+        assertThat(healthChecks.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(healthChecks.get("reason")))
+                .contains("skip generic Bearer model-list check");
+
+        List<Map<String, Object>> checks = (List<Map<String, Object>>) model.get("checks");
+        assertThat(checkCodes(checks))
+                .contains(
+                        "provider_present",
+                        "model_present",
+                        "api_key_present",
+                        "base_url_valid",
+                        "fallback_empty");
+
+        String doctorJson = ONode.serialize(doctor);
+        assertThat(doctorJson).doesNotContain("sk-ant-test-providersecret");
+        assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
     }
 
     @Test

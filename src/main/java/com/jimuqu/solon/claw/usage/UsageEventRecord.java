@@ -21,6 +21,7 @@ public class UsageEventRecord {
     private long cacheWriteTokens;
     private long reasoningTokens;
     private long totalTokens;
+    private long requestCount;
     private long costMicros;
     private String currency;
     private String priceSource;

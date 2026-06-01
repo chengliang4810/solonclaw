@@ -19,6 +19,7 @@ public class UsageCost {
     private long unpricedCacheReadTokens;
     private long unpricedCacheWriteTokens;
     private long unpricedReasoningTokens;
+    private long requestCount;
 
     public long getUnpricedTotalTokens() {
         return unpricedInputTokens

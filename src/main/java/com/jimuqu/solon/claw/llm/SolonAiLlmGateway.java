@@ -1234,7 +1234,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                 && result.getInputTokens() <= 0
                 && result.getOutputTokens() <= 0
                 && result.getCacheReadTokens() <= 0
-                && result.getCacheWriteTokens() <= 0) {
+                && result.getCacheWriteTokens() <= 0
+                && result.getRequestCount() <= 0) {
             log.info(
                     "LLM usage unavailable: provider={}, dialect={}, model={}, sessionId={}",
                     resolved.getProvider(),
@@ -1245,7 +1246,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         log.info(
-                "LLM usage: provider={}, dialect={}, model={}, sessionId={}, inputTokens={}, outputTokens={}, cacheReadTokens={}, cacheWriteTokens={}, totalTokens={}",
+                "LLM usage: provider={}, dialect={}, model={}, sessionId={}, inputTokens={}, outputTokens={}, cacheReadTokens={}, cacheWriteTokens={}, requestCount={}, totalTokens={}",
                 resolved.getProvider(),
                 resolved.getDialect(),
                 resolved.getModel(),
@@ -1254,6 +1255,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 result.getOutputTokens(),
                 result.getCacheReadTokens(),
                 result.getCacheWriteTokens(),
+                result.getRequestCount(),
                 result.getTotalTokens());
     }
 
@@ -1570,6 +1572,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         private long reasoningTokens;
         private long cacheReadTokens;
         private long cacheWriteTokens;
+        private long requestCount;
 
         private synchronized void add(AiUsage usage) {
             if (usage == null) {
@@ -1582,6 +1585,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             reasoningTokens += snapshot.reasoningTokens;
             cacheReadTokens += snapshot.cacheReadTokens;
             cacheWriteTokens += snapshot.cacheWriteTokens;
+            requestCount += snapshot.requestCount;
         }
 
         private synchronized void applyTo(LlmResult result) {
@@ -1591,6 +1595,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             result.setCacheReadTokens(cacheReadTokens);
             result.setCacheWriteTokens(cacheWriteTokens);
             result.setReasoningTokens(reasoningTokens);
+            result.setRequestCount(requestCount);
             if (promptTokens > 0) {
                 result.setInputTokens(promptTokens);
             }
@@ -1620,7 +1625,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     Math.max(apiTotal, canonicalTotal),
                     reasoningTokens(usage, source),
                     cacheReadTokens,
-                    cacheWriteTokens);
+                    cacheWriteTokens,
+                    requestCount(source));
         }
 
         private long cacheReadTokens(AiUsage usage, ONode source) {
@@ -1645,6 +1651,11 @@ public class SolonAiLlmGateway implements LlmGateway {
                     Math.max(0L, usage.thinkTokens()),
                     detailLong(source, "completion_tokens_details", "reasoning_tokens"),
                     detailLong(source, "output_tokens_details", "reasoning_tokens"));
+        }
+
+        private long requestCount(ONode source) {
+            long raw = nodeLong(source, "request_count");
+            return raw > 0L ? raw : 1L;
         }
 
         private boolean promptTotalIncludesCache(ONode source) {
@@ -1691,6 +1702,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             private final long reasoningTokens;
             private final long cacheReadTokens;
             private final long cacheWriteTokens;
+            private final long requestCount;
 
             private UsageSnapshot(
                     long inputTokens,
@@ -1698,13 +1710,15 @@ public class SolonAiLlmGateway implements LlmGateway {
                     long totalTokens,
                     long reasoningTokens,
                     long cacheReadTokens,
-                    long cacheWriteTokens) {
+                    long cacheWriteTokens,
+                    long requestCount) {
                 this.inputTokens = inputTokens;
                 this.outputTokens = outputTokens;
                 this.totalTokens = totalTokens;
                 this.reasoningTokens = reasoningTokens;
                 this.cacheReadTokens = cacheReadTokens;
                 this.cacheWriteTokens = cacheWriteTokens;
+                this.requestCount = requestCount;
             }
         }
     }

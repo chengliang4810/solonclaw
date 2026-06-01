@@ -452,6 +452,7 @@ public class DashboardCronService {
         copyIfPresent(body, result, "context_from");
         copyIfPresent(body, result, "depends_on");
         copyIfPresent(body, result, "enabled_toolsets");
+        copyIfPresent(body, result, "enabledToolsets");
         copyIfPresent(body, result, "model");
         copyIfPresent(body, result, "provider");
         copyIfPresent(body, result, "base_url");

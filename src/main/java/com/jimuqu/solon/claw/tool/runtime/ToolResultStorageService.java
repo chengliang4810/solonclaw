@@ -90,6 +90,10 @@ public class ToolResultStorageService {
         this.appConfig = appConfig;
     }
 
+    public synchronized void resetTurnBudget() {
+        turnBytes = 0L;
+    }
+
     public synchronized StoredResult observe(
             String toolName, String result, String runId, String toolCallId) {
         String raw = StrUtil.nullToEmpty(result);
@@ -135,6 +139,7 @@ public class ToolResultStorageService {
         summary.put("pinnedInlinePreviewRedacted", Boolean.TRUE);
         summary.put("oversizedResultsPersisted", Boolean.TRUE);
         summary.put("turnBudgetOverflowPersisted", Boolean.TRUE);
+        summary.put("turnBudgetResetPerAssistantTurn", Boolean.TRUE);
         summary.put("persistedOutputBlock", Boolean.TRUE);
         summary.put("resultRefReturned", Boolean.TRUE);
         summary.put("readBackGuidanceIncluded", Boolean.TRUE);

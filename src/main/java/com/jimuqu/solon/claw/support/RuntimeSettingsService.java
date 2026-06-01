@@ -134,6 +134,7 @@ public class RuntimeSettingsService {
                     "approvals.mcpReloadConfirm",
                     "terminal.credentialFiles",
                     "terminal.envPassthrough",
+                    "terminal.env_passthrough",
                     "terminal.sudoPassword",
                     "terminal.writeSafeRoot",
                     "terminal.maxForegroundTimeoutSeconds",
@@ -546,6 +547,7 @@ public class RuntimeSettingsService {
                 || "security.website_blocklist.shared_files".equals(key)
                 || "terminal.credentialFiles".equals(key)
                 || "terminal.envPassthrough".equals(key)
+                || "terminal.env_passthrough".equals(key)
                 || "rollback.excludePatterns".equals(key)
                 || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();
@@ -668,6 +670,9 @@ public class RuntimeSettingsService {
         }
         if ("browser.loopback_host_alias".equals(key)) {
             return "browser.loopbackHostAlias";
+        }
+        if ("terminal.env_passthrough".equals(key)) {
+            return "terminal.envPassthrough";
         }
         return key;
     }

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.util.Arrays;
@@ -93,6 +94,70 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(env).containsEntry("PATH", "/usr/bin");
         assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
         assertThat(env).doesNotContainKeys("OPENAI_API_KEY", "BAD-NAME");
+    }
+
+    @Test
+    void shouldRejectHighRiskConfiguredPassthroughNames() {
+        SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                Arrays.asList("TENOR_API_KEY", "NOTION_TOKEN"), "terminal.envPassthrough");
+
+        assertThatThrownBy(
+                        () ->
+                                SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                                        Arrays.asList("TENOR_API_KEY", " OPENAI_API_KEY "),
+                                        "terminal.envPassthrough"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.envPassthrough")
+                .hasMessageContaining("OPENAI_API_KEY")
+                .hasMessageContaining("high-risk");
+    }
+
+    @Test
+    void shouldRejectHighRiskOperationalConfiguredPassthroughNames() {
+        assertThatThrownBy(
+                        () ->
+                                SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                                        Arrays.asList("PATH"), "terminal.env_passthrough"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.env_passthrough")
+                .hasMessageContaining("PATH")
+                .hasMessageContaining("high-risk");
+
+        assertThatThrownBy(
+                        () ->
+                                SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                                        Arrays.asList("LD_PRELOAD"), "terminal.env_passthrough"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LD_PRELOAD")
+                .hasMessageContaining("high-risk");
+
+        assertThatThrownBy(
+                        () ->
+                                SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                                        Arrays.asList("PYTHONPATH"), "terminal.env_passthrough"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PYTHONPATH")
+                .hasMessageContaining("high-risk");
+    }
+
+    @Test
+    void shouldRejectInvalidAndForcePrefixedConfiguredPassthroughNames() {
+        assertThatThrownBy(
+                        () ->
+                                SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                                        Arrays.asList("BAD-NAME"), "terminal.env_passthrough"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.env_passthrough")
+                .hasMessageContaining("invalid env var name");
+
+        assertThatThrownBy(
+                        () ->
+                                SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
+                                        Arrays.asList("_JIMUQU_FORCE_OPENAI_API_KEY"),
+                                        "terminal.env_passthrough"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.env_passthrough")
+                .hasMessageContaining("reserved force prefix");
     }
 
     @Test

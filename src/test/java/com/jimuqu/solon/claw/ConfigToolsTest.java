@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,49 @@ public class ConfigToolsTest {
                 (String) method.invoke(configSetTool, "react.summarizationMaxTokens", "48000");
         assertThat(ONode.ofJson(summaryResponse).get("success").getBoolean()).isTrue();
         assertThat(env.appConfig.getReact().getSummarizationMaxTokens()).isEqualTo(48000);
+    }
+
+    @Test
+    void shouldRejectHighRiskEnvPassthroughFromConfigSetTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configSetTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configSet".equals(method.getName())) {
+                    configSetTool = tool;
+                    break;
+                }
+            }
+            if (configSetTool != null) {
+                break;
+            }
+        }
+
+        assertThat(configSetTool).isNotNull();
+        Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
+        String allowedResponse =
+                (String) method.invoke(configSetTool, "terminal.env_passthrough", "TENOR_API_KEY");
+        assertThat(ONode.ofJson(allowedResponse).get("success").getBoolean()).isTrue();
+        assertThat(env.appConfig.getTerminal().getEnvPassthrough())
+                .containsExactly("TENOR_API_KEY");
+
+        String rejectedResponse =
+                (String) method.invoke(configSetTool, "terminal.env_passthrough", "OPENAI_API_KEY");
+        assertThat(ONode.ofJson(rejectedResponse).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(rejectedResponse).get("error").getString())
+                .contains("terminal.envPassthrough")
+                .contains("OPENAI_API_KEY")
+                .contains("high-risk");
+        String pathResponse =
+                (String) method.invoke(configSetTool, "terminal.envPassthrough", "PATH");
+        assertThat(ONode.ofJson(pathResponse).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(pathResponse).get("error").getString())
+                .contains("terminal.envPassthrough")
+                .contains("PATH")
+                .contains("high-risk");
+        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("TENOR_API_KEY")
+                .doesNotContain("OPENAI_API_KEY");
     }
 
     @Test
