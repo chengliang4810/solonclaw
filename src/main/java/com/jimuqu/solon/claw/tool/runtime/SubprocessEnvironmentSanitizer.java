@@ -34,6 +34,8 @@ public final class SubprocessEnvironmentSanitizer {
             "/opt/homebrew/bin:/opt/homebrew/sbin:"
                     + "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     private static final Set<String> PROVIDER_ENV_BLOCKLIST = providerEnvBlocklist();
+    private static final Set<String> CONFIG_ENV_PASSTHROUGH_BLOCKLIST =
+            configEnvPassthroughBlocklist();
     private static final ThreadLocal<Set<String>> SKILL_ENV_PASSTHROUGH =
             new ThreadLocal<Set<String>>();
 
@@ -47,6 +49,9 @@ public final class SubprocessEnvironmentSanitizer {
         summary.put("safeContextEnvCount", Integer.valueOf(SAFE_CONTEXT_ENV_NAMES.length));
         summary.put("secretSubstringCount", Integer.valueOf(SECRET_ENV_SUBSTRINGS.length));
         summary.put("providerBlocklistCount", Integer.valueOf(PROVIDER_ENV_BLOCKLIST.size()));
+        summary.put(
+                "configPassthroughBlocklistCount",
+                Integer.valueOf(CONFIG_ENV_PASSTHROUGH_BLOCKLIST.size()));
         summary.put("configuredPassthroughCount", Integer.valueOf(envPassthrough(appConfig).size()));
         summary.put("skillScopedPassthroughSupported", Boolean.TRUE);
         summary.put("skillScopedPassthroughThreadLocal", Boolean.TRUE);
@@ -128,6 +133,36 @@ public final class SubprocessEnvironmentSanitizer {
 
     public static boolean isProviderEnvBlocked(String name) {
         return PROVIDER_ENV_BLOCKLIST.contains(StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT));
+    }
+
+    public static void validateConfiguredEnvPassthrough(List<String> names, String configKey) {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        String key = StrUtil.blankToDefault(configKey, "terminal.envPassthrough");
+        for (String name : names) {
+            String value = StrUtil.nullToEmpty(name).trim();
+            if (StrUtil.isBlank(value)) {
+                continue;
+            }
+            String normalized = normalizeEnvName(value);
+            if (normalized == null) {
+                throw new IllegalStateException(key + " contains invalid env var name: " + value);
+            }
+            if (normalized.startsWith(FORCE_PREFIX)) {
+                throw new IllegalStateException(
+                        key + " must not use reserved force prefix: " + FORCE_PREFIX);
+            }
+            if (isConfiguredEnvPassthroughBlocked(normalized)) {
+                throw new IllegalStateException(
+                        key + " must not include high-risk env var: " + normalized);
+            }
+        }
+    }
+
+    private static boolean isConfiguredEnvPassthroughBlocked(String normalizedName) {
+        return PROVIDER_ENV_BLOCKLIST.contains(normalizedName)
+                || CONFIG_ENV_PASSTHROUGH_BLOCKLIST.contains(normalizedName);
     }
 
     public static AutoCloseable withSkillEnvironmentPassthrough(List<String> names) {
@@ -251,6 +286,35 @@ public final class SubprocessEnvironmentSanitizer {
 
     private static boolean isWindows() {
         return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private static Set<String> configEnvPassthroughBlocklist() {
+        Set<String> values = new HashSet<String>();
+        String[] names =
+                new String[] {
+                    "PATH",
+                    "LD_PRELOAD",
+                    "LD_LIBRARY_PATH",
+                    "DYLD_INSERT_LIBRARIES",
+                    "DYLD_LIBRARY_PATH",
+                    "PYTHONPATH",
+                    "PYTHONHOME",
+                    "NODE_OPTIONS",
+                    "JAVA_TOOL_OPTIONS",
+                    "JAVA_OPTS",
+                    "MAVEN_OPTS",
+                    "GRADLE_OPTS",
+                    "EDITOR",
+                    "VISUAL",
+                    "SHELL",
+                    "BASH_ENV",
+                    "ENV",
+                    "PROMPT_COMMAND"
+                };
+        for (String name : names) {
+            values.add(name);
+        }
+        return values;
     }
 
     private static Set<String> providerEnvBlocklist() {

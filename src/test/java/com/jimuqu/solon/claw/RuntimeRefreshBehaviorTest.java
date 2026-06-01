@@ -282,6 +282,76 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldRejectHighRiskTerminalEnvPassthroughFromDashboardWrites() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+
+        updates.put("terminal.envPassthrough", Collections.singletonList("TENOR_API_KEY"));
+        configService.savePartialFlat(updates, false);
+        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("envPassthrough:")
+                .contains("TENOR_API_KEY")
+                .doesNotContain("solonclaw:\n  terminal:");
+
+        assertEnvPassthroughRejected(configService, "OPENAI_API_KEY", "high-risk");
+        assertEnvPassthroughRejected(configService, "PATH", "high-risk");
+        assertEnvPassthroughRejected(configService, "LD_PRELOAD", "high-risk");
+        assertEnvPassthroughRejected(configService, "PYTHONPATH", "high-risk");
+        assertEnvPassthroughRejected(configService, "_JIMUQU_FORCE_OPENAI_API_KEY", "force prefix");
+        assertEnvPassthroughRejected(configService, "BAD-NAME", "invalid env var name");
+    }
+
+    @Test
+    void shouldWriteTerminalEnvPassthroughSnakeCaseAliasAtRoot() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("terminal.env_passthrough", "TENOR_API_KEY,NOTION_TOKEN");
+
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(env.appConfig.getTerminal().getEnvPassthrough())
+                .containsExactly("TENOR_API_KEY", "NOTION_TOKEN");
+        assertThat(config)
+                .contains("terminal:")
+                .contains("envPassthrough:")
+                .contains("TENOR_API_KEY")
+                .doesNotContain("env_passthrough:")
+                .doesNotContain("solonclaw:\n  terminal:");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
+    void shouldRejectHighRiskTerminalEnvPassthroughFromRuntimeSettings() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        assertThatThrownBy(
+                        () ->
+                                runtimeSettingsService.setConfigValue(
+                                        "terminal.env_passthrough", "OPENAI_API_KEY"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.envPassthrough")
+                .hasMessageContaining("OPENAI_API_KEY")
+                .hasMessageContaining("high-risk");
+        assertThatThrownBy(
+                        () ->
+                                runtimeSettingsService.setConfigValue(
+                                        "terminal.env_passthrough", "PATH"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.envPassthrough")
+                .hasMessageContaining("PATH")
+                .hasMessageContaining("high-risk");
+        assertThat(new java.io.File(env.appConfig.getRuntime().getConfigFile())).doesNotExist();
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
     void shouldWriteTerminalRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
@@ -757,6 +827,16 @@ public class RuntimeRefreshBehaviorTest {
         assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("terminal.credentialFiles")
+                .hasMessageContaining(messagePart);
+    }
+
+    private void assertEnvPassthroughRejected(
+            DashboardConfigService configService, String value, String messagePart) {
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+        updates.put("terminal.envPassthrough", Collections.singletonList(value));
+        assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.envPassthrough")
                 .hasMessageContaining(messagePart);
     }
 
