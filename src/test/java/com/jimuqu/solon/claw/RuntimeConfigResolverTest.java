@@ -4,9 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
+import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
 public class RuntimeConfigResolverTest {
@@ -51,5 +56,51 @@ public class RuntimeConfigResolverTest {
         assertThatThrownBy(() -> resolver.setFileValue("solonclaw.runtime.home", "runtime2"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsupported config key");
+    }
+
+    @Test
+    void shouldSeparateRuntimeConfigNonSecretWritesSecretUpdatesAndReveal() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-safety").toFile();
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        DashboardRuntimeConfigService service =
+                new DashboardRuntimeConfigService(
+                        config,
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())));
+
+        service.writeNonSecret("solonclaw.react.maxSteps", "9", false);
+        assertThat(RuntimeConfigResolver.getValue("solonclaw.react.maxSteps")).isEqualTo("9");
+
+        assertThatThrownBy(
+                        () ->
+                                service.writeNonSecret(
+                                        "providers.default.apiKey", "sk-write-secret-12345", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("密钥配置");
+
+        assertThatThrownBy(
+                        () ->
+                                service.updateSecret(
+                                        "solonclaw.react.maxSteps", "10", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不是密钥配置");
+
+        service.updateSecret("providers.default.apiKey", "sk-runtime-secret-12345", false);
+        assertThat(String.valueOf(service.getConfigItems().get("providers.default.apiKey")))
+                .contains("redacted_value")
+                .doesNotContain("sk-runtime-secret-12345");
+        assertThat(service.reveal("providers.default.apiKey"))
+                .containsEntry("value", "sk-runtime-secret-12345");
+
+        assertThatThrownBy(
+                        () ->
+                                service.updateSecret(
+                                        "providers.default.apiKey", "sk-runti...2345", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("占位符密钥");
+        assertThatThrownBy(() -> service.reveal("solonclaw.react.maxSteps"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not revealable");
     }
 }

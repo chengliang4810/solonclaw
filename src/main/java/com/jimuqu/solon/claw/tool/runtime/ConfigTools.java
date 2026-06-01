@@ -43,6 +43,9 @@ public class ConfigTools {
                     String key,
             @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
         try {
+            if (runtimeSettingsService.isSecretConfigKey(key)) {
+                throw new IllegalArgumentException(key + " 是密钥配置，请使用 config_set_secret 更新。");
+            }
             runtimeSettingsService.setConfigValue(key, value);
             Object current = runtimeSettingsService.getConfigValue(key);
             return ToolResultEnvelope.ok("已更新运行时配置：" + safeText(key, 400))

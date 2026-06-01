@@ -14,6 +14,7 @@ public final class SecretValueGuard {
                             "*",
                             "**",
                             "***",
+                            "****",
                             "changeme",
                             "your_api_key",
                             "your-api-key",
@@ -45,6 +46,6 @@ public final class SecretValueGuard {
             return false;
         }
         String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return PLACEHOLDER_SECRET_VALUES.contains(normalized);
+        return PLACEHOLDER_SECRET_VALUES.contains(normalized) || normalized.contains("...");
     }
 }
