@@ -118,7 +118,7 @@ public class DefaultSkillImportService implements SkillImportService {
         record.setName(skillName);
         record.setSource(bundle.getSource());
         record.setIdentifier(bundle.getIdentifier());
-        record.setTrustLevel(bundle.getTrustLevel());
+        record.setTrustLevel(scanResult.getTrustLevel());
         record.setScanVerdict(scanResult.getVerdict());
         record.setContentHash(SkillHubContentSupport.contentHash(installDir));
         record.setInstallPath(
@@ -130,7 +130,7 @@ public class DefaultSkillImportService implements SkillImportService {
                 "INSTALL",
                 skillName,
                 bundle.getSource(),
-                bundle.getTrustLevel(),
+                scanResult.getTrustLevel(),
                 scanResult.getVerdict(),
                 record.getContentHash());
 
@@ -348,6 +348,9 @@ public class DefaultSkillImportService implements SkillImportService {
         bundle.setSource(source);
         bundle.setIdentifier(identifier);
         bundle.setTrustLevel("official".equals(source) ? "builtin" : "community");
+        if (StrUtil.isNotBlank(source) && source.startsWith("agent-created")) {
+            bundle.setTrustLevel("agent-created");
+        }
         for (File file : FileUtil.loopFiles(skillDir)) {
             if (!file.isDirectory()) {
                 String relative =

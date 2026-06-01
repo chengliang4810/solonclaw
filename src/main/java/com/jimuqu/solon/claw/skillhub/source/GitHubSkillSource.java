@@ -27,7 +27,11 @@ public class GitHubSkillSource implements SkillSource {
     private static final String API_BASE = "https://api.github.com/repos/";
     private static final LinkedHashSet<String> TRUSTED_REPOS =
             new LinkedHashSet<String>(
-                    java.util.Arrays.asList("openai/skills", "anthropics/skills"));
+                    java.util.Arrays.asList(
+                            "openai/skills",
+                            "anthropics/skills",
+                            "huggingface/skills",
+                            "NVIDIA/skills"));
 
     private final GitHubAuth auth;
     private final SkillHubHttpClient httpClient;
