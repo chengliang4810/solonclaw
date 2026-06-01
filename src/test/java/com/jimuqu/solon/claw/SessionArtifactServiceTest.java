@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SessionArtifactStorageService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class SessionArtifactServiceTest {
     @Test
@@ -74,6 +76,40 @@ public class SessionArtifactServiceTest {
     }
 
     @Test
+    void shouldNormalizePersistedToolOutputInTrajectory() throws Exception {
+        File cacheDir = Files.createTempDirectory("trajectory-tool-results").toFile();
+        ToolResultStorageService storageService =
+                new ToolResultStorageService(cacheDir.getAbsolutePath(), 20, 200000, 300);
+        ToolResultStorageService.StoredResult stored =
+                storageService.observe("execute_shell", repeat("line\n", 100), "run-artifact", "call-artifact");
+        ToolCall call = new ToolCall("0", "call-artifact", "execute_shell", "{}", null);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("session-tool-artifact");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("运行命令"),
+                                new org.noear.solon.ai.chat.message.AssistantMessage(
+                                        "", false, null, null, Arrays.asList(call), null),
+                                ChatMessage.ofTool(
+                                        stored.getObservation(), "execute_shell", "call-artifact"))));
+
+        Map<String, Object> trajectory = new SessionArtifactService().trajectory(session, null, true);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> conversations =
+                (List<Map<String, Object>>) trajectory.get("conversations");
+        String toolResponse = String.valueOf(conversations.get(3).get("value"));
+        assertThat(toolResponse)
+                .contains("\"tool_call_id\":\"call-artifact\"")
+                .contains("\"result_ref\":\"runtime://tool-results/run-artifact/call-artifact.txt\"")
+                .contains("\"truncated\":true")
+                .contains("\"size\":")
+                .doesNotContain("<persisted-output>")
+                .doesNotContain("Use the file_read/read_file tool");
+    }
+
+    @Test
     void shouldSaveTrajectoryAsJimuquJsonlArtifact() throws Exception {
         File artifactsDir = Files.createTempDirectory("trajectory-artifacts").toFile();
         SessionRecord session = new SessionRecord();
@@ -100,6 +136,14 @@ public class SessionArtifactServiceTest {
                 .contains("\"conversations\"")
                 .contains("\"model\":\"gpt-test\"")
                 .contains("\"completed\":true");
+    }
+
+    private String repeat(String value, int count) {
+        StringBuilder builder = new StringBuilder(value.length() * count);
+        for (int i = 0; i < count; i++) {
+            builder.append(value);
+        }
+        return builder.toString();
     }
 
     @Test

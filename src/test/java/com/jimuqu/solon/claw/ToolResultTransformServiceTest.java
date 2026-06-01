@@ -6,11 +6,14 @@ import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import java.io.File;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class ToolResultTransformServiceTest {
     @TempDir File tempDir;
@@ -106,6 +109,26 @@ public class ToolResultTransformServiceTest {
                 ToolResultStorageService.describeObservation(trace.getLastObservation());
         assertThat(described.isTruncated()).isTrue();
         assertThat(described.getResultRef()).isNotBlank();
+    }
+
+    @Test
+    void shouldExposeNativeToolCallIdToTransformer() {
+        ToolResultTransformService service = new ToolResultTransformService();
+        final ToolResultTransformService.ToolResultContext[] captured =
+                new ToolResultTransformService.ToolResultContext[1];
+        service.addTransformer(
+                context -> {
+                    captured[0] = context;
+                    return null;
+                });
+        ReActTrace trace = newTrace("original");
+        ToolCall call = new ToolCall("0", "call-transform-123", "my_tool", "{}", null);
+        AssistantMessage message = new AssistantMessage("", false, null, null, Arrays.asList(call), null);
+
+        service.buildInterceptor().onReason(trace, message);
+        service.buildInterceptor().onObservation(trace, "my_tool", "original", 12L);
+
+        assertThat(captured[0].getToolCallId()).isEqualTo("call-transform-123");
     }
 
     private ReActTrace newTrace(String observation) {

@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** Lightweight generic tool-result transform hook for repo-owned extensions. */
 public class ToolResultTransformService {
@@ -98,10 +100,18 @@ public class ToolResultTransformService {
     }
 
     private static class TransformInterceptor implements ReActInterceptor {
+        private static final String EXTRA_TOOL_CALL_ID_PREFIX =
+                "solonclaw.tool_result_transform.tool_call_id.";
+
         private final ToolResultTransformService service;
 
         private TransformInterceptor(ToolResultTransformService service) {
             this.service = service;
+        }
+
+        @Override
+        public void onReason(ReActTrace trace, AssistantMessage message) {
+            captureToolCallIds(trace, message);
         }
 
         @Override
@@ -146,9 +156,35 @@ public class ToolResultTransformService {
                     + StrUtil.blankToDefault(toolName, "unknown");
         }
 
+        private static void captureToolCallIds(ReActTrace trace, AssistantMessage message) {
+            if (trace == null || message == null || message.getToolCalls() == null) {
+                return;
+            }
+            int base = Math.max(0, trace.getToolCallCount());
+            List<ToolCall> calls = message.getToolCalls();
+            for (int i = 0; i < calls.size(); i++) {
+                ToolCall call = calls.get(i);
+                if (call == null || StrUtil.isBlank(call.getId())) {
+                    continue;
+                }
+                trace.setExtra(EXTRA_TOOL_CALL_ID_PREFIX + key(call.getName(), base + i), call.getId());
+            }
+        }
+
         private static String toolCallId(ReActTrace trace, String toolName) {
             int count = Math.max(0, trace.getToolCallCount());
+            String captured = trace.getExtraAs(EXTRA_TOOL_CALL_ID_PREFIX + key(toolName, count));
+            if (StrUtil.isBlank(captured)) {
+                captured = trace.getExtraAs(EXTRA_TOOL_CALL_ID_PREFIX + key(toolName, count - 1));
+            }
+            if (StrUtil.isNotBlank(captured)) {
+                return captured;
+            }
             return StrUtil.blankToDefault(toolName, "tool") + "-" + count;
+        }
+
+        private static String key(String toolName, int index) {
+            return StrUtil.blankToDefault(toolName, "unknown") + "." + Math.max(0, index);
         }
     }
 }

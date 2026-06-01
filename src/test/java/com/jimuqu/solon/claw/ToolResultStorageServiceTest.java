@@ -9,9 +9,12 @@ import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class ToolResultStorageServiceTest {
     @TempDir File tempDir;
@@ -302,6 +305,24 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldUseNativeToolCallIdWhenPersistingThroughInterceptor() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
+        ToolResultStorageInterceptor interceptor =
+                new ToolResultStorageInterceptor(service, "run-native-id");
+        ReActTrace trace = new ReActTrace();
+        ToolCall call = new ToolCall("0", "call-native-123", "webfetch", "{}", null);
+        AssistantMessage message = new AssistantMessage("", false, null, null, Arrays.asList(call), null);
+
+        interceptor.onReason(trace, message);
+        interceptor.onObservation(trace, "webfetch", repeat("z", 400), 5L);
+
+        ToolResultStorageService.StoredResult described =
+                ToolResultStorageService.describeObservation(trace.getLastObservation());
+        assertThat(described.getResultRef()).endsWith("/call-native-123.txt");
+    }
+
+    @Test
     void shouldKeepReadFileOutputInlineToAvoidPersistReadLoop() {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
@@ -346,6 +367,23 @@ public class ToolResultStorageServiceTest {
         assertThat(first.getObservation()).isEqualTo(medium);
         assertThat(second.isTruncated()).isTrue();
         assertThat(second.getResultRef()).isNotBlank();
+    }
+
+    @Test
+    void shouldResetTurnBudgetBetweenAssistantTurns() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1000, 600, 300);
+        String medium = repeat("m", 400);
+
+        ToolResultStorageService.StoredResult first =
+                service.observe("webfetch", medium, "run-reset", "call-1");
+        service.resetTurnBudget();
+        ToolResultStorageService.StoredResult second =
+                service.observe("webfetch", medium, "run-reset", "call-2");
+
+        assertThat(first.isTruncated()).isFalse();
+        assertThat(second.isTruncated()).isFalse();
+        assertThat(second.getResultRef()).isNull();
     }
 
     @Test
