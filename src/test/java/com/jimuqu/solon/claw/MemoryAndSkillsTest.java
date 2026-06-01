@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -591,8 +592,15 @@ public class MemoryAndSkillsTest {
     void shouldUpdateTodayMemoryWhenPendingRunResumes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.conversationOrchestrator.handleIncoming(
-                env.message("approval-room", "approval-user", "执行需要审批的清理命令"));
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:approval-room:approval-user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(
+                java.util.Collections.singletonList(
+                        ChatMessage.ofUser("执行需要审批的清理命令")));
+        agentSession.pending(true, "need-review");
+        agentSession.updateSnapshot();
+
         GatewayReply reply =
                 env.conversationOrchestrator.resumePending(
                         "MEMORY:approval-room:approval-user");
