@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -9,6 +10,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -74,6 +76,8 @@ public class DashboardStatusService {
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
         if (detailed) {
+            result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
+            result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, true));
             result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
             result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
         }
@@ -110,6 +114,8 @@ public class DashboardStatusService {
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
         result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
+        result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
+        result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, false));
         return result;
     }
 
@@ -239,6 +245,322 @@ public class DashboardStatusService {
         snapshot.platformStates = platformStates;
         snapshot.updatedAt = updatedAt;
         return snapshot;
+    }
+
+    private Map<String, Object> buildRuntimeCapabilitiesSnapshot() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("schema_version", Integer.valueOf(1));
+        capabilities.put("service", "solon-claw");
+        capabilities.put("dashboard_first", Boolean.TRUE);
+        capabilities.put(
+                "supported_model_protocols",
+                new ArrayList<String>(LlmConstants.SUPPORTED_PROVIDERS));
+        capabilities.put("supported_channels", supportedChannels());
+        capabilities.put("runtime_config", runtimeConfigCapabilities());
+        capabilities.put("diagnostics", diagnosticsCapabilities());
+        capabilities.put("cron", cronCapabilities());
+        capabilities.put("skills", skillsCapabilities());
+        capabilities.put("memory", memoryCapabilities());
+        capabilities.put("tool_safety", toolSafetyCapabilities());
+        capabilities.put("multimodal", multimodalCapabilities());
+        capabilities.put("pricing", pricingCapabilities());
+        return capabilities;
+    }
+
+    private Map<String, Object> buildRuntimeStatusSnapshot(
+            RuntimeStatusSnapshot snapshot, boolean detailed) {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("schema_version", Integer.valueOf(1));
+        status.put("service", "solon-claw");
+        status.put("status", snapshot.anyFatal ? "degraded" : "ok");
+        status.put("updated_at", snapshot.updatedAt);
+        status.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
+        status.put("gateway", gatewayRuntimeStatus(snapshot));
+        status.put("runtime_config", runtimeConfigStatus(detailed));
+        status.put("diagnostics", diagnosticsStatus(snapshot));
+        status.put("cron", cronStatus());
+        status.put("skills", skillsStatus(detailed));
+        status.put("memory", memoryStatus(detailed));
+        status.put("tool_safety", toolSafetyStatus());
+        status.put("multimodal", multimodalStatus());
+        status.put("pricing", pricingStatus());
+        status.put("model", runtimeModelStatus());
+        return status;
+    }
+
+    private List<String> supportedChannels() {
+        List<String> channels = new ArrayList<String>();
+        for (PlatformType platform : PlatformType.values()) {
+            if (platform == PlatformType.MEMORY) {
+                continue;
+            }
+            channels.add(platform.name().toLowerCase());
+        }
+        return channels;
+    }
+
+    private Map<String, Object> runtimeConfigCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("runtime_config_file", Boolean.TRUE);
+        capabilities.put("dashboard_editable", Boolean.TRUE);
+        capabilities.put("hot_refresh", Boolean.TRUE);
+        capabilities.put("secret_redaction", Boolean.TRUE);
+        capabilities.put("runtime_reference_scheme", "runtime://");
+        return capabilities;
+    }
+
+    private Map<String, Object> diagnosticsCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("health_detailed", Boolean.TRUE);
+        capabilities.put("dashboard_status", Boolean.TRUE);
+        capabilities.put("gateway_runtime_snapshot", Boolean.TRUE);
+        capabilities.put("runtime_refresh_failures", Boolean.TRUE);
+        capabilities.put("model_metadata", Boolean.TRUE);
+        capabilities.put("stream_health", Boolean.TRUE);
+        return capabilities;
+    }
+
+    private Map<String, Object> cronCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("enabled", Boolean.valueOf(appConfig.getScheduler().isEnabled()));
+        capabilities.put("persistent_jobs", Boolean.TRUE);
+        capabilities.put("channel_delivery", Boolean.TRUE);
+        capabilities.put("memory_delivery", Boolean.TRUE);
+        capabilities.put(
+                "approval_mode", safeText(appConfig.getScheduler().getCronApprovalMode(), 80));
+        return capabilities;
+    }
+
+    private Map<String, Object> skillsCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("runtime_dir", Boolean.TRUE);
+        capabilities.put("external_dirs", Boolean.TRUE);
+        capabilities.put("template_vars", Boolean.valueOf(appConfig.getSkills().isTemplateVars()));
+        capabilities.put("inline_shell", Boolean.valueOf(appConfig.getSkills().isInlineShell()));
+        capabilities.put("curator", Boolean.valueOf(appConfig.getCurator().isEnabled()));
+        return capabilities;
+    }
+
+    private Map<String, Object> memoryCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("context_files", Boolean.TRUE);
+        capabilities.put("long_term_memory", Boolean.TRUE);
+        capabilities.put("session_search", Boolean.TRUE);
+        capabilities.put("post_task_learning", Boolean.valueOf(appConfig.getLearning().isEnabled()));
+        capabilities.put("context_compression", Boolean.valueOf(appConfig.getCompression().isEnabled()));
+        return capabilities;
+    }
+
+    private Map<String, Object> toolSafetyCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("dangerous_command_approval", Boolean.TRUE);
+        capabilities.put("approval_mode", safeText(appConfig.getApprovals().getMode(), 80));
+        capabilities.put("cron_approval_mode", safeText(appConfig.getApprovals().getCronMode(), 80));
+        capabilities.put(
+                "subagent_auto_approve",
+                Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
+        capabilities.put("url_private_access_policy", Boolean.TRUE);
+        capabilities.put(
+                "website_blocklist",
+                Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
+        capabilities.put("tirith_scan", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
+        capabilities.put("checkpoint_rollback", Boolean.valueOf(appConfig.getRollback().isEnabled()));
+        return capabilities;
+    }
+
+    private Map<String, Object> multimodalCapabilities() {
+        LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
+        ModelMetadata metadata = resolved == null ? null : currentModelMetadata(resolved);
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("model_input", multimodalModelInputCapabilities(metadata));
+        capabilities.put("image_generation", Boolean.TRUE);
+        capabilities.put("tts", Boolean.TRUE);
+        capabilities.put("transcription", Boolean.TRUE);
+        capabilities.put("attachment_cache", Boolean.TRUE);
+        return capabilities;
+    }
+
+    private Map<String, Object> pricingCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("usage_events", Boolean.TRUE);
+        capabilities.put("cost_calculation", Boolean.TRUE);
+        capabilities.put("configured_price_count", Integer.valueOf(configuredPriceCount()));
+        capabilities.put("supports_cache_pricing", Boolean.TRUE);
+        capabilities.put("supports_reasoning_pricing", Boolean.TRUE);
+        return capabilities;
+    }
+
+    private Map<String, Object> gatewayRuntimeStatus(RuntimeStatusSnapshot snapshot) {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("state", snapshot.gatewayState);
+        status.put("running", Boolean.valueOf(snapshot.anyConnected));
+        status.put("platforms", snapshot.platformStates);
+        status.put("supported_channels", supportedChannels());
+        status.put("active_agents", Integer.valueOf(snapshot.activeSessions));
+        status.put("exit_reason", snapshot.firstFatalDetail);
+        status.put("updated_at", snapshot.updatedAt);
+        return status;
+    }
+
+    private Map<String, Object> runtimeConfigStatus(boolean detailed) {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("config_version", Integer.valueOf(configVersion()));
+        status.put("latest_config_version", Integer.valueOf(configVersion()));
+        status.put("refresh", runtimeConfigRefreshStatus());
+        if (detailed) {
+            status.put("config_path", runtimeReference(appConfig.getRuntime().getConfigFile()));
+            status.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
+            status.put("context_dir", runtimeReference(appConfig.getRuntime().getContextDir()));
+            status.put("skills_dir", runtimeReference(appConfig.getRuntime().getSkillsDir()));
+            status.put("cache_dir", runtimeReference(appConfig.getRuntime().getCacheDir()));
+            status.put("logs_dir", runtimeReference(appConfig.getRuntime().getLogsDir()));
+            status.put("state_db", runtimeReference(appConfig.getRuntime().getStateDb()));
+        }
+        return status;
+    }
+
+    private Map<String, Object> diagnosticsStatus(RuntimeStatusSnapshot snapshot) {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("state", snapshot.anyFatal ? "degraded" : "ok");
+        status.put("gateway_state", snapshot.gatewayState);
+        status.put(
+                "runtime_refresh_failed",
+                Boolean.valueOf(gatewayRuntimeRefreshService.lastFailureSnapshot() != null));
+        status.put("updated_at", snapshot.updatedAt);
+        return status;
+    }
+
+    private Map<String, Object> cronStatus() {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("enabled", Boolean.valueOf(appConfig.getScheduler().isEnabled()));
+        status.put("tick_seconds", Integer.valueOf(appConfig.getScheduler().getTickSeconds()));
+        status.put(
+                "script_timeout_seconds",
+                Integer.valueOf(appConfig.getScheduler().getScriptTimeoutSeconds()));
+        status.put(
+                "inactivity_timeout_seconds",
+                Integer.valueOf(appConfig.getScheduler().getInactivityTimeoutSeconds()));
+        status.put("approval_mode", safeText(appConfig.getScheduler().getCronApprovalMode(), 80));
+        return status;
+    }
+
+    private Map<String, Object> skillsStatus(boolean detailed) {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("template_vars", Boolean.valueOf(appConfig.getSkills().isTemplateVars()));
+        status.put("inline_shell", Boolean.valueOf(appConfig.getSkills().isInlineShell()));
+        status.put(
+                "inline_shell_timeout_seconds",
+                Integer.valueOf(appConfig.getSkills().getInlineShellTimeoutSeconds()));
+        status.put("curator_enabled", Boolean.valueOf(appConfig.getCurator().isEnabled()));
+        status.put("external_dir_count", Integer.valueOf(appConfig.getSkills().getExternalDirs().size()));
+        if (detailed) {
+            status.put("runtime_dir", runtimeReference(appConfig.getRuntime().getSkillsDir()));
+        }
+        return status;
+    }
+
+    private Map<String, Object> memoryStatus(boolean detailed) {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("learning_enabled", Boolean.valueOf(appConfig.getLearning().isEnabled()));
+        status.put("context_compression_enabled", Boolean.valueOf(appConfig.getCompression().isEnabled()));
+        status.put(
+                "compression_threshold_percent",
+                Double.valueOf(appConfig.getCompression().getThresholdPercent()));
+        status.put(
+                "heartbeat_interval_minutes",
+                Integer.valueOf(appConfig.getAgent().getHeartbeat().getIntervalMinutes()));
+        if (detailed) {
+            status.put("context_dir", runtimeReference(appConfig.getRuntime().getContextDir()));
+        }
+        return status;
+    }
+
+    private Map<String, Object> toolSafetyStatus() {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("approval_mode", safeText(appConfig.getApprovals().getMode(), 80));
+        status.put("cron_approval_mode", safeText(appConfig.getApprovals().getCronMode(), 80));
+        status.put(
+                "subagent_auto_approve",
+                Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
+        status.put(
+                "approval_timeout_seconds",
+                Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
+        status.put(
+                "gateway_approval_timeout_seconds",
+                Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
+        status.put(
+                "allow_private_urls", Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
+        status.put(
+                "website_blocklist_enabled",
+                Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
+        status.put("tirith_enabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
+        status.put("checkpoint_rollback_enabled", Boolean.valueOf(appConfig.getRollback().isEnabled()));
+        return status;
+    }
+
+    private Map<String, Object> multimodalStatus() {
+        LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
+        ModelMetadata metadata = resolved == null ? null : currentModelMetadata(resolved);
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("provider_configured", Boolean.valueOf(resolved != null));
+        status.put("provider", resolved == null ? "" : safeText(resolved.getProviderKey(), 160));
+        status.put("model", resolved == null ? "" : safeText(resolved.getModel(), 200));
+        status.put("dialect", resolved == null ? "" : safeText(resolved.getDialect(), 80));
+        status.put("model_input", multimodalModelInputCapabilities(metadata));
+        status.put("image_generation", Boolean.TRUE);
+        status.put("tts", Boolean.TRUE);
+        status.put("transcription", Boolean.TRUE);
+        status.put(
+                "media_cache_ttl_hours",
+                Integer.valueOf(appConfig.getTask().getMediaCacheTtlHours()));
+        return status;
+    }
+
+    private Map<String, Object> multimodalModelInputCapabilities(ModelMetadata metadata) {
+        Map<String, Object> input = new LinkedHashMap<String, Object>();
+        input.put("vision", Boolean.valueOf(metadata != null && metadata.isSupportsVision()));
+        input.put("audio", Boolean.valueOf(metadata != null && metadata.isSupportsAudio()));
+        input.put("attachments", Boolean.valueOf(metadata != null && metadata.isSupportsAttachment()));
+        input.put("pdf", Boolean.valueOf(metadata != null && metadata.isSupportsPdf()));
+        input.put("multimodal", Boolean.valueOf(metadata != null && metadata.isSupportsMultimodal()));
+        return input;
+    }
+
+    private Map<String, Object> pricingStatus() {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("configured_price_count", Integer.valueOf(configuredPriceCount()));
+        status.put("usage_cost_calculation", Boolean.TRUE);
+        status.put("currency_default", "USD");
+        status.put("pricing_available", Boolean.valueOf(configuredPriceCount() > 0));
+        return status;
+    }
+
+    private Map<String, Object> runtimeModelStatus() {
+        LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("provider_configured", Boolean.valueOf(resolved != null));
+        status.put("provider", resolved == null ? "" : safeText(resolved.getProviderKey(), 160));
+        status.put("model", resolved == null ? "" : safeText(resolved.getModel(), 200));
+        status.put("dialect", resolved == null ? "" : safeText(resolved.getDialect(), 80));
+        status.put("context_window", Integer.valueOf(appConfig.getLlm().getContextWindowTokens()));
+        status.put("max_output_tokens", Integer.valueOf(appConfig.getLlm().getMaxTokens()));
+        status.put("stream", Boolean.valueOf(appConfig.getLlm().isStream()));
+        status.put("reasoning_effort", safeText(appConfig.getLlm().getReasoningEffort(), 80));
+        return status;
+    }
+
+    private int configuredPriceCount() {
+        return appConfig.getPricing() == null || appConfig.getPricing().getPrices() == null
+                ? 0
+                : appConfig.getPricing().getPrices().size();
+    }
+
+    private LlmProviderService.ResolvedProvider safeResolvedProvider() {
+        try {
+            return llmProviderService.resolveEffectiveProvider(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private ModelMetadata currentModelMetadata(LlmProviderService.ResolvedProvider resolved) {

@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -212,6 +213,101 @@ public class DashboardStatusServiceTest {
                 .containsEntry("detail", "connected")
                 .containsEntry("connection_mode", "websocket")
                 .containsKey("updated_at");
+        assertThat(snapshot).containsKeys("runtime_capabilities", "runtime_status");
+        Map<String, Object> capabilities =
+                (Map<String, Object>) snapshot.get("runtime_capabilities");
+        Map<String, Object> runtimeStatus = (Map<String, Object>) snapshot.get("runtime_status");
+        assertThat((List<String>) capabilities.get("supported_model_protocols"))
+                .containsExactly("openai", "openai-responses", "ollama", "gemini", "anthropic");
+        assertThat((List<String>) capabilities.get("supported_channels"))
+                .containsExactly("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao");
+        assertThat(runtimeStatus).containsKeys("gateway", "runtime_config", "diagnostics", "cron", "skills", "memory", "tool_safety", "multimodal", "pricing", "model");
+        assertThat(((Map<String, Object>) runtimeStatus.get("gateway")))
+                .containsEntry("state", "running")
+                .containsEntry("running", Boolean.TRUE);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeStableRuntimeCapabilitiesInDetailedStatus() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-capabilities-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "data/state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getLlm().setContextWindowTokens(32000);
+        config.getLlm().setMaxTokens(2048);
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("gpt-4o");
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setDefaultModel("gpt-4o");
+        provider.setDialect("openai-responses");
+        config.getProviders().put("default", provider);
+        ModelPrice price = new ModelPrice();
+        price.setProvider("default");
+        price.setModel("gpt-4o");
+        price.setInputMicrosPerToken(1L);
+        config.getPricing().getPrices().add(price);
+        ChannelStatus channelStatus =
+                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled");
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(channelStatus),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        Map<String, Object> status = service.getStatus(true);
+
+        assertThat(status).containsKeys("runtime_capabilities", "runtime_status");
+        Map<String, Object> capabilities = (Map<String, Object>) status.get("runtime_capabilities");
+        Map<String, Object> runtimeStatus = (Map<String, Object>) status.get("runtime_status");
+        assertThat(capabilities)
+                .containsEntry("schema_version", Integer.valueOf(1))
+                .containsEntry("service", "solon-claw")
+                .containsEntry("dashboard_first", Boolean.TRUE)
+                .containsKeys("runtime_config", "diagnostics", "cron", "skills", "memory", "tool_safety", "multimodal", "pricing");
+        assertThat((List<String>) capabilities.get("supported_model_protocols"))
+                .containsExactly("openai", "openai-responses", "ollama", "gemini", "anthropic");
+        assertThat((List<String>) capabilities.get("supported_channels"))
+                .containsExactly("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao");
+        assertThat((Map<String, Object>) capabilities.get("runtime_config"))
+                .containsEntry("dashboard_editable", Boolean.TRUE)
+                .containsEntry("secret_redaction", Boolean.TRUE);
+        assertThat((Map<String, Object>) capabilities.get("multimodal"))
+                .containsEntry("image_generation", Boolean.TRUE)
+                .containsEntry("tts", Boolean.TRUE)
+                .containsEntry("transcription", Boolean.TRUE);
+        assertThat((Map<String, Object>) capabilities.get("pricing"))
+                .containsEntry("cost_calculation", Boolean.TRUE)
+                .containsEntry("configured_price_count", Integer.valueOf(1));
+        assertThat(runtimeStatus)
+                .containsEntry("schema_version", Integer.valueOf(1))
+                .containsEntry("service", "solon-claw")
+                .containsKeys("gateway", "runtime_config", "diagnostics", "cron", "skills", "memory", "tool_safety", "multimodal", "pricing", "model");
+        assertThat((Map<String, Object>) runtimeStatus.get("runtime_config"))
+                .containsEntry("config_path", "runtime://config.yml")
+                .containsEntry("runtime_home", "runtime://");
+        assertThat((Map<String, Object>) runtimeStatus.get("pricing"))
+                .containsEntry("configured_price_count", Integer.valueOf(1))
+                .containsEntry("pricing_available", Boolean.TRUE);
+
+        String json = ONode.serialize(status);
+        assertThat(json)
+                .doesNotContain("sms")
+                .doesNotContain("webhook")
+                .doesNotContain("worktree")
+                .doesNotContain("plugins")
+                .doesNotContain("openai_api_server");
     }
 
     @Test

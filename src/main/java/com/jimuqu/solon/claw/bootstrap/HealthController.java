@@ -3,8 +3,11 @@ package com.jimuqu.solon.claw.bootstrap;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import java.lang.management.ManagementFactory;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +64,8 @@ public class HealthController {
         runtime.put("pid", parsePid());
         runtime.put("updated_at", updatedAt);
         runtime.put("gateway", gatewaySummary(status, updatedAt));
+        runtime.put("capabilities", status.get("runtime_capabilities"));
+        runtime.put("status_snapshot", status.get("runtime_status"));
 
         result.put("ok", true);
         result.put("status", "ok");
@@ -73,6 +78,8 @@ public class HealthController {
         result.put("pid", runtime.get("pid"));
         result.put("updated_at", updatedAt);
         result.put("gateway", runtime.get("gateway"));
+        result.put("runtime_capabilities", status.get("runtime_capabilities"));
+        result.put("runtime_status", status.get("runtime_status"));
         return result;
     }
 
@@ -110,7 +117,52 @@ public class HealthController {
         if (!result.containsKey("gateway_updated_at")) {
             result.put("gateway_updated_at", null);
         }
+        if (!(result.get("runtime_capabilities") instanceof Map)) {
+            result.put("runtime_capabilities", fallbackRuntimeCapabilities());
+        }
+        if (!(result.get("runtime_status") instanceof Map)) {
+            result.put("runtime_status", fallbackRuntimeStatus(result));
+        }
         return result;
+    }
+
+    private Map<String, Object> fallbackRuntimeCapabilities() {
+        Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+        capabilities.put("schema_version", Integer.valueOf(1));
+        capabilities.put("service", SERVICE_NAME);
+        capabilities.put("dashboard_first", Boolean.TRUE);
+        capabilities.put("supported_model_protocols", supportedModelProtocols());
+        capabilities.put("supported_channels", supportedChannels());
+        return capabilities;
+    }
+
+    private Map<String, Object> fallbackRuntimeStatus(Map<String, Object> status) {
+        Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
+        snapshot.put("schema_version", Integer.valueOf(1));
+        snapshot.put("service", SERVICE_NAME);
+        snapshot.put("status", "ok");
+        snapshot.put("active_sessions", status.get("active_sessions"));
+        snapshot.put("gateway", gatewaySummary(status, isoNow()));
+        snapshot.put("diagnostics", fallbackDiagnosticsStatus(status));
+        return snapshot;
+    }
+
+    private Map<String, Object> fallbackDiagnosticsStatus(Map<String, Object> status) {
+        Map<String, Object> diagnostics = new LinkedHashMap<String, Object>();
+        diagnostics.put("state", "ok");
+        diagnostics.put("gateway_state", status.get("gateway_state"));
+        diagnostics.put("runtime_refresh_failed", Boolean.FALSE);
+        return diagnostics;
+    }
+
+    private List<String> supportedModelProtocols() {
+        return new ArrayList<String>(
+                Arrays.asList("openai", "openai-responses", "ollama", "gemini", "anthropic"));
+    }
+
+    private List<String> supportedChannels() {
+        return new ArrayList<String>(
+                Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
     }
 
     private Map<String, Object> gatewaySummary(Map<String, Object> status, String fallbackUpdatedAt) {
