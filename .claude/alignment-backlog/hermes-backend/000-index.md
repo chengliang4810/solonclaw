@@ -18,7 +18,7 @@
 - `c9717331` — 增加 Tirith 安全诊断摘要 / Add Tirith security diagnostics summary
 - `6a249913` — 归一 usage pricing 计费桶 / Normalize usage pricing billing buckets
 
-## 本轮完成（待 push）
+## 本轮完成并推送
 
 - `6c8f299f` — [040-skill-hub-path-guard](040-skill-hub-path-guard.md) — Skill hub install/uninstall path guard（status: done）
 - `342e0b73` — [model-capability-surface-gap](model-capability-surface-gap.md) — 补齐剩余模型能力标记和支持面（status: done）
@@ -75,8 +75,8 @@
 - `342e0b73` — `model-capability-surface-gap`
 - `e8d584c8` — `029-runtime-refresh-failure-record`
 - `38da0e58` — `037-mcp-discovery-nonblocking`
-- Backlog 文档更新：待提交
-- push：待执行
+- `6c260c33` — Backlog 文档更新
+- push：dev 已推送 GitHub/Gitee；main 已快进合并并推送 GitHub/Gitee
 
 ## 发现但暂不纳入本轮的范围提醒
 
