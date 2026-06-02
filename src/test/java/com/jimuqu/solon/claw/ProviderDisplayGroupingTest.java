@@ -69,6 +69,26 @@ public class ProviderDisplayGroupingTest {
     }
 
     @Test
+    void shouldExposeBuiltInDecimalPricingMetadataForDashboardModels() {
+        AppConfig config = config();
+        config.getProviders().get("default").setDefaultModel("gpt-4o-mini");
+
+        DashboardProviderService service =
+                new DashboardProviderService(config, null, new LlmProviderService(config));
+
+        Map<String, Object> result = service.JimuquModels();
+        Map<?, ?> model = (Map<?, ?>) ((List<?>) result.get("models")).get(0);
+        Map<?, ?> pricing = (Map<?, ?>) model.get("pricing");
+
+        assertThat(pricing).isNotNull();
+        assertThat(pricing.get("input")).isEqualTo("$0.15");
+        assertThat(pricing.get("output")).isEqualTo("$0.60");
+        assertThat(pricing.get("cache")).isEqualTo("$0.08");
+        assertThat(pricing.get("free")).isEqualTo(Boolean.FALSE);
+        assertThat(pricing.get("source")).isEqualTo("official_docs_snapshot");
+    }
+
+    @Test
     void shouldMarkFreePricingAndLeaveUnpricedModelsUnchanged() {
         AppConfig config = config();
         ModelPrice price = new ModelPrice();
@@ -116,6 +136,35 @@ public class ProviderDisplayGroupingTest {
         assertThat(pricing.get("currency")).isEqualTo("CNY");
         assertThat(pricing.get("input")).isEqualTo("CNY 3.00");
         assertThat(pricing.get("output")).isEqualTo("CNY 15.00");
+    }
+
+    @Test
+    void shouldExposeBuiltInPricingForCustomProviderKeysByDialect() {
+        AppConfig config = config();
+        AppConfig.ProviderConfig openAiDirect = new AppConfig.ProviderConfig();
+        openAiDirect.setName("OpenAI Direct");
+        openAiDirect.setBaseUrl("https://api.openai.com");
+        openAiDirect.setDefaultModel("gpt-4o-mini");
+        openAiDirect.setDialect("openai");
+        config.getProviders().put("openai-direct", openAiDirect);
+
+        DashboardProviderService service =
+                new DashboardProviderService(config, null, new LlmProviderService(config));
+
+        Map<String, Object> result = service.JimuquModels();
+        Map<?, ?> openAiDirectModel = null;
+        for (Object item : (List<?>) result.get("models")) {
+            Map<?, ?> row = (Map<?, ?>) item;
+            if ("openai-direct".equals(row.get("provider"))) {
+                openAiDirectModel = row;
+                break;
+            }
+        }
+
+        assertThat(openAiDirectModel).isNotNull();
+        Map<?, ?> pricing = (Map<?, ?>) openAiDirectModel.get("pricing");
+        assertThat(pricing.get("input")).isEqualTo("$0.15");
+        assertThat(pricing.get("source")).isEqualTo("official_docs_snapshot");
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.LlmUsage;
+import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.pricing.UsageCost;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
@@ -18,11 +19,146 @@ import com.jimuqu.solon.claw.usage.UsageEventRecord;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class UsagePricingTest {
+    @Test
+    void builtInPriceCatalogCalculatesCostsWithoutUserConfiguration() {
+        PriceCatalog catalog = PriceCatalog.configuredWithDefaults(null);
+
+        UsageCost openAi =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai-responses", "openai/gpt-4o-mini", 1000000, 1000000, 1000000, 0, 0);
+        assertThat(openAi.isPricingAvailable()).isTrue();
+        assertThat(openAi.getTotalMicros()).isEqualTo(825000L);
+        assertThat(openAi.getPriceSource()).isEqualTo("official_docs_snapshot");
+        assertThat(openAi.getPricingVersion()).isEqualTo("openai-pricing-2026-03-16");
+
+        UsageCost anthropic =
+                new UsageCostCalculator(catalog)
+                        .calculate("anthropic", "anthropic/claude-sonnet-4.6", 100, 20, 10, 4, 0);
+        assertThat(anthropic.isPricingAvailable()).isTrue();
+        assertThat(anthropic.getTotalMicros()).isEqualTo(618L);
+        assertThat(anthropic.getPriceSourceUrl())
+                .isEqualTo("https://platform.claude.com/docs/en/about-claude/pricing");
+
+        UsageCost ollama =
+                new UsageCostCalculator(catalog)
+                        .calculate("ollama", "ollama/llama3", 100, 20, 0, 0, 0);
+        assertThat(ollama.isPricingAvailable()).isTrue();
+        assertThat(ollama.getTotalMicros()).isZero();
+        assertThat(ollama.getPriceSource()).isEqualTo("local_runtime");
+    }
+
+    @Test
+    void configuredPricesOverrideBuiltInDefaultsByExactNormalizedKey() {
+        ModelPrice override = new ModelPrice();
+        override.setProvider("openai");
+        override.setModel("gpt-4o-mini");
+        override.setCurrency("USD");
+        override.setInputCostPerMillion("9.00");
+        override.setOutputCostPerMillion("99.00");
+        override.setSource("user_override");
+        override.setPricingVersion("user-pricing-2026-06");
+
+        ModelPrice unrelated = new ModelPrice();
+        unrelated.setProvider("custom-provider");
+        unrelated.setModel("gpt-4o-mini");
+        unrelated.setInputMicrosPerToken(1);
+        unrelated.setOutputMicrosPerToken(1);
+        unrelated.setSource("custom-catalog");
+
+        PriceCatalog catalog = PriceCatalog.configuredWithDefaults(Arrays.asList(override, unrelated));
+
+        UsageCost overridden =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai", "gpt-4o-mini", 1, 1, 0, 0, 0);
+        assertThat(overridden.isPricingAvailable()).isTrue();
+        assertThat(overridden.getTotalMicros()).isEqualTo(108L);
+        assertThat(overridden.getPriceSource()).isEqualTo("user_override");
+        assertThat(overridden.getPricingVersion()).isEqualTo("user-pricing-2026-06");
+
+        UsageCost builtInStillAvailable =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai", "gpt-4.1", 100, 20, 0, 0, 0);
+        assertThat(builtInStillAvailable.isPricingAvailable()).isTrue();
+        assertThat(builtInStillAvailable.getPriceSource()).isEqualTo("official_docs_snapshot");
+
+        UsageCost unknown =
+                new UsageCostCalculator(catalog)
+                        .calculate("anthropic", "unknown-model", 100, 20, 0, 0, 0);
+        assertThat(unknown.isPricingAvailable()).isFalse();
+        assertThat(unknown.getUnpricedTotalTokens()).isEqualTo(120L);
+    }
+
+    @Test
+    void builtInPricesApplyToConfiguredProviderAliasesByDialect() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("gpt-4o-mini");
+        provider.setDialect("openai");
+        config.getProviders().put("openai-direct", provider);
+
+        PriceCatalog catalog = PriceCatalog.forConfig(config);
+
+        UsageCost cost =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai-direct", "gpt-4o-mini", 1000000, 1000000, 0, 0, 0);
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(750000L);
+        assertThat(cost.getPriceSource()).isEqualTo("official_docs_snapshot");
+    }
+
+    @Test
+    void configuredPricesPartiallyOverrideBuiltInDefaults() {
+        ModelPrice override = new ModelPrice();
+        override.setProvider("openai");
+        override.setModel("gpt-4o-mini");
+        override.setInputCostPerMillion("9.00");
+        override.setSource("user_override");
+
+        PriceCatalog catalog = PriceCatalog.configuredWithDefaults(Arrays.asList(override));
+
+        UsageCost cost =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai", "gpt-4o-mini", 1000000, 1000000, 1000000, 0, 0);
+
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(9675000L);
+        assertThat(cost.getPriceSource()).isEqualTo("user_override");
+    }
+
+    @Test
+    void costCalculatorRoundsAfterAggregatingDecimalTokenCosts() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{\"prices\":[{\"provider\":\"openai\",\"model\":\"micro\",\"input_cost_per_million\":\"0.30\",\"output_cost_per_million\":\"0.30\",\"cache_read_cost_per_million\":\"0.30\"}]}");
+
+        UsageCost cost =
+                new UsageCostCalculator(catalog).calculate("openai", "micro", 1, 1, 1, 0, 0);
+
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(1L);
+    }
+
+    @Test
+    void priceCatalogParsesPerMillionAliasesWithDecimalPrecision() {
+        PriceCatalog catalog =
+                PriceCatalog.fromJson(
+                        "{\"prices\":[{\"provider\":\"openai\",\"model\":\"tiny\",\"currency\":\"USD\",\"input_cost_per_million\":\"0.15\",\"output_cost_per_million\":\"0.60\",\"cache_read_cost_per_million\":\"0.075\",\"source\":\"test-catalog\"}]}");
+
+        UsageCost cost =
+                new UsageCostCalculator(catalog)
+                        .calculate("openai", "tiny", 1000000, 1000000, 1000000, 0, 0);
+
+        assertThat(cost.isPricingAvailable()).isTrue();
+        assertThat(cost.getTotalMicros()).isEqualTo(825000L);
+        assertThat(cost.getPriceSource()).isEqualTo("test-catalog");
+    }
+
     @Test
     void costCalculatorUsesMicrosAndReportsUnpricedTokens() {
         PriceCatalog catalog =

@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
@@ -384,7 +385,9 @@ public class DashboardStatusService {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("usage_events", Boolean.TRUE);
         capabilities.put("cost_calculation", Boolean.TRUE);
+        capabilities.put("builtin_price_count", Integer.valueOf(PriceCatalog.builtinDefaults().size()));
         capabilities.put("configured_price_count", Integer.valueOf(configuredPriceCount()));
+        capabilities.put("effective_price_count", Integer.valueOf(effectivePriceCount()));
         capabilities.put("supports_cache_pricing", Boolean.TRUE);
         capabilities.put("supports_reasoning_pricing", Boolean.TRUE);
         return capabilities;
@@ -528,10 +531,14 @@ public class DashboardStatusService {
 
     private Map<String, Object> pricingStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("builtin_price_count", Integer.valueOf(PriceCatalog.builtinDefaults().size()));
         status.put("configured_price_count", Integer.valueOf(configuredPriceCount()));
+        int effectiveCount = effectivePriceCount();
+        status.put("effective_price_count", Integer.valueOf(effectiveCount));
         status.put("usage_cost_calculation", Boolean.TRUE);
         status.put("currency_default", "USD");
-        status.put("pricing_available", Boolean.valueOf(configuredPriceCount() > 0));
+        status.put("catalog_available", Boolean.valueOf(effectiveCount > 0));
+        status.put("pricing_available", Boolean.valueOf(currentModelPrice() != null));
         return status;
     }
 
@@ -553,6 +560,18 @@ public class DashboardStatusService {
         return appConfig.getPricing() == null || appConfig.getPricing().getPrices() == null
                 ? 0
                 : appConfig.getPricing().getPrices().size();
+    }
+
+    private int effectivePriceCount() {
+        return PriceCatalog.forConfig(appConfig).size();
+    }
+
+    private com.jimuqu.solon.claw.pricing.ModelPrice currentModelPrice() {
+        LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
+        if (resolved == null) {
+            return null;
+        }
+        return PriceCatalog.forConfig(appConfig).find(resolved.getProviderKey(), resolved.getModel());
     }
 
     private LlmProviderService.ResolvedProvider safeResolvedProvider() {

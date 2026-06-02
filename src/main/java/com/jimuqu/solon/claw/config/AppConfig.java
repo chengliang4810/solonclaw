@@ -2790,15 +2790,36 @@ public class AppConfig {
             price.setProvider(stringValue(map, "provider"));
             price.setModel(stringValue(map, "model"));
             price.setCurrency(StrUtil.blankToDefault(stringValue(map, "currency"), "USD"));
-            price.setInputMicrosPerToken(
-                    firstLongValue(map, "input_micros_per_token", "prompt_micros_per_token"));
-            price.setOutputMicrosPerToken(
-                    firstLongValue(
+            applyModelTokenPrice(
+                    price,
+                    "input",
+                    firstStringValue(map, "input_cost_per_million", "prompt_cost_per_million"),
+                    firstPresentLongValue(map, "input_micros_per_token", "prompt_micros_per_token"));
+            applyModelTokenPrice(
+                    price,
+                    "output",
+                    firstStringValue(map, "output_cost_per_million", "completion_cost_per_million"),
+                    firstPresentLongValue(
                             map, "output_micros_per_token", "completion_micros_per_token"));
-            price.setCacheReadMicrosPerToken(longValue(map, "cache_read_micros_per_token"));
-            price.setCacheWriteMicrosPerToken(longValue(map, "cache_write_micros_per_token"));
-            price.setReasoningMicrosPerToken(longValue(map, "reasoning_micros_per_token"));
-            price.setRequestMicrosPerRequest(longValue(map, "request_micros_per_request"));
+            applyModelTokenPrice(
+                    price,
+                    "cache_read",
+                    stringValue(map, "cache_read_cost_per_million"),
+                    presentLongValue(map, "cache_read_micros_per_token"));
+            applyModelTokenPrice(
+                    price,
+                    "cache_write",
+                    stringValue(map, "cache_write_cost_per_million"),
+                    presentLongValue(map, "cache_write_micros_per_token"));
+            applyModelTokenPrice(
+                    price,
+                    "reasoning",
+                    stringValue(map, "reasoning_cost_per_million"),
+                    presentLongValue(map, "reasoning_micros_per_token"));
+            Long requestMicros = presentLongValue(map, "request_micros_per_request");
+            if (requestMicros != null) {
+                price.setRequestMicrosPerRequest(requestMicros.longValue());
+            }
             price.setSource(stringValue(map, "source"));
             price.setSourceUrl(firstStringValue(map, "source_url", "sourceUrl"));
             price.setPricingVersion(firstStringValue(map, "pricing_version", "pricingVersion", "version"));
@@ -2828,29 +2849,71 @@ public class AppConfig {
         return null;
     }
 
+    private static void applyModelTokenPrice(
+            ModelPrice price, String field, String costPerMillion, Long microsPerToken) {
+        if (StrUtil.isNotBlank(costPerMillion)) {
+            if ("input".equals(field)) {
+                price.setInputCostPerMillion(costPerMillion);
+            } else if ("output".equals(field)) {
+                price.setOutputCostPerMillion(costPerMillion);
+            } else if ("cache_read".equals(field)) {
+                price.setCacheReadCostPerMillion(costPerMillion);
+            } else if ("cache_write".equals(field)) {
+                price.setCacheWriteCostPerMillion(costPerMillion);
+            } else if ("reasoning".equals(field)) {
+                price.setReasoningCostPerMillion(costPerMillion);
+            }
+            return;
+        }
+        if (microsPerToken == null) {
+            return;
+        }
+        if ("input".equals(field)) {
+            price.setInputMicrosPerToken(microsPerToken.longValue());
+        } else if ("output".equals(field)) {
+            price.setOutputMicrosPerToken(microsPerToken.longValue());
+        } else if ("cache_read".equals(field)) {
+            price.setCacheReadMicrosPerToken(microsPerToken.longValue());
+        } else if ("cache_write".equals(field)) {
+            price.setCacheWriteMicrosPerToken(microsPerToken.longValue());
+        } else if ("reasoning".equals(field)) {
+            price.setReasoningMicrosPerToken(microsPerToken.longValue());
+        }
+    }
+
     private static long longValue(Map<String, Object> map, String key) {
+        Long value = presentLongValue(map, key);
+        return value == null ? 0L : value.longValue();
+    }
+
+    private static Long presentLongValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
         if (value == null) {
-            return 0L;
+            return null;
         }
         try {
-            return Math.max(0L, Long.parseLong(String.valueOf(value).trim()));
+            return Long.valueOf(Math.max(0L, Long.parseLong(String.valueOf(value).trim())));
         } catch (Exception ignored) {
-            return 0L;
+            return Long.valueOf(0L);
         }
     }
 
     private static long firstLongValue(Map<String, Object> map, String... keys) {
+        Long value = firstPresentLongValue(map, keys);
+        return value == null ? 0L : value.longValue();
+    }
+
+    private static Long firstPresentLongValue(Map<String, Object> map, String... keys) {
         if (keys == null) {
-            return 0L;
+            return null;
         }
         for (String key : keys) {
-            long value = longValue(map, key);
-            if (value > 0L) {
+            Long value = presentLongValue(map, key);
+            if (value != null) {
                 return value;
             }
         }
-        return 0L;
+        return null;
     }
 
     /** 解析 personalities 配置映射。 */

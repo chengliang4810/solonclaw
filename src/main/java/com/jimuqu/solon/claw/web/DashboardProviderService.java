@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -91,7 +92,7 @@ public class DashboardProviderService {
         List<Map<String, Object>> models = new ArrayList<Map<String, Object>>();
         List<ProviderDisplayGrouping.Item> groupItems =
                 new ArrayList<ProviderDisplayGrouping.Item>();
-        PriceCatalog priceCatalog = PriceCatalog.fromPrices(appConfig.getPricing().getPrices());
+        PriceCatalog priceCatalog = PriceCatalog.forConfig(appConfig);
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
                 appConfig.getProviders().entrySet()) {
             AppConfig.ProviderConfig provider = entry.getValue();
@@ -202,13 +203,13 @@ public class DashboardProviderService {
             pricing.put("cache_write", "free");
             pricing.put("reasoning", "free");
         } else {
-            putPriceField(pricing, "input", price.getInputMicrosPerToken(), currency);
-            putPriceField(pricing, "output", price.getOutputMicrosPerToken(), currency);
-            putPriceField(pricing, "cache", price.getCacheReadMicrosPerToken(), currency);
-            putPriceField(pricing, "cache_read", price.getCacheReadMicrosPerToken(), currency);
+            putPriceField(pricing, "input", price.inputMicrosPerTokenExact(), currency);
+            putPriceField(pricing, "output", price.outputMicrosPerTokenExact(), currency);
+            putPriceField(pricing, "cache", price.cacheReadMicrosPerTokenExact(), currency);
+            putPriceField(pricing, "cache_read", price.cacheReadMicrosPerTokenExact(), currency);
             putPriceField(
-                    pricing, "cache_write", price.getCacheWriteMicrosPerToken(), currency);
-            putPriceField(pricing, "reasoning", price.getReasoningMicrosPerToken(), currency);
+                    pricing, "cache_write", price.cacheWriteMicrosPerTokenExact(), currency);
+            putPriceField(pricing, "reasoning", price.reasoningMicrosPerTokenExact(), currency);
         }
         pricing.put("free", Boolean.valueOf(free));
         if (StrUtil.isNotBlank(price.getSource())) {
@@ -227,14 +228,14 @@ public class DashboardProviderService {
     }
 
     private void putPriceField(
-            Map<String, Object> pricing, String key, long microsPerToken, String currency) {
-        if (microsPerToken > 0L) {
+            Map<String, Object> pricing, String key, BigDecimal microsPerToken, String currency) {
+        if (microsPerToken != null && microsPerToken.signum() > 0) {
             pricing.put(key, formatPerMillionPrice(microsPerToken, currency));
         }
     }
 
-    private String formatPerMillionPrice(long microsPerToken, String currency) {
-        String amount = String.format(Locale.ROOT, "%.2f", Double.valueOf(microsPerToken));
+    private String formatPerMillionPrice(BigDecimal microsPerToken, String currency) {
+        String amount = microsPerToken.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
         if ("USD".equals(currency)) {
             return "$" + amount;
         }
@@ -246,11 +247,11 @@ public class DashboardProviderService {
     }
 
     private boolean isFree(ModelPrice price) {
-        return price.getInputMicrosPerToken() == 0L
-                && price.getOutputMicrosPerToken() == 0L
-                && price.getCacheReadMicrosPerToken() == 0L
-                && price.getCacheWriteMicrosPerToken() == 0L
-                && price.getReasoningMicrosPerToken() == 0L;
+        return price.inputMicrosPerTokenExact().signum() == 0
+                && price.outputMicrosPerTokenExact().signum() == 0
+                && price.cacheReadMicrosPerTokenExact().signum() == 0
+                && price.cacheWriteMicrosPerTokenExact().signum() == 0
+                && price.reasoningMicrosPerTokenExact().signum() == 0;
     }
 
     @SuppressWarnings("unchecked")

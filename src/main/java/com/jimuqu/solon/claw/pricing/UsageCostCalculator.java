@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw.pricing;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.llm.LlmUsage;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /** Calculates model usage cost with micros precision. */
 public class UsageCostCalculator {
@@ -78,12 +80,45 @@ public class UsageCostCalculator {
         cost.setPriceFetchedAt(price.getFetchedAt());
         cost.setPricedAt(System.currentTimeMillis());
         cost.setTotalMicros(
-                input * price.getInputMicrosPerToken()
-                        + output * price.getOutputMicrosPerToken()
-                        + cacheRead * price.getCacheReadMicrosPerToken()
-                        + cacheWrite * price.getCacheWriteMicrosPerToken()
-                        + reasoning * price.getReasoningMicrosPerToken()
+                tokenUsageMicros(
+                                input,
+                                price.inputMicrosPerTokenExact(),
+                                output,
+                                price.outputMicrosPerTokenExact(),
+                                cacheRead,
+                                price.cacheReadMicrosPerTokenExact(),
+                                cacheWrite,
+                                price.cacheWriteMicrosPerTokenExact(),
+                                reasoning,
+                                price.reasoningMicrosPerTokenExact())
                         + requests * price.getRequestMicrosPerRequest());
         return cost;
+    }
+
+    private long tokenUsageMicros(
+            long input,
+            BigDecimal inputPrice,
+            long output,
+            BigDecimal outputPrice,
+            long cacheRead,
+            BigDecimal cacheReadPrice,
+            long cacheWrite,
+            BigDecimal cacheWritePrice,
+            long reasoning,
+            BigDecimal reasoningPrice) {
+        BigDecimal total = BigDecimal.ZERO;
+        total = total.add(usageMicros(input, inputPrice));
+        total = total.add(usageMicros(output, outputPrice));
+        total = total.add(usageMicros(cacheRead, cacheReadPrice));
+        total = total.add(usageMicros(cacheWrite, cacheWritePrice));
+        total = total.add(usageMicros(reasoning, reasoningPrice));
+        return total.setScale(0, RoundingMode.HALF_UP).longValue();
+    }
+
+    private BigDecimal usageMicros(long tokens, BigDecimal microsPerToken) {
+        if (tokens <= 0L || microsPerToken == null || microsPerToken.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return microsPerToken.multiply(BigDecimal.valueOf(tokens));
     }
 }

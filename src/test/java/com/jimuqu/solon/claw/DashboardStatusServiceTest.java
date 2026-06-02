@@ -287,9 +287,13 @@ public class DashboardStatusServiceTest {
                 .containsEntry("image_generation", Boolean.TRUE)
                 .containsEntry("tts", Boolean.TRUE)
                 .containsEntry("transcription", Boolean.TRUE);
-        assertThat((Map<String, Object>) capabilities.get("pricing"))
+        Map<String, Object> pricingCapabilities = (Map<String, Object>) capabilities.get("pricing");
+        assertThat(pricingCapabilities)
                 .containsEntry("cost_calculation", Boolean.TRUE)
                 .containsEntry("configured_price_count", Integer.valueOf(1));
+        assertThat(((Number) pricingCapabilities.get("builtin_price_count")).intValue()).isGreaterThan(0);
+        assertThat(((Number) pricingCapabilities.get("effective_price_count")).intValue())
+                .isGreaterThan(1);
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
                 .containsEntry("service", "solon-claw")
@@ -297,9 +301,13 @@ public class DashboardStatusServiceTest {
         assertThat((Map<String, Object>) runtimeStatus.get("runtime_config"))
                 .containsEntry("config_path", "runtime://config.yml")
                 .containsEntry("runtime_home", "runtime://");
-        assertThat((Map<String, Object>) runtimeStatus.get("pricing"))
+        Map<String, Object> pricingStatus = (Map<String, Object>) runtimeStatus.get("pricing");
+        assertThat(pricingStatus)
                 .containsEntry("configured_price_count", Integer.valueOf(1))
                 .containsEntry("pricing_available", Boolean.TRUE);
+        assertThat(((Number) pricingStatus.get("builtin_price_count")).intValue()).isGreaterThan(0);
+        assertThat(((Number) pricingStatus.get("effective_price_count")).intValue())
+                .isGreaterThan(1);
 
         String json = ONode.serialize(status);
         assertThat(json)
@@ -308,6 +316,50 @@ public class DashboardStatusServiceTest {
                 .doesNotContain("worktree")
                 .doesNotContain("plugins")
                 .doesNotContain("openai_api_server");
+    }
+
+    @Test
+    void shouldReportPricingAvailabilityForCurrentModel() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-pricing-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getModel().setProviderKey("custom");
+        config.getModel().setDefault("unknown-model");
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Custom");
+        provider.setBaseUrl("https://api.example.com/v1");
+        provider.setDefaultModel("unknown-model");
+        provider.setDialect("openai");
+        config.getProviders().put("custom", provider);
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(
+                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> status =
+                (Map<String, Object>) service.getStatus(true).get("runtime_status");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pricing = (Map<String, Object>) status.get("pricing");
+        assertThat(pricing.get("catalog_available")).isEqualTo(Boolean.TRUE);
+        assertThat(pricing.get("pricing_available")).isEqualTo(Boolean.FALSE);
+
+        provider.setDefaultModel("gpt-4o-mini");
+        config.getModel().setDefault("gpt-4o-mini");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pricedStatus =
+                (Map<String, Object>) service.getStatus(true).get("runtime_status");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pricedPricing = (Map<String, Object>) pricedStatus.get("pricing");
+        assertThat(pricedPricing.get("pricing_available")).isEqualTo(Boolean.TRUE);
     }
 
     @Test

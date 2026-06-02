@@ -106,8 +106,8 @@ public class AppConfigProviderLoadTest {
                         + "  prices:\n"
                         + "    - provider: openai-direct\n"
                         + "      model: gpt-5-mini\n"
-                        + "      prompt_micros_per_token: 3\n"
-                        + "      completion_micros_per_token: 15\n"
+                        + "      input_cost_per_million: \"3.50\"\n"
+                        + "      output_cost_per_million: \"15.25\"\n"
                         + "      request_micros_per_request: 100\n"
                         + "      source: alias-catalog\n"
                         + "      sourceUrl: https://pricing.example/config\n"
@@ -121,10 +121,12 @@ public class AppConfigProviderLoadTest {
 
         assertThat(config.getPricing().getPrices()).hasSize(1);
         ModelPrice price = config.getPricing().getPrices().get(0);
-        assertThat(price.getInputMicrosPerToken()).isEqualTo(3L);
+        assertThat(price.getInputMicrosPerToken()).isEqualTo(4L);
         assertThat(price.getOutputMicrosPerToken()).isEqualTo(15L);
-        assertThat(price.getPromptMicrosPerToken()).isEqualTo(3L);
+        assertThat(price.getPromptMicrosPerToken()).isEqualTo(4L);
         assertThat(price.getCompletionMicrosPerToken()).isEqualTo(15L);
+        assertThat(price.inputMicrosPerTokenExact().toPlainString()).isEqualTo("3.50");
+        assertThat(price.outputMicrosPerTokenExact().toPlainString()).isEqualTo("15.25");
         assertThat(price.getRequestMicrosPerRequest()).isEqualTo(100L);
         assertThat(price.getSource()).isEqualTo("alias-catalog");
         assertThat(price.getSourceUrl()).isEqualTo("https://pricing.example/config");

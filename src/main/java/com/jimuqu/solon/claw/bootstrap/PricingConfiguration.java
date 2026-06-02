@@ -15,7 +15,7 @@ import org.noear.solon.annotation.Configuration;
 public class PricingConfiguration {
     @Bean
     public PriceCatalog priceCatalog(AppConfig appConfig) {
-        return PriceCatalog.fromPrices(appConfig.getPricing().getPrices());
+        return PriceCatalog.forConfig(appConfig);
     }
 
     @Bean
