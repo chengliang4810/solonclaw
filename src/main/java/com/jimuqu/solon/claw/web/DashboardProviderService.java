@@ -342,7 +342,7 @@ public class DashboardProviderService {
         String providerKey = probe.providerKey;
         String apiKey = probe.apiKey;
         String dialect = probe.dialect;
-        String url = LlmProviderSupport.buildModelListUrl(probe.baseUrl, dialect);
+        String url = LlmProviderSupport.buildModelListUrl(providerKey, probe.baseUrl, dialect);
         assertSafeProviderUrl(url);
         String cacheKey = modelListCacheKey(providerKey, url, dialect, apiKey);
         ModelListCacheEntry cached = cachedModelList(cacheKey);
@@ -380,7 +380,7 @@ public class DashboardProviderService {
 
     public Map<String, Object> validateProvider(Map<String, Object> data) {
         ProviderProbe probe = resolveProviderProbe(data);
-        String url = LlmProviderSupport.buildModelListUrl(probe.baseUrl, probe.dialect);
+        String url = LlmProviderSupport.buildModelListUrl(probe.providerKey, probe.baseUrl, probe.dialect);
         assertSafeProviderUrl(url);
         try {
             HttpResponse response = executeModelListRequest(url, probe.apiKey, probe.dialect, 0);
