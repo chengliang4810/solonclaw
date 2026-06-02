@@ -55,6 +55,11 @@ public class DashboardMcpController {
         return DashboardResponse.ok(mcpService.reloadAllView());
     }
 
+    @Mapping(value = "/api/jimuqu/mcp/reload/async", method = MethodType.POST)
+    public Map<String, Object> reloadAllAsync() throws Exception {
+        return DashboardResponse.ok(mcpService.reloadAllAsyncView());
+    }
+
     @Mapping(value = "/api/jimuqu/acp/status", method = MethodType.GET)
     public Map<String, Object> acpStatus() {
         AcpStdioServer server =

@@ -15,7 +15,6 @@ import java.util.logging.Logger;
 public class McpKeepaliveService implements Closeable {
     private static final Logger LOG = Logger.getLogger(McpKeepaliveService.class.getName());
     private static final long DEFAULT_INTERVAL_SECONDS = 30L;
-    private static final int MAX_RECONNECT_ATTEMPTS = 3;
 
     private final McpRuntimeService runtimeService;
     private final long intervalSeconds;
@@ -101,28 +100,21 @@ public class McpKeepaliveService implements Closeable {
     }
 
     /**
-     * Attempts to reconnect a specific server by reloading it.
-     * Returns true if the reconnect succeeded.
+     * Attempts to reconnect a specific server without blocking the caller on discovery.
+     * Returns true when a reload task was accepted.
      */
     public boolean reconnect(String serverId) {
-        for (int attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
-            try {
-                runtimeService.reload(serverId);
-                LOG.info("MCP keepalive: reconnected server " + serverId + " on attempt " + attempt);
-                return true;
-            } catch (Exception e) {
-                LOG.warning("MCP keepalive: reconnect attempt " + attempt
-                        + " failed for server " + serverId + ": " + e.getMessage());
-                if (attempt < MAX_RECONNECT_ATTEMPTS) {
-                    try {
-                        Thread.sleep(1000L * attempt);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        return false;
-                    }
-                }
-            }
+        try {
+            runtimeService.reloadAsync(serverId);
+            LOG.info("MCP keepalive: queued reconnect for server " + serverId);
+            return true;
+        } catch (Exception e) {
+            LOG.warning(
+                    "MCP keepalive: reconnect queue failed for server "
+                            + serverId
+                            + ": "
+                            + e.getMessage());
+            return false;
         }
-        return false;
     }
 }

@@ -22,10 +22,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.noear.snack4.ONode;
@@ -90,6 +92,8 @@ public class McpRuntimeService implements Closeable {
     private final SecurityPolicyService securityPolicyService;
     private final ConcurrentMap<String, McpClientProvider> providers =
             new ConcurrentHashMap<String, McpClientProvider>();
+    private final ExecutorService discoveryExecutor =
+            BoundedExecutorFactory.fixed("mcp-discovery", 1, 32);
     private final ExecutorService toolCallExecutor =
             BoundedExecutorFactory.fixed("mcp-tool-call", 4, 64);
 
@@ -152,6 +156,11 @@ public class McpRuntimeService implements Closeable {
         summary.put("recoverableTransportRetry", Boolean.TRUE);
         summary.put("remoteToolTimeoutMillisDefault", Long.valueOf(DEFAULT_TOOL_TIMEOUT_MILLIS));
         summary.put("connectTimeoutMillisDefault", Long.valueOf(DEFAULT_CONNECT_TIMEOUT_MILLIS));
+        summary.put("startupDiscoveryAsync", Boolean.TRUE);
+        summary.put("reloadDiscoveryAsync", Boolean.TRUE);
+        summary.put("discoveryExecutorBounded", Boolean.TRUE);
+        summary.put("discoveryExecutorMaxThreads", Integer.valueOf(1));
+        summary.put("discoveryExecutorQueueCapacity", Integer.valueOf(32));
         summary.put("toolCallExecutorBounded", Boolean.TRUE);
         summary.put("toolCallExecutorMaxThreads", Integer.valueOf(4));
         summary.put("toolCallExecutorQueueCapacity", Integer.valueOf(64));
@@ -177,24 +186,105 @@ public class McpRuntimeService implements Closeable {
     }
 
     public McpToolRefreshResult connect(String serverId) throws Exception {
-        McpServerConfig config = loadServer(serverId);
-        McpClientProvider provider = providerFor(config);
-        provider.getClient();
-        return refreshLiveTools(serverId, false);
+        try {
+            McpServerConfig config = loadServer(serverId);
+            McpClientProvider provider = providerFor(config);
+            provider.getClient();
+            return refreshLiveTools(serverId, false);
+        } catch (Exception e) {
+            recordDiscoveryError(serverId, e);
+            throw e;
+        }
     }
 
     public McpToolRefreshResult reload(String serverId) throws Exception {
         closeProvider(serverId);
-        return refreshLiveTools(serverId, false);
+        try {
+            return refreshLiveTools(serverId, false);
+        } catch (Exception e) {
+            recordDiscoveryError(serverId, e);
+            throw e;
+        }
+    }
+
+    public CompletableFuture<McpToolRefreshResult> connectAsync(String serverId) {
+        return submitDiscovery(serverId, new DiscoveryCallable() {
+            @Override
+            public McpToolRefreshResult call(String targetServerId) throws Exception {
+                return connect(targetServerId);
+            }
+        });
+    }
+
+    public CompletableFuture<McpToolRefreshResult> reloadAsync(String serverId) {
+        return submitDiscovery(serverId, new DiscoveryCallable() {
+            @Override
+            public McpToolRefreshResult call(String targetServerId) throws Exception {
+                return reload(targetServerId);
+            }
+        });
+    }
+
+    public CompletableFuture<McpToolRefreshResult> refreshLiveToolsAsync(
+            String serverId, final boolean baselineInitial) {
+        return submitDiscovery(serverId, new DiscoveryCallable() {
+            @Override
+            public McpToolRefreshResult call(String targetServerId) throws Exception {
+                return refreshLiveTools(targetServerId, baselineInitial);
+            }
+        });
+    }
+
+    public CompletableFuture<List<McpToolRefreshResult>> refreshAllEnabledLiveToolsAsync(
+            final boolean baselineInitial) {
+        final List<McpServerConfig> configs = enabledServers();
+        final List<String> serverIds = new ArrayList<String>();
+        for (McpServerConfig config : configs) {
+            if (config != null && StrUtil.isNotBlank(config.getServerId())) {
+                serverIds.add(config.getServerId());
+            }
+        }
+        final CompletableFuture<List<McpToolRefreshResult>> future =
+                new CompletableFuture<List<McpToolRefreshResult>>();
+        try {
+            discoveryExecutor.submit(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            List<McpToolRefreshResult> result =
+                                    new ArrayList<McpToolRefreshResult>();
+                            try {
+                                for (String serverId : serverIds) {
+                                    try {
+                                        result.add(refreshLiveTools(serverId, baselineInitial));
+                                    } catch (Exception e) {
+                                        recordDiscoveryError(serverId, e);
+                                    }
+                                }
+                                future.complete(result);
+                            } catch (Throwable e) {
+                                future.completeExceptionally(e);
+                            }
+                        }
+                    });
+        } catch (RejectedExecutionException e) {
+            future.completeExceptionally(e);
+        }
+        return future;
     }
 
     public McpToolRefreshResult refreshLiveTools(String serverId, boolean baselineInitial)
             throws Exception {
-        McpServerConfig config = loadServer(serverId);
-        McpClientProvider provider = providerFor(config);
-        Collection<FunctionTool> tools = filteredTools(config, provider.getTools());
-        String toolsJson = json(toolsSnapshot(config.getServerId(), tools));
-        return persistToolSnapshot(serverId, toolsJson, baselineInitial, "ready", null);
+        try {
+            McpServerConfig config = loadServer(serverId);
+            McpClientProvider provider = providerFor(config);
+            Collection<FunctionTool> tools = filteredTools(config, provider.getTools());
+            String toolsJson = json(toolsSnapshot(config.getServerId(), tools));
+            return persistToolSnapshot(serverId, toolsJson, baselineInitial, "ready", null);
+        } catch (Exception e) {
+            recordDiscoveryError(serverId, e);
+            throw e;
+        }
     }
 
     public McpToolRefreshResult refreshPersistedTools(
@@ -219,8 +309,15 @@ public class McpRuntimeService implements Closeable {
                 provider.clearCache();
             }
         } catch (Exception e) {
-            updateStatus(serverId, "error", safeError(e), null, false);
+            recordDiscoveryError(serverId, e);
         }
+    }
+
+    public void startInitialDiscoveryAsync() {
+        if (appConfig == null || appConfig.getMcp() == null || !appConfig.getMcp().isEnabled()) {
+            return;
+        }
+        refreshAllEnabledLiveToolsAsync(true);
     }
 
     public void shutdown() {
@@ -237,7 +334,36 @@ public class McpRuntimeService implements Closeable {
             }
         }
         providers.clear();
+        discoveryExecutor.shutdownNow();
         toolCallExecutor.shutdownNow();
+    }
+
+    private CompletableFuture<McpToolRefreshResult> submitDiscovery(
+            final String serverId, final DiscoveryCallable callable) {
+        final CompletableFuture<McpToolRefreshResult> future =
+                new CompletableFuture<McpToolRefreshResult>();
+        try {
+            discoveryExecutor.submit(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                future.complete(callable.call(serverId));
+                            } catch (Exception e) {
+                                recordDiscoveryError(serverId, e);
+                                future.completeExceptionally(e);
+                            }
+                        }
+                    });
+        } catch (RejectedExecutionException e) {
+            recordDiscoveryError(serverId, e);
+            future.completeExceptionally(e);
+        }
+        return future;
+    }
+
+    private void recordDiscoveryError(String serverId, Throwable error) {
+        updateStatus(serverId, "error", safeError(error), null, false);
     }
 
     private McpClientProvider providerFor(McpServerConfig config) {
@@ -1842,6 +1968,10 @@ public class McpRuntimeService implements Closeable {
 
     private interface RecoverableCall<T> {
         T call(McpClientProvider provider) throws Throwable;
+    }
+
+    private interface DiscoveryCallable {
+        McpToolRefreshResult call(String serverId) throws Exception;
     }
 
     private static class McpToolCallException extends Exception {

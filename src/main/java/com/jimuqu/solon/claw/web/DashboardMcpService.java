@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.noear.snack4.ONode;
 
 /** Dashboard-first MCP server registry. */
@@ -514,10 +516,60 @@ public class DashboardMcpService {
     }
 
     private McpReloadResult reloadAll(boolean baselineInitial) throws Exception {
-        List<String> serverIds = new ArrayList<String>();
+        List<String> serverIds = enabledServerIds();
         List<String> changedServers = new ArrayList<String>();
         List<String> unchangedServers = new ArrayList<String>();
         int toolCount = 0;
+        for (String serverId : serverIds) {
+            McpCheckState state = checkServer(serverId, baselineInitial);
+            toolCount += state.getToolCount();
+            if (state.isToolsChanged()) {
+                changedServers.add(serverId);
+            } else {
+                unchangedServers.add(serverId);
+            }
+        }
+        return new McpReloadResult(
+                appConfig.getMcp().isEnabled(), changedServers, unchangedServers, toolCount);
+    }
+
+    public Map<String, Object> reloadAllView() throws Exception {
+        McpReloadResult result = reloadAll(false);
+        return reloadResultMap(result);
+    }
+
+    public Map<String, Object> reloadAllAsyncView() throws Exception {
+        List<String> serverIds = enabledServerIds();
+        CompletableFuture<List<McpRuntimeService.McpToolRefreshResult>> future =
+                mcpRuntimeService.refreshAllEnabledLiveToolsAsync(false);
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("enabled", Boolean.valueOf(appConfig.getMcp().isEnabled()));
+        map.put("status", future.isCompletedExceptionally() ? "failed" : "queued");
+        map.put("async", Boolean.TRUE);
+        if (future.isCompletedExceptionally()) {
+            map.put("error", asyncFailureMessage(future));
+        }
+        map.put("server_count", Integer.valueOf(serverIds.size()));
+        map.put("server_ids", serverIds);
+        return map;
+    }
+
+    private String asyncFailureMessage(CompletableFuture<?> future) {
+        try {
+            future.get();
+            return "";
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return SecretRedactor.redact(e.getMessage());
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            String message = StrUtil.blankToDefault(cause.getMessage(), cause.toString());
+            return SecretRedactor.redact(message);
+        }
+    }
+
+    private List<String> enabledServerIds() throws Exception {
+        List<String> serverIds = new ArrayList<String>();
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -535,21 +587,10 @@ public class DashboardMcpService {
         } finally {
             connection.close();
         }
-        for (String serverId : serverIds) {
-            McpCheckState state = checkServer(serverId, baselineInitial);
-            toolCount += state.getToolCount();
-            if (state.isToolsChanged()) {
-                changedServers.add(serverId);
-            } else {
-                unchangedServers.add(serverId);
-            }
-        }
-        return new McpReloadResult(
-                appConfig.getMcp().isEnabled(), changedServers, unchangedServers, toolCount);
+        return serverIds;
     }
 
-    public Map<String, Object> reloadAllView() throws Exception {
-        McpReloadResult result = reloadAll(false);
+    private Map<String, Object> reloadResultMap(McpReloadResult result) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("enabled", Boolean.valueOf(result.isEnabled()));
         map.put("tool_count", Integer.valueOf(result.getToolCount()));

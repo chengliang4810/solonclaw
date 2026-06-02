@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,9 @@ public class McpRuntimeServiceTest {
         assertThat(summary.get("recoverableTransportRetry")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("remoteToolTimeoutMillisDefault")).isEqualTo(Long.valueOf(120000L));
         assertThat(summary.get("connectTimeoutMillisDefault")).isEqualTo(Long.valueOf(60000L));
+        assertThat(summary.get("startupDiscoveryAsync")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("reloadDiscoveryAsync")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("discoveryExecutorBounded")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("toolCallExecutorBounded")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("accessTokenHeaderOnlyForRemote")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("authorizationHeaderCaseInsensitive")).isEqualTo(Boolean.TRUE);
@@ -625,6 +629,114 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldQueueSlowMcpDiscoveryWithoutBlockingCaller() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        SlowDiscoveryMcpFactory factory = new SlowDiscoveryMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        long start = System.nanoTime();
+        CompletableFuture<McpRuntimeService.McpToolRefreshResult> future =
+                mcpRuntimeService.refreshLiveToolsAsync("local-docs", false);
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+        assertThat(elapsedMillis).isLessThan(200L);
+        SlowDiscoveryMcpClientProvider provider = awaitSlowDiscoveryProvider(factory);
+        assertThat(provider.started.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(future.isDone()).isFalse();
+        provider.release.countDown();
+        assertThat(future.get(2, TimeUnit.SECONDS).getStatus()).isEqualTo("ready");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
+    void shouldRecordLastErrorForFailedDiscoveryAndRecoverOnLaterReload() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        FlakyDiscoveryMcpFactory factory = new FlakyDiscoveryMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+        DashboardMcpService dashboardMcpService =
+                new DashboardMcpService(env.appConfig, env.sqliteDatabase, null, mcpRuntimeService);
+
+        CompletableFuture<McpRuntimeService.McpToolRefreshResult> failed =
+                mcpRuntimeService.refreshLiveToolsAsync("local-docs", false);
+
+        assertThatThrownBy(() -> failed.get(2, TimeUnit.SECONDS))
+                .hasCauseInstanceOf(IllegalStateException.class);
+        assertThat(readMcpStatus(env.sqliteDatabase, "local-docs"))
+                .containsEntry("status", "error");
+        assertThat(readMcpStatus(env.sqliteDatabase, "local-docs").get("last_error"))
+                .asString()
+                .contains("discovery failed")
+                .doesNotContain("secret-failure-token");
+        assertThat(String.valueOf(dashboardMcpService.list().get("servers")))
+                .contains("discovery failed")
+                .doesNotContain("secret-failure-token");
+
+        factory.fail = false;
+        McpRuntimeService.McpToolRefreshResult recovered = mcpRuntimeService.reload("local-docs");
+
+        assertThat(recovered.getStatus()).isEqualTo("ready");
+        assertThat(readMcpStatus(env.sqliteDatabase, "local-docs"))
+                .containsEntry("status", "ready")
+                .containsEntry("last_error", null);
+        assertThat(readToolsJson(env.sqliteDatabase)).contains("mcp_local-docs_docs_recovered");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
+    void shouldReportAsyncReloadQueueFailureWhenDiscoveryExecutorIsClosed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, new FakeMcpFactory());
+        DashboardMcpService dashboardMcpService =
+                new DashboardMcpService(env.appConfig, env.sqliteDatabase, null, mcpRuntimeService);
+        mcpRuntimeService.shutdown();
+
+        Map<String, Object> queued = dashboardMcpService.reloadAllAsyncView();
+
+        assertThat(queued)
+                .containsEntry("status", "failed")
+                .containsEntry("async", Boolean.TRUE)
+                .containsEntry("server_count", Integer.valueOf(1));
+        assertThat(String.valueOf(queued.get("error"))).contains("rejected");
+    }
+
+    @Test
+    void shouldReturnQuicklyWhenDashboardQueuesAsyncReload() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        SlowDiscoveryMcpFactory factory = new SlowDiscoveryMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+        DashboardMcpService dashboardMcpService =
+                new DashboardMcpService(env.appConfig, env.sqliteDatabase, null, mcpRuntimeService);
+
+        long start = System.nanoTime();
+        Map<String, Object> queued = dashboardMcpService.reloadAllAsyncView();
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+        assertThat(elapsedMillis).isLessThan(200L);
+        assertThat(queued)
+                .containsEntry("status", "queued")
+                .containsEntry("async", Boolean.TRUE)
+                .containsEntry("server_count", Integer.valueOf(1));
+        SlowDiscoveryMcpClientProvider provider = awaitSlowDiscoveryProvider(factory);
+        assertThat(provider.started.await(2, TimeUnit.SECONDS)).isTrue();
+        provider.release.countDown();
+        assertThat(readEventuallyToolsJson(env.sqliteDatabase, "mcp_local-docs_slow_tool"))
+                .contains("mcp_local-docs_slow_tool");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
     void shouldIncludeExceptionTypeWhenMcpToolErrorMessageIsBlank() throws Throwable {
         for (String mode : Arrays.asList("blank-error", "space-error")) {
             TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -963,6 +1075,56 @@ public class McpRuntimeServiceTest {
             ResultSet resultSet = statement.executeQuery();
             try {
                 return resultSet.next() ? resultSet.getString("tools_json") : "";
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    private String readEventuallyToolsJson(SqliteDatabase database, String expected) throws Exception {
+        long deadline = System.currentTimeMillis() + 2000L;
+        String toolsJson = "";
+        while (System.currentTimeMillis() < deadline) {
+            toolsJson = readToolsJson(database);
+            if (toolsJson != null && toolsJson.contains(expected)) {
+                return toolsJson;
+            }
+            Thread.sleep(25L);
+        }
+        return toolsJson;
+    }
+
+    private SlowDiscoveryMcpClientProvider awaitSlowDiscoveryProvider(
+            SlowDiscoveryMcpFactory factory) throws Exception {
+        long deadline = System.currentTimeMillis() + 2000L;
+        while (System.currentTimeMillis() < deadline) {
+            if (factory.provider != null) {
+                return factory.provider;
+            }
+            Thread.sleep(25L);
+        }
+        throw new AssertionError("slow discovery provider was not created");
+    }
+
+    private Map<String, Object> readMcpStatus(SqliteDatabase database, String serverId)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select status, last_error from mcp_servers where server_id = ?");
+            statement.setString(1, serverId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                Map<String, Object> result = new LinkedHashMap<String, Object>();
+                if (resultSet.next()) {
+                    result.put("status", resultSet.getString("status"));
+                    result.put("last_error", resultSet.getString("last_error"));
+                }
+                return result;
             } finally {
                 resultSet.close();
                 statement.close();
@@ -1458,6 +1620,80 @@ public class McpRuntimeServiceTest {
                         return Collections.singletonMap("ok", Boolean.TRUE);
                     });
             return Collections.<FunctionTool>singletonList(slow);
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class SlowDiscoveryMcpFactory implements McpClientProviderFactory {
+        private SlowDiscoveryMcpClientProvider provider;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            provider = new SlowDiscoveryMcpClientProvider();
+            return provider;
+        }
+    }
+
+    private static class SlowDiscoveryMcpClientProvider extends McpClientProvider {
+        private final CountDownLatch started = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        private SlowDiscoveryMcpClientProvider() {
+            super(FakeMcpClientProvider.properties());
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            started.countDown();
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted", e);
+            }
+            FunctionToolDesc slow = new FunctionToolDesc("slow_tool");
+            slow.title("Slow Tool");
+            slow.description("Slow discovery tool");
+            slow.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            slow.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
+            return Collections.<FunctionTool>singletonList(slow);
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class FlakyDiscoveryMcpFactory implements McpClientProviderFactory {
+        private boolean fail = true;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            return new FlakyDiscoveryMcpClientProvider(this);
+        }
+    }
+
+    private static class FlakyDiscoveryMcpClientProvider extends McpClientProvider {
+        private final FlakyDiscoveryMcpFactory factory;
+
+        private FlakyDiscoveryMcpClientProvider(FlakyDiscoveryMcpFactory factory) {
+            super(FakeMcpClientProvider.properties());
+            this.factory = factory;
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            if (factory.fail) {
+                throw new IllegalStateException(
+                        "discovery failed token=secret-failure-token");
+            }
+            FunctionToolDesc recovered = new FunctionToolDesc("docs_recovered");
+            recovered.title("Recovered Docs");
+            recovered.description("Recovered discovery tool");
+            recovered.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            recovered.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
+            return Collections.<FunctionTool>singletonList(recovered);
         }
 
         @Override

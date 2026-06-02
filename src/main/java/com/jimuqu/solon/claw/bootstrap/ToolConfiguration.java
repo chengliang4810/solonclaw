@@ -144,7 +144,10 @@ public class ToolConfiguration {
             AppConfig appConfig,
             SqliteDatabase sqliteDatabase,
             SecurityPolicyService securityPolicyService) {
-        return new McpRuntimeService(appConfig, sqliteDatabase, null, securityPolicyService);
+        McpRuntimeService service =
+                new McpRuntimeService(appConfig, sqliteDatabase, null, securityPolicyService);
+        service.startInitialDiscoveryAsync();
+        return service;
     }
 
     @Bean(destroyMethod = "shutdown")
