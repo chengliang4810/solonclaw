@@ -895,6 +895,63 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldExposeTirithSecurityDiagnosticsWithoutLeakingRawPathOrSecrets() throws Exception {
+        String token = "sk-dashboard-tirithsecret12345";
+        AppConfig config = new AppConfig();
+        config.getSecurity().setTirithPath("/tmp/jimuqu-dashboard-tirith/secret-" + token + "/tirith");
+        config.getSecurity().setTirithFailOpen(false);
+        config.getSecurity().setTirithTimeoutSeconds(9);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        new TirithSecurityService(config),
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("action", "policy");
+
+        Map<String, Object> result = diagnosticsService.securityAudit(body);
+
+        Map<String, Object> policy = (Map<String, Object>) result.get("policy");
+        Map<String, Object> security = (Map<String, Object>) policy.get("security");
+        Map<String, Object> tirithPolicy = (Map<String, Object>) security.get("tirithPolicy");
+        Map<String, Object> diagnosticSummary =
+                (Map<String, Object>) tirithPolicy.get("diagnosticSummary");
+        Map<String, Object> auditSurface = (Map<String, Object>) tirithPolicy.get("auditSurface");
+        Map<String, Object> sampleAudit = (Map<String, Object>) tirithPolicy.get("sampleAudit");
+
+        assertThat(security.get("tirithTimeoutSeconds")).isEqualTo(Integer.valueOf(9));
+        assertThat(security.get("tirithFailOpen")).isEqualTo(Boolean.FALSE);
+        assertThat(tirithPolicy.get("scannerState")).isEqualTo("configured_unavailable");
+        assertThat(tirithPolicy.get("failureMode")).isEqualTo("fail-closed");
+        assertThat(diagnosticSummary.get("scannerConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(diagnosticSummary.get("scannerAvailable")).isEqualTo(Boolean.FALSE);
+        assertThat(diagnosticSummary.get("timeoutSeconds")).isEqualTo(Integer.valueOf(9));
+        assertThat(auditSurface.get("surface")).isEqualTo("tirith_command_scan");
+        assertThat(auditSurface.get("rawCommandExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(sampleAudit.get("redactionApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(sampleAudit.get("rawFindingsExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(tirithPolicy.get("rawConfiguredPathExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(tirithPolicy.get("rawResolvedPathExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(tirithPolicy.get("rawCommandExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(tirithPolicy.get("sampleAuditRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(ONode.serialize(result))
+                .contains("path://tirith")
+                .doesNotContain("/tmp/jimuqu-dashboard-tirith")
+                .doesNotContain(token);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldExposeToolResultStoragePolicyThroughDashboardSecurityAudit() throws Exception {
         AppConfig config = new AppConfig();
         ToolResultStorageService toolResultStorageService =
