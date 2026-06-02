@@ -7,6 +7,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -24,8 +26,10 @@ import org.noear.snack4.ONode;
 public class TirithSecurityService {
     private static final int MAX_FINDINGS = 50;
     private static final int MAX_SUMMARY_LENGTH = 500;
+    private static final int MAX_AUDIT_RULE_SAMPLES = 5;
 
     private final AppConfig appConfig;
+    private volatile AuditSummary lastAuditSummary;
 
     public TirithSecurityService(AppConfig appConfig) {
         this.appConfig = appConfig;
@@ -39,7 +43,7 @@ public class TirithSecurityService {
         AppConfig.SecurityConfig security =
                 appConfig == null ? null : appConfig.getSecurity();
         if (security != null && !security.isTirithEnabled()) {
-            return ScanResult.allow();
+            return recordAndReturn(command, shell, ScanResult.allow());
         }
 
         String path =
@@ -53,8 +57,13 @@ public class TirithSecurityService {
         boolean failOpen = security == null || security.isTirithFailOpen();
         String resolvedPath = resolvePath(path);
         if (StrUtil.isBlank(resolvedPath)) {
-            return operationalFailure(
-                    failOpen, "tirith path unavailable", "tirith path unavailable (fail-closed)");
+            return recordAndReturn(
+                    command,
+                    shell,
+                    operationalFailure(
+                            failOpen,
+                            "tirith path unavailable",
+                            "tirith path unavailable (fail-closed)"));
         }
 
         Process process = null;
@@ -92,10 +101,13 @@ public class TirithSecurityService {
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return operationalFailure(
-                        failOpen,
-                        "tirith timed out (" + timeoutSeconds + "s)",
-                        "tirith timed out (fail-closed)");
+                return recordAndReturn(
+                        command,
+                        shell,
+                        operationalFailure(
+                                failOpen,
+                                "tirith timed out (" + timeoutSeconds + "s)",
+                                "tirith timed out (fail-closed)"));
             }
 
             int exitCode = process.exitValue();
@@ -109,23 +121,29 @@ public class TirithSecurityService {
             } else if (exitCode == 2) {
                 action = "warn";
             } else {
-                return operationalFailure(
-                        failOpen,
-                        "tirith exit code " + exitCode + " (fail-open)",
-                        "tirith exit code " + exitCode + " (fail-closed)");
+                return recordAndReturn(
+                        command,
+                        shell,
+                        operationalFailure(
+                                failOpen,
+                                "tirith exit code " + exitCode + " (fail-open)",
+                                "tirith exit code " + exitCode + " (fail-closed)"));
             }
 
             ParsedOutput parsed = parseOutput(out, action);
             if (StrUtil.isBlank(parsed.summary) && StrUtil.isNotBlank(err) && !"allow".equals(action)) {
                 parsed.summary = safeText(err.trim(), MAX_SUMMARY_LENGTH);
             }
-            return new ScanResult(action, parsed.findings, parsed.summary);
+            return recordAndReturn(command, shell, new ScanResult(action, parsed.findings, parsed.summary));
         } catch (Exception e) {
             String message = safeMessage(e);
-            return operationalFailure(
-                    failOpen,
-                    "tirith unavailable: " + message,
-                    "tirith spawn failed (fail-closed): " + message);
+            return recordAndReturn(
+                    command,
+                    shell,
+                    operationalFailure(
+                            failOpen,
+                            "tirith unavailable: " + message,
+                            "tirith spawn failed (fail-closed): " + message));
         } finally {
             if (process != null) {
                 try {
@@ -196,6 +214,11 @@ public class TirithSecurityService {
         summary.put("failureMode", diagnostic.getFailureMode());
         summary.put("failureBehavior", diagnostic.getFailureBehavior());
         summary.put("diagnostic", diagnostic.toMap());
+        summary.put("diagnosticSummary", diagnosticSummary(diagnostic));
+        summary.put("auditSurface", auditSurfaceSummary(diagnostic));
+        summary.put("lastAuditAvailable", Boolean.valueOf(lastAuditSummary != null));
+        summary.put("lastAudit", lastAuditMap(diagnostic));
+        summary.put("sampleAudit", sampleAuditSummary(diagnostic).toMap());
         summary.put("actions", java.util.Arrays.asList("allow", "warn", "block"));
         summary.put("warnRequiresApproval", Boolean.TRUE);
         summary.put("blockRequiresApproval", Boolean.TRUE);
@@ -218,6 +241,10 @@ public class TirithSecurityService {
         summary.put("rawConfiguredPathExposed", Boolean.FALSE);
         summary.put("rawResolvedPathExposed", Boolean.FALSE);
         summary.put("rawFindingsExposed", Boolean.FALSE);
+        summary.put("rawCommandExposed", Boolean.FALSE);
+        summary.put("rawPathExposed", Boolean.FALSE);
+        summary.put("lastAuditRedacted", Boolean.TRUE);
+        summary.put("sampleAuditRedacted", Boolean.TRUE);
         summary.put("shellDetection", java.util.Arrays.asList("posix", "powershell", "cmd"));
         summary.put("failOpenMode", diagnostic.getFailureBehavior());
         summary.put("description", "Tirith scans command text through an external checker, maps warn/block findings into approval-required security results, and redacts diagnostics before exposing them.");
@@ -240,10 +267,68 @@ public class TirithSecurityService {
                 "diagnostic.resolvedPath",
                 "diagnostic.summary",
                 "scan.summary",
+                "lastAudit.summaryPreview",
+                "lastAudit.findingRuleSamples",
+                "sampleAudit.summaryPreview",
                 "finding.ruleId",
                 "finding.severity",
                 "finding.title",
                 "finding.description");
+    }
+
+    private Map<String, Object> diagnosticSummary(Diagnostic diagnostic) {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("scannerConfigured", Boolean.valueOf(diagnostic.isConfigured()));
+        map.put("scannerAvailable", Boolean.valueOf(diagnostic.isAvailable()));
+        map.put("scannerState", diagnostic.getScannerState());
+        map.put("failureMode", diagnostic.getFailureMode());
+        map.put("failureBehavior", diagnostic.getFailureBehavior());
+        map.put("timeoutSeconds", Integer.valueOf(diagnostic.getTimeoutSeconds()));
+        map.put("redactionApplied", Boolean.TRUE);
+        map.put("rawConfiguredPathExposed", Boolean.FALSE);
+        map.put("rawResolvedPathExposed", Boolean.FALSE);
+        map.put("rawCommandExposed", Boolean.FALSE);
+        map.put("rawPathExposed", Boolean.FALSE);
+        map.put("summary", diagnostic.getSummary());
+        return map;
+    }
+
+    private Map<String, Object> auditSurfaceSummary(Diagnostic diagnostic) {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("surface", "tirith_command_scan");
+        map.put("scannerConfigured", Boolean.valueOf(diagnostic.isConfigured()));
+        map.put("scannerAvailable", Boolean.valueOf(diagnostic.isAvailable()));
+        map.put("failureMode", diagnostic.getFailureMode());
+        map.put("timeoutSeconds", Integer.valueOf(diagnostic.getTimeoutSeconds()));
+        map.put("lastAuditAvailable", Boolean.valueOf(lastAuditSummary != null));
+        map.put("sampleAuditAvailable", Boolean.TRUE);
+        map.put("rawCommandExposed", Boolean.FALSE);
+        map.put("rawPathExposed", Boolean.FALSE);
+        map.put("rawFindingsExposed", Boolean.FALSE);
+        map.put("redactionApplied", Boolean.TRUE);
+        return map;
+    }
+
+    private Map<String, Object> lastAuditMap(Diagnostic diagnostic) {
+        AuditSummary last = lastAuditSummary;
+        return (last == null ? emptyLastAuditSummary(diagnostic) : last).toMap();
+    }
+
+    private AuditSummary emptyLastAuditSummary(Diagnostic diagnostic) {
+        return AuditSummary.emptyLast(diagnostic);
+    }
+
+    private AuditSummary sampleAuditSummary(Diagnostic diagnostic) {
+        return AuditSummary.sample(diagnostic);
+    }
+
+    private ScanResult recordAndReturn(String command, String shell, ScanResult result) {
+        try {
+            lastAuditSummary = AuditSummary.from(command, normalizeShell(shell), result, diagnose());
+        } catch (Exception ignored) {
+            // Diagnostics must never change the security decision.
+        }
+        return result;
     }
 
     private String shellForToolCommand(String toolName, String command) {
@@ -463,6 +548,231 @@ public class TirithSecurityService {
         private ParsedOutput(List<Finding> findings, String summary) {
             this.findings = findings;
             this.summary = summary;
+        }
+    }
+
+    private static class AuditSummary {
+        private final String surface;
+        private final String scannerState;
+        private final String failureMode;
+        private final String failureBehavior;
+        private final int timeoutSeconds;
+        private final String shell;
+        private final String commandHash;
+        private final String commandLengthBucket;
+        private final String action;
+        private final boolean approvalRequired;
+        private final int findingCount;
+        private final List<String> findingRuleSamples;
+        private final String summaryPreview;
+        private final boolean redactionApplied;
+        private final boolean rawCommandExposed;
+        private final boolean rawPathExposed;
+        private final boolean rawFindingsExposed;
+
+        private AuditSummary(
+                String surface,
+                String scannerState,
+                String failureMode,
+                String failureBehavior,
+                int timeoutSeconds,
+                String shell,
+                String commandHash,
+                String commandLengthBucket,
+                String action,
+                boolean approvalRequired,
+                int findingCount,
+                List<String> findingRuleSamples,
+                String summaryPreview,
+                boolean redactionApplied,
+                boolean rawCommandExposed,
+                boolean rawPathExposed,
+                boolean rawFindingsExposed) {
+            this.surface = safeText(surface, 100);
+            this.scannerState = safeText(scannerState, 100);
+            this.failureMode = safeText(failureMode, 100);
+            this.failureBehavior = safeText(failureBehavior, 200);
+            this.timeoutSeconds = timeoutSeconds;
+            this.shell = safeText(shell, 100);
+            this.commandHash = safeText(commandHash, 100);
+            this.commandLengthBucket = safeText(commandLengthBucket, 100);
+            this.action = safeText(action, 100);
+            this.approvalRequired = approvalRequired;
+            this.findingCount = findingCount;
+            this.findingRuleSamples =
+                    findingRuleSamples == null
+                            ? Collections.<String>emptyList()
+                            : Collections.unmodifiableList(new ArrayList<String>(findingRuleSamples));
+            this.summaryPreview = safeText(summaryPreview, MAX_SUMMARY_LENGTH);
+            this.redactionApplied = redactionApplied;
+            this.rawCommandExposed = rawCommandExposed;
+            this.rawPathExposed = rawPathExposed;
+            this.rawFindingsExposed = rawFindingsExposed;
+        }
+
+        private static AuditSummary from(
+                String command, String shell, ScanResult result, Diagnostic diagnostic) {
+            ScanResult safeResult = result == null ? ScanResult.allow() : result;
+            Diagnostic safeDiagnostic = diagnostic == null ? fallbackDiagnostic() : diagnostic;
+            return new AuditSummary(
+                    "tirith_command_scan",
+                    safeDiagnostic.getScannerState(),
+                    safeDiagnostic.getFailureMode(),
+                    safeDiagnostic.getFailureBehavior(),
+                    safeDiagnostic.getTimeoutSeconds(),
+                    shell,
+                    commandHash(command),
+                    commandLengthBucket(command),
+                    safeResult.getAction(),
+                    safeResult.requiresApproval(),
+                    safeResult.getFindings().size(),
+                    findingRuleSamples(safeResult.getFindings()),
+                    safeResult.getSummary(),
+                    true,
+                    false,
+                    false,
+                    false);
+        }
+
+        private static AuditSummary sample(Diagnostic diagnostic) {
+            Diagnostic safeDiagnostic = diagnostic == null ? fallbackDiagnostic() : diagnostic;
+            return new AuditSummary(
+                    "tirith_command_scan",
+                    safeDiagnostic.getScannerState(),
+                    safeDiagnostic.getFailureMode(),
+                    safeDiagnostic.getFailureBehavior(),
+                    safeDiagnostic.getTimeoutSeconds(),
+                    "posix",
+                    "sha256:sample",
+                    "sample",
+                    "warn",
+                    true,
+                    1,
+                    Collections.singletonList("security_scan"),
+                    "sample security warning (redacted)",
+                    true,
+                    false,
+                    false,
+                    false);
+        }
+
+        private static AuditSummary emptyLast(Diagnostic diagnostic) {
+            Diagnostic safeDiagnostic = diagnostic == null ? fallbackDiagnostic() : diagnostic;
+            return new AuditSummary(
+                    "tirith_command_scan",
+                    safeDiagnostic.getScannerState(),
+                    safeDiagnostic.getFailureMode(),
+                    safeDiagnostic.getFailureBehavior(),
+                    safeDiagnostic.getTimeoutSeconds(),
+                    "",
+                    "",
+                    "none",
+                    "none",
+                    false,
+                    0,
+                    Collections.<String>emptyList(),
+                    "no tirith scan has been recorded in this service instance",
+                    true,
+                    false,
+                    false,
+                    false);
+        }
+
+        private static Diagnostic fallbackDiagnostic() {
+            return new Diagnostic(
+                    false,
+                    false,
+                    "tirith",
+                    "tirith",
+                    false,
+                    5,
+                    true,
+                    "unknown",
+                    "fail-open",
+                    "allow_on_operational_failure",
+                    "tirith diagnostic unavailable");
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("surface", surface);
+            map.put("scannerState", scannerState);
+            map.put("failureMode", failureMode);
+            map.put("failureBehavior", failureBehavior);
+            map.put("timeoutSeconds", Integer.valueOf(timeoutSeconds));
+            map.put("shell", shell);
+            map.put("commandHash", commandHash);
+            map.put("commandLengthBucket", commandLengthBucket);
+            map.put("action", action);
+            map.put("approvalRequired", Boolean.valueOf(approvalRequired));
+            map.put("findingCount", Integer.valueOf(findingCount));
+            map.put("findingRuleSamples", findingRuleSamples);
+            map.put("summaryPreview", summaryPreview);
+            map.put("redactionApplied", Boolean.valueOf(redactionApplied));
+            map.put("rawCommandExposed", Boolean.valueOf(rawCommandExposed));
+            map.put("rawPathExposed", Boolean.valueOf(rawPathExposed));
+            map.put("rawFindingsExposed", Boolean.valueOf(rawFindingsExposed));
+            return map;
+        }
+
+        private static List<String> findingRuleSamples(List<Finding> findings) {
+            if (findings == null || findings.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<String> samples = new ArrayList<String>();
+            for (Finding finding : findings) {
+                if (samples.size() >= MAX_AUDIT_RULE_SAMPLES) {
+                    break;
+                }
+                if (finding != null) {
+                    samples.add(safeText(StrUtil.blankToDefault(finding.getRuleId(), "security_scan"), 200));
+                }
+            }
+            return samples;
+        }
+
+        private static String commandHash(String command) {
+            String text = StrUtil.nullToEmpty(command);
+            if (text.length() == 0) {
+                return "";
+            }
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+                return "sha256:" + hexPrefix(bytes, 12);
+            } catch (Exception ignored) {
+                return "sha256:unavailable";
+            }
+        }
+
+        private static String hexPrefix(byte[] bytes, int chars) {
+            char[] digits = "0123456789abcdef".toCharArray();
+            StringBuilder builder = new StringBuilder(chars);
+            for (int i = 0; i < bytes.length && builder.length() < chars; i++) {
+                int value = bytes[i] & 0xff;
+                builder.append(digits[value >>> 4]);
+                if (builder.length() < chars) {
+                    builder.append(digits[value & 0x0f]);
+                }
+            }
+            return builder.toString();
+        }
+
+        private static String commandLengthBucket(String command) {
+            int length = StrUtil.nullToEmpty(command).length();
+            if (length == 0) {
+                return "empty";
+            }
+            if (length <= 80) {
+                return "1-80";
+            }
+            if (length <= 400) {
+                return "81-400";
+            }
+            if (length <= 1000) {
+                return "401-1000";
+            }
+            return "1000+";
         }
     }
 

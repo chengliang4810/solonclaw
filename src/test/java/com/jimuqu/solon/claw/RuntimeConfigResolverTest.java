@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class RuntimeConfigResolverTest {
@@ -56,6 +57,56 @@ public class RuntimeConfigResolverTest {
         assertThatThrownBy(() -> resolver.setFileValue("solonclaw.runtime.home", "runtime2"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsupported config key");
+    }
+
+    @Test
+    void shouldReportConfigDriftWithoutLeakingSecrets() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solonclaw-config-drift").toFile();
+        FileUtil.writeUtf8String(
+                "provider: stale-root-provider\n"
+                        + "solonclaw:\n"
+                        + "  runtime:\n"
+                        + "    home: /tmp/ignored-runtime\n"
+                        + "  scheduler:\n"
+                        + "    tickSeconds: \"bad-number\"\n"
+                        + "  mystery:\n"
+                        + "    enabled: true\n"
+                        + "providers:\n"
+                        + "  default:\n"
+                        + "    name: DefaultProvider\n"
+                        + "    baseUrl: https://api.openai.com\n"
+                        + "    apiKey: sk-configdriftdiagnostic12345\n"
+                        + "    defaultModel: gpt-5.4\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: gpt-5.4\n",
+                new File(runtimeHome, "config.yml"));
+
+        AppConfig config = new AppConfig();
+        config.setScheduler(new AppConfig.SchedulerConfig());
+        config.getScheduler().setTickSeconds(60);
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("gpt-5.4");
+        config.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
+        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+
+        Map<String, Object> diagnostics = resolver.diagnostics(config);
+        String text = String.valueOf(diagnostics);
+
+        assertThat(diagnostics.get("config_file")).isEqualTo("runtime://config.yml");
+        assertThat(text).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(text)
+                .contains("solonclaw.mystery.enabled")
+                .contains("provider")
+                .contains("solonclaw.runtime.home")
+                .contains("solonclaw.scheduler.tickSeconds")
+                .contains("raw_value")
+                .contains("effective_value")
+                .doesNotContain("sk-configdriftdiagnostic12345");
+        assertThat(diagnostics).containsEntry("unknown_count", 1);
+        assertThat(diagnostics).containsEntry("legacy_count", 2);
+        assertThat(diagnostics).containsEntry("effective_diff_count", 1);
     }
 
     @Test

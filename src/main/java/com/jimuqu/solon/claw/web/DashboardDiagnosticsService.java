@@ -2170,6 +2170,11 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "scannerState");
             copyPolicyValue(summary, safe, "failureMode");
             copyPolicyValue(summary, safe, "failureBehavior");
+            copyPolicyValue(summary, safe, "diagnosticSummary");
+            copyPolicyValue(summary, safe, "auditSurface");
+            copyPolicyValue(summary, safe, "lastAuditAvailable");
+            copyPolicyValue(summary, safe, "lastAudit");
+            copyPolicyValue(summary, safe, "sampleAudit");
             copyPolicyValue(summary, safe, "actions");
             copyPolicyValue(summary, safe, "warnRequiresApproval");
             copyPolicyValue(summary, safe, "blockRequiresApproval");
@@ -2192,6 +2197,10 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "rawConfiguredPathExposed");
             copyPolicyValue(summary, safe, "rawResolvedPathExposed");
             copyPolicyValue(summary, safe, "rawFindingsExposed");
+            copyPolicyValue(summary, safe, "rawCommandExposed");
+            copyPolicyValue(summary, safe, "rawPathExposed");
+            copyPolicyValue(summary, safe, "lastAuditRedacted");
+            copyPolicyValue(summary, safe, "sampleAuditRedacted");
             copyPolicyValue(summary, safe, "shellDetection");
             copyPolicyValue(summary, safe, "failOpenMode");
             return safe;

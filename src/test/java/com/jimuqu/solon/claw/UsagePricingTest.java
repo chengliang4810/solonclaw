@@ -38,7 +38,10 @@ public class UsagePricingTest {
                                 + "\"cache_write_micros_per_token\":4,"
                                 + "\"reasoning_micros_per_token\":20,"
                                 + "\"request_micros_per_request\":30,"
-                                + "\"source\":\"test-catalog\""
+                                + "\"source\":\"test-catalog\","
+                                + "\"source_url\":\"https://pricing.example/catalog\","
+                                + "\"pricing_version\":\"test-pricing-2026-06\","
+                                + "\"fetched_at\":1800000000000"
                                 + "}]"
                                 + "}");
 
@@ -50,6 +53,9 @@ public class UsagePricingTest {
         assertThat(priced.getTotalMicros()).isEqualTo(620L);
         assertThat(priced.getRequestCount()).isEqualTo(1L);
         assertThat(priced.getPriceSource()).isEqualTo("test-catalog");
+        assertThat(priced.getPriceSourceUrl()).isEqualTo("https://pricing.example/catalog");
+        assertThat(priced.getPricingVersion()).isEqualTo("test-pricing-2026-06");
+        assertThat(priced.getPriceFetchedAt()).isEqualTo(1800000000000L);
         assertThat(priced.getUnpricedTotalTokens()).isZero();
 
         UsageCost unpriced =
@@ -100,6 +106,63 @@ public class UsagePricingTest {
         assertThat(cost.isPricingAvailable()).isTrue();
         assertThat(cost.getTotalMicros()).isEqualTo(650L);
         assertThat(cost.getRequestCount()).isEqualTo(2L);
+    }
+
+    @Test
+    void llmUsageNormalizesAnthropicOpenAiAndCustomRawShapes() {
+        LlmUsage anthropic =
+                LlmUsage.fromRawUsage(
+                        "{\"input_tokens\":1000,\"output_tokens\":50,\"cache_read_input_tokens\":200,\"cache_creation_input_tokens\":100,\"request_count\":2}",
+                        "anthropic",
+                        "anthropic_messages");
+        assertThat(anthropic.getInputTokens()).isEqualTo(1000L);
+        assertThat(anthropic.getOutputTokens()).isEqualTo(50L);
+        assertThat(anthropic.getCacheReadTokens()).isEqualTo(200L);
+        assertThat(anthropic.getCacheWriteTokens()).isEqualTo(100L);
+        assertThat(anthropic.getRequestCount()).isEqualTo(2L);
+        assertThat(anthropic.getCanonicalPromptTokens()).isEqualTo(1300L);
+        assertThat(anthropic.getCanonicalTotalTokens()).isEqualTo(1350L);
+        assertThat(anthropic.getRawUsageJson()).contains("cache_creation_input_tokens");
+
+        LlmUsage openAi =
+                LlmUsage.fromRawUsage(
+                        "{\"prompt_tokens\":1000,\"completion_tokens\":50,\"prompt_tokens_details\":{\"cached_tokens\":200,\"cache_write_tokens\":100},\"completion_tokens_details\":{\"reasoning_tokens\":7}}",
+                        "openai",
+                        "chat_completions");
+        assertThat(openAi.getInputTokens()).isEqualTo(700L);
+        assertThat(openAi.getOutputTokens()).isEqualTo(50L);
+        assertThat(openAi.getCacheReadTokens()).isEqualTo(200L);
+        assertThat(openAi.getCacheWriteTokens()).isEqualTo(100L);
+        assertThat(openAi.getReasoningTokens()).isEqualTo(7L);
+        assertThat(openAi.getCanonicalRequestCount()).isEqualTo(1L);
+        assertThat(openAi.getCanonicalTotalTokens()).isEqualTo(1050L);
+
+        LlmUsage custom =
+                LlmUsage.fromRawUsage(
+                        "{\"input_tokens\":20,\"output_tokens\":5,\"cache_read_tokens\":3,\"cache_write_tokens\":2,\"requests\":4}",
+                        "custom",
+                        "");
+        assertThat(custom.getInputTokens()).isEqualTo(20L);
+        assertThat(custom.getOutputTokens()).isEqualTo(5L);
+        assertThat(custom.getCacheReadTokens()).isEqualTo(3L);
+        assertThat(custom.getCacheWriteTokens()).isEqualTo(2L);
+        assertThat(custom.getRequestCount()).isEqualTo(4L);
+        assertThat(custom.toCanonicalMap()).containsEntry("request_count", Long.valueOf(4L));
+    }
+
+    @Test
+    void llmUsageNormalizesAggregatedRawUsageArray() {
+        LlmUsage usage =
+                LlmUsage.fromRawUsage(
+                        "[{\"prompt_tokens\":10,\"completion_tokens\":2,\"prompt_tokens_details\":{\"cached_tokens\":3}},{\"input_tokens\":7,\"output_tokens\":4,\"request_count\":2}]",
+                        "openai",
+                        "chat_completions");
+
+        assertThat(usage.getInputTokens()).isEqualTo(14L);
+        assertThat(usage.getOutputTokens()).isEqualTo(6L);
+        assertThat(usage.getCacheReadTokens()).isEqualTo(3L);
+        assertThat(usage.getRequestCount()).isEqualTo(3L);
+        assertThat(usage.getRawUsageJson()).startsWith("[");
     }
 
     @Test
@@ -203,6 +266,10 @@ public class UsagePricingTest {
         event.setCostMicros(420);
         event.setCurrency("USD");
         event.setPriceSource("test-catalog");
+        event.setPriceSourceUrl("https://pricing.example/catalog");
+        event.setPricingVersion("test-pricing-2026-06");
+        event.setPriceFetchedAt(1800000000000L);
+        event.setRawUsageJson("{\"input_tokens\":100,\"output_tokens\":20}");
         event.setPricingAvailable(true);
         event.setCreatedAt(1000L);
         event.setPricedAt(1000L);
@@ -213,6 +280,10 @@ public class UsagePricingTest {
         assertThat(stored).hasSize(1);
         assertThat(stored.get(0).getCostMicros()).isEqualTo(420L);
         assertThat(stored.get(0).getRequestCount()).isEqualTo(2L);
+        assertThat(stored.get(0).getPriceSourceUrl()).isEqualTo("https://pricing.example/catalog");
+        assertThat(stored.get(0).getPricingVersion()).isEqualTo("test-pricing-2026-06");
+        assertThat(stored.get(0).getPriceFetchedAt()).isEqualTo(1800000000000L);
+        assertThat(stored.get(0).getRawUsageJson()).contains("input_tokens");
 
         AgentRunRecord run = new AgentRunRecord();
         run.setRunId("run-2");
@@ -258,7 +329,7 @@ public class UsagePricingTest {
 
         PriceCatalog catalog =
                 PriceCatalog.fromJson(
-                        "{\"prices\":[{\"provider\":\"default\",\"model\":\"gpt-5.4\",\"currency\":\"USD\",\"input_micros_per_token\":2,\"output_micros_per_token\":10,\"source\":\"test-catalog\"}]}");
+                        "{\"prices\":[{\"provider\":\"default\",\"model\":\"gpt-5.4\",\"currency\":\"USD\",\"input_micros_per_token\":2,\"output_micros_per_token\":10,\"source\":\"test-catalog\",\"source_url\":\"https://pricing.example/catalog\",\"pricing_version\":\"test-pricing-2026-06\",\"fetched_at\":1800000000000}]}");
         UsageBackfillService backfill =
                 new UsageBackfillService(
                         usageRepository,
@@ -268,8 +339,11 @@ public class UsagePricingTest {
 
         assertThat(backfill.backfillApproximate()).isEqualTo(2);
         assertThat(backfill.backfillApproximate()).isZero();
-        assertThat(usageRepository.findByEventId("backfill-run-run-2").isBackfillApproximate())
-                .isTrue();
+        UsageEventRecord backfilledRun = usageRepository.findByEventId("backfill-run-run-2");
+        assertThat(backfilledRun.isBackfillApproximate()).isTrue();
+        assertThat(backfilledRun.getPriceSourceUrl()).isEqualTo("https://pricing.example/catalog");
+        assertThat(backfilledRun.getPricingVersion()).isEqualTo("test-pricing-2026-06");
+        assertThat(backfilledRun.getPriceFetchedAt()).isEqualTo(1800000000000L);
         assertThat(usageRepository.findByEventId("backfill-session-session-3").isBackfillApproximate())
                 .isTrue();
         assertThat(usageRepository.findByEventId("backfill-session-session-2")).isNull();

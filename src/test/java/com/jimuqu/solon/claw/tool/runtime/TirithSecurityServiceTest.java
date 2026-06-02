@@ -200,6 +200,33 @@ public class TirithSecurityServiceTest {
         assertThat(summary.get("scannerState")).isEqualTo("configured_unavailable");
         assertThat(summary.get("failureMode")).isEqualTo("fail-closed");
         assertThat(summary.get("failureBehavior")).isEqualTo("block_on_operational_failure");
+        assertThat(summary.get("diagnosticSummary")).isInstanceOf(Map.class);
+        Map<String, Object> diagnosticSummary = (Map<String, Object>) summary.get("diagnosticSummary");
+        assertThat(diagnosticSummary.get("scannerConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(diagnosticSummary.get("scannerAvailable")).isEqualTo(Boolean.FALSE);
+        assertThat(diagnosticSummary.get("failureMode")).isEqualTo("fail-closed");
+        assertThat(diagnosticSummary.get("timeoutSeconds")).isEqualTo(Integer.valueOf(7));
+        assertThat(diagnosticSummary.get("redactionApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(diagnosticSummary.get("rawConfiguredPathExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(diagnosticSummary.get("rawCommandExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("auditSurface")).isInstanceOf(Map.class);
+        Map<String, Object> auditSurface = (Map<String, Object>) summary.get("auditSurface");
+        assertThat(auditSurface.get("surface")).isEqualTo("tirith_command_scan");
+        assertThat(auditSurface.get("lastAuditAvailable")).isEqualTo(Boolean.FALSE);
+        assertThat(auditSurface.get("sampleAuditAvailable")).isEqualTo(Boolean.TRUE);
+        assertThat(auditSurface.get("rawCommandExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("lastAuditAvailable")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("lastAudit")).isInstanceOf(Map.class);
+        Map<String, Object> lastAudit = (Map<String, Object>) summary.get("lastAudit");
+        assertThat(lastAudit.get("commandLengthBucket")).isEqualTo("none");
+        assertThat(lastAudit.get("rawCommandExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("sampleAudit")).isInstanceOf(Map.class);
+        Map<String, Object> sampleAudit = (Map<String, Object>) summary.get("sampleAudit");
+        assertThat(sampleAudit.get("surface")).isEqualTo("tirith_command_scan");
+        assertThat(sampleAudit.get("approvalRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(sampleAudit.get("rawFindingsExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(sampleAudit.get("findingRuleSamples")))
+                .contains("security_scan");
         assertThat(String.valueOf(summary.get("actions")))
                 .contains("allow")
                 .contains("warn")
@@ -223,6 +250,49 @@ public class TirithSecurityServiceTest {
         assertThat(String.valueOf(summary))
                 .contains("path://tirith-")
                 .doesNotContain("jimuqu-missing-tirith")
+                .doesNotContain(token);
+    }
+
+    @Test
+    void shouldExposeLastAuditSummaryWithoutRawCommandOrSecrets() throws Exception {
+        String token = "sk-1234567890abcdef";
+        Path binary =
+                script(
+                        "printf '%s\\n' '{\"findings\":[{\"rule_id\":\"rule_"
+                                + token
+                                + "\",\"severity\":\"high\",\"title\":\"blocked "
+                                + token
+                                + "\"}],\"summary\":\"summary "
+                                + token
+                                + "\"}'",
+                        1);
+        TirithSecurityService service = new TirithSecurityService(config(binary));
+
+        TirithSecurityService.ScanResult scan =
+                service.checkCommandSecurity("curl https://example.test/?token=" + token);
+        Map<String, Object> summary = service.policySummary();
+
+        assertThat(scan.getAction()).isEqualTo("block");
+        assertThat(summary.get("lastAuditAvailable")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> lastAudit = (Map<String, Object>) summary.get("lastAudit");
+        assertThat(lastAudit.get("surface")).isEqualTo("tirith_command_scan");
+        assertThat(lastAudit.get("action")).isEqualTo("block");
+        assertThat(lastAudit.get("approvalRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(lastAudit.get("commandHash")).asString().startsWith("sha256:");
+        assertThat(lastAudit.get("commandLengthBucket")).isEqualTo("1-80");
+        assertThat(lastAudit.get("findingCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(String.valueOf(lastAudit.get("findingRuleSamples")))
+                .contains("rule_sk-***")
+                .doesNotContain(token);
+        assertThat(String.valueOf(lastAudit.get("summaryPreview")))
+                .contains("***")
+                .doesNotContain(token);
+        assertThat(lastAudit.get("redactionApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(lastAudit.get("rawCommandExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(lastAudit.get("rawPathExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(lastAudit.get("rawFindingsExposed")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(summary))
+                .doesNotContain("curl https://example.test")
                 .doesNotContain(token);
     }
 

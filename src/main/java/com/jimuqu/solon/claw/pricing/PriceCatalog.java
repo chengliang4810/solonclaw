@@ -48,6 +48,9 @@ public class PriceCatalog {
             price.setReasoningMicrosPerToken(number(node, "reasoning_micros_per_token"));
             price.setRequestMicrosPerRequest(number(node, "request_micros_per_request"));
             price.setSource(text(node, "source"));
+            price.setSourceUrl(firstText(node, "source_url", "sourceUrl"));
+            price.setPricingVersion(firstText(node, "pricing_version", "pricingVersion", "version"));
+            price.setFetchedAt(firstNumber(node, "fetched_at", "fetchedAt"));
             if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
                 parsed.put(price.key(), price);
             }
@@ -96,6 +99,19 @@ public class PriceCatalog {
     private static String text(ONode node, String key) {
         ONode value = node.get(key);
         return value == null ? null : value.getString();
+    }
+
+    private static String firstText(ONode node, String... keys) {
+        if (keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String value = text(node, key);
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static long number(ONode node, String key) {

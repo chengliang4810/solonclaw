@@ -108,7 +108,11 @@ public class AppConfigProviderLoadTest {
                         + "      model: gpt-5-mini\n"
                         + "      prompt_micros_per_token: 3\n"
                         + "      completion_micros_per_token: 15\n"
-                        + "      source: alias-catalog\n",
+                        + "      request_micros_per_request: 100\n"
+                        + "      source: alias-catalog\n"
+                        + "      sourceUrl: https://pricing.example/config\n"
+                        + "      pricingVersion: config-pricing-2026-06\n"
+                        + "      fetchedAt: 1800000000000\n",
                 new File(runtimeHome, "config.yml"));
 
         Props props = new Props();
@@ -121,7 +125,11 @@ public class AppConfigProviderLoadTest {
         assertThat(price.getOutputMicrosPerToken()).isEqualTo(15L);
         assertThat(price.getPromptMicrosPerToken()).isEqualTo(3L);
         assertThat(price.getCompletionMicrosPerToken()).isEqualTo(15L);
+        assertThat(price.getRequestMicrosPerRequest()).isEqualTo(100L);
         assertThat(price.getSource()).isEqualTo("alias-catalog");
+        assertThat(price.getSourceUrl()).isEqualTo("https://pricing.example/config");
+        assertThat(price.getPricingVersion()).isEqualTo("config-pricing-2026-06");
+        assertThat(price.getFetchedAt()).isEqualTo(1800000000000L);
     }
 
     @Test

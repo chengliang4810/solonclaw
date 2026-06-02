@@ -26,17 +26,37 @@ public class HealthControllerTest {
 
         Map<String, Object> response = controller.detailedHealth();
 
-        assertThat(response).containsEntry("ok", Boolean.TRUE);
+        assertThat(response)
+                .containsEntry("ok", Boolean.TRUE)
+                .containsEntry("status", "ok")
+                .containsEntry("platform", "solon-claw")
+                .containsKeys("gateway_state", "platforms", "active_agents", "pid", "updated_at", "gateway");
         assertThat(response.get("service")).isInstanceOf(Map.class);
         assertThat(response.get("runtime")).isInstanceOf(Map.class);
+        assertThat(response.get("gateway_state")).isNull();
+        assertThat(response.get("platforms")).isInstanceOf(Map.class);
+        assertThat((Map<String, Object>) response.get("platforms")).isEmpty();
+        assertThat(response.get("active_agents")).isEqualTo(Integer.valueOf(0));
+        assertThat(response.get("pid")).isInstanceOf(Integer.class);
+        assertThat(response.get("updated_at")).isInstanceOf(String.class);
+        assertThat(response.get("gateway")).isInstanceOf(Map.class);
 
         Map<String, Object> service = (Map<String, Object>) response.get("service");
         Map<String, Object> runtime = (Map<String, Object>) response.get("runtime");
+        Map<String, Object> gateway = (Map<String, Object>) response.get("gateway");
 
         assertThat(service)
                 .containsEntry("name", "solon-claw")
                 .containsEntry("status", "up");
-        assertThat(runtime).containsKeys("startedAtEpochMs", "currentTimeEpochMs", "uptimeMs", "uptimeSeconds");
+        assertThat(runtime)
+                .containsKeys("startedAtEpochMs", "currentTimeEpochMs", "uptimeMs", "uptimeSeconds")
+                .containsEntry("pid", response.get("pid"))
+                .containsEntry("updated_at", response.get("updated_at"));
+        assertThat(runtime.get("gateway")).isEqualTo(gateway);
+        assertThat(gateway)
+                .containsEntry("state", null)
+                .containsEntry("running", Boolean.FALSE)
+                .containsEntry("active_agents", Integer.valueOf(0));
 
         long startedAt = ((Number) runtime.get("startedAtEpochMs")).longValue();
         long currentTime = ((Number) runtime.get("currentTimeEpochMs")).longValue();

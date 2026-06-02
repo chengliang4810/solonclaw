@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
@@ -107,25 +108,29 @@ public class DashboardGatewayDoctorService {
 
         Map<String, Object> model = modelDoctor();
         Map<String, Object> shutdown = shutdownSummary();
+        Map<String, Object> config = configDoctor();
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("generated_at", isoNow());
         result.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
         result.put("model", model);
         result.put("last_shutdown", shutdown);
+        result.put("config", config);
         result.put("platforms", platforms);
-        result.put("summary", doctorSummary(model, platforms, shutdown));
+        result.put("summary", doctorSummary(model, platforms, shutdown, config));
         return result;
     }
 
     private Map<String, Object> doctorSummary(
             Map<String, Object> model,
             List<Map<String, Object>> platforms,
-            Map<String, Object> shutdown) {
+            Map<String, Object> shutdown,
+            Map<String, Object> config) {
         List<Map<String, Object>> issues = new ArrayList<Map<String, Object>>();
         addModelIssues(issues, model);
         addPlatformIssues(issues, platforms);
         addShutdownIssues(issues, shutdown);
+        addConfigIssues(issues, config);
 
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("issueCount", Integer.valueOf(issues.size()));
@@ -243,6 +248,45 @@ public class DashboardGatewayDoctorService {
                 "查看 last_shutdown.record 并排查最近一次异常退出原因。");
     }
 
+    private void addConfigIssues(List<Map<String, Object>> issues, Map<String, Object> config) {
+        if (config == null || !Boolean.TRUE.equals(config.get("has_issues"))) {
+            return;
+        }
+        int unknown = intValue(config.get("unknown_count"));
+        int legacy = intValue(config.get("legacy_count"));
+        int diffs = intValue(config.get("effective_diff_count"));
+        if (unknown > 0) {
+            addIssue(
+                    issues,
+                    "warning",
+                    "config",
+                    "config_unknown_keys",
+                    "runtime_config",
+                    "runtime/config.yml 存在未知配置键：" + unknown + " 个。",
+                    "查看 config.unknown_keys，移除或迁移未生效的配置键。");
+        }
+        if (legacy > 0) {
+            addIssue(
+                    issues,
+                    "warning",
+                    "config",
+                    "config_legacy_keys",
+                    "runtime_config",
+                    "runtime/config.yml 存在遗留配置键：" + legacy + " 个。",
+                    "查看 config.legacy_keys，将遗留配置迁移到当前配置路径。");
+        }
+        if (diffs > 0) {
+            addIssue(
+                    issues,
+                    "info",
+                    "config",
+                    "config_effective_drift",
+                    "runtime_config",
+                    "runtime/config.yml 与当前生效配置存在差异：" + diffs + " 个。",
+                    "查看 config.effective_diffs，确认类型归一化、别名或默认值覆盖是否符合预期。");
+        }
+    }
+
     private String modelNextAction(String code) {
         if ("provider_present".equals(code)) {
             return "修正 model.providerKey，确保它命中 providers 中的 provider。";
@@ -333,6 +377,17 @@ public class DashboardGatewayDoctorService {
         return count;
     }
 
+    private int intValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
     private String highestSeverity(List<Map<String, Object>> issues) {
         String highest = "none";
         int rank = 0;
@@ -379,6 +434,10 @@ public class DashboardGatewayDoctorService {
                 || text.contains("panic")
                 || text.contains("oom")
                 || text.contains("sigkill");
+    }
+
+    private Map<String, Object> configDoctor() {
+        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
     }
 
     private Map<String, Object> shutdownSummary() {

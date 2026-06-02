@@ -56,94 +56,23 @@ public class DashboardStatusService {
     }
 
     public Map<String, Object> getStatus(boolean detailed) throws Exception {
-        gatewayRuntimeRefreshService.refreshIfNeeded();
+        RuntimeStatusSnapshot snapshot = buildRuntimeStatusSnapshot(detailed);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        List<SessionRecord> recentSessions = sessionRepository.listRecent(20);
-        List<ChannelStatus> statuses = deliveryService.statuses();
-        int activeSessions = 0;
-        long activeCutoff = System.currentTimeMillis() - 5L * 60L * 1000L;
-        for (SessionRecord record : recentSessions) {
-            if (record.getUpdatedAt() >= activeCutoff) {
-                activeSessions++;
-            }
-        }
-
-        boolean anyEnabled = false;
-        boolean anyConnected = false;
-        boolean anyFatal = false;
-        Map<String, Object> platformStates = new LinkedHashMap<String, Object>();
-        for (ChannelStatus status : statuses) {
-            if (status.isEnabled()) {
-                anyEnabled = true;
-            }
-            if (status.isConnected()) {
-                anyConnected = true;
-            }
-            String detail = redact(status.getDetail(), 1000);
-            boolean fatal =
-                    status.isEnabled()
-                            && !status.isConnected()
-                            && (StrUtil.isNotBlank(status.getLastErrorCode())
-                                    || StrUtil.isNotBlank(status.getLastErrorMessage()));
-            if (fatal) {
-                anyFatal = true;
-            }
-
-            Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put(
-                    "state",
-                    status.isEnabled()
-                            ? (status.isConnected()
-                                    ? "connected"
-                                    : (fatal ? "fatal" : "disconnected"))
-                            : "disabled");
-            item.put("updated_at", isoNow());
-            item.put("detail", detailed ? detail : publicDetail(status));
-            item.put("setup_state", detailed ? status.getSetupState() : null);
-            item.put("connection_mode", status.getConnectionMode());
-            item.put("missing_config", detailed ? status.getMissingConfig() : null);
-            item.put("features", detailed ? status.getFeatures() : null);
-            item.put(
-                    "error_message",
-                    detailed && fatal
-                            ? redact(
-                                    StrUtil.blankToDefault(
-                                            status.getLastErrorMessage(), detail),
-                                    1000)
-                            : null);
-            item.put(
-                    "error_code",
-                    fatal
-                            ? StrUtil.blankToDefault(
-                                    status.getLastErrorCode(), "channel_unavailable")
-                            : null);
-            platformStates.put(status.getPlatform().name().toLowerCase(), item);
-        }
-
-        String gatewayState;
-        if (anyConnected) {
-            gatewayState = "running";
-        } else if (anyFatal) {
-            gatewayState = "startup_failed";
-        } else {
-            gatewayState = anyEnabled ? "starting" : "stopped";
-        }
-
-        result.put("active_sessions", activeSessions);
+        result.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
         if (detailed) {
             result.put("config_path", runtimeReference(appConfig.getRuntime().getConfigFile()));
         }
         result.put("config_version", configVersion());
         result.put(
                 "gateway_exit_reason",
-                detailed && anyFatal ? redact(firstFatalDetail(statuses), 1000) : null);
+                detailed && snapshot.anyFatal ? snapshot.firstFatalDetail : null);
         if (detailed) {
             result.put("gateway_pid", parsePid());
         }
-        result.put("gateway_platforms", platformStates);
-        result.put("gateway_running", anyConnected);
-        result.put("gateway_state", gatewayState);
-        result.put("gateway_updated_at", isoNow());
+        result.put("gateway_platforms", snapshot.platformStates);
+        result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
+        result.put("gateway_state", snapshot.gatewayState);
+        result.put("gateway_updated_at", snapshot.updatedAt);
         if (detailed) {
             result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
         }
@@ -167,6 +96,18 @@ public class DashboardStatusService {
         result.put(
                 "update_error_at",
                 versionStatus.getUpdateErrorAt() > 0 ? versionStatus.getUpdateErrorAt() : null);
+        return result;
+    }
+
+    public Map<String, Object> getHealthRuntimeSnapshot() throws Exception {
+        RuntimeStatusSnapshot snapshot = buildRuntimeStatusSnapshot(false);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
+        result.put("gateway_exit_reason", snapshot.firstFatalDetail);
+        result.put("gateway_platforms", snapshot.platformStates);
+        result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
+        result.put("gateway_state", snapshot.gatewayState);
+        result.put("gateway_updated_at", snapshot.updatedAt);
         return result;
     }
 
@@ -205,6 +146,91 @@ public class DashboardStatusService {
         capabilities.put("model_family", safeText(resolved.getDialect(), 80));
         result.put("capabilities", capabilities);
         return result;
+    }
+
+    private RuntimeStatusSnapshot buildRuntimeStatusSnapshot(boolean detailed) throws Exception {
+        gatewayRuntimeRefreshService.refreshIfNeeded();
+        List<SessionRecord> recentSessions = sessionRepository.listRecent(20);
+        List<ChannelStatus> statuses = deliveryService.statuses();
+        int activeSessions = 0;
+        long activeCutoff = System.currentTimeMillis() - 5L * 60L * 1000L;
+        for (SessionRecord record : recentSessions) {
+            if (record.getUpdatedAt() >= activeCutoff) {
+                activeSessions++;
+            }
+        }
+
+        boolean anyEnabled = false;
+        boolean anyConnected = false;
+        boolean anyFatal = false;
+        Map<String, Object> platformStates = new LinkedHashMap<String, Object>();
+        String updatedAt = isoNow();
+        for (ChannelStatus status : statuses) {
+            if (status.isEnabled()) {
+                anyEnabled = true;
+            }
+            if (status.isConnected()) {
+                anyConnected = true;
+            }
+            String detail = redact(status.getDetail(), 1000);
+            boolean fatal =
+                    status.isEnabled()
+                            && !status.isConnected()
+                            && (StrUtil.isNotBlank(status.getLastErrorCode())
+                                    || StrUtil.isNotBlank(status.getLastErrorMessage()));
+            if (fatal) {
+                anyFatal = true;
+            }
+
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put(
+                    "state",
+                    status.isEnabled()
+                            ? (status.isConnected()
+                                    ? "connected"
+                                    : (fatal ? "fatal" : "disconnected"))
+                            : "disabled");
+            item.put("updated_at", updatedAt);
+            item.put("detail", detailed ? detail : publicDetail(status));
+            item.put("setup_state", detailed ? status.getSetupState() : null);
+            item.put("connection_mode", status.getConnectionMode());
+            item.put("missing_config", detailed ? status.getMissingConfig() : null);
+            item.put("features", detailed ? status.getFeatures() : null);
+            item.put(
+                    "error_message",
+                    detailed && fatal
+                            ? redact(
+                                    StrUtil.blankToDefault(
+                                            status.getLastErrorMessage(), detail),
+                                    1000)
+                            : null);
+            item.put(
+                    "error_code",
+                    fatal
+                            ? StrUtil.blankToDefault(
+                                    status.getLastErrorCode(), "channel_unavailable")
+                            : null);
+            platformStates.put(status.getPlatform().name().toLowerCase(), item);
+        }
+
+        String gatewayState;
+        if (anyConnected) {
+            gatewayState = "running";
+        } else if (anyFatal) {
+            gatewayState = "startup_failed";
+        } else {
+            gatewayState = anyEnabled ? "starting" : "stopped";
+        }
+
+        RuntimeStatusSnapshot snapshot = new RuntimeStatusSnapshot();
+        snapshot.activeSessions = activeSessions;
+        snapshot.anyConnected = anyConnected;
+        snapshot.anyFatal = anyFatal;
+        snapshot.firstFatalDetail = anyFatal ? redact(firstFatalDetail(statuses), 1000) : null;
+        snapshot.gatewayState = gatewayState;
+        snapshot.platformStates = platformStates;
+        snapshot.updatedAt = updatedAt;
+        return snapshot;
     }
 
     private ModelMetadata currentModelMetadata(LlmProviderService.ResolvedProvider resolved) {
@@ -331,5 +357,15 @@ public class DashboardStatusService {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         format.setTimeZone(TimeZone.getDefault());
         return format.format(new Date());
+    }
+
+    private static class RuntimeStatusSnapshot {
+        private int activeSessions;
+        private boolean anyConnected;
+        private boolean anyFatal;
+        private String firstFatalDetail;
+        private String gatewayState;
+        private Map<String, Object> platformStates;
+        private String updatedAt;
     }
 }

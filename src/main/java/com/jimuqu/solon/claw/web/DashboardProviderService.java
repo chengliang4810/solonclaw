@@ -210,6 +210,15 @@ public class DashboardProviderService {
         if (StrUtil.isNotBlank(price.getSource())) {
             pricing.put("source", price.getSource());
         }
+        if (StrUtil.isNotBlank(price.getSourceUrl())) {
+            pricing.put("source_url", price.getSourceUrl());
+        }
+        if (StrUtil.isNotBlank(price.getPricingVersion())) {
+            pricing.put("pricing_version", price.getPricingVersion());
+        }
+        if (price.getFetchedAt() > 0L) {
+            pricing.put("fetched_at", Long.valueOf(price.getFetchedAt()));
+        }
         model.put("pricing", pricing);
     }
 

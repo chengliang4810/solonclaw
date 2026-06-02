@@ -4,7 +4,8 @@
 Expand detailed health with richer runtime snapshot
 
 ## 状态
-- status: selected
+- status: done
+- completedCommit: `32a0b47f`
 
 ## 优先级 / 风险
 - priority: high

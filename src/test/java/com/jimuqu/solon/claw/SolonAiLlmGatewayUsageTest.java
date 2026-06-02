@@ -96,6 +96,7 @@ public class SolonAiLlmGatewayUsageTest {
         assertThat(result.getOutputTokens()).isEqualTo(5L);
         assertThat(result.getTotalTokens()).isEqualTo(15L);
         assertThat(result.getRequestCount()).isEqualTo(3L);
+        assertThat(result.getRawUsageJson()).contains("request_count");
     }
 
     private LlmResult collect(AiUsage usage) throws Exception {

@@ -2798,7 +2798,11 @@ public class AppConfig {
             price.setCacheReadMicrosPerToken(longValue(map, "cache_read_micros_per_token"));
             price.setCacheWriteMicrosPerToken(longValue(map, "cache_write_micros_per_token"));
             price.setReasoningMicrosPerToken(longValue(map, "reasoning_micros_per_token"));
+            price.setRequestMicrosPerRequest(longValue(map, "request_micros_per_request"));
             price.setSource(stringValue(map, "source"));
+            price.setSourceUrl(firstStringValue(map, "source_url", "sourceUrl"));
+            price.setPricingVersion(firstStringValue(map, "pricing_version", "pricingVersion", "version"));
+            price.setFetchedAt(firstLongValue(map, "fetched_at", "fetchedAt"));
             if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
                 prices.add(price);
             }
@@ -2809,6 +2813,19 @@ public class AppConfig {
     private static String stringValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static String firstStringValue(Map<String, Object> map, String... keys) {
+        if (keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String value = stringValue(map, key);
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static long longValue(Map<String, Object> map, String key) {

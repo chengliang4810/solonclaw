@@ -20,7 +20,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or ignore into usage_events (event_id, session_id, run_id, source_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens, request_count, cost_micros, currency, price_source, pricing_available, unpriced_input_tokens, unpriced_output_tokens, unpriced_cache_read_tokens, unpriced_cache_write_tokens, unpriced_reasoning_tokens, priced_at, created_at, backfill_approximate) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or ignore into usage_events (event_id, session_id, run_id, source_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens, request_count, cost_micros, currency, price_source, price_source_url, pricing_version, price_fetched_at, raw_usage_json, pricing_available, unpriced_input_tokens, unpriced_output_tokens, unpriced_cache_read_tokens, unpriced_cache_write_tokens, unpriced_reasoning_tokens, priced_at, created_at, backfill_approximate) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             bind(statement, record);
             int updated = statement.executeUpdate();
             statement.close();
@@ -114,15 +114,19 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         statement.setLong(14, record.getCostMicros());
         statement.setString(15, record.getCurrency());
         statement.setString(16, record.getPriceSource());
-        statement.setInt(17, record.isPricingAvailable() ? 1 : 0);
-        statement.setLong(18, record.getUnpricedInputTokens());
-        statement.setLong(19, record.getUnpricedOutputTokens());
-        statement.setLong(20, record.getUnpricedCacheReadTokens());
-        statement.setLong(21, record.getUnpricedCacheWriteTokens());
-        statement.setLong(22, record.getUnpricedReasoningTokens());
-        statement.setLong(23, record.getPricedAt());
-        statement.setLong(24, record.getCreatedAt());
-        statement.setInt(25, record.isBackfillApproximate() ? 1 : 0);
+        statement.setString(17, record.getPriceSourceUrl());
+        statement.setString(18, record.getPricingVersion());
+        statement.setLong(19, record.getPriceFetchedAt());
+        statement.setString(20, record.getRawUsageJson());
+        statement.setInt(21, record.isPricingAvailable() ? 1 : 0);
+        statement.setLong(22, record.getUnpricedInputTokens());
+        statement.setLong(23, record.getUnpricedOutputTokens());
+        statement.setLong(24, record.getUnpricedCacheReadTokens());
+        statement.setLong(25, record.getUnpricedCacheWriteTokens());
+        statement.setLong(26, record.getUnpricedReasoningTokens());
+        statement.setLong(27, record.getPricedAt());
+        statement.setLong(28, record.getCreatedAt());
+        statement.setInt(29, record.isBackfillApproximate() ? 1 : 0);
     }
 
     private UsageEventRecord map(ResultSet rs) throws Exception {
@@ -143,6 +147,10 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         record.setCostMicros(rs.getLong("cost_micros"));
         record.setCurrency(rs.getString("currency"));
         record.setPriceSource(rs.getString("price_source"));
+        record.setPriceSourceUrl(rs.getString("price_source_url"));
+        record.setPricingVersion(rs.getString("pricing_version"));
+        record.setPriceFetchedAt(rs.getLong("price_fetched_at"));
+        record.setRawUsageJson(rs.getString("raw_usage_json"));
         record.setPricingAvailable(rs.getInt("pricing_available") != 0);
         record.setUnpricedInputTokens(rs.getLong("unpriced_input_tokens"));
         record.setUnpricedOutputTokens(rs.getLong("unpriced_output_tokens"));
