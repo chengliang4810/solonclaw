@@ -105,13 +105,280 @@ public class DashboardGatewayDoctorService {
             }
         }
 
+        Map<String, Object> model = modelDoctor();
+        Map<String, Object> shutdown = shutdownSummary();
+
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("generated_at", isoNow());
         result.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
-        result.put("model", modelDoctor());
-        result.put("last_shutdown", shutdownSummary());
+        result.put("model", model);
+        result.put("last_shutdown", shutdown);
         result.put("platforms", platforms);
+        result.put("summary", doctorSummary(model, platforms, shutdown));
         return result;
+    }
+
+    private Map<String, Object> doctorSummary(
+            Map<String, Object> model,
+            List<Map<String, Object>> platforms,
+            Map<String, Object> shutdown) {
+        List<Map<String, Object>> issues = new ArrayList<Map<String, Object>>();
+        addModelIssues(issues, model);
+        addPlatformIssues(issues, platforms);
+        addShutdownIssues(issues, shutdown);
+
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("issueCount", Integer.valueOf(issues.size()));
+        summary.put("warningCount", Integer.valueOf(countSeverity(issues, "warning")));
+        summary.put("highestSeverity", highestSeverity(issues));
+        summary.put("issues", issues);
+        summary.put("nextActions", nextActions(issues));
+        return summary;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addModelIssues(List<Map<String, Object>> issues, Map<String, Object> model) {
+        if (model == null || !(model.get("checks") instanceof List)) {
+            return;
+        }
+        List<Map<String, Object>> checks = (List<Map<String, Object>>) model.get("checks");
+        for (Map<String, Object> check : checks) {
+            if (check == null || !Boolean.FALSE.equals(check.get("passed"))) {
+                continue;
+            }
+            String code = safeObjectText(check.get("code"), 120);
+            String message = safeObjectText(check.get("message"), 800);
+            addIssue(
+                    issues,
+                    "warning",
+                    "model",
+                    code,
+                    "model",
+                    message,
+                    modelNextAction(code));
+        }
+    }
+
+    private void addPlatformIssues(
+            List<Map<String, Object>> issues, List<Map<String, Object>> platforms) {
+        if (platforms == null || platforms.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> platform : platforms) {
+            if (platform == null || !Boolean.TRUE.equals(platform.get("enabled"))) {
+                continue;
+            }
+            String platformName = safeObjectText(platform.get("platform"), 80);
+            String target = StrUtil.isBlank(platformName) ? "platform" : "platform:" + platformName;
+            List<String> missingConfig = safeStringList(platform.get("missing_config"), 240);
+            if (!missingConfig.isEmpty()) {
+                String joinedMissingConfig = join(missingConfig);
+                addIssue(
+                        issues,
+                        "warning",
+                        "platform",
+                        "channel_missing_config",
+                        target,
+                        platformName + " 渠道缺失配置：" + joinedMissingConfig,
+                        "补齐 " + platformName + " 渠道缺失配置：" + joinedMissingConfig + "。");
+                continue;
+            }
+            String setupState = safeObjectText(platform.get("setup_state"), 120);
+            String lastError = safeObjectText(platform.get("last_error_message"), 800);
+            String lastReconnectError = safeObjectText(platform.get("last_reconnect_error"), 800);
+            if ("error".equalsIgnoreCase(setupState)
+                    || StrUtil.isNotBlank(lastError)
+                    || StrUtil.isNotBlank(lastReconnectError)) {
+                addIssue(
+                        issues,
+                        "warning",
+                        "platform",
+                        "channel_connection_failed",
+                        target,
+                        platformMessage(platformName, lastError, lastReconnectError),
+                        "修复 " + platformName + " 渠道最近一次连接错误后重试。");
+                continue;
+            }
+            if (Boolean.TRUE.equals(platform.get("reconnecting"))) {
+                addIssue(
+                        issues,
+                        "warning",
+                        "platform",
+                        "channel_reconnecting",
+                        target,
+                        platformName + " 渠道连接失败，正在等待自动重连。",
+                        "等待 " + platformName + " 自动重连，若持续失败请查看最近连接错误。");
+                continue;
+            }
+            if (!Boolean.TRUE.equals(platform.get("connected"))
+                    && !"connected".equalsIgnoreCase(setupState)) {
+                addIssue(
+                        issues,
+                        "warning",
+                        "platform",
+                        "channel_disconnected",
+                        target,
+                        platformName + " 渠道已启用但尚未连通。",
+                        "启动或重连 " + platformName + " 网关。");
+            }
+        }
+    }
+
+    private void addShutdownIssues(
+            List<Map<String, Object>> issues, Map<String, Object> shutdown) {
+        if (shutdown == null || !Boolean.TRUE.equals(shutdown.get("available"))) {
+            return;
+        }
+        String reason = safeObjectText(shutdown.get("reason"), 240);
+        if (!isAbnormalShutdownReason(reason)) {
+            return;
+        }
+        addIssue(
+                issues,
+                "warning",
+                "runtime",
+                "last_shutdown_abnormal",
+                "last_shutdown",
+                "最近一次 shutdown 记录显示异常退出：" + reason,
+                "查看 last_shutdown.record 并排查最近一次异常退出原因。");
+    }
+
+    private String modelNextAction(String code) {
+        if ("provider_present".equals(code)) {
+            return "修正 model.providerKey，确保它命中 providers 中的 provider。";
+        }
+        if ("model_present".equals(code)) {
+            return "配置 model.default 或当前 provider.defaultModel。";
+        }
+        if ("api_key_missing".equals(code)) {
+            return "为当前 provider 配置 API key，或改用本地免 key provider。";
+        }
+        if ("base_url_invalid".equals(code)) {
+            return "修正当前 provider.baseUrl，确保使用安全且有效的 HTTP(S) 地址。";
+        }
+        if ("fallback_missing".equals(code)) {
+            return "修正 fallbackProviders 中为空或不存在的 provider。";
+        }
+        if ("fallback_duplicate".equals(code)) {
+            return "移除 fallbackProviders 中重复的 provider。";
+        }
+        if ("fallback_matches_primary".equals(code)) {
+            return "从 fallbackProviders 中移除与 model.providerKey 相同的 provider。";
+        }
+        if ("fallback_model_present".equals(code)) {
+            return "为 fallback provider 配置可解析的模型。";
+        }
+        return "修复模型 doctor 检查失败项：" + code + "。";
+    }
+
+    private String platformMessage(String platformName, String lastError, String lastReconnectError) {
+        String detail = StrUtil.isNotBlank(lastError) ? lastError : lastReconnectError;
+        if (StrUtil.isBlank(detail)) {
+            return platformName + " 渠道最近一次连接失败。";
+        }
+        return platformName + " 渠道最近一次连接失败：" + detail;
+    }
+
+    private List<String> safeStringList(Object raw, int maxLength) {
+        List<String> values = new ArrayList<String>();
+        if (!(raw instanceof List)) {
+            return values;
+        }
+        for (Object value : (List<?>) raw) {
+            String text = safeObjectText(value, maxLength);
+            if (StrUtil.isNotBlank(text)) {
+                values.add(text);
+            }
+        }
+        return values;
+    }
+
+    private void addIssue(
+            List<Map<String, Object>> issues,
+            String severity,
+            String section,
+            String code,
+            String target,
+            String message,
+            String nextAction) {
+        Map<String, Object> issue = new LinkedHashMap<String, Object>();
+        issue.put("severity", safeText(severity, 40));
+        issue.put("section", safeText(section, 80));
+        issue.put("code", safeText(code, 120));
+        issue.put("target", safeText(target, 160));
+        issue.put("message", safeText(message, 800));
+        issue.put("nextAction", safeText(nextAction, 800));
+        issues.add(issue);
+    }
+
+    private List<String> nextActions(List<Map<String, Object>> issues) {
+        List<String> actions = new ArrayList<String>();
+        Set<String> seen = new HashSet<String>();
+        for (Map<String, Object> issue : issues) {
+            String action = safeObjectText(issue == null ? null : issue.get("nextAction"), 800);
+            if (StrUtil.isNotBlank(action) && seen.add(action)) {
+                actions.add(action);
+            }
+        }
+        return actions;
+    }
+
+    private int countSeverity(List<Map<String, Object>> issues, String severity) {
+        int count = 0;
+        for (Map<String, Object> issue : issues) {
+            if (issue != null && severity.equals(issue.get("severity"))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String highestSeverity(List<Map<String, Object>> issues) {
+        String highest = "none";
+        int rank = 0;
+        for (Map<String, Object> issue : issues) {
+            String severity = issue == null ? "" : String.valueOf(issue.get("severity"));
+            int currentRank = severityRank(severity);
+            if (currentRank > rank) {
+                highest = severity;
+                rank = currentRank;
+            }
+        }
+        return highest;
+    }
+
+    private int severityRank(String severity) {
+        if ("error".equalsIgnoreCase(severity)) {
+            return 3;
+        }
+        if ("warning".equalsIgnoreCase(severity)) {
+            return 2;
+        }
+        if ("info".equalsIgnoreCase(severity)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private boolean isAbnormalShutdownReason(String reason) {
+        String text = StrUtil.nullToEmpty(reason).trim().toLowerCase(Locale.ROOT);
+        if (StrUtil.isBlank(text)) {
+            return false;
+        }
+        if ("lifecycle_shutdown".equals(text)
+                || "shutdown".equals(text)
+                || "normal".equals(text)
+                || text.startsWith("sigterm")
+                || text.startsWith("interrupt")) {
+            return false;
+        }
+        return text.contains("exception")
+                || text.contains("error")
+                || text.contains("failed")
+                || text.contains("crash")
+                || text.contains("panic")
+                || text.contains("oom")
+                || text.contains("sigkill");
     }
 
     private Map<String, Object> shutdownSummary() {
@@ -274,7 +541,7 @@ public class DashboardGatewayDoctorService {
         result.put("provider_name", primary == null ? "" : safeText(primary.getName(), 200));
         result.put("dialect", primary == null ? "" : safeText(primary.getDialect(), 80));
         result.put("base_url", primary == null ? "" : SecretRedactor.maskUrl(primary.getBaseUrl()));
-        result.put("model_list_url", primary == null ? "" : modelListUrl(primary));
+        result.put("model_list_url", primary == null ? "" : modelListUrl(primaryKey, primary));
         result.put(
                 "has_api_key",
                 Boolean.valueOf(primary != null && StrUtil.isNotBlank(primary.getApiKey())));
@@ -318,12 +585,13 @@ public class DashboardGatewayDoctorService {
         return summary;
     }
 
-    private String modelListUrl(AppConfig.ProviderConfig provider) {
+    private String modelListUrl(String providerKey, AppConfig.ProviderConfig provider) {
         if (provider == null) {
             return "";
         }
         return SecretRedactor.maskUrl(
-                LlmProviderSupport.buildModelListUrl(provider.getBaseUrl(), provider.getDialect()));
+                LlmProviderSupport.buildModelListUrl(
+                        providerKey, provider.getBaseUrl(), provider.getDialect()));
     }
 
     private void addFallbackChecks(
