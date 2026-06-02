@@ -79,14 +79,19 @@ public class PendingSessionRecoveryService {
 
     private boolean resume(SessionRecord session) {
         try {
+            SqliteAgentSession agentSession = new SqliteAgentSession(session);
+            String pendingReason = agentSession.getPendingReason();
+            long pendingMarkedAt = agentSession.getPendingMarkedAt();
             GatewayReply reply =
                     conversationOrchestrator.resumePending(
                             session.getSourceKey(), session.getSessionId(), ConversationEventSink.noop());
             if (reply != null && !reply.isError()) {
                 log.info(
-                        "auto-resumed pending session: sourceKey={}, sessionId={}",
+                        "auto-resumed pending session: sourceKey={}, sessionId={}, reason={}, markedAt={}",
                         session.getSourceKey(),
-                        session.getSessionId());
+                        session.getSessionId(),
+                        StrUtil.blankToDefault(pendingReason, "unknown"),
+                        Long.valueOf(pendingMarkedAt));
                 return true;
             }
             log.warn(

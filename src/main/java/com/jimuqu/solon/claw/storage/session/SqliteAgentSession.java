@@ -20,6 +20,9 @@ import org.noear.solon.flow.FlowContextInternal;
 public class SqliteAgentSession implements AgentSession {
     private static final String META_PENDING = "_agent_pending_";
     private static final String META_PENDING_REASON = "_pending_reason_";
+    private static final String META_PENDING_MARKED_AT = "_pending_marked_at_";
+    private static final String META_PENDING_CLEARED_AT = "_pending_cleared_at_";
+    private static final String META_PENDING_LAST_REASON = "_pending_last_reason_";
     private static final String STOP_LOOP_HISTORY = "stoploop_history";
 
     private final SessionRecord sessionRecord;
@@ -92,12 +95,27 @@ public class SqliteAgentSession implements AgentSession {
 
     @Override
     public void pending(boolean pending, String reason) {
+        String previousReason = getPendingReason();
         AgentSession.super.pending(pending, reason);
+        long now = System.currentTimeMillis();
         cache.getContext().put(META_PENDING, pending);
-        if (reason == null) {
-            cache.getContext().remove(META_PENDING_REASON);
+        if (pending) {
+            cache.getContext().put(META_PENDING_MARKED_AT, Long.valueOf(now));
+            cache.getContext().remove(META_PENDING_CLEARED_AT);
+            if (reason == null) {
+                cache.getContext().remove(META_PENDING_REASON);
+                cache.getContext().remove(META_PENDING_LAST_REASON);
+            } else {
+                cache.getContext().put(META_PENDING_REASON, reason);
+                cache.getContext().put(META_PENDING_LAST_REASON, reason);
+            }
         } else {
-            cache.getContext().put(META_PENDING_REASON, reason);
+            String lastReason = StrUtil.blankToDefault(reason, previousReason);
+            cache.getContext().remove(META_PENDING_REASON);
+            cache.getContext().put(META_PENDING_CLEARED_AT, Long.valueOf(now));
+            if (StrUtil.isNotBlank(lastReason)) {
+                cache.getContext().put(META_PENDING_LAST_REASON, lastReason);
+            }
         }
     }
 
@@ -110,6 +128,19 @@ public class SqliteAgentSession implements AgentSession {
     public String getPendingReason() {
         Object reason = cache.getContext().get(META_PENDING_REASON);
         return reason == null ? AgentSession.super.getPendingReason() : String.valueOf(reason);
+    }
+
+    public long getPendingMarkedAt() {
+        return longValue(cache.getContext().get(META_PENDING_MARKED_AT));
+    }
+
+    public long getPendingClearedAt() {
+        return longValue(cache.getContext().get(META_PENDING_CLEARED_AT));
+    }
+
+    public String getPendingLastReason() {
+        Object reason = cache.getContext().get(META_PENDING_LAST_REASON);
+        return reason == null ? null : String.valueOf(reason);
     }
 
     private void loadMessages(SessionRecord sessionRecord) {
@@ -181,6 +212,20 @@ public class SqliteAgentSession implements AgentSession {
         } catch (Exception e) {
             throw new IllegalStateException(
                     "Failed to sync sqlite agent session: " + sessionRecord.getSessionId(), e);
+        }
+    }
+
+    private long longValue(Object value) {
+        if (value instanceof Number) {
+            return Math.max(0L, ((Number) value).longValue());
+        }
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(String.valueOf(value).trim()));
+        } catch (Exception ignored) {
+            return 0L;
         }
     }
 

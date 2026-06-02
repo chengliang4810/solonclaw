@@ -38,6 +38,34 @@ public class SqliteAgentSessionTest {
         assertThat(restored.getContext().<String>getAs("flag")).isEqualTo("demo");
         assertThat(restored.isPending()).isTrue();
         assertThat(restored.getPendingReason()).isEqualTo("need-review");
+        assertThat(restored.getPendingMarkedAt()).isGreaterThan(0L);
+        assertThat(restored.getPendingClearedAt()).isZero();
+        assertThat(restored.getPendingLastReason()).isEqualTo("need-review");
+    }
+
+    @Test
+    void shouldPersistPendingClearMetadataForResumeVisibility() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-clear:user");
+
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.pending(true, "restart_timeout");
+        agentSession.updateSnapshot();
+        long markedAt = agentSession.getPendingMarkedAt();
+
+        SqliteAgentSession restored =
+                new SqliteAgentSession(
+                        env.sessionRepository.findById(session.getSessionId()), env.sessionRepository);
+        restored.pending(false, null);
+        restored.updateSnapshot();
+
+        SqliteAgentSession cleared =
+                new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()));
+        assertThat(cleared.isPending()).isFalse();
+        assertThat(cleared.getPendingReason()).isNull();
+        assertThat(cleared.getPendingMarkedAt()).isEqualTo(markedAt);
+        assertThat(cleared.getPendingClearedAt()).isGreaterThanOrEqualTo(markedAt);
+        assertThat(cleared.getPendingLastReason()).isEqualTo("restart_timeout");
     }
 
     @Test
