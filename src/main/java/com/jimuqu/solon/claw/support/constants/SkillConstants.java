@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.support.constants;
 /** Skills 目录与技能工具常量。 */
 public interface SkillConstants {
     String SKILL_FILE_NAME = "SKILL.md";
+    String IGNORE_FILE_NAME = ".solonclawignore";
     String REFERENCES_DIR = "references";
     String TEMPLATES_DIR = "templates";
     String SCRIPTS_DIR = "scripts";
