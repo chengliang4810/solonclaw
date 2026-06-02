@@ -437,7 +437,12 @@ public class DashboardGatewayDoctorService {
     }
 
     private Map<String, Object> configDoctor() {
-        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
+        Map<String, Object> config =
+                RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
+        if (gatewayRuntimeRefreshService != null) {
+            config.put("last_refresh_failure", gatewayRuntimeRefreshService.lastFailureSnapshot());
+        }
+        return config;
     }
 
     private Map<String, Object> shutdownSummary() {

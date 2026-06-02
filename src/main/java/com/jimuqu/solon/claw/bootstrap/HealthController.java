@@ -121,6 +121,7 @@ public class HealthController {
         gateway.put("active_agents", status.get("active_sessions"));
         gateway.put("pid", parsePid());
         gateway.put("exit_reason", status.get("gateway_exit_reason"));
+        gateway.put("runtime_config_refresh", status.get("runtime_config_refresh"));
         gateway.put(
                 "updated_at",
                 status.get("gateway_updated_at") == null

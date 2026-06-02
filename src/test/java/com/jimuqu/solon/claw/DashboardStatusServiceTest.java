@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -91,6 +92,85 @@ public class DashboardStatusServiceTest {
         assertThat(modelJson).doesNotContain("statusmodel12345");
         assertThat(modelJson).doesNotContain("statusfallback12345");
         assertThat(modelJson).doesNotContain("statusfallbackmodel12345");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeReasoningCapabilityFromModelMetadata() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getModel().setProviderKey("default");
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("custom/unknown-small-model");
+        provider.setDialect("openai");
+        config.getProviders().put("default", provider);
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(
+                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        Map<String, Object> modelInfo = service.getModelInfo(false);
+        Map<String, Object> capabilities = (Map<String, Object>) modelInfo.get("capabilities");
+
+        assertThat(capabilities.get("supports_reasoning")).isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
+    void shouldExposeRuntimeRefreshFailureInStatusAndHealthWithoutSecrets() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-refresh-failure-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        FileUtil.mkdir(runtimeHome);
+        String secretPath = new File(runtimeHome, "secrets/token-file.txt").getAbsolutePath();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  default:\n"
+                        + "    note: "
+                        + secretPath
+                        + " token=ghp_statusrefresh12345\n"
+                        + "    broken: [\n",
+                config.getRuntime().getConfigFile());
+        GatewayRuntimeRefreshService refreshService =
+                new GatewayRuntimeRefreshService(
+                        config, new ChannelConnectionManager(Collections.emptyMap()));
+        assertThat(refreshService.refreshConfigOnly().isSuccess()).isFalse();
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(
+                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
+                        refreshService,
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        String statusJson = ONode.serialize(service.getStatus(true));
+        String healthJson = ONode.serialize(service.getHealthRuntimeSnapshot());
+
+        assertThat(statusJson)
+                .contains("runtime_config_refresh")
+                .contains("last_failure")
+                .contains("validation_failure")
+                .contains("runtime/config.yml 格式错误")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(secretPath)
+                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(config.getRuntime().getConfigFile())
+                .doesNotContain("ghp_statusrefresh12345");
+        assertThat(healthJson)
+                .contains("runtime_config_refresh")
+                .contains("last_failure")
+                .doesNotContain(secretPath)
+                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain("ghp_statusrefresh12345");
     }
 
     @Test

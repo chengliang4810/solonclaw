@@ -190,7 +190,8 @@ public class DashboardConfiguration {
             ShutdownForensicsService shutdownForensicsService,
             RuntimeMemoryMonitorService runtimeMemoryMonitorService,
             AgentRunRepository agentRunRepository,
-            ProcessRegistry processRegistry) {
+            ProcessRegistry processRegistry,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -208,7 +209,8 @@ public class DashboardConfiguration {
                 shutdownForensicsService,
                 runtimeMemoryMonitorService,
                 agentRunRepository,
-                processRegistry);
+                processRegistry,
+                gatewayRuntimeRefreshService);
     }
 
     @Bean

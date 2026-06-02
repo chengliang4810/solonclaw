@@ -468,6 +468,41 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldRetainLastRuntimeRefreshFailureWithRedactedMessage() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String secretPath = env.appConfig.getRuntime().getHome() + "/secrets/token-file.txt";
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  default:\n"
+                        + "    note: "
+                        + secretPath
+                        + " token=ghp_runtimefailure12345\n"
+                        + "    broken: [\n",
+                env.appConfig.getRuntime().getConfigFile());
+
+        GatewayRuntimeRefreshService.RefreshResult result =
+                env.gatewayRuntimeRefreshService.refreshConfigOnly();
+        Map<String, Object> failure = env.gatewayRuntimeRefreshService.lastFailureSnapshot();
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(failure)
+                .containsEntry("type", "validation")
+                .containsEntry("config_file", "runtime://config.yml")
+                .containsEntry("validation_failure", Boolean.TRUE);
+        assertThat(failure.get("failed_at")).isInstanceOf(Long.class);
+        String failureJson = org.noear.snack4.ONode.serialize(failure);
+        assertThat(failureJson)
+                .contains("runtime/config.yml 格式错误")
+                .contains("[REDACTED_PATH]")
+                .contains("***")
+                .doesNotContain(secretPath)
+                .doesNotContain(env.appConfig.getRuntime().getHome())
+                .doesNotContain(env.appConfig.getRuntime().getConfigFile())
+                .doesNotContain("ghp_runtimefailure12345");
+    }
+
+    @Test
     void shouldRedactSkippedRuntimeConfigRefreshPath() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

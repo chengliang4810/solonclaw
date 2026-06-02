@@ -74,6 +74,7 @@ public class DashboardStatusService {
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
         if (detailed) {
+            result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
             result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
         }
         result.put("latest_config_version", configVersion());
@@ -108,6 +109,7 @@ public class DashboardStatusService {
         result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
+        result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
         return result;
     }
 
@@ -138,8 +140,14 @@ public class DashboardStatusService {
         capabilities.put("supports_vision", Boolean.valueOf(metadata.isSupportsVision()));
         capabilities.put("supports_audio", Boolean.valueOf(metadata.isSupportsAudio()));
         capabilities.put("supports_attachment", Boolean.valueOf(metadata.isSupportsAttachment()));
+        capabilities.put("supports_pdf", Boolean.valueOf(metadata.isSupportsPdf()));
         capabilities.put("supports_multimodal", Boolean.valueOf(metadata.isSupportsMultimodal()));
-        capabilities.put("supports_reasoning", true);
+        capabilities.put("supports_reasoning", Boolean.valueOf(metadata.isSupportsReasoning()));
+        capabilities.put(
+                "supports_structured_output",
+                Boolean.valueOf(metadata.isSupportsStructuredOutput()));
+        capabilities.put("supports_open_weights", Boolean.valueOf(metadata.isSupportsOpenWeights()));
+        capabilities.put("supports_interleaved", Boolean.valueOf(metadata.isSupportsInterleaved()));
         capabilities.put("source", metadata.getSource());
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
         capabilities.put("max_output_tokens", appConfig.getLlm().getMaxTokens());
@@ -248,6 +256,12 @@ public class DashboardStatusService {
         effective.setDefaultModel(resolved.getModel());
         effective.setDialect(resolved.getDialect());
         return new ModelMetadataService(appConfig).resolve(resolved.getProviderKey(), effective);
+    }
+
+    private Map<String, Object> runtimeConfigRefreshStatus() {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        status.put("last_failure", gatewayRuntimeRefreshService.lastFailureSnapshot());
+        return status;
     }
 
     private List<Map<String, Object>> safeFallbackProviders() {

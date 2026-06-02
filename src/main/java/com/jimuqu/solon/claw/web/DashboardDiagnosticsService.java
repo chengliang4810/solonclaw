@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
+import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -83,6 +84,7 @@ public class DashboardDiagnosticsService {
     private final RuntimeMemoryMonitorService runtimeMemoryMonitorService;
     private final AgentRunRepository agentRunRepository;
     private final ProcessRegistry processRegistry;
+    private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
@@ -110,6 +112,7 @@ public class DashboardDiagnosticsService {
                 approvalService,
                 securityPolicyService,
                 tirithSecurityService,
+                null,
                 null,
                 null,
                 null,
@@ -273,6 +276,46 @@ public class DashboardDiagnosticsService {
             RuntimeMemoryMonitorService runtimeMemoryMonitorService,
             AgentRunRepository agentRunRepository,
             ProcessRegistry processRegistry) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                shutdownForensicsService,
+                runtimeMemoryMonitorService,
+                agentRunRepository,
+                processRegistry,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository,
+            ProcessRegistry processRegistry,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -290,6 +333,7 @@ public class DashboardDiagnosticsService {
         this.runtimeMemoryMonitorService = runtimeMemoryMonitorService;
         this.agentRunRepository = agentRunRepository;
         this.processRegistry = processRegistry;
+        this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
     }
 
     public Map<String, Object> diagnostics() {
@@ -617,7 +661,18 @@ public class DashboardDiagnosticsService {
         map.put("last_shutdown", shutdownSummary());
         map.put("memory_monitor", memoryMonitorSummary());
         map.put("managed_processes", managedProcessSummary());
+        map.put("config_refresh", configRefreshSummary());
         return map;
+    }
+
+    private Map<String, Object> configRefreshSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put(
+                "last_failure",
+                gatewayRuntimeRefreshService == null
+                        ? null
+                        : gatewayRuntimeRefreshService.lastFailureSnapshot());
+        return summary;
     }
 
     private Map<String, Object> managedProcessSummary() {

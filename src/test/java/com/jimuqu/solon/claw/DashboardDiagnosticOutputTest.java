@@ -157,10 +157,21 @@ public class DashboardDiagnosticOutputTest {
                         "target/diagnostic-external-token=ghp_diagnosticexternal123/state.db")
                         .getAbsoluteFile();
         config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getRuntime().setStateDb(externalState.getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
         config.getLlm().setStream(true);
+        FileUtil.mkdir(runtimeHome);
+        String refreshSecretPath = new File(runtimeHome, "secrets/refresh-token.txt").getAbsolutePath();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  default:\n"
+                        + "    note: "
+                        + refreshSecretPath
+                        + " token=ghp_doctorrefresh12345\n"
+                        + "    broken: [\n",
+                config.getRuntime().getConfigFile());
 
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default");
@@ -202,6 +213,7 @@ public class DashboardDiagnosticOutputTest {
         GatewayRuntimeRefreshService refreshService =
                 new GatewayRuntimeRefreshService(
                         config, new ChannelConnectionManager(Collections.emptyMap()));
+        assertThat(refreshService.refreshConfigOnly().isSuccess()).isFalse();
 
         DashboardGatewayDoctorService doctorService =
                 new DashboardGatewayDoctorService(
@@ -212,8 +224,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(doctorJson).doesNotContain("ghp_doctordetail123");
         assertThat(doctorJson).doesNotContain("ghp_doctorerror123");
         assertThat(doctorJson).doesNotContain("ghp_doctorretry123");
+        assertThat(doctorJson).doesNotContain("ghp_doctorrefresh12345");
+        assertThat(doctorJson).doesNotContain(refreshSecretPath);
         assertThat(doctorJson).doesNotContain("doctor-password");
         assertThat(doctorJson).doesNotContain("retry-password");
+        assertThat(doctorJson)
+                .contains("last_refresh_failure")
+                .contains("runtime/config.yml 格式错误")
+                .contains("[REDACTED_PATH]");
         assertThat(doctorJson)
                 .contains("\"reconnecting\":true")
                 .contains("\"reconnect_attempt\":2")
@@ -232,7 +250,13 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         null,
                         new SecurityPolicyService(config),
-                        null);
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        refreshService);
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
         Map<String, Object> streamHealth = (Map<String, Object>) diagnostics.get("stream_health");
         assertThat(streamHealth).isNotNull();
@@ -246,6 +270,10 @@ public class DashboardDiagnosticOutputTest {
 
         String diagnosticsJson = ONode.serialize(diagnostics);
         assertThat(diagnosticsJson).contains("path://state.db");
+        assertThat(diagnosticsJson).contains("config_refresh");
+        assertThat(diagnosticsJson).contains("last_failure");
+        assertThat(diagnosticsJson).contains("runtime/config.yml 格式错误");
+        assertThat(diagnosticsJson).contains("[REDACTED_PATH]");
         assertThat(diagnosticsJson).contains("stream_health");
         assertThat(diagnosticsJson).contains("audit_policy");
         assertThat(diagnosticsJson).contains("codeExecutionPolicy");
@@ -266,6 +294,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("\"tool_args_url\"");
         assertThat(diagnosticsJson).contains("\"passed\":true");
         assertThat(diagnosticsJson).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diagnosticsJson).doesNotContain(refreshSecretPath);
+        assertThat(diagnosticsJson).doesNotContain("ghp_doctorrefresh12345");
         assertThat(diagnosticsJson).doesNotContain(externalState.getParentFile().getAbsolutePath());
         assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticexternal123");
         assertThat(diagnosticsJson).contains("https://user:***@example.com/v1?token=***");

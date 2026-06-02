@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.noear.solon.Solon;
 import org.noear.solon.core.Props;
 import org.slf4j.Logger;
@@ -20,10 +21,13 @@ import org.yaml.snakeyaml.Yaml;
 /** 运行时配置刷新服务。 */
 public class GatewayRuntimeRefreshService {
     private static final Logger log = LoggerFactory.getLogger(GatewayRuntimeRefreshService.class);
+    private static final Pattern ABSOLUTE_PATH =
+            Pattern.compile("(?<![A-Za-z0-9_])(?:[A-Za-z]:)?[/\\\\][^\\s\"'<>|;?#]*");
 
     private final AppConfig appConfig;
     private final ChannelConnectionManager channelConnectionManager;
     private volatile long lastConfigMtime;
+    private volatile RefreshFailure lastFailure;
 
     public GatewayRuntimeRefreshService(
             AppConfig appConfig, ChannelConnectionManager channelConnectionManager) {
@@ -52,8 +56,10 @@ public class GatewayRuntimeRefreshService {
         File configFile = runtimeConfigFile();
         ValidationResult validation = validateRuntimeConfig(configFile);
         if (!validation.isSuccess()) {
-            log.warn("Skip runtime refresh because config validation failed: {}", validation.message);
-            return RefreshResult.failure(runtimeConfigReference(configFile), validation.message);
+            String message = safeMessage(validation.message);
+            log.warn("Skip runtime refresh because config validation failed: {}", message);
+            recordFailure(configFile, "validation", message, true);
+            return RefreshResult.failure(runtimeConfigReference(configFile), message);
         }
 
         AppConfig latest;
@@ -73,12 +79,14 @@ public class GatewayRuntimeRefreshService {
                     "Skip runtime refresh because config reload failed: errorType={}, error={}",
                     e.getClass().getSimpleName(),
                     safeError(e));
+            recordFailure(configFile, e.getClass().getSimpleName(), safeError(e), false);
             return RefreshResult.failure(
                     runtimeConfigReference(configFile),
                     safeError(e));
         }
         appConfig.applyFrom(latest);
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
+        lastFailure = null;
         if (!reconnectChannels) {
             return RefreshResult.success(
                     runtimeConfigReference(configFile), false, "运行时配置已刷新。");
@@ -108,6 +116,31 @@ public class GatewayRuntimeRefreshService {
 
     private String runtimeConfigReference(File configFile) {
         return "runtime://" + RuntimePathConstants.CONFIG_FILE_NAME;
+    }
+
+    public Map<String, Object> lastFailureSnapshot() {
+        RefreshFailure failure = lastFailure;
+        if (failure == null) {
+            return null;
+        }
+        return failure.toMap();
+    }
+
+    private void recordFailure(
+            File configFile, String type, String message, boolean validationFailure) {
+        lastFailure =
+                new RefreshFailure(
+                        System.currentTimeMillis(),
+                        StrUtil.blankToDefault(type, "refresh_error"),
+                        runtimeConfigReference(configFile),
+                        safeMessage(message),
+                        validationFailure);
+    }
+
+    private String safeMessage(String message) {
+        return ABSOLUTE_PATH
+                .matcher(SecretRedactor.redact(message, 1000))
+                .replaceAll("[REDACTED_PATH]");
     }
 
     private ValidationResult validateRuntimeConfig(File configFile) {
@@ -277,8 +310,7 @@ public class GatewayRuntimeRefreshService {
         if (e == null) {
             return "";
         }
-        return SecretRedactor.redact(
-                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
+        return safeMessage(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
     }
 
     @SuppressWarnings("unchecked")
@@ -348,6 +380,37 @@ public class GatewayRuntimeRefreshService {
 
     private static Set<String> setOf(String... values) {
         return new HashSet<String>(Arrays.asList(values));
+    }
+
+    private static class RefreshFailure {
+        private final long failedAt;
+        private final String type;
+        private final String configFile;
+        private final String message;
+        private final boolean validationFailure;
+
+        private RefreshFailure(
+                long failedAt,
+                String type,
+                String configFile,
+                String message,
+                boolean validationFailure) {
+            this.failedAt = failedAt;
+            this.type = type;
+            this.configFile = configFile;
+            this.message = message;
+            this.validationFailure = validationFailure;
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("failed_at", Long.valueOf(failedAt));
+            map.put("type", type);
+            map.put("config_file", configFile);
+            map.put("message", message);
+            map.put("validation_failure", Boolean.valueOf(validationFailure));
+            return map;
+        }
     }
 
     public static class RefreshResult {
