@@ -2,6 +2,7 @@
 /runtime/
 /.idea/
 /.vscode/
+/.claude/alignment-backlog/
 /web/node_modules/
 /web/dist/
 /web/.playwright-cli/
