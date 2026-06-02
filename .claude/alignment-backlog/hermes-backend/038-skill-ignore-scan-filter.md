@@ -4,7 +4,7 @@
 Skill scan ignore-file filtering
 
 ## 状态
-- status: selected
+- status: deferred
 
 ## 优先级 / 风险
 - priority: medium

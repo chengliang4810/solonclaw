@@ -4,7 +4,9 @@
 Make MCP discovery nonblocking at startup
 
 ## 状态
-- status: queued
+- status: done
+- completedCommit: 38da0e58
+- testResult: `mvn -Dskip.web.build=true "-Dtest=SkillBundlePathSupportTest,SkillImportServiceTest,ModelMetadataServiceTest,RuntimeRefreshBehaviorTest,DashboardStatusServiceTest,DashboardDiagnosticOutputTest,McpRuntimeServiceTest" test` 通过（141 tests, 0 failures, 0 errors）
 
 ## 优先级 / 风险
 - priority: medium
