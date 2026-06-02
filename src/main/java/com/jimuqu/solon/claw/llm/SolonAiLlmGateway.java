@@ -21,9 +21,11 @@ import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -1226,10 +1228,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                     .addStrategy(new HierarchicalSummarizationStrategy(summaryChatModel));
         }
 
-        return new SummarizationInterceptor(
+        return new SafeHarnessSummarizationInterceptor(
                 Math.max(10, appConfig.getReact().getSummarizationMaxMessages()),
                 Math.max(8000, appConfig.getReact().getSummarizationMaxTokens()),
-                strategy);
+                new SummaryBoundaryStrategy(strategy));
     }
 
     private String resolveWorkspace(AgentRunContext runContext) {
@@ -1337,9 +1339,80 @@ public class SolonAiLlmGateway implements LlmGateway {
     /** 关闭 Jimuqu 配置里的 ReAct 摘要时，避免 Harness 默认摘要拦截器改变现有行为。 */
     private static class NoopSummarizationInterceptor extends SummarizationInterceptor {
         @Override
+        public SummarizationInterceptor copyWith(int maxMessages, int maxTokens) {
+            return new NoopSummarizationInterceptor();
+        }
+
+        @Override
         public void onObservation(
                 ReActTrace trace, String toolName, String result, long durationMs) {
             // no-op
+        }
+    }
+
+    /** ReAct runtime summary 替换工作记忆后，修复协议序列。 */
+    static class SafeHarnessSummarizationInterceptor extends SummarizationInterceptor {
+        private final SummarizationStrategy summarizationStrategy;
+
+        SafeHarnessSummarizationInterceptor(
+                int maxMessages, int maxTokens, SummarizationStrategy summarizationStrategy) {
+            super(maxMessages, maxTokens, summarizationStrategy);
+            this.summarizationStrategy = summarizationStrategy;
+        }
+
+        @Override
+        public SummarizationInterceptor copyWith(int maxMessages, int maxTokens) {
+            return new SafeHarnessSummarizationInterceptor(
+                    maxMessages, maxTokens, summarizationStrategy);
+        }
+
+        @Override
+        public void onObservation(ReActTrace trace, String toolName, String result, long durationMs) {
+            if (trace == null || trace.getWorkingMemory() == null) {
+                return;
+            }
+            int before = trace.getWorkingMemory().getMessages().size();
+            super.onObservation(trace, toolName, result, durationMs);
+            List<ChatMessage> messages = trace.getWorkingMemory().getMessages();
+            if (messages.size() >= before) {
+                return;
+            }
+            List<ChatMessage> repairedMessages = new ArrayList<ChatMessage>(messages);
+            int repairs = MessageSupport.repairMessageSequence(repairedMessages);
+            if (repairs > 0) {
+                trace.getWorkingMemory().replaceMessages(repairedMessages);
+            }
+            if (repairs > 0 && log.isDebugEnabled()) {
+                log.debug(
+                        "ReActAgent [{}] repaired summarized working memory: repairs={}",
+                        trace.getAgentName(),
+                        repairs);
+            }
+        }
+    }
+
+    /** 给 Solon AI 默认 UserMessage 摘要增加 reference-only 边界，并降为 assistant 背景信息。 */
+    static class SummaryBoundaryStrategy implements SummarizationStrategy {
+        private final SummarizationStrategy delegate;
+
+        SummaryBoundaryStrategy(SummarizationStrategy delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ChatMessage summarize(ReActTrace trace, List<ChatMessage> messagesToSummarize) {
+            if (delegate == null) {
+                return null;
+            }
+            ChatMessage summary = delegate.summarize(trace, messagesToSummarize);
+            if (summary == null || StrUtil.isBlank(summary.getContent())) {
+                return null;
+            }
+            String content = summary.getContent().trim();
+            if (!CompressionConstants.isSummaryContent(content)) {
+                content = CompressionConstants.SUMMARY_PREFIX + "\n" + content;
+            }
+            return ChatMessage.ofAssistant(content).addMetadata(ReActAgent.META_SUMMARY, 1);
         }
     }
 
