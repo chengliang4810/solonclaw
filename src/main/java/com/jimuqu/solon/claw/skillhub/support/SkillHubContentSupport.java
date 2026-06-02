@@ -48,7 +48,12 @@ public final class SkillHubContentSupport {
     public static void writeBundle(File targetDir, SkillBundle bundle) {
         FileUtil.mkdir(targetDir);
         for (java.util.Map.Entry<String, String> entry : bundle.getFiles().entrySet()) {
-            File target = FileUtil.file(targetDir, entry.getKey().replace('/', File.separatorChar));
+            String safePath = SkillBundlePathSupport.normalizeBundlePath(entry.getKey());
+            File target =
+                    SkillBundlePathSupport.requireCanonicalUnderRoot(
+                            targetDir,
+                            FileUtil.file(targetDir, safePath.replace('/', File.separatorChar)),
+                            "bundle path");
             FileUtil.mkParentDirs(target);
             FileUtil.writeUtf8String(StrUtil.nullToEmpty(entry.getValue()), target);
         }

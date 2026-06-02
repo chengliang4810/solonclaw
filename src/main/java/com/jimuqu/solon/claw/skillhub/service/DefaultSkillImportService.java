@@ -84,8 +84,14 @@ public class DefaultSkillImportService implements SkillImportService {
             SkillBundle bundle, String category, boolean force, File sourceArtifact)
             throws Exception {
         String skillName = SkillBundlePathSupport.normalizeSkillName(bundle.getName());
+        File quarantineRoot =
+                SkillBundlePathSupport.requireCanonicalUnderRoot(
+                        skillsDir, stateStore.quarantineDir(), "quarantine path");
         File quarantineDir =
-                FileUtil.file(stateStore.quarantineDir(), skillName + "-" + System.nanoTime());
+                SkillBundlePathSupport.requireCanonicalUnderRoot(
+                        skillsDir,
+                        FileUtil.file(quarantineRoot, skillName + "-" + System.nanoTime()),
+                        "quarantine path");
         SkillHubContentSupport.writeBundle(quarantineDir, bundle);
 
         com.jimuqu.solon.claw.skillhub.model.ScanResult scanResult =
@@ -104,15 +110,9 @@ public class DefaultSkillImportService implements SkillImportService {
         }
 
         String resolvedCategory = resolveCategory(category, bundle);
-        File installDir =
-                StrUtil.isBlank(resolvedCategory)
-                        ? FileUtil.file(skillsDir, skillName)
-                        : FileUtil.file(skillsDir, resolvedCategory, skillName);
-        if (installDir.exists()) {
-            FileUtil.del(installDir);
-        }
-        FileUtil.mkParentDirs(installDir);
-        FileUtil.move(quarantineDir, installDir, true);
+        String installPath =
+                StrUtil.isBlank(resolvedCategory) ? skillName : resolvedCategory + "/" + skillName;
+        File installDir = SkillBundlePathSupport.resolveUnderRoot(skillsDir, installPath);
 
         HubInstallRecord record = new HubInstallRecord();
         record.setName(skillName);
@@ -120,12 +120,33 @@ public class DefaultSkillImportService implements SkillImportService {
         record.setIdentifier(bundle.getIdentifier());
         record.setTrustLevel(scanResult.getTrustLevel());
         record.setScanVerdict(scanResult.getVerdict());
-        record.setContentHash(SkillHubContentSupport.contentHash(installDir));
-        record.setInstallPath(
-                StrUtil.isBlank(resolvedCategory) ? skillName : resolvedCategory + "/" + skillName);
+        record.setContentHash(SkillHubContentSupport.contentHash(quarantineDir));
+        record.setInstallPath(installPath);
         record.setFiles(new ArrayList<String>(bundle.getFiles().keySet()));
         record.setMetadata(new LinkedHashMap<String, Object>(bundle.getMetadata()));
-        stateStore.recordInstall(record);
+
+        File backupDir = null;
+        try {
+            if (installDir.exists()) {
+                backupDir =
+                        SkillBundlePathSupport.requireCanonicalUnderRoot(
+                                skillsDir,
+                                FileUtil.file(
+                                        quarantineRoot,
+                                        skillName + "-backup-" + System.nanoTime()),
+                                "backup path");
+                FileUtil.move(installDir, backupDir, true);
+            }
+            FileUtil.mkParentDirs(installDir);
+            FileUtil.move(quarantineDir, installDir, true);
+            stateStore.recordInstall(record);
+        } catch (Exception e) {
+            rollbackInstall(installDir, backupDir);
+            throw e;
+        }
+        if (backupDir != null && backupDir.exists()) {
+            FileUtil.del(backupDir);
+        }
         stateStore.appendAuditLog(
                 "INSTALL",
                 skillName,
@@ -386,14 +407,29 @@ public class DefaultSkillImportService implements SkillImportService {
         return hasSkillChildren;
     }
 
+    private void rollbackInstall(File installDir, File backupDir) {
+        if (installDir != null && installDir.exists()) {
+            FileUtil.del(installDir);
+        }
+        if (backupDir != null && backupDir.exists()) {
+            FileUtil.mkParentDirs(installDir);
+            FileUtil.move(backupDir, installDir, true);
+        }
+    }
+
     private void archiveOriginal(File sourceArtifact, String prefix) {
         if (sourceArtifact == null || !sourceArtifact.exists()) {
             return;
         }
+        File importedRoot =
+                SkillBundlePathSupport.requireCanonicalUnderRoot(
+                        skillsDir, stateStore.importedDir(), "imported path");
+        String safeSourceName = SkillBundlePathSupport.normalizeSkillName(sourceArtifact.getName());
         File target =
-                FileUtil.file(
-                        stateStore.importedDir(),
-                        prefix + "-" + sourceArtifact.getName() + "-" + System.nanoTime());
+                SkillBundlePathSupport.requireCanonicalUnderRoot(
+                        skillsDir,
+                        FileUtil.file(importedRoot, prefix + "-" + safeSourceName + "-" + System.nanoTime()),
+                        "imported path");
         FileUtil.mkParentDirs(target);
         FileUtil.move(sourceArtifact, target, true);
     }

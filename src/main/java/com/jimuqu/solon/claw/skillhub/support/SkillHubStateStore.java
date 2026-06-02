@@ -28,10 +28,11 @@ public class SkillHubStateStore {
     }
 
     public HubInstallRecord getInstalled(String name) {
-        return loadLock().get(name);
+        return loadLock().get(SkillBundlePathSupport.normalizeSkillName(name));
     }
 
     public void recordInstall(HubInstallRecord record) {
+        validateRecord(record);
         Map<String, HubInstallRecord> installed = loadLock();
         installed.put(record.getName(), record);
         saveLock(installed);
@@ -39,12 +40,12 @@ public class SkillHubStateStore {
 
     public void recordUninstall(String name) {
         Map<String, HubInstallRecord> installed = loadLock();
-        installed.remove(name);
+        installed.remove(SkillBundlePathSupport.normalizeSkillName(name));
         saveLock(installed);
     }
 
     public List<TapRecord> listTaps() {
-        File tapsFile = SkillHubPathSupport.tapsFile(skillsDir);
+        File tapsFile = hubFile(SkillHubPathSupport.tapsFile(skillsDir), "taps path");
         if (!tapsFile.exists()) {
             return Collections.emptyList();
         }
@@ -59,7 +60,8 @@ public class SkillHubStateStore {
         TapContainer container = new TapContainer();
         container.setTaps(new ArrayList<TapRecord>(taps));
         FileUtil.writeUtf8String(
-                ONode.serialize(container), SkillHubPathSupport.tapsFile(skillsDir));
+                ONode.serialize(container),
+                hubFile(SkillHubPathSupport.tapsFile(skillsDir), "taps path"));
     }
 
     public void appendAuditLog(
@@ -78,7 +80,8 @@ public class SkillHubStateStore {
         entry.setVerdict(verdict);
         entry.setExtra(StrUtil.nullToEmpty(extra));
         String line = ONode.serialize(entry) + System.lineSeparator();
-        FileUtil.appendUtf8String(line, SkillHubPathSupport.auditLog(skillsDir));
+        FileUtil.appendUtf8String(
+                line, hubFile(SkillHubPathSupport.auditLog(skillsDir), "audit path"));
     }
 
     public String readCachedIndex(String key) {
@@ -102,15 +105,26 @@ public class SkillHubStateStore {
     }
 
     private Map<String, HubInstallRecord> loadLock() {
-        File lockFile = SkillHubPathSupport.lockFile(skillsDir);
+        File lockFile = hubFile(SkillHubPathSupport.lockFile(skillsDir), "lock path");
         if (!lockFile.exists()) {
             return new LinkedHashMap<String, HubInstallRecord>();
         }
         LockContainer container =
                 ONode.deserialize(FileUtil.readUtf8String(lockFile), LockContainer.class);
-        return container == null || container.getInstalled() == null
-                ? new LinkedHashMap<String, HubInstallRecord>()
-                : container.getInstalled();
+        if (container == null || container.getInstalled() == null) {
+            return new LinkedHashMap<String, HubInstallRecord>();
+        }
+        Map<String, HubInstallRecord> safeInstalled =
+                new LinkedHashMap<String, HubInstallRecord>();
+        for (HubInstallRecord record : container.getInstalled().values()) {
+            try {
+                validateRecord(record);
+                safeInstalled.put(record.getName(), record);
+            } catch (IllegalStateException e) {
+                // 兼容历史或手工编辑过的脏记录：新安全校验不应拖垮整个 Hub 状态。
+            }
+        }
+        return safeInstalled;
     }
 
     private void saveLock(Map<String, HubInstallRecord> installed) {
@@ -118,11 +132,34 @@ public class SkillHubStateStore {
         container.setVersion(1);
         container.setInstalled(new LinkedHashMap<String, HubInstallRecord>(installed));
         FileUtil.writeUtf8String(
-                ONode.serialize(container), SkillHubPathSupport.lockFile(skillsDir));
+                ONode.serialize(container),
+                hubFile(SkillHubPathSupport.lockFile(skillsDir), "lock path"));
     }
 
     private File cacheFile(String key) {
-        return FileUtil.file(SkillHubPathSupport.indexCacheDir(skillsDir), key + ".json");
+        String safeKey = SkillBundlePathSupport.normalizeSkillName(key);
+        File indexCacheDir = hubFile(SkillHubPathSupport.indexCacheDir(skillsDir), "cache path");
+        File target = FileUtil.file(indexCacheDir, safeKey + ".json");
+        return SkillBundlePathSupport.requireCanonicalUnderRoot(
+                indexCacheDir, target, "cache key");
+    }
+
+    private File hubFile(File target, String fieldName) {
+        return SkillBundlePathSupport.requireCanonicalUnderRoot(skillsDir, target, fieldName);
+    }
+
+    private void validateRecord(HubInstallRecord record) {
+        if (record == null) {
+            throw new IllegalStateException("Unsafe install record: empty path");
+        }
+        String safeName = SkillBundlePathSupport.normalizeSkillName(record.getName());
+        String safeInstallPath = SkillBundlePathSupport.normalizeBundlePath(record.getInstallPath());
+        if (!safeInstallPath.equals(safeName) && !safeInstallPath.endsWith("/" + safeName)) {
+            throw new IllegalStateException("Unsafe install path: does not match skill name");
+        }
+        SkillBundlePathSupport.resolveUnderRoot(skillsDir, safeInstallPath);
+        record.setName(safeName);
+        record.setInstallPath(safeInstallPath);
     }
 
     public static class LockContainer {

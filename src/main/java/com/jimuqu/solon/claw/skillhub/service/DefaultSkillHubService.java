@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.skillhub.source.SkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillsShSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.WellKnownSkillSource;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
+import com.jimuqu.solon.claw.skillhub.support.SkillBundlePathSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubContentSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
@@ -180,8 +181,7 @@ public class DefaultSkillHubService implements SkillHubService {
                 continue;
             }
             File installDir =
-                    FileUtil.file(
-                            skillsDir, record.getInstallPath().replace('/', File.separatorChar));
+                    SkillBundlePathSupport.resolveUnderRoot(skillsDir, record.getInstallPath());
             ScanResult scanResult = skillGuardService.scanSkill(installDir, record.getSource());
             results.add(scanResult);
         }
@@ -194,12 +194,16 @@ public class DefaultSkillHubService implements SkillHubService {
         if (record == null) {
             throw new IllegalStateException("Hub-installed skill not found: " + name);
         }
-        File installDir =
-                FileUtil.file(skillsDir, record.getInstallPath().replace('/', File.separatorChar));
-        if (installDir.exists()) {
-            FileUtil.del(installDir);
-        }
+        File installDir = SkillBundlePathSupport.resolveUnderRoot(skillsDir, record.getInstallPath());
         stateStore.recordUninstall(name);
+        try {
+            if (installDir.exists()) {
+                FileUtil.del(installDir);
+            }
+        } catch (RuntimeException e) {
+            stateStore.recordInstall(record);
+            throw e;
+        }
         stateStore.appendAuditLog(
                 "UNINSTALL",
                 name,
