@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
@@ -333,6 +334,62 @@ public class DashboardControllerHttpTest {
             provider.setBaseUrl(previousBaseUrl);
             provider.setDialect(previousDialect);
             server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldExposeConfigDriftDiagnosticsThroughDashboard() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File configFile = new File(runtimeHome, "config.yml");
+        String previous = configFile.exists() ? FileUtil.readUtf8String(configFile) : null;
+        try {
+            FileUtil.writeUtf8String(
+                    "provider: stale-root-provider\n"
+                            + "solonclaw:\n"
+                            + "  scheduler:\n"
+                            + "    tickSeconds: bad-number\n"
+                            + "  oldPanel:\n"
+                            + "    apiKey: sk-dashboardconfigdrift12345\n"
+                            + "providers:\n"
+                            + "  default:\n"
+                            + "    name: DefaultProvider\n"
+                            + "    baseUrl: https://api.openai.com\n"
+                            + "    apiKey: sk-dashboardconfigdrift12345\n"
+                            + "    defaultModel: gpt-5.4\n"
+                            + "    dialect: openai\n"
+                            + "model:\n"
+                            + "  providerKey: default\n"
+                            + "  default: gpt-5.4\n",
+                    configFile);
+            RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath()).reload();
+
+            HttpResult diagnostics = request("GET", "/api/config/diagnostics", null, token);
+            assertThat(diagnostics.status).isEqualTo(200);
+            assertThat(diagnostics.body)
+                    .contains("\"unknown_keys\"")
+                    .contains("solonclaw.oldPanel.apiKey")
+                    .contains("\"legacy_keys\"")
+                    .contains("\"provider\"")
+                    .contains("\"effective_diffs\"")
+                    .contains("solonclaw.scheduler.tickSeconds")
+                    .contains("\"raw_value\"")
+                    .contains("\"effective_value\"")
+                    .doesNotContain("sk-dashboardconfigdrift12345");
+
+            HttpResult doctor = request("GET", "/api/diagnostics/doctor", null, token);
+            assertThat(doctor.status).isEqualTo(200);
+            assertThat(doctor.body)
+                    .contains("\"config\"")
+                    .contains("config_unknown_keys")
+                    .contains("config_legacy_keys")
+                    .doesNotContain("sk-dashboardconfigdrift12345");
+        } finally {
+            if (previous == null) {
+                FileUtil.del(configFile);
+            } else {
+                FileUtil.writeUtf8String(previous, configFile);
+            }
+            RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath()).reload();
         }
     }
 

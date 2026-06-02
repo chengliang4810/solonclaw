@@ -37,6 +37,11 @@ public class DashboardConfigController {
         return DashboardResponse.ok(configService.getRaw());
     }
 
+    @Mapping(value = "/api/config/diagnostics", method = MethodType.GET)
+    public Map<String, Object> diagnostics() {
+        return DashboardResponse.ok(configService.diagnostics());
+    }
+
     @Mapping(value = "/api/config", method = MethodType.PUT)
     public Map<String, Object> save(Context context) throws Exception {
         return safeConfig(

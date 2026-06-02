@@ -2,15 +2,22 @@ package com.jimuqu.solon.claw.config;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.io.File;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.noear.snack4.ONode;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -127,6 +134,63 @@ public class RuntimeConfigResolver {
         return result;
     }
 
+    /** 生成 runtime/config.yml 与生效 AppConfig 的漂移诊断快照。 */
+    public Map<String, Object> diagnostics(AppConfig appConfig) {
+        reloadIfNeeded();
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> unknownKeys = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> legacyKeys = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> effectiveDiffs = new ArrayList<Map<String, Object>>();
+        List<String> knownPrefixes = knownDynamicPrefixes(appConfig);
+        for (Map.Entry<String, Object> entry : fileValues.entrySet()) {
+            String key = entry.getKey();
+            if (isRuntimeHomeKey(key)) {
+                legacyKeys.add(configKeyItem(key, entry.getValue(), "runtime_home_ignored"));
+                continue;
+            }
+            if (isKnownLegacyKey(key)) {
+                legacyKeys.add(configKeyItem(key, entry.getValue(), "legacy_alias"));
+                continue;
+            }
+            if (!isKnownConfigKey(key, knownPrefixes)) {
+                unknownKeys.add(configKeyItem(key, entry.getValue(), "unknown"));
+            }
+        }
+        Map<String, Object> effective = appConfig == null ? Collections.<String, Object>emptyMap() : flattenAppConfig(appConfig);
+        for (Map.Entry<String, Object> entry : fileValues.entrySet()) {
+            String rawKey = entry.getKey();
+            String effectiveKey = effectivePath(rawKey);
+            if (StrUtil.isBlank(effectiveKey) || !effective.containsKey(effectiveKey)) {
+                continue;
+            }
+            Object rawValue = entry.getValue();
+            Object effectiveValue = effective.get(effectiveKey);
+            if (!sameConfigValue(rawValue, effectiveValue)) {
+                Map<String, Object> diff = new LinkedHashMap<String, Object>();
+                diff.put("key", rawKey);
+                if (!rawKey.equals(effectiveKey)) {
+                    diff.put("effective_key", effectiveKey);
+                }
+                diff.put("raw_value", safeConfigValue(rawKey, rawValue));
+                diff.put("effective_value", safeConfigValue(effectiveKey, effectiveValue));
+                effectiveDiffs.add(diff);
+            }
+        }
+        result.put("config_file", configFileReference());
+        result.put("raw_key_count", Integer.valueOf(fileValues.size()));
+        result.put("unknown_keys", unknownKeys);
+        result.put("legacy_keys", legacyKeys);
+        result.put("effective_diffs", effectiveDiffs);
+        result.put("unknown_count", Integer.valueOf(unknownKeys.size()));
+        result.put("legacy_count", Integer.valueOf(legacyKeys.size()));
+        result.put("effective_diff_count", Integer.valueOf(effectiveDiffs.size()));
+        result.put(
+                "has_issues",
+                Boolean.valueOf(
+                        !unknownKeys.isEmpty() || !legacyKeys.isEmpty() || !effectiveDiffs.isEmpty()));
+        return result;
+    }
+
     /** 设置 runtime/config.yml 中的键值。 */
     public synchronized void setFileValue(String key, String value) {
         String path = requirePath(key);
@@ -223,6 +287,302 @@ public class RuntimeConfigResolver {
             throw new IllegalStateException("Unsupported config key: " + key);
         }
         return path;
+    }
+
+    private String configFileReference() {
+        return "runtime://config.yml";
+    }
+
+    private static Map<String, Object> configKeyItem(String key, Object value, String reason) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("key", key);
+        item.put("reason", reason);
+        item.put("value", safeConfigValue(key, value));
+        return item;
+    }
+
+    private static Object safeConfigValue(String key, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (isSecretKey(key)) {
+            return "***";
+        }
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (entry.getKey() != null) {
+                    String childKey = key + "." + entry.getKey();
+                    result.put(String.valueOf(entry.getKey()), safeConfigValue(childKey, entry.getValue()));
+                }
+            }
+            return result;
+        }
+        if (value instanceof List) {
+            List<Object> values = new ArrayList<Object>();
+            for (Object item : (List<?>) value) {
+                values.add(safeConfigValue(key, item));
+            }
+            return values;
+        }
+        String text = SecretRedactor.redact(String.valueOf(value), 800);
+        if (looksLikePathValue(text)) {
+            String name = new File(text).getName();
+            return "path://" + (StrUtil.isBlank(name) ? "external" : SecretRedactor.redact(name, 200));
+        }
+        return text;
+    }
+
+    private static boolean looksLikePathValue(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (text.length() < 2 || text.contains("\n") || text.contains("\r")) {
+            return false;
+        }
+        if (text.startsWith("runtime://") || text.startsWith("path://")) {
+            return false;
+        }
+        return text.startsWith("/")
+                || text.startsWith("~/")
+                || text.startsWith("./")
+                || text.startsWith("../")
+                || text.matches("^[A-Za-z]:[\\\\/].*");
+    }
+
+    private static boolean isSecretKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
+        return normalized.contains("apikey")
+                || normalized.contains("api_key")
+                || normalized.contains("token")
+                || normalized.contains("secret")
+                || normalized.contains("password")
+                || normalized.contains("passwd")
+                || normalized.contains("credential")
+                || normalized.contains("authorization")
+                || normalized.contains("privatekey")
+                || normalized.contains("private_key");
+    }
+
+    private static boolean isRuntimeHomeKey(String key) {
+        return "solonclaw.runtime.home".equals(key);
+    }
+
+    private static boolean isKnownLegacyKey(String key) {
+        return "provider".equals(key) || "base_url".equals(key) || "baseUrl".equals(key);
+    }
+
+    private static boolean isKnownConfigKey(String key, List<String> dynamicPrefixes) {
+        if (KEY_PATHS.containsKey(key) || KEY_PATHS.containsValue(key)) {
+            return true;
+        }
+        if ("fallbackProviders".equals(key) || key.startsWith("fallbackProviders.")) {
+            return true;
+        }
+        for (String prefix : dynamicPrefixes) {
+            if (key.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> knownDynamicPrefixes(AppConfig appConfig) {
+        List<String> prefixes = new ArrayList<String>();
+        addDynamicPrefix(prefixes, "providers.");
+        addDynamicPrefix(prefixes, "pricing.prices");
+        addDynamicPrefix(prefixes, "solonclaw.pricing.prices");
+        addDynamicPrefix(prefixes, "plugins.enabled");
+        addDynamicPrefix(prefixes, "plugins.disabled");
+        addDynamicPrefix(prefixes, "solonclaw.plugins.enabled");
+        addDynamicPrefix(prefixes, "solonclaw.plugins.disabled");
+        addDynamicPrefix(prefixes, "solonclaw.gateway.platforms.");
+        addDynamicPrefix(prefixes, "solonclaw.agent.personalities.");
+        addDynamicPrefix(prefixes, "solonclaw.channels.wecom.groups.");
+        addDynamicPrefix(prefixes, "solonclaw.scheduler.cronApprovalMode");
+        addDynamicPrefix(prefixes, "solonclaw.scheduler.enabledToolsets");
+        addDynamicPrefix(prefixes, "solonclaw.task.restartDrainTimeoutSeconds");
+        addDynamicPrefix(prefixes, "solonclaw.kanban.claimTtlSeconds");
+        addDynamicPrefix(prefixes, "solonclaw.kanban.claim_ttl_seconds");
+        addDynamicPrefix(prefixes, "solonclaw.terminal.shellInitFiles");
+        addDynamicPrefix(prefixes, "terminal.shell_init_files");
+        addDynamicPrefix(prefixes, "solonclaw.terminal.autoSourceBashrc");
+        addDynamicPrefix(prefixes, "terminal.auto_source_bashrc");
+        addDynamicPrefix(prefixes, "solonclaw.terminal.processWaitTimeoutSeconds");
+        addDynamicPrefix(prefixes, "terminal.process_wait_timeout");
+        if (appConfig != null) {
+            for (String providerKey : appConfig.getProviders().keySet()) {
+                addDynamicPrefix(prefixes, "providers." + providerKey + ".");
+            }
+            for (String personality : appConfig.getAgent().getPersonalities().keySet()) {
+                addDynamicPrefix(prefixes, "solonclaw.agent.personalities." + personality + ".");
+            }
+        }
+        return prefixes;
+    }
+
+    private static void addDynamicPrefix(List<String> prefixes, String prefix) {
+        if (StrUtil.isBlank(prefix) || prefixes.contains(prefix)) {
+            return;
+        }
+        prefixes.add(prefix);
+    }
+
+    private static String effectivePath(String rawKey) {
+        if (StrUtil.isBlank(rawKey) || isRuntimeHomeKey(rawKey)) {
+            return null;
+        }
+        String mapped = KEY_PATHS.get(rawKey);
+        if (StrUtil.isNotBlank(mapped)) {
+            return appConfigPath(mapped);
+        }
+        return appConfigPath(rawKey);
+    }
+
+    private static String appConfigPath(String configKey) {
+        if (StrUtil.isBlank(configKey)) {
+            return null;
+        }
+        if (configKey.startsWith("solonclaw.")) {
+            return configKey.substring("solonclaw.".length());
+        }
+        if (configKey.startsWith("jimuqu.security.")) {
+            return "security." + configKey.substring("jimuqu.security.".length());
+        }
+        if (configKey.startsWith("jimuqu.approvals.")) {
+            return "approvals." + configKey.substring("jimuqu.approvals.".length());
+        }
+        if (configKey.startsWith("jimuqu.terminal.")) {
+            return "terminal." + configKey.substring("jimuqu.terminal.".length());
+        }
+        if ("tool_output.max_bytes".equals(configKey)) {
+            return "task.toolOutputInlineLimit";
+        }
+        if ("tool_output.turn_budget_bytes".equals(configKey)) {
+            return "task.toolOutputTurnBudget";
+        }
+        if ("tool_output.max_lines".equals(configKey)) {
+            return "task.toolOutputMaxLines";
+        }
+        if ("tool_output.max_line_length".equals(configKey)) {
+            return "task.toolOutputMaxLineLength";
+        }
+        if (configKey.startsWith("web.")) {
+            return "web." + configKey.substring("web.".length());
+        }
+        if (configKey.startsWith("browser.")) {
+            return "security.browser" + upperFirst(configKey.substring("browser.".length()));
+        }
+        if (configKey.startsWith("security.")) {
+            return configKey;
+        }
+        if (configKey.startsWith("approvals.")) {
+            return configKey;
+        }
+        if (configKey.startsWith("terminal.")) {
+            return configKey;
+        }
+        if (configKey.startsWith("providers.") || configKey.startsWith("model.")) {
+            return configKey;
+        }
+        return null;
+    }
+
+    private static String upperFirst(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private static boolean sameConfigValue(Object rawValue, Object effectiveValue) {
+        if (rawValue == null && effectiveValue == null) {
+            return true;
+        }
+        if (rawValue == null || effectiveValue == null) {
+            return false;
+        }
+        if (rawValue instanceof Number || effectiveValue instanceof Number) {
+            try {
+                return Double.compare(
+                                Double.parseDouble(String.valueOf(rawValue).trim()),
+                                Double.parseDouble(String.valueOf(effectiveValue).trim()))
+                        == 0;
+            } catch (Exception ignored) {
+                return normalizeValueText(rawValue).equals(normalizeValueText(effectiveValue));
+            }
+        }
+        if (rawValue instanceof Boolean || effectiveValue instanceof Boolean) {
+            return Boolean.valueOf(parseBoolean(rawValue)).equals(Boolean.valueOf(parseBoolean(effectiveValue)));
+        }
+        return normalizeValueText(rawValue).equals(normalizeValueText(effectiveValue));
+    }
+
+    private static boolean parseBoolean(Object value) {
+        String text = StrUtil.nullToEmpty(String.valueOf(value)).trim();
+        return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
+    }
+
+    private static String normalizeValueText(Object value) {
+        if (value instanceof List || value instanceof Map) {
+            return ONode.serialize(value);
+        }
+        return StrUtil.nullToEmpty(String.valueOf(value)).trim();
+    }
+
+    private static Map<String, Object> flattenAppConfig(AppConfig appConfig) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        flattenBean("", appConfig, result, new HashSet<Object>());
+        return result;
+    }
+
+    private static void flattenBean(
+            String prefix, Object bean, Map<String, Object> output, Set<Object> visited) {
+        if (bean == null || visited.contains(bean)) {
+            return;
+        }
+        visited.add(bean);
+        try {
+            for (PropertyDescriptor descriptor : Introspector.getBeanInfo(bean.getClass()).getPropertyDescriptors()) {
+                Method getter = descriptor.getReadMethod();
+                String name = descriptor.getName();
+                if (getter == null || "class".equals(name)) {
+                    continue;
+                }
+                Object value = getter.invoke(bean);
+                String key = prefix.length() == 0 ? name : prefix + "." + name;
+                flattenValue(key, value, output, visited);
+            }
+        } catch (Exception ignored) {
+            // 诊断失败不应影响主流程；无法反射的字段会被跳过。
+        }
+    }
+
+    private static void flattenValue(
+            String key, Object value, Map<String, Object> output, Set<Object> visited) {
+        if (value == null || isScalar(value)) {
+            output.put(key, value);
+            return;
+        }
+        if (value instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (entry.getKey() != null) {
+                    flattenValue(key + "." + entry.getKey(), entry.getValue(), output, visited);
+                }
+            }
+            return;
+        }
+        if (value instanceof List) {
+            output.put(key, value);
+            return;
+        }
+        flattenBean(key, value, output, visited);
+    }
+
+    private static boolean isScalar(Object value) {
+        return value instanceof CharSequence
+                || value instanceof Number
+                || value instanceof Boolean
+                || value instanceof Character
+                || value.getClass().isEnum();
     }
 
     private String resolvePath(String key) {

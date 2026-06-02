@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
 import java.io.InputStream;
@@ -72,6 +73,10 @@ public class DashboardConfigService {
 
     public Map<String, Object> getRaw() {
         return Collections.<String, Object>singletonMap("yaml", dumpYaml(resolveCurrentValues()));
+    }
+
+    public Map<String, Object> diagnostics() {
+        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
     }
 
     public Map<String, Object> saveConfig(Map<String, Object> nestedConfig) {
