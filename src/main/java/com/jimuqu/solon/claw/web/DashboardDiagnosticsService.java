@@ -7509,6 +7509,9 @@ public class DashboardDiagnosticsService {
         item.put("session_id", safeAuditPreview(event.getSessionId(), 240));
         item.put("event_type", safeAuditPreview(event.getEventType(), 80));
         item.put("choice", safeAuditPreview(event.getChoice(), 80));
+        item.put("outcome", safeAuditPreview(event.getOutcome(), 80));
+        item.put("status", safeAuditPreview(event.getStatus(), 80));
+        item.put("approved", Boolean.valueOf(event.isApproved()));
         item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
         item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
         item.put("command_hash", redactedIdentifier(event.getCommandHash()));
@@ -7580,6 +7583,9 @@ public class DashboardDiagnosticsService {
         audit.setSessionId("");
         audit.setEventType("response");
         audit.setChoice("revoke");
+        audit.setOutcome(DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_REVOKED);
+        audit.setStatus("revoked");
+        audit.setApproved(false);
         audit.setApprover(SecretRedactor.redact(approver, 200));
         audit.setToolName(StrUtil.nullToEmpty(String.valueOf(item.get("tool_name"))));
         audit.setApprovalId("");

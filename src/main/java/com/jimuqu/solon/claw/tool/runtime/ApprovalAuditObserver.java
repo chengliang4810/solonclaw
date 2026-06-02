@@ -16,18 +16,28 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
 
     @Override
     public void onApprovalRequest(DangerousCommandApprovalService.ApprovalRequestEvent event) {
-        append(event, "request", "", "");
+        append(event, "request", "", "", "", false, "");
     }
 
     @Override
     public void onApprovalResponse(DangerousCommandApprovalService.ApprovalResponseEvent event) {
-        append(event, "response", event.getChoice(), event.getApprover());
+        append(
+                event,
+                "response",
+                event.getChoice(),
+                event.getOutcome(),
+                event.getStatus(),
+                event.isApproved(),
+                event.getApprover());
     }
 
     private void append(
             DangerousCommandApprovalService.ApprovalRequestEvent event,
             String eventType,
             String choice,
+            String outcome,
+            String status,
+            boolean approved,
             String approver) {
         if (repository == null || event == null || event.getPendingApproval() == null) {
             return;
@@ -38,6 +48,9 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
         audit.setSessionId(event.getSessionId());
         audit.setEventType(eventType);
         audit.setChoice(choice);
+        audit.setOutcome(outcome);
+        audit.setStatus(status);
+        audit.setApproved(approved);
         audit.setApprover(SecretRedactor.redact(approver, 200));
         audit.setToolName(event.getToolName());
         audit.setApprovalId(pending.getApprovalId());

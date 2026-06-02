@@ -23,22 +23,25 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into approval_audit_events (event_id, session_id, event_type, choice, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into approval_audit_events (event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, event.getEventId());
             statement.setString(2, event.getSessionId());
             statement.setString(3, event.getEventType());
             statement.setString(4, event.getChoice());
-            statement.setString(5, event.getApprover());
-            statement.setString(6, event.getToolName());
-            statement.setString(7, event.getApprovalId());
-            statement.setString(8, event.getApprovalKey());
-            statement.setString(9, event.getCommandHash());
-            statement.setString(10, event.getCommandPreview());
-            statement.setString(11, event.getDescription());
-            statement.setString(12, event.getPatternKeysJson());
-            statement.setLong(13, event.getCreatedAt());
-            statement.setLong(14, event.getApprovalCreatedAt());
-            statement.setLong(15, event.getApprovalExpiresAt());
+            statement.setString(5, event.getOutcome());
+            statement.setString(6, event.getStatus());
+            statement.setInt(7, event.isApproved() ? 1 : 0);
+            statement.setString(8, event.getApprover());
+            statement.setString(9, event.getToolName());
+            statement.setString(10, event.getApprovalId());
+            statement.setString(11, event.getApprovalKey());
+            statement.setString(12, event.getCommandHash());
+            statement.setString(13, event.getCommandPreview());
+            statement.setString(14, event.getDescription());
+            statement.setString(15, event.getPatternKeysJson());
+            statement.setLong(16, event.getCreatedAt());
+            statement.setLong(17, event.getApprovalCreatedAt());
+            statement.setLong(18, event.getApprovalExpiresAt());
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -54,7 +57,7 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select event_id, session_id, event_type, choice, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at from approval_audit_events order by created_at desc limit ?");
+                            "select event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at from approval_audit_events order by created_at desc limit ?");
             statement.setInt(1, effectiveLimit);
             ResultSet resultSet = statement.executeQuery();
             try {
@@ -77,6 +80,9 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
         event.setSessionId(resultSet.getString("session_id"));
         event.setEventType(resultSet.getString("event_type"));
         event.setChoice(resultSet.getString("choice"));
+        event.setOutcome(resultSet.getString("outcome"));
+        event.setStatus(resultSet.getString("status"));
+        event.setApproved(resultSet.getInt("approved") != 0);
         event.setApprover(resultSet.getString("approver"));
         event.setToolName(resultSet.getString("tool_name"));
         event.setApprovalId(resultSet.getString("approval_id"));

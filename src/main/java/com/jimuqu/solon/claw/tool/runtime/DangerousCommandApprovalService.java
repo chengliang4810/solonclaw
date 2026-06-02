@@ -3389,6 +3389,8 @@ public class DangerousCommandApprovalService {
         summary.put("requestEvents", Boolean.TRUE);
         summary.put("responseEvents", Boolean.TRUE);
         summary.put("eventTypes", Arrays.asList("request", "response"));
+        summary.put("responseOutcomes", Arrays.asList(ApprovalResponseEvent.OUTCOME_APPROVED, ApprovalResponseEvent.OUTCOME_DENIED, ApprovalResponseEvent.OUTCOME_TIMED_OUT));
+        summary.put("responseStatusDistinct", Boolean.TRUE);
         summary.put("repositoryBackedWhenConfigured", Boolean.TRUE);
         summary.put("observerFailureIsolated", Boolean.TRUE);
         summary.put("approverRedacted", Boolean.TRUE);
@@ -6199,13 +6201,24 @@ public class DangerousCommandApprovalService {
     }
 
     public static class ApprovalResponseEvent extends ApprovalRequestEvent {
+        public static final String OUTCOME_APPROVED = "APPROVED";
+        public static final String OUTCOME_DENIED = "DENIED";
+        public static final String OUTCOME_TIMED_OUT = "TIMED_OUT";
+        public static final String OUTCOME_REVOKED = "REVOKED";
+
         private final String choice;
+        private final String outcome;
+        private final String status;
+        private final boolean approved;
         private final String approver;
 
         private ApprovalResponseEvent(
                 String sessionId, PendingApproval pendingApproval, String choice, String approver) {
             super(sessionId, pendingApproval);
             this.choice = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(choice)).trim();
+            this.outcome = approvalOutcome(this.choice);
+            this.status = approvalStatus(outcome);
+            this.approved = OUTCOME_APPROVED.equals(outcome);
             this.approver = redactedApprover(approver);
         }
 
@@ -6213,9 +6226,48 @@ public class DangerousCommandApprovalService {
             return choice;
         }
 
+        public String getOutcome() {
+            return outcome;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public boolean isApproved() {
+            return approved;
+        }
+
         public String getApprover() {
             return approver;
         }
+    }
+
+    private static String approvalOutcome(String choice) {
+        String normalized = StrUtil.nullToEmpty(choice).trim().toLowerCase(Locale.ROOT);
+        if ("deny".equals(normalized) || "denied".equals(normalized)) {
+            return ApprovalResponseEvent.OUTCOME_DENIED;
+        }
+        if ("timeout".equals(normalized) || "timed_out".equals(normalized)) {
+            return ApprovalResponseEvent.OUTCOME_TIMED_OUT;
+        }
+        if ("revoke".equals(normalized) || "revoked".equals(normalized)) {
+            return ApprovalResponseEvent.OUTCOME_REVOKED;
+        }
+        return ApprovalResponseEvent.OUTCOME_APPROVED;
+    }
+
+    private static String approvalStatus(String outcome) {
+        if (ApprovalResponseEvent.OUTCOME_DENIED.equals(outcome)) {
+            return "denied";
+        }
+        if (ApprovalResponseEvent.OUTCOME_TIMED_OUT.equals(outcome)) {
+            return "timed_out";
+        }
+        if (ApprovalResponseEvent.OUTCOME_REVOKED.equals(outcome)) {
+            return "revoked";
+        }
+        return "approved";
     }
 
     private static class ApprovalKeyParts {
