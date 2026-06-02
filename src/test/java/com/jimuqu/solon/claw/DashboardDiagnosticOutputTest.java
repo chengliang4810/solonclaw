@@ -287,6 +287,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("smart_approval_policy");
         assertThat(diagnosticsJson).contains("tirith_approval_policy");
         assertThat(diagnosticsJson).contains("terminal_guardrail_policy");
+        assertThat(diagnosticsJson).contains("untrustedToolResultBoundary");
+        assertThat(diagnosticsJson).contains("untrustedBoundaryAppliesToPersistedOutputBlocks");
+        assertThat(diagnosticsJson).contains("untrustedToolNames");
+        assertThat(diagnosticsJson).contains("mcp_");
         assertThat(diagnosticsJson).contains("approval service is unavailable");
         assertThat(diagnosticsJson).contains("\"probes\"");
         assertThat(diagnosticsJson).contains("\"metadata_url\"");
