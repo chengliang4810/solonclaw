@@ -34,11 +34,56 @@ public final class SkillFrontmatterSupport {
             return Collections.emptyMap();
         }
 
-        Object parsed = new Yaml().load(yamlBlock.toString());
-        if (!(parsed instanceof Map)) {
-            return Collections.emptyMap();
+        String yamlText = yamlBlock.toString();
+        try {
+            Object parsed = new Yaml().load(yamlText);
+            if (!(parsed instanceof Map)) {
+                return Collections.emptyMap();
+            }
+            return sanitizeMap((Map<?, ?>) parsed);
+        } catch (RuntimeException e) {
+            return parseLooseScalars(yamlText);
         }
-        return sanitizeMap((Map<?, ?>) parsed);
+    }
+
+    private static Map<String, Object> parseLooseScalars(String yamlText) {
+        Map<String, Object> values = new LinkedHashMap<String, Object>();
+        if (StrUtil.isBlank(yamlText)) {
+            return values;
+        }
+        String[] lines = yamlText.split("\\R");
+        for (String line : lines) {
+            if (StrUtil.isBlank(line) || Character.isWhitespace(line.charAt(0))) {
+                continue;
+            }
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#")) {
+                continue;
+            }
+            int colon = trimmed.indexOf(':');
+            if (colon <= 0) {
+                continue;
+            }
+            String key = trimmed.substring(0, colon).trim();
+            if (!key.matches("[A-Za-z0-9_.-]+")) {
+                continue;
+            }
+            String value = trimmed.substring(colon + 1).trim();
+            values.put(key, stripMatchingQuotes(value));
+        }
+        return values;
+    }
+
+    private static String stripMatchingQuotes(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (text.length() >= 2) {
+            char first = text.charAt(0);
+            char last = text.charAt(text.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                return text.substring(1, text.length() - 1).trim();
+            }
+        }
+        return text;
     }
 
     public static List<String> parseStringList(Object value) {

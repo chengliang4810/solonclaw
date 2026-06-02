@@ -58,6 +58,26 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldTolerateLooseSkillDescriptionFrontmatterLikeCronPrompt() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File skillDir = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "cron-loose");
+        FileUtil.mkdir(skillDir);
+        FileUtil.writeUtf8String(
+                "---\n"
+                        + "name: cron-loose\n"
+                        + "description: [IMPORTANT: You are running as a scheduled cron job. DELIVERY: Your final response is delivered.]\n"
+                        + "---\n\n# Steps\n- keep working\n",
+                FileUtil.file(skillDir, "SKILL.md"));
+
+        List<SkillDescriptor> skills = env.localSkillService.listSkills(null);
+
+        assertThat(skills).extracting(SkillDescriptor::getName).contains("cron-loose");
+        assertThat(env.localSkillService.viewSkill("cron-loose", null).getDescriptor().getDescription())
+                .contains("IMPORTANT")
+                .contains("DELIVERY");
+    }
+
+    @Test
     void shouldListViewAndPromptConfiguredExternalSkillsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File externalDir =
