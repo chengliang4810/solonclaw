@@ -640,7 +640,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         gatewayMessage.setChatType(chatTarget.chatType);
         gatewayMessage.setChatName(chatTarget.chatId);
         gatewayMessage.setUserName(senderId);
-        gatewayMessage.setThreadId(messageId);
         gatewayMessage.setAttachments(attachments);
         if (attachments.isEmpty() && StrUtil.isNotBlank(text)) {
             enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
