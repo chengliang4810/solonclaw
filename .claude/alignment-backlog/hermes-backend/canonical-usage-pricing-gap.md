@@ -4,7 +4,8 @@
 归一 usage/pricing 计费桶与来源元数据
 
 ## 状态
-- status: selected
+- status: done
+- completedCommit: `6a249913`
 
 ## 优先级 / 风险
 - priority: high

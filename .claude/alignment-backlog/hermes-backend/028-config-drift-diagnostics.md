@@ -4,7 +4,8 @@
 Add config drift and unknown-field diagnostics
 
 ## 状态
-- status: selected
+- status: done
+- completedCommit: `0b8950b1`
 
 ## 优先级 / 风险
 - priority: high

@@ -11,7 +11,10 @@
 
 ## 已完成并推送到 dev
 
-- 暂无（本轮待实现后回填）
+- `32a0b47f` — 扩展详细健康运行时快照 / Expand detailed health runtime snapshot
+- `0b8950b1` — 增加配置漂移诊断 / Add config drift diagnostics
+- `c9717331` — 增加 Tirith 安全诊断摘要 / Add Tirith security diagnostics summary
+- `6a249913` — 归一 usage pricing 计费桶 / Normalize usage pricing billing buckets
 
 ## 推荐首批并行开发
 

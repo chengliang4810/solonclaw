@@ -4,7 +4,8 @@
 对齐 Tirith 安全诊断与审计面
 
 ## 状态
-- status: queued
+- status: done
+- completedCommit: `c9717331`
 
 ## 优先级 / 风险
 - priority: medium
