@@ -198,6 +198,48 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
+    void shouldUseStableConversationSourceKeyAcrossDifferentWeixinMessageIds() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.01D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.01D);
+
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config));
+
+        final CountDownLatch latch = new CountDownLatch(2);
+        final List<String> sourceKeys = Collections.synchronizedList(new ArrayList<String>());
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    @Override
+                    public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        sourceKeys.add(message.sourceKey());
+                        latch.countDown();
+                    }
+                });
+
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        processInbound.invoke(adapter, inboundText("msg-source-1", "room-1", "wx-user", "第一条"));
+        TimeUnit.MILLISECONDS.sleep(100L);
+        processInbound.invoke(adapter, inboundText("msg-source-2", "room-1", "wx-user", "第二条"));
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(sourceKeys)
+                .containsExactly(
+                        "WEIXIN:room-1:wx-user",
+                        "WEIXIN:room-1:wx-user");
+
+        adapter.disconnect();
+    }
+
+    @Test
     void shouldBoundRecentMessageIdsAndStillRecognizeRecentDuplicates() throws Throwable {
         WeiXinChannelAdapter adapter = newAdapter();
         Method isDuplicate =
