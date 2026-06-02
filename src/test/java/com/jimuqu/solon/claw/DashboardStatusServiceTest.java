@@ -94,6 +94,47 @@ public class DashboardStatusServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeHealthRuntimeSnapshotFromGatewayStatus() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-health-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        ChannelStatus channelStatus =
+                new ChannelStatus(PlatformType.FEISHU, true, true, "connected");
+        channelStatus.setConnectionMode("websocket");
+        SessionRecord activeSession = new SessionRecord();
+        activeSession.setUpdatedAt(System.currentTimeMillis());
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new FixedSessionRepository(Collections.singletonList(activeSession)),
+                        new FixedDeliveryService(channelStatus),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        Map<String, Object> snapshot = service.getHealthRuntimeSnapshot();
+
+        assertThat(snapshot)
+                .containsEntry("active_sessions", Integer.valueOf(1))
+                .containsEntry("gateway_running", Boolean.TRUE)
+                .containsEntry("gateway_state", "running")
+                .containsKeys("gateway_platforms", "gateway_updated_at", "gateway_exit_reason");
+        assertThat(snapshot.get("gateway_exit_reason")).isNull();
+        Map<String, Object> platforms = (Map<String, Object>) snapshot.get("gateway_platforms");
+        assertThat(platforms).containsKey("feishu");
+        Map<String, Object> feishu = (Map<String, Object>) platforms.get("feishu");
+        assertThat(feishu)
+                .containsEntry("state", "connected")
+                .containsEntry("detail", "connected")
+                .containsEntry("connection_mode", "websocket")
+                .containsKey("updated_at");
+    }
+
+    @Test
     void shouldAdvertiseVisionCapabilityWhenImageInputsAreSupported() {
         AppConfig config = new AppConfig();
         config.getModel().setProviderKey("default");
@@ -184,7 +225,19 @@ public class DashboardStatusServiceTest {
         }
     }
 
-    private static class EmptySessionRepository implements SessionRepository {
+    private static class EmptySessionRepository extends FixedSessionRepository {
+        private EmptySessionRepository() {
+            super(Collections.emptyList());
+        }
+    }
+
+    private static class FixedSessionRepository implements SessionRepository {
+        private final List<SessionRecord> recentSessions;
+
+        private FixedSessionRepository(List<SessionRecord> recentSessions) {
+            this.recentSessions = recentSessions;
+        }
+
         @Override
         public SessionRecord getBoundSession(String sourceKey) {
             return null;
@@ -228,12 +281,12 @@ public class DashboardStatusServiceTest {
 
         @Override
         public List<SessionRecord> listRecent(int limit) {
-            return Collections.emptyList();
+            return recentSessions;
         }
 
         @Override
         public List<SessionRecord> listRecent(int limit, int offset) {
-            return Collections.emptyList();
+            return recentSessions;
         }
 
         @Override
