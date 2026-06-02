@@ -39,15 +39,23 @@ public class ModelMetadataService {
         metadata.setSupportsTools(resolveSupportsTools(dialect));
         boolean supportsVision = resolveSupportsVision(dialect, normalizedModel, provider);
         boolean supportsAudio = resolveSupportsAudio(dialect, normalizedModel);
-        boolean supportsAttachment = resolveSupportsAttachment(dialect, normalizedModel, supportsVision, supportsAudio);
+        boolean supportsPdf = resolveSupportsPdf(dialect, normalizedModel);
+        boolean supportsAttachment =
+                resolveSupportsAttachment(
+                        dialect, normalizedModel, supportsVision, supportsAudio, supportsPdf);
         metadata.setSupportsVision(supportsVision);
         metadata.setSupportsAudio(supportsAudio);
         metadata.setSupportsAttachment(supportsAttachment);
-        metadata.setSupportsMultimodal(supportsVision || supportsAudio || supportsAttachment);
+        metadata.setSupportsPdf(supportsPdf);
+        metadata.setSupportsMultimodal(supportsVision || supportsAudio || supportsPdf || supportsAttachment);
         metadata.setInputModalities(
-                resolveInputModalities(dialect, supportsVision, supportsAudio, supportsAttachment));
+                resolveInputModalities(
+                        dialect, supportsVision, supportsAudio, supportsPdf, supportsAttachment));
         metadata.setOutputModalities(resolveOutputModalities(dialect, normalizedModel, supportsAudio));
         metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
+        metadata.setSupportsStructuredOutput(resolveSupportsStructuredOutput(dialect, normalizedModel));
+        metadata.setSupportsOpenWeights(resolveSupportsOpenWeights(dialect, normalizedModel));
+        metadata.setSupportsInterleaved(resolveSupportsInterleaved(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
         metadata.setSource(resolveSource(provider, normalizedModel));
@@ -236,14 +244,36 @@ public class ModelMetadataService {
                 || lower.contains("gpt-4o-mini-transcribe");
     }
 
+    private boolean resolveSupportsPdf(String dialect, String model) {
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return LlmConstants.PROVIDER_GEMINI.equals(dialect)
+                || LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
+                || LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
+                || lower.contains("gpt-4o")
+                || lower.contains("gpt-4.1")
+                || lower.contains("gpt-5")
+                || lower.contains("qwen-vl")
+                || lower.contains("qwen2-vl")
+                || lower.contains("qwen2.5-vl")
+                || lower.contains("qwen3-vl");
+    }
+
     private boolean resolveSupportsAttachment(
-            String dialect, String model, boolean supportsVision, boolean supportsAudio) {
+            String dialect,
+            String model,
+            boolean supportsVision,
+            boolean supportsAudio,
+            boolean supportsPdf) {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
         return supportsVision
                 || supportsAudio
+                || supportsPdf
                 || LlmConstants.PROVIDER_GEMINI.equals(dialect)
                 || lower.contains("vision")
                 || lower.contains("multimodal")
@@ -254,11 +284,18 @@ public class ModelMetadataService {
     }
 
     private List<String> resolveInputModalities(
-            String dialect, boolean supportsVision, boolean supportsAudio, boolean supportsAttachment) {
+            String dialect,
+            boolean supportsVision,
+            boolean supportsAudio,
+            boolean supportsPdf,
+            boolean supportsAttachment) {
         Set<String> modalities = new LinkedHashSet<String>();
         modalities.add("text");
         if (supportsVision) {
             modalities.add("image");
+        }
+        if (supportsPdf) {
+            modalities.add("pdf");
         }
         if (supportsAudio) {
             modalities.add("audio");
@@ -331,6 +368,56 @@ public class ModelMetadataService {
                 || lower.contains("grok-3-mini")
                 || lower.contains("grok-4.20-multi-agent")
                 || lower.contains("grok-4.3");
+    }
+
+    private boolean resolveSupportsStructuredOutput(String dialect, String model) {
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
+                || LlmConstants.PROVIDER_GEMINI.equals(dialect)
+                || lower.contains("gpt-4o")
+                || lower.contains("gpt-4.1")
+                || lower.contains("gpt-5")
+                || lower.startsWith("o1")
+                || lower.startsWith("o3")
+                || lower.startsWith("o4")
+                || lower.contains("/o1")
+                || lower.contains("/o3")
+                || lower.contains("/o4")
+                || lower.contains("qwen")
+                || lower.contains("deepseek")
+                || lower.contains("grok")
+                || lower.contains("glm");
+    }
+
+    private boolean resolveSupportsOpenWeights(String dialect, String model) {
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                || lower.contains("llama")
+                || lower.contains("qwen")
+                || lower.contains("deepseek")
+                || lower.contains("gemma")
+                || lower.contains("mistral")
+                || lower.contains("mixtral")
+                || lower.contains("yi-")
+                || lower.startsWith("yi")
+                || lower.contains("glm")
+                || lower.contains("phi")
+                || lower.contains("minicpm");
+    }
+
+    private boolean resolveSupportsInterleaved(String dialect, String model) {
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return false;
+        }
+        String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        return LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
+                && (lower.contains("claude-sonnet-4") || lower.contains("claude-opus-4"));
     }
 
     private boolean resolveSupportsPromptCache(String dialect) {

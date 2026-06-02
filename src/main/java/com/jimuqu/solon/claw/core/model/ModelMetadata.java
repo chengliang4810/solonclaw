@@ -23,8 +23,12 @@ public class ModelMetadata {
     private boolean supportsVision;
     private boolean supportsAudio;
     private boolean supportsAttachment;
+    private boolean supportsPdf;
     private boolean supportsMultimodal;
     private boolean supportsReasoning;
+    private boolean supportsStructuredOutput;
+    private boolean supportsOpenWeights;
+    private boolean supportsInterleaved;
     private boolean supportsPromptCache;
     private boolean supportsStreaming;
     private String apiUrl;

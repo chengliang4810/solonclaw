@@ -187,7 +187,8 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsAudio()).isTrue();
         assertThat(metadata.isSupportsAttachment()).isTrue();
         assertThat(metadata.isSupportsMultimodal()).isTrue();
-        assertThat(metadata.getInputModalities()).containsExactly("text", "image", "audio", "file");
+        assertThat(metadata.isSupportsPdf()).isTrue();
+        assertThat(metadata.getInputModalities()).containsExactly("text", "image", "pdf", "audio", "file");
         assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.getApiUrl())
                 .isEqualTo("https://generativelanguage.googleapis.com/v1beta");
@@ -237,8 +238,9 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsAttachment()).isTrue();
         assertThat(metadata.isSupportsMultimodal()).isTrue();
         assertThat(metadata.isSupportsReasoning()).isTrue();
+        assertThat(metadata.isSupportsInterleaved()).isTrue();
         assertThat(metadata.isSupportsPromptCache()).isTrue();
-        assertThat(metadata.getInputModalities()).containsExactly("text", "image");
+        assertThat(metadata.getInputModalities()).containsExactly("text", "image", "pdf");
         assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.getApiUrl()).isEmpty();
         assertThat(metadata.getModelListUrl()).isEmpty();
@@ -260,9 +262,52 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsVision()).isTrue();
         assertThat(metadata.isSupportsAttachment()).isTrue();
         assertThat(metadata.isSupportsMultimodal()).isTrue();
-        assertThat(metadata.getInputModalities()).containsExactly("text", "image");
+        assertThat(metadata.isSupportsPdf()).isTrue();
+        assertThat(metadata.isSupportsStructuredOutput()).isTrue();
+        assertThat(metadata.getInputModalities()).containsExactly("text", "image", "pdf");
         assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.getProvenance()).isEqualTo("static_inference:model_family");
+    }
+
+    @Test
+    void shouldResolveFineGrainedCapabilitiesForRepresentativeModels() {
+        AppConfig config = new AppConfig();
+
+        ModelMetadata gemini = resolveMetadata(config, "gemini", "gemini-2.5-pro");
+        assertThat(gemini.isSupportsPdf()).isTrue();
+        assertThat(gemini.isSupportsStructuredOutput()).isTrue();
+        assertThat(gemini.getInputModalities()).containsExactly("text", "image", "pdf", "audio", "file");
+
+        ModelMetadata qwen = resolveMetadata(config, "openai", "qwen2.5-vl-72b-instruct");
+        assertThat(qwen.isSupportsPdf()).isTrue();
+        assertThat(qwen.isSupportsOpenWeights()).isTrue();
+        assertThat(qwen.isSupportsStructuredOutput()).isTrue();
+        assertThat(qwen.isSupportsVision()).isTrue();
+        assertThat(qwen.isSupportsAttachment()).isTrue();
+        assertThat(qwen.getInputModalities()).containsExactly("text", "image", "pdf");
+
+        ModelMetadata claude = resolveMetadata(config, "anthropic", "claude-sonnet-4.8");
+        assertThat(claude.isSupportsPdf()).isTrue();
+        assertThat(claude.isSupportsInterleaved()).isTrue();
+        assertThat(claude.isSupportsVision()).isTrue();
+        assertThat(claude.getInputModalities()).containsExactly("text", "image", "pdf");
+    }
+
+    @Test
+    void shouldKeepUnknownTextModelsOutOfFineGrainedCapabilities() {
+        AppConfig config = new AppConfig();
+
+        ModelMetadata metadata = resolveMetadata(config, "openai", "custom/unknown-small-model");
+
+        assertThat(metadata.isSupportsPdf()).isFalse();
+        assertThat(metadata.isSupportsStructuredOutput()).isFalse();
+        assertThat(metadata.isSupportsOpenWeights()).isFalse();
+        assertThat(metadata.isSupportsInterleaved()).isFalse();
+        assertThat(metadata.isSupportsVision()).isFalse();
+        assertThat(metadata.isSupportsAudio()).isFalse();
+        assertThat(metadata.isSupportsAttachment()).isFalse();
+        assertThat(metadata.isSupportsMultimodal()).isFalse();
+        assertThat(metadata.getInputModalities()).containsExactly("text");
     }
 
     @Test
@@ -295,9 +340,13 @@ public class ModelMetadataServiceTest {
     }
 
     private int resolveContext(AppConfig config, String dialect, String model) {
+        return resolveMetadata(config, dialect, model).getContextWindow();
+    }
+
+    private ModelMetadata resolveMetadata(AppConfig config, String dialect, String model) {
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setDefaultModel(model);
         provider.setDialect(dialect);
-        return new ModelMetadataService(config).resolve("default", provider).getContextWindow();
+        return new ModelMetadataService(config).resolve("default", provider);
     }
 }
