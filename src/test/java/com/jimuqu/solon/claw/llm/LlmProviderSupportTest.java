@@ -102,4 +102,90 @@ public class LlmProviderSupportTest {
         assertThat(LlmProviderSupport.baseUrlHostMatches("https://api.ollama.com/v1", "ollama.com"))
                 .isTrue();
     }
+
+    @Test
+    void shouldResolveProviderAwareOpenAiModelListUrls() {
+        assertThat(LlmProviderSupport.buildModelListUrl("openai", "https://api.openai.com", "openai"))
+                .isEqualTo("https://api.openai.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "openai", "https://api.openai.com/v1/chat/completions", "openai"))
+                .isEqualTo("https://api.openai.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "openai", "https://api.openai.com/v1/responses", "openai-responses"))
+                .isEqualTo("https://api.openai.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "openrouter", "https://openrouter.ai/api/v1", "openai"))
+                .isEqualTo("https://openrouter.ai/api/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "openrouter", "https://proxy.example.test/openrouter", "openai"))
+                .isEqualTo("https://proxy.example.test/openrouter/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "custom", "https://custom.example.test/v1/models", "openai"))
+                .isEqualTo("https://custom.example.test/v1/models");
+    }
+
+    @Test
+    void shouldResolveProviderAwareAnthropicModelListUrls() {
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "anthropic", "https://api.anthropic.com", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "anthropic", "https://api.anthropic.com/v1", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "anthropic", "https://api.anthropic.com/v1/messages", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "anthropic", "https://api.anthropic.com/v1/models", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/models");
+    }
+
+    @Test
+    void shouldResolveProviderAwareOllamaModelListUrls() {
+        assertThat(LlmProviderSupport.buildModelListUrl("ollama", "http://127.0.0.1:11434", "ollama"))
+                .isEqualTo("http://127.0.0.1:11434/api/tags");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "ollama", "http://127.0.0.1:11434/api", "ollama"))
+                .isEqualTo("http://127.0.0.1:11434/api/tags");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "ollama", "http://127.0.0.1:11434/api/chat", "ollama"))
+                .isEqualTo("http://127.0.0.1:11434/api/tags");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "ollama", "http://127.0.0.1:11434/api/tags", "ollama"))
+                .isEqualTo("http://127.0.0.1:11434/api/tags");
+    }
+
+    @Test
+    void shouldResolveProviderAwareGeminiAndCustomModelListUrls() {
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "gemini", "https://generativelanguage.googleapis.com", "gemini"))
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "gemini", "https://generativelanguage.googleapis.com/v1", "gemini"))
+                .isEqualTo("https://generativelanguage.googleapis.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "gemini",
+                                "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+                                "gemini"))
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "custom", "https://custom.example.test/openai", "openai"))
+                .isEqualTo("https://custom.example.test/openai/v1/models");
+    }
 }

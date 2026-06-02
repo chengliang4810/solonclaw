@@ -71,6 +71,15 @@ public class TuiApprovalProjector implements DangerousCommandApprovalService.App
         Map<String, Object> payload = pendingSnapshot(sessionId);
         payload.put("ok", Boolean.valueOf(ok));
         payload.put("choice", approve ? "approve" : "deny");
+        payload.put(
+                "outcome",
+                ok
+                        ? (approve
+                                ? DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_APPROVED
+                                : DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_DENIED)
+                        : "NOT_FOUND");
+        payload.put("status", ok ? (approve ? "approved" : "denied") : "not_found");
+        payload.put("approved", Boolean.valueOf(approve && ok));
         payload.put("selector", safe(selector, 400));
         return payload;
     }
@@ -98,9 +107,11 @@ public class TuiApprovalProjector implements DangerousCommandApprovalService.App
         Map<String, Object> payload =
                 toApproval(
                         event.getPendingApproval(),
-                        "deny".equals(event.getChoice()) ? "denied" : "approved",
+                        event.getStatus(),
                         event.getSessionId(),
                         event.getChoice());
+        payload.put("outcome", safe(event.getOutcome(), 80));
+        payload.put("approved", Boolean.valueOf(event.isApproved()));
         payload.put("approver", safe(event.getApprover(), 200));
         eventSink.publish(
                 new TuiEvent(

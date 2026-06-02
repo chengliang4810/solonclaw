@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.SkillSetupState;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
+import com.jimuqu.solon.claw.skillhub.support.SkillIgnoreSupport;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
@@ -759,19 +760,11 @@ public class LocalSkillService implements SkillCatalogService {
             return;
         }
 
-        List<File> files = FileUtil.loopFiles(childDir);
+        List<File> files = SkillIgnoreSupport.includedFiles(skillDir);
         for (File file : files) {
-            if (file.isDirectory()) {
-                continue;
-            }
-            String absolute = file.getAbsolutePath();
-            String root = skillDir.getAbsolutePath() + File.separator;
-            if (absolute.startsWith(root)) {
-                String relative =
-                        absolute.substring(root.length()).replace(File.separatorChar, '/');
-                if (!relative.startsWith(".hub")) {
-                    output.add(relative);
-                }
+            String relative = SkillIgnoreSupport.relativePath(skillDir, file);
+            if (relative.startsWith(childDirName + "/") && !relative.startsWith(".hub")) {
+                output.add(relative);
             }
         }
     }

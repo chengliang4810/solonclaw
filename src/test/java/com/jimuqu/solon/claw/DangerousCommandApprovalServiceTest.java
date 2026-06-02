@@ -10956,6 +10956,9 @@ public class DangerousCommandApprovalServiceTest {
     void shouldNotifyApprovalObserversWhenPendingApprovalTimesOut() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         final List<String> choices = new java.util.ArrayList<String>();
+        final List<String> outcomes = new java.util.ArrayList<String>();
+        final List<String> statuses = new java.util.ArrayList<String>();
+        final List<Boolean> approved = new java.util.ArrayList<Boolean>();
         env.dangerousCommandApprovalService.addApprovalObserver(
                 new DangerousCommandApprovalService.ApprovalObserver() {
                     @Override
@@ -10966,6 +10969,9 @@ public class DangerousCommandApprovalServiceTest {
                     public void onApprovalResponse(
                             DangerousCommandApprovalService.ApprovalResponseEvent event) {
                         choices.add(event.getChoice() + ":" + event.getPrimaryPatternKey());
+                        outcomes.add(event.getOutcome());
+                        statuses.add(event.getStatus());
+                        approved.add(Boolean.valueOf(event.isApproved()));
                     }
                 });
         TestTrace trace = new TestTrace();
@@ -10984,6 +10990,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
 
         assertThat(choices).containsExactly("timeout:recursive_delete");
+        assertThat(outcomes)
+                .containsExactly(
+                        DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_TIMED_OUT);
+        assertThat(statuses).containsExactly("timed_out");
+        assertThat(approved).containsExactly(Boolean.FALSE);
     }
 
     @Test
@@ -11203,6 +11214,9 @@ public class DangerousCommandApprovalServiceTest {
                         new SecurityPolicyService(env.appConfig),
                         null);
         final List<String> events = new java.util.ArrayList<String>();
+        final List<String> outcomes = new java.util.ArrayList<String>();
+        final List<String> statuses = new java.util.ArrayList<String>();
+        final List<Boolean> approved = new java.util.ArrayList<Boolean>();
         service.addApprovalObserver(
                 new DangerousCommandApprovalService.ApprovalObserver() {
                     @Override
@@ -11229,6 +11243,9 @@ public class DangerousCommandApprovalServiceTest {
                                         + event.getApprover()
                                         + ":"
                                         + event.getPrimaryPatternKey());
+                        outcomes.add(event.getOutcome());
+                        statuses.add(event.getStatus());
+                        approved.add(Boolean.valueOf(event.isApproved()));
                     }
                 });
         TestTrace trace = new TestTrace();
@@ -11243,6 +11260,10 @@ public class DangerousCommandApprovalServiceTest {
                 .containsExactly(
                         "request:tirith-test:execute_shell:recursive_delete:rm -rf runtime/cache",
                         "response:once:tester:recursive_delete");
+        assertThat(outcomes)
+                .containsExactly(DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_APPROVED);
+        assertThat(statuses).containsExactly("approved");
+        assertThat(approved).containsExactly(Boolean.TRUE);
     }
 
     @Test
@@ -11367,6 +11388,9 @@ public class DangerousCommandApprovalServiceTest {
     void shouldNotifyApprovalObserversForDenyResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         final List<String> choices = new java.util.ArrayList<String>();
+        final List<String> outcomes = new java.util.ArrayList<String>();
+        final List<String> statuses = new java.util.ArrayList<String>();
+        final List<Boolean> approved = new java.util.ArrayList<Boolean>();
         env.dangerousCommandApprovalService.addApprovalObserver(
                 new DangerousCommandApprovalService.ApprovalObserver() {
                     @Override
@@ -11379,6 +11403,9 @@ public class DangerousCommandApprovalServiceTest {
                     public void onApprovalResponse(
                             DangerousCommandApprovalService.ApprovalResponseEvent event) {
                         choices.add(event.getChoice());
+                        outcomes.add(event.getOutcome());
+                        statuses.add(event.getStatus());
+                        approved.add(Boolean.valueOf(event.isApproved()));
                     }
                 });
         TestTrace trace = new TestTrace();
@@ -11392,6 +11419,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.reject(trace.session, "tester")).isTrue();
 
         assertThat(choices).containsExactly("request", "deny");
+        assertThat(outcomes)
+                .containsExactly(DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_DENIED);
+        assertThat(statuses).containsExactly("denied");
+        assertThat(approved).containsExactly(Boolean.FALSE);
     }
 
     @Test

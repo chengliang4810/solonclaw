@@ -13,6 +13,9 @@ public class ApprovalAuditEvent {
     private String sessionId;
     private String eventType;
     private String choice;
+    private String outcome;
+    private String status;
+    private boolean approved;
     private String approver;
     private String toolName;
     private String approvalId;

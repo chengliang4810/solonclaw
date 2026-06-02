@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.cli.TerminalDimensionSupport;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tui.TuiApprovalProjector;
 import com.jimuqu.solon.claw.tui.TuiConnection;
 import com.jimuqu.solon.claw.tui.TuiEnvelope;
 import com.jimuqu.solon.claw.tui.TuiGatewayService;
@@ -237,6 +241,33 @@ class TuiGatewayProtocolTest {
         } finally {
             service.shutdown();
         }
+    }
+
+    @Test
+    void shouldReportTuiApprovalResolveMissAsNotFound() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord record = session("approval-miss-session", "MEMORY:tui:approval-miss-session");
+        TerminalSessionBrowserTest.FakeSessionRepository repository =
+                new TerminalSessionBrowserTest.FakeSessionRepository(Collections.singletonList(record));
+        SqliteAgentSession agentSession = new SqliteAgentSession(record, repository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        TuiApprovalProjector projector =
+                new TuiApprovalProjector(repository, env.dangerousCommandApprovalService, null);
+
+        Map<String, Object> payload =
+                projector.resolve("approval-miss-session", "missing-selector", "once", true, "tester");
+
+        assertThat(payload)
+                .containsEntry("ok", Boolean.FALSE)
+                .containsEntry("choice", "approve")
+                .containsEntry("outcome", "NOT_FOUND")
+                .containsEntry("status", "not_found")
+                .containsEntry("approved", Boolean.FALSE);
     }
 
     @Test

@@ -82,6 +82,24 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldFilterIgnoredSkillSupportFilesFromLinkedFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("ignore-linked", null, skill("ignore-linked", "ignore files"));
+        File skillDir = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "ignore-linked");
+        FileUtil.writeUtf8String("references/ignored.md\nassets/build/\n", FileUtil.file(skillDir, ".solonclawignore"));
+        FileUtil.writeUtf8String("ignored", FileUtil.file(skillDir, "references", "ignored.md"));
+        FileUtil.writeUtf8String("kept", FileUtil.file(skillDir, "references", "kept.md"));
+        FileUtil.writeUtf8String("asset", FileUtil.file(skillDir, "assets", "build", "bundle.js"));
+        FileUtil.writeUtf8String("script", FileUtil.file(skillDir, "scripts", "run.sh"));
+
+        SkillDescriptor descriptor = env.localSkillService.viewSkill("ignore-linked", null).getDescriptor();
+
+        assertThat(descriptor.getLinkedFiles())
+                .contains("references/kept.md", "scripts/run.sh")
+                .doesNotContain("references/ignored.md", "assets/build/bundle.js");
+    }
+
+    @Test
     void shouldPreprocessSkillTemplateVarsBeforeSkillView() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill(

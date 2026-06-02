@@ -101,6 +101,10 @@ public class ApprovalAuditObserverTest {
         assertThat(repository.events).hasSize(2);
         ApprovalAuditEvent response = repository.events.get(1);
         assertThat(response.getChoice()).isEqualTo("once");
+        assertThat(response.getOutcome())
+                .isEqualTo(DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_APPROVED);
+        assertThat(response.getStatus()).isEqualTo("approved");
+        assertThat(response.isApproved()).isTrue();
         assertThat(response.getApprover()).doesNotContain("ghp_approver123");
         assertThat(response.getApprover()).contains("token=***");
     }
@@ -258,6 +262,45 @@ public class ApprovalAuditObserverTest {
 
         assertThat(repository.events).hasSize(1);
         assertThat(repository.events.get(0).getChoice()).isEqualTo("once");
+    }
+
+    @Test
+    void shouldPersistDistinctDeniedAndTimedOutApprovalAuditOutcomes() throws Exception {
+        CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
+        ApprovalAuditObserver observer = new ApprovalAuditObserver(repository);
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setApprovalId("approval-outcome");
+        pending.setToolName("execute_shell");
+        pending.setPatternKey("recursive_delete");
+        pending.setDescription("recursive delete");
+        pending.setCommand("rm -rf runtime/cache");
+
+        Constructor<DangerousCommandApprovalService.ApprovalResponseEvent> constructor =
+                DangerousCommandApprovalService.ApprovalResponseEvent.class.getDeclaredConstructor(
+                        String.class,
+                        DangerousCommandApprovalService.PendingApproval.class,
+                        String.class,
+                        String.class);
+        constructor.setAccessible(true);
+        observer.onApprovalResponse(
+                constructor.newInstance("session-deny", pending, "deny", "ops"));
+        observer.onApprovalResponse(
+                constructor.newInstance("session-timeout", pending, "timeout", ""));
+
+        assertThat(repository.events).hasSize(2);
+        ApprovalAuditEvent denied = repository.events.get(0);
+        ApprovalAuditEvent timedOut = repository.events.get(1);
+        assertThat(denied.getChoice()).isEqualTo("deny");
+        assertThat(denied.getOutcome())
+                .isEqualTo(DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_DENIED);
+        assertThat(denied.getStatus()).isEqualTo("denied");
+        assertThat(denied.isApproved()).isFalse();
+        assertThat(timedOut.getChoice()).isEqualTo("timeout");
+        assertThat(timedOut.getOutcome())
+                .isEqualTo(DangerousCommandApprovalService.ApprovalResponseEvent.OUTCOME_TIMED_OUT);
+        assertThat(timedOut.getStatus()).isEqualTo("timed_out");
+        assertThat(timedOut.isApproved()).isFalse();
     }
 
     private static class CapturingApprovalAuditRepository implements ApprovalAuditRepository {

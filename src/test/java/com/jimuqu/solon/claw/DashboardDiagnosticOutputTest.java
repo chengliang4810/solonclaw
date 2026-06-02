@@ -388,7 +388,7 @@ public class DashboardDiagnosticOutputTest {
 
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Anthropic Main");
-        provider.setBaseUrl("https://api.anthropic.com");
+        provider.setBaseUrl("https://api.anthropic.com/v1/models");
         provider.setDefaultModel("claude-sonnet-4.6");
         provider.setDialect("anthropic");
         provider.setApiKey("sk-ant-test-providersecret");
@@ -562,6 +562,75 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain(runtimeHome.toString());
         assertThat(json).doesNotContain("ghp_forensicshome123");
         assertThat(json).doesNotContain("ghp_shutdownsecret123");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSummarizeDoctorIssuesAndNextActionsInStableOrder() throws Exception {
+        Path parent = Files.createTempDirectory("solon-claw-dashboard-doctor-summary");
+        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_summaryhome123"));
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+        config.getModel().setProviderKey("default");
+
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setBaseUrl("https://api.example.com/v1");
+        provider.setDefaultModel("gpt-test");
+        provider.setDialect("openai");
+        provider.setApiKey("");
+        config.getProviders().put("default", provider);
+
+        ChannelStatus channelStatus =
+                new ChannelStatus(PlatformType.FEISHU, true, false, "missing config");
+        channelStatus.setSetupState("error");
+        channelStatus.setMissingConfig(Arrays.asList("channels.feishu.appSecret"));
+        channelStatus.setLastErrorMessage("Bearer ghp_summaryerror123 password=summary-pass");
+
+        ShutdownForensicsService forensicsService = new ShutdownForensicsService(config);
+        forensicsService.persistShutdownRecord(
+                "RuntimeException: failed gateway boot token=ghp_summaryshutdown123");
+
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        new FixedDeliveryService(channelStatus),
+                        new LlmProviderService(config),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        forensicsService);
+
+        Map<String, Object> doctor = doctorService.doctor();
+
+        Map<String, Object> summary = (Map<String, Object>) doctor.get("summary");
+        assertThat(summary).isNotNull();
+        assertThat(summary.get("issueCount")).isEqualTo(Integer.valueOf(3));
+        assertThat(summary.get("warningCount")).isEqualTo(Integer.valueOf(3));
+        assertThat(summary.get("highestSeverity")).isEqualTo("warning");
+        List<Map<String, Object>> issues = (List<Map<String, Object>>) summary.get("issues");
+        assertThat(issues).hasSize(3);
+        assertThat(issues).extracting(issue -> issue.get("code"))
+                .containsExactly(
+                        "api_key_missing",
+                        "channel_missing_config",
+                        "last_shutdown_abnormal");
+        List<String> nextActions = (List<String>) summary.get("nextActions");
+        assertThat(nextActions)
+                .containsExactly(
+                        "为当前 provider 配置 API key，或改用本地免 key provider。",
+                        "补齐 feishu 渠道缺失配置：channels.feishu.appSecret。",
+                        "查看 last_shutdown.record 并排查最近一次异常退出原因。");
+
+        String json = ONode.serialize(doctor);
+        assertThat(json)
+                .doesNotContain(runtimeHome.toString())
+                .doesNotContain("ghp_summaryhome123")
+                .doesNotContain("ghp_summaryerror123")
+                .doesNotContain("summary-pass")
+                .doesNotContain("ghp_summaryshutdown123");
     }
 
     @Test

@@ -280,6 +280,20 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.getSource()).isEqualTo("provider_config");
     }
 
+    @Test
+    void shouldUseProviderKeyWhenResolvingProviderAwareModelListUrl() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("custom-model");
+        provider.setDialect("openai");
+        provider.setBaseUrl("https://proxy.example.test/openrouter");
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("openrouter", provider);
+
+        assertThat(metadata.getModelListUrl())
+                .isEqualTo("https://proxy.example.test/openrouter/models");
+    }
+
     private int resolveContext(AppConfig config, String dialect, String model) {
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setDefaultModel(model);

@@ -35,7 +35,7 @@ public class ModelMetadataService {
         metadata.setContextWindow(resolveContextWindow(dialect, normalizedModel));
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setApiUrl(resolveApiUrl(provider, dialect));
-        metadata.setModelListUrl(resolveModelListUrl(provider, dialect));
+        metadata.setModelListUrl(resolveModelListUrl(providerKey, provider, dialect));
         metadata.setSupportsTools(resolveSupportsTools(dialect));
         boolean supportsVision = resolveSupportsVision(dialect, normalizedModel, provider);
         boolean supportsAudio = resolveSupportsAudio(dialect, normalizedModel);
@@ -289,11 +289,11 @@ public class ModelMetadataService {
         return LlmProviderSupport.buildApiUrl(provider.getBaseUrl(), dialect);
     }
 
-    private String resolveModelListUrl(AppConfig.ProviderConfig provider, String dialect) {
+    private String resolveModelListUrl(String providerKey, AppConfig.ProviderConfig provider, String dialect) {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
             return "";
         }
-        return LlmProviderSupport.buildModelListUrl(provider.getBaseUrl(), dialect);
+        return LlmProviderSupport.buildModelListUrl(providerKey, provider.getBaseUrl(), dialect);
     }
 
     private String resolveSource(AppConfig.ProviderConfig provider, String model) {

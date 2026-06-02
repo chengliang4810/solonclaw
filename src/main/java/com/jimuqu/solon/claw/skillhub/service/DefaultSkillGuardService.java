@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.service.SkillGuardService;
 import com.jimuqu.solon.claw.skillhub.model.Finding;
 import com.jimuqu.solon.claw.skillhub.model.InstallDecision;
 import com.jimuqu.solon.claw.skillhub.model.ScanResult;
+import com.jimuqu.solon.claw.skillhub.support.SkillIgnoreSupport;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -829,11 +830,9 @@ public class DefaultSkillGuardService implements SkillGuardService {
 
         List<Finding> findings = new ArrayList<Finding>();
         if (skillPath.isDirectory()) {
-            findings.addAll(checkStructure(skillPath));
-            for (File file : FileUtil.loopFiles(skillPath)) {
-                if (file.isDirectory()) {
-                    continue;
-                }
+            List<File> scanFiles = SkillIgnoreSupport.includedFiles(skillPath);
+            findings.addAll(checkStructure(skillPath, scanFiles));
+            for (File file : scanFiles) {
                 findings.addAll(scanFile(skillPath, file));
             }
         } else if (skillPath.isFile()) {
@@ -959,15 +958,11 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return buffer.toString();
     }
 
-    private List<Finding> checkStructure(File skillDir) {
+    private List<Finding> checkStructure(File skillDir, List<File> files) {
         List<Finding> findings = new ArrayList<Finding>();
-        List<File> files = FileUtil.loopFiles(skillDir);
         long totalSize = 0L;
         int fileCount = 0;
         for (File file : files) {
-            if (file.isDirectory()) {
-                continue;
-            }
             fileCount++;
             totalSize += file.length();
             String rel = relativePath(skillDir, file);
@@ -1139,11 +1134,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
     }
 
     private String relativePath(File root, File file) {
-        String base = root.getAbsolutePath() + File.separator;
-        String absolute = file.getAbsolutePath();
-        return absolute.startsWith(base)
-                ? absolute.substring(base.length()).replace(File.separatorChar, '/')
-                : file.getName();
+        return SkillIgnoreSupport.relativePath(root, file);
     }
 
     private String trim(String line, int maxLength) {

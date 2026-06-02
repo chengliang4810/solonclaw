@@ -124,58 +124,29 @@ public final class LlmProviderSupport {
     }
 
     public static String buildModelListUrl(String baseUrl, String dialect) {
-        String raw = StrUtil.nullToEmpty(baseUrl).trim();
+        return buildModelListUrl("", baseUrl, dialect);
+    }
+
+    public static String buildModelListUrl(String providerKey, String baseUrl, String dialect) {
+        String raw = normalizedModelListCandidate(baseUrl);
         if (raw.length() == 0) {
             return "";
-        }
-        if (raw.endsWith("#")) {
-            raw = raw.substring(0, raw.length() - 1).trim();
         }
 
         String normalized = stripTrailingSlash(raw);
         String normalizedDialect = normalizeDialect(dialect);
-        if (isProviderAwareModelListBase(normalized, normalizedDialect)) {
-            return normalized + "/models";
+        if (LlmConstants.PROVIDER_OLLAMA.equals(normalizedDialect)) {
+            return buildOllamaModelListUrl(normalized);
+        }
+        if (LlmConstants.PROVIDER_GEMINI.equals(normalizedDialect)) {
+            return buildGeminiModelListUrl(normalized);
         }
         if (LlmConstants.PROVIDER_OPENAI.equals(normalizedDialect)
                 || LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(normalizedDialect)) {
-            if (StrUtil.endWithIgnoreCase(normalized, "/v1/chat/completions")) {
-                return normalized.substring(0, normalized.length() - "/chat/completions".length())
-                        + "/models";
-            }
-            if (StrUtil.endWithIgnoreCase(normalized, "/v1/responses")) {
-                return normalized.substring(0, normalized.length() - "/responses".length())
-                        + "/models";
-            }
-            return StrUtil.endWithIgnoreCase(normalized, "/v1")
-                    ? normalized + "/models"
-                    : normalized + "/v1/models";
-        }
-        if (LlmConstants.PROVIDER_OLLAMA.equals(normalizedDialect)) {
-            if (StrUtil.endWithIgnoreCase(normalized, "/api/chat")) {
-                return normalized.substring(0, normalized.length() - "/chat".length()) + "/tags";
-            }
-            return StrUtil.endWithIgnoreCase(normalized, "/api")
-                    ? normalized + "/tags"
-                    : normalized + "/api/tags";
-        }
-        if (LlmConstants.PROVIDER_GEMINI.equals(normalizedDialect)) {
-            if (StrUtil.endWithIgnoreCase(normalized, "/v1beta")) {
-                return normalized + "/models";
-            }
-            if (StrUtil.endWithIgnoreCase(normalized, "/v1")) {
-                return normalized + "/models";
-            }
-            return normalized + "/v1beta/models";
+            return buildOpenAiCompatibleModelListUrl(providerKey, normalized);
         }
         if (LlmConstants.PROVIDER_ANTHROPIC.equals(normalizedDialect)) {
-            if (StrUtil.endWithIgnoreCase(normalized, "/v1/messages")) {
-                return normalized.substring(0, normalized.length() - "/messages".length())
-                        + "/models";
-            }
-            return StrUtil.endWithIgnoreCase(normalized, "/v1")
-                    ? normalized + "/models"
-                    : normalized + "/v1/models";
+            return buildAnthropicModelListUrl(normalized);
         }
         return normalized;
     }
@@ -219,20 +190,114 @@ public final class LlmProviderSupport {
         return current;
     }
 
-    private static boolean isProviderAwareModelListBase(String normalizedBaseUrl, String dialect) {
+    private static String buildOpenAiCompatibleModelListUrl(String providerKey, String normalized) {
+        if (isCanonicalHttpModelListUrl(normalized)) {
+            return normalized;
+        }
+        if (StrUtil.endWithIgnoreCase(normalized, "/v1/chat/completions")) {
+            return normalized.substring(0, normalized.length() - "/chat/completions".length())
+                    + "/models";
+        }
+        if (StrUtil.endWithIgnoreCase(normalized, "/v1/responses")) {
+            return normalized.substring(0, normalized.length() - "/responses".length())
+                    + "/models";
+        }
+        if (isProviderAwareOpenAiCompatibleBase(providerKey, normalized)) {
+            return normalized + "/models";
+        }
+        return StrUtil.endWithIgnoreCase(normalized, "/v1")
+                ? normalized + "/models"
+                : normalized + "/v1/models";
+    }
+
+    private static String buildAnthropicModelListUrl(String normalized) {
+        if (isCanonicalHttpModelListUrl(normalized)) {
+            return normalized;
+        }
+        if (StrUtil.endWithIgnoreCase(normalized, "/v1/messages")) {
+            return normalized.substring(0, normalized.length() - "/messages".length())
+                    + "/models";
+        }
+        return StrUtil.endWithIgnoreCase(normalized, "/v1")
+                ? normalized + "/models"
+                : normalized + "/v1/models";
+    }
+
+    private static String buildOllamaModelListUrl(String normalized) {
+        if (StrUtil.endWithIgnoreCase(normalized, "/api/tags")) {
+            return normalized;
+        }
+        if (StrUtil.endWithIgnoreCase(normalized, "/api/chat")) {
+            return normalized.substring(0, normalized.length() - "/chat".length()) + "/tags";
+        }
+        return StrUtil.endWithIgnoreCase(normalized, "/api")
+                ? normalized + "/tags"
+                : normalized + "/api/tags";
+    }
+
+    private static String buildGeminiModelListUrl(String normalized) {
+        if (isGeminiModelListUrl(normalized)) {
+            return normalized;
+        }
+        if (StrUtil.endWithIgnoreCase(normalized, ":generateContent")) {
+            normalized = removeLastSegment(normalized);
+        } else if (StrUtil.endWithIgnoreCase(normalized, ":streamGenerateContent")) {
+            normalized = removeLastSegment(normalized);
+        }
+        if (isGeminiModelListUrl(normalized)) {
+            return normalized;
+        }
+        if (StrUtil.endWithIgnoreCase(normalized, "/v1beta")
+                || StrUtil.endWithIgnoreCase(normalized, "/v1")) {
+            return normalized + "/models";
+        }
+        return normalized + "/v1beta/models";
+    }
+
+    private static boolean isProviderAwareOpenAiCompatibleBase(String providerKey, String normalizedBaseUrl) {
         if (StrUtil.isBlank(normalizedBaseUrl)) {
             return false;
         }
-        if (!(LlmConstants.PROVIDER_OPENAI.equals(dialect)
-                || LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect))) {
-            return false;
+        String normalizedProviderKey = StrUtil.nullToEmpty(providerKey).trim().toLowerCase(Locale.ROOT);
+        if ("openrouter".equals(normalizedProviderKey)) {
+            return true;
         }
         return baseUrlHostMatches(normalizedBaseUrl, "openrouter.ai")
                 || baseUrlHostMatches(normalizedBaseUrl, "moonshot.ai")
+                || baseUrlHostMatches(normalizedBaseUrl, "moonshot.cn")
+                || baseUrlHostMatches(normalizedBaseUrl, "kimi.com")
                 || baseUrlHostMatches(normalizedBaseUrl, "deepseek.com")
                 || baseUrlHostMatches(normalizedBaseUrl, "x.ai")
-                || baseUrlHostMatches(normalizedBaseUrl, "api.x.ai")
                 || baseUrlHostMatches(normalizedBaseUrl, "siliconflow.cn");
+    }
+
+    private static boolean isCanonicalHttpModelListUrl(String normalizedUrl) {
+        return StrUtil.endWithIgnoreCase(normalizedUrl, "/models")
+                || StrUtil.endWithIgnoreCase(normalizedUrl, "/v1/models")
+                || StrUtil.endWithIgnoreCase(normalizedUrl, "/api/v1/models");
+    }
+
+    private static boolean isGeminiModelListUrl(String normalizedUrl) {
+        return StrUtil.endWithIgnoreCase(normalizedUrl, "/v1/models")
+                || StrUtil.endWithIgnoreCase(normalizedUrl, "/v1beta/models");
+    }
+
+    private static String removeLastSegment(String normalizedUrl) {
+        int slash = normalizedUrl.lastIndexOf('/');
+        return slash <= 0 ? normalizedUrl : normalizedUrl.substring(0, slash);
+    }
+
+    private static String normalizedModelListCandidate(String baseUrl) {
+        String raw = normalizedBaseCandidate(baseUrl);
+        int queryIndex = raw.indexOf('?');
+        if (queryIndex >= 0) {
+            raw = raw.substring(0, queryIndex).trim();
+        }
+        int fragmentIndex = raw.indexOf('#');
+        if (fragmentIndex >= 0) {
+            raw = raw.substring(0, fragmentIndex).trim();
+        }
+        return raw;
     }
 
     private static String normalizedBaseCandidate(String baseUrl) {

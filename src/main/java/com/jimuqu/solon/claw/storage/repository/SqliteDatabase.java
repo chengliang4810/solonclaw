@@ -666,6 +666,9 @@ public class SqliteDatabase {
                             + "session_id text,"
                             + "event_type text not null,"
                             + "choice text,"
+                            + "outcome text,"
+                            + "status text,"
+                            + "approved integer not null default 0,"
                             + "approver text,"
                             + "tool_name text,"
                             + "approval_id text,"
@@ -678,6 +681,9 @@ public class SqliteDatabase {
                             + "approval_created_at integer not null default 0,"
                             + "approval_expires_at integer not null default 0"
                             + ")");
+            addColumn(statement, "approval_audit_events", "outcome text");
+            addColumn(statement, "approval_audit_events", "status text");
+            addColumn(statement, "approval_audit_events", "approved integer not null default 0");
             statement.execute(
                     "create index if not exists idx_approval_audit_events_created on approval_audit_events(created_at desc)");
             statement.execute(
