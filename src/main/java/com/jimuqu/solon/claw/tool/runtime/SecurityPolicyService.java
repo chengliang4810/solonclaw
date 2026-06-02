@@ -793,7 +793,12 @@ public class SecurityPolicyService {
         summary.put("pathSuffixSamples", sample(CREDENTIAL_PATH_SUFFIXES, 4));
         summary.put("configuredCredentialFileSamples", redactSample(configuredCredentialFiles(), 6));
         summary.put("envExampleFilesAllowed", Boolean.TRUE);
-        summary.put("description", "Credential paths are blocked for file tools, patch targets, command reads, archives, uploads, and compact output paths.");
+        summary.put("projectEnvFileReadBlocked", Boolean.TRUE);
+        summary.put("projectEnvFileWriteBlocked", Boolean.TRUE);
+        summary.put("credentialPathReadBlocked", Boolean.TRUE);
+        summary.put("credentialPathWriteBlocked", Boolean.TRUE);
+        summary.put("writePolicySharesCredentialClassifier", Boolean.TRUE);
+        summary.put("description", "Credential paths are blocked for file tools, patch targets, command reads, writes, archives, uploads, and compact output paths.");
         return summary;
     }
 
@@ -921,6 +926,9 @@ public class SecurityPolicyService {
         summary.put("normalizedControlCharactersBlocked", Boolean.TRUE);
         summary.put("devicePathBlocked", Boolean.TRUE);
         summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
+        summary.put("credentialPathReadBlocked", Boolean.TRUE);
+        summary.put("credentialPathWriteBlocked", Boolean.TRUE);
+        summary.put("projectEnvFileWriteBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalWriteBlocked", Boolean.TRUE);
         summary.put("localManagementSocketReadBlocked", Boolean.TRUE);

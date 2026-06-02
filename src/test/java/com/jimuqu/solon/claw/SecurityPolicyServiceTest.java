@@ -1744,7 +1744,13 @@ public class SecurityPolicyServiceTest {
                 .doesNotContain("credentials/oauth.json")
                 .doesNotContain("1234567890abcdef");
         assertThat(summary.get("envExampleFilesAllowed")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("projectEnvFileReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("projectEnvFileWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPathReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPathWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("writePolicySharesCredentialClassifier")).isEqualTo(Boolean.TRUE);
         assertThat(policy.checkPath(".env", false).isAllowed()).isFalse();
+        assertThat(policy.checkPath(".env.local", true).isAllowed()).isFalse();
         assertThat(policy.checkPath(".env.example", false).isAllowed()).isTrue();
     }
 
@@ -1762,6 +1768,9 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("normalizedControlCharactersBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("devicePathBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawBlockDeviceWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPathReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPathWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("projectEnvFileWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("localManagementSocketEnvironmentBlocked")).isEqualTo(Boolean.TRUE);

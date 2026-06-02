@@ -1260,6 +1260,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "html_entity_sensitive_query");
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
+        Map<String, Object> projectEnvFileWrite = findProbe(items, "project_env_file_write");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
         Map<String, Object> encodedPathTraversal = findProbe(items, "encoded_path_traversal");
         Map<String, Object> pathControlCharacter = findProbe(items, "path_control_character");
@@ -1393,6 +1394,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
         Map<String, Object> fileToolEntityCredentialPath =
                 findProbe(items, "file_tool_entity_credential_path");
+        Map<String, Object> fileToolProjectEnvWrite =
+                findProbe(items, "file_tool_project_env_write");
         Map<String, Object> patchToolCredentialPath =
                 findProbe(items, "patch_tool_credential_path");
         Map<String, Object> patchToolUnifiedCredentialPath =
@@ -2154,6 +2157,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialFileName.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileName.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileName.get("skipped")).isNull();
+        assertThat(projectEnvFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(projectEnvFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(projectEnvFileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(projectEnvFileWrite)).contains("[REDACTED_PATH]").doesNotContain(".env.local");
         assertThat(credentialPathSuffix.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPathSuffix.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPathSuffix.get("skipped")).isNull();
@@ -2553,6 +2560,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(fileToolEntityCredentialPath))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("client&#95;secret.json");
+        assertThat(fileToolProjectEnvWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(fileToolProjectEnvWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(fileToolProjectEnvWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(fileToolProjectEnvWrite)).contains("[REDACTED_PATH]").doesNotContain(".env.local");
         assertThat(patchToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("skipped")).isNull();

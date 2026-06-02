@@ -2134,6 +2134,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "normalizedControlCharactersBlocked");
             copyPolicyValue(summary, safe, "devicePathBlocked");
             copyPolicyValue(summary, safe, "rawBlockDeviceWriteBlocked");
+            copyPolicyValue(summary, safe, "credentialPathReadBlocked");
+            copyPolicyValue(summary, safe, "credentialPathWriteBlocked");
+            copyPolicyValue(summary, safe, "projectEnvFileWriteBlocked");
             copyPolicyValue(summary, safe, "skillsHubInternalReadBlocked");
             copyPolicyValue(summary, safe, "skillsHubInternalWriteBlocked");
             copyPolicyValue(summary, safe, "localManagementSocketReadBlocked");
@@ -2170,6 +2173,11 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "keyFileMarkerCount");
             copyPolicyValue(summary, safe, "configuredCredentialFileCount");
             copyPolicyValue(summary, safe, "envExampleFilesAllowed");
+            copyPolicyValue(summary, safe, "projectEnvFileReadBlocked");
+            copyPolicyValue(summary, safe, "projectEnvFileWriteBlocked");
+            copyPolicyValue(summary, safe, "credentialPathReadBlocked");
+            copyPolicyValue(summary, safe, "credentialPathWriteBlocked");
+            copyPolicyValue(summary, safe, "writePolicySharesCredentialClassifier");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
@@ -3013,6 +3021,12 @@ public class DashboardDiagnosticsService {
                         false));
         items.add(
                 pathProbe(
+                        "project_env_file_write",
+                        "项目环境凭据文件写入阻断",
+                        ".env.local",
+                        true));
+        items.add(
+                pathProbe(
                         "credential_path_suffix",
                         "凭据路径后缀读取阻断",
                         "~/.config/gemini/oauth_creds.json",
@@ -3402,6 +3416,12 @@ public class DashboardDiagnosticsService {
                         "文件工具编码凭据路径检查",
                         ToolNameConstants.FILE_READ,
                         "client&#95;secret.json"));
+        items.add(
+                fileToolPathPolicyProbe(
+                        "file_tool_project_env_write",
+                        "文件工具项目环境凭据写入检查",
+                        ToolNameConstants.FILE_WRITE,
+                        ".env.local"));
         items.add(
                 patchToolPolicyProbe(
                         "patch_tool_credential_path",
@@ -5804,7 +5824,7 @@ public class DashboardDiagnosticsService {
                 writeLike ? "path_write" : "path_read",
                 false,
                 verdict.isAllowed(),
-                safeAuditPreview(path, 400),
+                safePathProbeTarget(path, verdict.getMessage()),
                 verdict.getMessage());
     }
 
@@ -5920,6 +5940,13 @@ public class DashboardDiagnosticsService {
         return value.contains("凭据") || value.contains("敏感");
     }
 
+    private String safePathProbeTarget(String path, String message) {
+        if (requiresCommandPathRedaction(message)) {
+            return "[REDACTED_PATH]";
+        }
+        return safeAuditPreview(path, 400);
+    }
+
     private Map<String, Object> commandAlwaysBlockedUrlProbe(String key, String label, String command) {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkCommandAlwaysBlockedUrls(command);
@@ -5945,7 +5972,7 @@ public class DashboardDiagnosticsService {
                 "file_tool_path_policy",
                 false,
                 verdict.isAllowed(),
-                safeAuditPreview(path, 400),
+                safePathProbeTarget(path, verdict.getMessage()),
                 verdict.getMessage());
     }
 
