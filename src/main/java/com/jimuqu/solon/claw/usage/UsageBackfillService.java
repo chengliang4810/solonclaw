@@ -133,6 +133,9 @@ public class UsageBackfillService {
         event.setCostMicros(cost.getTotalMicros());
         event.setCurrency(cost.getCurrency());
         event.setPriceSource(cost.getPriceSource());
+        event.setPriceSourceUrl(cost.getPriceSourceUrl());
+        event.setPricingVersion(cost.getPricingVersion());
+        event.setPriceFetchedAt(cost.getPriceFetchedAt());
         event.setPricingAvailable(cost.isPricingAvailable());
         event.setUnpricedInputTokens(cost.getUnpricedInputTokens());
         event.setUnpricedOutputTokens(cost.getUnpricedOutputTokens());

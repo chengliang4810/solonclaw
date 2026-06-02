@@ -20,6 +20,9 @@ public class ModelPrice {
     private long reasoningMicrosPerToken;
     private long requestMicrosPerRequest;
     private String source;
+    private String sourceUrl;
+    private String pricingVersion;
+    private long fetchedAt;
 
     public long getPromptMicrosPerToken() {
         return inputMicrosPerToken;

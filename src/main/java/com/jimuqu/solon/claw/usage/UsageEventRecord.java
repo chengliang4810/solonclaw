@@ -25,6 +25,10 @@ public class UsageEventRecord {
     private long costMicros;
     private String currency;
     private String priceSource;
+    private String priceSourceUrl;
+    private String pricingVersion;
+    private long priceFetchedAt;
+    private String rawUsageJson;
     private boolean pricingAvailable;
     private long unpricedInputTokens;
     private long unpricedOutputTokens;

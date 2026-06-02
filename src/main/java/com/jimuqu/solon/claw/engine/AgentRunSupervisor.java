@@ -1268,6 +1268,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         event.setReasoningTokens(reasoning);
         event.setTotalTokens(total);
         event.setRequestCount(requestCount);
+        event.setRawUsageJson(result.getRawUsageJson());
         event.setCreatedAt(
                 runRecord.getFinishedAt() > 0
                         ? runRecord.getFinishedAt()
@@ -1309,6 +1310,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
         event.setCostMicros(cost.getTotalMicros());
         event.setCurrency(cost.getCurrency());
         event.setPriceSource(cost.getPriceSource());
+        event.setPriceSourceUrl(cost.getPriceSourceUrl());
+        event.setPricingVersion(cost.getPricingVersion());
+        event.setPriceFetchedAt(cost.getPriceFetchedAt());
         event.setPricingAvailable(cost.isPricingAvailable());
         event.setUnpricedInputTokens(cost.getUnpricedInputTokens());
         event.setUnpricedOutputTokens(cost.getUnpricedOutputTokens());

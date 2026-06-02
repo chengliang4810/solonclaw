@@ -1622,6 +1622,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         private long cacheReadTokens;
         private long cacheWriteTokens;
         private long requestCount;
+        private final List<String> rawUsageJson = new ArrayList<String>();
 
         private synchronized void add(AiUsage usage) {
             if (usage == null) {
@@ -1635,6 +1636,9 @@ public class SolonAiLlmGateway implements LlmGateway {
             cacheReadTokens += snapshot.cacheReadTokens;
             cacheWriteTokens += snapshot.cacheWriteTokens;
             requestCount += snapshot.requestCount;
+            if (usage.getSource() != null) {
+                rawUsageJson.add(usage.getSource().toJson());
+            }
         }
 
         private synchronized void applyTo(LlmResult result) {
@@ -1654,6 +1658,22 @@ public class SolonAiLlmGateway implements LlmGateway {
             if (totalTokens > 0) {
                 result.setTotalTokens(totalTokens);
             }
+            if (!rawUsageJson.isEmpty()) {
+                result.setRawUsageJson(rawUsageJson.size() == 1 ? rawUsageJson.get(0) : rawUsageArrayJson());
+            }
+        }
+
+        private String rawUsageArrayJson() {
+            StringBuilder json = new StringBuilder();
+            json.append('[');
+            for (int i = 0; i < rawUsageJson.size(); i++) {
+                if (i > 0) {
+                    json.append(',');
+                }
+                json.append(rawUsageJson.get(i));
+            }
+            json.append(']');
+            return json.toString();
         }
 
         private UsageSnapshot normalize(AiUsage usage) {

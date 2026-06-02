@@ -46,6 +46,9 @@ public class LlmResult {
     /** 本轮累计 LLM API 请求次数。 */
     private long requestCount;
 
+    /** 本轮累计原始 provider usage JSON。 */
+    private String rawUsageJson;
+
     /** 本轮最终实际使用的 provider。 */
     private String provider;
 

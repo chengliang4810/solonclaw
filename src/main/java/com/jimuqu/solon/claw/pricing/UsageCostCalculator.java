@@ -73,6 +73,9 @@ public class UsageCostCalculator {
         cost.setPricingAvailable(true);
         cost.setCurrency(StrUtil.blankToDefault(price.getCurrency(), "USD"));
         cost.setPriceSource(StrUtil.blankToDefault(price.getSource(), "configured"));
+        cost.setPriceSourceUrl(price.getSourceUrl());
+        cost.setPricingVersion(price.getPricingVersion());
+        cost.setPriceFetchedAt(price.getFetchedAt());
         cost.setPricedAt(System.currentTimeMillis());
         cost.setTotalMicros(
                 input * price.getInputMicrosPerToken()

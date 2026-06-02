@@ -13,6 +13,9 @@ public class UsageCost {
     private String currency;
     private long totalMicros;
     private String priceSource;
+    private String priceSourceUrl;
+    private String pricingVersion;
+    private long priceFetchedAt;
     private long pricedAt;
     private long unpricedInputTokens;
     private long unpricedOutputTokens;
