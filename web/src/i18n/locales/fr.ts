@@ -76,7 +76,6 @@ export default {
     logs: 'Journaux',
     usage: 'Utilisation',
     channels: 'Canaux',
-    terminal: 'Terminal',
     files: 'Fichiers',
     settings: 'Parametres',
     connected: 'Connecte',
@@ -481,15 +480,6 @@ export default {
     fr: 'Francais',
   },
 
-  // Terminal
-  terminal: {
-    sessions: 'Sessions',
-    newTab: 'Nouveau terminal',
-    closeSession: 'Fermer cette session ?',
-    sessionExited: 'Terminee',
-    processExited: 'Processus termine avec le code {code}',
-  },
-
   // Usage
   usage: {
     title: 'Statistiques d\'utilisation',
@@ -588,7 +578,7 @@ export default {
     fileTooLarge: 'Fichier trop volumineux (limite depassee)',
     backendError: 'Echec de la lecture du fichier, l\'environnement distant est peut-etre indisponible',
     backendTimeout: 'Delai de lecture du fichier depasse',
-    unsupportedBackend: 'Le backend de terminal actuel ne prend pas en charge le telechargement de fichiers',
+    unsupportedBackend: 'Le backend local actuel ne prend pas en charge le telechargement de fichiers',
     invalidPath: 'Chemin de fichier invalide',
     download: 'Telecharger',
   },

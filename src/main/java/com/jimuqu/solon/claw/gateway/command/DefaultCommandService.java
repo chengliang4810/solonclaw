@@ -38,8 +38,6 @@ import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
-import com.jimuqu.solon.claw.kanban.KanbanService;
-import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.AgentPluginManifest;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
@@ -137,7 +135,6 @@ public class DefaultCommandService implements CommandService {
     private final AgentRunControlService agentRunControlService;
     private final AgentProfileService agentProfileService;
     private final AgentRunRepository agentRunRepository;
-    private final KanbanService kanbanService;
     private final DashboardMcpService dashboardMcpService;
     private final GoalService goalService;
     private final SessionArtifactService sessionArtifactService;
@@ -264,56 +261,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService) {
-        this(
-                sessionRepository,
-                toolRegistry,
-                localSkillService,
-                cronJobRepository,
-                conversationOrchestrator,
-                contextService,
-                contextCompressionService,
-                deliveryService,
-                gatewayAuthorizationService,
-                checkpointService,
-                skillHubService,
-                appConfig,
-                globalSettingRepository,
-                processRegistry,
-                runtimeSettingsService,
-                displaySettingsService,
-                appUpdateService,
-                dangerousCommandApprovalService,
-                agentRunControlService,
-                agentProfileService,
-                agentRunRepository,
-                kanbanService,
-                null);
-    }
-
-    public DefaultCommandService(
-            SessionRepository sessionRepository,
-            ToolRegistry toolRegistry,
-            LocalSkillService localSkillService,
-            CronJobRepository cronJobRepository,
-            ConversationOrchestrator conversationOrchestrator,
-            ContextService contextService,
-            ContextCompressionService contextCompressionService,
-            DeliveryService deliveryService,
-            GatewayAuthorizationService gatewayAuthorizationService,
-            CheckpointService checkpointService,
-            SkillHubService skillHubService,
-            AppConfig appConfig,
-            GlobalSettingRepository globalSettingRepository,
-            ProcessRegistry processRegistry,
-            RuntimeSettingsService runtimeSettingsService,
-            DisplaySettingsService displaySettingsService,
-            AppUpdateService appUpdateService,
-            DangerousCommandApprovalService dangerousCommandApprovalService,
-            AgentRunControlService agentRunControlService,
-            AgentProfileService agentProfileService,
-            AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService) {
         this(
                 sessionRepository,
@@ -337,7 +284,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 null);
     }
@@ -364,7 +310,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService) {
         this(
@@ -389,7 +334,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 new SessionArtifactService());
@@ -417,7 +361,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService) {
@@ -443,7 +386,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -472,7 +414,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -499,7 +440,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -529,7 +469,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -557,7 +496,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -588,7 +526,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -617,7 +554,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -649,7 +585,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -679,7 +614,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -715,7 +649,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -746,7 +679,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -782,7 +714,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -814,7 +745,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -850,7 +780,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -883,7 +812,6 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
@@ -919,7 +847,6 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -953,7 +880,6 @@ public class DefaultCommandService implements CommandService {
         this.agentRunControlService = agentRunControlService;
         this.agentProfileService = agentProfileService;
         this.agentRunRepository = agentRunRepository;
-        this.kanbanService = kanbanService;
         this.dashboardMcpService = dashboardMcpService;
         this.goalService = goalService == null ? new GoalService(sessionRepository) : goalService;
         this.sessionArtifactService =
@@ -1317,9 +1243,6 @@ public class DefaultCommandService implements CommandService {
             return handleReloadMcp(message, args);
         }
 
-        if (GatewayCommandConstants.COMMAND_ACP.equals(command)) {
-            return handleAcp(args);
-        }
 
         if (GatewayCommandConstants.COMMAND_SETHOME.equals(command)) {
             return gatewayAuthorizationService.setHome(message);
@@ -1366,12 +1289,6 @@ public class DefaultCommandService implements CommandService {
             return handleCron(message, args);
         }
 
-        if (GatewayCommandConstants.COMMAND_KANBAN.equals(command)) {
-            if (kanbanService == null) {
-                return GatewayReply.error("Kanban service is not available.");
-            }
-            return GatewayReply.ok(kanbanService.handleCommand(args, message.getUserName()));
-        }
 
         if (isCompressionCommand(command)) {
             SessionRecord session = requireSession(message.sourceKey());
@@ -2384,61 +2301,6 @@ public class DefaultCommandService implements CommandService {
             buffer.append("\n已永久确认 /reload-mcp，后续将直接执行。");
         }
         return GatewayReply.ok(buffer.toString());
-    }
-
-    private GatewayReply handleAcp(String args) {
-        String action = StrUtil.blankToDefault(firstToken(args), "status").toLowerCase();
-        if (!"status".equals(action) && !"show".equals(action)) {
-            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_ACP + " [status]");
-        }
-        Map<String, Object> status = new AcpStdioServer(null, null, dashboardMcpService, appConfig).status();
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("ACP adapter status\n");
-        buffer.append("transport=").append(status.get("transport")).append('\n');
-        buffer.append("command=").append(status.get("command")).append('\n');
-        buffer.append("protocol_version=").append(status.get("protocol_version")).append('\n');
-        Map<String, Object> capabilities = asMap(status.get("capabilities"));
-        buffer.append("mcp_servers=").append(capabilities.get("mcp_servers")).append('\n');
-        buffer.append("slash_commands=").append(capabilities.get("slash_commands")).append('\n');
-        buffer.append("methods=").append(joinCollection(status.get("methods"))).append('\n');
-        buffer.append("commands=").append(joinCommandNames(status.get("commands")));
-        return GatewayReply.ok(buffer.toString());
-    }
-
-    private Map<String, Object> asMap(Object value) {
-        if (value instanceof Map) {
-            return (Map<String, Object>) value;
-        }
-        return Collections.emptyMap();
-    }
-
-    private String joinCollection(Object value) {
-        if (value instanceof Iterable) {
-            List<String> items = new ArrayList<String>();
-            for (Object item : (Iterable<?>) value) {
-                if (item != null) {
-                    items.add(String.valueOf(item));
-                }
-            }
-            return String.join(", ", items);
-        }
-        return "";
-    }
-
-    private String joinCommandNames(Object value) {
-        if (!(value instanceof Iterable)) {
-            return "";
-        }
-        List<String> names = new ArrayList<String>();
-        for (Object item : (Iterable<?>) value) {
-            if (item instanceof Map) {
-                Object name = ((Map<?, ?>) item).get("name");
-                if (name != null) {
-                    names.add("/" + String.valueOf(name));
-                }
-            }
-        }
-        return String.join(", ", names);
     }
 
     private void appendReloadMcpHistoryNotice(
@@ -5193,7 +5055,6 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
                                         + " [now|always]；确认：/approve [确认编号]|/always|/cancel",
                                 "重新加载 MCP 工具并刷新工具变更基线"),
-                        helpLine(GatewayCommandConstants.SLASH_ACP + " [status]", "查看 ACP 本地适配器能力快照"),
                         helpLine(GatewayCommandConstants.SLASH_CONFIRM, "查看当前待确认 slash 命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_AGENT
@@ -5203,10 +5064,6 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_CRON
                                         + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]",
                                 "管理定时任务"),
-                        helpLine(
-                                GatewayCommandConstants.SLASH_KANBAN
-                                        + " [list|create|schema|show|drawer|inspect|move|assign|comment|boards|pipeline|step|retry|history|runs|events|tail|guide|stats|watch|dispatch]",
-                                "管理协作看板、任务抽屉、执行流水和多 Agent 派发"),
                         helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),

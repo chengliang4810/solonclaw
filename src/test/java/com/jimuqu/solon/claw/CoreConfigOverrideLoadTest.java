@@ -51,13 +51,6 @@ public class CoreConfigOverrideLoadTest {
                         + "  browser:\n"
                         + "    rewriteLoopbackUrls: true\n"
                         + "    loopbackHostAlias: host.containers.internal\n"
-                        + "  kanban:\n"
-                        + "    defaultAssignee: worker-default\n"
-                        + "    maxSpawn: 4\n"
-                        + "    maxInProgress: 8\n"
-                        + "    maxInProgressPerProfile: 2\n"
-                        + "    failureLimit: 5\n"
-                        + "    claimTtlSeconds: 3600\n"
                         + "  terminal:\n"
                         + "    foregroundMaxRetries: 4\n"
                         + "    foregroundRetryBaseDelaySeconds: 1\n"
@@ -174,12 +167,6 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().isRewriteBrowserLoopbackUrls()).isTrue();
         assertThat(config.getSecurity().getBrowserLoopbackHostAlias())
                 .isEqualTo("host.containers.internal");
-        assertThat(config.getKanban().getDefaultAssignee()).isEqualTo("worker-default");
-        assertThat(config.getKanban().getMaxSpawn()).isEqualTo(4);
-        assertThat(config.getKanban().getMaxInProgress()).isEqualTo(8);
-        assertThat(config.getKanban().getMaxInProgressPerProfile()).isEqualTo(2);
-        assertThat(config.getKanban().getFailureLimit()).isEqualTo(5);
-        assertThat(config.getKanban().getClaimTtlSeconds()).isEqualTo(3600);
         assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
                 .containsExactly("blocked.example");

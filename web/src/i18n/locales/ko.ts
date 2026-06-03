@@ -76,7 +76,6 @@ export default {
     logs: '로그',
     usage: '사용량',
     channels: '채널',
-    terminal: '터미널',
     files: '파일',
     settings: '설정',
     connected: '연결됨',
@@ -481,15 +480,6 @@ export default {
     ko: '한국어',
   },
 
-  // 터미널
-  terminal: {
-    sessions: '세션',
-    newTab: '새 터미널',
-    closeSession: '이 세션을 닫으시겠습니까?',
-    sessionExited: '종료됨',
-    processExited: '프로세스가 종료되었습니다 (코드 {code})',
-  },
-
   // 사용량
   usage: {
     title: '사용량 통계',
@@ -588,7 +578,7 @@ export default {
     fileTooLarge: '파일이 너무 큽니다 (제한 초과)',
     backendError: '파일 읽기에 실패했습니다. 원격 환경이 사용 불가능할 수 있습니다',
     backendTimeout: '파일 읽기 시간 초과',
-    unsupportedBackend: '현재 터미널 백엔드는 파일 다운로드를 지원하지 않습니다',
+    unsupportedBackend: '현재 로컬 백엔드는 파일 다운로드를 지원하지 않습니다',
     invalidPath: '잘못된 파일 경로',
     download: '다운로드',
   },

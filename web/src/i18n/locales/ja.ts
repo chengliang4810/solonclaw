@@ -76,7 +76,6 @@ export default {
     logs: 'ログ',
     usage: '使用量',
     channels: 'チャンネル',
-    terminal: 'ターミナル',
     files: 'ファイル',
     settings: '設定',
     connected: '接続済み',
@@ -481,15 +480,6 @@ export default {
     ja: '日本語',
   },
 
-  // ターミナル
-  terminal: {
-    sessions: 'セッション',
-    newTab: '新しいターミナル',
-    closeSession: 'このセッションを閉じますか？',
-    sessionExited: '終了しました',
-    processExited: 'プロセスが終了しました（コード {code}）',
-  },
-
   // 使用統計
   usage: {
     title: '使用統計',
@@ -588,7 +578,7 @@ export default {
     fileTooLarge: 'ファイルが大きすぎます（制限超過）',
     backendError: 'ファイルの読み取りに失敗しました。リモート環境が利用できない可能性があります',
     backendTimeout: 'ファイルの読み取りがタイムアウトしました',
-    unsupportedBackend: '現在のターミナルバックエンドはファイルのダウンロードに対応していません',
+    unsupportedBackend: '現在のローカルバックエンドはファイルのダウンロードに対応していません',
     invalidPath: '無効なファイルパス',
     download: 'ダウンロード',
   },

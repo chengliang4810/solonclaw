@@ -56,8 +56,6 @@ import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
-import com.jimuqu.solon.claw.kanban.KanbanRepository;
-import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -76,7 +74,6 @@ import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
-import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
@@ -133,7 +130,6 @@ public class TestEnvironment {
     public final SqliteDatabase sqliteDatabase;
     public final CommandService commandService;
     public final SlashConfirmService slashConfirmService;
-    public final KanbanService kanbanService;
     public final GatewayRestartCoordinator gatewayRestartCoordinator;
 
     public static TestEnvironment withFakeLlm() throws Exception {
@@ -197,7 +193,6 @@ public class TestEnvironment {
         SessionRepository sessionRepository = new SqliteSessionRepository(database);
         AgentRunRepository agentRunRepository = new SqliteAgentRunRepository(database);
         CronJobRepository cronJobRepository = new SqliteCronJobRepository(database);
-        KanbanRepository kanbanRepository = new SqliteKanbanRepository(database);
         GatewayPolicyRepository gatewayPolicyRepository =
                 new SqliteGatewayPolicyRepository(database);
         ChannelStateRepository channelStateRepository = new SqliteChannelStateRepository(database);
@@ -206,7 +201,6 @@ public class TestEnvironment {
                 new AgentRuntimeService(config, agentProfileRepository);
         AgentProfileService agentProfileService =
                 new AgentProfileService(agentProfileRepository, agentRuntimeService);
-        KanbanService kanbanService = new KanbanService(kanbanRepository, config, agentProfileService);
         ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
         SkillHubStateStore skillHubStateStore =
                 new SkillHubStateStore(new File(config.getRuntime().getSkillsDir()));
@@ -319,7 +313,6 @@ public class TestEnvironment {
                         sessionRepository,
                         agentProfileService,
                         cronJobService,
-                        kanbanService,
                         deliveryService,
                         memoryService,
                         sessionSearchService,
@@ -404,7 +397,6 @@ public class TestEnvironment {
                         agentRunSupervisor,
                         agentProfileService,
                         agentRunRepository,
-                        kanbanService,
                         dashboardMcpService,
                         goalService,
                         new SessionArtifactService(config),
@@ -456,7 +448,6 @@ public class TestEnvironment {
                 database,
                 commandService,
                 slashConfirmService,
-                kanbanService,
                 gatewayRestartCoordinator);
     }
 

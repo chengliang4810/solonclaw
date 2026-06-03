@@ -27,7 +27,6 @@ import com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator;
 import com.jimuqu.solon.claw.engine.DefaultDelegationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
-import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
@@ -170,7 +169,6 @@ public class ToolConfiguration {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -194,7 +192,6 @@ public class ToolConfiguration {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,

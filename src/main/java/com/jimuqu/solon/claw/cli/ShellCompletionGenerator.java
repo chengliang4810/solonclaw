@@ -9,12 +9,12 @@ import java.util.List;
 /** Shell completion script generator for the Java CLI entrypoint. */
 public class ShellCompletionGenerator {
     private static final List<String> TOP_LEVEL =
-            Collections.unmodifiableList(Arrays.asList("cli", "tui", "acp", "completion"));
+            Collections.unmodifiableList(Arrays.asList("cli", "tui", "completion"));
     private static final List<String> COMPLETION_SHELLS =
             Collections.unmodifiableList(Arrays.asList("bash", "zsh", "fish"));
     private static final List<String> OPTIONS =
             Collections.unmodifiableList(
-                    Arrays.asList("--cli", "--tui", "--acp", "--session", "--ask", "-p"));
+                    Arrays.asList("--cli", "--tui", "--session", "--ask", "-p"));
     private static final List<String> LOCAL_SLASH_COMMANDS = TerminalCommandCatalog.slashCommands();
 
     public int write(String shell, PrintStream out, PrintStream err) {
@@ -86,7 +86,6 @@ public class ShellCompletionGenerator {
                 + "    _arguments -C \\\n"
                 + "        '--cli[Run line-oriented CLI]' \\\n"
                 + "        '--tui[Run terminal UI]' \\\n"
-                + "        '--acp[Run ACP stdio adapter]' \\\n"
                 + "        '--session[Session id]:session id:' \\\n"
                 + "        '(-p --ask)'{-p,--ask}'[Send one prompt or local terminal command]:prompt:("
                 + words(LOCAL_SLASH_COMMANDS)
@@ -99,7 +98,6 @@ public class ShellCompletionGenerator {
                 + "            cmds=(\n"
                 + "                'cli:Run line-oriented CLI'\n"
                 + "                'tui:Run terminal UI'\n"
-                + "                'acp:Run ACP stdio adapter'\n"
                 + "                'completion:Print shell completion script'\n"
                 + "            )\n"
                 + "            _describe 'jimuqu-agent command' cmds\n"
@@ -125,7 +123,6 @@ public class ShellCompletionGenerator {
                 + "complete -c jimuqu-agent -f\n"
                 + "complete -c jimuqu-agent -f -l cli -d 'Run line-oriented CLI'\n"
                 + "complete -c jimuqu-agent -f -l tui -d 'Run terminal UI'\n"
-                + "complete -c jimuqu-agent -f -l acp -d 'Run ACP stdio adapter'\n"
                 + "complete -c jimuqu-agent -f -l session -d 'Session id'\n"
                 + "complete -c jimuqu-agent -f -s p -l ask -d 'Send one prompt'\n"
                 + "complete -c jimuqu-agent -f -n '__fish_seen_subcommand_from cli tui; and __fish_seen_argument -s p -l ask' -a '"

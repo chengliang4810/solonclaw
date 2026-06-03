@@ -69,9 +69,7 @@ public interface GatewayCommandConstants {
     String COMMAND_PLUGINS = "plugins";
     String COMMAND_RELOAD_SKILLS = "reload-skills";
     String COMMAND_RELOAD_MCP = "reload-mcp";
-    String COMMAND_ACP = "acp";
     String COMMAND_CRON = "cron";
-    String COMMAND_KANBAN = "kanban";
     String COMMAND_GOAL = "goal";
     String COMMAND_RECAP = "recap";
     String COMMAND_TRAJECTORY = "trajectory";
@@ -126,9 +124,7 @@ public interface GatewayCommandConstants {
     String SLASH_PLUGINS = COMMAND_PREFIX + COMMAND_PLUGINS;
     String SLASH_RELOAD_SKILLS = COMMAND_PREFIX + COMMAND_RELOAD_SKILLS;
     String SLASH_RELOAD_MCP = COMMAND_PREFIX + COMMAND_RELOAD_MCP;
-    String SLASH_ACP = COMMAND_PREFIX + COMMAND_ACP;
     String SLASH_CRON = COMMAND_PREFIX + COMMAND_CRON;
-    String SLASH_KANBAN = COMMAND_PREFIX + COMMAND_KANBAN;
     String SLASH_GOAL = COMMAND_PREFIX + COMMAND_GOAL;
     String SLASH_RECAP = COMMAND_PREFIX + COMMAND_RECAP;
     String SLASH_TRAJECTORY = COMMAND_PREFIX + COMMAND_TRAJECTORY;

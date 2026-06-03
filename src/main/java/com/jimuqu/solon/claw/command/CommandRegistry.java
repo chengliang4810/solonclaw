@@ -54,11 +54,9 @@ public final class CommandRegistry {
         register(core("plugins", "tool", "查看插件加载状态"));
         register(core("reload-skills", "skill", "重新扫描本地技能目录").alias("reload_skills"));
         register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线").alias("reload_mcp"));
-        register(core("acp", "integration", "查看 ACP 本地适配器能力快照"));
         register(core("confirm", "security", "查看当前待确认 slash 命令"));
         register(core("agent", "agent", "切换或管理当前会话 Agent"));
         register(core("cron", "automation", "管理定时任务"));
-        register(core("kanban", "automation", "管理协作看板、任务抽屉、执行流水和多 Agent 派发"));
         register(core("recap", "session", "显示恢复会话用的紧凑历史摘要"));
         register(core("trajectory", "session", "导出会话 trajectory JSON"));
         register(core("compact", "session", "压缩当前会话上下文").alias("compress"));

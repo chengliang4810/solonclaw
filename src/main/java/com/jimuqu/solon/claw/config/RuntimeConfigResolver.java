@@ -400,8 +400,6 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "solonclaw.scheduler.cronApprovalMode");
         addDynamicPrefix(prefixes, "solonclaw.scheduler.enabledToolsets");
         addDynamicPrefix(prefixes, "solonclaw.task.restartDrainTimeoutSeconds");
-        addDynamicPrefix(prefixes, "solonclaw.kanban.claimTtlSeconds");
-        addDynamicPrefix(prefixes, "solonclaw.kanban.claim_ttl_seconds");
         addDynamicPrefix(prefixes, "solonclaw.terminal.shellInitFiles");
         addDynamicPrefix(prefixes, "terminal.shell_init_files");
         addDynamicPrefix(prefixes, "solonclaw.terminal.autoSourceBashrc");
@@ -835,16 +833,6 @@ public class RuntimeConfigResolver {
                 "tool_output.max_lines",
                 "tool_output.max_line_length",
                 "solonclaw.task.mediaCacheTtlHours",
-                "solonclaw.kanban.defaultAssignee",
-                "solonclaw.kanban.default_assignee",
-                "solonclaw.kanban.maxSpawn",
-                "solonclaw.kanban.max_spawn",
-                "solonclaw.kanban.maxInProgress",
-                "solonclaw.kanban.max_in_progress",
-                "solonclaw.kanban.maxInProgressPerProfile",
-                "solonclaw.kanban.max_in_progress_per_profile",
-                "solonclaw.kanban.failureLimit",
-                "solonclaw.kanban.failure_limit",
                 "solonclaw.browser.rewriteLoopbackUrls",
                 "solonclaw.browser.rewrite_loopback_urls",
                 "solonclaw.browser.loopbackHostAlias",

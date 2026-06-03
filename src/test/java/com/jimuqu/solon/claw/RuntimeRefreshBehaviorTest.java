@@ -215,31 +215,6 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldUpdateKanbanRuntimeKeysWithoutReconnectingChannels() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
-        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
-
-        runtimeSettingsService.setConfigValue("kanban.defaultAssignee", "worker-default");
-        runtimeSettingsService.setConfigValue("kanban.maxSpawn", "3");
-        runtimeSettingsService.setConfigValue("kanban.maxInProgress", "6");
-        runtimeSettingsService.setConfigValue("kanban.max_in_progress_per_profile", "2");
-        runtimeSettingsService.setConfigValue("kanban.failure_limit", "4");
-
-        assertThat(env.appConfig.getKanban().getDefaultAssignee()).isEqualTo("worker-default");
-        assertThat(env.appConfig.getKanban().getMaxSpawn()).isEqualTo(3);
-        assertThat(env.appConfig.getKanban().getMaxInProgress()).isEqualTo(6);
-        assertThat(env.appConfig.getKanban().getMaxInProgressPerProfile()).isEqualTo(2);
-        assertThat(env.appConfig.getKanban().getFailureLimit()).isEqualTo(4);
-        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("kanban:")
-                .contains("defaultAssignee: worker-default")
-                .contains("maxInProgressPerProfile: 2");
-        assertThat(adapter.disconnectCount).isZero();
-        assertThat(adapter.connectCount).isZero();
-    }
-
-    @Test
     void shouldWriteApprovalsRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
@@ -429,22 +404,6 @@ public class RuntimeRefreshBehaviorTest {
                 .doesNotContain(env.appConfig.getRuntime().getHome())
                 .doesNotContain(env.appConfig.getRuntime().getConfigFile());
         assertThat(env.appConfig.getReact().getMaxSteps()).isEqualTo(50);
-    }
-
-    @Test
-    void shouldRejectInvalidKanbanContainerBeforeRefreshing() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        int previousFailureLimit = env.appConfig.getKanban().getFailureLimit();
-        FileUtil.writeUtf8String(
-                "solonclaw:\n  kanban: wrong\n",
-                env.appConfig.getRuntime().getConfigFile());
-
-        GatewayRuntimeRefreshService.RefreshResult result =
-                env.gatewayRuntimeRefreshService.refreshConfigOnly();
-
-        assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getMessage()).contains("solonclaw.kanban");
-        assertThat(env.appConfig.getKanban().getFailureLimit()).isEqualTo(previousFailureLimit);
     }
 
     @Test

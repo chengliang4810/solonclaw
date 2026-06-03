@@ -136,18 +136,6 @@ function handleLogout() {
         <span>{{ t("sidebar.jobs") }}</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.kanban' }" @click="handleNav('Jimuqu.kanban')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <path d="M9 4v16" />
-          <path d="M15 4v16" />
-          <path d="M5.5 8h1" />
-          <path d="M11.5 11h1" />
-          <path d="M17.5 9h1" />
-        </svg>
-        <span>看板</span>
-      </button>
-
       <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.channels' }" @click="handleNav('Jimuqu.channels')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -168,15 +156,6 @@ function handleLogout() {
           <path d="M16.95 7.05l2.83-2.83" />
         </svg>
         <span>{{ t("sidebar.models") }}</span>
-      </button>
-
-      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.tui' }" @click="handleNav('Jimuqu.tui')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <path d="M7 8l3 3-3 3" />
-          <path d="M12 14h5" />
-        </svg>
-        <span>Agent 终端</span>
       </button>
 
       <!-- Persona -->
@@ -274,7 +253,7 @@ function handleLogout() {
               <path d="M12 16v4" />
               <circle cx="12" cy="12" r="1.5" />
             </svg>
-            <span>MCP / ACP</span>
+            <span>MCP</span>
           </button>
         </div>
       </div>

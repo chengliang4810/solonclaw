@@ -88,9 +88,6 @@ public class AppConfig {
     /** 长任务控制配置。 */
     private TaskConfig task = new TaskConfig();
 
-    /** Kanban dispatcher configuration. */
-    private KanbanConfig kanban = new KanbanConfig();
-
     /** 终端/沙箱执行配置。 */
     private TerminalConfig terminal = new TerminalConfig();
 
@@ -1455,88 +1452,6 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.task.mediaCacheTtlHours",
                                         168)));
-        config.getKanban()
-                .setDefaultAssignee(
-                        resolveConfigString(
-                                readString(
-                                        props,
-                                        overrides,
-                                        "solonclaw.kanban.defaultAssignee",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "solonclaw.kanban.default_assignee",
-                                                ""))));
-        config.getKanban()
-                .setMaxSpawn(
-                        nonNegativeInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.kanban.maxSpawn",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "solonclaw.kanban.max_spawn",
-                                                        0))),
-                                0));
-        config.getKanban()
-                .setMaxInProgress(
-                        nonNegativeInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.kanban.maxInProgress",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "solonclaw.kanban.max_in_progress",
-                                                        0))),
-                                0));
-        config.getKanban()
-                .setMaxInProgressPerProfile(
-                        nonNegativeInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.kanban.maxInProgressPerProfile",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "solonclaw.kanban.max_in_progress_per_profile",
-                                                        0))),
-                                0));
-        config.getKanban()
-                .setFailureLimit(
-                        positiveInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.kanban.failureLimit",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "solonclaw.kanban.failure_limit",
-                                                        3))),
-                                3));
-        config.getKanban()
-                .setClaimTtlSeconds(
-                        positiveInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.kanban.claimTtlSeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "solonclaw.kanban.claim_ttl_seconds",
-                                                        900))),
-                                900));
         config.getSecurity()
                 .setAllowPrivateUrls(
                         resolveBoolean(
@@ -2081,7 +1996,6 @@ public class AppConfig {
         copyReact(other.getReact());
         copyTrace(other.getTrace());
         copyTask(other.getTask());
-        copyKanban(other.getKanban());
         copyTerminal(other.getTerminal());
         copySecurity(other.getSecurity());
         copyWeb(other.getWeb());
@@ -2297,15 +2211,6 @@ public class AppConfig {
         this.terminal.setForegroundMaxRetries(other.getForegroundMaxRetries());
         this.terminal.setForegroundRetryBaseDelaySeconds(other.getForegroundRetryBaseDelaySeconds());
         this.terminal.setProcessWaitTimeoutSeconds(other.getProcessWaitTimeoutSeconds());
-    }
-
-    private void copyKanban(KanbanConfig other) {
-        this.kanban.setDefaultAssignee(other.getDefaultAssignee());
-        this.kanban.setMaxSpawn(other.getMaxSpawn());
-        this.kanban.setMaxInProgress(other.getMaxInProgress());
-        this.kanban.setMaxInProgressPerProfile(other.getMaxInProgressPerProfile());
-        this.kanban.setFailureLimit(other.getFailureLimit());
-        this.kanban.setClaimTtlSeconds(other.getClaimTtlSeconds());
     }
 
     private void copySecurity(SecurityConfig other) {
@@ -4092,30 +3997,6 @@ public class AppConfig {
 
         /** 媒体缓存 TTL，单位小时。 */
         private int mediaCacheTtlHours = 168;
-    }
-
-    /** Kanban dispatcher defaults. */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    public static class KanbanConfig {
-        /** Fallback assignee for ready tasks without an explicit assignee. */
-        private String defaultAssignee = "";
-
-        /** Live running worker cap when dispatching; 0 disables the cap. */
-        private int maxSpawn = 0;
-
-        /** Alternate global live running worker cap; 0 disables the cap. */
-        private int maxInProgress = 0;
-
-        /** Per-assignee live running worker cap; 0 disables the cap. */
-        private int maxInProgressPerProfile = 0;
-
-        /** Consecutive spawn failure limit before auto-blocking. */
-        private int failureLimit = 3;
-
-        /** Default claim and heartbeat TTL in seconds. */
-        private int claimTtlSeconds = 900;
     }
 
     @Getter

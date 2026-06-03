@@ -4788,7 +4788,6 @@ public class DefaultCronSchedulerTest {
                         env.agentRunControlService,
                         env.agentProfileService,
                         env.agentRunRepository,
-                        env.kanbanService,
                         null,
                         null,
                         new SessionArtifactService(env.appConfig),

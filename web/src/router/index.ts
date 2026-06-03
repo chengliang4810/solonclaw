@@ -26,11 +26,6 @@ const router = createRouter({
       component: () => import('@/views/jimuqu/JobsView.vue'),
     },
     {
-      path: '/jimuqu/kanban',
-      name: 'Jimuqu.kanban',
-      component: () => import('@/views/jimuqu/KanbanView.vue'),
-    },
-    {
       path: '/jimuqu/models',
       name: 'Jimuqu.models',
       component: () => import('@/views/jimuqu/ModelsView.vue'),
@@ -89,16 +84,6 @@ const router = createRouter({
       path: '/jimuqu/channels',
       name: 'Jimuqu.channels',
       component: () => import('@/views/jimuqu/ChannelsView.vue'),
-    },
-    {
-      path: '/jimuqu/terminal',
-      name: 'Jimuqu.terminal',
-      component: () => import('@/views/jimuqu/TerminalView.vue'),
-    },
-    {
-      path: '/jimuqu/tui',
-      name: 'Jimuqu.tui',
-      component: () => import('@/views/jimuqu/TuiView.vue'),
     },
     {
       path: '/jimuqu/mcp',

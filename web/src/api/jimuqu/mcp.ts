@@ -75,33 +75,8 @@ export interface McpOAuthBeginResult {
   oauth?: Record<string, unknown>
 }
 
-export interface AcpCommand {
-  name: string
-  description?: string
-  input?: unknown
-}
-
-export interface AcpStatus {
-  enabled: boolean
-  transport: string
-  command: string
-  protocol_version?: number
-  protocolVersion?: number
-  agent?: Record<string, unknown>
-  agent_info?: Record<string, unknown>
-  capabilities?: Record<string, unknown>
-  agent_capabilities?: Record<string, unknown>
-  auth_methods?: unknown[]
-  commands?: AcpCommand[]
-  methods?: string[]
-}
-
 export async function fetchMcpServers(): Promise<{ enabled: boolean; servers: McpServer[] }> {
   return request('/api/jimuqu/mcp')
-}
-
-export async function fetchAcpStatus(): Promise<AcpStatus> {
-  return request('/api/jimuqu/acp/status')
 }
 
 export async function saveMcpServer(data: Record<string, unknown>) {

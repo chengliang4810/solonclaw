@@ -33,16 +33,6 @@ public interface ToolNameConstants {
     String SKILLS_HUB_TAP = "skills_hub_tap";
     String SEND_MESSAGE = "send_message";
     String CRONJOB = "cronjob";
-    String KANBAN_SHOW = "kanban_show";
-    String KANBAN_COMPLETE = "kanban_complete";
-    String KANBAN_BLOCK = "kanban_block";
-    String KANBAN_HEARTBEAT = "kanban_heartbeat";
-    String KANBAN_STEP = "kanban_step";
-    String KANBAN_COMMENT = "kanban_comment";
-    String KANBAN_CREATE = "kanban_create";
-    String KANBAN_SCHEMA_CREATE = "kanban_schema_create";
-    String KANBAN_LINK = "kanban_link";
-    String KANBAN_UNLINK = "kanban_unlink";
     String CONFIG_GET = "config_get";
     String CONFIG_SET = "config_set";
     String CONFIG_SET_SECRET = "config_set_secret";

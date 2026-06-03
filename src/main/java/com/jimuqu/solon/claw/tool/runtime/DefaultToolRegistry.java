@@ -15,7 +15,6 @@ import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
-import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
@@ -79,16 +78,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.SKILLS_HUB_TAP,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
-                    ToolNameConstants.KANBAN_SHOW,
-                    ToolNameConstants.KANBAN_COMPLETE,
-                    ToolNameConstants.KANBAN_BLOCK,
-                    ToolNameConstants.KANBAN_HEARTBEAT,
-                    ToolNameConstants.KANBAN_STEP,
-                    ToolNameConstants.KANBAN_COMMENT,
-                    ToolNameConstants.KANBAN_CREATE,
-                    ToolNameConstants.KANBAN_SCHEMA_CREATE,
-                    ToolNameConstants.KANBAN_LINK,
-                    ToolNameConstants.KANBAN_UNLINK,
                     ToolNameConstants.CONFIG_GET,
                     ToolNameConstants.CONFIG_SET,
                     ToolNameConstants.CONFIG_SET_SECRET,
@@ -120,9 +109,6 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** 定时任务仓储。 */
     private final CronJobService cronJobService;
-
-    /** Kanban 服务。 */
-    private final KanbanService kanbanService;
 
     /** 渠道投递服务。 */
     private final DeliveryService deliveryService;
@@ -181,7 +167,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -198,7 +183,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -224,7 +208,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -242,7 +225,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -268,7 +250,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -287,7 +268,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -313,7 +293,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -333,7 +312,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -359,7 +337,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -381,7 +358,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -407,7 +383,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -428,7 +403,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -454,7 +428,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -475,7 +448,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -501,7 +473,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -524,7 +495,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
-                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -550,7 +520,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
-            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -573,7 +542,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.sessionRepository = sessionRepository;
         this.agentProfileService = agentProfileService;
         this.cronJobService = cronJobService;
-        this.kanbanService = kanbanService;
         this.deliveryService = deliveryService;
         this.memoryService = memoryService;
         this.sessionSearchService = sessionSearchService;
@@ -639,8 +607,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         MessagingTools messagingTools =
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
-        KanbanTools kanbanTools = new KanbanTools(kanbanService);
-        boolean kanbanToolsAdded = false;
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
@@ -697,9 +663,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         List<Object> gatewayCandidates = new ArrayList<Object>();
 
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
-            if (isKanbanTool(toolName) && !isKanbanToolContext(sourceKey, agentScope)) {
-                continue;
-            }
             if (!isEnabled(sourceKey, toolName)) {
                 continue;
             }
@@ -776,11 +739,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(messagingTools);
             } else if (ToolNameConstants.CRONJOB.equals(toolName)) {
                 tools.add(cronjobTools);
-            } else if (isKanbanTool(toolName)) {
-                if (!kanbanToolsAdded) {
-                    tools.add(kanbanTools);
-                    kanbanToolsAdded = true;
-                }
             } else if (ToolNameConstants.TODO.equals(toolName)) {
                 tools.add(todoTools);
             } else if (ToolNameConstants.AGENT_MANAGE.equals(toolName)) {
@@ -865,52 +823,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 || ToolNameConstants.FILE_DELETE.equals(toolName);
     }
 
-    private boolean isKanbanTool(String toolName) {
-        return ToolNameConstants.KANBAN_SHOW.equals(toolName)
-                || ToolNameConstants.KANBAN_COMPLETE.equals(toolName)
-                || ToolNameConstants.KANBAN_BLOCK.equals(toolName)
-                || ToolNameConstants.KANBAN_HEARTBEAT.equals(toolName)
-                || ToolNameConstants.KANBAN_STEP.equals(toolName)
-                || ToolNameConstants.KANBAN_COMMENT.equals(toolName)
-                || ToolNameConstants.KANBAN_CREATE.equals(toolName)
-                || ToolNameConstants.KANBAN_SCHEMA_CREATE.equals(toolName)
-                || ToolNameConstants.KANBAN_LINK.equals(toolName)
-                || ToolNameConstants.KANBAN_UNLINK.equals(toolName);
-    }
-
-    private boolean isKanbanToolContext(String sourceKey, AgentRuntimeScope agentScope) {
-        if (StrUtil.isNotBlank(System.getenv("JIMUQU_KANBAN_TASK"))) {
-            return true;
-        }
-        if (StrUtil.startWithIgnoreCase(StrUtil.nullToEmpty(sourceKey), "MEMORY:kanban-")) {
-            return true;
-        }
-        if (agentScope == null) {
-            return false;
-        }
-        List<String> configured = AgentRuntimePolicy.parseStringList(agentScope.getAllowedToolsJson());
-        if (configured.isEmpty()) {
-            return false;
-        }
-        return containsKanbanSelector(configured);
-    }
-
-    private boolean containsKanbanSelector(List<String> configured) {
-        for (String item : configured) {
-            String key = StrUtil.nullToEmpty(item).trim().toLowerCase(Locale.ROOT);
-            if (StrUtil.isBlank(key)) {
-                continue;
-            }
-            if ("kanban".equals(key)
-                    || "board".equals(key)
-                    || "boards".equals(key)
-                    || isKanbanTool(key)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public List<String> resolveEnabledToolNames(String sourceKey) {
         return resolveEnabledToolNames(sourceKey, null);
@@ -920,9 +832,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     public List<String> resolveEnabledToolNames(String sourceKey, AgentRuntimeScope agentScope) {
         List<String> result = new ArrayList<String>();
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
-            if (isKanbanTool(toolName) && !isKanbanToolContext(sourceKey, agentScope)) {
-                continue;
-            }
             if (isEnabled(sourceKey, toolName)) {
                 result.add(toolName);
             }

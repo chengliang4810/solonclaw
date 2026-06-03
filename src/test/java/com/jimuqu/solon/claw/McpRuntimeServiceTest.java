@@ -141,7 +141,6 @@ public class McpRuntimeServiceTest {
                         null,
                         new com.jimuqu.solon.claw.scheduler.CronJobService(
                                 env.appConfig, env.cronJobRepository),
-                        env.kanbanService,
                         env.deliveryService,
                         null,
                         null,

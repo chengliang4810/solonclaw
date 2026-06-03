@@ -566,8 +566,6 @@ public class SubprocessEnvironmentSanitizerTest {
     void shouldKeepNonSecretJimuquExecutionContextButDropSafetyTogglesAndTokens() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
-        env.put("JIMUQU_KANBAN_TASK", "task-123");
-        env.put("jimuqu_kanban_worker", "worker-a");
         env.put("JIMUQU_PROFILE", "reviewer");
         env.put("JIMUQU_RPC_DIR", "/tmp/jimuqu-rpc");
         env.put("JIMUQU_ALLOW_PRIVATE_URLS", "true");
@@ -577,8 +575,6 @@ public class SubprocessEnvironmentSanitizerTest {
         SubprocessEnvironmentSanitizer.sanitize(env);
 
         assertThat(env)
-                .containsEntry("JIMUQU_KANBAN_TASK", "task-123")
-                .containsEntry("jimuqu_kanban_worker", "worker-a")
                 .containsEntry("JIMUQU_PROFILE", "reviewer");
         assertThat(env)
                 .doesNotContainKeys(
