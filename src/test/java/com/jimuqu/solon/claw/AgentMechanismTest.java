@@ -157,52 +157,6 @@ public class AgentMechanismTest {
     }
 
     @Test
-    void shouldExpandKanbanToolSelectorAndHideItFromPlainAllContext() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.agentProfileService.createAgent("planner", "看板编排 Agent");
-        claimAdmin(env, "kanban-tools-room", "kanban-tools-user");
-        env.send("kanban-tools-room", "kanban-tools-user", "/agent tools planner kanban");
-        env.send("kanban-tools-room", "kanban-tools-user", "/agent planner");
-
-        AgentRuntimeScope kanbanScope =
-                env.agentRuntimeService.resolve(
-                        env.sessionRepository.getBoundSession(
-                                "MEMORY:kanban-tools-room:kanban-tools-user"));
-        List<String> kanbanNames =
-                env.toolRegistry.resolveEnabledToolNames(
-                        "MEMORY:kanban-tools-room:kanban-tools-user", kanbanScope);
-
-        assertThat(kanbanNames)
-                .containsExactly(
-                        "kanban_show",
-                        "kanban_complete",
-                        "kanban_block",
-                        "kanban_heartbeat",
-                        "kanban_step",
-                        "kanban_comment",
-                        "kanban_create",
-                        "kanban_schema_create",
-                        "kanban_link",
-                        "kanban_unlink");
-
-        env.agentProfileService.createAgent("all-tools", "全工具 Agent");
-        claimAdmin(env, "all-tools-room", "all-tools-user");
-        env.send("all-tools-room", "all-tools-user", "/agent tools all-tools all");
-        env.send("all-tools-room", "all-tools-user", "/agent all-tools");
-
-        AgentRuntimeScope allScope =
-                env.agentRuntimeService.resolve(
-                        env.sessionRepository.getBoundSession(
-                                "MEMORY:all-tools-room:all-tools-user"));
-        List<String> allNames =
-                env.toolRegistry.resolveEnabledToolNames(
-                        "MEMORY:all-tools-room:all-tools-user", allScope);
-
-        assertThat(allNames).contains("security_audit");
-        assertThat(allNames).doesNotContain("kanban_unlink");
-    }
-
-    @Test
     void shouldCleanSessionsWhenDashboardDeletesActiveAgent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         claimAdmin(env, "delete-room", "delete-user");

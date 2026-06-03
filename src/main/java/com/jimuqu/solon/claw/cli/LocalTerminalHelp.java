@@ -29,7 +29,6 @@ public final class LocalTerminalHelp {
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
                 + "/busy [status|queue|steer|interrupt|reject] - 查看或切换运行中输入策略\n"
                 + "/cron guide|capabilities|policy [--json] - 查看自动化字段、别名、技能绑定、执行和投递策略\n"
-                + "/kanban guide|drawer|pipeline|retry|history|dispatch - 查看或操作看板任务抽屉、流水和派发\n"
                 + "/security audit|status|policy|audit-tool|approvals|slash-confirm|approval-card|approval-audit|mcp-reload|lifecycle|hardline|terminal-guardrails|tirith|tirith-approval|cron-approvals|subagent-approvals|smart-approval|urls|private-urls|website|paths|credentials|skill-credentials|tool-args|mcp|mcp-oauth|mcp-package|schema|attachments|terminal-paste|media-cache|tool-results|patch|code-execution|subprocess-env|terminal-output|sudo|process - 查看安全审计、策略状态、审批、URL、路径、凭据、MCP、执行和工具策略摘要\n"
                 + "/insights - 查看使用洞察与运行摘要\n"
                 + "/plugins - 查看插件加载状态\n"
@@ -42,13 +41,12 @@ public final class LocalTerminalHelp {
                 + "/deny list|status|all - 查看或批量拒绝待审批命令\n"
                 + "/confirm - 查看待确认 slash 命令\n"
                 + "/yolo [status|on|off] - 查看或切换当前会话危险命令自动批准模式\n"
-                + "/acp status - 查看 ACP 本地适配器能力快照\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
                 + TerminalShortcuts.helpLine() + "\n"
                 + "/exit 或 /quit - 退出当前终端会话；有后台任务时先显示退出保护\n"
                 + "/exit! 或 /quit! - 停止运行中的后台任务并强制退出\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
                 + "\n"
-                + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/title、/status、/model、/cron、/kanban、/security、/approve、/deny、/busy 等。";
+                + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/title、/status、/model、/cron、/security、/approve、/deny、/busy 等。";
     }
 }

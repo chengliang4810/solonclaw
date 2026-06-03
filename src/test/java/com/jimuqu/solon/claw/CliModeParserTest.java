@@ -47,14 +47,6 @@ public class CliModeParserTest {
     }
 
     @Test
-    void shouldParseAcpModeAsConsoleMode() {
-        CliMode mode = CliModeParser.parse(new String[] {"acp"});
-
-        assertThat(mode.getKind()).isEqualTo(CliMode.Kind.ACP);
-        assertThat(mode.isConsoleMode()).isTrue();
-    }
-
-    @Test
     void shouldParseCompletionModeAsConsoleMode() {
         CliMode mode = CliModeParser.parse(new String[] {"completion", "zsh"});
 
@@ -77,7 +69,6 @@ public class CliModeParserTest {
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains("--session --ask -p")
-                .contains("/acp status")
                 .contains("/reload-mcp now");
         assertThat(zsh)
                 .contains("#compdef jimuqu-agent")

@@ -300,46 +300,6 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldExposeKanbanAdvancedCommandsInSlashHelp() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        bootstrapAdmin(env);
-
-        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
-
-        assertThat(help.getContent())
-                .contains("/kanban [list|create|schema|show|drawer|inspect|move|assign|comment|boards|pipeline|step|retry|history|runs|events|tail|guide|stats|watch|dispatch]")
-                .contains("任务抽屉")
-                .contains("执行流水")
-                .contains("多 Agent 派发");
-    }
-
-    @Test
-    void shouldExposeAcpStatusCommand() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        bootstrapAdmin(env);
-
-        GatewayReply status = env.send("admin-chat", "admin-user", "/acp status");
-        assertThat(status.isError()).isFalse();
-        assertThat(status.getContent())
-                .contains("ACP adapter status")
-                .contains("transport=stdio")
-                .contains("command=java -jar jimuqu-agent.jar acp")
-                .contains("protocol_version=1")
-                .contains("mcp_servers=true")
-                .contains("slash_commands=true")
-                .contains("session/new")
-                .contains("permissions/respond")
-                .contains("/reload-mcp");
-
-        GatewayReply invalid = env.send("admin-chat", "admin-user", "/acp reload");
-        assertThat(invalid.isError()).isTrue();
-        assertThat(invalid.getContent()).contains("/acp [status]");
-
-        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
-        assertThat(help.getContent()).contains("/acp [status]");
-    }
-
-    @Test
     void shouldRedactTrackedSlashCommandEventArgsBeforeStorage() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

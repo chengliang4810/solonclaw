@@ -1,10 +1,5 @@
 package com.jimuqu.solon.claw.web;
 
-import com.jimuqu.solon.claw.cli.CliRuntime;
-import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
-import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -17,22 +12,9 @@ import org.noear.solon.core.handle.MethodType;
 @Controller
 public class DashboardMcpController {
     private final DashboardMcpService mcpService;
-    private final CliRuntime cliRuntime;
-    private final SessionRepository sessionRepository;
-    private final DangerousCommandApprovalService dangerousCommandApprovalService;
-    private final AppConfig appConfig;
 
-    public DashboardMcpController(
-            DashboardMcpService mcpService,
-            CliRuntime cliRuntime,
-            SessionRepository sessionRepository,
-            DangerousCommandApprovalService dangerousCommandApprovalService,
-            AppConfig appConfig) {
+    public DashboardMcpController(DashboardMcpService mcpService) {
         this.mcpService = mcpService;
-        this.cliRuntime = cliRuntime;
-        this.sessionRepository = sessionRepository;
-        this.dangerousCommandApprovalService = dangerousCommandApprovalService;
-        this.appConfig = appConfig;
     }
 
     @Mapping(value = "/api/jimuqu/mcp", method = MethodType.GET)
@@ -58,18 +40,6 @@ public class DashboardMcpController {
     @Mapping(value = "/api/jimuqu/mcp/reload/async", method = MethodType.POST)
     public Map<String, Object> reloadAllAsync() throws Exception {
         return DashboardResponse.ok(mcpService.reloadAllAsyncView());
-    }
-
-    @Mapping(value = "/api/jimuqu/acp/status", method = MethodType.GET)
-    public Map<String, Object> acpStatus() {
-        AcpStdioServer server =
-                new AcpStdioServer(
-                        cliRuntime,
-                        sessionRepository,
-                        mcpService,
-                        dangerousCommandApprovalService,
-                        appConfig);
-        return DashboardResponse.ok(server.status());
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/check", method = MethodType.POST)

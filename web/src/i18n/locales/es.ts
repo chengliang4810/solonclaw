@@ -76,7 +76,6 @@ export default {
     logs: 'Registros',
     usage: 'Uso',
     channels: 'Canales',
-    terminal: 'Terminal',
     files: 'Archivos',
     settings: 'Configuracion',
     connected: 'Conectado',
@@ -481,15 +480,6 @@ export default {
     es: 'Espanol',
   },
 
-  // Terminal
-  terminal: {
-    sessions: 'Sesiones',
-    newTab: 'Nueva terminal',
-    closeSession: 'Cerrar esta sesion?',
-    sessionExited: 'Finalizada',
-    processExited: 'Proceso finalizado con codigo {code}',
-  },
-
   // Usage
   usage: {
     title: 'Estadisticas de uso',
@@ -588,7 +578,7 @@ export default {
     fileTooLarge: 'Archivo demasiado grande (excede el limite)',
     backendError: 'Error al leer el archivo, el entorno remoto puede no estar disponible',
     backendTimeout: 'Tiempo de lectura del archivo agotado',
-    unsupportedBackend: 'El backend del terminal actual no admite la descarga de archivos',
+    unsupportedBackend: 'El backend local actual no admite la descarga de archivos',
     invalidPath: 'Ruta de archivo invalida',
     download: 'Descargar',
   },

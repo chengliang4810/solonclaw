@@ -76,7 +76,6 @@ export default {
     logs: 'Protokolle',
     usage: 'Nutzung',
     channels: 'Kanale',
-    terminal: 'Terminal',
     files: 'Dateien',
     settings: 'Einstellungen',
     connected: 'Verbunden',
@@ -481,15 +480,6 @@ export default {
     de: 'Deutsch',
   },
 
-  // Terminal
-  terminal: {
-    sessions: 'Sitzungen',
-    newTab: 'Neues Terminal',
-    closeSession: 'Diese Sitzung schliessen?',
-    sessionExited: 'Beendet',
-    processExited: 'Prozess beendet mit Code {code}',
-  },
-
   // Usage
   usage: {
     title: 'Nutzungsstatistiken',
@@ -588,7 +578,7 @@ export default {
     fileTooLarge: 'Datei zu gross (Limit uberschritten)',
     backendError: 'Lesen der Datei fehlgeschlagen, Remote-Umgebung moglicherweise nicht verfugbar',
     backendTimeout: 'Zeituberschreitung beim Lesen der Datei',
-    unsupportedBackend: 'Aktuelles Terminal-Backend unterstutzt keine Datei-Downloads',
+    unsupportedBackend: 'Aktuelles lokales Backend unterstutzt keine Datei-Downloads',
     invalidPath: 'Ungultiger Dateipfad',
     download: 'Herunterladen',
   },

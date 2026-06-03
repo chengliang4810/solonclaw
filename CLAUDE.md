@@ -67,10 +67,10 @@ python3 scripts/check-raw-exception-logging.py
 - `tool/` 注册并实现内置工具，包括文件、Shell/Python/JavaScript、补丁、Todo、Memory、Web search/fetch、消息、配置、安全审批等；工具副作用要走现有审批/安全策略。
 - `gateway/` 是国内消息渠道层，按授权、命令、投递、反馈、连接管理拆分；平台适配器在 `gateway/adapters/`，微信保留 long-poll，其他优先 websocket/stream。
 - `web/` 是 Dashboard 后端 API，通常按 `DashboardXxxController` + `DashboardXxxService` 配对；统一返回类型是 `DashboardResponse`，鉴权由 Dashboard auth 相关类处理。
-- `scheduler/` 负责 Cron、heartbeat、Kanban 通知和 Skills curator；调度结果可投递到渠道和会话。
+- `scheduler/` 负责 Cron、heartbeat 和 Skills curator；调度结果可投递到渠道和会话。
 - `context/` 管理 AGENTS/MEMORY/USER/Skills、persona templates、长期记忆和技能导入/策展。
-- `cli/` 和 `tui/` 分别承载本地终端交互与浏览器 TUI 网关；不要把终端展示逻辑混入 Agent 编排或渠道适配。
-- `web/src/` 是 Vue 3 + Vite + TypeScript Dashboard，同时包含 React 19 的 TUI 子应用；路由在 `web/src/router/index.ts`，API 客户端在 `web/src/api/client.ts`，业务页面集中在 `web/src/views/`。
+- `cli/` 承载本地 CLI 与本地终端 TUI 交互；不要把终端展示逻辑混入 Agent 编排或渠道适配。
+- `web/src/` 是 Vue 3 + Vite + TypeScript Dashboard；路由在 `web/src/router/index.ts`，API 客户端在 `web/src/api/client.ts`，业务页面集中在 `web/src/views/`。
 
 ## Solon / Solon AI 开发注意事项
 

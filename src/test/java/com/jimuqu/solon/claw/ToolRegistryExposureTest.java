@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.ClarifyTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
@@ -70,17 +69,6 @@ public class ToolRegistryExposureTest {
                         "execute_python",
                         "execute_js",
                         "get_current_time",
-                        "todo",
-                        "kanban_show",
-                        "kanban_complete",
-                        "kanban_block",
-                        "kanban_heartbeat",
-                        "kanban_step",
-                        "kanban_comment",
-                        "kanban_create",
-                        "kanban_schema_create",
-                        "kanban_link",
-                        "kanban_unlink",
                         "agent_manage",
                         "skills_list",
                         "skill_view",
@@ -115,7 +103,6 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeNodejsSkill");
         assertThat(joined).contains("SystemClockSkill");
         assertThat(joined).contains("TodoTools");
-        assertThat(joined).doesNotContain("KanbanTools");
         assertThat(joined).contains("AgentTools");
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("ConfigRefreshTool");
@@ -140,43 +127,6 @@ public class ToolRegistryExposureTest {
                 .contains("tool_args")
                 .contains("policy")
                 .contains("status");
-    }
-
-    @Test
-    void shouldExposeKanbanToolsOnlyInKanbanContexts() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        String sourceKey = "MEMORY:room-1:user-1";
-
-        String defaultTools = env.toolRegistry.resolveEnabledTools(sourceKey).toString();
-        List<String> defaultNames = env.toolRegistry.resolveEnabledToolNames(sourceKey);
-
-        assertThat(defaultNames).doesNotContain("kanban_show", "kanban_complete", "kanban_unlink");
-        assertThat(defaultTools).doesNotContain("KanbanTools");
-
-        AgentRuntimeScope kanbanScope = new AgentRuntimeScope();
-        kanbanScope.setAgentName("planner");
-        kanbanScope.setDefaultAgent(false);
-        kanbanScope.setAllowedToolsJson("[\"kanban\"]");
-
-        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey, kanbanScope))
-                .containsExactly(
-                        "kanban_show",
-                        "kanban_complete",
-                        "kanban_block",
-                        "kanban_heartbeat",
-                        "kanban_step",
-                        "kanban_comment",
-                        "kanban_create",
-                        "kanban_schema_create",
-                        "kanban_link",
-                        "kanban_unlink");
-        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey, kanbanScope).toString())
-                .contains("KanbanTools");
-
-        assertThat(env.toolRegistry.resolveEnabledToolNames("MEMORY:kanban-task-1:worker"))
-                .contains("kanban_show", "kanban_complete", "kanban_unlink");
-        assertThat(env.toolRegistry.resolveEnabledTools("MEMORY:kanban-task-1:worker").toString())
-                .contains("KanbanTools");
     }
 
     @Test

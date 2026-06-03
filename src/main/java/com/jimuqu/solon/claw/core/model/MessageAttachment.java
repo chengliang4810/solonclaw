@@ -24,10 +24,10 @@ public class MessageAttachment {
     /** 附件体积，未知时为 0。 */
     private long sizeBytes;
 
-    /** 内联 base64 数据，主要用于 ACP image/resource blob。 */
+    /** 内联 base64 数据，例如 image/resource blob。 */
     private String data;
 
-    /** 远程或 data: URL，主要用于 ACP 直接 image block。 */
+    /** 远程或 data: URL，例如直接 image block。 */
     private String url;
 
     /** 是否来自引用消息。 */

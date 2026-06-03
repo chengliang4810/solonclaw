@@ -46,16 +46,6 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.SKILLS_HUB_TAP,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
-                    ToolNameConstants.KANBAN_SHOW,
-                    ToolNameConstants.KANBAN_COMPLETE,
-                    ToolNameConstants.KANBAN_BLOCK,
-                    ToolNameConstants.KANBAN_HEARTBEAT,
-                    ToolNameConstants.KANBAN_STEP,
-                    ToolNameConstants.KANBAN_COMMENT,
-                    ToolNameConstants.KANBAN_CREATE,
-                    ToolNameConstants.KANBAN_SCHEMA_CREATE,
-                    ToolNameConstants.KANBAN_LINK,
-                    ToolNameConstants.KANBAN_UNLINK,
                     ToolNameConstants.CONFIG_GET,
                     ToolNameConstants.CONFIG_SET,
                     ToolNameConstants.CONFIG_SET_SECRET,
@@ -299,19 +289,6 @@ public final class AgentRuntimePolicy {
         }
         if ("cron".equals(key) || "cronjob".equals(key)) {
             output.add(ToolNameConstants.CRONJOB);
-            return;
-        }
-        if ("kanban".equals(key) || "board".equals(key) || "boards".equals(key)) {
-            output.add(ToolNameConstants.KANBAN_SHOW);
-            output.add(ToolNameConstants.KANBAN_COMPLETE);
-            output.add(ToolNameConstants.KANBAN_BLOCK);
-            output.add(ToolNameConstants.KANBAN_HEARTBEAT);
-            output.add(ToolNameConstants.KANBAN_STEP);
-            output.add(ToolNameConstants.KANBAN_COMMENT);
-            output.add(ToolNameConstants.KANBAN_CREATE);
-            output.add(ToolNameConstants.KANBAN_SCHEMA_CREATE);
-            output.add(ToolNameConstants.KANBAN_LINK);
-            output.add(ToolNameConstants.KANBAN_UNLINK);
             return;
         }
         if ("security".equals(key) || "audit".equals(key) || "security_audit".equals(key)) {

@@ -12,10 +12,8 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
-import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
-import com.jimuqu.solon.claw.kanban.KanbanNotificationService;
 import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -86,15 +84,6 @@ public class SchedulerConfiguration {
             AgentRunControlService agentRunControlService) {
         SkillCuratorScheduler scheduler =
                 new SkillCuratorScheduler(appConfig, skillCuratorService, agentRunControlService);
-        scheduler.start();
-        return scheduler;
-    }
-
-    @Bean(destroyMethod = "shutdown")
-    public KanbanNotificationScheduler kanbanNotificationScheduler(
-            AppConfig appConfig, KanbanNotificationService kanbanNotificationService) {
-        KanbanNotificationScheduler scheduler =
-                new KanbanNotificationScheduler(appConfig, kanbanNotificationService);
         scheduler.start();
         return scheduler;
     }

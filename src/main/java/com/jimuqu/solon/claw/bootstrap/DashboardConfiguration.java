@@ -7,7 +7,6 @@ import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
-import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -21,16 +20,9 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
-import com.jimuqu.solon.claw.kanban.ConversationKanbanWorkerSpawner;
-import com.jimuqu.solon.claw.kanban.KanbanDispatcherService;
-import com.jimuqu.solon.claw.kanban.KanbanNotificationService;
-import com.jimuqu.solon.claw.kanban.KanbanRepository;
-import com.jimuqu.solon.claw.kanban.KanbanService;
-import com.jimuqu.solon.claw.kanban.KanbanWorkerSpawner;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
-import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
@@ -47,7 +39,6 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
-import com.jimuqu.solon.claw.tui.TuiGatewayService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
@@ -60,7 +51,6 @@ import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
-import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
@@ -130,36 +120,6 @@ public class DashboardConfiguration {
             AgentRunControlService agentRunControlService,
             com.jimuqu.solon.claw.core.service.DelegationService delegationService) {
         return new DashboardRunService(agentRunRepository, agentRunControlService, delegationService);
-    }
-
-    @Bean(destroyMethod = "shutdown")
-    public TuiGatewayService tuiGatewayService(
-            AppConfig appConfig,
-            SessionRepository sessionRepository,
-            AgentRunRepository agentRunRepository,
-            ConversationOrchestrator conversationOrchestrator,
-            CommandService commandService,
-            AgentRunControlService agentRunControlService,
-            LlmProviderService llmProviderService,
-            DashboardCronService dashboardCronService,
-            DashboardKanbanService dashboardKanbanService,
-            DashboardMcpService dashboardMcpService,
-            CliRuntime cliRuntime,
-            com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService
-                    dangerousCommandApprovalService) {
-        return new TuiGatewayService(
-                appConfig,
-                sessionRepository,
-                agentRunRepository,
-                conversationOrchestrator,
-                commandService,
-                agentRunControlService,
-                llmProviderService,
-                dashboardCronService,
-                dashboardKanbanService,
-                dashboardMcpService,
-                cliRuntime,
-                dangerousCommandApprovalService);
     }
 
     @Bean
@@ -295,50 +255,6 @@ public class DashboardConfiguration {
     public DashboardCronService dashboardCronService(
             CronJobService cronJobService, DefaultCronScheduler defaultCronScheduler) {
         return new DashboardCronService(cronJobService, defaultCronScheduler);
-    }
-
-    @Bean
-    public KanbanService kanbanService(
-            KanbanRepository kanbanRepository,
-            AppConfig appConfig,
-            AgentProfileService agentProfileService) {
-        return new KanbanService(kanbanRepository, appConfig, agentProfileService);
-    }
-
-    @Bean
-    public KanbanWorkerSpawner kanbanWorkerSpawner(
-            ConversationOrchestrator conversationOrchestrator, KanbanService kanbanService) {
-        return new ConversationKanbanWorkerSpawner(conversationOrchestrator, kanbanService);
-    }
-
-    @Bean(destroyMethod = "shutdown")
-    public KanbanDispatcherService kanbanDispatcherService(
-            KanbanRepository kanbanRepository,
-            KanbanService kanbanService,
-            KanbanWorkerSpawner kanbanWorkerSpawner,
-            AppConfig appConfig) {
-        KanbanDispatcherService dispatcherService =
-                new KanbanDispatcherService(kanbanRepository, kanbanService, kanbanWorkerSpawner, appConfig);
-        kanbanService.setDispatcherService(dispatcherService);
-        return dispatcherService;
-    }
-
-    @Bean
-    public KanbanNotificationService kanbanNotificationService(
-            KanbanRepository kanbanRepository, DeliveryService deliveryService, KanbanService kanbanService) {
-        KanbanNotificationService notificationService =
-                new KanbanNotificationService(kanbanRepository, deliveryService);
-        kanbanService.setNotificationService(notificationService);
-        return notificationService;
-    }
-
-    @Bean
-    public DashboardKanbanService dashboardKanbanService(
-            KanbanService kanbanService,
-            GatewayPolicyRepository gatewayPolicyRepository,
-            KanbanNotificationScheduler kanbanNotificationScheduler) {
-        return new DashboardKanbanService(
-                kanbanService, gatewayPolicyRepository, kanbanNotificationScheduler);
     }
 
     @Bean

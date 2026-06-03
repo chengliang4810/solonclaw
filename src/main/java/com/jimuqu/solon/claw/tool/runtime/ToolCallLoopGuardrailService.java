@@ -84,15 +84,7 @@ public class ToolCallLoopGuardrailService {
                                     "browser_type",
                                     "browser_press",
                                     "browser_scroll",
-                                    "browser_navigate",
-                                    ToolNameConstants.KANBAN_COMPLETE,
-                                    ToolNameConstants.KANBAN_BLOCK,
-                                    ToolNameConstants.KANBAN_HEARTBEAT,
-                                    ToolNameConstants.KANBAN_STEP,
-                                    ToolNameConstants.KANBAN_COMMENT,
-                                    ToolNameConstants.KANBAN_CREATE,
-                                    ToolNameConstants.KANBAN_LINK,
-                                    ToolNameConstants.KANBAN_UNLINK)));
+                                    "browser_navigate")));
 
     private final AppConfig appConfig;
 

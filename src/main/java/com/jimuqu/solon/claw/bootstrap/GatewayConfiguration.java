@@ -41,7 +41,6 @@ import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartNotificationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
-import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -210,7 +209,6 @@ public class GatewayConfiguration {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
@@ -244,7 +242,6 @@ public class GatewayConfiguration {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService,
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,

@@ -84,11 +84,6 @@ public class DashboardPageController {
         return renderIndex(context);
     }
 
-    @Mapping("/terminal")
-    public DownloadedFile terminal(Context context) {
-        return renderIndex(context);
-    }
-
     @Mapping("/files")
     public DownloadedFile files(Context context) {
         return renderIndex(context);

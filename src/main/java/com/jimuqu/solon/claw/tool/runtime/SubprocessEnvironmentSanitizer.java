@@ -26,8 +26,6 @@ public final class SubprocessEnvironmentSanitizer {
             };
     private static final String[] SAFE_CONTEXT_ENV_NAMES =
             new String[] {
-                "JIMUQU_KANBAN_TASK",
-                "JIMUQU_KANBAN_WORKER",
                 "JIMUQU_PROFILE"
             };
     private static final String[] SECRET_ENV_SUBSTRINGS =

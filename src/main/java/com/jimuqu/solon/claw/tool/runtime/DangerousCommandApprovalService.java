@@ -2845,6 +2845,7 @@ public class DangerousCommandApprovalService {
         detection.setNormalizedCode(normalize(command));
         Map<String, Object> pendingMap = createPendingMap(toolName, detection, command);
         storePendingMap(session, pendingMap);
+        session.pending(true, "dangerous_command_approval");
         session.updateSnapshot();
         notifyApprovalRequest(session, toPendingApproval(pendingMap));
     }
@@ -4270,6 +4271,7 @@ public class DangerousCommandApprovalService {
 
         Map<String, Object> pendingMap = createPendingMap(approvalToolName, detection, code);
         storePendingMap(trace.getSession(), pendingMap);
+        trace.getSession().pending(true, "dangerous_command_approval");
         persistTraceSnapshot(trace);
         notifyApprovalRequest(trace.getSession(), toPendingApproval(pendingMap));
         return buildPendingMessage(approvalToolName, detection, code);

@@ -46,7 +46,7 @@ public class TerminalCommandCatalogTest {
                         "/handoff",
                         "/subgoal",
                         "/quit")
-                .contains("/help", "/cron", "/kanban", "/reload-mcp", "/security", "/sessions");
+                .contains("/help", "/cron", "/reload-mcp", "/security", "/sessions");
 
         CommandDescriptor footer = CommandRegistry.get("footer");
         assertThat(footer).isNotNull();
@@ -159,12 +159,10 @@ public class TerminalCommandCatalogTest {
     void shouldKeepLegacySubcommandsInTerminalCatalog() {
         assertThat(TerminalCommandCatalog.slashCommands())
                 .contains(
-                        "/acp status",
                         "/model pick",
                         "/approve all session",
                         "/security terminal-output",
                         "/cron upcoming",
-                        "/kanban dispatch",
                         "/reload-mcp always",
                         "/exit!",
                         "/quit!");
