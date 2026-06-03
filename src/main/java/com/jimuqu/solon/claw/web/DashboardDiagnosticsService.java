@@ -1182,11 +1182,17 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "defaultDecision");
             copyPolicyValue(summary, safe, "configKeys");
             copyPolicyValue(summary, safe, "approveAliases");
-            copyPolicyValue(summary, safe, "denyAliases");
-            copyPolicyValue(summary, safe, "runsWithoutHumanApproval");
+            copyPolicyValue(summary, safe, "approvalAliases");
+            copyPolicyValue(summary, safe, "strictAliases");
+            copyPolicyValue(summary, safe, "bypassAliases");
+            copyPolicyValue(summary, safe, "approvalScope");
+            copyPolicyValue(summary, safe, "approvalModeCanPauseCron");
+            copyPolicyValue(summary, safe, "jobScopeIncludesScriptFingerprint");
             copyPolicyValue(summary, safe, "hardlineAlwaysBlocked");
+            copyPolicyValue(summary, safe, "hardlineAllowlist");
+            copyPolicyValue(summary, safe, "hardlineAllowlistConfigKey");
+            copyPolicyValue(summary, safe, "allowlistedHardlineCategoriesCanRun");
             copyPolicyValue(summary, safe, "dangerousPatternCheckedBeforeRun");
-            copyPolicyValue(summary, safe, "requiresExplicitApproveMode");
             copyPolicyValue(summary, safe, "scriptContentChecked");
             return safe;
         } catch (Exception e) {
@@ -3759,7 +3765,8 @@ public class DashboardDiagnosticsService {
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
-                        "sudo reboot"));
+                        "rm -rf /",
+                        "hardline_delete_root"));
         items.add(
                 hardlineCommandProbe(
                         "hardline_delete_root",
@@ -3805,9 +3812,10 @@ public class DashboardDiagnosticsService {
         items.add(
                 hardlineCommandProbe(
                         "hardline_shutdown",
-                        "系统关机重启硬阻断",
+                        "系统关机重启白名单",
                         "reboot",
-                        "hardline_shutdown"));
+                        "hardline_shutdown",
+                        true));
         items.add(
                 hardlineCommandProbe(
                         "hardline_kill_all",
@@ -3865,9 +3873,10 @@ public class DashboardDiagnosticsService {
         items.add(
                 hardlineCommandProbe(
                         "hardline_windows_shutdown",
-                        "Windows 关机重启硬阻断",
+                        "Windows 关机重启白名单",
                         "shutdown.exe /r /t 0",
-                        "hardline_windows_shutdown"));
+                        "hardline_windows_shutdown",
+                        true));
         items.add(
                 sudoRewriteProbe(
                         "sudo_rewrite",
@@ -6711,6 +6720,15 @@ public class DashboardDiagnosticsService {
 
     private Map<String, Object> hardlineCommandProbe(
             String key, String label, String command, String expectedPatternKey) {
+        return hardlineCommandProbe(key, label, command, expectedPatternKey, false);
+    }
+
+    private Map<String, Object> hardlineCommandProbe(
+            String key,
+            String label,
+            String command,
+            String expectedPatternKey,
+            boolean expectedAllowed) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
                     key, label, "hardline_command", command, "审批服务尚未启用。");
@@ -6721,6 +6739,7 @@ public class DashboardDiagnosticsService {
                 detection != null
                         && (StrUtil.isBlank(expectedPatternKey)
                                 || StrUtil.equals(expectedPatternKey, detection.getPatternKey()));
+        boolean actualAllowed = expectedAllowed ? detection == null : !matched;
         String message =
                 detection == null
                         ? ""
@@ -6729,8 +6748,8 @@ public class DashboardDiagnosticsService {
                 key,
                 label,
                 "hardline_command",
-                false,
-                !matched,
+                expectedAllowed,
+                actualAllowed,
                 safeAuditPreview(command, 400),
                 message);
     }

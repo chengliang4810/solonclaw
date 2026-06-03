@@ -39,6 +39,7 @@ import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -105,11 +106,13 @@ public class ToolConfiguration {
             ApprovalAuditRepository approvalAuditRepository,
             AppConfig appConfig,
             SecurityPolicyService securityPolicyService,
-            TirithSecurityService tirithSecurityService) {
+            TirithSecurityService tirithSecurityService,
+            CronJobService cronJobService) {
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
                 globalSettingRepository, appConfig, securityPolicyService, tirithSecurityService);
         service.addApprovalObserver(new ApprovalAuditObserver(approvalAuditRepository));
+        service.addApprovalObserver(new CronApprovalResumeObserver(cronJobService));
         return service;
     }
 

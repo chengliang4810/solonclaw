@@ -107,6 +107,8 @@ runtime/config.yml
 
 `runtime/config.yml` does not configure its own directory. The runtime directory is decided by startup-level configuration and defaults to `runtime/` under the current working directory.
 
+See `config.example.yml` at the repository root for the full example. Startup also syncs this file to `runtime/config.example.yml` as a read-only reference; the effective runtime configuration remains `runtime/config.yml`.
+
 Recommended model configuration structure:
 
 ```yaml
@@ -121,6 +123,17 @@ model:
   providerKey: default
   default: "gpt-5.4"
 fallbackProviders: []
+security:
+  guardrailMode: approval
+  guardrailCronMode: approval
+  guardrailCronScope: job
+  hardlineAllowlist:
+    - hardline_shutdown
+    - hardline_windows_shutdown
+approvals:
+  timeoutSeconds: 60
+  gatewayTimeoutSeconds: 300
+  mcpReloadConfirm: true
 solonclaw:
   dashboard:
     accessToken: "admin"
@@ -140,6 +153,36 @@ Common runtime settings:
 | `solonclaw.llm.stream` | `true` | Enables streaming output |
 | `solonclaw.llm.reasoningEffort` | `medium` | Default reasoning effort |
 | `solonclaw.scheduler.enabled` | `true` | Enables scheduled jobs |
+| `solonclaw.browser.rewriteLoopbackUrls` | `false` | Rewrites loopback URLs for browser tools running inside containers |
+| `security.allowPrivateUrls` | `true` | Allows URL tools to access localhost / private networks; metadata URLs are still blocked by default |
+| `security.websiteBlocklist.enabled` | `false` | Enables domain blocklists for webfetch/websearch/codesearch URLs |
+| `security.tirithEnabled` | `true` | Enables Tirith command content scanning |
+| `security.tirithFailOpen` | `true` | Allows execution when Tirith is unavailable or times out; set `false` to fail closed |
+| `security.guardrailMode` | `approval` | Agent tool safety mode: `approval`, `strict`, `bypass`, `smart` |
+| `security.guardrailCronMode` | `approval` | Scheduled-job safety mode: `approval`, `strict`, `bypass`, `approve` |
+| `security.guardrailCronScope` | `job` | Scheduled-job approval memory scope: `job`, `session`, `global` |
+| `security.hardlineAllowlist` | `hardline_shutdown`, `hardline_windows_shutdown` | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
+| `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
+| `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
+| `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |
+| `terminal.credentialFiles` | empty | Runtime-relative credential files available to isolated execution |
+| `terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |
+| `terminal.sudoPassword` | empty | Optional sudo password for `sudo -S` rewriting |
+| `terminal.writeSafeRoot` | empty | When set, constrains file writes, patches, and shell writes to this root |
+| `solonclaw.trace.retentionDays` | `14` | Run trace retention in days |
+| `solonclaw.trace.maxAttempts` | `2` | Maximum outer attempts per run |
+| `solonclaw.task.busyPolicy` | `interrupt` | Policy for new messages while a session is already running |
+| `solonclaw.task.subagentMaxConcurrency` | `3` | Maximum sub-agent concurrency |
+| `solonclaw.task.subagentMaxDepth` | `1` | Maximum sub-agent spawn depth |
+| `solonclaw.task.toolOutputInlineLimit` | `50000` | Stores oversized single tool outputs in cache and returns only a preview |
+| `solonclaw.task.mediaCacheTtlHours` | `168` | Channel media cache TTL in hours |
+| `solonclaw.skills.externalDirs` | empty | Additional read-only skill directories |
+| `solonclaw.skills.templateVars` | `true` | Enables SKILL.md template variable replacement |
+| `solonclaw.gateway.filterSilenceNarration` | `true` | Drops short silence narration before channel delivery |
+| `solonclaw.mcp.enabled` | `false` | Enables MCP tool adapters |
+| `solonclaw.web.searchBackend` | `solon-ai` | Web search backend: `solon-ai`, `brave-free`, `ddgs` |
+| `solonclaw.pricing.prices` | empty | Model pricing configuration; empty means token-only usage without cost calculation |
+| `solonclaw.plugins.enabled` / `disabled` | empty | Plugin allow/deny lists |
 
 Prefer the Dashboard for provider and default-model management, or edit `runtime/config.yml` directly. Keep secrets out of Git.
 

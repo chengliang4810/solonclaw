@@ -361,6 +361,10 @@ public class SecurityPolicyService {
         this.appConfig = appConfig;
     }
 
+    AppConfig getAppConfig() {
+        return appConfig;
+    }
+
     public UrlVerdict checkUrl(String url) {
         return checkUrl(url, null);
     }

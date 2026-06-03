@@ -2834,13 +2834,29 @@ public class DangerousCommandApprovalService {
             String patternKey,
             String description,
             String command) {
+        storePendingApproval(
+                session,
+                toolName,
+                patternKey,
+                Collections.singletonList(patternKey),
+                description,
+                command);
+    }
+
+    public void storePendingApproval(
+            AgentSession session,
+            String toolName,
+            String patternKey,
+            List<String> patternKeys,
+            String description,
+            String command) {
         if (session == null) {
             return;
         }
 
         DetectionResult detection = new DetectionResult();
         detection.setPatternKey(patternKey);
-        detection.setPatternKeys(Collections.singletonList(patternKey));
+        detection.setPatternKeys(patternKeys);
         detection.setDescription(description);
         detection.setNormalizedCode(normalize(command));
         Map<String, Object> pendingMap = createPendingMap(toolName, detection, command);
@@ -2848,6 +2864,23 @@ public class DangerousCommandApprovalService {
         session.pending(true, "dangerous_command_approval");
         session.updateSnapshot();
         notifyApprovalRequest(session, toPendingApproval(pendingMap));
+    }
+
+    public void addSessionApproval(
+            AgentSession session, String toolName, String patternKey) throws Exception {
+        if (session == null || StrUtil.hasBlank(toolName, patternKey)) {
+            return;
+        }
+        addSessionApproval(session.getContext(), approvalPattern(toolName, patternKey));
+        session.updateSnapshot();
+    }
+
+    public void addAlwaysApproval(
+            String toolName, String patternKey) throws Exception {
+        if (StrUtil.hasBlank(toolName, patternKey)) {
+            return;
+        }
+        addAlwaysApproval(approvalPattern(toolName, patternKey));
     }
 
     public boolean reject(AgentSession session, String approver) {
@@ -2954,6 +2987,9 @@ public class DangerousCommandApprovalService {
             result.setDescription(rule.getDescription());
             result.setNormalizedCode(normalized);
             result.setHardline(true);
+            if (isHardlineAllowlisted(result)) {
+                return null;
+            }
             return result;
         }
         DetectionResult blockedUrl = detectHardlineCommandUrl(toolName, normalized);
@@ -3001,7 +3037,37 @@ public class DangerousCommandApprovalService {
         result.setDescription(verdict.getMessage());
         result.setNormalizedCode(normalized);
         result.setHardline(true);
+        if (isHardlineAllowlisted(result)) {
+            return null;
+        }
         return result;
+    }
+
+    private boolean isHardlineAllowlisted(DetectionResult result) {
+        if (result == null || appConfig == null || appConfig.getSecurity() == null) {
+            return false;
+        }
+        List<String> configured = appConfig.getSecurity().getHardlineAllowlist();
+        if (configured == null || configured.isEmpty()) {
+            return false;
+        }
+        Set<String> allowed = new LinkedHashSet<String>();
+        for (String item : configured) {
+            if (StrUtil.isBlank(item)) {
+                continue;
+            }
+            allowed.add(item.trim().toLowerCase(Locale.ROOT));
+        }
+        if (allowed.contains("*")) {
+            return true;
+        }
+        for (String key : result.effectivePatternKeys()) {
+            if (StrUtil.isNotBlank(key)
+                    && allowed.contains(key.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String foregroundBackgroundGuidance(String toolName, String code) {
@@ -3183,6 +3249,10 @@ public class DangerousCommandApprovalService {
                         "windows_disk_or_profile_destruction",
                         "metadata_url_access"));
         summary.put("metadataUrlBlocked", Boolean.valueOf(securityPolicyService != null));
+        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
+        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
+        summary.put("allowlistWildcardSupported", Boolean.TRUE);
+        summary.put("allowlistedCategoriesCanBypass", Boolean.TRUE);
         summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
         summary.put("pythonShellExtractionCovered", Boolean.TRUE);
         summary.put("javascriptChildProcessExtractionCovered", Boolean.TRUE);
@@ -3195,8 +3265,21 @@ public class DangerousCommandApprovalService {
         summary.put("blockingDecision", "block");
         summary.put("approvalRequired", Boolean.FALSE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("description", "Hardline commands are blocked before approval handling and cannot be bypassed by slash approvals, session approvals, always approvals, smart approval, or yolo mode.");
+        summary.put(
+                "description",
+                "Hardline commands are blocked before approval handling unless their category is listed in security.hardlineAllowlist; slash approvals, session approvals, always approvals, smart approval, and yolo mode cannot bypass non-allowlisted hardline categories.");
         return summary;
+    }
+
+    private List<String> hardlineAllowlistSummary() {
+        if (appConfig == null || appConfig.getSecurity() == null) {
+            return Collections.emptyList();
+        }
+        List<String> configured = appConfig.getSecurity().getHardlineAllowlist();
+        if (configured == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<String>(configured);
     }
 
     public Map<String, Object> smartApprovalPolicySummary() {
@@ -3250,20 +3333,55 @@ public class DangerousCommandApprovalService {
         String mode = cronApprovalMode();
         summary.put("mode", mode);
         summary.put("autoApproveDangerousCommands", Boolean.valueOf("approve".equals(mode)));
-        summary.put("defaultDecision", "approve".equals(mode) ? "approve" : "deny");
-        summary.put("configKeys", Arrays.asList("approvals.cronMode", "scheduler.cronApprovalMode"));
+        summary.put("defaultDecision", cronDefaultDecision(mode));
+        summary.put(
+                "configKeys",
+                Arrays.asList(
+                        "security.guardrailCronMode",
+                        "security.guardrailCronScope",
+                        "approvals.cronMode",
+                        "scheduler.cronApprovalMode"));
         summary.put("approveAliases", Arrays.asList("approve", "allow", "off", "yes"));
-        summary.put("denyAliases", Arrays.asList("deny", "false", "default"));
-        summary.put("runsWithoutHumanApproval", Boolean.TRUE);
+        summary.put("approvalAliases", Arrays.asList("approval", "ask", "prompt", "manual"));
+        summary.put("strictAliases", Arrays.asList("strict", "deny", "block", "enforce", "false"));
+        summary.put(
+                "bypassAliases",
+                Arrays.asList("bypass", "ignore", "skip", "none", "permissive", "yolo"));
+        summary.put("approvalScope", cronApprovalScope());
+        summary.put("approvalModeCanPauseCron", Boolean.TRUE);
+        summary.put("jobScopeIncludesScriptFingerprint", Boolean.TRUE);
         summary.put("hardlineAlwaysBlocked", Boolean.TRUE);
+        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
+        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
+        summary.put("allowlistedHardlineCategoriesCanRun", Boolean.TRUE);
         summary.put("filePolicyPrechecked", Boolean.TRUE);
         summary.put("urlPolicyPrechecked", Boolean.TRUE);
         summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
         summary.put("dangerousPatternCheckedBeforeRun", Boolean.TRUE);
-        summary.put("requiresExplicitApproveMode", Boolean.TRUE);
         summary.put("scriptContentChecked", Boolean.TRUE);
-        summary.put("description", "Cron runs without a live approver, so dangerous commands are denied unless approvals.cronMode resolves to approve; hardline commands remain blocked.");
+        summary.put(
+                "description",
+                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve preserves the legacy auto-approve behavior; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
         return summary;
+    }
+
+    private String cronDefaultDecision(String mode) {
+        if ("approve".equals(mode) || "bypass".equals(mode)) {
+            return mode;
+        }
+        if ("approval".equals(mode)) {
+            return "request_approval";
+        }
+        return "deny";
+    }
+
+    private String cronApprovalScope() {
+        String scope =
+                appConfig == null || appConfig.getSecurity() == null
+                        ? ""
+                        : appConfig.getSecurity().getGuardrailCronScope();
+        scope = StrUtil.blankToDefault(scope, "job").trim().toLowerCase(Locale.ROOT);
+        return "global".equals(scope) || "session".equals(scope) ? scope : "job";
     }
 
     public Map<String, Object> subagentApprovalPolicySummary() {
@@ -4174,6 +4292,12 @@ public class DangerousCommandApprovalService {
 
     private String evaluateCommandWithoutHardline(
             ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
+        String approvalMode = approvalMode();
+        if ("off".equals(approvalMode)) {
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         SecurityPolicyService.FileVerdict fileVerdict = detectUnsafeCommandPath(code);
         if (fileVerdict != null) {
             trace.setFinalAnswer(buildFilePolicyMessage(approvalToolName, fileVerdict));
@@ -4203,14 +4327,15 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String approvalMode = approvalMode();
-        if ("off".equals(approvalMode)) {
+        DetectionResult detection = detectCombined(ruleToolName, code);
+        if (detection == null) {
             persistTraceSnapshot(trace);
             return null;
         }
 
-        DetectionResult detection = detectCombined(ruleToolName, code);
-        if (detection == null) {
+        if ("strict".equals(approvalMode)) {
+            trace.setFinalAnswer(buildStrictDeniedMessage(approvalToolName, detection, code));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
         }
@@ -4310,6 +4435,19 @@ public class DangerousCommandApprovalService {
         if (decision != null && StrUtil.isNotBlank(decision.getReason())) {
             buffer.append("\n原因：").append(redactApprovalDisplay(decision.getReason(), 1000));
         }
+        return buffer.toString();
+    }
+
+    private String buildStrictDeniedMessage(String toolName, DetectionResult detection, String code) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("BLOCKED (strict): ");
+        buffer.append(redactApprovalDisplay(
+                detection == null ? "dangerous command" : detection.getDescription(), 1000));
+        buffer.append("。当前安全策略为 strict，命中可审批危险策略时不会进入人工审批。");
+        buffer.append("\n工具：").append(toolLabel(toolName)).append("\n\n");
+        buffer.append("```").append(codeFence(toolName)).append('\n');
+        buffer.append(redactApprovalDisplay(trimPreview(code), 2000));
+        buffer.append("\n```");
         return buffer.toString();
     }
 
@@ -4513,7 +4651,7 @@ public class DangerousCommandApprovalService {
     }
 
     private String evaluateFileTool(ReActTrace trace, String toolName, Map<String, Object> args) {
-        if (securityPolicyService == null) {
+        if (securityPolicyService == null || "off".equals(approvalMode())) {
             return null;
         }
         SecurityPolicyService.FileVerdict verdict =
@@ -4528,7 +4666,7 @@ public class DangerousCommandApprovalService {
     }
 
     private String evaluateUrlTool(ReActTrace trace, String toolName, Map<String, Object> args) {
-        if (securityPolicyService == null) {
+        if (securityPolicyService == null || "off".equals(approvalMode())) {
             return null;
         }
         SecurityPolicyService.UrlVerdict verdict =
@@ -4587,21 +4725,59 @@ public class DangerousCommandApprovalService {
     }
 
     public String approvalMode() {
-        String mode =
-                appConfig == null || appConfig.getApprovals() == null
-                        ? "on"
-                        : appConfig.getApprovals().getMode();
-        mode = StrUtil.blankToDefault(mode, "on").trim().toLowerCase(Locale.ROOT);
+        String mode = configuredGuardrailMode();
         if ("false".equals(mode)) {
             return "off";
         }
         if ("true".equals(mode)) {
             return "on";
         }
+        if ("bypass".equals(mode)
+                || "off".equals(mode)
+                || "none".equals(mode)
+                || "skip".equals(mode)
+                || "ignore".equals(mode)
+                || "permissive".equals(mode)
+                || "yolo".equals(mode)) {
+            return "off";
+        }
+        if ("strict".equals(mode)
+                || "block".equals(mode)
+                || "deny".equals(mode)
+                || "enforce".equals(mode)) {
+            return "strict";
+        }
+        if ("approval".equals(mode)
+                || "approve".equals(mode)
+                || "ask".equals(mode)
+                || "prompt".equals(mode)
+                || "manual".equals(mode)) {
+            return "on";
+        }
         if ("off".equals(mode) || "smart".equals(mode)) {
             return mode;
         }
         return "on";
+    }
+
+    private String configuredGuardrailMode() {
+        String legacyMode =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? ""
+                        : appConfig.getApprovals().getMode();
+        if (StrUtil.isNotBlank(legacyMode)
+                && !"on".equalsIgnoreCase(legacyMode.trim())
+                && !"true".equalsIgnoreCase(legacyMode.trim())) {
+            return legacyMode.trim().toLowerCase(Locale.ROOT);
+        }
+        String mode =
+                appConfig == null || appConfig.getSecurity() == null
+                        ? ""
+                        : appConfig.getSecurity().getGuardrailMode();
+        if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getApprovals() != null) {
+            mode = appConfig.getApprovals().getMode();
+        }
+        return StrUtil.blankToDefault(mode, "approval").trim().toLowerCase(Locale.ROOT);
     }
 
     public boolean isSubagentAutoApproveEnabled() {
@@ -4710,20 +4886,61 @@ public class DangerousCommandApprovalService {
     }
 
     public String cronApprovalMode() {
-        String mode =
+        String legacyMode =
                 appConfig == null || appConfig.getApprovals() == null
                         ? ""
                         : appConfig.getApprovals().getCronMode();
+        if (StrUtil.isNotBlank(legacyMode)
+                && !"approval".equalsIgnoreCase(legacyMode.trim())) {
+            return normalizeCronApprovalMode(legacyMode);
+        }
+        String mode =
+                appConfig == null || appConfig.getSecurity() == null
+                        ? ""
+                        : appConfig.getSecurity().getGuardrailCronMode();
         if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getScheduler() != null) {
             mode = appConfig.getScheduler().getCronApprovalMode();
         }
-        mode = StrUtil.blankToDefault(mode, "deny").trim().toLowerCase(Locale.ROOT);
-        return "approve".equals(mode)
-                        || "off".equals(mode)
-                        || "allow".equals(mode)
-                        || "yes".equals(mode)
-                ? "approve"
-                : "deny";
+        return normalizeCronApprovalMode(mode);
+    }
+
+    private String normalizeCronApprovalMode(String raw) {
+        String mode = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase(Locale.ROOT);
+        if ("approve".equals(mode) || "allow".equals(mode) || "yes".equals(mode)) {
+            return "approve";
+        }
+        if ("off".equals(mode) && appConfig != null && appConfig.getSecurity() != null) {
+            String securityMode =
+                    StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailCronMode())
+                            .trim()
+                            .toLowerCase(Locale.ROOT);
+            if (!"off".equals(securityMode) && !"bypass".equals(securityMode)) {
+                return "approve";
+            }
+        }
+        mode = StrUtil.blankToDefault(mode, "approval").trim().toLowerCase(Locale.ROOT);
+        if ("bypass".equals(mode)
+                || "off".equals(mode)
+                || "none".equals(mode)
+                || "skip".equals(mode)
+                || "ignore".equals(mode)
+                || "permissive".equals(mode)
+                || "yolo".equals(mode)) {
+            return "bypass";
+        }
+        if ("strict".equals(mode)
+                || "block".equals(mode)
+                || "deny".equals(mode)
+                || "enforce".equals(mode)) {
+            return "strict";
+        }
+        if ("approval".equals(mode)
+                || "ask".equals(mode)
+                || "prompt".equals(mode)
+                || "manual".equals(mode)) {
+            return "approval";
+        }
+        return "strict";
     }
 
     private boolean isSubagentRun() {

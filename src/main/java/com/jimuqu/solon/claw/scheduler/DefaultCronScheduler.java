@@ -12,12 +12,15 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.CronSupport;
@@ -35,6 +38,7 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,6 +102,7 @@ public class DefaultCronScheduler {
     private final LocalSkillService localSkillService;
     private final AgentRunControlService agentRunControlService;
     private final McpRuntimeService mcpRuntimeService;
+    private final SessionRepository sessionRepository;
     private ScheduledExecutorService executorService;
 
     public DefaultCronScheduler(
@@ -223,6 +228,34 @@ public class DefaultCronScheduler {
             LocalSkillService localSkillService,
             AgentRunControlService agentRunControlService,
             McpRuntimeService mcpRuntimeService) {
+        this(
+                appConfig,
+                cronJobRepository,
+                cronJobService,
+                conversationOrchestrator,
+                deliveryService,
+                gatewayPolicyRepository,
+                dangerousCommandApprovalService,
+                attachmentCacheService,
+                localSkillService,
+                agentRunControlService,
+                mcpRuntimeService,
+                null);
+    }
+
+    public DefaultCronScheduler(
+            AppConfig appConfig,
+            CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AttachmentCacheService attachmentCacheService,
+            LocalSkillService localSkillService,
+            AgentRunControlService agentRunControlService,
+            McpRuntimeService mcpRuntimeService,
+            SessionRepository sessionRepository) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
         this.cronJobService = cronJobService;
@@ -234,6 +267,7 @@ public class DefaultCronScheduler {
         this.localSkillService = localSkillService;
         this.agentRunControlService = agentRunControlService;
         this.mcpRuntimeService = mcpRuntimeService;
+        this.sessionRepository = sessionRepository;
     }
 
     public void start() {
@@ -575,6 +609,21 @@ public class DefaultCronScheduler {
                 deliveryResultJson = deliveryReport.toJson();
             }
             recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
+        } catch (CronApprovalPendingException e) {
+            runStatus = "pending_approval";
+            error = safeError(e);
+            long retryAt = Math.max(now + 60000L, job.getNextRunAt());
+            cronJobRepository.markRunResult(
+                    job.getJobId(),
+                    now,
+                    retryAt,
+                    runStatus,
+                    error,
+                    AgentRunPreview.safe(output),
+                    job.getRepeatCompleted(),
+                    "PAUSED");
+            cronJobService.pause(job.getJobId(), "waiting for approval: " + safeTarget(e.getDetectionDescription()));
+            recordRun(job, now, runStatus, error, output, null, null, job.getRepeatCompleted(), triggerType);
         } catch (Exception e) {
             runStatus = "error";
             error = safeError(e);
@@ -1599,7 +1648,7 @@ public class DefaultCronScheduler {
                             + job.getScript()
                             + " matched "
                             + hardline.getDescription()
-                            + ". Hardline commands cannot run from cron.");
+                            + ". Non-allowlisted hardline commands cannot run from cron.");
         }
 
         DangerousCommandApprovalService.DetectionResult dangerous =
@@ -1616,13 +1665,184 @@ public class DefaultCronScheduler {
                             + ". Gateway lifecycle commands cannot run from cron.");
         }
         String mode = dangerousCommandApprovalService.cronApprovalMode();
-        if (!"approve".equals(mode)) {
+        if ("approve".equals(mode) || "bypass".equals(mode)) {
+            return;
+        }
+        if ("approval".equals(mode) && approveOrRequestCronScript(job, scriptContent, dangerous)) {
+            return;
+        }
+        if ("approval".equals(mode)) {
+            throw new CronApprovalPendingException(
+                    "BLOCKED: Cron script "
+                            + job.getScript()
+                            + " matched dangerous command pattern ("
+                            + dangerous.getDescription()
+                            + ") and is waiting for user approval.",
+                    dangerous.getDescription());
+        }
+        if ("strict".equals(mode)) {
             throw new IllegalStateException(
                     "BLOCKED: Cron script "
                             + job.getScript()
                             + " matched dangerous command pattern ("
                             + dangerous.getDescription()
-                            + ") but cron runs without a user present to approve it. Set approvals.cronMode=approve to allow this.");
+                            + ") under strict cron guardrail mode.");
+        }
+        throw new IllegalStateException(
+                "BLOCKED: Cron script "
+                        + job.getScript()
+                        + " matched dangerous command pattern ("
+                        + dangerous.getDescription()
+                        + ") but cron guardrail mode does not allow it.");
+    }
+
+    private boolean approveOrRequestCronScript(
+            CronJobRecord job,
+            String scriptContent,
+            DangerousCommandApprovalService.DetectionResult dangerous) {
+        if (job == null || dangerous == null) {
+            return false;
+        }
+        try {
+            String scope = cronGuardrailScope();
+            SqliteAgentSession session = resolveCronApprovalSession(job);
+            if (session == null) {
+                return false;
+            }
+            List<String> approvalKeys = cronApprovalPatternKeys(job, scriptContent, dangerous, scope);
+            boolean approved = true;
+            for (String key : approvalKeys) {
+                boolean keyApproved =
+                        "global".equals(scope)
+                                ? dangerousCommandApprovalService.isAlwaysApproved(
+                                        ToolNameConstants.EXECUTE_SHELL, key, scriptContent)
+                                : dangerousCommandApprovalService.isSessionApproved(
+                                        session, ToolNameConstants.EXECUTE_SHELL, key, scriptContent);
+                if (!keyApproved) {
+                    approved = false;
+                    break;
+                }
+            }
+            if (approved) {
+                return true;
+            }
+            String primaryKey = approvalKeys.isEmpty() ? dangerous.getPatternKey() : approvalKeys.get(0);
+            dangerousCommandApprovalService.storePendingApproval(
+                    session,
+                    ToolNameConstants.EXECUTE_SHELL,
+                    primaryKey,
+                    approvalKeys,
+                    cronApprovalDescription(job, dangerous, scope),
+                    cronApprovalCommandPreview(job, scriptContent));
+            return false;
+        } catch (Exception e) {
+            throw new IllegalStateException("Cron approval check failed: " + safeError(e));
+        }
+    }
+
+    private String cronGuardrailScope() {
+        if (appConfig == null || appConfig.getSecurity() == null) {
+            return "job";
+        }
+        String scope = StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailCronScope())
+                .trim()
+                .toLowerCase();
+        if ("global".equals(scope) || "session".equals(scope)) {
+            return scope;
+        }
+        return "job";
+    }
+
+    private SqliteAgentSession resolveCronApprovalSession(CronJobRecord job) throws Exception {
+        if (sessionRepository == null || job == null || StrUtil.isBlank(job.getSourceKey())) {
+            return null;
+        }
+        SessionRecord record = sessionRepository.getBoundSession(job.getSourceKey());
+        if (record == null) {
+            record = sessionRepository.bindNewSession(job.getSourceKey());
+        }
+        return new SqliteAgentSession(record, sessionRepository);
+    }
+
+    private List<String> cronApprovalPatternKeys(
+            CronJobRecord job,
+            String scriptContent,
+            DangerousCommandApprovalService.DetectionResult dangerous,
+            String scope) {
+        List<String> result = new ArrayList<String>();
+        for (String patternKey : dangerous.effectivePatternKeys()) {
+            if (StrUtil.isBlank(patternKey)) {
+                continue;
+            }
+            if ("job".equals(scope)) {
+                result.add(
+                        "cron-job:"
+                                + safeCronApprovalToken(job.getJobId())
+                                + ":"
+                                + scriptFingerprint(scriptContent)
+                                + ":"
+                                + patternKey.trim());
+            } else {
+                result.add(patternKey.trim());
+            }
+        }
+        return result;
+    }
+
+    private String cronApprovalDescription(
+            CronJobRecord job,
+            DangerousCommandApprovalService.DetectionResult dangerous,
+            String scope) {
+        return "Cron job "
+                + StrUtil.blankToDefault(job.getName(), job.getJobId())
+                + " script requires approval (scope="
+                + scope
+                + "): "
+                + StrUtil.blankToDefault(dangerous.getDescription(), dangerous.getPatternKey());
+    }
+
+    private String cronApprovalCommandPreview(CronJobRecord job, String scriptContent) {
+        return "Cron script "
+                + StrUtil.blankToDefault(job.getScript(), "<inline>")
+                + "\n\n"
+                + StrUtil.nullToEmpty(scriptContent);
+    }
+
+    private String safeCronApprovalToken(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if ((c >= 'A' && c <= 'Z')
+                    || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9')
+                    || c == '_'
+                    || c == '-') {
+                buffer.append(c);
+            }
+        }
+        return buffer.length() == 0 ? "unknown" : buffer.toString();
+    }
+
+    private String scriptFingerprint(String scriptContent) {
+        return sha256Hex(StrUtil.nullToEmpty(scriptContent)).substring(0, 16);
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder();
+            for (byte item : hash) {
+                String hex = Integer.toHexString(item & 0xff);
+                if (hex.length() == 1) {
+                    builder.append('0');
+                }
+                builder.append(hex);
+            }
+            return builder.toString();
+        } catch (Exception e) {
+            return String.valueOf(Math.abs(StrUtil.nullToEmpty(value).hashCode()));
         }
     }
 
@@ -1817,6 +2037,19 @@ public class DefaultCronScheduler {
         private CronScriptResult(String output, boolean wakeAgent) {
             this.output = output;
             this.wakeAgent = wakeAgent;
+        }
+    }
+
+    private static class CronApprovalPendingException extends RuntimeException {
+        private final String detectionDescription;
+
+        private CronApprovalPendingException(String message, String detectionDescription) {
+            super(message);
+            this.detectionDescription = detectionDescription;
+        }
+
+        private String getDetectionDescription() {
+            return detectionDescription;
         }
     }
 

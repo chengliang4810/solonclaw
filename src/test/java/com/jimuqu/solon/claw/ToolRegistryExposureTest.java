@@ -177,7 +177,7 @@ public class ToolRegistryExposureTest {
                         tools.audit(
                                 "command",
                                 "execute_shell",
-                                "sudo reboot",
+                                "blkdiscard /dev/sdb",
                                 null,
                                 null,
                                 null,
@@ -225,10 +225,10 @@ public class ToolRegistryExposureTest {
         assertThat(hardline.get("decision").getString()).isEqualTo("block");
         assertThat(hardline.get("blocking").getBoolean()).isTrue();
         assertThat(hardline.get("approval_required").getBoolean()).isFalse();
-        assertThat(hardline.get("commandPreview").getString()).contains("sudo reboot");
+        assertThat(hardline.get("commandPreview").getString()).contains("blkdiscard /dev/sdb");
         assertThat(String.valueOf(hardline.get("findings")))
                 .contains("hardline")
-                .contains("shutdown")
+                .contains("destroy raw disk partition table")
                 .contains("change_command")
                 .contains("blocking")
                 .contains("approval_required");
@@ -403,7 +403,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("cronApprovalPolicy")))
                 .contains("approvals.cronMode")
-                .contains("runsWithoutHumanApproval");
+                .contains("security.guardrailCronMode")
+                .contains("approvalModeCanPauseCron");
         assertThat(
                         policyStatus
                                 .get("policy")
@@ -4120,13 +4121,13 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "import os\nos.system('sudo reboot')\nprint('after')\n",
+                                "import os\nos.system('rm -rf /')\nprint('after')\n",
                                 Integer.valueOf(5)));
 
         assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("error").getString())
                 .contains("硬阻断安全规则")
-                .contains("shutdown");
+                .contains("root filesystem");
         assertThat(result.get("output").getString()).doesNotContain("after");
     }
 
@@ -4145,13 +4146,13 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "import subprocess\nsubprocess.run(['sudo', 'reboot'])\nprint('after')\n",
+                                "import subprocess\nsubprocess.run(['rm', '-rf', '/'])\nprint('after')\n",
                                 Integer.valueOf(5)));
 
         assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("error").getString())
                 .contains("硬阻断安全规则")
-                .contains("shutdown");
+                .contains("root filesystem");
         assertThat(result.get("output").getString()).doesNotContain("after");
     }
 
@@ -4167,11 +4168,11 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(
                         () ->
                                 nodejs.execute(
-                                        "require('child_process').execSync('sudo reboot')\nconsole.log('after')",
+                                        "require('child_process').execSync('rm -rf /')\nconsole.log('after')",
                                         Integer.valueOf(1000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("硬阻断安全规则")
-                .hasMessageContaining("shutdown")
+                .hasMessageContaining("root filesystem")
                 .hasMessageNotContaining("after");
     }
 

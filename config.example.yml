@@ -2,6 +2,11 @@
 # SolonClaw 运行配置示例。
 # 使用方式：复制为 runtime/config.yml，再按部署环境修改。
 
+# HTTP 服务配置。
+server:
+  # Dashboard 与 API 监听端口。
+  port: 8080
+
 # 模型提供方列表。键名是 providerKey，可在 model.providerKey 和 fallbackProviders 中引用。
 providers:
   # 默认云端模型提供方。
@@ -45,14 +50,12 @@ fallbackProviders: []
 #     # 备用模型名；留空时使用该提供方 defaultModel。
 #     model: qwen3
 
-# 安全策略配置。对齐 hardline、URL safety、website policy 基线。
+# 安全策略配置。包含 URL、网站阻断、命令扫描、审批模式与 hardline 白名单。
 security:
   # 是否允许 URL 工具访问内网/私有地址，默认开启，方便访问本机和内网调试服务。
-  # 云元数据地址始终阻断，无法通过本开关放行。
-  # 如需恢复严格外网策略，可设为 false，或用环境变量 JIMUQU_ALLOW_PRIVATE_URLS=false 临时关闭。
+  # 云元数据地址默认始终阻断，不会因本开关放行。
+  # 如需恢复严格外网策略，可设为 false。
   allowPrivateUrls: true
-  # MCP stdio 包安全检查默认使用 OSV 官方端点；如需内网代理或镜像，优先用环境变量 JIMUQU_OSV_ENDPOINT 覆盖。
-  # 兼容旧环境变量 OSV_ENDPOINT；两者同时存在时 JIMUQU_OSV_ENDPOINT 优先。
   # URL 工具的网站阻断策略，用于 webfetch/websearch/codesearch 中出现的 URL。
   websiteBlocklist:
     # 是否启用域名阻断。
@@ -69,6 +72,40 @@ security:
   tirithTimeoutSeconds: 5
   # Tirith 不可用、超时或返回未知退出码时是否放行。设为 false 会 fail-closed 阻断。
   tirithFailOpen: true
+  # Agent 工具安全策略模式：
+  # approval 默认值，可审批危险行为会生成待审批项，非白名单 hardline 仍直接阻断。
+  # strict 最严格，可审批危险行为也直接阻断。
+  # bypass 最自由，跳过可审批危险行为检查，非白名单 hardline 和 URL/凭据硬策略仍生效。
+  # smart 先由辅助模型判定低风险行为，无法确认时回到人工审批。
+  guardrailMode: approval
+  # 定时任务安全策略模式：
+  # approval 默认值，可审批危险行为会暂停任务并请求会话审批。
+  # strict 直接阻断可审批危险行为；bypass 跳过软策略；approve 沿用旧的自动批准行为。
+  guardrailCronMode: approval
+  # 定时任务审批记忆范围：job 同一任务相同行为审批一次；session 按会话；global 全局。
+  guardrailCronScope: job
+  # 允许跳过 hardline 硬阻断的类别；* 表示放行所有 hardline 类别。
+  # 默认仅允许关机/重启类，metadata URL 默认仍阻断，除非显式加入 hardline_metadata_url 或使用 *。
+  hardlineAllowlist:
+    - hardline_shutdown
+    - hardline_windows_shutdown
+
+# 审批/确认策略配置。security.guardrailMode 会同步决定旧审批模式；这里主要保留超时和确认类开关。
+approvals:
+  # 兼容旧审批模式：on / off / smart。通常无需手动设置，优先使用 security.guardrailMode。
+  mode: on
+  # 兼容旧 cron 审批模式：approval / strict / bypass / approve。通常无需手动设置，优先使用 security.guardrailCronMode。
+  cronMode: approval
+  # 子 Agent 遇到危险命令时默认自动拒绝，避免等待父本地交互/stdin 审批导致卡死。
+  # 设为 true 后，子 Agent 会自动批准一次；仅建议可信批处理使用。
+  subagentAutoApprove: false
+  # 本地/直接审批超时秒数；超时后 /approve 不再放行旧命令。
+  timeoutSeconds: 60
+  # 网关/渠道审批超时秒数；用于消息渠道中的审批卡与 /approve。
+  gatewayTimeoutSeconds: 300
+  # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
+  # 设为 false 后，/reload-mcp 将直接执行。
+  mcpReloadConfirm: true
 
 # SolonClaw 运行时配置。
 solonclaw:
@@ -95,6 +132,13 @@ solonclaw:
       ttl: 5m
       layout: system_and_3
 
+  # 浏览器工具在容器内访问宿主机 loopback 服务时的 URL 改写配置。
+  browser:
+    # 是否把导航里的 127.0.0.1/localhost 改写为宿主机别名。
+    rewriteLoopbackUrls: false
+    # 宿主机别名；Docker Desktop 常用 host.docker.internal。
+    loopbackHostAlias: host.docker.internal
+
   # 定时任务调度器配置。
   scheduler:
     # 是否启用定时任务调度。
@@ -103,35 +147,13 @@ solonclaw:
     tickSeconds: 60
     # 是否默认为定时任务投递结果加上任务名等包装信息；对应对标行为 cron.wrap_response。
     wrapResponse: true
-    # cron 脚本执行超时时间，单位秒；对应对标行为 cron.script_timeout_seconds / JIMUQU_CRON_SCRIPT_TIMEOUT。
+    # cron 脚本执行超时时间，单位秒。
     scriptTimeoutSeconds: 120
-    # cron Agent 无活动超时时间，单位秒；对应对标行为 JIMUQU_CRON_TIMEOUT，0 表示不限制。
+    # cron Agent 无活动超时时间，单位秒；0 表示不限制。
     inactivityTimeoutSeconds: 600
-    # 无人值守 cron 遇到危险命令时的处理方式：deny 表示阻断，approve 表示沿用普通危险命令审批放行策略。
-    # 对齐对标行为 approvals.cron_mode；默认 deny，避免定时任务在无人确认时执行破坏性命令。
-    cronApprovalMode: deny
     # 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。
     # 对齐对标行为 cron 平台工具配置回退。cron 运行时始终会额外禁用 cronjob / messaging / clarify，避免无人值守递归调度或主动发消息。
     enabledToolsets: []
-
-  # 审批/确认策略配置。对齐对标行为 approvals.mcp_reload_confirm。
-  approvals:
-    # 危险命令审批模式：on 开启人工审批；off 关闭可审批危险命令提示；smart 先由辅助模型判定低风险命令，无法确认时回到人工审批。
-    # hardline 命令、URL 安全策略和凭据文件策略始终阻断，不受 off 影响。
-    mode: on
-    # cron 无人值守遇到危险命令时的处理方式：deny 阻断，approve 允许可审批危险命令直接运行。
-    # 旧配置 solonclaw.scheduler.cronApprovalMode 仍兼容，但建议迁移到本字段。
-    cronMode: deny
-    # 子 Agent 遇到危险命令时默认自动拒绝，避免等待父本地交互/stdin 审批导致卡死。
-    # 设为 true 后，子 Agent 会按 delegation.subagent_auto_approve 语义自动批准一次；仅建议可信批处理使用。
-    subagentAutoApprove: false
-    # 本地/直接审批超时秒数；超时后 /approve 不再放行旧命令。
-    timeoutSeconds: 60
-    # 网关/渠道审批超时秒数；用于消息渠道中的审批卡与 /approve。
-    gatewayTimeoutSeconds: 300
-    # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
-    # 设为 false 后，/reload-mcp 将直接执行。
-    mcpReloadConfirm: true
 
   # MCP 工具适配配置。
   mcp:
@@ -147,6 +169,24 @@ solonclaw:
       tokenUrl: ""
       # OAuth 请求的 scope，多个 scope 用空格分隔。
       scope: ""
+
+  # 模型价格配置。单位为每 token 的 micros；留空表示只统计 token，不计算价格。
+  pricing:
+    prices: []
+    # prices:
+    #   - provider: default
+    #     model: gpt-5.4
+    #     currency: USD
+    #     input_micros_per_token: 0
+    #     output_micros_per_token: 0
+    #     cache_read_micros_per_token: 0
+    #     cache_write_micros_per_token: 0
+    #     reasoning_micros_per_token: 0
+
+  # 插件启停配置。enabled 允许指定插件加载；disabled 无条件跳过指定插件。
+  plugins:
+    enabled: []
+    disabled: []
 
   # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；可选 brave-free 或 ddgs。
   web:
@@ -179,6 +219,14 @@ solonclaw:
 
   # 技能后台维护配置。
   skills:
+    # 额外只读技能目录；可使用绝对路径或相对 runtime 的路径。
+    externalDirs: []
+    # 是否启用 SKILL.md 模板变量替换。
+    templateVars: true
+    # 是否允许 SKILL.md inline shell 预处理。
+    inlineShell: false
+    # inline shell 预处理超时，单位秒。
+    inlineShellTimeoutSeconds: 10
     curator:
       # 是否启用 Curator 后台巡检。
       enabled: true
@@ -258,6 +306,15 @@ solonclaw:
         runtimeFooter:
           enabled: false
 
+  # 运行轨迹配置。
+  trace:
+    # 运行轨迹保留天数。
+    retentionDays: 14
+    # 每个 run 最大外层 attempt 数。
+    maxAttempts: 2
+    # 工具结果预览最大长度。
+    toolPreviewLength: 1200
+
   # ReAct 推理控制配置。
   react:
     # 主代理单轮最大推理步数。
@@ -301,6 +358,12 @@ solonclaw:
     busyPolicy: interrupt
     # /restart 等待运行中任务自然完成的最长时间，单位秒；0 表示不等待，立即让服务管理器重启。
     restartDrainTimeoutSeconds: 180
+    # stale run 判定窗口，单位分钟。
+    staleAfterMinutes: 60
+    # 子 Agent 最大并发数。
+    subagentMaxConcurrency: 3
+    # 子 Agent 最大 spawn 深度。
+    subagentMaxDepth: 1
     # 单个工具输出超过该字节数时写入 runtime/cache/tool-results，只把预览和 result_ref 放回上下文。
     toolOutputInlineLimit: 50000
     # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
@@ -309,6 +372,8 @@ solonclaw:
     toolOutputMaxLines: 2000
     # 对齐 tool_output.max_line_length，供单行输出截断使用。
     toolOutputMaxLineLength: 2000
+    # 媒体缓存 TTL，单位小时。
+    mediaCacheTtlHours: 168
 
   # 工具输出限制兼容别名。max_bytes 会映射到 task.toolOutputInlineLimit。
   tool_output:
@@ -319,7 +384,7 @@ solonclaw:
   # 终端/沙箱执行配置。
   terminal:
     # 对齐 terminal.credential_files。这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
-    # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到容器内 /root/.solon-claw/<path>。
+    # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到隔离环境内。
     credentialFiles: []
     # 对齐 terminal.env_passthrough。默认本地子进程不会继承 API key/token/secret。
     # 这里仅用于明确放行第三方技能变量；模型、渠道、网关等内置凭据仍会被强制拦截。
@@ -332,9 +397,10 @@ solonclaw:
     # 可选 sudo 密码；也可通过环境变量 SUDO_PASSWORD 提供。用于把实际 sudo 命令改写为 sudo -S -p ''。
     # 留空时不改写 sudo，避免在未配置凭据时改变命令行为。
     sudoPassword: ""
-    # 对齐 JIMUQU_WRITE_SAFE_ROOT / terminal.write_safe_root。
     # 留空表示不限制普通工作区写入；填写后 file_write/patch/shell 写入只能落在该目录内。
     writeSafeRoot: ""
+    # 前台 terminal 最大超时时间，单位秒。
+    maxForegroundTimeoutSeconds: 600
     # 前台 terminal 执行遇到运行时异常时的自动重试次数；默认 3 次。
     foregroundMaxRetries: 3
     # 前台 terminal 异常重试的指数退避基准秒数；默认 2 秒，即 2/4/8。
@@ -591,6 +657,8 @@ solonclaw:
     injectionMaxBodyBytes: 65536
     # 外部注入消息防重放窗口，单位秒。
     injectionReplayWindowSeconds: 300
+    # 是否过滤短静默旁白，避免渠道收到无意义状态文本。
+    filterSilenceNarration: true
     # 各平台工具集权限配置；键为平台名称（大写），值为该平台的工具集策略。
     # 未配置的平台使用全局默认工具集，不受限制。
     platforms:

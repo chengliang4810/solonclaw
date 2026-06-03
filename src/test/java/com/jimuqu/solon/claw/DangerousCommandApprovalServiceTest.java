@@ -206,6 +206,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")
                 .contains("metadataUrlBlocked")
+                .contains("hardlineAllowlist")
                 .contains("approvalBypassAllowed=false");
         assertThat(String.valueOf(summary.get("terminalGuardrails"))).contains("long_lived_foreground");
         assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);
@@ -325,19 +326,30 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cronSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("defaultDecision")).isEqualTo("approve");
         assertThat(String.valueOf(cronSummary.get("configKeys")))
+                .contains("security.guardrailCronMode")
+                .contains("security.guardrailCronScope")
                 .contains("approvals.cronMode")
                 .contains("scheduler.cronApprovalMode");
         assertThat(String.valueOf(cronSummary.get("approveAliases")))
                 .contains("approve")
                 .contains("allow")
                 .contains("yes");
-        assertThat(cronSummary.get("runsWithoutHumanApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(cronSummary.get("approvalAliases")))
+                .contains("approval")
+                .contains("ask");
+        assertThat(String.valueOf(cronSummary.get("strictAliases")))
+                .contains("strict")
+                .contains("deny");
+        assertThat(String.valueOf(cronSummary.get("bypassAliases")))
+                .contains("bypass")
+                .contains("ignore");
+        assertThat(cronSummary.get("approvalScope")).isEqualTo("job");
+        assertThat(cronSummary.get("approvalModeCanPauseCron")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("hardlineAlwaysBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("filePolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("terminalGuardrailPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("dangerousPatternCheckedBeforeRun")).isEqualTo(Boolean.TRUE);
-        assertThat(cronSummary.get("requiresExplicitApproveMode")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
 
         assertThat(subagentSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
@@ -351,8 +363,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(subagentSummary.get("pendingApprovalCreatedWhenDenied")).isEqualTo(Boolean.FALSE);
         assertThat(subagentSummary.get("denyMessageIncludesConfigHint")).isEqualTo(Boolean.TRUE);
 
-        env.appConfig.getApprovals().setCronMode("deny");
+        env.appConfig.getApprovals().setCronMode("approval");
         env.appConfig.getApprovals().setSubagentAutoApprove(false);
+        assertThat(env.dangerousCommandApprovalService
+                        .cronApprovalPolicySummary()
+                        .get("defaultDecision"))
+                .isEqualTo("request_approval");
+        env.appConfig.getApprovals().setCronMode("deny");
         assertThat(env.dangerousCommandApprovalService
                         .cronApprovalPolicySummary()
                         .get("defaultDecision"))
@@ -461,6 +478,11 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("windows_disk_or_profile_destruction")
                 .contains("metadata_url_access");
         assertThat(summary.get("metadataUrlBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("allowlistWildcardSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("allowlistedCategoriesCanBypass")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("hardlineAllowlist")))
+                .contains("hardline_shutdown")
+                .contains("hardline_windows_shutdown");
         assertThat(summary.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pythonShellExtractionCovered")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("javascriptChildProcessExtractionCovered")).isEqualTo(Boolean.TRUE);
@@ -7885,17 +7907,61 @@ public class DangerousCommandApprovalServiceTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult result =
-                env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot");
+                env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /");
 
         assertThat(result).isNotNull();
         assertThat(result.isHardline()).isTrue();
-        assertThat(result.getPatternKey()).isEqualTo("hardline_shutdown");
-        assertThat(result.getDescription()).contains("shutdown");
+        assertThat(result.getPatternKey()).isEqualTo("hardline_delete_root");
+        assertThat(result.getDescription()).contains("root filesystem");
+    }
+
+    @Test
+    void shouldAllowDefaultShutdownHardlineCategories() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        assertThat(env.appConfig.getSecurity().getHardlineAllowlist())
+                .contains("hardline_shutdown", "hardline_windows_shutdown");
+        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detectHardline(
+                                "execute_shell", "shutdown /r /t 0"))
+                .isNull();
+    }
+
+    @Test
+    void shouldStillBlockNonAllowlistedHardlineAndMetadataUrlByDefault() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult deleteRoot =
+                env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /");
+        DangerousCommandApprovalService.DetectionResult metadataUrl =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "curl http://169.254.169.254/latest/meta-data/");
+
+        assertThat(deleteRoot).isNotNull();
+        assertThat(deleteRoot.getPatternKey()).isEqualTo("hardline_delete_root");
+        assertThat(metadataUrl).isNotNull();
+        assertThat(metadataUrl.getPatternKey()).isEqualTo("hardline_metadata_url");
+    }
+
+    @Test
+    void shouldAllowAllHardlineCategoriesWhenWildcardAllowlisted() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.singletonList("*"));
+
+        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detectHardline(
+                                "execute_shell", "curl http://169.254.169.254/latest/meta-data/"))
+                .isNull();
     }
 
     @Test
     void shouldTreatPrivilegeEscalationWrappersAsHardlineCommandPrefixes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] commands =
                 new String[] {
                     "doas reboot",
@@ -7931,7 +7997,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.isSubagentAutoApproveEnabled()).isTrue();
         assertThat(env.dangerousCommandApprovalService.approvalTimeoutSeconds()).isEqualTo(45);
         assertThat(env.dangerousCommandApprovalService.approvalGatewayTimeoutSeconds()).isEqualTo(120);
-        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot"))
+        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /"))
                 .isNotNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "rm -rf runtime/cache"))
                 .isNotNull();
@@ -7954,10 +8020,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
 
         env.appConfig.getApprovals().setCronMode("maybe");
-        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("strict");
 
         env.appConfig.getApprovals().setCronMode("false");
-        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("strict");
     }
 
     @Test
@@ -8042,6 +8108,7 @@ public class DangerousCommandApprovalServiceTest {
     @Test
     void shouldTreatWindowsTerminalGuardrailsAsHardline() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
 
         DangerousCommandApprovalService.DetectionResult format =
                 env.dangerousCommandApprovalService.detectHardline("execute_shell", "format C:");
@@ -8167,6 +8234,7 @@ public class DangerousCommandApprovalServiceTest {
     @Test
     void shouldMatchJimuquHardlineBlocklistExamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] blocked =
                 new String[] {
                     "rm -rf /",
@@ -11705,12 +11773,14 @@ public class DangerousCommandApprovalServiceTest {
                         new SecurityPolicyService(env.appConfig));
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "import os\nos.system('sudo reboot')\n");
+        args.put("code", "import os\nos.system('rm -rf /')\n");
 
         service.buildInterceptor().onAction(trace, "execute_code", args);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED (hardline)")
+                .contains("root filesystem");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
@@ -11724,12 +11794,14 @@ public class DangerousCommandApprovalServiceTest {
                         new SecurityPolicyService(env.appConfig));
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "import subprocess\nsubprocess.run(['sudo', 'reboot'])\n");
+        args.put("code", "import subprocess\nsubprocess.run(['rm', '-rf', '/'])\n");
 
         service.buildInterceptor().onAction(trace, "execute_code", args);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED (hardline)")
+                .contains("root filesystem");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
@@ -11743,12 +11815,14 @@ public class DangerousCommandApprovalServiceTest {
                         new SecurityPolicyService(env.appConfig));
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "require('child_process').execSync('sudo reboot')\nconsole.log('after')\n");
+        args.put("code", "require('child_process').execSync('rm -rf /')\nconsole.log('after')\n");
 
         service.buildInterceptor().onAction(trace, "execute_js", args);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED (hardline)")
+                .contains("root filesystem");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
@@ -13530,6 +13604,7 @@ public class DangerousCommandApprovalServiceTest {
     @Test
     void shouldKeepHardlineBlockedWhenJimuquYoloModeIsEnabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         DangerousCommandApprovalService service =
                 new YoloDangerousCommandApprovalService(
                         env.globalSettingRepository,
@@ -13548,6 +13623,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBlockHardlineThroughInterceptorWhenCompatibilityYoloModeIsEnabled()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         DangerousCommandApprovalService service =
                 new YoloDangerousCommandApprovalService(
                         env.globalSettingRepository,
@@ -13569,6 +13645,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBlockHardlineThroughInterceptorWhenSessionYoloIsEnabled()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("code", "sudo reboot");
@@ -13667,6 +13744,7 @@ public class DangerousCommandApprovalServiceTest {
     void shouldKeepHardlineBlockedWhenApprovalModeIsOffAndTirithWarns() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("off");
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         FakeTirithSecurityService tirith =
                 new FakeTirithSecurityService(
                         scanResult(
@@ -13723,6 +13801,7 @@ public class DangerousCommandApprovalServiceTest {
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("off");
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("code", "sudo reboot");
@@ -13740,9 +13819,11 @@ public class DangerousCommandApprovalServiceTest {
             throws Exception {
         TestEnvironment offEnv = TestEnvironment.withFakeLlm();
         offEnv.appConfig.getApprovals().setMode("off");
+        offEnv.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         assertHardlineBlocked(offEnv.dangerousCommandApprovalService, "cmd /c shutdown /r");
 
         TestEnvironment sessionYoloEnv = TestEnvironment.withFakeLlm();
+        sessionYoloEnv.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         TestTrace sessionYoloTrace = new TestTrace();
         assertThat(sessionYoloEnv.dangerousCommandApprovalService.enableSessionYolo(sessionYoloTrace.session))
                 .isTrue();
@@ -13752,6 +13833,9 @@ public class DangerousCommandApprovalServiceTest {
                 "powershell Restart-Computer");
 
         TestEnvironment compatibilityYoloEnv = TestEnvironment.withFakeLlm();
+        compatibilityYoloEnv.appConfig
+                .getSecurity()
+                .setHardlineAllowlist(Collections.<String>emptyList());
         DangerousCommandApprovalService compatibilityYoloService =
                 new YoloDangerousCommandApprovalService(
                         compatibilityYoloEnv.globalSettingRepository,
@@ -13766,6 +13850,7 @@ public class DangerousCommandApprovalServiceTest {
     @Test
     void shouldBlockJimuquHardlineCommandSamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] commands =
                 new String[] {
                     "rm -rf /",

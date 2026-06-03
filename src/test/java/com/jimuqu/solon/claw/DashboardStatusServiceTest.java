@@ -241,6 +241,11 @@ public class DashboardStatusServiceTest {
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getLlm().setContextWindowTokens(32000);
         config.getLlm().setMaxTokens(2048);
+        config.getSecurity().setGuardrailMode("bypass");
+        config.getSecurity().setGuardrailCronMode("approval");
+        config.getApprovals().setMode("on");
+        config.getApprovals().setCronMode("approve");
+        config.getScheduler().setCronApprovalMode("approve");
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-4o");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -294,6 +299,17 @@ public class DashboardStatusServiceTest {
         assertThat(((Number) pricingCapabilities.get("builtin_price_count")).intValue()).isGreaterThan(0);
         assertThat(((Number) pricingCapabilities.get("effective_price_count")).intValue())
                 .isGreaterThan(1);
+        Map<String, Object> cronCapabilities = (Map<String, Object>) capabilities.get("cron");
+        assertThat(cronCapabilities)
+                .containsEntry("approval_mode", "approval")
+                .containsEntry("legacy_approval_mode", "approve");
+        Map<String, Object> toolSafetyCapabilities =
+                (Map<String, Object>) capabilities.get("tool_safety");
+        assertThat(toolSafetyCapabilities)
+                .containsEntry("approval_mode", "bypass")
+                .containsEntry("cron_approval_mode", "approval")
+                .containsEntry("legacy_approval_mode", "on")
+                .containsEntry("legacy_cron_approval_mode", "approve");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
                 .containsEntry("service", "solon-claw")
@@ -308,6 +324,17 @@ public class DashboardStatusServiceTest {
         assertThat(((Number) pricingStatus.get("builtin_price_count")).intValue()).isGreaterThan(0);
         assertThat(((Number) pricingStatus.get("effective_price_count")).intValue())
                 .isGreaterThan(1);
+        Map<String, Object> cronStatus = (Map<String, Object>) runtimeStatus.get("cron");
+        assertThat(cronStatus)
+                .containsEntry("approval_mode", "approval")
+                .containsEntry("legacy_approval_mode", "approve");
+        Map<String, Object> toolSafetyStatus =
+                (Map<String, Object>) runtimeStatus.get("tool_safety");
+        assertThat(toolSafetyStatus)
+                .containsEntry("approval_mode", "bypass")
+                .containsEntry("cron_approval_mode", "approval")
+                .containsEntry("legacy_approval_mode", "on")
+                .containsEntry("legacy_cron_approval_mode", "approve");
 
         String json = ONode.serialize(status);
         assertThat(json)

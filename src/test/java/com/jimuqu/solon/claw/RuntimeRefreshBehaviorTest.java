@@ -92,6 +92,7 @@ public class RuntimeRefreshBehaviorTest {
                 "community-blocklist.txt");
         runtimeSettingsService.setConfigValue("security.tirithEnabled", "false");
         runtimeSettingsService.setConfigValue("security.tirithTimeoutSeconds", "9");
+        runtimeSettingsService.setConfigValue("security.hardline_allowlist", "hardline_delete_root");
 
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getDomains())
@@ -100,9 +101,19 @@ public class RuntimeRefreshBehaviorTest {
                 .containsExactly("community-blocklist.txt");
         assertThat(env.appConfig.getSecurity().isTirithEnabled()).isFalse();
         assertThat(env.appConfig.getSecurity().getTirithTimeoutSeconds()).isEqualTo(9);
+        assertThat(env.appConfig.getSecurity().getHardlineAllowlist())
+                .containsExactly("hardline_delete_root");
+        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detectHardline(
+                                "execute_shell", "curl http://169.254.169.254/latest/meta-data/"))
+                .isNotNull();
         String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
         assertThat(config)
                 .contains("website_blocklist:")
+                .contains("hardline_allowlist:")
+                .contains("- hardline_delete_root")
                 .contains("blocked.example")
                 .contains("community-blocklist.txt")
                 .contains("tirithEnabled: false")

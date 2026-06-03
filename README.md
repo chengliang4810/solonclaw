@@ -109,7 +109,7 @@ runtime/config.yml
 
 `runtime/config.yml` 不配置运行目录本身；运行目录在启动级配置中决定，默认使用当前目录下的 `runtime/`。
 
-完整示例可参考仓库根目录的 `config.example.yml`。
+完整示例可参考仓库根目录的 `config.example.yml`。服务启动时也会把该示例同步到 `runtime/config.example.yml`，它只是只读参考模板；实际生效配置仍是 `runtime/config.yml`。
 
 最小 `runtime/config.yml` 示例：
 
@@ -125,6 +125,17 @@ model:
   providerKey: default
   default: "gpt-5.4"
 fallbackProviders: []
+security:
+  guardrailMode: approval
+  guardrailCronMode: approval
+  guardrailCronScope: job
+  hardlineAllowlist:
+    - hardline_shutdown
+    - hardline_windows_shutdown
+approvals:
+  timeoutSeconds: 60
+  gatewayTimeoutSeconds: 300
+  mcpReloadConfirm: true
 solonclaw:
   dashboard:
     accessToken: "admin"
@@ -144,6 +155,36 @@ solonclaw:
 | `solonclaw.llm.stream` | `true` | 是否启用流式输出 |
 | `solonclaw.llm.reasoningEffort` | `medium` | 默认推理强度 |
 | `solonclaw.scheduler.enabled` | `true` | 是否启用定时任务调度 |
+| `solonclaw.browser.rewriteLoopbackUrls` | `false` | 容器内浏览器访问宿主机 loopback 服务时是否改写 URL |
+| `security.allowPrivateUrls` | `true` | 是否允许 URL 工具访问 localhost / 内网地址；云元数据地址默认仍阻断 |
+| `security.websiteBlocklist.enabled` | `false` | 是否启用 webfetch/websearch/codesearch 域名阻断列表 |
+| `security.tirithEnabled` | `true` | 是否启用 Tirith 命令内容扫描 |
+| `security.tirithFailOpen` | `true` | Tirith 不可用或超时时是否放行；设为 `false` 会 fail-closed |
+| `security.guardrailMode` | `approval` | Agent 工具安全策略：`approval`、`strict`、`bypass`、`smart` |
+| `security.guardrailCronMode` | `approval` | 定时任务安全策略：`approval`、`strict`、`bypass`、`approve` |
+| `security.guardrailCronScope` | `job` | 定时任务审批记忆范围：`job`、`session`、`global` |
+| `security.hardlineAllowlist` | `hardline_shutdown`, `hardline_windows_shutdown` | 允许跳过 hardline 硬阻断的类别；`*` 表示放行所有 hardline |
+| `approvals.timeoutSeconds` | `60` | 本地/直接审批超时秒数 |
+| `approvals.gatewayTimeoutSeconds` | `300` | 消息渠道审批超时秒数 |
+| `approvals.mcpReloadConfirm` | `true` | `/reload-mcp` 是否需要确认 |
+| `terminal.credentialFiles` | 空 | 可挂载到隔离执行环境的 runtime 相对凭据文件列表 |
+| `terminal.envPassthrough` | 空 | 允许传给本地子进程的第三方环境变量名 |
+| `terminal.sudoPassword` | 空 | 可选 sudo 密码，用于 `sudo -S` 改写 |
+| `terminal.writeSafeRoot` | 空 | 非空时限制文件写入、patch 和 shell 写入根目录 |
+| `solonclaw.trace.retentionDays` | `14` | 运行轨迹保留天数 |
+| `solonclaw.trace.maxAttempts` | `2` | 每个 run 最大外层 attempt 数 |
+| `solonclaw.task.busyPolicy` | `interrupt` | 同一会话运行中收到新消息时的处理策略 |
+| `solonclaw.task.subagentMaxConcurrency` | `3` | 子 Agent 最大并发数 |
+| `solonclaw.task.subagentMaxDepth` | `1` | 子 Agent 最大 spawn 深度 |
+| `solonclaw.task.toolOutputInlineLimit` | `50000` | 单个工具输出超过该字节数时写入缓存，仅回传预览 |
+| `solonclaw.task.mediaCacheTtlHours` | `168` | 渠道媒体缓存 TTL，单位小时 |
+| `solonclaw.skills.externalDirs` | 空 | 额外只读技能目录列表 |
+| `solonclaw.skills.templateVars` | `true` | 是否启用 SKILL.md 模板变量替换 |
+| `solonclaw.gateway.filterSilenceNarration` | `true` | 是否过滤短静默旁白，避免渠道收到无意义状态文本 |
+| `solonclaw.mcp.enabled` | `false` | 是否启用 MCP 工具适配 |
+| `solonclaw.web.searchBackend` | `solon-ai` | Web 搜索后端：`solon-ai`、`brave-free`、`ddgs` |
+| `solonclaw.pricing.prices` | 空 | 模型价格配置；为空时只统计 token，不计算价格 |
+| `solonclaw.plugins.enabled` / `disabled` | 空 | 插件启用/禁用列表 |
 
 ## 消息渠道
 
