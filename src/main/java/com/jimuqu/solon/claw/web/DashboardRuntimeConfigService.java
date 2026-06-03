@@ -202,6 +202,13 @@ public class DashboardRuntimeConfigService {
                                 false,
                                 "feishu"),
                         item(
+                                "solonclaw.channels.feishu.domain",
+                                "飞书/Lark 租户域",
+                                "messaging",
+                                false,
+                                false,
+                                "feishu"),
+                        item(
                                 "solonclaw.channels.feishu.groupAllowedUsers",
                                 "飞书群聊 allowlist",
                                 "messaging",

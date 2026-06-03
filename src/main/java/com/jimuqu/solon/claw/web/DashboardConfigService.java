@@ -487,6 +487,9 @@ public class DashboardConfigService {
 
         addChannelFields("feishu");
         addField(
+                new FieldDefinition("channels.feishu.domain", "select", "messaging", "飞书/Lark 租户域")
+                        .options("feishu", "lark"));
+        addField(
                 new FieldDefinition(
                         "channels.feishu.websocketUrl", "string", "messaging", "飞书 websocket 地址"));
         addField(

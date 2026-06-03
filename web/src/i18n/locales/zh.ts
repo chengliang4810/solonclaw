@@ -684,7 +684,7 @@ export default {
     qrLogin: '扫码登录',
     qrRelogin: '重新登录',
     qrFetching: '正在获取二维码...',
-    qrScanHint: '使用微信扫描二维码登录',
+    qrScanHint: '使用对应平台扫码登录',
     qrScanedHint: '已扫描，请在手机上确认...',
     qrExpired: '二维码已过期，请重新发起扫码。',
     qrFailed: '二维码获取失败，请稍后重试。',

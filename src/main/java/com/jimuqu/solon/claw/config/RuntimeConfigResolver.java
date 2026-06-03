@@ -961,6 +961,7 @@ public class RuntimeConfigResolver {
                 "feishu",
                 "appId",
                 "appSecret",
+                "domain",
                 "websocketUrl",
                 "botOpenId",
                 "botUserId",
