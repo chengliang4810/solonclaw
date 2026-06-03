@@ -116,6 +116,8 @@ public class RuntimeSettingsService {
                     "security.website_blocklist.enabled",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
+                    "security.hardlineAllowlist",
+                    "security.hardline_allowlist",
                     "approvals.mode",
                     "approvals.cronMode",
                     "approvals.subagentAutoApprove",
@@ -527,6 +529,8 @@ public class RuntimeSettingsService {
                 || "security.websiteBlocklist.sharedFiles".equals(key)
                 || "security.website_blocklist.domains".equals(key)
                 || "security.website_blocklist.shared_files".equals(key)
+                || "security.hardlineAllowlist".equals(key)
+                || "security.hardline_allowlist".equals(key)
                 || "terminal.credentialFiles".equals(key)
                 || "terminal.envPassthrough".equals(key)
                 || "terminal.env_passthrough".equals(key)

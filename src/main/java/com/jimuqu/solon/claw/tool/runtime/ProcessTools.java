@@ -807,7 +807,10 @@ public class ProcessTools {
         }
 
         DangerousCommandApprovalService approvalService =
-                new DangerousCommandApprovalService(null, securityPolicyService);
+                new DangerousCommandApprovalService(
+                        null,
+                        securityPolicyService == null ? null : securityPolicyService.getAppConfig(),
+                        securityPolicyService);
         DangerousCommandApprovalService.DetectionResult hardline =
                 approvalService.detectHardline(ToolNameConstants.EXECUTE_SHELL, command);
         if (hardline != null) {

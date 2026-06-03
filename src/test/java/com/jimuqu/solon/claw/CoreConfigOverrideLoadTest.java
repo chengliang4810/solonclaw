@@ -491,6 +491,26 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldLoadSecurityHardlineAllowlistFromYamlList() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-hardline-allowlist").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  hardlineAllowlist:\n"
+                        + "    - hardline_shutdown\n"
+                        + "    - hardline_windows_shutdown\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().getHardlineAllowlist())
+                .containsExactly("hardline_shutdown", "hardline_windows_shutdown");
+    }
+
+    @Test
     void shouldLoadScopedJimuquApprovalsAliases() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-approvals").toFile();
         File configFile = new File(runtimeHome, "config.yml");

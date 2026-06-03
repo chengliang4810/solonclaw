@@ -1648,7 +1648,7 @@ public class DefaultCronScheduler {
                             + job.getScript()
                             + " matched "
                             + hardline.getDescription()
-                            + ". Hardline commands cannot run from cron.");
+                            + ". Non-allowlisted hardline commands cannot run from cron.");
         }
 
         DangerousCommandApprovalService.DetectionResult dangerous =

@@ -101,6 +101,9 @@ security.tirithFailOpen: true
 security.guardrailMode: approval
 security.guardrailCronMode: approval
 security.guardrailCronScope: job
+security.hardlineAllowlist:
+  - hardline_shutdown
+  - hardline_windows_shutdown
 
 # 审批/确认策略
 jimuqu.approvals.subagentAutoApprove: false

@@ -915,6 +915,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(cron, "dangerousPatternCheckedBeforeRun"))
                 .append(" hardlineBlocked=")
                 .append(value(cron, "hardlineAlwaysBlocked"))
+                .append(" allowlist=")
+                .append(value(cron, "hardlineAllowlist"))
                 .append(" file=")
                 .append(value(cron, "filePolicyPrechecked"))
                 .append(" url=")

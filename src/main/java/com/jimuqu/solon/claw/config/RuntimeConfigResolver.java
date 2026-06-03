@@ -402,9 +402,11 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "security.guardrailMode");
         addDynamicPrefix(prefixes, "security.guardrailCronMode");
         addDynamicPrefix(prefixes, "security.guardrailCronScope");
+        addDynamicPrefix(prefixes, "security.hardlineAllowlist");
         addDynamicPrefix(prefixes, "security.guardrail_mode");
         addDynamicPrefix(prefixes, "security.guardrail_cron_mode");
         addDynamicPrefix(prefixes, "security.guardrail_cron_scope");
+        addDynamicPrefix(prefixes, "security.hardline_allowlist");
         addDynamicPrefix(prefixes, "solonclaw.task.restartDrainTimeoutSeconds");
         addDynamicPrefix(prefixes, "solonclaw.terminal.shellInitFiles");
         addDynamicPrefix(prefixes, "terminal.shell_init_files");
@@ -880,9 +882,11 @@ public class RuntimeConfigResolver {
                 "security.guardrailMode",
                 "security.guardrailCronMode",
                 "security.guardrailCronScope",
+                "security.hardlineAllowlist",
                 "security.guardrail_mode",
                 "security.guardrail_cron_mode",
                 "security.guardrail_cron_scope",
+                "security.hardline_allowlist",
                 "solonclaw.web.searchBackend",
                 "solonclaw.web.search_backend",
                 "solonclaw.web.braveSearchApiKey",

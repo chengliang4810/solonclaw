@@ -1511,7 +1511,7 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "hardline.sh");
-        FileUtil.writeString("sudo reboot", script, StandardCharsets.UTF_8);
+        FileUtil.writeString("rm -rf /", script, StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1544,7 +1544,7 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastStatus()).isEqualTo("error");
         assertThat(updated.getLastError())
                 .contains("BLOCKED (hardline)")
-                .contains("Hardline commands cannot run from cron");
+                .contains("Non-allowlisted hardline commands cannot run from cron");
     }
 
     @Test

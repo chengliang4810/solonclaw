@@ -1955,7 +1955,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardlineRedirectDevice.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineRedirectDevice)).contains("/dev/sdb");
         assertThat(hardlineShutdown.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineShutdown.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineShutdown.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(hardlineShutdown.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineShutdown)).contains("reboot");
         assertThat(hardlineKillAll.get("passed")).isEqualTo(Boolean.TRUE);
@@ -1995,7 +1996,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardlineWindowsSystemDir.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineWindowsSystemDir)).contains("C:\\Windows\\*");
         assertThat(hardlineWindowsShutdown.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsShutdown.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsShutdown.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(hardlineWindowsShutdown.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineWindowsShutdown)).contains("shutdown.exe");
         assertThat(sudoRewrite.get("passed")).isEqualTo(Boolean.TRUE);

@@ -1073,7 +1073,8 @@ public class SolonClawCodeExecutionSkills {
         }
 
         DangerousCommandApprovalService approvalService =
-                new DangerousCommandApprovalService(null, securityPolicyService);
+                new DangerousCommandApprovalService(
+                        null, appConfigFrom(securityPolicyService), securityPolicyService);
         DangerousCommandApprovalService.DetectionResult hardline =
                 approvalService.detectHardline(ruleToolName, code);
         if (hardline != null) {
@@ -1114,7 +1115,8 @@ public class SolonClawCodeExecutionSkills {
         }
 
         DangerousCommandApprovalService approvalService =
-                new DangerousCommandApprovalService(null, securityPolicyService);
+                new DangerousCommandApprovalService(
+                        null, appConfigFrom(securityPolicyService), securityPolicyService);
         DangerousCommandApprovalService.DetectionResult hardline =
                 approvalService.detectHardline(ToolNameConstants.EXECUTE_PYTHON, code);
         if (hardline != null) {
@@ -1233,5 +1235,9 @@ public class SolonClawCodeExecutionSkills {
             value = appConfig.getTask().getToolOutputInlineLimit();
         }
         return Math.max(256, value);
+    }
+
+    private static AppConfig appConfigFrom(SecurityPolicyService securityPolicyService) {
+        return securityPolicyService == null ? null : securityPolicyService.getAppConfig();
     }
 }

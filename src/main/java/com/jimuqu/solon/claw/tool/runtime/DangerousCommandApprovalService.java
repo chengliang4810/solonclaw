@@ -2987,6 +2987,9 @@ public class DangerousCommandApprovalService {
             result.setDescription(rule.getDescription());
             result.setNormalizedCode(normalized);
             result.setHardline(true);
+            if (isHardlineAllowlisted(result)) {
+                return null;
+            }
             return result;
         }
         DetectionResult blockedUrl = detectHardlineCommandUrl(toolName, normalized);
@@ -3034,7 +3037,37 @@ public class DangerousCommandApprovalService {
         result.setDescription(verdict.getMessage());
         result.setNormalizedCode(normalized);
         result.setHardline(true);
+        if (isHardlineAllowlisted(result)) {
+            return null;
+        }
         return result;
+    }
+
+    private boolean isHardlineAllowlisted(DetectionResult result) {
+        if (result == null || appConfig == null || appConfig.getSecurity() == null) {
+            return false;
+        }
+        List<String> configured = appConfig.getSecurity().getHardlineAllowlist();
+        if (configured == null || configured.isEmpty()) {
+            return false;
+        }
+        Set<String> allowed = new LinkedHashSet<String>();
+        for (String item : configured) {
+            if (StrUtil.isBlank(item)) {
+                continue;
+            }
+            allowed.add(item.trim().toLowerCase(Locale.ROOT));
+        }
+        if (allowed.contains("*")) {
+            return true;
+        }
+        for (String key : result.effectivePatternKeys()) {
+            if (StrUtil.isNotBlank(key)
+                    && allowed.contains(key.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String foregroundBackgroundGuidance(String toolName, String code) {
@@ -3216,6 +3249,10 @@ public class DangerousCommandApprovalService {
                         "windows_disk_or_profile_destruction",
                         "metadata_url_access"));
         summary.put("metadataUrlBlocked", Boolean.valueOf(securityPolicyService != null));
+        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
+        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
+        summary.put("allowlistWildcardSupported", Boolean.TRUE);
+        summary.put("allowlistedCategoriesCanBypass", Boolean.TRUE);
         summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
         summary.put("pythonShellExtractionCovered", Boolean.TRUE);
         summary.put("javascriptChildProcessExtractionCovered", Boolean.TRUE);
@@ -3228,8 +3265,21 @@ public class DangerousCommandApprovalService {
         summary.put("blockingDecision", "block");
         summary.put("approvalRequired", Boolean.FALSE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("description", "Hardline commands are blocked before approval handling and cannot be bypassed by slash approvals, session approvals, always approvals, smart approval, or yolo mode.");
+        summary.put(
+                "description",
+                "Hardline commands are blocked before approval handling unless their category is listed in security.hardlineAllowlist; slash approvals, session approvals, always approvals, smart approval, and yolo mode cannot bypass non-allowlisted hardline categories.");
         return summary;
+    }
+
+    private List<String> hardlineAllowlistSummary() {
+        if (appConfig == null || appConfig.getSecurity() == null) {
+            return Collections.emptyList();
+        }
+        List<String> configured = appConfig.getSecurity().getHardlineAllowlist();
+        if (configured == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<String>(configured);
     }
 
     public Map<String, Object> smartApprovalPolicySummary() {
@@ -3301,6 +3351,9 @@ public class DangerousCommandApprovalService {
         summary.put("approvalModeCanPauseCron", Boolean.TRUE);
         summary.put("jobScopeIncludesScriptFingerprint", Boolean.TRUE);
         summary.put("hardlineAlwaysBlocked", Boolean.TRUE);
+        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
+        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
+        summary.put("allowlistedHardlineCategoriesCanRun", Boolean.TRUE);
         summary.put("filePolicyPrechecked", Boolean.TRUE);
         summary.put("urlPolicyPrechecked", Boolean.TRUE);
         summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
@@ -3308,7 +3361,7 @@ public class DangerousCommandApprovalService {
         summary.put("scriptContentChecked", Boolean.TRUE);
         summary.put(
                 "description",
-                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve preserves the legacy auto-approve behavior; hardline commands remain blocked.");
+                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve preserves the legacy auto-approve behavior; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
         return summary;
     }
 

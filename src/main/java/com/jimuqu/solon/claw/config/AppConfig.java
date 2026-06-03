@@ -1665,6 +1665,18 @@ public class AppConfig {
                                                         overrides,
                                                         "security.guardrail_cron_scope",
                                                         "job")))));
+        config.getSecurity()
+                .setHardlineAllowlist(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "security.hardlineAllowlist",
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "security.hardline_allowlist",
+                                                defaultHardlineAllowlist()))));
         config.getApprovals()
                 .setMode(
                         normalizeApprovalMode(
@@ -2271,6 +2283,7 @@ public class AppConfig {
         this.security.setGuardrailMode(other.getGuardrailMode());
         this.security.setGuardrailCronMode(other.getGuardrailCronMode());
         this.security.setGuardrailCronScope(other.getGuardrailCronScope());
+        this.security.setHardlineAllowlist(new ArrayList<String>(other.getHardlineAllowlist()));
         this.security.getWebsiteBlocklist().setEnabled(other.getWebsiteBlocklist().isEnabled());
         this.security
                 .getWebsiteBlocklist()
@@ -2531,6 +2544,10 @@ public class AppConfig {
     /** 支持逗号分隔的用户列表解析。 */
     private static List<String> resolveList(Object fallback) {
         return splitObjectList(fallback);
+    }
+
+    private static List<String> defaultHardlineAllowlist() {
+        return Arrays.asList("hardline_shutdown", "hardline_windows_shutdown");
     }
 
     /** 统一收敛未授权私聊用户的处理行为。 */
@@ -4192,6 +4209,9 @@ public class AppConfig {
 
         /** Cron 审批记忆范围：job / session / global。 */
         private String guardrailCronScope = "job";
+
+        /** 允许跳过硬阻断的 hardline 类别；* 表示所有类别。 */
+        private List<String> hardlineAllowlist = new ArrayList<String>(defaultHardlineAllowlist());
 
         /** 网站访问阻断策略。 */
         private WebsiteBlocklistConfig websiteBlocklist = new WebsiteBlocklistConfig();
