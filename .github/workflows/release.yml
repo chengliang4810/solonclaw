@@ -186,6 +186,7 @@ jobs:
           name: solon-claw ${{ steps.release.outputs.tag }}
           body_path: ${{ steps.artifact.outputs.body_path }}
           generate_release_notes: false
+          draft: false
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
           fail_on_unmatched_files: true
           files: |
