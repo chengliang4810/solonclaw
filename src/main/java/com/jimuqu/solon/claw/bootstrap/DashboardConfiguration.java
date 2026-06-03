@@ -245,6 +245,19 @@ public class DashboardConfiguration {
                 securityPolicyService);
     }
 
+    @Bean(destroyMethod = "shutdown")
+    public com.jimuqu.solon.claw.web.DomesticQrSetupService domesticQrSetupService(
+            AppConfig appConfig,
+            DashboardConfigService dashboardConfigService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
+        return new com.jimuqu.solon.claw.web.DomesticQrSetupService(
+                appConfig,
+                dashboardConfigService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService);
+    }
+
     @Bean
     public DashboardSkillsService dashboardSkillsService(
             LocalSkillService localSkillService, SqlitePreferenceStore sqlitePreferenceStore) {

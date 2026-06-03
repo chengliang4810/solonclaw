@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, onUnmounted } from 'vue'
+import { reactive, onUnmounted } from 'vue'
 import * as QRCode from 'qrcode'
 import { NSwitch, NInput, NButton, NSpin, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/jimuqu/settings'
-import { saveCredentials as saveCredsApi, fetchWeixinQrCode, pollWeixinQrStatus } from '@/api/jimuqu/config'
+import {
+  saveCredentials as saveCredsApi,
+  fetchPlatformQrCode,
+  pollPlatformQrStatus,
+} from '@/api/jimuqu/config'
+import type { ChannelQrPlatform, ChannelQrStatus } from '@/shared/channelQr'
 import PlatformCard from './PlatformCard.vue'
 import SettingRow from './SettingRow.vue'
 
@@ -53,19 +58,29 @@ function getCreds(key: string) {
   return (settingsStore.platforms[key] || {}) as Record<string, any>
 }
 
-// Weixin QR code login state
-const wxQrUrl = ref('')
-const wxQrImageUrl = ref('')
-const wxQrMessage = ref('')
-const wxQrId = ref('')
-const wxQrStatus = ref<'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'>('idle')
-let wxPollTimer: ReturnType<typeof setTimeout> | null = null
+type UiQrStatus = 'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'
 
-async function updateWeixinQrSource(raw: string) {
+interface QrState {
+  url: string
+  imageUrl: string
+  message: string
+  id: string
+  status: UiQrStatus
+  failures: number
+  timer: ReturnType<typeof setTimeout> | null
+}
+
+const qrStates = reactive<Record<ChannelQrPlatform, QrState>>({
+  feishu: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
+  dingtalk: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
+  weixin: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
+})
+
+async function updateQrSource(state: QrState, raw: string) {
   const value = (raw || '').trim()
-  if (!value || value === wxQrUrl.value) return
-  wxQrUrl.value = value
-  wxQrImageUrl.value = /^data:image\//i.test(value)
+  if (!value || value === state.url) return
+  state.url = value
+  state.imageUrl = /^data:image\//i.test(value)
     ? value
     : await QRCode.toDataURL(value, {
       width: 240,
@@ -74,64 +89,81 @@ async function updateWeixinQrSource(raw: string) {
     })
 }
 
-async function startWeixinQrLogin() {
-  wxQrStatus.value = 'loading'
-  wxQrUrl.value = ''
-  wxQrImageUrl.value = ''
-  wxQrMessage.value = ''
-  wxQrId.value = ''
-  stopWeixinPoll()
+async function startQrLogin(platform: ChannelQrPlatform) {
+  const state = qrStates[platform]
+  state.status = 'loading'
+  state.url = ''
+  state.imageUrl = ''
+  state.message = ''
+  state.id = ''
+  state.failures = 0
+  stopQrPoll(platform)
 
   try {
-    const data = await fetchWeixinQrCode()
-    wxQrId.value = data.qrcode
-    await updateWeixinQrSource(data.qrcode_url)
-    wxQrStatus.value = wxQrUrl.value ? 'waiting' : 'loading'
-    pollWeixinStatus()
+    const data = await fetchPlatformQrCode(platform)
+    state.id = data.qrcode
+    await updateQrSource(state, data.qrcode_url)
+    state.status = state.url ? 'waiting' : 'loading'
+    pollQrStatus(platform)
   } catch (err: any) {
-    wxQrStatus.value = 'error'
-    wxQrMessage.value = err.message || t('platform.qrFetching')
+    state.status = 'error'
+    state.message = err.message || t('platform.qrFetching')
     message.error(err.message || t('platform.qrFetching'))
   }
 }
 
-function pollWeixinStatus() {
-  if (!wxQrId.value) return
-  wxPollTimer = setTimeout(async () => {
+function pollQrStatus(platform: ChannelQrPlatform) {
+  const state = qrStates[platform]
+  if (!state.id) return
+  state.timer = setTimeout(async () => {
     try {
-      const data = await pollWeixinQrStatus(wxQrId.value)
-      wxQrMessage.value = data.error_message || data.message || ''
-      await updateWeixinQrSource(data.qrcode_url || '')
+      const data = await pollPlatformQrStatus(platform, state.id)
+      state.failures = 0
+      state.message = data.error_message || data.message || ''
+      await updateQrSource(state, data.qrcode_url || '')
       if (data.status === 'wait') {
-        wxQrStatus.value = wxQrUrl.value ? 'waiting' : 'loading'
-        pollWeixinStatus()
+        state.status = state.url ? 'waiting' : 'loading'
+        pollQrStatus(platform)
       } else if (data.status === 'scaned') {
-        wxQrStatus.value = 'scaned'
-        pollWeixinStatus()
+        state.status = 'scaned'
+        pollQrStatus(platform)
       } else if (data.status === 'expired') {
-        wxQrStatus.value = 'expired'
+        state.status = 'expired'
       } else if (data.status === 'error') {
-        wxQrStatus.value = 'error'
+        state.status = 'error'
       } else if (data.status === 'confirmed') {
-        wxQrStatus.value = 'confirmed'
+        state.status = 'confirmed'
         await settingsStore.fetchSettings()
         message.success(t('settings.saved'))
       }
-    } catch {
-      pollWeixinStatus()
+    } catch (err: any) {
+      state.failures += 1
+      if (state.failures >= 3) {
+        state.status = 'error'
+        state.message = err?.message || t('platform.qrFailed')
+        return
+      }
+      pollQrStatus(platform)
     }
   }, 3000)
 }
 
-function stopWeixinPoll() {
-  if (wxPollTimer) {
-    clearTimeout(wxPollTimer)
-    wxPollTimer = null
+function stopQrPoll(platform: ChannelQrPlatform) {
+  const state = qrStates[platform]
+  if (state.timer) {
+    clearTimeout(state.timer)
+    state.timer = null
   }
 }
 
+function statusClass(status: ChannelQrStatus | UiQrStatus) {
+  return status === 'error' || status === 'expired' ? 'error' : ''
+}
+
 onUnmounted(() => {
-  stopWeixinPoll()
+  stopQrPoll('feishu')
+  stopQrPoll('dingtalk')
+  stopQrPoll('weixin')
 })
 
 const platforms = [
@@ -173,6 +205,32 @@ const platforms = [
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
           <NSwitch :value="getCreds('feishu').enabled" :loading="isSaving('feishu', 'enabled')" @update:value="v => saveCredentials('feishu', 'enabled', { enabled: v })" />
         </SettingRow>
+        <div class="channel-qr-section">
+          <NButton
+            v-if="qrStates.feishu.status === 'idle' || qrStates.feishu.status === 'error' || qrStates.feishu.status === 'expired' || qrStates.feishu.status === 'confirmed'"
+            type="primary"
+            size="small"
+            @click="startQrLogin('feishu')"
+          >
+            {{ qrStates.feishu.status === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
+          </NButton>
+          <div v-if="qrStates.feishu.status === 'loading'" class="channel-qr-loading">
+            <NSpin size="small" />
+            <span>{{ t('platform.qrFetching') }}</span>
+          </div>
+          <div v-if="qrStates.feishu.imageUrl" class="channel-qr-panel">
+            <img class="channel-qr-image" :src="qrStates.feishu.imageUrl" :alt="t('platform.qrLogin')" />
+            <div class="channel-qr-caption" :class="statusClass(qrStates.feishu.status)">
+              {{ qrStates.feishu.message || (qrStates.feishu.status === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint')) }}
+            </div>
+            <div v-if="qrStates.feishu.status === 'confirmed' && getCreds('feishu').domain" class="channel-qr-caption">
+              {{ getCreds('feishu').domain }}
+            </div>
+            <a v-if="/^https?:\/\//i.test(qrStates.feishu.url)" class="channel-qr-link" :href="qrStates.feishu.url" target="_blank" rel="noopener noreferrer">
+              {{ qrStates.feishu.url }}
+            </a>
+          </div>
+        </div>
         <SettingRow :label="t('platform.appId')" :hint="t('platform.appIdHint')">
           <NInput :default-value="getCreds('feishu').extra?.app_id || ''" :loading="isSaving('feishu', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
         </SettingRow>
@@ -192,6 +250,29 @@ const platforms = [
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
           <NSwitch :value="getCreds('dingtalk').enabled" :loading="isSaving('dingtalk', 'enabled')" @update:value="v => saveCredentials('dingtalk', 'enabled', { enabled: v })" />
         </SettingRow>
+        <div class="channel-qr-section">
+          <NButton
+            v-if="qrStates.dingtalk.status === 'idle' || qrStates.dingtalk.status === 'error' || qrStates.dingtalk.status === 'expired' || qrStates.dingtalk.status === 'confirmed'"
+            type="primary"
+            size="small"
+            @click="startQrLogin('dingtalk')"
+          >
+            {{ qrStates.dingtalk.status === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
+          </NButton>
+          <div v-if="qrStates.dingtalk.status === 'loading'" class="channel-qr-loading">
+            <NSpin size="small" />
+            <span>{{ t('platform.qrFetching') }}</span>
+          </div>
+          <div v-if="qrStates.dingtalk.imageUrl" class="channel-qr-panel">
+            <img class="channel-qr-image" :src="qrStates.dingtalk.imageUrl" :alt="t('platform.qrLogin')" />
+            <div class="channel-qr-caption" :class="statusClass(qrStates.dingtalk.status)">
+              {{ qrStates.dingtalk.message || (qrStates.dingtalk.status === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint')) }}
+            </div>
+            <a v-if="/^https?:\/\//i.test(qrStates.dingtalk.url)" class="channel-qr-link" :href="qrStates.dingtalk.url" target="_blank" rel="noopener noreferrer">
+              {{ qrStates.dingtalk.url }}
+            </a>
+          </div>
+        </div>
         <SettingRow :label="t('platform.clientId')" :hint="t('platform.clientIdHint')">
           <NInput :default-value="getCreds('dingtalk').extra?.client_id || ''" :loading="isSaving('dingtalk', 'client_id')" clearable size="small" class="input-lg" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
         </SettingRow>
@@ -214,39 +295,39 @@ const platforms = [
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
           <NSwitch :value="getCreds('weixin').enabled" :loading="isSaving('weixin', 'enabled')" @update:value="v => saveCredentials('weixin', 'enabled', { enabled: v })" />
         </SettingRow>
-        <div class="weixin-qr-section">
+        <div class="channel-qr-section">
           <NButton
-            v-if="wxQrStatus === 'idle' || wxQrStatus === 'error' || wxQrStatus === 'expired' || wxQrStatus === 'confirmed'"
+            v-if="qrStates.weixin.status === 'idle' || qrStates.weixin.status === 'error' || qrStates.weixin.status === 'expired' || qrStates.weixin.status === 'confirmed'"
             type="primary"
             size="small"
-            @click="startWeixinQrLogin"
+            @click="startQrLogin('weixin')"
           >
-            {{ wxQrStatus === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
+            {{ qrStates.weixin.status === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
           </NButton>
-          <div v-if="wxQrStatus === 'loading'" class="weixin-qr-loading">
+          <div v-if="qrStates.weixin.status === 'loading'" class="channel-qr-loading">
             <NSpin size="small" />
             <span>{{ t('platform.qrFetching') }}</span>
           </div>
-          <div v-if="wxQrImageUrl" class="weixin-qr-panel">
-            <img class="weixin-qr-image" :src="wxQrImageUrl" :alt="t('platform.qrLogin')" />
-            <div class="weixin-qr-caption">
-              {{ wxQrStatus === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}
+          <div v-if="qrStates.weixin.imageUrl" class="channel-qr-panel">
+            <img class="channel-qr-image" :src="qrStates.weixin.imageUrl" :alt="t('platform.qrLogin')" />
+            <div class="channel-qr-caption">
+              {{ qrStates.weixin.status === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}
             </div>
             <a
-              v-if="/^https?:\/\//i.test(wxQrUrl)"
-              class="weixin-qr-link"
-              :href="wxQrUrl"
+              v-if="/^https?:\/\//i.test(qrStates.weixin.url)"
+              class="channel-qr-link"
+              :href="qrStates.weixin.url"
               target="_blank"
               rel="noopener noreferrer"
             >
-              {{ wxQrUrl }}
+              {{ qrStates.weixin.url }}
             </a>
           </div>
-          <div v-if="!wxQrImageUrl && (wxQrStatus === 'waiting' || wxQrStatus === 'scaned')" class="weixin-qr-hint">
-            {{ wxQrStatus === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}
+          <div v-if="!qrStates.weixin.imageUrl && (qrStates.weixin.status === 'waiting' || qrStates.weixin.status === 'scaned')" class="channel-qr-hint">
+            {{ qrStates.weixin.status === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}
           </div>
-          <div v-if="wxQrStatus === 'error' || wxQrStatus === 'expired'" class="weixin-qr-error">
-            {{ wxQrMessage || (wxQrStatus === 'expired' ? t('platform.qrExpired') : t('platform.qrFailed')) }}
+          <div v-if="qrStates.weixin.status === 'error' || qrStates.weixin.status === 'expired'" class="channel-qr-error">
+            {{ qrStates.weixin.message || (qrStates.weixin.status === 'expired' ? t('platform.qrExpired') : t('platform.qrFailed')) }}
           </div>
         </div>
         <SettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')">
@@ -280,12 +361,12 @@ const platforms = [
   margin-top: 16px;
 }
 
-.weixin-qr-section {
+.channel-qr-section {
   margin-top: 12px;
   margin-bottom: 12px;
 }
 
-.weixin-qr-loading {
+.channel-qr-loading {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -293,7 +374,7 @@ const platforms = [
   font-size: 13px;
 }
 
-.weixin-qr-panel {
+.channel-qr-panel {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -301,7 +382,7 @@ const platforms = [
   margin-top: 10px;
 }
 
-.weixin-qr-image {
+.channel-qr-image {
   width: 192px;
   height: 192px;
   border: 1px solid $border-color;
@@ -310,12 +391,16 @@ const platforms = [
   padding: 8px;
 }
 
-.weixin-qr-caption {
+.channel-qr-caption {
   font-size: 13px;
   color: $text-secondary;
+
+  &.error {
+    color: $error;
+  }
 }
 
-.weixin-qr-link {
+.channel-qr-link {
   max-width: 100%;
   color: $accent-primary;
   font-size: 12px;
@@ -324,12 +409,12 @@ const platforms = [
   word-break: break-all;
 }
 
-.weixin-qr-hint {
+.channel-qr-hint {
   font-size: 13px;
   color: $text-secondary;
 }
 
-.weixin-qr-error {
+.channel-qr-error {
   margin-top: 8px;
   font-size: 13px;
   color: $error;

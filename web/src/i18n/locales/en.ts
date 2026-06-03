@@ -656,8 +656,8 @@ export default {
     qrLogin: 'QR Login',
     qrRelogin: 'Re-login',
     qrFetching: 'Fetching QR code...',
-    qrScanHint: 'Scan with WeChat to login',
-    qrScanedHint: 'Scaned, please confirm on phone...',
+    qrScanHint: 'Scan with the matching mobile app',
+    qrScanedHint: 'Scanned, please confirm on phone...',
   },
 
   // Language

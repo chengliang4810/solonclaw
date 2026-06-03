@@ -592,6 +592,15 @@ public class AppConfig {
                                         "")));
         config.getChannels()
                 .getFeishu()
+                .setDomain(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.feishu.domain",
+                                        "feishu")));
+        config.getChannels()
+                .getFeishu()
                 .setWebsocketUrl(
                         resolveConfigString(
                                 readString(
@@ -4370,6 +4379,9 @@ public class AppConfig {
 
         /** 飞书应用密钥。 */
         private String appSecret;
+
+        /** 飞书/Lark 租户域。 */
+        private String domain = "feishu";
 
         /** 钉钉客户端 ID。 */
         private String clientId;

@@ -1,4 +1,6 @@
 import { request } from '../client'
+import type { ChannelQrPlatform, ChannelQrStatusView } from '@/shared/channelQr'
+import { normalizeChannelQrStatus } from '@/shared/channelQr'
 
 export interface DisplayConfig {
   compact?: boolean
@@ -258,30 +260,37 @@ export interface WeixinQrStatus {
 }
 
 export async function fetchWeixinQrCode(): Promise<WeixinQrCode> {
-  const res = await request<any>('/api/gateway/setup/weixin/qr', { method: 'POST' })
+  const res = await fetchPlatformQrCode('weixin')
   return {
-    qrcode: res.ticket || '',
-    qrcode_url: res.qr_image_url || res.qr_code || '',
+    qrcode: res.qrcode || '',
+    qrcode_url: res.qrcode_url || '',
   }
 }
 
 export async function pollWeixinQrStatus(qrcode: string): Promise<WeixinQrStatus> {
-  const res = await request<any>(`/api/gateway/setup/weixin/qr/${encodeURIComponent(qrcode)}`)
-  const statusMap: Record<string, WeixinQrStatus['status']> = {
-    pending: 'wait',
-    scanned: 'scaned',
-    confirmed: 'confirmed',
-    failed: res.error_code === 'qr_expired' || res.error_code === 'qr_timeout' ? 'expired' : 'error',
-  }
+  const res = await pollPlatformQrStatus('weixin', qrcode)
   return {
-    status: statusMap[res.status] || 'wait',
-    qrcode: res.ticket || '',
-    qrcode_url: res.qr_image_url || res.qr_code || '',
+    status: res.status,
+    qrcode: res.qrcode,
+    qrcode_url: res.qrcode_url,
     message: res.message || '',
     error_message: res.error_message || '',
     account_id: res.account_id,
     base_url: res.base_url,
   }
+}
+
+export async function fetchPlatformQrCode(platform: ChannelQrPlatform): Promise<ChannelQrStatusView> {
+  const res = await request<any>(`/api/gateway/setup/${encodeURIComponent(platform)}/qr`, { method: 'POST' })
+  return normalizeChannelQrStatus(res)
+}
+
+export async function pollPlatformQrStatus(
+  platform: ChannelQrPlatform,
+  qrcode: string,
+): Promise<ChannelQrStatusView> {
+  const res = await request<any>(`/api/gateway/setup/${encodeURIComponent(platform)}/qr/${encodeURIComponent(qrcode)}`)
+  return normalizeChannelQrStatus(res)
 }
 
 export async function saveWeixinCredentials(_data: {

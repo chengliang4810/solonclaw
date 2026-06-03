@@ -10,12 +10,15 @@ import org.noear.solon.core.handle.MethodType;
 public class DashboardGatewayController {
     private final DashboardGatewayDoctorService doctorService;
     private final WeixinQrSetupService weixinQrSetupService;
+    private final DomesticQrSetupService domesticQrSetupService;
 
     public DashboardGatewayController(
             DashboardGatewayDoctorService doctorService,
-            WeixinQrSetupService weixinQrSetupService) {
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService) {
         this.doctorService = doctorService;
         this.weixinQrSetupService = weixinQrSetupService;
+        this.domesticQrSetupService = domesticQrSetupService;
     }
 
     @Mapping(value = "/api/gateway/doctor", method = MethodType.GET)
@@ -31,5 +34,25 @@ public class DashboardGatewayController {
     @Mapping(value = "/api/gateway/setup/weixin/qr/{ticket}", method = MethodType.GET)
     public Map<String, Object> getWeixinQr(String ticket) {
         return DashboardResponse.ok(weixinQrSetupService.get(ticket));
+    }
+
+    @Mapping(value = "/api/gateway/setup/feishu/qr", method = MethodType.POST)
+    public Map<String, Object> startFeishuQr() {
+        return DashboardResponse.ok(domesticQrSetupService.start("feishu"));
+    }
+
+    @Mapping(value = "/api/gateway/setup/feishu/qr/{ticket}", method = MethodType.GET)
+    public Map<String, Object> getFeishuQr(String ticket) {
+        return DashboardResponse.ok(domesticQrSetupService.get(ticket));
+    }
+
+    @Mapping(value = "/api/gateway/setup/dingtalk/qr", method = MethodType.POST)
+    public Map<String, Object> startDingTalkQr() {
+        return DashboardResponse.ok(domesticQrSetupService.start("dingtalk"));
+    }
+
+    @Mapping(value = "/api/gateway/setup/dingtalk/qr/{ticket}", method = MethodType.GET)
+    public Map<String, Object> getDingTalkQr(String ticket) {
+        return DashboardResponse.ok(domesticQrSetupService.get(ticket));
     }
 }
