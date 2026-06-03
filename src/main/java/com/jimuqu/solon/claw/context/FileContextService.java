@@ -58,10 +58,9 @@ public class FileContextService implements ContextService {
         StringBuilder buffer = new StringBuilder();
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_AGENTS, "Workspace Rules");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_SOUL, "Soul");
+        appendWorkspaceFile(buffer, ContextFileConstants.KEY_TOOLS, "Tools");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_IDENTITY, "Identity");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_USER, "User");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_TOOLS, "Tools");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_HEARTBEAT, "Heartbeat");
         appendPersonality(buffer);
         appendMemoryBlock(buffer, sourceKey);
         appendAgentBlock(buffer, agentScope);
