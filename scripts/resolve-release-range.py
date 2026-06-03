@@ -20,15 +20,15 @@ def resolve_release_range(root_path: Path, head_sha: str, clean_naming_base: str
     if not short_head:
         raise GuardFailure(f"Cannot resolve release head: {head_sha}")
 
+    previous_tag = git_line(root_path, ["describe", "--tags", "--match", "v*", "--abbrev=0", f"{head_sha}^"])
+    if previous_tag:
+        return f"{previous_tag}..{head_sha}", f"{previous_tag}..{short_head}"
+
     clean_base_reachable = git_is_ancestor(root_path, clean_naming_base, head_sha)
     if clean_base_reachable and head_sha == clean_naming_base:
         return head_sha, short_head
     if clean_base_reachable:
         return f"{clean_naming_base}..{head_sha}", f"clean naming baseline..{short_head}"
-
-    previous_tag = git_line(root_path, ["describe", "--tags", "--match", "v*", "--abbrev=0", f"{head_sha}^"])
-    if previous_tag:
-        return f"{previous_tag}..{head_sha}", f"{previous_tag}..{short_head}"
 
     rev_list = run_cmd(["git", "rev-list", "--max-count=30", head_sha], cwd=root_path, check=False)
     commits = [line.strip() for line in rev_list.stdout.splitlines() if line.strip()]

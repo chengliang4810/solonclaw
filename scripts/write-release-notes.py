@@ -17,6 +17,9 @@ from guardlib import (
 )
 
 
+MAX_SUMMARY_ITEMS = 3
+
+
 @dataclass
 class CommitEntry:
     subject: str
@@ -53,11 +56,6 @@ def commit_entries(root_path: Path, commit_range: str) -> list[CommitEntry]:
     return entries
 
 
-def head_commit_entry(root_path: Path) -> list[CommitEntry]:
-    entries = commit_entries(root_path, "HEAD")
-    return entries[:1]
-
-
 def single_head_commit_range(root_path: Path) -> tuple[str, str]:
     head_result = run_cmd(["git", "rev-parse", "HEAD"], cwd=root_path, check=False)
     short_result = run_cmd(["git", "rev-parse", "--short", "HEAD"], cwd=root_path, check=False)
@@ -80,25 +78,25 @@ def clean_commit_entries(items: list[CommitEntry], regex: re.Pattern[str]) -> tu
     return clean_items, omitted
 
 
-def format_release_details(body: str, files: list[str]) -> str:
-    body_lines = [line.strip() for line in re.split(r"\r?\n", body or "") if line.strip()]
-    if not body_lines:
-        return ""
-
-    formatted = ["  详情 / Details:"]
-    for line in body_lines:
-        formatted.append("  - " + re.sub(r"^[-*]\s+", "", line))
-    return "\n".join(formatted)
-
-
-def normalize_release_item(item: CommitEntry, regex: re.Pattern[str]) -> str:
+def normalize_release_subject(item: CommitEntry, regex: re.Pattern[str]) -> str:
     assert_clean_release_text(item.subject, regex)
     assert_clean_release_text(item.body, regex)
     for file_name in item.files:
         assert_clean_release_text(file_name, regex)
-    subject = item.subject if " / " in item.subject else f"提交：{item.subject} / Commit: {item.subject}"
-    details = format_release_details(item.body, item.files)
-    return subject if not details else subject + "\n" + details
+    return item.subject if " / " in item.subject else f"提交：{item.subject} / Commit: {item.subject}"
+
+
+def summarize_items(items: list[CommitEntry], fallback: str, regex: re.Pattern[str]) -> str:
+    if not items:
+        return "- " + fallback
+
+    lines = [f"- 共 {len(items)} 项 / {len(items)} item(s)"]
+    for item in items[:MAX_SUMMARY_ITEMS]:
+        lines.append("  - " + normalize_release_subject(item, regex))
+    remaining = len(items) - MAX_SUMMARY_ITEMS
+    if remaining > 0:
+        lines.append(f"  - 其余 {remaining} 项未展开。 / {remaining} more item(s) not expanded.")
+    return "\n".join(lines)
 
 
 def select_items(items: list[CommitEntry], pattern: str) -> list[CommitEntry]:
@@ -108,12 +106,6 @@ def select_items(items: list[CommitEntry], pattern: str) -> list[CommitEntry]:
 
 def commit_entry_key(item: CommitEntry) -> tuple[str, str]:
     return item.subject, item.body
-
-
-def write_items(items: list[CommitEntry], fallback: str, regex: re.Pattern[str]) -> str:
-    if not items:
-        return "- " + fallback
-    return "\n".join("- " + normalize_release_item(item, regex) for item in items)
 
 
 def generate_release_notes(
@@ -165,23 +157,23 @@ def generate_release_notes(
 
     body = f"""## solon-claw {tag}
 
-本次发布说明按提交类型整理，并保留中英双语摘要；功能、缺陷修复和其他变更来自本次发布范围内的提交摘要。
-These release notes are grouped by commit type and keep bilingual summaries; features, fixes, and other changes are derived from commit summaries in this release range.
+本次发布说明按提交类型生成摘要，默认仅展开每类前 {MAX_SUMMARY_ITEMS} 条提交主题，用于突出相对上一版的主要差异。
+These release notes summarize commit types and expand only the first {MAX_SUMMARY_ITEMS} subjects in each section by default, highlighting the main differences from the previous release.
 
 提交范围：`{display_range}`
 Commit range: `{display_range}`
 
 {range_fallback_note}### 功能 / Features
 
-{write_items(features, "本次发布没有单独标记为 feat 的提交。 / No commits were explicitly marked as feat in this release.", regex)}
+{summarize_items(features, "本次发布没有功能类提交。 / No feature-classified commits in this release.", regex)}
 
 ### 缺陷修复 / Fixes
 
-{write_items(fixes, "本次发布没有单独标记为 fix 的提交。 / No commits were explicitly marked as fix in this release.", regex)}
+{summarize_items(fixes, "本次发布没有缺陷修复类提交。 / No fix-classified commits in this release.", regex)}
 
 ### 其他变更 / Other Changes
 
-{write_items(others, "无其他提交。 / No other commits.", regex)}
+{summarize_items(others, "无其他提交。 / No other commits.", regex)}
 
 ### 下载内容 / Downloads
 

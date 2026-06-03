@@ -324,10 +324,10 @@ def main() -> int:
         ])
         require_success(range_output, "Release range resolver failed with an older polluted tag")
         range_text = range_output.stdout + range_output.stderr
-        if clean_base + ".." + head not in range_text:
-            raise AssertionError("Release range resolver should prefer the clean naming baseline over older tags.")
-        if re.search(r"v2000\.01\.01-deadbee", range_text):
-            raise AssertionError("Release range resolver should not use an older polluted tag as the release base.")
+        if "v2000.01.01-deadbee" + ".." + head not in range_text:
+            raise AssertionError("Release range resolver should prefer the previous release tag over the clean naming baseline when a tag exists.")
+        if clean_base + ".." + head in range_text:
+            raise AssertionError("Release range resolver should not use the clean naming baseline when a previous release tag exists.")
 
         reset_sandbox(sandbox)
         git_init(sandbox)
@@ -364,10 +364,12 @@ def main() -> int:
         require_success(polluted_release_output, "Release notes generation should ignore historical object text that is not emitted")
         assert_no_raw_blocked_output(polluted_release_output.stdout + polluted_release_output.stderr, [BLOCKED_DEFAULT_ENV_FIXTURE], "polluted release range fallback")
         polluted_release_text = release_notes_path.read_text(encoding="utf-8")
-        if "fix: clean release head / Clean release head" not in polluted_release_text:
-            raise AssertionError("Release notes should still include the current clean commit.")
-        if "fix: historical release detail / Historical release detail" not in polluted_release_text:
-            raise AssertionError("Release notes should keep clean commit summaries even when historical object text is polluted.")
+        if "- 共 2 项 / 2 item(s)" not in polluted_release_text:
+            raise AssertionError("Release notes should summarize section counts for polluted-range output.")
+        if "  - fix: clean release head / Clean release head" not in polluted_release_text:
+            raise AssertionError("Release notes should keep clean commit subjects in summary output.")
+        if "  - fix: historical release detail / Historical release detail" not in polluted_release_text:
+            raise AssertionError("Release notes should keep clean historical subjects in summary output.")
         if "历史发布范围中有" in polluted_release_text:
             raise AssertionError("Release notes should not claim summary omission when only historical object text was polluted.")
         assert_no_raw_blocked_output(polluted_release_text, [BLOCKED_DEFAULT_ENV_FIXTURE], "polluted release notes file")
@@ -465,15 +467,19 @@ def main() -> int:
         ], cwd=sandbox)
         require_success(clean_release_output, "Release notes generation should succeed for a clean range")
         clean_release_text = release_notes_path.read_text(encoding="utf-8")
-        if "fix: clean release notes / Clean release notes" not in clean_release_text:
+        if "- 共 1 项 / 1 item(s)" not in clean_release_text:
+            raise AssertionError("Release notes generation should summarize section counts.")
+        if "- 共 0 项 / 0 item(s)" in clean_release_text:
+            raise AssertionError("Release notes generation should use fallback text instead of zero-count summary lines.")
+        if "  - fix: clean release notes / Clean release notes" not in clean_release_text:
             raise AssertionError("Release notes generation did not include the clean commit subject.")
-        if "影响文件 / Changed files:" in clean_release_text:
-            raise AssertionError("Release notes generation should not include changed-file details for commits without body details.")
+        if "其余" in clean_release_text:
+            raise AssertionError("Release notes generation should not emit overflow summary text when item count stays within the limit.")
         if "README.md" in clean_release_text or "changed-1.txt" in clean_release_text:
             raise AssertionError("Release notes generation should not list changed files for commits without body details.")
-        if not re.search(r"### 功能 / Features[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note", clean_release_text):
+        if not re.search(r"### 功能 / Features[\s\S]*- 共 1 项 / 1 item\(s\)[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note", clean_release_text):
             raise AssertionError("Release notes generation did not classify scoped feat commits as features.")
-        if not re.search(r"### 缺陷修复 / Fixes[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note", clean_release_text):
+        if not re.search(r"### 缺陷修复 / Fixes[\s\S]*- 共 2 项 / 2 item\(s\)[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note", clean_release_text):
             raise AssertionError("Release notes generation did not classify scoped fix commits as fixes.")
         if "`solon-claw.jar`" not in clean_release_text:
             raise AssertionError("Release notes generation should document the fixed release jar asset name.")
@@ -518,8 +524,8 @@ def main() -> int:
         ], cwd=sandbox)
         require_success(empty_range_release, "Release notes generation should fall back to current commit for an empty range")
         empty_text = release_notes_path.read_text(encoding="utf-8")
-        if "fix: fallback release notes / Fallback release notes" not in empty_text:
-            raise AssertionError("Release notes empty-range fallback did not include the current commit subject.")
+        if "  - fix: fallback release notes / Fallback release notes" not in empty_text:
+            raise AssertionError("Release notes empty-range fallback did not include the current commit subject in summary output.")
         if "No commits were explicitly marked as fix" in empty_text:
             raise AssertionError("Release notes empty-range fallback should not emit only the fix placeholder.")
         if not re.search(r"Commit range: `[0-9a-f]{7,}`", empty_text):
