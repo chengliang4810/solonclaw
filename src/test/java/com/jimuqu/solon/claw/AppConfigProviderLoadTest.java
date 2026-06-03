@@ -13,6 +13,33 @@ import org.noear.solon.core.Props;
 
 public class AppConfigProviderLoadTest {
     @Test
+    void shouldLoadRepositoryConfigExample() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-config-example").toFile();
+        FileUtil.copy(new File("config.example.yml"), new File(runtimeHome, "config.yml"), true);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getProviders()).containsKeys("default", "local-ollama");
+        assertThat(config.getModel().getProviderKey()).isEqualTo("default");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
+        assertThat(config.getSecurity().getHardlineAllowlist())
+                .containsExactly("hardline_shutdown", "hardline_windows_shutdown");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
+        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
+        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
+        assertThat(config.getTerminal().getMaxForegroundTimeoutSeconds()).isEqualTo(600);
+        assertThat(config.getTask().getMediaCacheTtlHours()).isEqualTo(168);
+        assertThat(config.getMcp().isEnabled()).isFalse();
+        assertThat(config.getPricing().getPrices()).isEmpty();
+        assertThat(config.getPlugins().getEnabled()).isEmpty();
+        assertThat(config.getPlugins().getDisabled()).isEmpty();
+    }
+
+    @Test
     void shouldLoadProvidersAndFallbacksFromRuntimeConfig() throws Exception {
         File runtimeHome = Files.createTempDirectory("jimuqu-provider-load").toFile();
         FileUtil.writeUtf8String(
