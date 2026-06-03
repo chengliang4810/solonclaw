@@ -3,6 +3,7 @@
 /.idea/
 /.vscode/
 /.claude/alignment-backlog/
+/.claude/worktrees/
 /web/node_modules/
 /web/dist/
 /web/.playwright-cli/
