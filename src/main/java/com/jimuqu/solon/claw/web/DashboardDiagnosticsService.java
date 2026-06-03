@@ -1182,11 +1182,14 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "defaultDecision");
             copyPolicyValue(summary, safe, "configKeys");
             copyPolicyValue(summary, safe, "approveAliases");
-            copyPolicyValue(summary, safe, "denyAliases");
-            copyPolicyValue(summary, safe, "runsWithoutHumanApproval");
+            copyPolicyValue(summary, safe, "approvalAliases");
+            copyPolicyValue(summary, safe, "strictAliases");
+            copyPolicyValue(summary, safe, "bypassAliases");
+            copyPolicyValue(summary, safe, "approvalScope");
+            copyPolicyValue(summary, safe, "approvalModeCanPauseCron");
+            copyPolicyValue(summary, safe, "jobScopeIncludesScriptFingerprint");
             copyPolicyValue(summary, safe, "hardlineAlwaysBlocked");
             copyPolicyValue(summary, safe, "dangerousPatternCheckedBeforeRun");
-            copyPolicyValue(summary, safe, "requiresExplicitApproveMode");
             copyPolicyValue(summary, safe, "scriptContentChecked");
             return safe;
         } catch (Exception e) {

@@ -117,7 +117,7 @@ public class SecurityAuditTools {
                         : approvalService.approvalMode();
         String cronApprovalMode =
                 approvalService == null
-                        ? normalizeCronApprovalMode(appConfig.getApprovals().getCronMode())
+                        ? normalizeCronApprovalMode(fallbackCronApprovalMode())
                         : approvalService.cronApprovalMode();
         boolean smartMode = "smart".equals(approvalMode);
         boolean smartJudgeConfigured = approvalService != null && approvalService.hasSmartApprovalJudge();
@@ -988,12 +988,43 @@ public class SecurityAuditTools {
     }
 
     private static String normalizeCronApprovalMode(String value) {
-        String mode = StrUtil.blankToDefault(value, "deny").trim().toLowerCase(Locale.ROOT);
-        return "approve".equals(mode)
-                        || "off".equals(mode)
-                        || "allow".equals(mode)
-                        || "yes".equals(mode)
-                ? "approve"
-                : "deny";
+        String mode = StrUtil.blankToDefault(value, "approval").trim().toLowerCase(Locale.ROOT);
+        if ("approve".equals(mode) || "allow".equals(mode) || "yes".equals(mode)) {
+            return "approve";
+        }
+        if ("bypass".equals(mode)
+                || "off".equals(mode)
+                || "none".equals(mode)
+                || "skip".equals(mode)
+                || "ignore".equals(mode)
+                || "permissive".equals(mode)
+                || "yolo".equals(mode)) {
+            return "bypass";
+        }
+        if ("strict".equals(mode)
+                || "block".equals(mode)
+                || "deny".equals(mode)
+                || "enforce".equals(mode)
+                || "false".equals(mode)) {
+            return "strict";
+        }
+        return "approval";
+    }
+
+    private String fallbackCronApprovalMode() {
+        if (appConfig == null) {
+            return "approval";
+        }
+        String mode =
+                appConfig.getSecurity() == null
+                        ? ""
+                        : appConfig.getSecurity().getGuardrailCronMode();
+        if (StrUtil.isBlank(mode) && appConfig.getApprovals() != null) {
+            mode = appConfig.getApprovals().getCronMode();
+        }
+        if (StrUtil.isBlank(mode) && appConfig.getScheduler() != null) {
+            mode = appConfig.getScheduler().getCronApprovalMode();
+        }
+        return mode;
     }
 }

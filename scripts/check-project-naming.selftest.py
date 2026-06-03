@@ -177,6 +177,18 @@ def main() -> int:
         require_success(ignored, "Naming check should ignore third-party dependency directories")
 
         reset_sandbox(sandbox)
+        write_text(sandbox / ".gitignore", "/.claude/alignment-backlog/\n")
+        write_text(
+            sandbox
+            / ".claude"
+            / "alignment-backlog"
+            / (BLOCKED_FIXTURE + "-notes.md"),
+            "Ignored local notes may contain " + BLOCKED_FIXTURE + ".",
+        )
+        ignored_gitignore = invoke_naming_check(sandbox, with_extra_fixture=True)
+        require_success(ignored_gitignore, "Naming check should ignore root .gitignore directory entries")
+
+        reset_sandbox(sandbox)
         write_text(sandbox / "src" / "config.txt", BLOCKED_FIXTURE_LOWER + "=true")
         case_insensitive = invoke_naming_check(sandbox, with_extra_fixture=True)
         require_failure(case_insensitive, "Naming check did not block a forbidden term with different casing.")

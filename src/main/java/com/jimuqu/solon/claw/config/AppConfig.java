@@ -1625,6 +1625,46 @@ public class AppConfig {
                                                                 overrides,
                                                                 "jimuqu.security.tirith_fail_open",
                                                                 true))))));
+        config.getSecurity()
+                .setGuardrailMode(
+                        normalizeGuardrailMode(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "security.guardrailMode",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "security.guardrail_mode",
+                                                        "approval")))));
+        config.getSecurity()
+                .setGuardrailCronMode(
+                        normalizeGuardrailCronMode(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "security.guardrailCronMode",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "security.guardrail_cron_mode",
+                                                        config.getSecurity()
+                                                                .getGuardrailMode())))));
+        config.getSecurity()
+                .setGuardrailCronScope(
+                        normalizeGuardrailCronScope(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "security.guardrailCronScope",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "security.guardrail_cron_scope",
+                                                        "job")))));
         config.getApprovals()
                 .setMode(
                         normalizeApprovalMode(
@@ -1637,28 +1677,35 @@ public class AppConfig {
                                                         props,
                                                         overrides,
                                                         "approvals.mode",
-                                                        "on")))));
-        config.getApprovals()
-                .setCronMode(
-                        resolveConfigString(
+                                                        guardrailApprovalMode(
+                                                                config.getSecurity()
+                                                                        .getGuardrailMode()))))));
+        String rawCronGuardrailMode =
+                readString(
+                        props,
+                        overrides,
+                        "jimuqu.approvals.cronMode",
+                        readString(
+                                props,
+                                overrides,
+                                "jimuqu.approvals.cron_mode",
                                 readString(
                                         props,
                                         overrides,
-                                        "jimuqu.approvals.cronMode",
+                                        "approvals.cronMode",
                                         readString(
                                                 props,
                                                 overrides,
-                                                "jimuqu.approvals.cron_mode",
+                                                "approvals.cron_mode",
                                                 readString(
                                                         props,
                                                         overrides,
-                                                        "approvals.cronMode",
-                                                        readString(
-                                                                props,
-                                                                overrides,
-                                                                "approvals.cron_mode",
-                                                                config.getScheduler()
-                                                                        .getCronApprovalMode()))))));
+                                                        "solonclaw.scheduler.cronApprovalMode",
+                                                        config.getSecurity()
+                                                                .getGuardrailCronMode())))));
+        config.getApprovals()
+                .setCronMode(
+                        normalizeGuardrailCronMode(resolveConfigString(rawCronGuardrailMode)));
         config.getApprovals()
                 .setSubagentAutoApprove(
                         resolveBoolean(
@@ -2221,6 +2268,9 @@ public class AppConfig {
         this.security.setTirithPath(other.getTirithPath());
         this.security.setTirithTimeoutSeconds(other.getTirithTimeoutSeconds());
         this.security.setTirithFailOpen(other.isTirithFailOpen());
+        this.security.setGuardrailMode(other.getGuardrailMode());
+        this.security.setGuardrailCronMode(other.getGuardrailCronMode());
+        this.security.setGuardrailCronScope(other.getGuardrailCronScope());
         this.security.getWebsiteBlocklist().setEnabled(other.getWebsiteBlocklist().isEnabled());
         this.security
                 .getWebsiteBlocklist()
@@ -2505,6 +2555,62 @@ public class AppConfig {
         }
         if ("off".equals(value) || "smart".equals(value)) {
             return value;
+        }
+        return "on";
+    }
+
+    private static String normalizeGuardrailMode(String raw) {
+        String value = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase();
+        if ("false".equals(value)
+                || "off".equals(value)
+                || "none".equals(value)
+                || "skip".equals(value)
+                || "ignore".equals(value)
+                || "bypass".equals(value)
+                || "permissive".equals(value)
+                || "yolo".equals(value)) {
+            return "bypass";
+        }
+        if ("strict".equals(value)
+                || "block".equals(value)
+                || "deny".equals(value)
+                || "enforce".equals(value)
+                || "enforced".equals(value)) {
+            return "strict";
+        }
+        if ("smart".equals(value)) {
+            return "smart";
+        }
+        return "approval";
+    }
+
+    private static String normalizeGuardrailCronMode(String raw) {
+        String value = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase();
+        if ("approve".equals(value) || "allow".equals(value) || "yes".equals(value)) {
+            return "approve";
+        }
+        String mode = normalizeGuardrailMode(value);
+        return "smart".equals(mode) ? "approval" : mode;
+    }
+
+    private static String normalizeGuardrailCronScope(String raw) {
+        String value = StrUtil.blankToDefault(raw, "job").trim().toLowerCase();
+        if ("global".equals(value) || "always".equals(value) || "permanent".equals(value)) {
+            return "global";
+        }
+        if ("session".equals(value)) {
+            return "session";
+        }
+        return "job";
+    }
+
+    private static String guardrailApprovalMode(String guardrailMode) {
+        String mode = normalizeGuardrailMode(guardrailMode);
+        if ("bypass".equals(mode)) {
+            return "off";
+        }
+        if ("smart".equals(mode)) {
+            return "smart";
         }
         return "on";
     }
@@ -3680,8 +3786,8 @@ public class AppConfig {
         /** cron Agent 无活动超时时间，单位秒；0 表示不限制。 */
         private int inactivityTimeoutSeconds = 600;
 
-        /** 无人值守 cron 遇到危险命令时的策略：deny / approve。 */
-        private String cronApprovalMode = "deny";
+        /** 兼容旧配置项；无人值守 cron 遇到可审批危险命令时的策略。 */
+        private String cronApprovalMode = "approval";
 
         /** 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。 */
         private List<String> enabledToolsets = new ArrayList<String>();
@@ -4078,6 +4184,15 @@ public class AppConfig {
         /** Tirith 不可用或超时时是否放行。 */
         private boolean tirithFailOpen = true;
 
+        /** Agent 工具安全策略模式：approval / strict / bypass / smart。 */
+        private String guardrailMode = "approval";
+
+        /** Cron 工具安全策略模式：approval / strict / bypass / approve。 */
+        private String guardrailCronMode = "approval";
+
+        /** Cron 审批记忆范围：job / session / global。 */
+        private String guardrailCronScope = "job";
+
         /** 网站访问阻断策略。 */
         private WebsiteBlocklistConfig websiteBlocklist = new WebsiteBlocklistConfig();
     }
@@ -4111,11 +4226,11 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ApprovalsConfig {
-        /** 危险命令审批模式：on / off / smart。smart 会先由辅助模型判定低风险命令。 */
+        /** 兼容旧配置项；危险命令审批模式：on / off / smart。smart 会先由辅助模型判定低风险命令。 */
         private String mode = "on";
 
-        /** cron 遇到危险命令时的模式：deny / approve。 */
-        private String cronMode = "deny";
+        /** 兼容旧配置项；cron 遇到可审批危险命令时的模式。 */
+        private String cronMode = "approval";
 
         /** 子 Agent 遇到危险命令时是否自动批准一次；对齐 Jimuqu delegation.subagent_auto_approve，默认拒绝。 */
         private boolean subagentAutoApprove = false;

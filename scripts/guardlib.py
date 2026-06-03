@@ -147,7 +147,41 @@ def hide_blocked_text(text: str, regex: re.Pattern[str]) -> str:
     return regex.sub("<blocked>", text)
 
 
-def is_ignored_path(relative_path: str) -> bool:
+def root_gitignore_ignored_paths(root_path: Path) -> set[str]:
+    gitignore_path = root_path / ".gitignore"
+    ignored: set[str] = set()
+    try:
+        lines = gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return ignored
+    for line in lines:
+        value = line.strip()
+        if not value or value.startswith("#") or value.startswith("!"):
+            continue
+        if any(ch in value for ch in ("*", "?", "[")):
+            continue
+        normalized = value.replace("\\", "/")
+        if normalized.startswith("/"):
+            normalized = normalized[1:]
+        normalized = normalized.rstrip("/")
+        if normalized:
+            ignored.add(normalized)
+    return ignored
+
+
+def is_root_gitignored_path(relative_path: str, root_ignored_paths: set[str]) -> bool:
+    if not root_ignored_paths:
+        return False
+    normalized = relative_path.replace("\\", "/").strip("/")
+    for ignored in root_ignored_paths:
+        if normalized == ignored or normalized.startswith(ignored + "/"):
+            return True
+    return False
+
+
+def is_ignored_path(relative_path: str, root_ignored_paths: set[str] | None = None) -> bool:
+    if root_ignored_paths and is_root_gitignored_path(relative_path, root_ignored_paths):
+        return True
     parts = [part for part in re.split(r"[\\/]+", relative_path) if part]
     if any(part in IGNORED_DIRS for part in parts):
         return True
@@ -192,6 +226,7 @@ def scan_directory(
 ) -> list[str]:
     scan_root = root_path.resolve()
     regex = blocked_regex(extra_blocked_terms)
+    root_ignored_paths = root_gitignore_ignored_paths(scan_root)
     findings: list[str] = []
 
     for current_root, dir_names, file_names in os.walk(scan_root):
@@ -202,12 +237,15 @@ def scan_directory(
         dir_names[:] = [
             name
             for name in sorted(dir_names)
-            if not is_ignored_path(f"{current_relative}/{name}" if current_relative else name)
+            if not is_ignored_path(
+                f"{current_relative}/{name}" if current_relative else name,
+                root_ignored_paths,
+            )
         ]
         for file_name in sorted(file_names):
             path = current_path / file_name
             relative_path = path.relative_to(scan_root).as_posix()
-            if is_ignored_path(relative_path):
+            if is_ignored_path(relative_path, root_ignored_paths):
                 continue
             if regex.search(relative_path):
                 findings.append(f"{hide_blocked_text(relative_path, regex)}:0:<path>")

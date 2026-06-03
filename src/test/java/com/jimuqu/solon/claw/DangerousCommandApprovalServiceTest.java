@@ -325,19 +325,30 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cronSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("defaultDecision")).isEqualTo("approve");
         assertThat(String.valueOf(cronSummary.get("configKeys")))
+                .contains("security.guardrailCronMode")
+                .contains("security.guardrailCronScope")
                 .contains("approvals.cronMode")
                 .contains("scheduler.cronApprovalMode");
         assertThat(String.valueOf(cronSummary.get("approveAliases")))
                 .contains("approve")
                 .contains("allow")
                 .contains("yes");
-        assertThat(cronSummary.get("runsWithoutHumanApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(cronSummary.get("approvalAliases")))
+                .contains("approval")
+                .contains("ask");
+        assertThat(String.valueOf(cronSummary.get("strictAliases")))
+                .contains("strict")
+                .contains("deny");
+        assertThat(String.valueOf(cronSummary.get("bypassAliases")))
+                .contains("bypass")
+                .contains("ignore");
+        assertThat(cronSummary.get("approvalScope")).isEqualTo("job");
+        assertThat(cronSummary.get("approvalModeCanPauseCron")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("hardlineAlwaysBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("filePolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("terminalGuardrailPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("dangerousPatternCheckedBeforeRun")).isEqualTo(Boolean.TRUE);
-        assertThat(cronSummary.get("requiresExplicitApproveMode")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
 
         assertThat(subagentSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
@@ -351,8 +362,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(subagentSummary.get("pendingApprovalCreatedWhenDenied")).isEqualTo(Boolean.FALSE);
         assertThat(subagentSummary.get("denyMessageIncludesConfigHint")).isEqualTo(Boolean.TRUE);
 
-        env.appConfig.getApprovals().setCronMode("deny");
+        env.appConfig.getApprovals().setCronMode("approval");
         env.appConfig.getApprovals().setSubagentAutoApprove(false);
+        assertThat(env.dangerousCommandApprovalService
+                        .cronApprovalPolicySummary()
+                        .get("defaultDecision"))
+                .isEqualTo("request_approval");
+        env.appConfig.getApprovals().setCronMode("deny");
         assertThat(env.dangerousCommandApprovalService
                         .cronApprovalPolicySummary()
                         .get("defaultDecision"))
@@ -7954,10 +7970,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
 
         env.appConfig.getApprovals().setCronMode("maybe");
-        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("strict");
 
         env.appConfig.getApprovals().setCronMode("false");
-        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("strict");
     }
 
     @Test

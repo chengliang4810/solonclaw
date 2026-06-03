@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
@@ -41,7 +42,8 @@ public class SchedulerConfiguration {
             AttachmentCacheService attachmentCacheService,
             LocalSkillService localSkillService,
             AgentRunControlService agentRunControlService,
-            McpRuntimeService mcpRuntimeService) {
+            McpRuntimeService mcpRuntimeService,
+            SessionRepository sessionRepository) {
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         appConfig,
@@ -54,7 +56,8 @@ public class SchedulerConfiguration {
                         attachmentCacheService,
                         localSkillService,
                         agentRunControlService,
-                        mcpRuntimeService);
+                        mcpRuntimeService,
+                        sessionRepository);
         scheduler.start();
         return scheduler;
     }

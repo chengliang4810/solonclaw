@@ -403,7 +403,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("cronApprovalPolicy")))
                 .contains("approvals.cronMode")
-                .contains("runsWithoutHumanApproval");
+                .contains("security.guardrailCronMode")
+                .contains("approvalModeCanPauseCron");
         assertThat(
                         policyStatus
                                 .get("policy")

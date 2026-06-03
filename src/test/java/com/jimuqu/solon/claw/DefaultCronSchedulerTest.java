@@ -25,14 +25,17 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
 import com.jimuqu.solon.claw.web.DashboardCronService;
@@ -106,6 +109,8 @@ public class DefaultCronSchedulerTest {
         FileUtil.writeString("print('disk ok')", script, StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new CronApprovalResumeObserver(service));
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("name", "watchdog");
         body.put("schedule", "30m");
@@ -1354,6 +1359,7 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldBlockDangerousNoAgentCronScriptWhenCronApprovalModeDenies() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setCronMode("deny");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
         env.gatewayService.handle(
@@ -1390,6 +1396,107 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("error");
         assertThat(updated.getLastError()).contains("Cron script").contains("dangerous command");
+    }
+
+    @Test
+    void shouldPauseDangerousCronScriptForApprovalAndRememberSameJobBehavior()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailCronMode("approval");
+        env.appConfig.getApprovals().setCronMode("approval");
+        env.send("admin-dm", "admin-user", "hello");
+        env.send("admin-dm", "admin-user", "/pairing claim-admin");
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "danger-job.sh");
+        FileUtil.writeString(
+                "dangerous_branch() {\nrm -rf runtime/cache\n}\necho approved-run",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "danger-job");
+        body.put("schedule", "30m");
+        body.put("script", "danger-job.sh");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "origin");
+        CronJobRecord job = service.create("MEMORY:admin-dm:admin-user", body);
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new CronApprovalResumeObserver(service));
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.sessionRepository);
+
+        scheduler.tick();
+
+        CronJobRecord pending = env.cronJobRepository.findById(job.getJobId());
+        assertThat(pending.getStatus()).isEqualTo("PAUSED");
+        assertThat(pending.getPausedReason()).contains("waiting for approval");
+        assertThat(pending.getLastStatus()).isEqualTo("pending_approval");
+        SqliteAgentSession pendingSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession("MEMORY:admin-dm:admin-user"),
+                        env.sessionRepository);
+        DangerousCommandApprovalService.PendingApproval approval =
+                env.dangerousCommandApprovalService.getPendingApproval(pendingSession);
+        assertThat(approval).isNotNull();
+        assertThat(approval.getPatternKey()).contains("cron-job:" + job.getJobId());
+        assertThat(approval.effectivePatternKeys())
+                .containsExactly(approval.getPatternKey());
+        assertThat(approval.getCommand()).contains("danger-job.sh").contains("rm -rf runtime/cache");
+        String firstApprovalKey = approval.getPatternKey();
+
+        GatewayReply approved = env.send("admin-dm", "admin-user", "/approve session");
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+
+        CronJobRecord approvedJob = env.cronJobRepository.findById(job.getJobId());
+        assertThat(approvedJob.getStatus()).isEqualTo("ACTIVE");
+        approvedJob.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(approvedJob);
+        scheduler.tick();
+
+        CronJobRecord completed = env.cronJobRepository.findById(job.getJobId());
+        assertThat(completed.getLastStatus()).isEqualTo("ok");
+        assertThat(completed.getLastOutput()).contains("approved-run");
+
+        FileUtil.writeString(
+                "dangerous_branch() {\nrm -rf runtime/cache\nrm -rf runtime/logs\n}\necho approved-run",
+                script,
+                StandardCharsets.UTF_8);
+        completed.setStatus("ACTIVE");
+        completed.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(completed);
+        scheduler.tick();
+
+        CronJobRecord changed = env.cronJobRepository.findById(job.getJobId());
+        assertThat(changed.getStatus()).isEqualTo("PAUSED");
+        assertThat(changed.getLastStatus()).isEqualTo("pending_approval");
+        SqliteAgentSession changedSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession("MEMORY:admin-dm:admin-user"),
+                        env.sessionRepository);
+        DangerousCommandApprovalService.PendingApproval changedApproval =
+                env.dangerousCommandApprovalService.getPendingApproval(changedSession);
+        assertThat(changedApproval).isNotNull();
+        assertThat(changedApproval.getPatternKey())
+                .contains("cron-job:" + job.getJobId())
+                .isNotEqualTo(firstApprovalKey);
     }
 
     @Test

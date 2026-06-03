@@ -928,8 +928,14 @@ public final class TerminalSecurityPolicyView {
                 .append(value(cron, "configKeys"))
                 .append(" approveAliases=")
                 .append(value(cron, "approveAliases"))
-                .append(" denyAliases=")
-                .append(value(cron, "denyAliases"));
+                .append(" approvalAliases=")
+                .append(value(cron, "approvalAliases"))
+                .append(" strictAliases=")
+                .append(value(cron, "strictAliases"))
+                .append(" bypassAliases=")
+                .append(value(cron, "bypassAliases"))
+                .append(" scope=")
+                .append(value(cron, "approvalScope"));
         return buffer.toString();
     }
 

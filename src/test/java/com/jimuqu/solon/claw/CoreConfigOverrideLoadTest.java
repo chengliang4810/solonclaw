@@ -469,6 +469,28 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldLoadSecurityGuardrailModeAndCronModeWithJobScopeDefault() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-mode").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  guardrailMode: bypass\n"
+                        + "  guardrailCronMode: approval\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
+    }
+
+    @Test
     void shouldLoadScopedJimuquApprovalsAliases() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-approvals").toFile();
         File configFile = new File(runtimeHome, "config.yml");
@@ -517,7 +539,7 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getApprovals().getMode()).isEqualTo("on");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("deny");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
         assertThat(config.getApprovals().isSubagentAutoApprove()).isFalse();
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);

@@ -38,7 +38,6 @@ solonclaw.scheduler.tickSeconds: 60
 solonclaw.scheduler.wrapResponse: true
 solonclaw.scheduler.scriptTimeoutSeconds: 120
 solonclaw.scheduler.inactivityTimeoutSeconds: 600
-solonclaw.scheduler.cronApprovalMode: deny
 solonclaw.scheduler.enabledToolsets:
 
 # 上下文压缩
@@ -99,10 +98,11 @@ security.tirithEnabled: true
 security.tirithPath: tirith
 security.tirithTimeoutSeconds: 5
 security.tirithFailOpen: true
+security.guardrailMode: approval
+security.guardrailCronMode: approval
+security.guardrailCronScope: job
 
 # 审批/确认策略
-jimuqu.approvals.mode: on
-jimuqu.approvals.cronMode: deny
 jimuqu.approvals.subagentAutoApprove: false
 jimuqu.approvals.mcpReloadConfirm: true
 
