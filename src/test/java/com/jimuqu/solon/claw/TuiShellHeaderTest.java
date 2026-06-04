@@ -25,11 +25,7 @@ public class TuiShellHeaderTest {
         config.getModel().setDefaultModel("gpt-test");
         config.getLlm().setReasoningEffort("high");
         TuiShell shell =
-                new TuiShell(
-                        null,
-                        new CliMode(CliMode.Kind.TUI, null, "work"),
-                        null,
-                        config);
+                new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, "work"), null, config);
 
         String line = statusLine(shell, "work");
 
@@ -57,8 +53,7 @@ public class TuiShellHeaderTest {
     void shouldRenderBusySnapshotWhenRuntimeIsAvailable() throws Exception {
         TuiShell shell =
                 new TuiShell(
-                        new BusySnapshotRuntime(),
-                        new CliMode(CliMode.Kind.TUI, null, "work"));
+                        new BusySnapshotRuntime(), new CliMode(CliMode.Kind.TUI, null, "work"));
 
         String line = statusLine(shell, "work");
 
@@ -90,7 +85,11 @@ public class TuiShellHeaderTest {
 
         String header = renderHeader(shell, "tui");
 
-        assertThat(header).contains("Ctrl-G").contains("Ctrl-S").contains("Ctrl-T").contains("Ctrl-Y");
+        assertThat(header)
+                .contains("Ctrl-G")
+                .contains("Ctrl-S")
+                .contains("Ctrl-T")
+                .contains("Ctrl-Y");
     }
 
     @Test
@@ -113,10 +112,7 @@ public class TuiShellHeaderTest {
     void shouldRenderSecurityPolicyLocally() throws Exception {
         TuiShell shell =
                 new TuiShell(
-                        null,
-                        new CliMode(CliMode.Kind.TUI, null, null),
-                        null,
-                        new AppConfig());
+                        null, new CliMode(CliMode.Kind.TUI, null, null), null, new AppConfig());
         java.io.StringWriter buffer = new java.io.StringWriter();
         java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
 
@@ -133,10 +129,7 @@ public class TuiShellHeaderTest {
     void shouldRenderSecurityPolicyStatusLocally() throws Exception {
         TuiShell shell =
                 new TuiShell(
-                        null,
-                        new CliMode(CliMode.Kind.TUI, null, null),
-                        null,
-                        new AppConfig());
+                        null, new CliMode(CliMode.Kind.TUI, null, null), null, new AppConfig());
         java.io.StringWriter buffer = new java.io.StringWriter();
         java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
 
@@ -158,11 +151,7 @@ public class TuiShellHeaderTest {
                         new CliMode(CliMode.Kind.TUI, null, null));
         java.io.StringWriter buffer = new java.io.StringWriter();
 
-        int exitCode =
-                send(
-                        shell,
-                        new PrintWriter(buffer),
-                        "/tips]11;rgb:ffff/ffff/ffff\u0007");
+        int exitCode = send(shell, new PrintWriter(buffer), "/tips]11;rgb:ffff/ffff/ffff\u0007");
 
         assertThat(exitCode).isEqualTo(0);
         assertThat(buffer.toString()).contains("终端提示");
@@ -185,10 +174,7 @@ public class TuiShellHeaderTest {
         field.set(
                 shell,
                 eventSnapshot(
-                        5,
-                        1,
-                        0,
-                        Arrays.asList("tool.start terminal", "run.done session=tui")));
+                        5, 1, 0, Arrays.asList("tool.start terminal", "run.done session=tui")));
 
         String text = renderEvents(shell);
 
@@ -208,9 +194,7 @@ public class TuiShellHeaderTest {
     @Test
     void shouldFailClosedWhenSinglePromptProducesEmptyResponse() throws Exception {
         TuiShell shell =
-                new TuiShell(
-                        new EmptyPromptRuntime(),
-                        new CliMode(CliMode.Kind.TUI, null, null));
+                new TuiShell(new EmptyPromptRuntime(), new CliMode(CliMode.Kind.TUI, null, null));
         java.io.StringWriter buffer = new java.io.StringWriter();
 
         int exitCode = send(shell, new PrintWriter(buffer), "hello");
@@ -223,8 +207,7 @@ public class TuiShellHeaderTest {
     void shouldFailClosedWhenSinglePromptThrowsRuntimeException() throws Exception {
         TuiShell shell =
                 new TuiShell(
-                        new ThrowingPromptRuntime(),
-                        new CliMode(CliMode.Kind.TUI, null, null));
+                        new ThrowingPromptRuntime(), new CliMode(CliMode.Kind.TUI, null, null));
         java.io.StringWriter buffer = new java.io.StringWriter();
 
         int exitCode = send(shell, new PrintWriter(buffer), "hello");
@@ -236,7 +219,8 @@ public class TuiShellHeaderTest {
     @Test
     void shouldRenderFooterStatusSummary() throws Exception {
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
-        LocalTerminalTaskRunner runner = new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
+        LocalTerminalTaskRunner runner =
+                new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
 
         String footer = footerLine(shell, "tui", runner);
 
@@ -253,8 +237,12 @@ public class TuiShellHeaderTest {
     void shouldRenderFooterWithRecentRuntimeState() throws Exception {
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
         setField(shell, "lastReply", "可复制回复");
-        setField(shell, "lastEventSnapshot", eventSnapshot(4, 2, 1, Arrays.asList("tool.start shell")));
-        LocalTerminalTaskRunner runner = new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
+        setField(
+                shell,
+                "lastEventSnapshot",
+                eventSnapshot(4, 2, 1, Arrays.asList("tool.start shell")));
+        LocalTerminalTaskRunner runner =
+                new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
         runner.submit(
                         "finished task",
                         new Callable<Integer>() {
@@ -289,7 +277,9 @@ public class TuiShellHeaderTest {
     private String renderHeader(TuiShell shell, String sessionId) throws Exception {
         java.io.StringWriter buffer = new java.io.StringWriter();
         java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
-        Method method = TuiShell.class.getDeclaredMethod("renderHeader", java.io.PrintWriter.class, String.class);
+        Method method =
+                TuiShell.class.getDeclaredMethod(
+                        "renderHeader", java.io.PrintWriter.class, String.class);
         method.setAccessible(true);
         method.invoke(shell, writer, sessionId);
         return buffer.toString();

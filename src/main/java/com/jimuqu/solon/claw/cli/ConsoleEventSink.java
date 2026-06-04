@@ -123,9 +123,7 @@ public class ConsoleEventSink implements ConversationEventSink {
 
     @Override
     public void onDeliveryEvent(String runId, String status, String detail) {
-        sidecar(
-                "delivery",
-                "status=" + StrUtil.blankToDefault(status, "-") + detail(detail));
+        sidecar("delivery", "status=" + StrUtil.blankToDefault(status, "-") + detail(detail));
     }
 
     @Override
@@ -196,7 +194,11 @@ public class ConsoleEventSink implements ConversationEventSink {
     public void onRunFailed(String sessionId, Throwable error) {
         failureCount++;
         sidecar("run.failed", error == null ? "unknown" : error.getMessage());
-        line(RED + "运行失败：" + safeDisplay(error == null ? "unknown" : error.getMessage(), 600) + RESET);
+        line(
+                RED
+                        + "运行失败："
+                        + safeDisplay(error == null ? "unknown" : error.getMessage(), 600)
+                        + RESET);
     }
 
     public boolean hasAssistantOutput() {
@@ -209,10 +211,7 @@ public class ConsoleEventSink implements ConversationEventSink {
 
     public EventSnapshot eventSnapshot() {
         return new EventSnapshot(
-                eventCount,
-                toolCount,
-                failureCount,
-                new ArrayList<String>(recentEvents));
+                eventCount, toolCount, failureCount, new ArrayList<String>(recentEvents));
     }
 
     String footer(LlmResult result) {

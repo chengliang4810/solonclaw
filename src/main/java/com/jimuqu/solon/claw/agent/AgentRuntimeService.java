@@ -208,7 +208,11 @@ public class AgentRuntimeService {
     }
 
     private String reference(AgentRuntimeScope scope, String child) {
-        String base = "agent://" + (scope == null ? AgentRuntimeScope.DEFAULT_AGENT : scope.getEffectiveName());
+        String base =
+                "agent://"
+                        + (scope == null
+                                ? AgentRuntimeScope.DEFAULT_AGENT
+                                : scope.getEffectiveName());
         if (StrUtil.isBlank(child)) {
             return base;
         }

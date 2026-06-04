@@ -17,8 +17,10 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     private final AgentHookRegistry hookRegistry;
     private final PluginRegistrationSink sink;
 
-    public DefaultAgentPluginContext(AgentPluginManifest manifest, AgentHookRegistry hookRegistry,
-                                     PluginRegistrationSink sink) {
+    public DefaultAgentPluginContext(
+            AgentPluginManifest manifest,
+            AgentHookRegistry hookRegistry,
+            PluginRegistrationSink sink) {
         this.manifest = manifest;
         this.hookRegistry = hookRegistry;
         this.sink = sink;

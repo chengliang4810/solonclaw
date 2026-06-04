@@ -27,8 +27,7 @@ public class CliModeParserTest {
     @Test
     void shouldParseCliPromptAndSession() {
         CliMode mode =
-                CliModeParser.parse(
-                        new String[] {"--cli", "--session", "work", "-p", "/status"});
+                CliModeParser.parse(new String[] {"--cli", "--session", "work", "-p", "/status"});
 
         assertThat(mode.getKind()).isEqualTo(CliMode.Kind.CLI);
         assertThat(mode.getSessionId()).isEqualTo("work");

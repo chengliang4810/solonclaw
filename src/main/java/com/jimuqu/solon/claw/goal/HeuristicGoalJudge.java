@@ -28,7 +28,8 @@ public class HeuristicGoalJudge implements GoalJudge {
                 || text.contains("无法继续")
                 || text.contains("需要用户")
                 || text.contains("需要你")) {
-            return GoalVerdict.done("response explicitly indicates completion or a user/input blocker");
+            return GoalVerdict.done(
+                    "response explicitly indicates completion or a user/input blocker");
         }
         return GoalVerdict.continueGoal("response did not clearly complete the standing goal");
     }

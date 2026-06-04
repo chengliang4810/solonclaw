@@ -81,9 +81,7 @@ public class DashboardRunService {
                 delegationService == null
                         ? Collections.emptyList()
                         : redactParsed(delegationService.activeSubagents()));
-        map.put(
-                "spawn_paused",
-                delegationService != null && delegationService.isSpawnPaused());
+        map.put("spawn_paused", delegationService != null && delegationService.isSpawnPaused());
         return map;
     }
 
@@ -126,7 +124,8 @@ public class DashboardRunService {
         if (record == null) {
             throw new IllegalArgumentException("Run not found: " + runId);
         }
-        String normalized = command == null ? "" : command.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalized =
+                command == null ? "" : command.trim().toLowerCase(java.util.Locale.ROOT);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("run_id", safeId(runId));
         result.put("command", normalized);

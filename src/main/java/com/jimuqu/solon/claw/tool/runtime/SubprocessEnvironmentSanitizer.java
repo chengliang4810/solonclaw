@@ -20,14 +20,29 @@ public final class SubprocessEnvironmentSanitizer {
     private static final Pattern ENV_NAME_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final String[] SAFE_ENV_PREFIXES =
             new String[] {
-                "PATH", "HOME", "USER", "USERNAME", "USERPROFILE", "LANG", "LC_", "TERM",
-                "TMPDIR", "TMP", "TEMP", "SHELL", "LOGNAME", "XDG_", "PYTHONPATH",
-                "VIRTUAL_ENV", "CONDA", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT"
+                "PATH",
+                "HOME",
+                "USER",
+                "USERNAME",
+                "USERPROFILE",
+                "LANG",
+                "LC_",
+                "TERM",
+                "TMPDIR",
+                "TMP",
+                "TEMP",
+                "SHELL",
+                "LOGNAME",
+                "XDG_",
+                "PYTHONPATH",
+                "VIRTUAL_ENV",
+                "CONDA",
+                "SYSTEMROOT",
+                "WINDIR",
+                "COMSPEC",
+                "PATHEXT"
             };
-    private static final String[] SAFE_CONTEXT_ENV_NAMES =
-            new String[] {
-                "SOLONCLAW_PROFILE"
-            };
+    private static final String[] SAFE_CONTEXT_ENV_NAMES = new String[] {"SOLONCLAW_PROFILE"};
     private static final String[] SECRET_ENV_SUBSTRINGS =
             new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
     private static final String SANE_POSIX_PATH =
@@ -52,7 +67,8 @@ public final class SubprocessEnvironmentSanitizer {
         summary.put(
                 "configPassthroughBlocklistCount",
                 Integer.valueOf(CONFIG_ENV_PASSTHROUGH_BLOCKLIST.size()));
-        summary.put("configuredPassthroughCount", Integer.valueOf(envPassthrough(appConfig).size()));
+        summary.put(
+                "configuredPassthroughCount", Integer.valueOf(envPassthrough(appConfig).size()));
         summary.put("decisionProbeSupported", Boolean.TRUE);
         summary.put("decisionProbeValueRedacted", Boolean.TRUE);
         summary.put("decisionProbeEffectiveNameSupported", Boolean.TRUE);
@@ -120,7 +136,8 @@ public final class SubprocessEnvironmentSanitizer {
         return probeDecision(name, appConfig, false);
     }
 
-    public static Map<String, Object> probeDecision(String name, AppConfig appConfig, boolean redactNames) {
+    public static Map<String, Object> probeDecision(
+            String name, AppConfig appConfig, boolean redactNames) {
         Set<String> passthrough = envPassthrough(appConfig);
         passthrough.addAll(currentSkillEnvironmentPassthrough());
         return probeDecision(name, appConfig, passthrough, redactNames);
@@ -328,10 +345,7 @@ public final class SubprocessEnvironmentSanitizer {
 
     public static AutoCloseable withSkillEnvironmentPassthrough(List<String> names) {
         final Set<String> previous = SKILL_ENV_PASSTHROUGH.get();
-        Set<String> next =
-                previous == null
-                        ? new HashSet<String>()
-                        : new HashSet<String>(previous);
+        Set<String> next = previous == null ? new HashSet<String>() : new HashSet<String>(previous);
         if (names != null) {
             for (String name : names) {
                 String normalized = normalizeEnvName(name);
@@ -362,8 +376,7 @@ public final class SubprocessEnvironmentSanitizer {
             return;
         }
         Set<String> current = SKILL_ENV_PASSTHROUGH.get();
-        Set<String> next =
-                current == null ? new HashSet<String>() : new HashSet<String>(current);
+        Set<String> next = current == null ? new HashSet<String>() : new HashSet<String>(current);
         for (String name : names) {
             String normalized = normalizeEnvName(name);
             if (normalized != null && !isProviderEnvBlocked(normalized)) {

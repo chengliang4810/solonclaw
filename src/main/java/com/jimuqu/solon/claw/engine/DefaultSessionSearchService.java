@@ -16,7 +16,6 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -123,7 +122,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (shouldSearchRuns(query)) {
             return searchRunScope(query);
         }
-        if (StrUtil.isNotBlank(query.getSessionId()) && StrUtil.isNotBlank(query.getAroundMessageId())) {
+        if (StrUtil.isNotBlank(query.getSessionId())
+                && StrUtil.isNotBlank(query.getAroundMessageId())) {
             return scroll(query);
         }
         List<SessionSearchEntry> entries =
@@ -153,7 +153,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     private List<SessionSearchEntry> searchRunScope(SessionSearchQuery query) throws Exception {
-        int limit = Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
+        int limit =
+                Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
         Map<String, SessionSearchEntry> results = new LinkedHashMap<String, SessionSearchEntry>();
         if (StrUtil.isNotBlank(query.getToolName())) {
             for (ToolCallRecord toolCall :
@@ -194,7 +195,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
 
     private SessionSearchEntry entryFromRun(AgentRunRecord run) throws Exception {
         SessionRecord session =
-                StrUtil.isBlank(run.getSessionId()) ? null : sessionRepository.findById(run.getSessionId());
+                StrUtil.isBlank(run.getSessionId())
+                        ? null
+                        : sessionRepository.findById(run.getSessionId());
         SessionSearchEntry entry = new SessionSearchEntry();
         entry.setSessionId(run.getSessionId());
         entry.setBranchName(session == null ? null : session.getBranchName());
@@ -344,7 +347,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     private List<SessionSearchEntry> scroll(SessionSearchQuery query) throws Exception {
-        int limit = Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
+        int limit =
+                Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
         SessionRecord session = sessionRepository.findById(query.getSessionId());
         if (session == null) {
             return Collections.emptyList();

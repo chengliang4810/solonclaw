@@ -31,7 +31,14 @@ public class UsagePricingTest {
 
         UsageCost openAi =
                 new UsageCostCalculator(catalog)
-                        .calculate("openai-responses", "openai/gpt-4o-mini", 1000000, 1000000, 1000000, 0, 0);
+                        .calculate(
+                                "openai-responses",
+                                "openai/gpt-4o-mini",
+                                1000000,
+                                1000000,
+                                1000000,
+                                0,
+                                0);
         assertThat(openAi.isPricingAvailable()).isTrue();
         assertThat(openAi.getTotalMicros()).isEqualTo(825000L);
         assertThat(openAi.getPriceSource()).isEqualTo("official_docs_snapshot");
@@ -71,19 +78,18 @@ public class UsagePricingTest {
         unrelated.setOutputMicrosPerToken(1);
         unrelated.setSource("custom-catalog");
 
-        PriceCatalog catalog = PriceCatalog.configuredWithDefaults(Arrays.asList(override, unrelated));
+        PriceCatalog catalog =
+                PriceCatalog.configuredWithDefaults(Arrays.asList(override, unrelated));
 
         UsageCost overridden =
-                new UsageCostCalculator(catalog)
-                        .calculate("openai", "gpt-4o-mini", 1, 1, 0, 0, 0);
+                new UsageCostCalculator(catalog).calculate("openai", "gpt-4o-mini", 1, 1, 0, 0, 0);
         assertThat(overridden.isPricingAvailable()).isTrue();
         assertThat(overridden.getTotalMicros()).isEqualTo(108L);
         assertThat(overridden.getPriceSource()).isEqualTo("user_override");
         assertThat(overridden.getPricingVersion()).isEqualTo("user-pricing-2026-06");
 
         UsageCost builtInStillAvailable =
-                new UsageCostCalculator(catalog)
-                        .calculate("openai", "gpt-4.1", 100, 20, 0, 0, 0);
+                new UsageCostCalculator(catalog).calculate("openai", "gpt-4.1", 100, 20, 0, 0, 0);
         assertThat(builtInStillAvailable.isPricingAvailable()).isTrue();
         assertThat(builtInStillAvailable.getPriceSource()).isEqualTo("official_docs_snapshot");
 
@@ -308,8 +314,7 @@ public class UsagePricingTest {
                         "{\"prices\":[{\"provider\":\"default\",\"model\":\"gpt-5.4\",\"currency\":\"USD\",\"prompt_micros_per_token\":2,\"completion_micros_per_token\":10,\"source\":\"test-catalog\"}]}");
 
         UsageCost cost =
-                new UsageCostCalculator(catalog)
-                        .calculate("default", "gpt-5.4", 100, 20, 0, 0, 0);
+                new UsageCostCalculator(catalog).calculate("default", "gpt-5.4", 100, 20, 0, 0, 0);
 
         assertThat(cost.isPricingAvailable()).isTrue();
         assertThat(cost.getTotalMicros()).isEqualTo(400L);
@@ -360,8 +365,7 @@ public class UsagePricingTest {
                                 + "}");
 
         UsageCost localProviderKey =
-                new UsageCostCalculator(catalog)
-                        .calculate("default", "gpt-5.4", 100, 20, 0, 0, 0);
+                new UsageCostCalculator(catalog).calculate("default", "gpt-5.4", 100, 20, 0, 0, 0);
         assertThat(localProviderKey.isPricingAvailable()).isTrue();
         assertThat(localProviderKey.getTotalMicros()).isEqualTo(600L);
 
@@ -480,7 +484,10 @@ public class UsagePricingTest {
         assertThat(backfilledRun.getPriceSourceUrl()).isEqualTo("https://pricing.example/catalog");
         assertThat(backfilledRun.getPricingVersion()).isEqualTo("test-pricing-2026-06");
         assertThat(backfilledRun.getPriceFetchedAt()).isEqualTo(1800000000000L);
-        assertThat(usageRepository.findByEventId("backfill-session-session-3").isBackfillApproximate())
+        assertThat(
+                        usageRepository
+                                .findByEventId("backfill-session-session-3")
+                                .isBackfillApproximate())
                 .isTrue();
         assertThat(usageRepository.findByEventId("backfill-session-session-2")).isNull();
     }

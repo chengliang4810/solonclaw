@@ -63,7 +63,8 @@ class SkillBundlePathSupportTest {
                 SkillBundlePathSupport.resolveUnderRoot(tempDir.toFile(), "category/safe-skill");
 
         assertThat(target.getCanonicalPath()).startsWith(tempDir.toFile().getCanonicalPath());
-        assertThat(target.getPath().replace(File.separatorChar, '/')).endsWith("category/safe-skill");
+        assertThat(target.getPath().replace(File.separatorChar, '/'))
+                .endsWith("category/safe-skill");
     }
 
     @Test
@@ -76,7 +77,9 @@ class SkillBundlePathSupportTest {
             return;
         }
         Files.write(
-                outside.resolve("payload.txt"), java.util.Arrays.asList("x"), StandardCharsets.UTF_8);
+                outside.resolve("payload.txt"),
+                java.util.Arrays.asList("x"),
+                StandardCharsets.UTF_8);
 
         assertThatThrownBy(
                         () ->

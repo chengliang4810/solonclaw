@@ -33,7 +33,9 @@ public class AgentTools {
         } catch (Exception e) {
             return ToolResultEnvelope.error(
                             SecretRedactor.redact(
-                                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                    e.getMessage() == null
+                                            ? e.getClass().getSimpleName()
+                                            : e.getMessage(),
                                     1000))
                     .toJson();
         }

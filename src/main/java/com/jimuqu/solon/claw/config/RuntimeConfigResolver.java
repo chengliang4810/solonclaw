@@ -147,7 +147,10 @@ public class RuntimeConfigResolver {
                 unknownKeys.add(configKeyItem(key, entry.getValue(), "unknown"));
             }
         }
-        Map<String, Object> effective = appConfig == null ? Collections.<String, Object>emptyMap() : flattenAppConfig(appConfig);
+        Map<String, Object> effective =
+                appConfig == null
+                        ? Collections.<String, Object>emptyMap()
+                        : flattenAppConfig(appConfig);
         for (Map.Entry<String, Object> entry : fileValues.entrySet()) {
             String rawKey = entry.getKey();
             String effectiveKey = effectivePath(rawKey);
@@ -174,9 +177,7 @@ public class RuntimeConfigResolver {
         result.put("unknown_count", Integer.valueOf(unknownKeys.size()));
         result.put("effective_diff_count", Integer.valueOf(effectiveDiffs.size()));
         result.put(
-                "has_issues",
-                Boolean.valueOf(
-                        !unknownKeys.isEmpty() || !effectiveDiffs.isEmpty()));
+                "has_issues", Boolean.valueOf(!unknownKeys.isEmpty() || !effectiveDiffs.isEmpty()));
         return result;
     }
 
@@ -302,7 +303,9 @@ public class RuntimeConfigResolver {
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                 if (entry.getKey() != null) {
                     String childKey = key + "." + entry.getKey();
-                    result.put(String.valueOf(entry.getKey()), safeConfigValue(childKey, entry.getValue()));
+                    result.put(
+                            String.valueOf(entry.getKey()),
+                            safeConfigValue(childKey, entry.getValue()));
                 }
             }
             return result;
@@ -317,7 +320,8 @@ public class RuntimeConfigResolver {
         String text = SecretRedactor.redact(String.valueOf(value), 800);
         if (looksLikePathValue(text)) {
             String name = new File(text).getName();
-            return "path://" + (StrUtil.isBlank(name) ? "external" : SecretRedactor.redact(name, 200));
+            return "path://"
+                    + (StrUtil.isBlank(name) ? "external" : SecretRedactor.redact(name, 200));
         }
         return text;
     }
@@ -460,7 +464,8 @@ public class RuntimeConfigResolver {
             }
         }
         if (rawValue instanceof Boolean || effectiveValue instanceof Boolean) {
-            return Boolean.valueOf(parseBoolean(rawValue)).equals(Boolean.valueOf(parseBoolean(effectiveValue)));
+            return Boolean.valueOf(parseBoolean(rawValue))
+                    .equals(Boolean.valueOf(parseBoolean(effectiveValue)));
         }
         return normalizeValueText(rawValue).equals(normalizeValueText(effectiveValue));
     }
@@ -490,7 +495,8 @@ public class RuntimeConfigResolver {
         }
         visited.add(bean);
         try {
-            for (PropertyDescriptor descriptor : Introspector.getBeanInfo(bean.getClass()).getPropertyDescriptors()) {
+            for (PropertyDescriptor descriptor :
+                    Introspector.getBeanInfo(bean.getClass()).getPropertyDescriptors()) {
                 Method getter = descriptor.getReadMethod();
                 String name = descriptor.getName();
                 if (getter == null || "class".equals(name)) {

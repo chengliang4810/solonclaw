@@ -64,7 +64,14 @@ public class CliShell {
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser,
             TerminalHistoryViewer historyViewer) {
-        this(cliRuntime, mode, attachmentResolver, null, modelPicker, sessionBrowser, historyViewer);
+        this(
+                cliRuntime,
+                mode,
+                attachmentResolver,
+                null,
+                modelPicker,
+                sessionBrowser,
+                historyViewer);
     }
 
     public CliShell(
@@ -235,7 +242,10 @@ public class CliShell {
             return 0;
         }
         if (TerminalSkin.isSkinCommand(trimmed)) {
-            String next = trimmed.length() <= "/skin".length() ? "" : trimmed.substring("/skin".length()).trim();
+            String next =
+                    trimmed.length() <= "/skin".length()
+                            ? ""
+                            : trimmed.substring("/skin".length()).trim();
             if (StrUtil.isNotBlank(next)) {
                 skin = TerminalSkin.resolve(next);
             }
@@ -354,12 +364,13 @@ public class CliShell {
     }
 
     private Terminal newTerminal() throws Exception {
-        Terminal terminal = TerminalBuilder.builder()
-                .system(true)
-                .jansi(true)
-                .dumb(true)
-                .encoding(StandardCharsets.UTF_8)
-                .build();
+        Terminal terminal =
+                TerminalBuilder.builder()
+                        .system(true)
+                        .jansi(true)
+                        .dumb(true)
+                        .encoding(StandardCharsets.UTF_8)
+                        .build();
         TerminalDimensionSupport.sanitize(terminal);
         return terminal;
     }
@@ -390,7 +401,8 @@ public class CliShell {
         return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
     }
 
-    private void renderShutdownSummary(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+    private void renderShutdownSummary(
+            PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(
                 TerminalLifecycleSummary.render(
                         sessionId,
@@ -412,7 +424,10 @@ public class CliShell {
             return "当前终端未启用附件解析。";
         }
         String value = StrUtil.nullToEmpty(input).trim();
-        String rest = value.length() <= "/attachments".length() ? "" : value.substring("/attachments".length()).trim();
+        String rest =
+                value.length() <= "/attachments".length()
+                        ? ""
+                        : value.substring("/attachments".length()).trim();
         return attachmentResolver.renderPreview(rest);
     }
 }

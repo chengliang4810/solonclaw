@@ -34,10 +34,7 @@ public class DashboardChatServiceEventSinkTest {
         sink.onCompressionDecision("agent-" + SECRET, true, "token=" + SECRET, 10, 8);
         sink.onRecoveryStarted("agent-" + SECRET, "retry?token=" + SECRET);
         sink.onFallback(
-                "agent-" + SECRET,
-                "primary?api_key=" + SECRET,
-                "fallback",
-                "bearer " + SECRET);
+                "agent-" + SECRET, "primary?api_key=" + SECRET, "fallback", "bearer " + SECRET);
         sink.onRunCompleted("session-1", "done", result);
 
         String events = drainEvents(state).toString();
@@ -70,7 +67,8 @@ public class DashboardChatServiceEventSinkTest {
     private ConversationEventSink newEventSink(DashboardChatService service, Object state)
             throws Exception {
         Class<?> sinkClass =
-                Class.forName("com.jimuqu.solon.claw.web.DashboardChatService$DashboardRunEventSink");
+                Class.forName(
+                        "com.jimuqu.solon.claw.web.DashboardChatService$DashboardRunEventSink");
         Constructor<?> constructor =
                 sinkClass.getDeclaredConstructor(DashboardChatService.class, state.getClass());
         constructor.setAccessible(true);

@@ -54,8 +54,7 @@ public class MessageSequenceRepairTest {
         assertThat(repairs).isEqualTo(0);
         assertThat(messages)
                 .extracting(ChatMessage::getRole)
-                .containsExactly(
-                        ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
     }
 
     @Test
@@ -73,12 +72,15 @@ public class MessageSequenceRepairTest {
 
         assertThat(repairs).isEqualTo(1);
         AssistantMessage repaired = (AssistantMessage) messages.get(1);
-        assertThat(repaired.getToolCalls()).extracting(ToolCall::getId).containsExactly("call_kept");
-        assertThat(repaired.getToolCallsRaw()).extracting(raw -> raw.get("id")).containsExactly("call_kept");
+        assertThat(repaired.getToolCalls())
+                .extracting(ToolCall::getId)
+                .containsExactly("call_kept");
+        assertThat(repaired.getToolCallsRaw())
+                .extracting(raw -> raw.get("id"))
+                .containsExactly("call_kept");
         assertThat(messages)
                 .extracting(ChatMessage::getRole)
-                .containsExactly(
-                        ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
     }
 
     @Test
@@ -111,10 +113,14 @@ public class MessageSequenceRepairTest {
         assertThat(repairs).isEqualTo(1);
         AssistantMessage repaired = (AssistantMessage) messages.get(1);
         assertThat(repaired.getReasoning()).isEmpty();
-        assertThat(repaired.getContent()).contains("Plan: call both tools.").contains("Visible note");
+        assertThat(repaired.getContent())
+                .contains("Plan: call both tools.")
+                .contains("Visible note");
         assertThat(repaired.getContent()).doesNotContain("<think>").doesNotContain("</think>");
         assertThat(repaired.getContentRaw()).isNotInstanceOf(Map.class);
-        assertThat(repaired.getToolCalls()).extracting(ToolCall::getId).containsExactly("call_kept");
+        assertThat(repaired.getToolCalls())
+                .extracting(ToolCall::getId)
+                .containsExactly("call_kept");
     }
 
     @Test
@@ -163,11 +169,11 @@ public class MessageSequenceRepairTest {
 
     @Test
     void shouldNotMergeUserMessagesWithMetadataOrMultipleBlocks() {
-        ChatMessage withMetadata = ChatMessage.ofUser("first").addMetadata("attachment", "file.txt");
+        ChatMessage withMetadata =
+                ChatMessage.ofUser("first").addMetadata("attachment", "file.txt");
         ChatMessage multiBlock =
                 ChatMessage.ofUser(
-                        "second",
-                        Arrays.asList(TextBlock.of("second"), TextBlock.of("extra")));
+                        "second", Arrays.asList(TextBlock.of("second"), TextBlock.of("extra")));
         List<ChatMessage> messages =
                 new ArrayList<ChatMessage>(Arrays.asList(withMetadata, multiBlock));
 
@@ -205,12 +211,7 @@ public class MessageSequenceRepairTest {
                 null,
                 null,
                 Collections.singletonList(
-                        new ToolCall(
-                                "0",
-                                id,
-                                name,
-                                "{}",
-                                Collections.<String, Object>emptyMap())),
+                        new ToolCall("0", id, name, "{}", Collections.<String, Object>emptyMap())),
                 null);
     }
 
@@ -221,13 +222,7 @@ public class MessageSequenceRepairTest {
     private static List<ToolCall> toolCalls(String... ids) {
         List<ToolCall> calls = new ArrayList<ToolCall>();
         for (String id : ids) {
-            calls.add(
-                    new ToolCall(
-                            id,
-                            id,
-                            "shell",
-                            "{}",
-                            Collections.<String, Object>emptyMap()));
+            calls.add(new ToolCall(id, id, "shell", "{}", Collections.<String, Object>emptyMap()));
         }
         return calls;
     }

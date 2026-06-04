@@ -244,7 +244,8 @@ public class McpPackageSecurityService {
         if (token.startsWith("@")) {
             int at = token.indexOf('@', 1);
             if (at > 0) {
-                return new PackageRef(token.substring(0, at), versionOrNull(token.substring(at + 1)));
+                return new PackageRef(
+                        token.substring(0, at), versionOrNull(token.substring(at + 1)));
             }
             return new PackageRef(token, null);
         }
@@ -360,7 +361,9 @@ public class McpPackageSecurityService {
                     ids.append(", ");
                     summaries.append("; ");
                 }
-                String id = SecretRedactor.redact(StrUtil.nullToEmpty(String.valueOf(vuln.get("id"))), 200);
+                String id =
+                        SecretRedactor.redact(
+                                StrUtil.nullToEmpty(String.valueOf(vuln.get("id"))), 200);
                 ids.append(id);
                 summaries.append(
                         StrUtil.maxLength(

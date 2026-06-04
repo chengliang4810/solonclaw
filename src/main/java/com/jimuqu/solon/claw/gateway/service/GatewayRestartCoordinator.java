@@ -71,7 +71,8 @@ public class GatewayRestartCoordinator {
     }
 
     public RestartRequest requestRestartDrain(GatewayMessage requester, int activeRuns) {
-        return requestRestartDrain(requester == null ? null : requester.sourceKey(), requester, activeRuns);
+        return requestRestartDrain(
+                requester == null ? null : requester.sourceKey(), requester, activeRuns);
     }
 
     private RestartRequest requestRestartDrain(
@@ -88,7 +89,12 @@ public class GatewayRestartCoordinator {
             scheduleDrainExit(count);
         }
         return new RestartRequest(
-                first, count, requestedAt, requesterSourceKey, requesterRouting, drainTimeoutSeconds);
+                first,
+                count,
+                requestedAt,
+                requesterSourceKey,
+                requesterRouting,
+                drainTimeoutSeconds);
     }
 
     private void scheduleDrainExit(int initialActiveRuns) {
@@ -137,7 +143,9 @@ public class GatewayRestartCoordinator {
     }
 
     private int currentRunningRunCount() {
-        return agentRunControlService == null ? activeRunCount : agentRunControlService.runningRunCount();
+        return agentRunControlService == null
+                ? activeRunCount
+                : agentRunControlService.runningRunCount();
     }
 
     private void persistRequesterMarker(

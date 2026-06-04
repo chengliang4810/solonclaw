@@ -3,12 +3,11 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.goal.GoalJudge;
 import com.jimuqu.solon.claw.goal.GoalDecision;
+import com.jimuqu.solon.claw.goal.GoalJudge;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.goal.GoalVerdict;
-import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +52,9 @@ public class GoalServiceTest {
                 .contains("2/2");
 
         service.resume(env.sessionRepository.findById(session.getSessionId()), true);
-        GoalDecision done = service.evaluateAfterTurn(env.sessionRepository.findById(session.getSessionId()), "已完成");
+        GoalDecision done =
+                service.evaluateAfterTurn(
+                        env.sessionRepository.findById(session.getSessionId()), "已完成");
         assertThat(done.getStatus()).isEqualTo("done");
         assertThat(done.getMessage()).contains("Goal achieved");
     }

@@ -46,10 +46,7 @@ public class LlmConfigOverrideLoadTest {
     void shouldLoadModelMaxTokensAliasFromRuntimeConfig() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-llm-max-tokens").toFile();
         File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "model:\n"
-                        + "  max_tokens: 8192\n",
-                configFile);
+        FileUtil.writeUtf8String("model:\n" + "  max_tokens: 8192\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -64,7 +61,8 @@ public class LlmConfigOverrideLoadTest {
 
     @Test
     void shouldPreferCanonicalLlmMaxTokensOverModelAlias() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-llm-max-tokens-precedence").toFile();
+        File runtimeHome =
+                Files.createTempDirectory("solon-claw-llm-max-tokens-precedence").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"

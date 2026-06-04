@@ -310,8 +310,7 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getRollback().getExcludePatterns())
-                .contains(".env", ".envrc", ".env.*");
+        assertThat(config.getRollback().getExcludePatterns()).contains(".env", ".envrc", ".env.*");
     }
 
     @Test
@@ -509,10 +508,7 @@ public class CoreConfigOverrideLoadTest {
     void shouldIgnoreApprovalsModeCompatibilityValue() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-approvals-mode").toFile();
         File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "approvals:\n"
-                        + "  mode: false\n",
-                configFile);
+        FileUtil.writeUtf8String("approvals:\n" + "  mode: false\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -527,9 +523,7 @@ public class CoreConfigOverrideLoadTest {
         File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-mode").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  guardrailMode: bypass\n"
-                        + "  guardrailCronMode: approval\n",
+                "security:\n" + "  guardrailMode: bypass\n" + "  guardrailCronMode: approval\n",
                 configFile);
 
         Props props = new Props();
@@ -668,9 +662,7 @@ public class CoreConfigOverrideLoadTest {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-sudo").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
-                "solonclaw:\n"
-                        + "  terminal:\n"
-                        + "    sudoPassword: SolonClaw-pass\n",
+                "solonclaw:\n" + "  terminal:\n" + "    sudoPassword: SolonClaw-pass\n",
                 configFile);
 
         Props props = new Props();
@@ -686,9 +678,7 @@ public class CoreConfigOverrideLoadTest {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-timeout").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
-                "solonclaw:\n"
-                        + "  terminal:\n"
-                        + "    processWaitTimeoutSeconds: 9\n",
+                "solonclaw:\n" + "  terminal:\n" + "    processWaitTimeoutSeconds: 9\n",
                 configFile);
 
         Props props = new Props();
@@ -714,7 +704,8 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/solonclaw-safe");
+        assertThat(config.getTerminal().getWriteSafeRoot())
+                .isEqualTo("D:/workspace/solonclaw-safe");
     }
 
     @Test
@@ -840,10 +831,7 @@ public class CoreConfigOverrideLoadTest {
     void shouldLoadCanonicalAllowPrivateUrlsKey() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-private-url-policy").toFile();
         File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  allowPrivateUrls: false\n",
-                configFile);
+        FileUtil.writeUtf8String("security:\n" + "  allowPrivateUrls: false\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -855,13 +843,11 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldIgnoreScopedJimuquAllowPrivateUrlsAlias() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-private-url-policy").toFile();
+        File runtimeHome =
+                Files.createTempDirectory("solon-claw-jimuqu-private-url-policy").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
-                "jimuqu:\n"
-                        + "  security:\n"
-                        + "    allow_private_urls: true\n",
-                configFile);
+                "jimuqu:\n" + "  security:\n" + "    allow_private_urls: true\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -873,13 +859,11 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldIgnoreLegacyScopedAllowPrivateUrlsAlias() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-private-url-policy").toFile();
+        File runtimeHome =
+                Files.createTempDirectory("solon-claw-legacy-private-url-policy").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
-                "solonclaw:\n"
-                        + "  security:\n"
-                        + "    allow_private_urls: false\n",
-                configFile);
+                "solonclaw:\n" + "  security:\n" + "    allow_private_urls: false\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -893,10 +877,7 @@ public class CoreConfigOverrideLoadTest {
     void shouldIgnoreBrowserAllowPrivateUrlsFallback() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-browser-private-url").toFile();
         File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "browser:\n"
-                        + "  allow_private_urls: true\n",
-                configFile);
+        FileUtil.writeUtf8String("browser:\n" + "  allow_private_urls: true\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -929,10 +910,7 @@ public class CoreConfigOverrideLoadTest {
     void shouldTreatQuotedFalseCanonicalAllowPrivateUrlsAsFalse() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-private-url-false").toFile();
         File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  allowPrivateUrls: \"false\"\n",
-                configFile);
+        FileUtil.writeUtf8String("security:\n" + "  allowPrivateUrls: \"false\"\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());

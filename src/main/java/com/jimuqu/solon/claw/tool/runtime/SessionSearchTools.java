@@ -29,9 +29,15 @@ public class SessionSearchTools {
             description =
                     "Search historical sessions, scroll around a message, or browse recent sessions. Returns metadata, snippets and focused summaries.")
     public String sessionSearch(
-            @Param(name = "query", description = "discovery 模式检索主题；为空且无锚点时 browse 最近会话", required = false) String query,
-            @Param(name = "sessionId", description = "scroll 模式目标会话 ID", required = false) String sessionId,
-            @Param(name = "aroundMessageId", description = "scroll 模式锚点消息 ID", required = false) String aroundMessageId,
+            @Param(
+                            name = "query",
+                            description = "discovery 模式检索主题；为空且无锚点时 browse 最近会话",
+                            required = false)
+                    String query,
+            @Param(name = "sessionId", description = "scroll 模式目标会话 ID", required = false)
+                    String sessionId,
+            @Param(name = "aroundMessageId", description = "scroll 模式锚点消息 ID", required = false)
+                    String aroundMessageId,
             @Param(name = "limit", description = "结果条数，默认 3，最大 5", required = false) Integer limit)
             throws Exception {
         try {
@@ -49,7 +55,9 @@ public class SessionSearchTools {
         } catch (Exception e) {
             return ToolResultEnvelope.error(
                             SecretRedactor.redact(
-                                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                    e.getMessage() == null
+                                            ? e.getClass().getSimpleName()
+                                            : e.getMessage(),
                                     1000))
                     .toJson();
         }

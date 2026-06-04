@@ -40,11 +40,12 @@ public class LlmProviderSupportTest {
 
     @Test
     void shouldDetectOnlyNativeOpenAiHostAsDirect() {
-        assertThat(LlmProviderSupport.isDirectOpenAiBaseUrl("https://api.openai.com/v1"))
-                .isTrue();
+        assertThat(LlmProviderSupport.isDirectOpenAiBaseUrl("https://api.openai.com/v1")).isTrue();
         assertThat(LlmProviderSupport.isDirectOpenAiBaseUrl("https://api.openai.com.example/v1"))
                 .isFalse();
-        assertThat(LlmProviderSupport.isDirectOpenAiBaseUrl("https://proxy.example/api.openai.com/v1"))
+        assertThat(
+                        LlmProviderSupport.isDirectOpenAiBaseUrl(
+                                "https://proxy.example/api.openai.com/v1"))
                 .isFalse();
     }
 
@@ -52,13 +53,17 @@ public class LlmProviderSupportTest {
     void shouldExtractBaseUrlHostnameLikeJimuqu() {
         assertThat(LlmProviderSupport.baseUrlHostname(null)).isEqualTo("");
         assertThat(LlmProviderSupport.baseUrlHostname("")).isEqualTo("");
-        assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com")).isEqualTo("api.openai.com");
-        assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com/v1")).isEqualTo("api.openai.com");
+        assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com"))
+                .isEqualTo("api.openai.com");
+        assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com/v1"))
+                .isEqualTo("api.openai.com");
         assertThat(LlmProviderSupport.baseUrlHostname("https://API.OpenAI.com./v1"))
                 .isEqualTo("api.openai.com");
         assertThat(LlmProviderSupport.baseUrlHostname("https://api.openai.com:443/v1"))
                 .isEqualTo("api.openai.com");
-        assertThat(LlmProviderSupport.baseUrlHostname("https://proxy.example.test/api.openai.com/v1"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostname(
+                                "https://proxy.example.test/api.openai.com/v1"))
                 .isEqualTo("proxy.example.test");
         assertThat(LlmProviderSupport.baseUrlHostname("https://api.openai.com.example/v1"))
                 .isEqualTo("api.openai.com.example");
@@ -66,38 +71,62 @@ public class LlmProviderSupportTest {
 
     @Test
     void shouldMatchBaseUrlHostsWithoutSubstringFalsePositivesLikeJimuqu() {
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://openrouter.ai/api/v1", "openrouter.ai"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://openrouter.ai/api/v1", "openrouter.ai"))
                 .isTrue();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://api.moonshot.ai/v1", "moonshot.ai"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://api.moonshot.ai/v1", "moonshot.ai"))
                 .isTrue();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://OpenRouter.AI/v1", "OPENROUTER.AI"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://OpenRouter.AI/v1", "OPENROUTER.AI"))
                 .isTrue();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://openrouter.ai/v1", "openrouter.ai."))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://openrouter.ai/v1", "openrouter.ai."))
                 .isTrue();
 
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://evil.test/moonshot.ai/v1", "moonshot.ai"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://evil.test/moonshot.ai/v1", "moonshot.ai"))
                 .isFalse();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://proxy.example.test/openrouter.ai/v1", "openrouter.ai"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://proxy.example.test/openrouter.ai/v1", "openrouter.ai"))
                 .isFalse();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://moonshot.ai.evil/v1", "moonshot.ai"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://moonshot.ai.evil/v1", "moonshot.ai"))
                 .isFalse();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://fake-openrouter.ai/v1", "openrouter.ai"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://fake-openrouter.ai/v1", "openrouter.ai"))
                 .isFalse();
     }
 
     @Test
     void shouldRejectOllamaHostLookalikesLikeJimuquSecurityAdvisory() {
-        assertThat(LlmProviderSupport.baseUrlHostMatches("http://127.0.0.1:9000/ollama.com/v1", "ollama.com"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "http://127.0.0.1:9000/ollama.com/v1", "ollama.com"))
                 .isFalse();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("http://ollama.com.attacker.test:9000/v1", "ollama.com"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "http://ollama.com.attacker.test:9000/v1", "ollama.com"))
                 .isFalse();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("http://ollama.com.localtest.me:9000/v1", "ollama.com"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "http://ollama.com.localtest.me:9000/v1", "ollama.com"))
                 .isFalse();
         assertThat(LlmProviderSupport.baseUrlHostMatches("https://ollama.ai/v1", "ollama.com"))
                 .isFalse();
         assertThat(LlmProviderSupport.baseUrlHostMatches("http://localhost:11434/v1", "ollama.com"))
                 .isFalse();
-        assertThat(LlmProviderSupport.baseUrlHostMatches("https://ollama.com/api/generate", "ollama.com"))
+        assertThat(
+                        LlmProviderSupport.baseUrlHostMatches(
+                                "https://ollama.com/api/generate", "ollama.com"))
                 .isTrue();
         assertThat(LlmProviderSupport.baseUrlHostMatches("https://api.ollama.com/v1", "ollama.com"))
                 .isTrue();
@@ -105,7 +134,9 @@ public class LlmProviderSupportTest {
 
     @Test
     void shouldResolveProviderAwareOpenAiModelListUrls() {
-        assertThat(LlmProviderSupport.buildModelListUrl("openai", "https://api.openai.com", "openai"))
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "openai", "https://api.openai.com", "openai"))
                 .isEqualTo("https://api.openai.com/v1/models");
         assertThat(
                         LlmProviderSupport.buildModelListUrl(
@@ -113,7 +144,9 @@ public class LlmProviderSupportTest {
                 .isEqualTo("https://api.openai.com/v1/models");
         assertThat(
                         LlmProviderSupport.buildModelListUrl(
-                                "openai", "https://api.openai.com/v1/responses", "openai-responses"))
+                                "openai",
+                                "https://api.openai.com/v1/responses",
+                                "openai-responses"))
                 .isEqualTo("https://api.openai.com/v1/models");
         assertThat(
                         LlmProviderSupport.buildModelListUrl(
@@ -151,7 +184,9 @@ public class LlmProviderSupportTest {
 
     @Test
     void shouldResolveProviderAwareOllamaModelListUrls() {
-        assertThat(LlmProviderSupport.buildModelListUrl("ollama", "http://127.0.0.1:11434", "ollama"))
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "ollama", "http://127.0.0.1:11434", "ollama"))
                 .isEqualTo("http://127.0.0.1:11434/api/tags");
         assertThat(
                         LlmProviderSupport.buildModelListUrl(

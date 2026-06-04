@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.core.service.SkillImportService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
+import com.jimuqu.solon.claw.core.service.SkillImportService;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.SkillBundle;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillGuardService;
@@ -30,7 +30,9 @@ public class SkillImportServiceTest {
         File skillsDir = Files.createTempDirectory("skill-import-trust").toFile();
         SkillImportService service =
                 new DefaultSkillImportService(
-                        skillsDir, new DefaultSkillGuardService(), new SkillHubStateStore(skillsDir));
+                        skillsDir,
+                        new DefaultSkillGuardService(),
+                        new SkillHubStateStore(skillsDir));
         SkillBundle bundle = new SkillBundle();
         bundle.setName("trusted-demo");
         bundle.setSource("openai/skills/demo");
@@ -47,7 +49,9 @@ public class SkillImportServiceTest {
         File skillsDir = Files.createTempDirectory("skill-import-block").toFile();
         SkillImportService service =
                 new DefaultSkillImportService(
-                        skillsDir, new DefaultSkillGuardService(), new SkillHubStateStore(skillsDir));
+                        skillsDir,
+                        new DefaultSkillGuardService(),
+                        new SkillHubStateStore(skillsDir));
         SkillBundle bundle = new SkillBundle();
         bundle.setName("danger-demo");
         bundle.setSource("clawhub");

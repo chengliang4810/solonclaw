@@ -97,7 +97,11 @@ public class TerminalHistoryViewer {
                 .append("  title=")
                 .append(StrUtil.blankToDefault(session.getTitle(), "(未命名会话)"))
                 .append('\n');
-        buffer.append("index=").append(entry.index).append("  role=").append(entry.role).append('\n');
+        buffer.append("index=")
+                .append(entry.index)
+                .append("  role=")
+                .append(entry.role)
+                .append('\n');
         buffer.append(SecretRedactor.redact(entry.fullContent, SHOW_MAX_LENGTH));
         return buffer.toString();
     }

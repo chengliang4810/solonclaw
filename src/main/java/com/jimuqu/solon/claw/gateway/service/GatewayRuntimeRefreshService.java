@@ -64,10 +64,7 @@ public class GatewayRuntimeRefreshService {
 
         AppConfig latest;
         try {
-            Props props =
-                    Solon.cfg() == null
-                            ? new Props()
-                            : new Props(Solon.cfg());
+            Props props = Solon.cfg() == null ? new Props() : new Props(Solon.cfg());
             props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
             if (Solon.cfg() == null) {
                 latest = AppConfig.load(props);
@@ -80,20 +77,16 @@ public class GatewayRuntimeRefreshService {
                     e.getClass().getSimpleName(),
                     safeError(e));
             recordFailure(configFile, e.getClass().getSimpleName(), safeError(e), false);
-            return RefreshResult.failure(
-                    runtimeConfigReference(configFile),
-                    safeError(e));
+            return RefreshResult.failure(runtimeConfigReference(configFile), safeError(e));
         }
         appConfig.applyFrom(latest);
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         lastFailure = null;
         if (!reconnectChannels) {
-            return RefreshResult.success(
-                    runtimeConfigReference(configFile), false, "运行时配置已刷新。");
+            return RefreshResult.success(runtimeConfigReference(configFile), false, "运行时配置已刷新。");
         }
         channelConnectionManager.refreshAll();
-        return RefreshResult.success(
-                runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
+        return RefreshResult.success(runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
     }
 
     private long fileMtime(String path) {
@@ -110,7 +103,8 @@ public class GatewayRuntimeRefreshService {
             return new File(path);
         }
         return new File(
-                StrUtil.blankToDefault(appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME),
+                StrUtil.blankToDefault(
+                        appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME),
                 RuntimePathConstants.CONFIG_FILE_NAME);
     }
 
@@ -367,8 +361,7 @@ public class GatewayRuntimeRefreshService {
     @SuppressWarnings("unchecked")
     private void flatten(String prefix, Map<String, Object> input, Map<String, Object> output) {
         for (Map.Entry<String, Object> entry : input.entrySet()) {
-            String key =
-                    prefix.length() == 0 ? entry.getKey() : prefix + "." + entry.getKey();
+            String key = prefix.length() == 0 ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
             if (value instanceof Map) {
                 flatten(key, (Map<String, Object>) value, output);

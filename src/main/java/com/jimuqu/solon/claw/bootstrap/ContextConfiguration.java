@@ -28,7 +28,6 @@ import com.jimuqu.solon.claw.core.service.SkillGuardService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.SkillImportService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
-import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.engine.DefaultContextBudgetService;
 import com.jimuqu.solon.claw.engine.DefaultContextCompressionService;
 import com.jimuqu.solon.claw.engine.DefaultSessionSearchService;
@@ -40,6 +39,7 @@ import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -169,7 +169,8 @@ public class ContextConfiguration {
 
     @Bean
     public MemoryManager memoryManager(
-            MemoryProvider builtinMemoryProvider, java.util.List<MemoryProvider> pluginMemoryProviders) {
+            MemoryProvider builtinMemoryProvider,
+            java.util.List<MemoryProvider> pluginMemoryProviders) {
         java.util.List<MemoryProvider> providers = new java.util.ArrayList<MemoryProvider>();
         providers.add(builtinMemoryProvider);
         if (pluginMemoryProviders != null) {

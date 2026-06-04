@@ -4,9 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /** Dashboard insights service for usage analytics. */
@@ -92,9 +90,14 @@ public class DashboardInsightsService {
         Map<String, Object> stats = new LinkedHashMap<String, Object>();
         Runtime runtime = Runtime.getRuntime();
         stats.put("maxMemoryMb", Long.valueOf(runtime.maxMemory() / (1024 * 1024)));
-        stats.put("usedMemoryMb", Long.valueOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)));
+        stats.put(
+                "usedMemoryMb",
+                Long.valueOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)));
         stats.put("availableProcessors", Integer.valueOf(runtime.availableProcessors()));
-        stats.put("uptimeMs", Long.valueOf(java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime()));
+        stats.put(
+                "uptimeMs",
+                Long.valueOf(
+                        java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime()));
         return stats;
     }
 }

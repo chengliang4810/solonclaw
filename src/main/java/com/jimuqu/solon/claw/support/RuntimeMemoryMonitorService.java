@@ -43,14 +43,18 @@ public class RuntimeMemoryMonitorService {
             baseline = snapshot("baseline");
             latest = baseline;
             logSnapshot(baseline);
-            scheduler = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
-                @Override
-                public Thread newThread(Runnable runnable) {
-                    Thread thread = new Thread(runnable, "solon-claw-runtime-memory-monitor");
-                    thread.setDaemon(true);
-                    return thread;
-                }
-            });
+            scheduler =
+                    Executors.newSingleThreadScheduledExecutor(
+                            new ThreadFactory() {
+                                @Override
+                                public Thread newThread(Runnable runnable) {
+                                    Thread thread =
+                                            new Thread(
+                                                    runnable, "solon-claw-runtime-memory-monitor");
+                                    thread.setDaemon(true);
+                                    return thread;
+                                }
+                            });
             scheduler.scheduleAtFixedRate(
                     new Runnable() {
                         @Override
@@ -58,7 +62,8 @@ public class RuntimeMemoryMonitorService {
                             try {
                                 captureSnapshot("periodic");
                             } catch (Exception e) {
-                                log.debug("Runtime memory monitor snapshot failed: {}", e.toString());
+                                log.debug(
+                                        "Runtime memory monitor snapshot failed: {}", e.toString());
                             }
                         }
                     },
@@ -113,7 +118,14 @@ public class RuntimeMemoryMonitorService {
         long maxMb = runtime.maxMemory() / BYTES_PER_MB;
         long uptimeMs = startedAt <= 0 ? 0L : Math.max(0L, now - startedAt);
         return new MemorySnapshot(
-                safeTag(tag), now, timestampIso(now), usedMb, maxMb, freeMb, threadCount(), uptimeMs);
+                safeTag(tag),
+                now,
+                timestampIso(now),
+                usedMb,
+                maxMb,
+                freeMb,
+                threadCount(),
+                uptimeMs);
     }
 
     private int threadCount() {

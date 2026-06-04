@@ -14,8 +14,8 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
@@ -388,7 +388,8 @@ public class DefaultCheckpointService implements CheckpointService {
         }
         String absolute = normalizePath(file.getCanonicalPath());
         String userDir = normalizePath(new File(System.getProperty("user.dir")).getCanonicalPath());
-        String runtime = normalizePath(new File(appConfig.getRuntime().getHome()).getCanonicalPath());
+        String runtime =
+                normalizePath(new File(appConfig.getRuntime().getHome()).getCanonicalPath());
         String projectRelative = relativize(userDir, absolute);
         String runtimeRelative = relativize(runtime, absolute);
         String name = file.getName();

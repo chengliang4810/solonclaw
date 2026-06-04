@@ -40,10 +40,7 @@ public class ImageGenerationService {
                 attachmentCacheService == null
                         ? new AttachmentCacheService(appConfig)
                         : attachmentCacheService;
-        this.providers =
-                providers == null
-                        ? Collections.<ImageGenProvider>emptyList()
-                        : providers;
+        this.providers = providers == null ? Collections.<ImageGenProvider>emptyList() : providers;
         this.securityPolicyService = securityPolicyService;
     }
 
@@ -74,7 +71,8 @@ public class ImageGenerationService {
             if (bytes.length > MAX_IMAGE_BYTES) {
                 return ImageGenerationOutcome.fail("Generated image is too large");
             }
-            String mimeType = StrUtil.blankToDefault(image.mimeType, mimeFromProviderUrl(result.getUrl()));
+            String mimeType =
+                    StrUtil.blankToDefault(image.mimeType, mimeFromProviderUrl(result.getUrl()));
             MessageAttachment attachment =
                     attachmentCacheService.cacheBytes(
                             PlatformType.MEMORY,
@@ -88,7 +86,10 @@ public class ImageGenerationService {
             usage.put("generatedImages", Integer.valueOf(1));
             usage.put("imageOutputBytes", Long.valueOf(bytes.length));
             return ImageGenerationOutcome.ok(
-                    attachment, attachmentCacheService.mediaReference(attachment), provider.name(), usage);
+                    attachment,
+                    attachmentCacheService.mediaReference(attachment),
+                    provider.name(),
+                    usage);
         } catch (Exception e) {
             return ImageGenerationOutcome.fail(safeError(e.getMessage()));
         }
@@ -114,13 +115,15 @@ public class ImageGenerationService {
             if (!header.contains(";base64")) {
                 throw new IllegalArgumentException("Generated image data URL must be base64");
             }
-            return new ImageBytes(Base64.decode(value.substring(comma + 1)), mimeFromProviderUrl(value));
+            return new ImageBytes(
+                    Base64.decode(value.substring(comma + 1)), mimeFromProviderUrl(value));
         }
         URI uri = URI.create(value);
         String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
         if ("http".equals(scheme) || "https".equals(scheme)) {
             if (securityPolicyService == null) {
-                throw new IllegalArgumentException("Generated image URL download requires URL security policy");
+                throw new IllegalArgumentException(
+                        "Generated image URL download requires URL security policy");
             }
             BoundedAttachmentIO.HutoolDownloadResult result =
                     BoundedAttachmentIO.downloadHutoolResult(
@@ -169,7 +172,8 @@ public class ImageGenerationService {
     }
 
     private String safeError(String value) {
-        return SecretRedactor.redact(StrUtil.blankToDefault(value, "Image generation failed"), 1000);
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(value, "Image generation failed"), 1000);
     }
 
     private static class ImageBytes {

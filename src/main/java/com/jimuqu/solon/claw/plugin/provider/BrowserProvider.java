@@ -15,24 +15,29 @@ public interface BrowserProvider {
     void closeSession(String sessionId);
 
     default BrowserActionResult navigate(String sessionId, String url, int timeoutSeconds) {
-        return BrowserActionResult.fail("unsupported_action", "Browser provider does not support navigate");
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support navigate");
     }
 
     default BrowserActionResult click(String sessionId, String selector, int timeoutSeconds) {
-        return BrowserActionResult.fail("unsupported_action", "Browser provider does not support click");
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support click");
     }
 
     default BrowserActionResult type(
             String sessionId, String selector, String text, int timeoutSeconds) {
-        return BrowserActionResult.fail("unsupported_action", "Browser provider does not support type");
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support type");
     }
 
     default BrowserActionResult screenshot(String sessionId, String path, boolean fullPage) {
-        return BrowserActionResult.fail("unsupported_action", "Browser provider does not support screenshot");
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support screenshot");
     }
 
     default BrowserActionResult extract(String sessionId, String selector, String format) {
-        return BrowserActionResult.fail("unsupported_action", "Browser provider does not support extract");
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support extract");
     }
 
     class BrowserSession {
@@ -44,8 +49,13 @@ public interface BrowserProvider {
             this.connectUrl = connectUrl;
         }
 
-        public String getSessionId() { return sessionId; }
-        public String getConnectUrl() { return connectUrl; }
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public String getConnectUrl() {
+            return connectUrl;
+        }
     }
 
     class BrowserActionResult {
@@ -85,7 +95,12 @@ public interface BrowserProvider {
 
         public static BrowserActionResult fail(String errorCode, String errorMessage) {
             return new BrowserActionResult(
-                    false, "error", null, Collections.<String, Object>emptyMap(), errorCode, errorMessage);
+                    false,
+                    "error",
+                    null,
+                    Collections.<String, Object>emptyMap(),
+                    errorCode,
+                    errorMessage);
         }
 
         public boolean isSuccess() {

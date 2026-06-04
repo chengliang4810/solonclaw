@@ -132,8 +132,7 @@ public class DefaultSkillImportService implements SkillImportService {
                         SkillBundlePathSupport.requireCanonicalUnderRoot(
                                 skillsDir,
                                 FileUtil.file(
-                                        quarantineRoot,
-                                        skillName + "-backup-" + System.nanoTime()),
+                                        quarantineRoot, skillName + "-backup-" + System.nanoTime()),
                                 "backup path");
                 FileUtil.move(installDir, backupDir, true);
             }
@@ -428,7 +427,9 @@ public class DefaultSkillImportService implements SkillImportService {
         File target =
                 SkillBundlePathSupport.requireCanonicalUnderRoot(
                         skillsDir,
-                        FileUtil.file(importedRoot, prefix + "-" + safeSourceName + "-" + System.nanoTime()),
+                        FileUtil.file(
+                                importedRoot,
+                                prefix + "-" + safeSourceName + "-" + System.nanoTime()),
                         "imported path");
         FileUtil.mkParentDirs(target);
         FileUtil.move(sourceArtifact, target, true);

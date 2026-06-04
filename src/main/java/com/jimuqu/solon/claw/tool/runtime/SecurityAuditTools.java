@@ -8,10 +8,10 @@ import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
-import com.jimuqu.solon.claw.web.DashboardMcpService;
-import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,14 +64,12 @@ public class SecurityAuditTools {
 
     @ToolMapping(
             name = "security_audit",
-            description =
-                    "只读安全审计。action 支持 command、url、path、tool_args、policy/status；不会执行命令或访问目标。")
+            description = "只读安全审计。action 支持 command、url、path、tool_args、policy/status；不会执行命令或访问目标。")
     public String audit(
-            @Param(name = "action", description = "command/url/path/tool_args/policy/status") String action,
-            @Param(name = "toolName", description = "工具名，可选", required = false)
-                    String toolName,
-            @Param(name = "command", description = "要审计的命令或代码", required = false)
-                    String command,
+            @Param(name = "action", description = "command/url/path/tool_args/policy/status")
+                    String action,
+            @Param(name = "toolName", description = "工具名，可选", required = false) String toolName,
+            @Param(name = "command", description = "要审计的命令或代码", required = false) String command,
             @Param(name = "url", description = "要审计的 URL", required = false) String url,
             @Param(name = "path", description = "要审计的文件路径", required = false) String path,
             @Param(name = "writeLike", description = "路径是否按写入类操作检查", required = false)
@@ -120,31 +118,45 @@ public class SecurityAuditTools {
                         ? normalizeCronApprovalMode(fallbackCronApprovalMode())
                         : approvalService.cronApprovalMode();
         boolean smartMode = "smart".equals(approvalMode);
-        boolean smartJudgeConfigured = approvalService != null && approvalService.hasSmartApprovalJudge();
+        boolean smartJudgeConfigured =
+                approvalService != null && approvalService.hasSmartApprovalJudge();
         approvals.put("mode", approvalMode);
         approvals.put("smartMode", Boolean.valueOf(smartMode));
         approvals.put("smartJudgeConfigured", Boolean.valueOf(smartJudgeConfigured));
         approvals.put("smartApprovalActive", Boolean.valueOf(smartMode && smartJudgeConfigured));
-        approvals.put("smartCoversTirith", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
+        approvals.put(
+                "smartCoversTirith",
+                Boolean.valueOf(
+                        smartMode && smartJudgeConfigured && tirithSecurityService != null));
         approvals.put("cronMode", cronApprovalMode);
         approvals.put("cronAutoApprove", Boolean.valueOf("approve".equals(cronApprovalMode)));
-        approvals.put("subagentAutoApprove", Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
+        approvals.put(
+                "subagentAutoApprove",
+                Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
         approvals.put(
                 "subagentApprovalDefault",
                 appConfig.getApprovals().isSubagentAutoApprove() ? "approve" : "deny");
-        approvals.put("timeoutSeconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
-        approvals.put("gatewayTimeoutSeconds", Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
-        approvals.put("mcpReloadConfirm", Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
+        approvals.put(
+                "timeoutSeconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
+        approvals.put(
+                "gatewayTimeoutSeconds",
+                Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
+        approvals.put(
+                "mcpReloadConfirm", Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
         approvals.put(
                 "mcpReloadConfirmationDefault",
                 appConfig.getApprovals().isMcpReloadConfirm() ? "confirm" : "direct");
         approvals.put(
                 "alwaysApprovalCount",
-                Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
+                Integer.valueOf(
+                        approvalService == null
+                                ? 0
+                                : approvalService.listAlwaysApprovals().size()));
         if (approvalService != null) {
             approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
             approvals.put("cronApprovalPolicy", approvalService.cronApprovalPolicySummary());
-            approvals.put("subagentApprovalPolicy", approvalService.subagentApprovalPolicySummary());
+            approvals.put(
+                    "subagentApprovalPolicy", approvalService.subagentApprovalPolicySummary());
             approvals.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
             approvals.put("tirithApprovalPolicy", approvalService.tirithApprovalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
@@ -155,13 +167,18 @@ public class SecurityAuditTools {
         result.policy.put("approvals", approvals);
 
         Map<String, Object> security = new LinkedHashMap<String, Object>();
-        security.put("allowPrivateUrls", Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
+        security.put(
+                "allowPrivateUrls", Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
         if (securityPolicyService != null) {
             security.put("urlPolicy", securityPolicyService.urlPolicySummary());
         }
         security.put("tirithEnabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
-        security.put("tirithConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getSecurity().getTirithPath())));
-        security.put("tirithTimeoutSeconds", Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));
+        security.put(
+                "tirithConfigured",
+                Boolean.valueOf(StrUtil.isNotBlank(appConfig.getSecurity().getTirithPath())));
+        security.put(
+                "tirithTimeoutSeconds",
+                Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));
         security.put("tirithFailOpen", Boolean.valueOf(appConfig.getSecurity().isTirithFailOpen()));
         TirithSecurityService.Diagnostic tirithDiagnostic =
                 tirithSecurityService == null ? null : tirithSecurityService.diagnose();
@@ -180,7 +197,8 @@ public class SecurityAuditTools {
                 Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getDomains())));
         security.put(
                 "websiteBlocklistSharedFileCount",
-                Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
+                Integer.valueOf(
+                        size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
         if (securityPolicyService != null) {
             Map<String, Object> urlPolicy = securityPolicyService.urlPolicySummary();
             security.put(
@@ -196,26 +214,31 @@ public class SecurityAuditTools {
         result.policy.put("security", security);
 
         Map<String, Object> terminal = new LinkedHashMap<String, Object>();
-        terminal.put("credentialFileCount", Integer.valueOf(size(appConfig.getTerminal().getCredentialFiles())));
+        terminal.put(
+                "credentialFileCount",
+                Integer.valueOf(size(appConfig.getTerminal().getCredentialFiles())));
         if (securityPolicyService != null) {
             terminal.put("credentialPolicy", securityPolicyService.credentialPolicySummary());
             terminal.put("pathPolicy", securityPolicyService.pathPolicySummary());
         }
         terminal.put(
-                "credentialMountPolicy",
-                new SkillCredentialFileService(appConfig).policySummary());
-        terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
+                "credentialMountPolicy", new SkillCredentialFileService(appConfig).policySummary());
+        terminal.put(
+                "envPassthroughCount",
+                Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
         boolean sudoPasswordConfigured = appConfig.getTerminal().getSudoPassword() != null;
         terminal.put("sudoPasswordConfigured", Boolean.valueOf(sudoPasswordConfigured));
         terminal.put(
                 "sudoRewritePolicy",
                 SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
         terminal.put(
-                "terminalOutputPolicy",
-                SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
-        terminal.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
+                "terminalOutputPolicy", SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
+        terminal.put(
+                "writeSafeRootConfigured",
+                Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
         if (approvalService != null) {
-            terminal.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
+            terminal.put(
+                    "terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
         }
         Map<String, Object> backgroundProcessPolicy =
                 ProcessTools.backgroundProcessPolicySummary(appConfig);
@@ -223,7 +246,9 @@ public class SecurityAuditTools {
         terminal.put(
                 "maxForegroundTimeoutSeconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
-        terminal.put("foregroundMaxRetries", Integer.valueOf(appConfig.getTerminal().getForegroundMaxRetries()));
+        terminal.put(
+                "foregroundMaxRetries",
+                Integer.valueOf(appConfig.getTerminal().getForegroundMaxRetries()));
         terminal.put(
                 "foregroundRetryBaseDelaySeconds",
                 Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
@@ -232,20 +257,27 @@ public class SecurityAuditTools {
         Map<String, Object> coverage = new LinkedHashMap<String, Object>();
         if (securityPolicyService != null) {
             coverage.put("urlPolicyDetails", securityPolicyService.urlPolicySummary());
-            coverage.put("privateUrlPolicyDetails", securityPolicyService.privateUrlPolicySummary());
+            coverage.put(
+                    "privateUrlPolicyDetails", securityPolicyService.privateUrlPolicySummary());
             coverage.put("websitePolicyDetails", securityPolicyService.websitePolicySummary());
             coverage.put("pathPolicyDetails", securityPolicyService.pathPolicySummary());
-            coverage.put("credentialPolicyDetails", securityPolicyService.credentialPolicySummary());
+            coverage.put(
+                    "credentialPolicyDetails", securityPolicyService.credentialPolicySummary());
             coverage.put("toolArgsPolicy", securityPolicyService.toolArgsPolicySummary());
         }
         coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());
         coverage.put("patchParserPolicy", SolonClawPatchTools.patchParserPolicySummary());
         coverage.put("readOnlyAuditPolicy", readOnlyAuditPolicySummary());
-        coverage.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
-        coverage.put("codeExecutionPolicy", SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig));
+        coverage.put(
+                "subprocessEnvironmentPolicy",
+                SubprocessEnvironmentSanitizer.policySummary(appConfig));
+        coverage.put(
+                "codeExecutionPolicy",
+                SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig));
         coverage.put("mcpRuntimePolicy", McpRuntimeService.policySummary(appConfig));
         coverage.put("mcpOAuthPolicy", DashboardMcpService.oauthPolicySummary());
-        coverage.put("mcpPackageSecurityPolicy", new McpPackageSecurityService(null).policySummary());
+        coverage.put(
+                "mcpPackageSecurityPolicy", new McpPackageSecurityService(null).policySummary());
         Map<String, Object> attachmentPolicy = new LinkedHashMap<String, Object>();
         attachmentPolicy.put("downloadIo", BoundedAttachmentIO.policySummary());
         attachmentPolicy.put("mediaCache", new AttachmentCacheService(appConfig).policySummary());
@@ -255,11 +287,14 @@ public class SecurityAuditTools {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
         }
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
-        coverage.put("configuredCredentialCommandPathApproval", Boolean.valueOf(approvalService != null));
+        coverage.put(
+                "configuredCredentialCommandPathApproval",
+                Boolean.valueOf(approvalService != null));
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         if (approvalService != null) {
             coverage.put("dangerousCommandApprovalPolicy", approvalService.approvalPolicySummary());
-            coverage.put("approvalLifecyclePolicy", approvalService.approvalLifecyclePolicySummary());
+            coverage.put(
+                    "approvalLifecyclePolicy", approvalService.approvalLifecyclePolicySummary());
             coverage.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             coverage.put("approvalCardPolicy", approvalService.approvalCardPolicySummary());
             coverage.put("approvalAuditPolicy", approvalService.approvalAuditPolicySummary());
@@ -269,14 +304,19 @@ public class SecurityAuditTools {
         if (approvalService != null) {
             coverage.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
         }
-        coverage.put("tirithSmartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
+        coverage.put(
+                "tirithSmartApproval",
+                Boolean.valueOf(
+                        smartMode && smartJudgeConfigured && tirithSecurityService != null));
         if (approvalService != null) {
             coverage.put("tirithApprovalPolicy", approvalService.tirithApprovalPolicySummary());
         }
         coverage.put("cronApprovalPolicy", Boolean.TRUE);
         if (approvalService != null) {
             coverage.put("cronApprovalPolicyDetails", approvalService.cronApprovalPolicySummary());
-            coverage.put("subagentApprovalPolicyDetails", approvalService.subagentApprovalPolicySummary());
+            coverage.put(
+                    "subagentApprovalPolicyDetails",
+                    approvalService.subagentApprovalPolicySummary());
         }
         coverage.put("subagentApprovalPolicy", Boolean.TRUE);
         coverage.put("approvalAuditLog", Boolean.valueOf(approvalService != null));
@@ -286,15 +326,15 @@ public class SecurityAuditTools {
         }
         coverage.put("terminalGuardrails", Boolean.TRUE);
         if (approvalService != null) {
-            coverage.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
+            coverage.put(
+                    "terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
         }
         coverage.put("sudoRewrite", Boolean.TRUE);
         coverage.put(
                 "sudoRewritePolicy",
                 SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
         coverage.put(
-                "terminalOutputPolicy",
-                SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
+                "terminalOutputPolicy", SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
         coverage.put("backgroundProcessGuard", Boolean.TRUE);
         coverage.put("backgroundProcessPolicy", backgroundProcessPolicy);
         coverage.put("urlSafety", Boolean.valueOf(securityPolicyService != null));
@@ -307,12 +347,15 @@ public class SecurityAuditTools {
                 new SkillCredentialFileService(appConfig).policySummary());
         coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
-        coverage.put("toolReturnedContentUrlSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put(
+                "toolReturnedContentUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("schemaSanitizer", Boolean.TRUE);
         coverage.put("patchParser", Boolean.TRUE);
         coverage.put("subprocessEnvironmentSanitizer", Boolean.TRUE);
         coverage.put("toolResultStorage", Boolean.valueOf(toolResultStorageService != null));
-        coverage.put("codeExecutionGuardrails", Boolean.valueOf(approvalService != null || securityPolicyService != null));
+        coverage.put(
+                "codeExecutionGuardrails",
+                Boolean.valueOf(approvalService != null || securityPolicyService != null));
         coverage.put("codeExecutionPolicyAuditable", Boolean.TRUE);
         coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));
@@ -322,7 +365,8 @@ public class SecurityAuditTools {
         coverage.put("attachmentUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("attachmentCachePathSafety", Boolean.TRUE);
         coverage.put("attachmentDisplayNameRedaction", Boolean.TRUE);
-        coverage.put("terminalAttachmentPathSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put(
+                "terminalAttachmentPathSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("terminalAttachmentPreviewRedaction", Boolean.TRUE);
         coverage.put("terminalAttachmentResolvedNameRedaction", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
@@ -334,12 +378,16 @@ public class SecurityAuditTools {
 
         List<String> activeSurfaces = new ArrayList<String>();
         addSurface(activeSurfaces, "approval", approvalService != null);
-        addSurface(activeSurfaces, "configuredCredentialCommandPathApproval", approvalService != null);
+        addSurface(
+                activeSurfaces, "configuredCredentialCommandPathApproval", approvalService != null);
         addSurface(activeSurfaces, "approvalLifecycle", approvalService != null);
         addSurface(activeSurfaces, "approvalAuditLog", approvalService != null);
         addSurface(activeSurfaces, "slashConfirm", approvalService != null);
         addSurface(activeSurfaces, "smartApproval", smartMode && smartJudgeConfigured);
-        addSurface(activeSurfaces, "tirithSmartApproval", smartMode && smartJudgeConfigured && tirithSecurityService != null);
+        addSurface(
+                activeSurfaces,
+                "tirithSmartApproval",
+                smartMode && smartJudgeConfigured && tirithSecurityService != null);
         addSurface(activeSurfaces, "cronApprovalPolicy", true);
         addSurface(activeSurfaces, "subagentApprovalPolicy", true);
         addSurface(activeSurfaces, "hardlineCommand", true);
@@ -358,7 +406,10 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "patchParser", true);
         addSurface(activeSurfaces, "subprocessEnvironmentSanitizer", true);
         addSurface(activeSurfaces, "toolResultStorage", toolResultStorageService != null);
-        addSurface(activeSurfaces, "codeExecution", approvalService != null || securityPolicyService != null);
+        addSurface(
+                activeSurfaces,
+                "codeExecution",
+                approvalService != null || securityPolicyService != null);
         addSurface(activeSurfaces, "mcpRuntimePolicy", true);
         addSurface(activeSurfaces, "mcpOauthUrlSafety", securityPolicyService != null);
         addSurface(activeSurfaces, "mcpOauthPolicy", true);
@@ -377,11 +428,11 @@ public class SecurityAuditTools {
     }
 
     private AuditResult auditCommand(String toolName, String command) {
-        String effectiveTool =
-                canonicalCommandAuditTool(toolName);
+        String effectiveTool = canonicalCommandAuditTool(toolName);
         AuditResult result = new AuditResult("command");
         result.toolName = effectiveTool;
-        result.commandPreview = SecretRedactor.redact(HtmlUtil.unescape(StrUtil.nullToEmpty(command).trim()), 400);
+        result.commandPreview =
+                SecretRedactor.redact(HtmlUtil.unescape(StrUtil.nullToEmpty(command).trim()), 400);
 
         if (StrUtil.isBlank(command)) {
             result.success = false;
@@ -619,8 +670,7 @@ public class SecurityAuditTools {
         if (fileVerdict == null) {
             return "文件安全策略阻断：[REDACTED_PATH]";
         }
-        return StrUtil.blankToDefault(fileVerdict.getMessage(), "文件安全策略阻断")
-                + ": [REDACTED_PATH]";
+        return StrUtil.blankToDefault(fileVerdict.getMessage(), "文件安全策略阻断") + ": [REDACTED_PATH]";
     }
 
     private void applyCommandPolicies(AuditResult result, String effectiveTool, String command) {
@@ -646,7 +696,8 @@ public class SecurityAuditTools {
     }
 
     @SuppressWarnings("unchecked")
-    private void collectCommandLikeArguments(Object value, List<String> commands, boolean commandValue) {
+    private void collectCommandLikeArguments(
+            Object value, List<String> commands, boolean commandValue) {
         if (value == null) {
             return;
         }
@@ -684,7 +735,8 @@ public class SecurityAuditTools {
             } else {
                 int length = java.lang.reflect.Array.getLength(value);
                 for (int i = 0; i < length; i++) {
-                    collectCommandLikeArguments(java.lang.reflect.Array.get(value, i), commands, false);
+                    collectCommandLikeArguments(
+                            java.lang.reflect.Array.get(value, i), commands, false);
                 }
             }
             return;

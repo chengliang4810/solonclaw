@@ -18,8 +18,12 @@ public class DashboardApprovalEventsService {
         this.appConfig = appConfig;
     }
 
-    public synchronized void recordApprovalEvent(String toolName, String decision, String sourceKey,
-            String summary, Map<String, Object> details) {
+    public synchronized void recordApprovalEvent(
+            String toolName,
+            String decision,
+            String sourceKey,
+            String summary,
+            Map<String, Object> details) {
         Map<String, Object> event = new LinkedHashMap<String, Object>();
         event.put("timestamp", Long.valueOf(System.currentTimeMillis()));
         event.put("toolName", toolName);

@@ -1,37 +1,33 @@
 package com.jimuqu.solon.claw.plugin;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
+import com.jimuqu.solon.claw.plugin.hook.HookResult;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
-import com.jimuqu.solon.claw.plugin.hook.HookResult;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.noear.solon.ai.chat.tool.FunctionTool;
-import org.noear.solon.ai.chat.tool.ToolProvider;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class AgentPluginManagerTest {
 
-    @TempDir
-    Path tempDir;
+    @TempDir Path tempDir;
 
     @Test
     void loadsTempPluginWithManifestFieldsToolAndCommand() throws Exception {
         Path pluginDir = tempDir.resolve("test-plugin");
         Files.createDirectories(pluginDir);
 
-        Files.writeString(pluginDir.resolve("plugin.yaml"),
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
                 "name: test-plugin\n"
                         + "version: 1.0.0\n"
                         + "kind: backend\n"
@@ -41,20 +37,22 @@ class AgentPluginManagerTest {
                         + "providesTools:\n"
                         + "  - test_tool\n");
 
-        Files.writeString(pluginDir.resolve("TestPlugin.java"),
-                "import com.jimuqu.solon.claw.plugin.*;\n" +
-                "import com.jimuqu.solon.claw.plugin.hook.*;\n" +
-                "import java.util.Map;\n\n" +
-                "public class TestPlugin implements AgentPlugin {\n" +
-                "    @Override\n" +
-                "    public void register(AgentPluginContext ctx) {\n" +
-                "        ctx.registerTool(new ToolRegistration(\"test_tool\", \"test\", java.util.Collections.emptyMap(), args -> \"tool-ok\"));\n" +
-                "        ctx.registerCommand(\"plugin_echo\", args -> \"cmd:\" + args);\n" +
-                "    }\n" +
-                "}\n");
+        Files.writeString(
+                pluginDir.resolve("TestPlugin.java"),
+                "import com.jimuqu.solon.claw.plugin.*;\n"
+                        + "import com.jimuqu.solon.claw.plugin.hook.*;\n"
+                        + "import java.util.Map;\n\n"
+                        + "public class TestPlugin implements AgentPlugin {\n"
+                        + "    @Override\n"
+                        + "    public void register(AgentPluginContext ctx) {\n"
+                        + "        ctx.registerTool(new ToolRegistration(\"test_tool\", \"test\", java.util.Collections.emptyMap(), args -> \"tool-ok\"));\n"
+                        + "        ctx.registerCommand(\"plugin_echo\", args -> \"cmd:\" + args);\n"
+                        + "    }\n"
+                        + "}\n");
 
         AgentHookRegistry hookRegistry = new AgentHookRegistry();
-        AgentPluginManager manager = new AgentPluginManager(hookRegistry, Set.of("test-plugin"), Set.of(), tempDir);
+        AgentPluginManager manager =
+                new AgentPluginManager(hookRegistry, Set.of("test-plugin"), Set.of(), tempDir);
         CapturingSink sink = new CapturingSink();
 
         manager.discoverAndLoad(sink);
@@ -68,14 +66,17 @@ class AgentPluginManagerTest {
         assertEquals(List.of("test_tool"), manifest.getProvidesTools());
         assertEquals(List.of("test_tool"), sink.toolNames);
         assertEquals(Set.of("plugin_echo"), sink.commands.keySet());
-        assertTrue(manager.diagnostics().stream().anyMatch(d -> d.getStatus() == PluginLoadStatus.LOADED));
+        assertTrue(
+                manager.diagnostics().stream()
+                        .anyMatch(d -> d.getStatus() == PluginLoadStatus.LOADED));
     }
 
     @Test
     void skipsMissingRequiredEnvAndRedactsDiagnostics() throws Exception {
         Path pluginDir = tempDir.resolve("env-plugin");
         Files.createDirectories(pluginDir);
-        Files.writeString(pluginDir.resolve("plugin.yaml"),
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
                 "name: env-plugin\n"
                         + "kind: backend\n"
                         + "enabled: true\n"
@@ -84,12 +85,15 @@ class AgentPluginManagerTest {
                         + "  - name: SOLONCLAW_TEST_MISSING_SECRET\n"
                         + "    description: secret for test\n"
                         + "    secret: true\n");
-        Files.writeString(pluginDir.resolve("EnvPlugin.java"),
+        Files.writeString(
+                pluginDir.resolve("EnvPlugin.java"),
                 "import com.jimuqu.solon.claw.plugin.*;\n"
                         + "public class EnvPlugin implements AgentPlugin {\n"
                         + "  public void register(AgentPluginContext ctx) { throw new RuntimeException(\"should skip\"); }\n"
                         + "}\n");
-        AgentPluginManager manager = new AgentPluginManager(new AgentHookRegistry(), Set.of("env-plugin"), Set.of(), tempDir);
+        AgentPluginManager manager =
+                new AgentPluginManager(
+                        new AgentHookRegistry(), Set.of("env-plugin"), Set.of(), tempDir);
 
         manager.discoverAndLoad(new CapturingSink());
 
@@ -115,16 +119,32 @@ class AgentPluginManagerTest {
         manager.discoverAndLoad(new CapturingSink());
 
         assertTrue(manager.listPlugins().isEmpty());
-        assertEquals(2, manager.diagnostics().stream()
-                .filter(d -> d.getStatus() == PluginLoadStatus.SKIPPED)
-                .count());
+        assertEquals(
+                2,
+                manager.diagnostics().stream()
+                        .filter(d -> d.getStatus() == PluginLoadStatus.SKIPPED)
+                        .count());
     }
 
     @Test
     void usesDeterministicConflictPolicyForDuplicatePluginsToolsAndCommands() throws Exception {
-        writeRegisteringPlugin(tempDir.resolve("alpha"), "same-plugin", "AlphaPlugin", "duplicate_tool", "duplicate_cmd", "alpha");
-        writeRegisteringPlugin(tempDir.resolve("beta"), "same-plugin", "BetaPlugin", "duplicate_tool", "duplicate_cmd", "beta");
-        AgentPluginManager manager = new AgentPluginManager(new AgentHookRegistry(), Set.of("same-plugin"), Set.of(), tempDir);
+        writeRegisteringPlugin(
+                tempDir.resolve("alpha"),
+                "same-plugin",
+                "AlphaPlugin",
+                "duplicate_tool",
+                "duplicate_cmd",
+                "alpha");
+        writeRegisteringPlugin(
+                tempDir.resolve("beta"),
+                "same-plugin",
+                "BetaPlugin",
+                "duplicate_tool",
+                "duplicate_cmd",
+                "beta");
+        AgentPluginManager manager =
+                new AgentPluginManager(
+                        new AgentHookRegistry(), Set.of("same-plugin"), Set.of(), tempDir);
         CapturingSink sink = new CapturingSink(Set.of("duplicate_tool"), Set.of("duplicate_cmd"));
 
         manager.discoverAndLoad(sink);
@@ -132,9 +152,15 @@ class AgentPluginManagerTest {
         assertEquals(1, manager.listPlugins().size());
         assertTrue(sink.toolNames.isEmpty());
         assertTrue(sink.commands.isEmpty());
-        assertTrue(manager.diagnostics().stream().anyMatch(d -> d.getReason().equals("duplicate_plugin_name")));
-        assertTrue(manager.diagnostics().stream().anyMatch(d -> d.getReason().equals("duplicate_tool_name")));
-        assertTrue(manager.diagnostics().stream().anyMatch(d -> d.getReason().equals("duplicate_command_name")));
+        assertTrue(
+                manager.diagnostics().stream()
+                        .anyMatch(d -> d.getReason().equals("duplicate_plugin_name")));
+        assertTrue(
+                manager.diagnostics().stream()
+                        .anyMatch(d -> d.getReason().equals("duplicate_tool_name")));
+        assertTrue(
+                manager.diagnostics().stream()
+                        .anyMatch(d -> d.getReason().equals("duplicate_command_name")));
     }
 
     @Test
@@ -164,7 +190,8 @@ class AgentPluginManagerTest {
                         + "  }\n"
                         + "}\n");
         AgentPluginManager manager =
-                new AgentPluginManager(new AgentHookRegistry(), Set.of("speech-plugin"), Set.of(), tempDir);
+                new AgentPluginManager(
+                        new AgentHookRegistry(), Set.of("speech-plugin"), Set.of(), tempDir);
         CapturingSink sink = new CapturingSink();
 
         manager.discoverAndLoad(sink);
@@ -177,14 +204,18 @@ class AgentPluginManagerTest {
     void loadFailureDiagnosticRedactsSecrets() throws Exception {
         Path pluginDir = tempDir.resolve("bad-plugin");
         Files.createDirectories(pluginDir);
-        Files.writeString(pluginDir.resolve("plugin.yaml"),
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
                 "name: bad-plugin\nkind: backend\nenabled: true\nentry: BadPlugin\n");
-        Files.writeString(pluginDir.resolve("BadPlugin.java"),
+        Files.writeString(
+                pluginDir.resolve("BadPlugin.java"),
                 "import com.jimuqu.solon.claw.plugin.*;\n"
                         + "public class BadPlugin implements AgentPlugin {\n"
                         + "  public void register(AgentPluginContext ctx) { throw new RuntimeException(\"token=sk-test-secret-value\"); }\n"
                         + "}\n");
-        AgentPluginManager manager = new AgentPluginManager(new AgentHookRegistry(), Set.of("bad-plugin"), Set.of(), tempDir);
+        AgentPluginManager manager =
+                new AgentPluginManager(
+                        new AgentHookRegistry(), Set.of("bad-plugin"), Set.of(), tempDir);
 
         manager.discoverAndLoad(new CapturingSink());
 
@@ -199,10 +230,12 @@ class AgentPluginManagerTest {
         AgentHookRegistry registry = new AgentHookRegistry();
         AtomicReference<String> captured = new AtomicReference<>();
 
-        registry.register("post_tool_call", args -> {
-            captured.set((String) args.get("tool_name"));
-            return null;
-        });
+        registry.register(
+                "post_tool_call",
+                args -> {
+                    captured.set((String) args.get("tool_name"));
+                    return null;
+                });
 
         registry.invoke("post_tool_call", Map.of("tool_name", "web_search"));
         assertEquals("web_search", captured.get());
@@ -213,11 +246,14 @@ class AgentPluginManagerTest {
         AgentHookRegistry registry = new AgentHookRegistry();
 
         registry.register("pre_tool_call", args -> null);
-        registry.register("pre_tool_call", args -> {
-            return com.jimuqu.solon.claw.plugin.hook.HookResult.block("blocked by test");
-        });
+        registry.register(
+                "pre_tool_call",
+                args -> {
+                    return com.jimuqu.solon.claw.plugin.hook.HookResult.block("blocked by test");
+                });
 
-        HookResult result = registry.invokeWithResult("pre_tool_call", Map.of("tool_name", "terminal"));
+        HookResult result =
+                registry.invokeWithResult("pre_tool_call", Map.of("tool_name", "terminal"));
         assertNotNull(result);
         assertTrue(result.isBlock());
         assertEquals("blocked by test", result.getMessage());
@@ -234,7 +270,8 @@ class AgentPluginManagerTest {
     void manifestParsingFromYaml() throws Exception {
         Path pluginDir = tempDir.resolve("yaml-test");
         Files.createDirectories(pluginDir);
-        Files.writeString(pluginDir.resolve("plugin.yaml"),
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
                 "name: my-search\nversion: 2.0.0\nkind: backend\nauthor: test\ndescription: Search plugin\n");
 
         AgentHookRegistry hookRegistry = new AgentHookRegistry();
@@ -244,23 +281,53 @@ class AgentPluginManagerTest {
         assertNotNull(manager);
     }
 
-    private void writeMinimalPlugin(Path pluginDir, String pluginName, String enabled) throws Exception {
+    private void writeMinimalPlugin(Path pluginDir, String pluginName, String enabled)
+            throws Exception {
         String className = pluginName.replace("-", "") + "Plugin";
-        writeRegisteringPlugin(pluginDir, pluginName, className, pluginName + "_tool", pluginName + "_cmd", enabled);
+        writeRegisteringPlugin(
+                pluginDir,
+                pluginName,
+                className,
+                pluginName + "_tool",
+                pluginName + "_cmd",
+                enabled);
     }
 
     private void writeRegisteringPlugin(
-            Path pluginDir, String pluginName, String className, String toolName, String commandName, String marker)
+            Path pluginDir,
+            String pluginName,
+            String className,
+            String toolName,
+            String commandName,
+            String marker)
             throws Exception {
         Files.createDirectories(pluginDir);
-        Files.writeString(pluginDir.resolve("plugin.yaml"),
-                "name: " + pluginName + "\nkind: backend\nenabled: " + !"false".equals(marker) + "\nentry: " + className + "\n");
-        Files.writeString(pluginDir.resolve(className + ".java"),
+        Files.writeString(
+                pluginDir.resolve("plugin.yaml"),
+                "name: "
+                        + pluginName
+                        + "\nkind: backend\nenabled: "
+                        + !"false".equals(marker)
+                        + "\nentry: "
+                        + className
+                        + "\n");
+        Files.writeString(
+                pluginDir.resolve(className + ".java"),
                 "import com.jimuqu.solon.claw.plugin.*;\n"
-                        + "public class " + className + " implements AgentPlugin {\n"
+                        + "public class "
+                        + className
+                        + " implements AgentPlugin {\n"
                         + "  public void register(AgentPluginContext ctx) {\n"
-                        + "    ctx.registerTool(new ToolRegistration(\"" + toolName + "\", \"test\", java.util.Collections.emptyMap(), args -> \"" + marker + "\"));\n"
-                        + "    ctx.registerCommand(\"" + commandName + "\", args -> \"" + marker + "\");\n"
+                        + "    ctx.registerTool(new ToolRegistration(\""
+                        + toolName
+                        + "\", \"test\", java.util.Collections.emptyMap(), args -> \""
+                        + marker
+                        + "\"));\n"
+                        + "    ctx.registerCommand(\""
+                        + commandName
+                        + "\", args -> \""
+                        + marker
+                        + "\");\n"
                         + "  }\n"
                         + "}\n");
     }
@@ -282,17 +349,52 @@ class AgentPluginManagerTest {
             this.reservedCommands = reservedCommands;
         }
 
-        @Override public boolean hasTool(String name) { return reservedTools.contains(name) || toolNames.contains(name); }
-        @Override public boolean hasCommand(String name) { return reservedCommands.contains(name) || commands.containsKey(name); }
-        @Override public void onToolRegistered(ToolRegistration r) { toolNames.add(r.getName()); }
-        @Override public void onCommandRegistered(String n, CommandHandler h, String d) { commands.put(n, h); }
-        @Override public void onWebSearchProviderRegistered(WebSearchProvider p) {}
-        @Override public void onImageGenProviderRegistered(ImageGenProvider p) {}
-        @Override public void onVideoGenProviderRegistered(VideoGenProvider p) {}
-        @Override public void onBrowserProviderRegistered(BrowserProvider p) {}
-        @Override public void onSpeechProviderRegistered(SpeechProvider p) { speechProviderNames.add(p.name()); }
-        @Override public void onTranscriptionProviderRegistered(TranscriptionProvider p) { transcriptionProviderNames.add(p.name()); }
-        @Override public void onMemoryProviderRegistered(MemoryProvider p) {}
-        @Override public void onPlatformRegistered(PlatformRegistration r) {}
+        @Override
+        public boolean hasTool(String name) {
+            return reservedTools.contains(name) || toolNames.contains(name);
+        }
+
+        @Override
+        public boolean hasCommand(String name) {
+            return reservedCommands.contains(name) || commands.containsKey(name);
+        }
+
+        @Override
+        public void onToolRegistered(ToolRegistration r) {
+            toolNames.add(r.getName());
+        }
+
+        @Override
+        public void onCommandRegistered(String n, CommandHandler h, String d) {
+            commands.put(n, h);
+        }
+
+        @Override
+        public void onWebSearchProviderRegistered(WebSearchProvider p) {}
+
+        @Override
+        public void onImageGenProviderRegistered(ImageGenProvider p) {}
+
+        @Override
+        public void onVideoGenProviderRegistered(VideoGenProvider p) {}
+
+        @Override
+        public void onBrowserProviderRegistered(BrowserProvider p) {}
+
+        @Override
+        public void onSpeechProviderRegistered(SpeechProvider p) {
+            speechProviderNames.add(p.name());
+        }
+
+        @Override
+        public void onTranscriptionProviderRegistered(TranscriptionProvider p) {
+            transcriptionProviderNames.add(p.name());
+        }
+
+        @Override
+        public void onMemoryProviderRegistered(MemoryProvider p) {}
+
+        @Override
+        public void onPlatformRegistered(PlatformRegistration r) {}
     }
 }

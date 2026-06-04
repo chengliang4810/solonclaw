@@ -7,20 +7,19 @@ import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.CronJobRecord;
-import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.goal.GoalService;
-import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -42,8 +41,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -176,7 +173,6 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"action\":\"policy\"");
     }
 
-
     @Test
     void shouldExposeSubprocessEnvironmentProbeHttpEndpoint() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
@@ -198,6 +194,7 @@ public class DashboardControllerHttpTest {
                 .contains("***")
                 .doesNotContain("ghp_httpdiag1234567890");
     }
+
     @Test
     void shouldReturnStructuredErrorForInvalidProviderValidationRequest() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
@@ -214,7 +211,6 @@ public class DashboardControllerHttpTest {
                 .contains("\"success\":false")
                 .contains("\"code\":\"PROVIDER_VALIDATE_BAD_REQUEST\"");
     }
-
 
     @Test
     void shouldReturnStructuredErrorForInvalidSubprocessEnvironmentProbeJson() throws Exception {
@@ -234,6 +230,7 @@ public class DashboardControllerHttpTest {
                 .contains("请求体 JSON 解析失败")
                 .doesNotContain("ghp_invalidprobe1234567890");
     }
+
     @Test
     void shouldUpdateDashboardPlatformToolsetPolicy() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
@@ -429,7 +426,8 @@ public class DashboardControllerHttpTest {
         assertThat(providers.body).doesNotContain("test-key");
         AppConfig.ProviderConfig defaultProvider =
                 Solon.context().getBean(AppConfig.class).getProviders().get("default");
-        defaultProvider.setBaseUrl("https://user:provider-pass@example.com/v1?token=provider-token");
+        defaultProvider.setBaseUrl(
+                "https://user:provider-pass@example.com/v1?token=provider-token");
         HttpResult maskedProviders = request("GET", "/api/providers", null, token);
         assertThat(maskedProviders.status).isEqualTo(200);
         assertThat(maskedProviders.body)
@@ -503,9 +501,7 @@ public class DashboardControllerHttpTest {
         HttpResult sessionMessages =
                 request("GET", "/api/sessions/dashboard-chat/messages", null, token);
         assertThat(sessionMessages.status).isEqualTo(200);
-        assertThat(sessionMessages.body)
-                .contains("\"goal_state\"")
-                .contains("完成 dashboard 会话目标展示");
+        assertThat(sessionMessages.body).contains("\"goal_state\"").contains("完成 dashboard 会话目标展示");
 
         HttpResult renameSession =
                 request(
@@ -516,17 +512,14 @@ public class DashboardControllerHttpTest {
         assertThat(renameSession.status).isEqualTo(200);
         assertThat(renameSession.body).contains("\"title\":\"Dashboard renamed session\"");
 
-        HttpResult renamedSessions =
-                request("GET", "/api/sessions?limit=20&offset=0", null, token);
+        HttpResult renamedSessions = request("GET", "/api/sessions?limit=20&offset=0", null, token);
         assertThat(renamedSessions.status).isEqualTo(200);
         assertThat(renamedSessions.body).contains("\"title\":\"Dashboard renamed session\"");
 
         HttpResult renamedMessages =
                 request("GET", "/api/sessions/dashboard-chat/messages", null, token);
         assertThat(renamedMessages.status).isEqualTo(200);
-        assertThat(renamedMessages.body)
-                .contains("\"goal_state\"")
-                .contains("完成 dashboard 会话目标展示");
+        assertThat(renamedMessages.body).contains("\"goal_state\"").contains("完成 dashboard 会话目标展示");
 
         HttpResult runs = request("GET", "/api/sessions/dashboard-chat/runs", null, token);
         assertThat(runs.status).isEqualTo(200);
@@ -772,7 +765,10 @@ public class DashboardControllerHttpTest {
         ONode approvalCardDiagnostics = approvalDiagnostics.get("approval_card_policy");
         assertThat(approvalCardDiagnostics.get("outboundApprovalIdSanitized").getBoolean())
                 .isTrue();
-        assertThat(approvalCardDiagnostics.get("unsafeApprovalIdFallsBackToKeySelector").getBoolean())
+        assertThat(
+                        approvalCardDiagnostics
+                                .get("unsafeApprovalIdFallsBackToKeySelector")
+                                .getBoolean())
                 .isTrue();
         assertThat(approvalCardDiagnostics.get("domesticCardLabelsLocalized").getBoolean())
                 .isTrue();
@@ -782,7 +778,8 @@ public class DashboardControllerHttpTest {
         assertThat(mcpDiagnostics.toJson())
                 .doesNotContain("\"oauthFailureMarkers\"")
                 .doesNotContain("\"pathishArgumentKeys\"");
-        ONode toolPolicies = ONode.ofJson(diagnostics.body).get("data").get("tools").get("policies");
+        ONode toolPolicies =
+                ONode.ofJson(diagnostics.body).get("data").get("tools").get("policies");
         assertThat(toolPolicies.toJson())
                 .doesNotContain("\"unsupportedKeywordsStripped\"")
                 .doesNotContain("\"topLevelForbiddenCombinatorsStripped\"")
@@ -821,7 +818,8 @@ public class DashboardControllerHttpTest {
         assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsUrlPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsPathPolicyInherited").getBoolean()).isTrue();
-        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean())
+                .isTrue();
         assertThat(readOnlyAuditPolicy.get("commandPreviewLimitChars").getInt()).isEqualTo(400);
         assertThat(readOnlyAuditPolicy.get("findingMessageLimitChars").getInt()).isEqualTo(1000);
         assertThat(readOnlyAuditPolicy.toJson())
@@ -911,7 +909,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"action\":\"status\"")
                 .contains("\"blocking\":false")
                 .contains("\"approval_required\":false")
-                .contains("\"summary\":\"Security policy status is available without exposing secret values.\"")
+                .contains(
+                        "\"summary\":\"Security policy status is available without exposing secret values.\"")
                 .contains("\"coverage\"")
                 .contains("\"readOnlyAuditPolicy\"")
                 .contains("\"supportsActions\":\"command,url,path,tool_args,policy,status\"")
@@ -1029,18 +1028,23 @@ public class DashboardControllerHttpTest {
         ONode cronNextData = ONode.ofJson(cronNext.body).get("data");
         assertThat(cronNextData.get("count").getInt()).isEqualTo(1);
         assertThat(cronNextData.get("include_disabled").getBoolean()).isFalse();
-        assertThat(cronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(cronNextData.get("jobs").get(0).get("id").getString())
+                .isEqualTo(dashboardCronId);
         HttpResult cronNextLimited = request("GET", "/api/cron/jobs/next?limit=500", null, token);
-        assertThat(ONode.ofJson(cronNextLimited.body).get("data").get("limit").getInt()).isEqualTo(50);
+        assertThat(ONode.ofJson(cronNextLimited.body).get("data").get("limit").getInt())
+                .isEqualTo(50);
         HttpResult apiCronNext =
                 request("GET", "/api/cron/jobs/next?include_disabled=true&limit=1", null, token);
         assertThat(apiCronNext.status).isEqualTo(200);
         ONode apiCronNextData = ONode.ofJson(apiCronNext.body).get("data");
         assertThat(apiCronNextData.get("count").getInt()).isEqualTo(1);
         assertThat(apiCronNextData.get("include_disabled").getBoolean()).isTrue();
-        assertThat(apiCronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
-        HttpResult apiCronNextDefaulted = request("GET", "/api/cron/jobs/next?limit=0", null, token);
-        assertThat(ONode.ofJson(apiCronNextDefaulted.body).get("data").get("limit").getInt()).isEqualTo(5);
+        assertThat(apiCronNextData.get("jobs").get(0).get("id").getString())
+                .isEqualTo(dashboardCronId);
+        HttpResult apiCronNextDefaulted =
+                request("GET", "/api/cron/jobs/next?limit=0", null, token);
+        assertThat(ONode.ofJson(apiCronNextDefaulted.body).get("data").get("limit").getInt())
+                .isEqualTo(5);
 
         HttpResult triggerCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
@@ -1062,7 +1066,8 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("trigger").getString()).isEqualTo("manual");
         assertThat(latestCronRun.get("output").getString())
                 .contains("dashboard trigger ok: daily summary");
-        assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
+        assertThat(latestCronRun.get("delivery_result").get("skipped").getString())
+                .isEqualTo("local");
         assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
         HttpResult apiCronRuns =
@@ -1100,7 +1105,11 @@ public class DashboardControllerHttpTest {
         assertThat(apiCronHistoryData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
 
         HttpResult cronInspect =
-                request("GET", "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+                request(
+                        "GET",
+                        "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1",
+                        null,
+                        token);
         assertThat(cronInspect.status).isEqualTo(200);
         ONode cronInspectData = ONode.ofJson(cronInspect.body).get("data");
         assertThat(cronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
@@ -1110,7 +1119,11 @@ public class DashboardControllerHttpTest {
                 .contains("dashboard trigger ok: daily summary");
 
         HttpResult apiCronInspect =
-                request("GET", "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+                request(
+                        "GET",
+                        "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1",
+                        null,
+                        token);
         assertThat(apiCronInspect.status).isEqualTo(200);
         ONode apiCronInspectData = ONode.ofJson(apiCronInspect.body).get("data");
         assertThat(apiCronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
@@ -1150,7 +1163,8 @@ public class DashboardControllerHttpTest {
         HttpResult apiJobsStatusWithStopped =
                 request("GET", "/api/cron/jobs/status?include_disabled=true&limit=2", null, token);
         assertThat(apiJobsStatusWithStopped.status).isEqualTo(200);
-        ONode apiJobsStatusWithStoppedData = ONode.ofJson(apiJobsStatusWithStopped.body).get("data");
+        ONode apiJobsStatusWithStoppedData =
+                ONode.ofJson(apiJobsStatusWithStopped.body).get("data");
         assertThat(apiJobsStatusWithStoppedData.get("total").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiJobsStatusWithStoppedData.get("paused").getInt()).isGreaterThanOrEqualTo(1);
 
@@ -1161,7 +1175,8 @@ public class DashboardControllerHttpTest {
         HttpResult disableCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/pause", "{}", token);
         assertThat(disableCron.status).isEqualTo(200);
-        assertThat(ONode.ofJson(disableCron.body).get("data").get("enabled").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(disableCron.body).get("data").get("enabled").getBoolean())
+                .isFalse();
         HttpResult resumeCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/resume", "{}", token);
         assertThat(resumeCron.status).isEqualTo(200);
@@ -1169,11 +1184,13 @@ public class DashboardControllerHttpTest {
         HttpResult runCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
         assertThat(runCron.status).isEqualTo(200);
-        assertThat(ONode.ofJson(runCron.body).get("data").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(ONode.ofJson(runCron.body).get("data").get("id").getString())
+                .isEqualTo(dashboardCronId);
         HttpResult retryCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/retry", "{}", token);
         assertThat(retryCron.status).isEqualTo(200);
-        assertThat(ONode.ofJson(retryCron.body).get("data").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(ONode.ofJson(retryCron.body).get("data").get("id").getString())
+                .isEqualTo(dashboardCronId);
         HttpResult invalidMcp =
                 request(
                         "POST",
@@ -1196,8 +1213,7 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(createMcp.status).isEqualTo(200);
 
-        HttpResult checkMcp =
-                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
+        HttpResult checkMcp = request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcp.status).isEqualTo(200);
         assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
         assertThat(checkMcp.body)
@@ -1220,8 +1236,7 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(updateMcp.status).isEqualTo(200);
 
-        HttpResult changedMcp =
-                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
+        HttpResult changedMcp = request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(changedMcp.status).isEqualTo(200);
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body)
@@ -1236,8 +1251,7 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(removeMcpTool.status).isEqualTo(200);
 
-        HttpResult removedMcp =
-                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
+        HttpResult removedMcp = request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(removedMcp.status).isEqualTo(200);
         assertThat(removedMcp.body)
                 .contains("\"tool_changed_notification\"")
@@ -1252,19 +1266,19 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(updateMcpForReloadAll.status).isEqualTo(200);
 
-        HttpResult reloadAllMcp =
-                request("POST", "/api/mcp/reload", "{}", token);
+        HttpResult reloadAllMcp = request("POST", "/api/mcp/reload", "{}", token);
         assertThat(reloadAllMcp.status).isEqualTo(200);
         ONode reloadAllMcpData = ONode.ofJson(reloadAllMcp.body).get("data");
         assertThat(reloadAllMcpData.get("tool_count").getInt()).isGreaterThanOrEqualTo(3);
         assertThat(reloadAllMcpData.get("server_count").getInt()).isGreaterThanOrEqualTo(1);
-        assertThat(stringsAt(reloadAllMcp.body, "changed_servers")).contains("dashboard-local-docs");
+        assertThat(stringsAt(reloadAllMcp.body, "changed_servers"))
+                .contains("dashboard-local-docs");
         assertThat(reloadAllMcp.body).contains("\"tool_changed_notification\":true");
 
-        HttpResult reloadAllMcpAgain =
-                request("POST", "/api/mcp/reload", "{}", token);
+        HttpResult reloadAllMcpAgain = request("POST", "/api/mcp/reload", "{}", token);
         assertThat(reloadAllMcpAgain.status).isEqualTo(200);
-        assertThat(stringsAt(reloadAllMcpAgain.body, "unchanged_servers")).contains("dashboard-local-docs");
+        assertThat(stringsAt(reloadAllMcpAgain.body, "unchanged_servers"))
+                .contains("dashboard-local-docs");
 
         HttpResult mcpList = request("GET", "/api/mcp", null, token);
         assertThat(mcpList.status).isEqualTo(200);
@@ -1346,8 +1360,7 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(updateMcpOAuth.status).isEqualTo(200);
 
-        HttpResult oauthStatus =
-                request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+        HttpResult oauthStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
         assertThat(oauthStatus.status).isEqualTo(200);
         assertThat(oauthStatus.body).contains("\"status\":\"authenticated\"");
         assertThat(oauthStatus.body).contains("\"has_access_token\":true");
@@ -1426,13 +1439,13 @@ public class DashboardControllerHttpTest {
                 .contains("token=***")
                 .doesNotContain("secret-auth");
 
-        HttpResult pendingStatus =
-                request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+        HttpResult pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
         assertThat(pendingStatus.body).contains("\"status\":\"pending\"");
         assertThat(pendingStatus.body).contains("\"has_access_token\":false");
         assertThat(pendingStatus.body).contains("\"has_code_verifier\":true");
 
-        String pendingState = ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+        String pendingState =
+                ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
         assertThat(pendingState).isNotBlank();
 
         HttpResult blockedTokenEndpoint =
@@ -1468,10 +1481,13 @@ public class DashboardControllerHttpTest {
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
-            pendingStatus =
-                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+            pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
-                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+                    ONode.ofJson(pendingStatus.body)
+                            .get("data")
+                            .get("oauth")
+                            .get("state")
+                            .getString();
             tokenEndpoint.failNextTokenResponse();
             HttpResult tokenEndpointError =
                     request(
@@ -1502,10 +1518,13 @@ public class DashboardControllerHttpTest {
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
-            pendingStatus =
-                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+            pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
-                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+                    ONode.ofJson(pendingStatus.body)
+                            .get("data")
+                            .get("oauth")
+                            .get("state")
+                            .getString();
             HttpResult completeOAuth =
                     request(
                             "GET",
@@ -1534,11 +1553,7 @@ public class DashboardControllerHttpTest {
 
             tokenEndpoint.failNextTokenResponse();
             HttpResult refreshTokenEndpointError =
-                    request(
-                            "POST",
-                            "/api/mcp/oauth-docs/oauth/refresh",
-                            "{}",
-                            token);
+                    request("POST", "/api/mcp/oauth-docs/oauth/refresh", "{}", token);
             assertThat(refreshTokenEndpointError.status).isEqualTo(400);
             assertThat(refreshTokenEndpointError.body)
                     .contains("MCP_BAD_REQUEST")
@@ -1553,11 +1568,7 @@ public class DashboardControllerHttpTest {
                     .doesNotContain("token-error-fragment");
 
             HttpResult refreshOAuth =
-                    request(
-                            "POST",
-                            "/api/mcp/oauth-docs/oauth/refresh",
-                            "{}",
-                            token);
+                    request("POST", "/api/mcp/oauth-docs/oauth/refresh", "{}", token);
             assertThat(refreshOAuth.status).isEqualTo(200);
             assertThat(refreshOAuth.body).contains("\"refreshed\":true");
             assertThat(refreshOAuth.body).contains("\"reconnect_required\":true");
@@ -1574,11 +1585,7 @@ public class DashboardControllerHttpTest {
 
             tokenEndpoint.failNextTokenResponse();
             HttpResult handle401RefreshError =
-                    request(
-                            "POST",
-                            "/api/mcp/oauth-docs/oauth/handle-401",
-                            "{}",
-                            token);
+                    request("POST", "/api/mcp/oauth-docs/oauth/handle-401", "{}", token);
             assertThat(handle401RefreshError.status).isEqualTo(200);
             assertThat(handle401RefreshError.body)
                     .contains("\"recovered\":false")
@@ -1609,10 +1616,13 @@ public class DashboardControllerHttpTest {
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
-            pendingStatus =
-                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+            pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
-                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+                    ONode.ofJson(pendingStatus.body)
+                            .get("data")
+                            .get("oauth")
+                            .get("state")
+                            .getString();
             completeOAuth =
                     request(
                             "GET",
@@ -1625,11 +1635,7 @@ public class DashboardControllerHttpTest {
             refreshedToken = tokenEndpoint.lastIssuedRefreshToken();
 
             HttpResult handle401 =
-                    request(
-                            "POST",
-                            "/api/mcp/oauth-docs/oauth/handle-401",
-                            "{}",
-                            token);
+                    request("POST", "/api/mcp/oauth-docs/oauth/handle-401", "{}", token);
             assertThat(handle401.status).isEqualTo(200);
             assertThat(handle401.body).contains("\"recovered\":true");
             assertThat(handle401.body).contains("\"needs_reauth\":false");
@@ -1648,10 +1654,13 @@ public class DashboardControllerHttpTest {
                                     + tokenEndpoint.redirectUrl()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
-            pendingStatus =
-                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+            pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
-                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+                    ONode.ofJson(pendingStatus.body)
+                            .get("data")
+                            .get("oauth")
+                            .get("state")
+                            .getString();
             HttpResult redirectedTokenEndpoint =
                     request(
                             "GET",
@@ -1679,34 +1688,24 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(blockedRefreshServer.status).isEqualTo(200);
         HttpResult blockedRefresh =
-                request(
-                        "POST",
-                        "/api/mcp/blocked-oauth-docs/oauth/refresh",
-                        "{}",
-                        token);
+                request("POST", "/api/mcp/blocked-oauth-docs/oauth/refresh", "{}", token);
         assertThat(blockedRefresh.status).isEqualTo(400);
         assertThat(blockedRefresh.body)
                 .contains("MCP_BAD_REQUEST")
                 .contains("token=***")
                 .doesNotContain("secret-refresh-url");
 
-        HttpResult clearOAuth =
-                request("POST", "/api/mcp/oauth-docs/oauth/clear", "{}", token);
+        HttpResult clearOAuth = request("POST", "/api/mcp/oauth-docs/oauth/clear", "{}", token);
         assertThat(clearOAuth.status).isEqualTo(200);
         assertThat(clearOAuth.body).contains("\"cleared\":true");
         assertThat(clearOAuth.body).doesNotContain("secret-refresh");
 
-        HttpResult clearedStatus =
-                request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+        HttpResult clearedStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
         assertThat(clearedStatus.body).contains("\"status\":\"cleared\"");
         assertThat(clearedStatus.body).contains("\"has_access_token\":false");
 
         HttpResult handle401AfterClear =
-                request(
-                        "POST",
-                        "/api/mcp/oauth-docs/oauth/handle-401",
-                        "{}",
-                        token);
+                request("POST", "/api/mcp/oauth-docs/oauth/handle-401", "{}", token);
         assertThat(handle401AfterClear.status).isEqualTo(200);
         assertThat(handle401AfterClear.body).contains("\"needs_reauth\":true");
         assertThat(handle401AfterClear.body).contains("\"reconnect_required\":false");
@@ -1726,8 +1725,7 @@ public class DashboardControllerHttpTest {
                 "printf api_key=sk-test-secret-token-value\u202E",
                 "需要确认危险命令 Authorization: Bearer ghp_dashboardsecret12345\u202E");
 
-        HttpResult pending =
-                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        HttpResult pending = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         assertThat(pending.status).isEqualTo(200);
         assertThat(pending.body)
                 .contains("\"count\"")
@@ -1790,8 +1788,7 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("ghp_dashboardsecret12345")
                 .contains("Authorization: Bearer ***");
 
-        HttpResult after =
-                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        HttpResult after = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body).doesNotContain("\"session_id\":\"dashboard-approval-chat\"");
     }
@@ -1815,8 +1812,7 @@ public class DashboardControllerHttpTest {
         agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
         agentSession.updateSnapshot();
 
-        HttpResult pending =
-                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        HttpResult pending = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         assertThat(pending.status).isEqualTo(200);
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
@@ -1847,8 +1843,7 @@ public class DashboardControllerHttpTest {
                 "Dashboard always approval session",
                 "rm -rf runtime/cache");
 
-        HttpResult pending =
-                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        HttpResult pending = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
         assertThat(selector).isNotBlank();
@@ -1876,8 +1871,10 @@ public class DashboardControllerHttpTest {
         String patternKey = alwaysData.get("pattern_key").getString();
         assertThat(approvalId).isNotBlank();
         assertThat(patternKey).isNotBlank();
-        assertThat(bean(DangerousCommandApprovalService.class)
-                        .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
+        assertThat(
+                        bean(DangerousCommandApprovalService.class)
+                                .isAlwaysApproved(
+                                        "execute_shell", patternKey, "rm -rf runtime/logs"))
                 .isTrue();
 
         HttpResult revoke =
@@ -1893,8 +1890,10 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"approval_id\":")
                 .doesNotContain("\"approval\":")
                 .doesNotContain("\"approval\":\"execute_shell:rm_recursive_root:");
-        assertThat(bean(DangerousCommandApprovalService.class)
-                        .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
+        assertThat(
+                        bean(DangerousCommandApprovalService.class)
+                                .isAlwaysApproved(
+                                        "execute_shell", patternKey, "rm -rf runtime/logs"))
                 .isFalse();
 
         HttpResult history =
@@ -1922,8 +1921,7 @@ public class DashboardControllerHttpTest {
                 "Dashboard raw always approval session",
                 "curl https://example.test/callback?api_key=ghp_rawalwayssecret12345");
 
-        HttpResult pending =
-                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        HttpResult pending = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         ONode pendingData =
                 findItemByStringField(
                         ONode.ofJson(pending.body).get("data").get("items"),
@@ -2014,18 +2012,16 @@ public class DashboardControllerHttpTest {
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
                         "{\"confirmId\":\""
-                                + jsonEscape(confirmId.substring(0, 8)
-                                        + "\u202E"
-                                        + confirmId.substring(8))
+                                + jsonEscape(
+                                        confirmId.substring(0, 8)
+                                                + "\u202E"
+                                                + confirmId.substring(8))
                                 + "\",\"action\":\"deny\"}",
                         token);
         assertThat(resolve.status).isEqualTo(200);
-        assertThat(resolve.body)
-                .contains("\"success\":true")
-                .contains("已取消 /reload-mcp");
+        assertThat(resolve.body).contains("\"success\":true").contains("已取消 /reload-mcp");
 
-        HttpResult after =
-                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        HttpResult after = request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body).doesNotContain("dashboard-confirm-chat");
     }
@@ -2035,10 +2031,7 @@ public class DashboardControllerHttpTest {
         String token = extractToken(request("GET", "/", null, null).body);
         bean(SlashConfirmService.class)
                 .register(
-                        "MEMORY:dashboard-confirm-once:dashboard-user",
-                        "rollback",
-                        "确认回滚？",
-                        false);
+                        "MEMORY:dashboard-confirm-once:dashboard-user", "rollback", "确认回滚？", false);
 
         HttpResult confirms =
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
@@ -2063,17 +2056,14 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
-                        "{\"confirmId\":\""
-                                + jsonEscape(confirmId)
-                                + "\",\"action\":\"always\"}",
+                        "{\"confirmId\":\"" + jsonEscape(confirmId) + "\",\"action\":\"always\"}",
                         token);
         assertThat(rejected.status).isEqualTo(200);
         assertThat(rejected.body)
                 .contains("\"success\":false")
                 .contains("\"code\":\"always_not_allowed\"");
 
-        HttpResult after =
-                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        HttpResult after = request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body)
                 .contains("\"command_preview\":\"rollback\"")
@@ -2118,9 +2108,7 @@ public class DashboardControllerHttpTest {
         request(
                 "POST",
                 "/api/diagnostics/slash-confirms/resolve",
-                "{\"confirmId\":\""
-                        + jsonEscape(confirmId)
-                        + "\",\"action\":\"deny\"}",
+                "{\"confirmId\":\"" + jsonEscape(confirmId) + "\",\"action\":\"deny\"}",
                 token);
     }
 
@@ -2133,8 +2121,7 @@ public class DashboardControllerHttpTest {
                         "security-selector-check --token=ghp_unsafecommandsecret12345",
                         "确认刷新 Authorization: Bearer ghp_unsafepromptsecret12345");
 
-        HttpResult before =
-                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        HttpResult before = request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(before.status).isEqualTo(200);
         ONode confirm =
                 findItemByStringField(
@@ -2167,8 +2154,7 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("ghp_unsafecommandsecret12345")
                 .doesNotContain("ghp_unsafepromptsecret12345");
 
-        HttpResult after =
-                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        HttpResult after = request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body)
                 .contains("\"command_preview\":\"security-selector-check --token=***\"")
@@ -2181,9 +2167,7 @@ public class DashboardControllerHttpTest {
         request(
                 "POST",
                 "/api/diagnostics/slash-confirms/resolve",
-                "{\"confirmId\":\""
-                        + jsonEscape(confirmId)
-                        + "\",\"action\":\"deny\"}",
+                "{\"confirmId\":\"" + jsonEscape(confirmId) + "\",\"action\":\"deny\"}",
                 token);
     }
 
@@ -2523,9 +2507,7 @@ public class DashboardControllerHttpTest {
                         "{\"name\":\"bad/token-agent-secret\",\"role_prompt\":\"测试错误脱敏\"}",
                         token);
         assertThat(invalid.status).isEqualTo(400);
-        assertThat(invalid.body)
-                .contains("AGENT_BAD_REQUEST")
-                .doesNotContain("token-agent-secret");
+        assertThat(invalid.body).contains("AGENT_BAD_REQUEST").doesNotContain("token-agent-secret");
     }
 
     @Test
@@ -2747,29 +2729,20 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(index.status).isEqualTo(200);
 
-        HttpResult detail =
-                request("GET", "/api/media/dashboard-media-secret", null, token);
+        HttpResult detail = request("GET", "/api/media/dashboard-media-secret", null, token);
         assertThat(detail.status).isEqualTo(200);
         assertThat(detail.body).contains("media://MEMORY/dashboard-secret-token.txt");
         assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(detail.body).doesNotContain("ghp_mediasecret123");
 
         HttpResult download =
-                request(
-                        "POST",
-                        "/api/media/dashboard-media-secret/download",
-                        "{}",
-                        token);
+                request("POST", "/api/media/dashboard-media-secret/download", "{}", token);
         assertThat(download.status).isEqualTo(200);
         assertThat(download.body).contains("media://MEMORY/dashboard-secret-token.txt");
         assertThat(download.body).doesNotContain(runtimeHome.getAbsolutePath());
 
         HttpResult reference =
-                request(
-                        "POST",
-                        "/api/media/dashboard-media-secret/reference",
-                        "{}",
-                        token);
+                request("POST", "/api/media/dashboard-media-secret/reference", "{}", token);
         assertThat(reference.status).isEqualTo(200);
         assertThat(reference.body).contains("media://MEMORY/dashboard-secret-token.txt");
         assertThat(reference.body).doesNotContain(runtimeHome.getAbsolutePath());
@@ -3177,11 +3150,7 @@ public class DashboardControllerHttpTest {
         repository.bindSource(sourceKey, sessionId);
         SqliteAgentSession agentSession = new SqliteAgentSession(record, repository);
         approvalService.storePendingApproval(
-                agentSession,
-                "execute_shell",
-                "rm_recursive_root",
-                description,
-                command);
+                agentSession, "execute_shell", "rm_recursive_root", description, command);
     }
 
     private static <T> T bean(Class<T> type) {
@@ -3306,8 +3275,7 @@ public class DashboardControllerHttpTest {
     }
 
     private static HttpResult requestPatch(
-            String path, String body, String token, Map<String, String> headers)
-            throws Exception {
+            String path, String body, String token, Map<String, String> headers) throws Exception {
         java.net.Socket socket = new java.net.Socket("127.0.0.1", port);
         try {
             byte[] bodyBytes = body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8);
@@ -3322,7 +3290,10 @@ public class DashboardControllerHttpTest {
             }
             if (headers != null) {
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    request.append(entry.getKey()).append(": ").append(entry.getValue()).append("\r\n");
+                    request.append(entry.getKey())
+                            .append(": ")
+                            .append(entry.getValue())
+                            .append("\r\n");
                 }
             }
             request.append("\r\n");
@@ -3490,7 +3461,8 @@ public class DashboardControllerHttpTest {
         private final int port;
         private volatile Map<String, String> lastForm = new LinkedHashMap<String, String>();
         private volatile Map<String, String> redirectForm = new LinkedHashMap<String, String>();
-        private final List<Map<String, String>> forms = new CopyOnWriteArrayList<Map<String, String>>();
+        private final List<Map<String, String>> forms =
+                new CopyOnWriteArrayList<Map<String, String>>();
         private volatile boolean failNextTokenResponse;
         private volatile int refreshCount;
         private volatile String issuedRefreshToken;
@@ -3545,7 +3517,8 @@ public class DashboardControllerHttpTest {
                 String responseJson =
                         "{\"error\":\"client_secret=token-error-client access_token=ghp_tokenerror12345&callback=http://localhost/cb?api%255Fkey=token-error-encoded&token=token-error-secret https://example.test/callback#refresh_token=token-error-fragment\"}";
                 byte[] response = responseJson.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+                exchange.getResponseHeaders()
+                        .set("Content-Type", "application/json; charset=UTF-8");
                 exchange.sendResponseHeaders(400, response.length);
                 OutputStream outputStream = exchange.getResponseBody();
                 try {

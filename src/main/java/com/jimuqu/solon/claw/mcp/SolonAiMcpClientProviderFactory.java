@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw.mcp;
 
 import cn.hutool.core.util.StrUtil;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import org.noear.solon.ai.mcp.McpChannel;
 import org.noear.solon.ai.mcp.client.McpClientProvider;

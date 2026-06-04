@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * QQBot approval keyboard builder.
- * Generates inline keyboard markup for tool approval/denial in QQBot messages.
+ * QQBot approval keyboard builder. Generates inline keyboard markup for tool approval/denial in
+ * QQBot messages.
  */
 public class QQBotApprovalKeyboard {
     public static Map<String, Object> buildApprovalKeyboard(String approvalId, String toolName) {

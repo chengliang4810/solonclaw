@@ -30,7 +30,8 @@ public class RuntimePathGuardTest {
     @Test
     void shouldRedactRejectedToolPathAndAllowedRoots() throws Exception {
         File runtimeHome = Files.createTempDirectory("runtime-path-guard-tool-home").toFile();
-        File outside = Files.createTempDirectory("runtime-path-tool-token=ghp_toolpath12345").toFile();
+        File outside =
+                Files.createTempDirectory("runtime-path-tool-token=ghp_toolpath12345").toFile();
         AppConfig config = loadConfig(runtimeHome);
         RuntimePathGuard guard = new RuntimePathGuard(config);
         File candidate = new File(outside, "private_key.pem");
@@ -49,9 +50,7 @@ public class RuntimePathGuardTest {
         File runtimeHome = Files.createTempDirectory("runtime-path-guard-invalid-home").toFile();
         RuntimePathGuard guard = new RuntimePathGuard(loadConfig(runtimeHome));
         File invalid =
-                new File(
-                        runtimeHome,
-                        "media/token=ghp_pathguardinvalid12345/\u0000/secret.txt");
+                new File(runtimeHome, "media/token=ghp_pathguardinvalid12345/\u0000/secret.txt");
 
         assertThatThrownBy(() -> guard.requireUnderMedia(invalid))
                 .isInstanceOf(IllegalArgumentException.class)

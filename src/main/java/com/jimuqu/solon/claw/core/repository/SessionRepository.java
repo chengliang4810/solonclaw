@@ -108,7 +108,8 @@ public interface SessionRepository {
             return Collections.emptyList();
         }
         List<SessionRecord> records = listLineage(root.getSessionId());
-        Map<String, List<SessionRecord>> childrenByParent = new LinkedHashMap<String, List<SessionRecord>>();
+        Map<String, List<SessionRecord>> childrenByParent =
+                new LinkedHashMap<String, List<SessionRecord>>();
         for (SessionRecord record : records) {
             String parent = record.getParentSessionId();
             if (!isNotBlank(parent)) {

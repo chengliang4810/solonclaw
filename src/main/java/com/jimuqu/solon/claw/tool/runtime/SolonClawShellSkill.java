@@ -22,8 +22,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
-import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.sys.ShellSkill;
+import org.noear.solon.annotation.Param;
 
 /** Solon AI ShellSkill wrapper with local terminal safeguards. */
 public class SolonClawShellSkill extends ShellSkill {
@@ -45,7 +45,13 @@ public class SolonClawShellSkill extends ShellSkill {
 
     public SolonClawShellSkill(
             String workDir, AppConfig appConfig, SecurityPolicyService securityPolicyService) {
-        this(workDir, defaultShellCmd(), defaultExtension(), appConfig, securityPolicyService, null);
+        this(
+                workDir,
+                defaultShellCmd(),
+                defaultExtension(),
+                appConfig,
+                securityPolicyService,
+                null);
     }
 
     public SolonClawShellSkill(
@@ -62,7 +68,8 @@ public class SolonClawShellSkill extends ShellSkill {
                 processRegistry);
     }
 
-    public SolonClawShellSkill(String workDir, String shellCmd, String extension, AppConfig appConfig) {
+    public SolonClawShellSkill(
+            String workDir, String shellCmd, String extension, AppConfig appConfig) {
         this(workDir, shellCmd, extension, appConfig, null, null);
     }
 
@@ -108,7 +115,12 @@ public class SolonClawShellSkill extends ShellSkill {
     @ToolMapping(name = "execute_shell", description = "在本地系统中执行单行指令或多行脚本，并获取标准输出。")
     public String execute(
             @Param("code") String code,
-            @Param(name = "timeout", required = false, defaultValue = "180000", description = "可选前台超时时间，单位为毫秒；显式传入时最大 600000ms，长时间任务请使用 terminal(background=true)。")
+            @Param(
+                            name = "timeout",
+                            required = false,
+                            defaultValue = "180000",
+                            description =
+                                    "可选前台超时时间，单位为毫秒；显式传入时最大 600000ms，长时间任务请使用 terminal(background=true)。")
                     Integer timeout) {
         String commandError = validateCommand(code);
         if (commandError != null) {
@@ -129,7 +141,8 @@ public class SolonClawShellSkill extends ShellSkill {
         String executableCode = rewriteCompoundBackground(code);
         SudoTransform transform = transformSudoCommand(executableCode);
         if (!transform.isChanged()) {
-            return normalizeTerminalOutput(executeWithStdin(executableCode, null, effectiveTimeout));
+            return normalizeTerminalOutput(
+                    executeWithStdin(executableCode, null, effectiveTimeout));
         }
         return normalizeTerminalOutput(
                 executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout));
@@ -147,7 +160,8 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "timeout",
                             required = false,
                             defaultValue = "180",
-                            description = "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
+                            description =
+                                    "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
@@ -158,7 +172,8 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "notify_on_complete",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for compatibility; delivery is handled by higher-level runtime events.")
+                            description =
+                                    "Accepted for compatibility; delivery is handled by higher-level runtime events.")
                     Boolean notifyOnComplete) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, null, null);
     }
@@ -175,7 +190,8 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "timeout",
                             required = false,
                             defaultValue = "180",
-                            description = "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
+                            description =
+                                    "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
@@ -186,13 +202,15 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "notify_on_complete",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for compatibility; delivery is handled by higher-level runtime events.")
+                            description =
+                                    "Accepted for compatibility; delivery is handled by higher-level runtime events.")
                     Boolean notifyOnComplete,
             @Param(
                             name = "pty",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
+                            description =
+                                    "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
                     Boolean pty) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, pty, null);
     }
@@ -213,7 +231,8 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "timeout",
                             required = false,
                             defaultValue = "180",
-                            description = "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
+                            description =
+                                    "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
@@ -224,18 +243,21 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "notify_on_complete",
                             required = false,
                             defaultValue = "false",
-                            description = "When true and background=true, the process is marked for one completion notification.")
+                            description =
+                                    "When true and background=true, the process is marked for one completion notification.")
                     Boolean notifyOnComplete,
             @Param(
                             name = "pty",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
+                            description =
+                                    "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
                     Boolean pty,
             @Param(
                             name = "watch_patterns",
                             required = false,
-                            description = "Strings to watch for in background output. Mutually exclusive with notify_on_complete.")
+                            description =
+                                    "Strings to watch for in background output. Mutually exclusive with notify_on_complete.")
                     List<String> watchPatterns) {
         try {
             if (Boolean.TRUE.equals(background)) {
@@ -369,17 +391,20 @@ public class SolonClawShellSkill extends ShellSkill {
         if (transform.getStdin() != null) {
             managed.writeStdin(transform.getStdin());
         }
-        ToolResultEnvelope envelope = ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
-                .data("session_id", managed.getId())
-                .data("command", SecretRedactor.redact(managed.getCommand()))
-                .data("cwd", managed.displayCwd())
-                .data("pid", managed.getPid())
-                .data("status", managed.isExited() ? "exited" : "running")
-                .data("background", Boolean.TRUE)
-                .data("notify_on_complete", Boolean.TRUE.equals(notifyOnComplete))
-                .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
-                .data("output_preview", normalizeTerminalOutput(managed.outputPreview(1000)))
-                .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid());
+        ToolResultEnvelope envelope =
+                ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
+                        .data("session_id", managed.getId())
+                        .data("command", SecretRedactor.redact(managed.getCommand()))
+                        .data("cwd", managed.displayCwd())
+                        .data("pid", managed.getPid())
+                        .data("status", managed.isExited() ? "exited" : "running")
+                        .data("background", Boolean.TRUE)
+                        .data("notify_on_complete", Boolean.TRUE.equals(notifyOnComplete))
+                        .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
+                        .data(
+                                "output_preview",
+                                normalizeTerminalOutput(managed.outputPreview(1000)))
+                        .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid());
         if (conflictNote != null) {
             envelope.data("watch_patterns_ignored", conflictNote);
         }
@@ -491,7 +516,9 @@ public class SolonClawShellSkill extends ShellSkill {
         summary.put("compoundCommandSupported", Boolean.TRUE);
         summary.put("ptyDisabledForStdinPipe", Boolean.TRUE);
         summary.put("missingPasswordHint", Boolean.TRUE);
-        summary.put("description", "Configured sudo commands are rewritten to use sudo -S -p '' with the password sent through stdin; secrets are never embedded in the visible command.");
+        summary.put(
+                "description",
+                "Configured sudo commands are rewritten to use sudo -S -p '' with the password sent through stdin; secrets are never embedded in the visible command.");
         return summary;
     }
 
@@ -521,7 +548,9 @@ public class SolonClawShellSkill extends ShellSkill {
         summary.put("executeShellExitMeaningNotice", Boolean.TRUE);
         summary.put("exitCodeSemantics", TerminalExitCodeSemantics.policySummary());
         summary.put("foregroundRetryErrorsInterpreted", Boolean.TRUE);
-        summary.put("description", "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail truncation notice, and enriched with timeout, sudo, and exit-code guidance before it is returned.");
+        summary.put(
+                "description",
+                "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail truncation notice, and enriched with timeout, sudo, and exit-code guidance before it is returned.");
         return summary;
     }
 
@@ -597,7 +626,12 @@ public class SolonClawShellSkill extends ShellSkill {
         int n = command.length();
         while (i < n) {
             char ch = command.charAt(i);
-            if (Character.isWhitespace(ch) || ch == ';' || ch == '|' || ch == '&' || ch == '(' || ch == ')') {
+            if (Character.isWhitespace(ch)
+                    || ch == ';'
+                    || ch == '|'
+                    || ch == '&'
+                    || ch == '('
+                    || ch == ')') {
                 break;
             }
             if (ch == '\'') {
@@ -649,7 +683,8 @@ public class SolonClawShellSkill extends ShellSkill {
         return value.indexOf('S') >= 0;
     }
 
-    private boolean startsWithAny(String value, int index, String first, String second, String third) {
+    private boolean startsWithAny(
+            String value, int index, String first, String second, String third) {
         return value.startsWith(first, index)
                 || value.startsWith(second, index)
                 || value.startsWith(third, index);
@@ -692,8 +727,7 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private String executeWithStdin(String code, String stdin, Integer timeoutMs) {
         File dir = resolveForegroundWorkdir(null);
-        ForegroundResult result =
-                executeForeground(code, stdin, timeoutMs, dir);
+        ForegroundResult result = executeForeground(code, stdin, timeoutMs, dir);
         updateLiveWorkDir(result.getCwd());
         String output;
         if (result.getError() != null) {
@@ -705,7 +739,8 @@ public class SolonClawShellSkill extends ShellSkill {
                                 + " "
                                 + StrUtil.blankToDefault(result.getError(), "Command timed out");
                 output = outputWithNotice(result.getOutput(), timeoutNotice).trim();
-                return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
+                return transformTerminalOutput(
+                        code, output, result.getExitCode(), result.getError());
             }
             output = result.getError();
             output = appendExitCodeMeaningNotice(code, output, result.getExitCode());
@@ -882,7 +917,8 @@ public class SolonClawShellSkill extends ShellSkill {
             configured = appConfig.getTerminal().getShellInitFiles();
             autoSource = appConfig.getTerminal().isAutoSourceBashrc();
         }
-        String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
+        String home =
+                StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
         return resolveShellInitFiles(
                 configured,
                 autoSource,
@@ -898,8 +934,7 @@ public class SolonClawShellSkill extends ShellSkill {
             boolean windows,
             String home,
             Map<String, String> env) {
-        return resolveShellInitFiles(
-                configured, autoSourceBashrc, windows, home, env, null);
+        return resolveShellInitFiles(configured, autoSourceBashrc, windows, home, env, null);
     }
 
     static List<String> resolveShellInitFiles(
@@ -988,7 +1023,8 @@ public class SolonClawShellSkill extends ShellSkill {
             String code, String stdin, Integer timeoutMs, File directory) {
         Path tempScript = null;
         try {
-            File safeDirectory = directory == null ? resolveSafeCwd(workPath.toString()) : directory;
+            File safeDirectory =
+                    directory == null ? resolveSafeCwd(workPath.toString()) : directory;
             tempScript = Files.createTempFile(safeDirectory.toPath(), "_script_", extension);
             writeShellScript(tempScript, code);
             java.util.List<String> command =
@@ -1253,7 +1289,10 @@ public class SolonClawShellSkill extends ShellSkill {
                             + " chars omitted out of "
                             + value.length()
                             + " total] ...\n\n";
-            value = value.substring(0, headChars) + notice + value.substring(value.length() - tailChars);
+            value =
+                    value.substring(0, headChars)
+                            + notice
+                            + value.substring(value.length() - tailChars);
         }
         return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(value));
     }
@@ -1295,7 +1334,9 @@ public class SolonClawShellSkill extends ShellSkill {
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
-                    "Blocked: " + verdict.getMessage() + ". Use a simple filesystem path without shell metacharacters.");
+                    "Blocked: "
+                            + verdict.getMessage()
+                            + ". Use a simple filesystem path without shell metacharacters.");
         }
         return workDir;
     }
@@ -1338,7 +1379,8 @@ public class SolonClawShellSkill extends ShellSkill {
         private final Integer exitCode;
         private final String error;
 
-        private TerminalOutputContext(String command, String output, Integer exitCode, String error) {
+        private TerminalOutputContext(
+                String command, String output, Integer exitCode, String error) {
             this.command = command;
             this.output = output;
             this.exitCode = exitCode;
@@ -1459,7 +1501,8 @@ public class SolonClawShellSkill extends ShellSkill {
         }
 
         public ForegroundResult withRetryCount(int retryCount) {
-            return new ForegroundResult(output, exitCode, error, timedOut, Math.max(0, retryCount), cwd);
+            return new ForegroundResult(
+                    output, exitCode, error, timedOut, Math.max(0, retryCount), cwd);
         }
     }
 

@@ -29,9 +29,7 @@ public class GatewayRestartNotificationServiceTest {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(tempDir.toFile().getAbsolutePath());
         File marker =
-                new File(
-                        tempDir.toFile(),
-                        GatewayRestartCoordinator.RESTART_REQUESTER_MARKER);
+                new File(tempDir.toFile(), GatewayRestartCoordinator.RESTART_REQUESTER_MARKER);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("platform", "MEMORY");
         payload.put("chat_id", "admin-chat");

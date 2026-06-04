@@ -24,11 +24,13 @@ public class ExternalSkillDirectoryServiceTest {
         // Create a skill directory with SKILL.md
         File skillDir = new File(extDir, "my-skill");
         skillDir.mkdirs();
-        Files.write(new File(skillDir, "SKILL.md").toPath(),
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
                 "# My Skill\nA test skill".getBytes(StandardCharsets.UTF_8));
 
         // Create a standalone skill file
-        Files.write(new File(extDir, "standalone.md").toPath(),
+        Files.write(
+                new File(extDir, "standalone.md").toPath(),
                 "# Standalone\nAnother skill".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
@@ -66,11 +68,13 @@ public class ExternalSkillDirectoryServiceTest {
         File extDir = new File(tempDir, "external-skills");
         new File(localDir, "local-only").mkdirs();
         extDir.mkdirs();
-        Files.write(new File(localDir, "local-only/SKILL.md").toPath(),
+        Files.write(
+                new File(localDir, "local-only/SKILL.md").toPath(),
                 "# Local".getBytes(StandardCharsets.UTF_8));
         File skillDir = new File(extDir, "external-only");
         skillDir.mkdirs();
-        Files.write(new File(skillDir, "SKILL.md").toPath(),
+        Files.write(
+                new File(skillDir, "SKILL.md").toPath(),
                 "# External".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
@@ -87,7 +91,8 @@ public class ExternalSkillDirectoryServiceTest {
         List<SkillDescriptor> skills = service.scanExternalSkills();
 
         assertThat(service.getExternalDirs()).hasSize(1);
-        assertThat(service.getExternalDirs().get(0).getCanonicalFile()).isEqualTo(extDir.getCanonicalFile());
+        assertThat(service.getExternalDirs().get(0).getCanonicalFile())
+                .isEqualTo(extDir.getCanonicalFile());
         assertThat(skills).extracting(SkillDescriptor::getName).containsExactly("external-only");
     }
 
@@ -123,11 +128,14 @@ public class ExternalSkillDirectoryServiceTest {
         assertThat(status.get("cacheHit")).isEqualTo(Boolean.TRUE);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> directories = (List<Map<String, Object>>) status.get("directories");
+        List<Map<String, Object>> directories =
+                (List<Map<String, Object>>) status.get("directories");
         assertThat(directories).hasSize(1);
-        assertThat(directories.get(0).get("path")).isEqualTo(directories.get(0).get("normalizedPath"));
+        assertThat(directories.get(0).get("path"))
+                .isEqualTo(directories.get(0).get("normalizedPath"));
         assertThat(directories.get(0).get("configuredPath")).isEqualTo(extDir.getAbsolutePath());
-        assertThat(directories.get(0).get("normalizedPath")).isEqualTo(service.getExternalDirs().get(0).getAbsolutePath());
+        assertThat(directories.get(0).get("normalizedPath"))
+                .isEqualTo(service.getExternalDirs().get(0).getAbsolutePath());
         assertThat(directories.get(0).get("included")).isEqualTo(Boolean.TRUE);
         assertThat(directories.get(0).get("duplicate")).isEqualTo(Boolean.FALSE);
         assertThat(directories.get(0).get("local")).isEqualTo(Boolean.FALSE);
@@ -161,7 +169,8 @@ public class ExternalSkillDirectoryServiceTest {
         assertThat(((Number) status.get("duplicateDirs")).intValue()).isEqualTo(1);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> directories = (List<Map<String, Object>>) status.get("directories");
+        List<Map<String, Object>> directories =
+                (List<Map<String, Object>>) status.get("directories");
         assertThat(directories).hasSize(3);
         assertThat(directories.get(0).get("local")).isEqualTo(Boolean.TRUE);
         assertThat(directories.get(0).get("included")).isEqualTo(Boolean.FALSE);
@@ -169,8 +178,10 @@ public class ExternalSkillDirectoryServiceTest {
         assertThat(directories.get(1).get("included")).isEqualTo(Boolean.TRUE);
         assertThat(directories.get(2).get("duplicate")).isEqualTo(Boolean.TRUE);
         assertThat(directories.get(2).get("included")).isEqualTo(Boolean.FALSE);
-        assertThat(directories.get(1).get("normalizedPath")).isEqualTo(directories.get(2).get("normalizedPath"));
-        assertThat(directories.get(1).get("normalizedPath")).isEqualTo(service.getExternalDirs().get(0).getAbsolutePath());
+        assertThat(directories.get(1).get("normalizedPath"))
+                .isEqualTo(directories.get(2).get("normalizedPath"));
+        assertThat(directories.get(1).get("normalizedPath"))
+                .isEqualTo(service.getExternalDirs().get(0).getAbsolutePath());
     }
 
     @Test
@@ -212,7 +223,8 @@ public class ExternalSkillDirectoryServiceTest {
         File tempDir = Files.createTempDirectory("ext-skill-readme").toFile();
         File extDir = new File(tempDir, "ext");
         extDir.mkdirs();
-        Files.write(new File(extDir, "README.md").toPath(),
+        Files.write(
+                new File(extDir, "README.md").toPath(),
                 "# README".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();

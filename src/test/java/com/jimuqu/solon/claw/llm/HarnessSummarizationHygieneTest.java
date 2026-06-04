@@ -29,7 +29,8 @@ public class HarnessSummarizationHygieneTest {
     @Test
     void shouldWrapRuntimeSummaryAsReferenceOnlyAssistantMessage() {
         SolonAiLlmGateway.SummaryBoundaryStrategy strategy =
-                new SolonAiLlmGateway.SummaryBoundaryStrategy(new FixedSummaryStrategy("do old task"));
+                new SolonAiLlmGateway.SummaryBoundaryStrategy(
+                        new FixedSummaryStrategy("do old task"));
 
         ChatMessage summary =
                 strategy.summarize(new PreparedTrace(), Collections.<ChatMessage>emptyList());
@@ -62,9 +63,7 @@ public class HarnessSummarizationHygieneTest {
         assertThat(messages.get(0).getContent()).startsWith(CompressionConstants.SUMMARY_PREFIX);
         AssistantMessage repaired = (AssistantMessage) messages.get(1);
         assertThat(repaired.getToolCalls()).isNullOrEmpty();
-        assertThat(messages)
-                .extracting(ChatMessage::getRole)
-                .doesNotContain(ChatRole.TOOL);
+        assertThat(messages).extracting(ChatMessage::getRole).doesNotContain(ChatRole.TOOL);
     }
 
     @Test
@@ -82,7 +81,8 @@ public class HarnessSummarizationHygieneTest {
 
         assertThat(copied)
                 .isInstanceOf(SolonAiLlmGateway.SafeHarnessSummarizationInterceptor.class);
-        AssistantMessage repaired = (AssistantMessage) trace.getWorkingMemory().getMessages().get(1);
+        AssistantMessage repaired =
+                (AssistantMessage) trace.getWorkingMemory().getMessages().get(1);
         assertThat(repaired.getToolCalls()).isNullOrEmpty();
     }
 
@@ -99,7 +99,8 @@ public class HarnessSummarizationHygieneTest {
                         ChatConfig.class);
         method.setAccessible(true);
         SummarizationInterceptor interceptor =
-                (SummarizationInterceptor) method.invoke(gateway, config.getLlm(), new ChatConfig());
+                (SummarizationInterceptor)
+                        method.invoke(gateway, config.getLlm(), new ChatConfig());
         SummarizationInterceptor copied = interceptor.copyWith(10, 8000);
         ReActTrace trace = traceWithOrphanToolCallAfterCompressionCut();
         int before = trace.getWorkingMemory().getMessages().size();
@@ -138,11 +139,7 @@ public class HarnessSummarizationHygieneTest {
             SessionRecord sessionRecord = new SessionRecord();
             sessionRecord.setSessionId("summary-hygiene-test");
             AgentSession session = new SqliteAgentSession(sessionRecord);
-            prepare(
-                    new ReActAgentConfig(chatModel),
-                    new ReActOptions(chatModel),
-                    session,
-                    null);
+            prepare(new ReActAgentConfig(chatModel), new ReActOptions(chatModel), session, null);
         }
     }
 

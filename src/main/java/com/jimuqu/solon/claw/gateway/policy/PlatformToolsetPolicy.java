@@ -9,10 +9,11 @@ import java.util.List;
 /**
  * 平台工具集权限策略。
  *
- * <p>根据 {@code solonclaw.gateway.platforms.<platform>.enabledToolsets} 和
- * {@code disabledToolsets} 配置，决定特定平台允许使用的工具集列表。
+ * <p>根据 {@code solonclaw.gateway.platforms.<platform>.enabledToolsets} 和 {@code disabledToolsets}
+ * 配置，决定特定平台允许使用的工具集列表。
  *
  * <p>规则优先级：
+ *
  * <ol>
  *   <li>disabledToolsets 中的工具集始终被禁用，优先级最高。
  *   <li>enabledToolsets 非空时，只允许列表中的工具集。
@@ -39,8 +40,7 @@ public final class PlatformToolsetPolicy {
             return safeList(globalToolsets);
         }
 
-        AppConfig.PlatformConfig platformConfig =
-                gatewayConfig.getPlatforms().get(platform.name());
+        AppConfig.PlatformConfig platformConfig = gatewayConfig.getPlatforms().get(platform.name());
         if (platformConfig == null) {
             return safeList(globalToolsets);
         }
@@ -77,8 +77,7 @@ public final class PlatformToolsetPolicy {
         if (platform == null || gatewayConfig == null) {
             return false;
         }
-        AppConfig.PlatformConfig platformConfig =
-                gatewayConfig.getPlatforms().get(platform.name());
+        AppConfig.PlatformConfig platformConfig = gatewayConfig.getPlatforms().get(platform.name());
         return platformConfig != null && platformConfig.isApprovalRequired();
     }
 

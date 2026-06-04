@@ -89,7 +89,8 @@ public class RuntimeConfigResolverTest {
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-5.4");
         config.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
 
         Map<String, Object> diagnostics = resolver.diagnostics(config);
         String text = String.valueOf(diagnostics);
@@ -123,7 +124,8 @@ public class RuntimeConfigResolverTest {
                         + "  allow_private_urls: false\n",
                 new File(runtimeHome, "config.yml"));
 
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
 
         assertThat(resolver.get("jimuqu.terminal.sudoPassword")).isNull();
         assertThat(resolver.get("tool_output.max_bytes")).isNull();
@@ -154,10 +156,7 @@ public class RuntimeConfigResolverTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("密钥配置");
 
-        assertThatThrownBy(
-                        () ->
-                                service.updateSecret(
-                                        "solonclaw.react.maxSteps", "10", false))
+        assertThatThrownBy(() -> service.updateSecret("solonclaw.react.maxSteps", "10", false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不是密钥配置");
 

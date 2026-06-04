@@ -183,7 +183,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             }
             long now = System.currentTimeMillis();
             long lastActivityAt =
-                    record.getLastActivityAt() > 0 ? record.getLastActivityAt() : record.getStartedAt();
+                    record.getLastActivityAt() > 0
+                            ? record.getLastActivityAt()
+                            : record.getStartedAt();
             Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
             summary.put("run_id", record.getRunId());
             summary.put("session_id", record.getSessionId());
@@ -274,7 +276,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 agentRunRepository.saveRun(active);
                 appendRunEvent(active, "run.interrupting", "收到新消息，按 interrupt 策略打断当前 run", null);
             }
-            recordCommand(handle.runId, key, "interrupt", "{\"reason\":\"busy_policy\"}", "handled");
+            recordCommand(
+                    handle.runId, key, "interrupt", "{\"reason\":\"busy_policy\"}", "handled");
             stop(key);
             return RunBusyDecision.runNow(policy);
         }
@@ -322,8 +325,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     @Override
-    public RunBusyDecision queueIncoming(
-            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+    public RunBusyDecision queueIncoming(String sourceKey, String sessionId, GatewayMessage message)
+            throws Exception {
         String key = normalizeSourceKey(sourceKey);
         QueuedRunMessage queued = queueMessage(key, sessionId, message, "queue");
         RunBusyDecision decision = new RunBusyDecision();
@@ -337,8 +340,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     @Override
-    public RunBusyDecision steerIncoming(
-            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+    public RunBusyDecision steerIncoming(String sourceKey, String sessionId, GatewayMessage message)
+            throws Exception {
         String key = normalizeSourceKey(sourceKey);
         RunHandle handle = runningRuns.get(key);
         if (handle == null || handle.cancelled.get()) {
@@ -374,19 +377,21 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (record == null) {
             throw new IllegalArgumentException("Run not found: " + runId);
         }
-        String normalized =
-                StrUtil.blankToDefault(command, "").trim().toLowerCase(Locale.ROOT);
+        String normalized = StrUtil.blankToDefault(command, "").trim().toLowerCase(Locale.ROOT);
         String payloadJson = payload == null ? null : org.noear.snack4.ONode.serialize(payload);
         recordCommand(runId, record.getSourceKey(), normalized, payloadJson, "handled");
         Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
         result.put("run_id", runId);
         result.put("command", normalized);
-        if ("cancel".equals(normalized) || "interrupt".equals(normalized) || "stop".equals(normalized)) {
+        if ("cancel".equals(normalized)
+                || "interrupt".equals(normalized)
+                || "stop".equals(normalized)) {
             record.setStatus("interrupting");
             record.setPhase("interrupting");
             record.setLastActivityAt(System.currentTimeMillis());
             agentRunRepository.saveRun(record);
-            appendRunEvent(record, "run.control." + normalized, "收到控制命令：" + normalized, payloadJson);
+            appendRunEvent(
+                    record, "run.control." + normalized, "收到控制命令：" + normalized, payloadJson);
             result.put("result", stop(record.getSourceKey()));
             result.put("ok", true);
             result.put("status", "interrupting");
@@ -564,7 +569,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runRecord.setSourceKey(session.getSourceKey());
         }
         AgentRunContext parentContext = AgentRunContext.current();
-        boolean subagentRun = parentContext != null && !StrUtil.equals(parentContext.getSourceKey(), session.getSourceKey());
+        boolean subagentRun =
+                parentContext != null
+                        && !StrUtil.equals(parentContext.getSourceKey(), session.getSourceKey());
         runRecord.setRunKind(subagentRun ? "subagent" : (resume ? "resume" : "conversation"));
         runRecord.setParentRunId(subagentRun ? parentContext.getRunId() : null);
         runRecord.setAgentName(agentScope.getEffectiveName());
@@ -977,7 +984,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
         } catch (Exception e) {
             String error = safeError(e);
             runContext.event("recovery.error", error);
-            log.warn("Agent recovery failed: sessionId={}, error={}", session.getSessionId(), error);
+            log.warn(
+                    "Agent recovery failed: sessionId={}, error={}", session.getSessionId(), error);
             return null;
         } finally {
             if (runContext != null) {
@@ -1059,7 +1067,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 assistantMessage.getContentRaw() == null
                         ? ""
                         : assistantMessage.getContentRaw().getClass().getName(),
-                assistantMessage.getToolCalls() == null ? 0 : assistantMessage.getToolCalls().size());
+                assistantMessage.getToolCalls() == null
+                        ? 0
+                        : assistantMessage.getToolCalls().size());
         return "";
     }
 
@@ -1367,8 +1377,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             if (session == null) {
                 return;
             }
-            SqliteAgentSession agentSession =
-                    new SqliteAgentSession(session, sessionRepository);
+            SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
             agentSession.pending(true, resumeReason);
             agentSession.updateSnapshot();
         } catch (Exception e) {
@@ -1471,7 +1480,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private GatewayMessage deserializeMessage(QueuedRunMessage queued) {
         GatewayMessage message = new GatewayMessage();
         try {
-            Object parsed = org.noear.snack4.ONode.deserialize(queued.getMessageJson(), Object.class);
+            Object parsed =
+                    org.noear.snack4.ONode.deserialize(queued.getMessageJson(), Object.class);
             if (parsed instanceof Map) {
                 Map<?, ?> map = (Map<?, ?>) parsed;
                 message.setPlatform(
@@ -1540,15 +1550,22 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 GatewayReply reply = runner.apply(deserializeMessage(queued));
                 agentRunRepository.markQueuedMessage(
                         queued.getQueueId(), "success", System.currentTimeMillis(), null);
-                markQueuedRunFinished(queued, "success", reply == null ? null : reply.getContent(), null);
+                markQueuedRunFinished(
+                        queued, "success", reply == null ? null : reply.getContent(), null);
             } catch (Exception e) {
                 try {
                     agentRunRepository.markQueuedMessage(
-                            queued.getQueueId(), "failed", System.currentTimeMillis(), safeError(e));
+                            queued.getQueueId(),
+                            "failed",
+                            System.currentTimeMillis(),
+                            safeError(e));
                 } catch (Exception ignored) {
                 }
                 markQueuedRunFinished(queued, "failed", null, safeError(e));
-                log.warn("queued run failed: queueId={}, error={}", queued.getQueueId(), safeError(e));
+                log.warn(
+                        "queued run failed: queueId={}, error={}",
+                        queued.getQueueId(),
+                        safeError(e));
             }
         }
     }
@@ -1669,7 +1686,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (error == null) {
             return "";
         }
-        return safeText(StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()));
+        return safeText(
+                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()));
     }
 
     private String safeText(String value) {

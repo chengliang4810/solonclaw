@@ -2,15 +2,15 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.jimuqu.solon.claw.support.SecretRedactor;
-import org.noear.solon.annotation.Param;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
+import org.noear.solon.annotation.Param;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
 
@@ -41,7 +41,8 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/next", method = MethodType.GET)
-    public Map<String, Object> next(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+    public Map<String, Object> next(Context context, @Param(defaultValue = "5") Integer limit)
+            throws Exception {
         boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
         int safeLimit = safeLimit(limit, 5, 50);
         List<Map<String, Object>> jobs = cronService.nextJobs(safeLimit, includeDisabled);
@@ -54,9 +55,11 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/status", method = MethodType.GET)
-    public Map<String, Object> status(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+    public Map<String, Object> status(Context context, @Param(defaultValue = "5") Integer limit)
+            throws Exception {
         boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
-        return DashboardResponse.ok(cronService.status(includeDisabled, limit == null ? 5 : limit.intValue()));
+        return DashboardResponse.ok(
+                cronService.status(includeDisabled, limit == null ? 5 : limit.intValue()));
     }
 
     @Mapping(value = "/api/cron/jobs", method = MethodType.POST)
@@ -89,10 +92,11 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/inspect", method = MethodType.GET)
-    public Map<String, Object> inspect(String id, @Param(defaultValue = "5") Integer limit, Context context)
-            throws Exception {
+    public Map<String, Object> inspect(
+            String id, @Param(defaultValue = "5") Integer limit, Context context) throws Exception {
         try {
-            return DashboardResponse.ok(cronService.inspect(id, limit == null ? 5 : limit.intValue()));
+            return DashboardResponse.ok(
+                    cronService.inspect(id, limit == null ? 5 : limit.intValue()));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -165,10 +169,14 @@ public class DashboardCronController {
         return dashboardRunJob(id, context, true);
     }
 
-    private Map<String, Object> dashboardRunJob(String id, Context context, boolean retry) throws Exception {
+    private Map<String, Object> dashboardRunJob(String id, Context context, boolean retry)
+            throws Exception {
         try {
             Map<String, Object> requestBody = body(context);
-            return DashboardResponse.ok(retry ? cronService.retry(id, requestBody) : cronService.trigger(id, requestBody));
+            return DashboardResponse.ok(
+                    retry
+                            ? cronService.retry(id, requestBody)
+                            : cronService.trigger(id, requestBody));
         } catch (BodyParseException e) {
             context.status(400);
             return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
@@ -182,14 +190,17 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/runs", method = MethodType.GET)
-    public Map<String, Object> history(String id, @Param(defaultValue = "20") Integer limit, Context context)
+    public Map<String, Object> history(
+            String id, @Param(defaultValue = "20") Integer limit, Context context)
             throws Exception {
         return dashboardHistoryData(id, limit, context);
     }
 
-    private Map<String, Object> dashboardHistoryData(String id, Integer limit, Context context) throws Exception {
+    private Map<String, Object> dashboardHistoryData(String id, Integer limit, Context context)
+            throws Exception {
         try {
-            List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
+            List<Map<String, Object>> runs =
+                    cronService.history(id, limit == null ? 20 : limit.intValue());
             Map<String, Object> data = new LinkedHashMap<String, Object>();
             data.put("job_id", id);
             data.put("runs", runs);

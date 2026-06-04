@@ -402,7 +402,8 @@ public class RuntimeSettingsService {
     }
 
     public void setSecretValue(String key, String value) {
-        dashboardRuntimeConfigService.updateSecret(key, value, shouldReconnectChannelsForRuntimeKey(key));
+        dashboardRuntimeConfigService.updateSecret(
+                key, value, shouldReconnectChannelsForRuntimeKey(key));
     }
 
     private void ensureConfigKeyAllowed(String key) {

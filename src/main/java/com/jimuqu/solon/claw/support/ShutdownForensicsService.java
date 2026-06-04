@@ -27,7 +27,9 @@ public class ShutdownForensicsService {
         Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
         long now = System.currentTimeMillis();
         snapshot.put("timestamp", Long.valueOf(now));
-        snapshot.put("timestampIso", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date(now)));
+        snapshot.put(
+                "timestampIso",
+                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date(now)));
         snapshot.put("reason", StrUtil.blankToDefault(reason, "unknown"));
         snapshot.put("uptimeMs", Long.valueOf(now - startedAt));
         snapshot.put("pid", getPid());
@@ -39,7 +41,9 @@ public class ShutdownForensicsService {
         memory.put("maxMb", Long.valueOf(runtime.maxMemory() / (1024 * 1024)));
         memory.put("totalMb", Long.valueOf(runtime.totalMemory() / (1024 * 1024)));
         memory.put("freeMb", Long.valueOf(runtime.freeMemory() / (1024 * 1024)));
-        memory.put("usedMb", Long.valueOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)));
+        memory.put(
+                "usedMb",
+                Long.valueOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)));
         snapshot.put("memory", memory);
 
         Map<String, Object> threads = new LinkedHashMap<String, Object>();
@@ -55,7 +59,10 @@ public class ShutdownForensicsService {
             Map<String, Object> snapshot = snapshotShutdownContext(reason);
             File forensicsDir = new File(appConfig.getRuntime().getHome(), "forensics");
             FileUtil.mkdir(forensicsDir);
-            String fileName = "shutdown-" + new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".json";
+            String fileName =
+                    "shutdown-"
+                            + new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date())
+                            + ".json";
             File file = new File(forensicsDir, fileName);
             FileUtil.writeString(ONode.serialize(snapshot), file, StandardCharsets.UTF_8);
             cleanOldRecords(forensicsDir, 20);
@@ -74,8 +81,11 @@ public class ShutdownForensicsService {
                 return null;
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) ONode.deserialize(
-                    FileUtil.readString(latest, StandardCharsets.UTF_8), Object.class);
+            Map<String, Object> data =
+                    (Map<String, Object>)
+                            ONode.deserialize(
+                                    FileUtil.readString(latest, StandardCharsets.UTF_8),
+                                    Object.class);
             return data;
         } catch (Exception e) {
             return null;
@@ -111,12 +121,14 @@ public class ShutdownForensicsService {
         if (files == null || files.length <= keepCount) {
             return;
         }
-        java.util.Arrays.sort(files, new java.util.Comparator<File>() {
-            @Override
-            public int compare(File a, File b) {
-                return Long.compare(a.lastModified(), b.lastModified());
-            }
-        });
+        java.util.Arrays.sort(
+                files,
+                new java.util.Comparator<File>() {
+                    @Override
+                    public int compare(File a, File b) {
+                        return Long.compare(a.lastModified(), b.lastModified());
+                    }
+                });
         int toDelete = files.length - keepCount;
         for (int i = 0; i < toDelete; i++) {
             files[i].delete();

@@ -85,11 +85,9 @@ public class RuntimeRefreshBehaviorTest {
 
         runtimeSettingsService.setConfigValue("security.websiteBlocklist.enabled", "true");
         runtimeSettingsService.setConfigValue(
-                "security.websiteBlocklist.domains",
-                "blocked.example, *.tracking.example");
+                "security.websiteBlocklist.domains", "blocked.example, *.tracking.example");
         runtimeSettingsService.setConfigValue(
-                "security.websiteBlocklist.sharedFiles",
-                "community-blocklist.txt");
+                "security.websiteBlocklist.sharedFiles", "community-blocklist.txt");
         runtimeSettingsService.setConfigValue("security.tirithEnabled", "false");
         runtimeSettingsService.setConfigValue("security.tirithTimeoutSeconds", "9");
         runtimeSettingsService.setConfigValue("security.hardlineAllowlist", "hardline_delete_root");
@@ -127,13 +125,16 @@ public class RuntimeRefreshBehaviorTest {
     void shouldPersistPromptCacheDashboardConfigWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
-        Map<PlatformType, ChannelAdapter> adapters = new LinkedHashMap<PlatformType, ChannelAdapter>();
+        Map<PlatformType, ChannelAdapter> adapters =
+                new LinkedHashMap<PlatformType, ChannelAdapter>();
         adapters.put(adapter.platform(), adapter);
         GatewayRuntimeRefreshService refreshService =
                 new GatewayRuntimeRefreshService(
                         env.appConfig,
-                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(adapters));
-        DashboardConfigService configService = new DashboardConfigService(env.appConfig, refreshService);
+                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
+                                adapters));
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, refreshService);
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
         updates.put("llm.promptCache.enabled", Boolean.TRUE);
         updates.put("llm.promptCache.ttl", "1h");
@@ -162,7 +163,8 @@ public class RuntimeRefreshBehaviorTest {
                         env.appConfig,
                         new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
                                 adapters));
-        DashboardConfigService configService = new DashboardConfigService(env.appConfig, refreshService);
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, refreshService);
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
@@ -241,8 +243,9 @@ public class RuntimeRefreshBehaviorTest {
                 .contains("approvals:")
                 .contains("mcpReloadConfirm: false")
                 .doesNotContain("solonclaw:\n  approvals:");
-        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
-                        .get("approvals.mcpReloadConfirm"))
+        assertThat(
+                        RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                                .get("approvals.mcpReloadConfirm"))
                 .isEqualTo("false");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
@@ -366,8 +369,7 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldRejectUnsafeWebsiteBlocklistSharedFilePathsFromDashboardWrites()
-            throws Exception {
+    void shouldRejectUnsafeWebsiteBlocklistSharedFilePathsFromDashboardWrites() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardConfigService configService =
                 new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
@@ -644,8 +646,7 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldReuseFreshProviderModelListCacheAndFallbackWhenRefreshFails()
-            throws Exception {
+    void shouldReuseFreshProviderModelListCacheAndFallbackWhenRefreshFails() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
             final int[] hits = new int[] {0};
@@ -775,8 +776,7 @@ public class RuntimeRefreshBehaviorTest {
             Map<String, Object> result =
                     providerService.validateProvider(
                             providerProbe(
-                                    "http://127.0.0.1:" + server.getAddress().getPort(),
-                                    "openai"));
+                                    "http://127.0.0.1:" + server.getAddress().getPort(), "openai"));
 
             assertThat(result.get("ok")).isEqualTo(Boolean.FALSE);
             assertThat(result.get("reachable")).isEqualTo(Boolean.TRUE);
@@ -795,8 +795,7 @@ public class RuntimeRefreshBehaviorTest {
                 new ThrowingDashboardProviderService(
                         new AppConfig(), "connect failed token=ghp_unreachablevalidate12345");
         Map<String, Object> unreachable =
-                providerService.validateProvider(
-                        providerProbe("http://127.0.0.1:1", "openai"));
+                providerService.validateProvider(providerProbe("http://127.0.0.1:1", "openai"));
 
         assertThat(unreachable.get("ok")).isEqualTo(Boolean.FALSE);
         assertThat(unreachable.get("reachable")).isEqualTo(Boolean.FALSE);
@@ -924,7 +923,11 @@ public class RuntimeRefreshBehaviorTest {
                 GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
                 LlmProviderService llmProviderService,
                 SecurityPolicyService securityPolicyService) {
-            super(appConfig, gatewayRuntimeRefreshService, llmProviderService, securityPolicyService);
+            super(
+                    appConfig,
+                    gatewayRuntimeRefreshService,
+                    llmProviderService,
+                    securityPolicyService);
         }
 
         @Override

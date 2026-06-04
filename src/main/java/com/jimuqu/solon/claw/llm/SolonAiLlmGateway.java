@@ -2,8 +2,8 @@ package com.jimuqu.solon.claw.llm;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -18,8 +18,8 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
-import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
@@ -28,8 +28,8 @@ import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
@@ -40,8 +40,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -50,6 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.AiUsage;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
@@ -88,7 +89,6 @@ import org.noear.solon.ai.llm.dialect.ollama.OllamaChatDialect;
 import org.noear.solon.ai.llm.dialect.openai.OpenaiChatDialect;
 import org.noear.solon.ai.llm.dialect.openai.OpenaiResponsesDialect;
 import org.noear.solon.ai.skills.pdf.PdfSkill;
-import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -556,7 +556,12 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
             throw new IllegalStateException("ReActAgent stream failed", e);
         }
-        emitThinking(thinkingSplitter.flushPending(), emittedText, eventSink, feedbackSink, memoryScrubber);
+        emitThinking(
+                thinkingSplitter.flushPending(),
+                emittedText,
+                eventSink,
+                feedbackSink,
+                memoryScrubber);
         String remainingVisible = memoryScrubber.flush();
         if (StrUtil.isNotBlank(remainingVisible)) {
             emittedText.append(remainingVisible);
@@ -570,7 +575,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         String finalText = MemoryContextBoundary.scrubVisibleText(extractText(assistantMessage));
         String emitted = emittedText.toString();
         if (StrUtil.isNotBlank(finalText) && finalText.startsWith(emitted)) {
-            String tail = MemoryContextBoundary.scrubVisibleText(finalText.substring(emitted.length()));
+            String tail =
+                    MemoryContextBoundary.scrubVisibleText(finalText.substring(emitted.length()));
             if (StrUtil.isNotBlank(tail)) {
                 eventSink.onAssistantDelta(tail);
             }
@@ -726,12 +732,15 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (StrUtil.isNotBlank(assistantMessage.getContent())) {
             return assistantMessage.getContent().trim();
         }
-        log.warn("Assistant message has no visible content; suppressing message object fallback: role={}, contentRawType={}, toolCalls={}",
+        log.warn(
+                "Assistant message has no visible content; suppressing message object fallback: role={}, contentRawType={}, toolCalls={}",
                 assistantMessage.getRole(),
                 assistantMessage.getContentRaw() == null
                         ? ""
                         : assistantMessage.getContentRaw().getClass().getName(),
-                assistantMessage.getToolCalls() == null ? 0 : assistantMessage.getToolCalls().size());
+                assistantMessage.getToolCalls() == null
+                        ? 0
+                        : assistantMessage.getToolCalls().size());
         return "";
     }
 
@@ -974,8 +983,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     "effort", reasoningEffort.trim()));
         }
         if (session != null
-                && "priority".equalsIgnoreCase(
-                        StrUtil.nullToEmpty(session.getServiceTierOverride()).trim())) {
+                && "priority"
+                        .equalsIgnoreCase(
+                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim())) {
             chatConfig.getModelOptions().optionSet("service_tier", "priority");
         }
 
@@ -1367,7 +1377,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         @Override
-        public void onObservation(ReActTrace trace, String toolName, String result, long durationMs) {
+        public void onObservation(
+                ReActTrace trace, String toolName, String result, long durationMs) {
             if (trace == null || trace.getWorkingMemory() == null) {
                 return;
             }
@@ -1572,7 +1583,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 .call();
                 return parseSmartApprovalResponse(response == null ? null : response.getContent());
             } catch (Exception e) {
-                log.warn("Smart approval judge failed, escalating to manual approval: {}", e.getMessage());
+                log.warn(
+                        "Smart approval judge failed, escalating to manual approval: {}",
+                        e.getMessage());
                 return SmartApprovalDecision.escalate("smart approval failed");
             }
         }
@@ -1732,7 +1745,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                 result.setTotalTokens(totalTokens);
             }
             if (!rawUsageJson.isEmpty()) {
-                result.setRawUsageJson(rawUsageJson.size() == 1 ? rawUsageJson.get(0) : rawUsageArrayJson());
+                result.setRawUsageJson(
+                        rawUsageJson.size() == 1 ? rawUsageJson.get(0) : rawUsageArrayJson());
             }
         }
 
@@ -1874,9 +1888,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 new ConcurrentHashMap<String, ToolCallRecord>();
 
         private TracingReActInterceptor(
-                AgentRunContext runContext,
-                int previewLength,
-                int inlineLimitBytes) {
+                AgentRunContext runContext, int previewLength, int inlineLimitBytes) {
             this.runContext = runContext;
             this.previewLength = Math.max(200, previewLength);
             this.inlineLimitBytes = Math.max(256, inlineLimitBytes);
@@ -1948,7 +1960,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                 record.setReadOnly(!record.isSideEffecting());
                 record.setResultIndexable(true);
                 record.setOutputLimitBytes(inlineLimitBytes);
-                record.setExecutionPolicy(record.isSideEffecting() ? "serial" : "parallel_readonly");
+                record.setExecutionPolicy(
+                        record.isSideEffecting() ? "serial" : "parallel_readonly");
             }
             record.setStatus("completed");
             record.setResultPreview(output.getPreview());

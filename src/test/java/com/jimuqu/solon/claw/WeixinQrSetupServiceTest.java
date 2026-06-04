@@ -212,20 +212,14 @@ public class WeixinQrSetupServiceTest {
         GatewayRuntimeRefreshService refreshService = refreshService(config);
         WeixinQrSetupService service =
                 new WeixinQrSetupService(
-                        config,
-                        new DashboardConfigService(config, refreshService),
-                        refreshService);
+                        config, new DashboardConfigService(config, refreshService), refreshService);
         Object state = state("qr-raw-token");
 
         java.lang.reflect.Method fail =
                 WeixinQrSetupService.class.getDeclaredMethod(
                         "fail", state.getClass(), String.class, String.class);
         fail.setAccessible(true);
-        fail.invoke(
-                service,
-                state,
-                "qr_failed",
-                "raw failure token=sk-test-weixinqrboundary12345");
+        fail.invoke(service, state, "qr_failed", "raw failure token=sk-test-weixinqrboundary12345");
         java.lang.reflect.Method toMap =
                 WeixinQrSetupService.class.getDeclaredMethod("toMap", state.getClass());
         toMap.setAccessible(true);
@@ -265,7 +259,8 @@ public class WeixinQrSetupServiceTest {
         long deadline = System.currentTimeMillis() + 10000L;
         while (System.currentTimeMillis() < deadline) {
             current = service.get(ticket);
-            if ("confirmed".equals(current.get("status")) || "failed".equals(current.get("status"))) {
+            if ("confirmed".equals(current.get("status"))
+                    || "failed".equals(current.get("status"))) {
                 return current;
             }
             Thread.sleep(200L);
@@ -286,7 +281,8 @@ public class WeixinQrSetupServiceTest {
     }
 
     private Object state(String ticket) throws Exception {
-        Class<?> stateType = Class.forName("com.jimuqu.solon.claw.web.WeixinQrSetupService$TicketState");
+        Class<?> stateType =
+                Class.forName("com.jimuqu.solon.claw.web.WeixinQrSetupService$TicketState");
         java.lang.reflect.Constructor<?> constructor = stateType.getDeclaredConstructor();
         constructor.setAccessible(true);
         Object state = constructor.newInstance();

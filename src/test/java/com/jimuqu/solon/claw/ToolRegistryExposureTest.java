@@ -5,20 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.support.TestEnvironment;
-import com.jimuqu.solon.claw.tool.runtime.ClarifyTools;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileStateTracker;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
-import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
-import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
@@ -26,13 +25,13 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.rag.Document;
@@ -80,11 +79,7 @@ public class ToolRegistryExposureTest {
         assertThat(names).contains("tool_gateway");
         assertThat(names)
                 .doesNotContain(
-                        "exists_cmd",
-                        "list_files",
-                        "read_file",
-                        "write_file",
-                        "search_files");
+                        "exists_cmd", "list_files", "read_file", "write_file", "search_files");
 
         List<Object> tools = env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1");
         String joined = tools.toString();
@@ -167,7 +162,10 @@ public class ToolRegistryExposureTest {
                                 .resolve("missing-tirith")
                                 .toString());
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
         env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
         env.appConfig.getTerminal().setEnvPassthrough(Arrays.asList("TENOR_API_KEY"));
         env.appConfig.getTerminal().setSudoPassword("secret-sudo");
@@ -183,15 +181,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null));
         ONode path =
-                ONode.ofJson(
-                        tools.audit(
-                                "path",
-                                null,
-                                null,
-                                null,
-                                ".env",
-                                Boolean.FALSE,
-                                null));
+                ONode.ofJson(tools.audit("path", null, null, null, ".env", Boolean.FALSE, null));
         String externalPath =
                 new java.io.File(
                                 new java.io.File(env.appConfig.getRuntime().getHome())
@@ -200,14 +190,7 @@ public class ToolRegistryExposureTest {
                         .getAbsolutePath();
         ONode externalPathAudit =
                 ONode.ofJson(
-                        tools.audit(
-                                "path",
-                                null,
-                                null,
-                                null,
-                                externalPath,
-                                Boolean.FALSE,
-                                null));
+                        tools.audit("path", null, null, null, externalPath, Boolean.FALSE, null));
         ONode toolArgs =
                 ONode.ofJson(
                         tools.audit(
@@ -240,8 +223,7 @@ public class ToolRegistryExposureTest {
                 .contains("file_policy")
                 .contains("凭据")
                 .contains("change_path");
-        assertThat(externalPathAudit.get("path").getString())
-                .isEqualTo("path://audit-token=***");
+        assertThat(externalPathAudit.get("path").getString()).isEqualTo("path://audit-token=***");
         assertThat(externalPathAudit.toJson())
                 .doesNotContain(new java.io.File(externalPath).getParentFile().getAbsolutePath())
                 .doesNotContain("ghp_auditpath12345");
@@ -299,10 +281,17 @@ public class ToolRegistryExposureTest {
                 .contains("request_approval");
 
         assertThat(policyStatus.get("success").getBoolean()).isTrue();
-        assertThat(policyStatus.get("summary").getString()).contains("without exposing secret values");
+        assertThat(policyStatus.get("summary").getString())
+                .contains("without exposing secret values");
         assertThat(policyStatus.get("policy").get("security").get("allowPrivateUrls").getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("security").get("urlPolicy").get("allowPrivateUrls").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("urlPolicy")
+                                .get("allowPrivateUrls")
+                                .getBoolean())
                 .isTrue();
         assertThat(
                         policyStatus
@@ -324,13 +313,30 @@ public class ToolRegistryExposureTest {
                 .contains("169.254")
                 .contains("blocked.example")
                 .contains("access_token");
-        assertThat(policyStatus.get("policy").get("security").get("websiteBlocklistDomainCount").getInt())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("websiteBlocklistDomainCount")
+                                .getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("security").get("tirithAvailable").getBoolean())
                 .isFalse();
-        assertThat(policyStatus.get("policy").get("security").get("tirithDiagnostic").get("enabled").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("tirithDiagnostic")
+                                .get("enabled")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("security").get("tirithDiagnostic").get("summary").getString())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("tirithDiagnostic")
+                                .get("summary")
+                                .getString())
                 .contains("unavailable");
         assertThat(
                         policyStatus
@@ -356,11 +362,15 @@ public class ToolRegistryExposureTest {
                 policyStatus.get("policy").get("terminal").get("backgroundProcessPolicy");
         assertThat(backgroundProcessPolicy.get("processRegistryBacked").getBoolean()).isTrue();
         assertThat(backgroundProcessPolicy.get("startHardlineBlocked").getBoolean()).isTrue();
-        assertThat(backgroundProcessPolicy.get("startDangerousCommandChecked").getBoolean()).isTrue();
-        assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked").getBoolean()).isTrue();
-        assertThat(backgroundProcessPolicy.get("stdinPrivilegeWrapperDetection").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("startDangerousCommandChecked").getBoolean())
+                .isTrue();
+        assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked").getBoolean())
+                .isTrue();
+        assertThat(backgroundProcessPolicy.get("stdinPrivilegeWrapperDetection").getBoolean())
+                .isTrue();
         assertThat(backgroundProcessPolicy.get("waitTimeoutClamped").getBoolean()).isTrue();
-        assertThat(backgroundProcessPolicy.get("processWaitTimeoutSeconds").getInt()).isGreaterThan(0);
+        assertThat(backgroundProcessPolicy.get("processWaitTimeoutSeconds").getInt())
+                .isGreaterThan(0);
         assertThat(String.valueOf(backgroundProcessPolicy))
                 .contains("start")
                 .contains("submit")
@@ -373,17 +383,37 @@ public class ToolRegistryExposureTest {
                 .isEqualTo("smart");
         assertThat(policyStatus.get("policy").get("approvals").get("smartMode").getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("approvals").get("smartJudgeConfigured").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("smartJudgeConfigured")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("approvals").get("smartApprovalActive").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("smartApprovalActive")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("approvals").get("smartCoversTirith").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("smartCoversTirith")
+                                .getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("approvals").get("cronMode").getString())
                 .isEqualTo("approve");
         assertThat(policyStatus.get("policy").get("approvals").get("cronAutoApprove").getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("approvals").get("subagentApprovalDefault").getString())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("subagentApprovalDefault")
+                                .getString())
                 .isEqualTo("deny");
         assertThat(
                         policyStatus
@@ -401,7 +431,12 @@ public class ToolRegistryExposureTest {
                                 .get("hardlineAlwaysBlocked")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("cronApprovalPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("approvals")
+                                        .get("cronApprovalPolicy")))
                 .contains("security.guardrailCronMode")
                 .contains("approvalModeCanPauseCron")
                 .doesNotContain("approvals.cronMode")
@@ -424,13 +459,20 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("approvals").get("mcpReloadConfirm").getBoolean())
                 .isTrue();
-        assertThat(policyStatus
-                        .get("policy")
-                        .get("approvals")
-                        .get("mcpReloadConfirmationDefault")
-                        .getString())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("mcpReloadConfirmationDefault")
+                                .getString())
                 .isEqualTo("confirm");
-        assertThat(policyStatus.get("policy").get("approvals").get("approvalPolicy").get("mode").getString())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
+                                .get("mode")
+                                .getString())
                 .isEqualTo("smart");
         assertThat(
                         policyStatus
@@ -448,7 +490,12 @@ public class ToolRegistryExposureTest {
                                 .get("escalateFallsBackToHumanApproval")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("smartApprovalPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("approvals")
+                                        .get("smartApprovalPolicy")))
                 .contains("approve")
                 .contains("deny")
                 .contains("tirithFindingsIncluded")
@@ -469,7 +516,12 @@ public class ToolRegistryExposureTest {
                                 .get("permanentApprovalAllowed")
                                 .getBoolean())
                 .isFalse();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("tirithApprovalPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("approvals")
+                                        .get("tirithApprovalPolicy")))
                 .contains("tirith:")
                 .contains("tirith:security_scan");
         assertThat(
@@ -531,7 +583,9 @@ public class ToolRegistryExposureTest {
                                 .get("backgroundProcessGuard")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("approvalPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus.get("policy").get("approvals").get("approvalPolicy")))
                 .contains("recursive_delete")
                 .contains("hardlinePolicy")
                 .contains("hardline_windows")
@@ -585,7 +639,12 @@ public class ToolRegistryExposureTest {
                                 .get("approverRedacted")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("slashConfirmPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("approvals")
+                                        .get("slashConfirmPolicy")))
                 .contains("once")
                 .contains("session")
                 .contains("always")
@@ -622,7 +681,9 @@ public class ToolRegistryExposureTest {
                                 .get("approverRedacted")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("auditLogPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus.get("policy").get("approvals").get("auditLogPolicy")))
                 .contains("commandHashStored")
                 .contains("patternKeysStored")
                 .contains("manualRevocationAudited")
@@ -659,12 +720,20 @@ public class ToolRegistryExposureTest {
                                 .get("encodedUrlParameterRedacted")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("mcpReloadPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus.get("policy").get("approvals").get("mcpReloadPolicy")))
                 .contains("/reload-mcp")
                 .contains("approvals.mcpReloadConfirm");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);
-        assertThat(policyStatus.get("policy").get("terminal").get("credentialPolicy").get("fileNameCount").getInt())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("credentialPolicy")
+                                .get("fileNameCount")
+                                .getInt())
                 .isGreaterThan(20);
         assertThat(
                         policyStatus
@@ -682,7 +751,9 @@ public class ToolRegistryExposureTest {
                                 .get("envExampleFilesAllowed")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("credentialPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus.get("policy").get("terminal").get("credentialPolicy")))
                 .contains(".ssh")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("credentials/oauth.json");
@@ -710,11 +781,22 @@ public class ToolRegistryExposureTest {
                                 .get("hostPathsOmittedFromMetadata")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("credentialMountPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("terminal")
+                                        .get("credentialMountPolicy")))
                 .contains("required_credential_files")
                 .contains("terminal.credentialFiles")
                 .doesNotContain("credentials/oauth.json");
-        assertThat(policyStatus.get("policy").get("terminal").get("pathPolicy").get("traversalBlocked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("pathPolicy")
+                                .get("traversalBlocked")
+                                .getBoolean())
                 .isTrue();
         assertThat(
                         policyStatus
@@ -730,7 +812,12 @@ public class ToolRegistryExposureTest {
                 .contains("/dev/zero");
         assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())
                 .isEqualTo(1);
-        assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("sudoPasswordConfigured")
+                                .getBoolean())
                 .isTrue();
         assertThat(
                         policyStatus
@@ -748,7 +835,12 @@ public class ToolRegistryExposureTest {
                                 .get("stdinPasswordInjection")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("sudoRewritePolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("terminal")
+                                        .get("sudoRewritePolicy")))
                 .contains("SUDO_PASSWORD")
                 .contains("terminal.sudoPassword")
                 .contains("passwordRedacted")
@@ -777,14 +869,29 @@ public class ToolRegistryExposureTest {
                                 .get("downloadOutputPathPrechecked")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("terminalGuardrailPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("terminal")
+                                        .get("terminalGuardrailPolicy")))
                 .contains("nohup")
                 .contains("npm run dev")
                 .contains("execute_python")
                 .doesNotContain("secret-sudo");
-        assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("dangerousCommandApproval")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("configuredCredentialCommandPathApproval").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("configuredCredentialCommandPathApproval")
+                                .getBoolean())
                 .isTrue();
         ONode dangerousCommandApprovalPolicy =
                 policyStatus.get("policy").get("coverage").get("dangerousCommandApprovalPolicy");
@@ -796,11 +903,20 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(dangerousCommandApprovalPolicy.get("approvalTimeoutSeconds").getInt())
                 .isGreaterThan(0);
-        assertThat(dangerousCommandApprovalPolicy.get("configuredCredentialCommandPathDetection").getBoolean())
+        assertThat(
+                        dangerousCommandApprovalPolicy
+                                .get("configuredCredentialCommandPathDetection")
+                                .getBoolean())
                 .isTrue();
-        assertThat(dangerousCommandApprovalPolicy.get("recursiveStructuredToolArgsDetection").getBoolean())
+        assertThat(
+                        dangerousCommandApprovalPolicy
+                                .get("recursiveStructuredToolArgsDetection")
+                                .getBoolean())
                 .isTrue();
-        assertThat(dangerousCommandApprovalPolicy.get("nestedArrayCommandArgumentDetection").getBoolean())
+        assertThat(
+                        dangerousCommandApprovalPolicy
+                                .get("nestedArrayCommandArgumentDetection")
+                                .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(dangerousCommandApprovalPolicy))
                 .contains("rm")
@@ -809,7 +925,8 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         ONode approvalLifecyclePolicy =
                 policyStatus.get("policy").get("coverage").get("approvalLifecyclePolicy");
-        assertThat(approvalLifecyclePolicy.get("pendingListPrunedBeforeRead").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("pendingListPrunedBeforeRead").getBoolean())
+                .isTrue();
         assertThat(approvalLifecyclePolicy.get("listSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("statusAliasSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("approveAllSupported").getBoolean()).isTrue();
@@ -818,8 +935,10 @@ public class ToolRegistryExposureTest {
         assertThat(approvalLifecyclePolicy.get("clearSessionSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("clearAlwaysSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("clearAllSupported").getBoolean()).isTrue();
-        assertThat(approvalLifecyclePolicy.get("alwaysScopeUsesGlobalSettings").getBoolean()).isTrue();
-        assertThat(approvalLifecyclePolicy.get("tirithAlwaysScopeDowngradedToSession").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("alwaysScopeUsesGlobalSettings").getBoolean())
+                .isTrue();
+        assertThat(approvalLifecyclePolicy.get("tirithAlwaysScopeDowngradedToSession").getBoolean())
+                .isTrue();
         assertThat(approvalLifecyclePolicy.get("currentThreadApprovalTtlMillis").getLong())
                 .isEqualTo(30000L);
         assertThat(approvalLifecyclePolicy.get("sessionSnapshotUpdated").getBoolean()).isTrue();
@@ -830,7 +949,12 @@ public class ToolRegistryExposureTest {
                 .contains("session")
                 .contains("always")
                 .doesNotContain("secret-sudo");
-        assertThat(policyStatus.get("policy").get("coverage").get("slashApprovalConfirm").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("slashApprovalConfirm")
+                                .getBoolean())
                 .isTrue();
         ONode slashConfirmPolicy =
                 policyStatus.get("policy").get("coverage").get("slashConfirmPolicy");
@@ -867,7 +991,8 @@ public class ToolRegistryExposureTest {
         assertThat(approvalCardPolicy.get("approvalIdSelectorSupported").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("unsafeSelectorRejected").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("outboundApprovalIdSanitized").getBoolean()).isTrue();
-        assertThat(approvalCardPolicy.get("unsafeApprovalIdFallsBackToKeySelector").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("unsafeApprovalIdFallsBackToKeySelector").getBoolean())
+                .isTrue();
         assertThat(approvalCardPolicy.get("approveCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("denyCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("alwaysScopeCommandGenerated").getBoolean()).isTrue();
@@ -895,8 +1020,7 @@ public class ToolRegistryExposureTest {
         assertThat(approvalAuditPolicy.get("approvalKeyRedacted").getBoolean()).isTrue();
         assertThat(approvalAuditPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
         assertThat(approvalAuditPolicy.get("manualRevocationAudited").getBoolean()).isTrue();
-        ONode mcpReloadPolicy =
-                policyStatus.get("policy").get("coverage").get("mcpReloadPolicy");
+        ONode mcpReloadPolicy = policyStatus.get("policy").get("coverage").get("mcpReloadPolicy");
         assertThat(mcpReloadPolicy.get("confirmRequired").getBoolean()).isTrue();
         assertThat(mcpReloadPolicy.get("slashConfirmBacked").getBoolean()).isTrue();
         assertThat(mcpReloadPolicy.get("persistentDisableSupported").getBoolean()).isTrue();
@@ -913,14 +1037,20 @@ public class ToolRegistryExposureTest {
                                 .get("active")
                                 .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("tirithSmartApproval").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("tirithSmartApproval")
+                                .getBoolean())
                 .isTrue();
         ONode tirithApprovalPolicy =
                 policyStatus.get("policy").get("coverage").get("tirithApprovalPolicy");
         assertThat(tirithApprovalPolicy.get("scanRunsInApprovalMode").getBoolean()).isTrue();
         assertThat(tirithApprovalPolicy.get("combinedWithLocalDangerRules").getBoolean()).isTrue();
         assertThat(tirithApprovalPolicy.get("permanentApprovalAllowed").getBoolean()).isFalse();
-        assertThat(tirithApprovalPolicy.get("alwaysScopeDowngradedToSession").getBoolean()).isTrue();
+        assertThat(tirithApprovalPolicy.get("alwaysScopeDowngradedToSession").getBoolean())
+                .isTrue();
         assertThat(tirithApprovalPolicy.get("descriptionRedacted").getBoolean()).isTrue();
         assertThat(
                         policyStatus
@@ -943,7 +1073,12 @@ public class ToolRegistryExposureTest {
         assertThat(tirithPolicy.get("unexpectedExitCodeUsesFailureMode").getBoolean()).isTrue();
         assertThat(tirithPolicy.get("parseFailureKeepsDecision").getBoolean()).isTrue();
         assertThat(tirithPolicy.get("toolShellDetectionApplied").getBoolean()).isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("cronApprovalPolicy").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("cronApprovalPolicy")
+                                .getBoolean())
                 .isTrue();
         assertThat(
                         policyStatus
@@ -953,7 +1088,12 @@ public class ToolRegistryExposureTest {
                                 .get("scriptContentChecked")
                                 .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("subagentApprovalPolicy").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("subagentApprovalPolicy")
+                                .getBoolean())
                 .isTrue();
         assertThat(
                         policyStatus
@@ -963,7 +1103,12 @@ public class ToolRegistryExposureTest {
                                 .get("pendingApprovalCreatedWhenDenied")
                                 .getBoolean())
                 .isFalse();
-        assertThat(policyStatus.get("policy").get("coverage").get("hardlineCommandBlocks").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("hardlineCommandBlocks")
+                                .getBoolean())
                 .isTrue();
         assertThat(
                         policyStatus
@@ -978,7 +1123,12 @@ public class ToolRegistryExposureTest {
                 .contains("metadata_url_access")
                 .contains("approvalRequired")
                 .contains("false");
-        assertThat(policyStatus.get("policy").get("coverage").get("terminalGuardrails").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("terminalGuardrails")
+                                .getBoolean())
                 .isTrue();
         ONode coverageTerminalGuardrailPolicy =
                 policyStatus.get("policy").get("coverage").get("terminalGuardrailPolicy");
@@ -988,13 +1138,22 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("longLivedForegroundBlocked").getBoolean())
                 .isTrue();
-        assertThat(coverageTerminalGuardrailPolicy.get("managedBackgroundProcessRequired").getBoolean())
+        assertThat(
+                        coverageTerminalGuardrailPolicy
+                                .get("managedBackgroundProcessRequired")
+                                .getBoolean())
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("credentialPathPrechecked").getBoolean())
                 .isTrue();
-        assertThat(coverageTerminalGuardrailPolicy.get("downloadOutputDetachedOptionPrechecked").getBoolean())
+        assertThat(
+                        coverageTerminalGuardrailPolicy
+                                .get("downloadOutputDetachedOptionPrechecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(coverageTerminalGuardrailPolicy.get("networkUploadSourcePathPrechecked").getBoolean())
+        assertThat(
+                        coverageTerminalGuardrailPolicy
+                                .get("networkUploadSourcePathPrechecked")
+                                .getBoolean())
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("preproxyUrlPrechecked").getBoolean())
                 .isTrue();
@@ -1002,9 +1161,15 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("systemProxyCommandPrechecked").getBoolean())
                 .isTrue();
-        assertThat(coverageTerminalGuardrailPolicy.get("windowsRegistryProxyCommandPrechecked").getBoolean())
+        assertThat(
+                        coverageTerminalGuardrailPolicy
+                                .get("windowsRegistryProxyCommandPrechecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(coverageTerminalGuardrailPolicy.get("hostsAndResolverPathPrechecked").getBoolean())
+        assertThat(
+                        coverageTerminalGuardrailPolicy
+                                .get("hostsAndResolverPathPrechecked")
+                                .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(coverageTerminalGuardrailPolicy))
                 .contains("nohup")
@@ -1039,14 +1204,18 @@ public class ToolRegistryExposureTest {
                                 .get("stdinExecutionPayloadChecked")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("backgroundProcessPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("coverage")
+                                        .get("backgroundProcessPolicy")))
                 .contains("execute_js")
                 .contains("waitTimeoutClamped")
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("urlSafety").getBoolean())
                 .isTrue();
-        ONode urlPolicyDetails =
-                policyStatus.get("policy").get("coverage").get("urlPolicyDetails");
+        ONode urlPolicyDetails = policyStatus.get("policy").get("coverage").get("urlPolicyDetails");
         assertThat(urlPolicyDetails.get("allowPrivateUrls").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("alwaysBlockedHostCount").getInt()).isGreaterThan(0);
         assertThat(urlPolicyDetails.get("alwaysBlockedIpCount").getInt()).isGreaterThan(0);
@@ -1055,7 +1224,8 @@ public class ToolRegistryExposureTest {
         assertThat(urlPolicyDetails.get("userinfoBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("sensitiveQueryBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("encodedSensitiveQueryBlocked").getBoolean()).isTrue();
-        assertThat(urlPolicyDetails.get("repeatedEncodedSensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("repeatedEncodedSensitiveQueryBlocked").getBoolean())
+                .isTrue();
         assertThat(urlPolicyDetails.get("semicolonSensitiveQueryBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("fragmentSensitiveQueryBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("sensitivePathCredentialBlocked").getBoolean()).isTrue();
@@ -1075,7 +1245,8 @@ public class ToolRegistryExposureTest {
         assertThat(privateUrlPolicyDetails.get("loopbackBlocked").getBoolean()).isTrue();
         assertThat(privateUrlPolicyDetails.get("linkLocalBlocked").getBoolean()).isTrue();
         assertThat(privateUrlPolicyDetails.get("siteLocalBlocked").getBoolean()).isTrue();
-        assertThat(privateUrlPolicyDetails.get("reservedDocumentationRangesBlocked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("reservedDocumentationRangesBlocked").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(privateUrlPolicyDetails))
                 .contains("SOLONCLAW_ALLOW_PRIVATE_URLS")
                 .contains("metadata.google.internal")
@@ -1092,17 +1263,29 @@ public class ToolRegistryExposureTest {
         assertThat(String.valueOf(websitePolicyDetails))
                 .contains("blocked.example")
                 .doesNotContain("secret-sudo");
-        assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("credentialFilePolicy")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("credentialMountPolicy").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("credentialMountPolicy")
+                                .getBoolean())
                 .isTrue();
         ONode credentialMountPolicyDetails =
                 policyStatus.get("policy").get("coverage").get("credentialMountPolicyDetails");
-        assertThat(credentialMountPolicyDetails.get("configCredentialFileCount").getInt()).isEqualTo(1);
+        assertThat(credentialMountPolicyDetails.get("configCredentialFileCount").getInt())
+                .isEqualTo(1);
         assertThat(credentialMountPolicyDetails.get("runtimeRelativeOnly").getBoolean()).isTrue();
         assertThat(credentialMountPolicyDetails.get("absolutePathRejected").getBoolean()).isTrue();
         assertThat(credentialMountPolicyDetails.get("pathTraversalRejected").getBoolean()).isTrue();
-        assertThat(credentialMountPolicyDetails.get("hostPathsOmittedFromMetadata").getBoolean()).isTrue();
+        assertThat(credentialMountPolicyDetails.get("hostPathsOmittedFromMetadata").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(credentialMountPolicyDetails))
                 .contains("required_credential_files")
                 .contains("terminal.credentialFiles")
@@ -1113,13 +1296,15 @@ public class ToolRegistryExposureTest {
         assertThat(pathPolicyDetails.get("traversalBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("controlCharactersBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("rawControlCharactersBlocked").getBoolean()).isTrue();
-        assertThat(pathPolicyDetails.get("normalizedControlCharactersBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("normalizedControlCharactersBlocked").getBoolean())
+                .isTrue();
         assertThat(pathPolicyDetails.get("devicePathBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("rawBlockDeviceWriteBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("skillsHubInternalReadBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("writeDeniedExactPathCount").getInt()).isGreaterThan(0);
         assertThat(pathPolicyDetails.get("writeDeniedPrefixCount").getInt()).isGreaterThan(0);
-        assertThat(pathPolicyDetails.get("writeDeniedWindowsPrefixCount").getInt()).isGreaterThan(0);
+        assertThat(pathPolicyDetails.get("writeDeniedWindowsPrefixCount").getInt())
+                .isGreaterThan(0);
         assertThat(String.valueOf(pathPolicyDetails))
                 .contains("/etc/passwd")
                 .contains("c:/windows/")
@@ -1130,7 +1315,8 @@ public class ToolRegistryExposureTest {
                 policyStatus.get("policy").get("coverage").get("credentialPolicyDetails");
         assertThat(credentialPolicyDetails.get("directorySegmentCount").getInt()).isGreaterThan(0);
         assertThat(credentialPolicyDetails.get("fileNameCount").getInt()).isGreaterThan(0);
-        assertThat(credentialPolicyDetails.get("configuredCredentialFileCount").getInt()).isEqualTo(1);
+        assertThat(credentialPolicyDetails.get("configuredCredentialFileCount").getInt())
+                .isEqualTo(1);
         assertThat(credentialPolicyDetails.get("envExampleFilesAllowed").getBoolean()).isTrue();
         assertThat(String.valueOf(credentialPolicyDetails))
                 .contains(".ssh")
@@ -1140,47 +1326,172 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolReturnedContentUrlSafety").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolReturnedContentUrlSafety")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("recursiveUrlExtraction").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("recursiveUrlExtraction")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedContentUrlExtraction").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("returnedContentUrlExtraction")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedSchemelessUrlChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("returnedSchemelessUrlChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedDocumentContentChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("returnedDocumentContentChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedDocumentMetadataUrlChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("returnedDocumentMetadataUrlChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedPojoUrlChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("returnedPojoUrlChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("encodedUrlParameterPolicyInherited").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("encodedUrlParameterPolicyInherited")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("rawPathControlCharacterPolicyInherited").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("rawPathControlCharacterPolicyInherited")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("writeIntentDetection").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("writeIntentDetection")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("downloadOutputPathOptionChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("downloadOutputPathOptionChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("downloadOutputDetachedOptionChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("downloadOutputDetachedOptionChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("networkUploadSourcePathChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("networkUploadSourcePathChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("networkUploadCredentialOnlyBlocked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("networkUploadCredentialOnlyBlocked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("preproxyOptionUrlChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("preproxyOptionUrlChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("systemDnsCommandChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("systemDnsCommandChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("setxProxyEnvironmentChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("setxProxyEnvironmentChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("systemProxyCommandChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("systemProxyCommandChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("windowsRegistryProxyCommandChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("windowsRegistryProxyCommandChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("gitPersistentProxyConfigChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("gitPersistentProxyConfigChecked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("unsupportedNetworkSchemeChecked").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolArgsPolicy")
+                                .get("unsupportedNetworkSchemeChecked")
+                                .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolArgsPolicy")))
                 .contains("file_path")
@@ -1198,7 +1509,12 @@ public class ToolRegistryExposureTest {
                                 .get("mcpInputSchemaSanitized")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("schemaSanitizerPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("coverage")
+                                        .get("schemaSanitizerPolicy")))
                 .contains("localFunctionTools")
                 .contains("toolProviders")
                 .contains("patternAndFormatStripped")
@@ -1214,7 +1530,12 @@ public class ToolRegistryExposureTest {
                                 .get("atomicValidationBeforeWrite")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("patchParserPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("coverage")
+                                        .get("patchParserPolicy")))
                 .contains("V4A")
                 .contains("replaceRequiresUniqueMatchByDefault")
                 .contains("moveWillNotOverwriteDestination")
@@ -1236,11 +1557,17 @@ public class ToolRegistryExposureTest {
         assertThat(readOnlyAuditPolicy.get("storesAuditInput").getBoolean()).isFalse();
         assertThat(readOnlyAuditPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited").getBoolean()).isTrue();
-        assertThat(readOnlyAuditPolicy.get("structuredCommandArgumentsJoined").getBoolean()).isTrue();
-        assertThat(readOnlyAuditPolicy.get("nestedStructuredCommandArgumentsExtracted").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("structuredCommandArgumentsJoined").getBoolean())
+                .isTrue();
+        assertThat(
+                        readOnlyAuditPolicy
+                                .get("nestedStructuredCommandArgumentsExtracted")
+                                .getBoolean())
+                .isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsUrlPolicyInherited").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("toolArgsPathPolicyInherited").getBoolean()).isTrue();
-        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean())
+                .isTrue();
         assertThat(readOnlyAuditPolicy.get("commandPreviewLimitChars").getInt()).isEqualTo(400);
         assertThat(readOnlyAuditPolicy.get("findingMessageLimitChars").getInt()).isEqualTo(1000);
         assertThat(String.valueOf(readOnlyAuditPolicy))
@@ -1263,7 +1590,12 @@ public class ToolRegistryExposureTest {
                                 .get("providerBlocklistOverridesPassthrough")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("subprocessEnvironmentPolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("coverage")
+                                        .get("subprocessEnvironmentPolicy")))
                 .contains("skillScopedPassthroughSupported")
                 .contains("toolBackendSecretsBlocked")
                 .contains("pathFallbackEnabledForPosix")
@@ -1284,7 +1616,10 @@ public class ToolRegistryExposureTest {
         assertThat(codeExecutionPolicy.get("scriptPreflightPathPolicy").getBoolean()).isTrue();
         assertThat(codeExecutionPolicy.get("scriptPreflightUrlPolicy").getBoolean()).isTrue();
         assertThat(codeExecutionPolicy.get("dangerousCommandRulesApplied").getBoolean()).isTrue();
-        assertThat(codeExecutionPolicy.get("managedFileToolPathLiteralsIgnoredForPreflight").getBoolean())
+        assertThat(
+                        codeExecutionPolicy
+                                .get("managedFileToolPathLiteralsIgnoredForPreflight")
+                                .getBoolean())
                 .isTrue();
         assertThat(codeExecutionPolicy.get("sandboxEnvironmentSanitized").getBoolean()).isTrue();
         assertThat(codeExecutionPolicy.get("rpcToolBridgeEnabled").getBoolean()).isTrue();
@@ -1360,7 +1695,12 @@ public class ToolRegistryExposureTest {
                                 .get("storageFailureFallsBackToPreviewOnly")
                                 .getBoolean())
                 .isTrue();
-        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolResultStoragePolicy")))
+        assertThat(
+                        String.valueOf(
+                                policyStatus
+                                        .get("policy")
+                                        .get("coverage")
+                                        .get("toolResultStoragePolicy")))
                 .contains("read_file")
                 .contains("previewRedacted")
                 .contains("describedPreviewRedacted")
@@ -1377,13 +1717,20 @@ public class ToolRegistryExposureTest {
                                 .get("mcpRuntimePolicyAuditable")
                                 .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("mcpPackageSecurity").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("mcpPackageSecurity")
+                                .getBoolean())
                 .isTrue();
-        ONode mcpRuntimePolicy =
-                policyStatus.get("policy").get("coverage").get("mcpRuntimePolicy");
+        ONode mcpRuntimePolicy = policyStatus.get("policy").get("coverage").get("mcpRuntimePolicy");
         assertThat(mcpRuntimePolicy.get("remoteEndpointUrlSafety").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("remoteToolArgumentUrlSafety").getBoolean()).isTrue();
-        assertThat(mcpRuntimePolicy.get("remoteToolStructuredCredentialArgumentBlocked").getBoolean())
+        assertThat(
+                        mcpRuntimePolicy
+                                .get("remoteToolStructuredCredentialArgumentBlocked")
+                                .getBoolean())
                 .isTrue();
         assertThat(mcpRuntimePolicy.get("remoteToolArgumentPathSafety").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("resourceUriUrlSafety").getBoolean()).isTrue();
@@ -1398,8 +1745,7 @@ public class ToolRegistryExposureTest {
                 .contains("file_path")
                 .contains("invalid_token")
                 .doesNotContain("secret-sudo");
-        ONode mcpOAuthPolicy =
-                policyStatus.get("policy").get("coverage").get("mcpOAuthPolicy");
+        ONode mcpOAuthPolicy = policyStatus.get("policy").get("coverage").get("mcpOAuthPolicy");
         assertThat(mcpOAuthPolicy.get("authorizationEndpointUrlSafety").getBoolean()).isTrue();
         assertThat(mcpOAuthPolicy.get("tokenEndpointUrlSafety").getBoolean()).isTrue();
         assertThat(mcpOAuthPolicy.get("tokenEndpointRedirectUrlSafety").getBoolean()).isTrue();
@@ -1432,37 +1778,102 @@ public class ToolRegistryExposureTest {
                 .contains("pipx")
                 .contains("malware_advisory")
                 .contains("unsafe_endpoint");
-        assertThat(policyStatus.get("policy").get("coverage").get("attachmentUrlSafety").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("attachmentUrlSafety")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("attachmentCachePathSafety").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("attachmentCachePathSafety")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("attachmentDisplayNameRedaction").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("attachmentDisplayNameRedaction")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentPathSafety").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("terminalAttachmentPathSafety")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentPreviewRedaction").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("terminalAttachmentPreviewRedaction")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentResolvedNameRedaction").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("terminalAttachmentResolvedNameRedaction")
+                                .getBoolean())
                 .isTrue();
-        ONode attachmentPolicy =
-                policyStatus.get("policy").get("coverage").get("attachmentPolicy");
-        assertThat(attachmentPolicy.get("downloadIo").get("redirectUrlCheckedBeforeFollow").getBoolean())
+        ONode attachmentPolicy = policyStatus.get("policy").get("coverage").get("attachmentPolicy");
+        assertThat(
+                        attachmentPolicy
+                                .get("downloadIo")
+                                .get("redirectUrlCheckedBeforeFollow")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("downloadIo").get("crossHostHeaderForwardingBlocked").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("downloadIo")
+                                .get("crossHostHeaderForwardingBlocked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("mediaCache").get("mediaReferenceTraversalBlocked").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("mediaCache")
+                                .get("mediaReferenceTraversalBlocked")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("mediaCache").get("hostPathsNotReturnedInMediaReference").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("mediaCache")
+                                .get("hostPathsNotReturnedInMediaReference")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("mediaCache").get("safeOriginalNameSecretRedacted").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("mediaCache")
+                                .get("safeOriginalNameSecretRedacted")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("terminalPaste").get("pathPolicyCheckedBeforeCache").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("terminalPaste")
+                                .get("pathPolicyCheckedBeforeCache")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("terminalPaste").get("canonicalPathResolvedBeforePolicy").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("terminalPaste")
+                                .get("canonicalPathResolvedBeforePolicy")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("terminalPaste").get("cacheWriteAfterPolicyOnly").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("terminalPaste")
+                                .get("cacheWriteAfterPolicyOnly")
+                                .getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("terminalPaste").get("duplicatePathDeduplicated").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("terminalPaste")
+                                .get("duplicatePathDeduplicated")
+                                .getBoolean())
                 .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("credentialPathBlocked").getBoolean())
                 .isTrue();
@@ -1470,7 +1881,11 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("missingPreviewRedacted").getBoolean())
                 .isTrue();
-        assertThat(attachmentPolicy.get("terminalPaste").get("resolvedDisplayNameRedacted").getBoolean())
+        assertThat(
+                        attachmentPolicy
+                                .get("terminalPaste")
+                                .get("resolvedDisplayNameRedacted")
+                                .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(attachmentPolicy))
                 .contains("runtime://cache/media")
@@ -1483,9 +1898,19 @@ public class ToolRegistryExposureTest {
                                 .get("passwordRedacted")
                                 .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("mcpReloadConfirmation").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("mcpReloadConfirmation")
+                                .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("coverage").get("mcpToolChangeNotice").getBoolean())
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("mcpToolChangeNotice")
+                                .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("activeSurfaces")))
                 .contains("approval")
@@ -1567,7 +1992,10 @@ public class ToolRegistryExposureTest {
                         null,
                         env.appConfig);
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
 
         ONode command =
                 ONode.ofJson(
@@ -1609,9 +2037,7 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret123")
                 .doesNotContain("fragment-secret");
         assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
-        assertThat(toolArgs.toJson())
-                .contains("api%255Fkey=***")
-                .doesNotContain("encoded-secret");
+        assertThat(toolArgs.toJson()).contains("api%255Fkey=***").doesNotContain("encoded-secret");
     }
 
     @Test
@@ -1641,8 +2067,7 @@ public class ToolRegistryExposureTest {
         assertThat(result.get("decision").getString()).isEqualTo("block");
         assertThat(result.get("blocking").getBoolean()).isTrue();
         assertThat(result.get("approval_required").getBoolean()).isFalse();
-        assertThat(result.get("commandPreview").getString())
-                .contains("python -m http.server 8000");
+        assertThat(result.get("commandPreview").getString()).contains("python -m http.server 8000");
         assertThat(result.toJson())
                 .contains("terminal_guardrail")
                 .contains("use_managed_background_process")
@@ -1908,14 +2333,7 @@ public class ToolRegistryExposureTest {
                         env.appConfig);
 
         String unsupported =
-                tools.audit(
-                        "unknown-ghp_auditaction12345",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+                tools.audit("unknown-ghp_auditaction12345", null, null, null, null, null, null);
         String command =
                 tools.audit(
                         "command",
@@ -1926,9 +2344,7 @@ public class ToolRegistryExposureTest {
                         null,
                         null);
 
-        assertThat(unsupported)
-                .contains("unknown-ghp_***")
-                .doesNotContain("ghp_auditaction12345");
+        assertThat(unsupported).contains("unknown-ghp_***").doesNotContain("ghp_auditaction12345");
         assertThat(command)
                 .contains("execute_shell-ghp_***")
                 .contains("token=***")
@@ -2030,23 +2446,17 @@ public class ToolRegistryExposureTest {
         assertThat(waited.get("output").getString()).contains("jimuqu-process-ok");
 
         ONode polled =
-                ONode.ofJson(
-                        tools.process(
-                                "poll",
-                                null,
-                                sessionId,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null));
+                ONode.ofJson(tools.process("poll", null, sessionId, null, null, null, null, null));
         assertThat(polled.get("status").getString()).isEqualTo("exited");
         assertThat(polled.get("output_preview").getString()).contains("jimuqu-process-ok");
         assertThat(polled.get("uptime_seconds").getLong()).isGreaterThanOrEqualTo(0L);
 
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+        ONode listed =
+                ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
-        assertThat(String.valueOf(listed.get("processes"))).contains("output_preview").contains("uptime_seconds");
+        assertThat(String.valueOf(listed.get("processes")))
+                .contains("output_preview")
+                .contains("uptime_seconds");
     }
 
     @Test
@@ -2093,7 +2503,8 @@ public class ToolRegistryExposureTest {
     void shouldExposeTerminalNotificationMetadataThroughProcessTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry.ManagedProcess managed =
-                env.processRegistry.start(javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
+                env.processRegistry.start(
+                        javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
         managed.setNotifyOnComplete(true);
         managed.setWatchPatterns(java.util.Collections.singletonList("ready"));
         ProcessTools tools =
@@ -2104,16 +2515,9 @@ public class ToolRegistryExposureTest {
 
         ONode polled =
                 ONode.ofJson(
-                        tools.process(
-                                "poll",
-                                null,
-                                managed.getId(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null));
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+                        tools.process("poll", null, managed.getId(), null, null, null, null, null));
+        ONode listed =
+                ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
 
         assertThat(polled.get("notify_on_complete").getBoolean()).isTrue();
         assertThat(polled.get("watch_patterns").get(0).getString()).isEqualTo("ready");
@@ -2126,10 +2530,12 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldRedactSensitiveWatchPatternsThroughProcessToolWithCanonicalConfig() throws Exception {
+    void shouldRedactSensitiveWatchPatternsThroughProcessToolWithCanonicalConfig()
+            throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry.ManagedProcess managed =
-                env.processRegistry.start(javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
+                env.processRegistry.start(
+                        javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
         managed.setWatchPatterns(java.util.Collections.singletonList("token=secret123"));
         ProcessTools tools =
                 new ProcessTools(
@@ -2139,16 +2545,9 @@ public class ToolRegistryExposureTest {
 
         ONode polled =
                 ONode.ofJson(
-                        tools.process(
-                                "poll",
-                                null,
-                                managed.getId(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null));
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+                        tools.process("poll", null, managed.getId(), null, null, null, null, null));
+        ONode listed =
+                ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
 
         assertThat(polled.get("watch_patterns").get(0).getString()).isEqualTo("token=***");
         assertThat(polled.toJson()).doesNotContain("secret123");
@@ -2178,14 +2577,7 @@ public class ToolRegistryExposureTest {
         ONode events =
                 ONode.ofJson(
                         tools.process(
-                                "events",
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                Integer.valueOf(10)));
+                                "events", null, null, null, null, null, null, Integer.valueOf(10)));
 
         assertThat(events.get("success").getBoolean()).isTrue();
         assertThat(events.get("count").getInt()).isEqualTo(1);
@@ -2196,7 +2588,10 @@ public class ToolRegistryExposureTest {
 
     @Test
     void shouldExposeManagedProcessLifecycleSnapshotsThroughProcessTool() throws Exception {
-        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
         ProcessTools tools =
@@ -2217,11 +2612,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null));
         String completedId = completedStart.get("session_id").getString();
-        assertThat(
-                        registry.waitFor(
-                                completedId,
-                                5000L))
-                .isTrue();
+        assertThat(registry.waitFor(completedId, 5000L)).isTrue();
 
         ONode failedStart =
                 ONode.ofJson(
@@ -2260,17 +2651,9 @@ public class ToolRegistryExposureTest {
                                 null,
                                 Integer.valueOf(10)));
         ONode polled =
-                ONode.ofJson(
-                        tools.process(
-                                "detail",
-                                null,
-                                failedId,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null));
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+                ONode.ofJson(tools.process("detail", null, failedId, null, null, null, null, null));
+        ONode listed =
+                ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         String lifecycleJson = lifecycle.toJson();
 
         assertThat(lifecycle.get("success").getBoolean()).isTrue();
@@ -2326,15 +2709,7 @@ public class ToolRegistryExposureTest {
                                 null));
         ONode detail =
                 ONode.ofJson(
-                        tools.process(
-                                "status",
-                                null,
-                                sessionId,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null));
+                        tools.process("status", null, sessionId, null, null, null, null, null));
 
         assertThat(killed.get("status").getString()).isEqualTo("killed");
         assertThat(detail.get("lifecycle").toJson())
@@ -2345,7 +2720,10 @@ public class ToolRegistryExposureTest {
 
     @Test
     void shouldAttachJimuquExitCodeMeaningToManagedProcessResults() throws Exception {
-        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =
                 new ProcessTools(
@@ -2381,7 +2759,8 @@ public class ToolRegistryExposureTest {
         assertThat(waited.get("exit_code_meaning").getString())
                 .isEqualTo("Condition evaluated to false (expected, not an error)");
 
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+        ONode listed =
+                ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         assertThat(String.valueOf(listed.get("processes")))
                 .contains("exit_code_meaning")
                 .contains("Condition evaluated to false");
@@ -2435,8 +2814,10 @@ public class ToolRegistryExposureTest {
                                 null,
                                 Integer.valueOf(0),
                                 Integer.valueOf(10)));
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
-        String combined = waited.toString() + polled.toString() + logged.toString() + listed.toString();
+        ONode listed =
+                ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+        String combined =
+                waited.toString() + polled.toString() + logged.toString() + listed.toString();
 
         assertThat(combined)
                 .contains("api_key=***")
@@ -2465,14 +2846,7 @@ public class ToolRegistryExposureTest {
         ONode events =
                 ONode.ofJson(
                         tools.process(
-                                "events",
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                Integer.valueOf(10)));
+                                "events", null, null, null, null, null, null, Integer.valueOf(10)));
         String json = events.toJson();
 
         assertThat(events.get("success").getBoolean()).isTrue();
@@ -2517,9 +2891,13 @@ public class ToolRegistryExposureTest {
         assertThat(executeNull.get("success").getBoolean()).isFalse();
         assertThat(executeNull.get("status").getString()).isEqualTo("error");
         assertThat(executeNull.get("exit_code").getInt()).isEqualTo(-1);
-        assertThat(executeNull.get("error").getString()).contains("expected string").contains("null");
+        assertThat(executeNull.get("error").getString())
+                .contains("expected string")
+                .contains("null");
         assertThat(terminalNull.get("success").getBoolean()).isFalse();
-        assertThat(terminalNull.get("error").getString()).contains("expected string").contains("null");
+        assertThat(terminalNull.get("error").getString())
+                .contains("expected string")
+                .contains("null");
         assertThat(backgroundNull.get("success").getBoolean()).isFalse();
         assertThat(backgroundNull.get("background").getBoolean()).isTrue();
         assertThat(env.processRegistry.runningCount()).isZero();
@@ -2969,18 +3347,15 @@ public class ToolRegistryExposureTest {
                 .isEqualTo("execute_shell");
         assertThat(resolveStdinExecutionToolName(tools, "doas python3"))
                 .isEqualTo("execute_python");
-        assertThat(resolveStdinExecutionToolName(tools, "pkexec node"))
-                .isEqualTo("execute_js");
+        assertThat(resolveStdinExecutionToolName(tools, "pkexec node")).isEqualTo("execute_js");
         assertThat(resolveStdinExecutionToolName(tools, "runas /user:Administrator powershell"))
                 .isEqualTo("execute_shell");
         assertThat(resolveStdinExecutionToolName(tools, "command -p sh"))
                 .isEqualTo("execute_shell");
         assertThat(resolveStdinExecutionToolName(tools, "exec /bin/bash"))
                 .isEqualTo("execute_shell");
-        assertThat(resolveStdinExecutionToolName(tools, "nohup node"))
-                .isEqualTo("execute_js");
-        assertThat(resolveStdinExecutionToolName(tools, "cat"))
-                .isEqualTo("");
+        assertThat(resolveStdinExecutionToolName(tools, "nohup node")).isEqualTo("execute_js");
+        assertThat(resolveStdinExecutionToolName(tools, "cat")).isEqualTo("");
     }
 
     @Test
@@ -2993,9 +3368,7 @@ public class ToolRegistryExposureTest {
                         new SecurityPolicyService(env.appConfig));
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File missing =
-                new File(
-                        runtimeHome.getParentFile(),
-                        "process-token=ghp_processcwd12345-missing");
+                new File(runtimeHome.getParentFile(), "process-token=ghp_processcwd12345-missing");
 
         ONode result =
                 ONode.ofJson(
@@ -3064,8 +3437,7 @@ public class ToolRegistryExposureTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String sourceKey = "MEMORY:room-1:user-1";
 
-        env.toolRegistry.disableTools(
-                sourceKey, java.util.Collections.singletonList("browser"));
+        env.toolRegistry.disableTools(sourceKey, java.util.Collections.singletonList("browser"));
 
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).doesNotContain("browser");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
@@ -3097,9 +3469,12 @@ public class ToolRegistryExposureTest {
                 .setDomains(Arrays.asList("blocked.example"));
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
 
-        SolonClawWebTools.SafeWebfetchTool webfetch = new SolonClawWebTools.SafeWebfetchTool(policy);
-        SolonClawWebTools.SafeWebsearchTool websearch = new SolonClawWebTools.SafeWebsearchTool(policy);
-        SolonClawWebTools.SafeCodeSearchTool codesearch = new SolonClawWebTools.SafeCodeSearchTool(policy);
+        SolonClawWebTools.SafeWebfetchTool webfetch =
+                new SolonClawWebTools.SafeWebfetchTool(policy);
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(policy);
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(policy);
 
         assertThatThrownBy(
                         () ->
@@ -3176,7 +3551,9 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
-                                        "https://allowed.example/start", "markdown", Integer.valueOf(1)))
+                                        "https://allowed.example/start",
+                                        "markdown",
+                                        Integer.valueOf(1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3220,7 +3597,9 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
-                                        "https://allowed.example/page", "markdown", Integer.valueOf(1)))
+                                        "https://allowed.example/page",
+                                        "markdown",
+                                        Integer.valueOf(1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3259,7 +3638,9 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
-                                        "https://allowed.example/page", "markdown", Integer.valueOf(1)))
+                                        "https://allowed.example/page",
+                                        "markdown",
+                                        Integer.valueOf(1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3267,8 +3648,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldGuardWebfetchReturnedSchemelessDocumentUrlsAfterProviderResult()
-            throws Exception {
+    void shouldGuardWebfetchReturnedSchemelessDocumentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
@@ -3302,7 +3682,9 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
-                                        "https://allowed.example/page", "markdown", Integer.valueOf(1)))
+                                        "https://allowed.example/page",
+                                        "markdown",
+                                        Integer.valueOf(1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3418,7 +3800,11 @@ public class ToolRegistryExposureTest {
 
         Document document =
                 websearch.websearch(
-                        "allowed search", Integer.valueOf(1), "fallback", "auto", Integer.valueOf(1000));
+                        "allowed search",
+                        Integer.valueOf(1),
+                        "fallback",
+                        "auto",
+                        Integer.valueOf(1000));
         String text = document.toString();
 
         assertThat(text)
@@ -3488,7 +3874,8 @@ public class ToolRegistryExposureTest {
                         new CodeSearchTool() {
                             @Override
                             public Object handle(String query, Integer tokensNum) {
-                                Map<String, Object> hit = new java.util.LinkedHashMap<String, Object>();
+                                Map<String, Object> hit =
+                                        new java.util.LinkedHashMap<String, Object>();
                                 hit.put("title", "code ghp_codesearchtitle12345");
                                 hit.put(
                                         "document",
@@ -3522,9 +3909,7 @@ public class ToolRegistryExposureTest {
         env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
-                        new SecurityPolicyService(env.appConfig),
-                        null,
-                        env.appConfig) {
+                        new SecurityPolicyService(env.appConfig), null, env.appConfig) {
                     @Override
                     protected String executeBraveSearchRequest(
                             String query, int limit, String apiKey) {
@@ -3553,9 +3938,7 @@ public class ToolRegistryExposureTest {
         env.appConfig.getWeb().setBraveSearchApiKey("");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
-                        new SecurityPolicyService(env.appConfig),
-                        null,
-                        env.appConfig);
+                        new SecurityPolicyService(env.appConfig), null, env.appConfig);
 
         assertThatThrownBy(
                         () ->
@@ -3659,10 +4042,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
         SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(
-                        policy,
-                        null,
-                        env.appConfig) {
+                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
                     @Override
                     protected String executeDdgsSearchRequest(String query, int limit) {
                         assertThat(query).isEqualTo("solon ai");
@@ -3683,7 +4063,8 @@ public class ToolRegistryExposureTest {
 
         assertThat(result.get("provider").getString()).isEqualTo("ddgs");
         assertThat(((List<?>) result.get("data").get("web").toData()).size()).isEqualTo(2);
-        assertThat(result.get("data").get("web").get(0).get("title").getString()).isEqualTo("Solon AI");
+        assertThat(result.get("data").get("web").get(0).get("title").getString())
+                .isEqualTo("Solon AI");
         assertThat(result.get("data").get("web").get(0).get("url").getString())
                 .isEqualTo("https://example.com/solon");
         assertThat(result.get("data").get("web").get(0).get("description").getString())
@@ -3786,7 +4167,8 @@ public class ToolRegistryExposureTest {
                         new CodeSearchTool() {
                             @Override
                             public Object handle(String query, Integer tokensNum) {
-                                Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
+                                Map<String, Object> result =
+                                        new java.util.LinkedHashMap<String, Object>();
                                 result.put(
                                         "documents",
                                         Arrays.asList(
@@ -3799,8 +4181,7 @@ public class ToolRegistryExposureTest {
                             }
                         });
 
-        assertThatThrownBy(
-                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3829,19 +4210,19 @@ public class ToolRegistryExposureTest {
                         new CodeSearchTool() {
                             @Override
                             public Object handle(String query, Integer tokensNum) {
-                                Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
+                                Map<String, Object> result =
+                                        new java.util.LinkedHashMap<String, Object>();
                                 result.put(
                                         "documents",
                                         Arrays.asList(
                                                 new Document(
-                                                        "{\"download\":\"https://blocked.example/code.zip?token=secret123\"}")
+                                                                "{\"download\":\"https://blocked.example/code.zip?token=secret123\"}")
                                                         .title("code")));
                                 return result;
                             }
                         });
 
-        assertThatThrownBy(
-                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3870,7 +4251,8 @@ public class ToolRegistryExposureTest {
                         new CodeSearchTool() {
                             @Override
                             public Object handle(String query, Integer tokensNum) {
-                                Map<String, Object> hit = new java.util.LinkedHashMap<String, Object>();
+                                Map<String, Object> hit =
+                                        new java.util.LinkedHashMap<String, Object>();
                                 hit.put("finalUrl", "https://blocked.example/code?token=secret123");
                                 hit.put("title", "blocked code result");
                                 Map<String, Object> result =
@@ -3880,8 +4262,7 @@ public class ToolRegistryExposureTest {
                             }
                         });
 
-        assertThatThrownBy(
-                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3916,8 +4297,7 @@ public class ToolRegistryExposureTest {
                             }
                         });
 
-        assertThatThrownBy(
-                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -3941,8 +4321,7 @@ public class ToolRegistryExposureTest {
                             @Override
                             public Object handle(String query, Integer tokensNum) {
                                 return new ReturnedPojo(
-                                        "token=ghp_pojoresult12345",
-                                        "https://example.com/code");
+                                        "token=ghp_pojoresult12345", "https://example.com/code");
                             }
                         });
 
@@ -3980,8 +4359,7 @@ public class ToolRegistryExposureTest {
                             }
                         });
 
-        assertThatThrownBy(
-                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
@@ -4029,11 +4407,7 @@ public class ToolRegistryExposureTest {
                 new SolonClawCodeExecutionSkills.SafeNodejsSkill(
                         env.appConfig.getRuntime().getHome(), policy);
 
-        assertThatThrownBy(
-                        () ->
-                                python.execute(
-                                        "open('.env').read()",
-                                        Integer.valueOf(1000)))
+        assertThatThrownBy(() -> python.execute("open('.env').read()", Integer.valueOf(1000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
                 .hasMessageContaining("[REDACTED_PATH]")
@@ -4126,15 +4500,12 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(5)));
 
         assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("error").getString())
-                .contains("硬阻断安全规则")
-                .contains("root filesystem");
+        assertThat(result.get("error").getString()).contains("硬阻断安全规则").contains("root filesystem");
         assertThat(result.get("output").getString()).doesNotContain("after");
     }
 
     @Test
-    void shouldReturnErrorWhenExecuteCodeSubprocessArgvContainsHardlineCommand()
-            throws Exception {
+    void shouldReturnErrorWhenExecuteCodeSubprocessArgvContainsHardlineCommand() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
@@ -4151,9 +4522,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(5)));
 
         assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("error").getString())
-                .contains("硬阻断安全规则")
-                .contains("root filesystem");
+        assertThat(result.get("error").getString()).contains("硬阻断安全规则").contains("root filesystem");
         assertThat(result.get("output").getString()).doesNotContain("after");
     }
 
@@ -4178,12 +4547,12 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning()
-            throws Exception {
+    void shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new File(env.appConfig.getRuntime().getHome()).toPath();
-        Files.write(workspace.resolve(".env"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve(".env"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
         Files.write(
                 workspace.resolve("credentials.json"),
                 Arrays.asList("{\"token\":\"secret\"}"),
@@ -4223,8 +4592,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning()
-            throws Exception {
+    void shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
@@ -4306,7 +4674,10 @@ public class ToolRegistryExposureTest {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
-        Files.write(workspace.resolve("rpc-source.txt"), Arrays.asList("alpha", "needle"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("rpc-source.txt"),
+                Arrays.asList("alpha", "needle"),
+                StandardCharsets.UTF_8);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
@@ -4327,7 +4698,11 @@ public class ToolRegistryExposureTest {
                                         + "print(write_file('rpc-output.txt', 'before\\n')['output'])\n"
                                         + "print(patch(path='rpc-output.txt', old_string='before', new_string='after')['status'])\n"
                                         + "print(read_file('rpc-output.txt')['content'])\n"
-                                        + "print(terminal(\"" + terminalCommand.replace("\\", "\\\\").replace("\"", "\\\"") + "\")['output'].strip())\n",
+                                        + "print(terminal(\""
+                                        + terminalCommand
+                                                .replace("\\", "\\\\")
+                                                .replace("\"", "\\\"")
+                                        + "\")['output'].strip())\n",
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
@@ -4338,7 +4713,10 @@ public class ToolRegistryExposureTest {
                 .contains("success")
                 .contains("after")
                 .contains("rpc-terminal");
-        assertThat(new String(Files.readAllBytes(workspace.resolve("rpc-output.txt")), StandardCharsets.UTF_8))
+        assertThat(
+                        new String(
+                                Files.readAllBytes(workspace.resolve("rpc-output.txt")),
+                                StandardCharsets.UTF_8))
                 .contains("after");
     }
 
@@ -4347,7 +4725,10 @@ public class ToolRegistryExposureTest {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
-        Files.write(workspace.resolve("rpc-repeat.txt"), Arrays.asList("alpha", "needle"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("rpc-repeat.txt"),
+                Arrays.asList("alpha", "needle"),
+                StandardCharsets.UTF_8);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
@@ -4410,10 +4791,7 @@ public class ToolRegistryExposureTest {
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        policy,
-                        env.appConfig);
+                        env.appConfig.getRuntime().getHome(), "python", policy, env.appConfig);
         String code =
                 "import shutil\n"
                         + "import os\n"
@@ -4462,7 +4840,8 @@ public class ToolRegistryExposureTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawShellSkill shell =
-                new SolonClawShellSkill(env.appConfig.getRuntime().getHome(), env.appConfig, policy);
+                new SolonClawShellSkill(
+                        env.appConfig.getRuntime().getHome(), env.appConfig, policy);
         String command = "git reset --hard";
 
         assertThatThrownBy(() -> shell.execute(command, Integer.valueOf(1000)))
@@ -4488,8 +4867,7 @@ public class ToolRegistryExposureTest {
                 new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
         service.buildInterceptor().onAction(resumed, "execute_shell", args);
 
-        assertThat(shell.execute(command, Integer.valueOf(1000)))
-                .doesNotContain("危险命令安全规则");
+        assertThat(shell.execute(command, Integer.valueOf(1000))).doesNotContain("危险命令安全规则");
 
         assertThatThrownBy(() -> shell.execute(command, Integer.valueOf(1000)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -4502,7 +4880,8 @@ public class ToolRegistryExposureTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawShellSkill shell =
-                new SolonClawShellSkill(env.appConfig.getRuntime().getHome(), env.appConfig, policy);
+                new SolonClawShellSkill(
+                        env.appConfig.getRuntime().getHome(), env.appConfig, policy);
         String command = "git reset --hard";
 
         ONode blockedBefore =
@@ -4630,9 +5009,7 @@ public class ToolRegistryExposureTest {
 
         String result = fileSkill.read("logs/token=ghp_filereaderror12345.txt");
 
-        assertThat(result)
-                .contains("token=***")
-                .doesNotContain("ghp_filereaderror12345");
+        assertThat(result).contains("token=***").doesNotContain("ghp_filereaderror12345");
     }
 
     @Test
@@ -4689,12 +5066,8 @@ public class ToolRegistryExposureTest {
                 .contains("token-ghp_***")
                 .doesNotContain("ghp_filewrite12345")
                 .doesNotContain("ghp_filecontent12345");
-        assertThat(list)
-                .contains("token-ghp_***")
-                .doesNotContain("ghp_filewrite12345");
-        assertThat(delete)
-                .contains("token-ghp_***")
-                .doesNotContain("ghp_filewrite12345");
+        assertThat(list).contains("token-ghp_***").doesNotContain("ghp_filewrite12345");
+        assertThat(delete).contains("token-ghp_***").doesNotContain("ghp_filewrite12345");
     }
 
     @Test
@@ -4714,7 +5087,10 @@ public class ToolRegistryExposureTest {
         Object filesModified = result.get("files_modified").toData();
         assertThat(String.valueOf(filesModified)).isEqualTo("[" + expected + "]");
         assertThat(result.get("path").getString()).isEqualTo("notes/out.txt");
-        assertThat(new String(Files.readAllBytes(workspace.resolve("notes/out.txt")), StandardCharsets.UTF_8))
+        assertThat(
+                        new String(
+                                Files.readAllBytes(workspace.resolve("notes/out.txt")),
+                                StandardCharsets.UTF_8))
                 .isEqualTo("hello\n");
     }
 
@@ -4744,10 +5120,22 @@ public class ToolRegistryExposureTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.createDirectories(workspace.resolve("config"));
-        Files.write(workspace.resolve("config/app.yaml"), Arrays.asList("app: true"), StandardCharsets.UTF_8);
-        Files.write(workspace.resolve("config/app.yml"), Arrays.asList("app: short"), StandardCharsets.UTF_8);
-        Files.write(workspace.resolve("config/application.yaml"), Arrays.asList("app: long"), StandardCharsets.UTF_8);
-        Files.write(workspace.resolve("config/readme.txt"), Arrays.asList("ignore"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("config/app.yaml"),
+                Arrays.asList("app: true"),
+                StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("config/app.yml"),
+                Arrays.asList("app: short"),
+                StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("config/application.yaml"),
+                Arrays.asList("app: long"),
+                StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("config/readme.txt"),
+                Arrays.asList("ignore"),
+                StandardCharsets.UTF_8);
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
@@ -4762,7 +5150,12 @@ public class ToolRegistryExposureTest {
         assertThat(suggestionsData).isNotNull();
         assertThat(result.get("path").getString()).isEqualTo("config/app.json");
         assertThat(result.get("resolved_path").getString())
-                .isEqualTo(workspace.resolve("config/app.json").toAbsolutePath().normalize().toString());
+                .isEqualTo(
+                        workspace
+                                .resolve("config/app.json")
+                                .toAbsolutePath()
+                                .normalize()
+                                .toString());
         assertThat(suggestions)
                 .contains("config/app.yaml")
                 .contains("config/app.yml")
@@ -4774,8 +5167,14 @@ public class ToolRegistryExposureTest {
     void shouldNotSuggestSensitiveFilesWhenFileReadPathIsMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
-        Files.write(workspace.resolve("config.yml"), Arrays.asList("public: true"), StandardCharsets.UTF_8);
-        Files.write(workspace.resolve("credentials.json"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("config.yml"),
+                Arrays.asList("public: true"),
+                StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("credentials.json"),
+                Arrays.asList("TOKEN=secret"),
+                StandardCharsets.UTF_8);
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
@@ -4790,7 +5189,9 @@ public class ToolRegistryExposureTest {
                 .contains("config.yml")
                 .doesNotContain("credentials.json")
                 .doesNotContain("TOKEN=secret");
-        assertThat(result.toJson()).doesNotContain("credentials.json").doesNotContain("TOKEN=secret");
+        assertThat(result.toJson())
+                .doesNotContain("credentials.json")
+                .doesNotContain("TOKEN=secret");
     }
 
     @Test
@@ -4894,7 +5295,8 @@ public class ToolRegistryExposureTest {
         Path outside = Files.createTempDirectory("jimuqu-patch-outside");
         Path outsideFile = outside.resolve("secret.txt");
         Files.write(outsideFile, Arrays.asList("TOKEN=old"), StandardCharsets.UTF_8);
-        Files.write(workspace.resolve("inside.txt"), Arrays.asList("inside"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("inside.txt"), Arrays.asList("inside"), StandardCharsets.UTF_8);
         Path link = workspace.resolve("linked");
         assumeTrue(createDirectoryLink(link, outside));
         SolonClawPatchTools patchTools =
@@ -4957,7 +5359,10 @@ public class ToolRegistryExposureTest {
                 .contains("TOKEN=old");
         assertThat(Files.exists(outside.resolve("new.txt"))).isFalse();
         assertThat(Files.exists(outside.resolve("moved.txt"))).isFalse();
-        assertThat(new String(Files.readAllBytes(workspace.resolve("inside.txt")), StandardCharsets.UTF_8))
+        assertThat(
+                        new String(
+                                Files.readAllBytes(workspace.resolve("inside.txt")),
+                                StandardCharsets.UTF_8))
                 .contains("inside");
     }
 
@@ -5014,11 +5419,7 @@ public class ToolRegistryExposureTest {
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
                 workspace.resolve("long-lines.txt"),
-                Arrays.asList(
-                        "alpha",
-                        "0123456789ABCDEFGHIJ",
-                        "charlie",
-                        "delta"),
+                Arrays.asList("alpha", "0123456789ABCDEFGHIJ", "charlie", "delta"),
                 StandardCharsets.UTF_8);
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(
@@ -5057,11 +5458,7 @@ public class ToolRegistryExposureTest {
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
                 workspace.resolve("runtime-limits.txt"),
-                Arrays.asList(
-                        "alpha",
-                        "0123456789ABCDEFGHIJ",
-                        "charlie",
-                        "delta"),
+                Arrays.asList("alpha", "0123456789ABCDEFGHIJ", "charlie", "delta"),
                 StandardCharsets.UTF_8);
         SolonClawFileReadWriteSkill fileSkill = null;
         for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1")) {
@@ -5165,7 +5562,8 @@ public class ToolRegistryExposureTest {
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path dir = workspace.resolve("token-ghp_filereadstatus12345");
         Files.createDirectories(dir);
-        Files.write(dir.resolve("repeat.txt"), Arrays.asList("alpha", "bravo"), StandardCharsets.UTF_8);
+        Files.write(
+                dir.resolve("repeat.txt"), Arrays.asList("alpha", "bravo"), StandardCharsets.UTF_8);
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
@@ -5339,7 +5737,8 @@ public class ToolRegistryExposureTest {
             longDoc.append("\nmore ordinary documentation");
         }
         fileSkill.write("quoted-status.txt", longDoc.toString());
-        assertThat(Files.readAllBytes(workspace.resolve("quoted-status.txt")).length).isGreaterThan(0);
+        assertThat(Files.readAllBytes(workspace.resolve("quoted-status.txt")).length)
+                .isGreaterThan(0);
     }
 
     private void assertPatchSymlinkEscapeBlocked(ONode result) {
@@ -5366,7 +5765,9 @@ public class ToolRegistryExposureTest {
             Files.createSymbolicLink(link, target);
             return true;
         } catch (Exception ignored) {
-            if (!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            if (!System.getProperty("os.name", "")
+                    .toLowerCase(java.util.Locale.ROOT)
+                    .contains("win")) {
                 return false;
             }
             try {
@@ -5432,9 +5833,7 @@ public class ToolRegistryExposureTest {
     private boolean commandExists(String command) {
         try {
             Process process =
-                    new ProcessBuilder(command, "--version")
-                            .redirectErrorStream(true)
-                            .start();
+                    new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
             return process.waitFor() == 0;
         } catch (Exception ignored) {
             return false;
@@ -5451,8 +5850,10 @@ public class ToolRegistryExposureTest {
         throw new IllegalStateException("parameter not found: " + name);
     }
 
-    private String resolveStdinExecutionToolName(ProcessTools tools, String command) throws Exception {
-        Method method = ProcessTools.class.getDeclaredMethod("stdinExecutionToolName", String.class);
+    private String resolveStdinExecutionToolName(ProcessTools tools, String command)
+            throws Exception {
+        Method method =
+                ProcessTools.class.getDeclaredMethod("stdinExecutionToolName", String.class);
         method.setAccessible(true);
         return String.valueOf(method.invoke(tools, command));
     }

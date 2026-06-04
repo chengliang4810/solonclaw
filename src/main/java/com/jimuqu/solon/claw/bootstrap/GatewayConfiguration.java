@@ -6,9 +6,9 @@ import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
-import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -20,12 +20,10 @@ import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
-import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
-import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
@@ -41,6 +39,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartNotificationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -122,7 +121,8 @@ public class GatewayConfiguration {
             AppConfig appConfig,
             Map<PlatformType, ChannelAdapter> channelAdapters,
             GatewayPolicyRepository gatewayPolicyRepository) {
-        return new AdapterBackedDeliveryService(appConfig, channelAdapters, gatewayPolicyRepository);
+        return new AdapterBackedDeliveryService(
+                appConfig, channelAdapters, gatewayPolicyRepository);
     }
 
     @Bean
@@ -182,7 +182,8 @@ public class GatewayConfiguration {
     }
 
     @Bean
-    public SlashConfirmService slashConfirmService(GlobalSettingRepository globalSettingRepository) {
+    public SlashConfirmService slashConfirmService(
+            GlobalSettingRepository globalSettingRepository) {
         return new SlashConfirmService(globalSettingRepository);
     }
 

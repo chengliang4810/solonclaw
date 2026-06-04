@@ -26,14 +26,23 @@ public class AgentPluginManager {
     private final boolean loadBundledPlugins;
     private final List<PluginLoadDiagnostic> diagnostics = new ArrayList<>();
 
-    public AgentPluginManager(AgentHookRegistry hookRegistry, Set<String> enabledPlugins,
-                              Set<String> disabledPlugins) {
-        this(hookRegistry, enabledPlugins, disabledPlugins,
-                Paths.get(System.getProperty("user.home"), ".jimuqu", "plugins"), true);
+    public AgentPluginManager(
+            AgentHookRegistry hookRegistry,
+            Set<String> enabledPlugins,
+            Set<String> disabledPlugins) {
+        this(
+                hookRegistry,
+                enabledPlugins,
+                disabledPlugins,
+                Paths.get(System.getProperty("user.home"), ".jimuqu", "plugins"),
+                true);
     }
 
-    public AgentPluginManager(AgentHookRegistry hookRegistry, Set<String> enabledPlugins,
-                              Set<String> disabledPlugins, Path pluginRoot) {
+    public AgentPluginManager(
+            AgentHookRegistry hookRegistry,
+            Set<String> enabledPlugins,
+            Set<String> disabledPlugins,
+            Path pluginRoot) {
         this(hookRegistry, enabledPlugins, disabledPlugins, pluginRoot, false);
     }
 
@@ -66,46 +75,52 @@ public class AgentPluginManager {
 
         for (AgentPluginManifest manifest : manifests) {
             if (!seenPluginNames.add(manifest.getName())) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "duplicate_plugin_name",
-                        "Plugin name already loaded: " + manifest.getName()));
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "duplicate_plugin_name",
+                                "Plugin name already loaded: " + manifest.getName()));
                 continue;
             }
             if (disabledPlugins.contains(manifest.getName())) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "disabled_by_configuration",
-                        "Plugin disabled by configuration: " + manifest.getName()));
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "disabled_by_configuration",
+                                "Plugin disabled by configuration: " + manifest.getName()));
                 log.debug("Plugin '{}' is disabled, skipping", manifest.getName());
                 continue;
             }
             if (!manifest.isEnabled()) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "disabled_by_manifest",
-                        "Plugin disabled by manifest: " + manifest.getName()));
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "disabled_by_manifest",
+                                "Plugin disabled by manifest: " + manifest.getName()));
                 continue;
             }
             if (!manifest.isAutoLoad() && !enabledPlugins.contains(manifest.getName())) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "not_enabled",
-                        "Plugin is not enabled: " + manifest.getName()));
-                log.debug("Plugin '{}' is standalone and not enabled, skipping", manifest.getName());
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "not_enabled",
+                                "Plugin is not enabled: " + manifest.getName()));
+                log.debug(
+                        "Plugin '{}' is standalone and not enabled, skipping", manifest.getName());
                 continue;
             }
             String missingEnv = firstMissingEnv(manifest);
             if (missingEnv != null) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "missing_required_env",
-                        "Missing required environment variable: " + missingEnv));
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "missing_required_env",
+                                "Missing required environment variable: " + missingEnv));
                 continue;
             }
             loadPlugin(manifest, sink);
@@ -136,28 +151,38 @@ public class AgentPluginManager {
 
     private void scanDirectory(Path dir, String source, List<AgentPluginManifest> manifests) {
         try (Stream<Path> children = Files.list(dir)) {
-            children.filter(Files::isDirectory).forEach(child -> {
-                Path yamlFile = child.resolve("plugin.yaml");
-                Path ymlFile = child.resolve("plugin.yml");
-                Path manifestFile = Files.exists(yamlFile) ? yamlFile : (Files.exists(ymlFile) ? ymlFile : null);
-                if (manifestFile == null) {
-                    return;
-                }
-                try {
-                    AgentPluginManifest manifest = parseManifest(manifestFile, child, source);
-                    if (manifest != null) {
-                        manifests.add(manifest);
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to parse plugin manifest at {}: {}", manifestFile, e.getMessage());
-                }
-            });
+            children.filter(Files::isDirectory)
+                    .forEach(
+                            child -> {
+                                Path yamlFile = child.resolve("plugin.yaml");
+                                Path ymlFile = child.resolve("plugin.yml");
+                                Path manifestFile =
+                                        Files.exists(yamlFile)
+                                                ? yamlFile
+                                                : (Files.exists(ymlFile) ? ymlFile : null);
+                                if (manifestFile == null) {
+                                    return;
+                                }
+                                try {
+                                    AgentPluginManifest manifest =
+                                            parseManifest(manifestFile, child, source);
+                                    if (manifest != null) {
+                                        manifests.add(manifest);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn(
+                                            "Failed to parse plugin manifest at {}: {}",
+                                            manifestFile,
+                                            e.getMessage());
+                                }
+                            });
         } catch (IOException e) {
             log.warn("Failed to scan plugin directory {}: {}", dir, e.getMessage());
         }
     }
 
-    private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source) throws IOException {
+    private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
+            throws IOException {
         String content = Files.readString(manifestFile);
         Map<String, String> props = parseSimpleYaml(content);
 
@@ -275,8 +300,9 @@ public class AgentPluginManager {
         try {
             List<Path> javaFiles;
             try (Stream<Path> walk = Files.walk(dir)) {
-                javaFiles = walk.filter(p -> p.toString().endsWith(".java"))
-                        .collect(Collectors.toList());
+                javaFiles =
+                        walk.filter(p -> p.toString().endsWith(".java"))
+                                .collect(Collectors.toList());
             }
             if (javaFiles.isEmpty()) {
                 log.warn("Plugin '{}' has no .java files", manifest.getName());
@@ -323,22 +349,29 @@ public class AgentPluginManager {
             }
 
             ConflictAwareSink scopedSink = new ConflictAwareSink(manifest, sink);
-            DefaultAgentPluginContext ctx = new DefaultAgentPluginContext(manifest, hookRegistry, scopedSink);
+            DefaultAgentPluginContext ctx =
+                    new DefaultAgentPluginContext(manifest, hookRegistry, scopedSink);
             pluginInstance.register(ctx);
 
             loadedPlugins.put(manifest.getName(), new LoadedPlugin(manifest, pluginInstance, ctx));
-            diagnostics.add(diagnostic(
-                    manifest,
-                    PluginLoadStatus.LOADED,
-                    "loaded",
-                    "Plugin loaded: " + manifest.getName()));
-            log.info("Loaded plugin: {} v{} [{}]", manifest.getName(), manifest.getVersion(), manifest.getKind());
+            diagnostics.add(
+                    diagnostic(
+                            manifest,
+                            PluginLoadStatus.LOADED,
+                            "loaded",
+                            "Plugin loaded: " + manifest.getName()));
+            log.info(
+                    "Loaded plugin: {} v{} [{}]",
+                    manifest.getName(),
+                    manifest.getVersion(),
+                    manifest.getKind());
         } catch (Exception e) {
-            diagnostics.add(diagnostic(
-                    manifest,
-                    PluginLoadStatus.FAILED,
-                    "load_failed",
-                    "Plugin load failed: " + safeError(e)));
+            diagnostics.add(
+                    diagnostic(
+                            manifest,
+                            PluginLoadStatus.FAILED,
+                            "load_failed",
+                            "Plugin load failed: " + safeError(e)));
             log.error("Failed to load plugin '{}': {}", manifest.getName(), safeError(e));
         }
     }
@@ -401,7 +434,10 @@ public class AgentPluginManager {
             try {
                 lp.getPlugin().destroy();
             } catch (Exception e) {
-                log.warn("Error destroying plugin '{}': {}", lp.getManifest().getName(), e.getMessage());
+                log.warn(
+                        "Error destroying plugin '{}': {}",
+                        lp.getManifest().getName(),
+                        e.getMessage());
             }
         }
         loadedPlugins.clear();
@@ -413,8 +449,8 @@ public class AgentPluginManager {
             return "unknown error";
         }
         String message = error.getMessage();
-        String value = error.getClass().getSimpleName()
-                + (StrUtil.isBlank(message) ? "" : ": " + message);
+        String value =
+                error.getClass().getSimpleName() + (StrUtil.isBlank(message) ? "" : ": " + message);
         return SecretRedactor.redact(value, 1000);
     }
 
@@ -423,14 +459,22 @@ public class AgentPluginManager {
         private final AgentPlugin plugin;
         private final DefaultAgentPluginContext context;
 
-        LoadedPlugin(AgentPluginManifest manifest, AgentPlugin plugin, DefaultAgentPluginContext context) {
+        LoadedPlugin(
+                AgentPluginManifest manifest,
+                AgentPlugin plugin,
+                DefaultAgentPluginContext context) {
             this.manifest = manifest;
             this.plugin = plugin;
             this.context = context;
         }
 
-        AgentPluginManifest getManifest() { return manifest; }
-        AgentPlugin getPlugin() { return plugin; }
+        AgentPluginManifest getManifest() {
+            return manifest;
+        }
+
+        AgentPlugin getPlugin() {
+            return plugin;
+        }
     }
 
     private class ConflictAwareSink implements PluginRegistrationSink {
@@ -458,11 +502,13 @@ public class AgentPluginManager {
         public void onToolRegistered(ToolRegistration registration) {
             String name = registration == null ? null : registration.getName();
             if (StrUtil.isBlank(name) || hasTool(name)) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "duplicate_tool_name",
-                        "Plugin tool name already exists: " + StrUtil.nullToDefault(name, "")));
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "duplicate_tool_name",
+                                "Plugin tool name already exists: "
+                                        + StrUtil.nullToDefault(name, "")));
                 return;
             }
             pluginTools.add(name);
@@ -472,11 +518,13 @@ public class AgentPluginManager {
         @Override
         public void onCommandRegistered(String name, CommandHandler handler, String description) {
             if (StrUtil.isBlank(name) || hasCommand(name)) {
-                diagnostics.add(diagnostic(
-                        manifest,
-                        PluginLoadStatus.SKIPPED,
-                        "duplicate_command_name",
-                        "Plugin command name already exists: " + StrUtil.nullToDefault(name, "")));
+                diagnostics.add(
+                        diagnostic(
+                                manifest,
+                                PluginLoadStatus.SKIPPED,
+                                "duplicate_command_name",
+                                "Plugin command name already exists: "
+                                        + StrUtil.nullToDefault(name, "")));
                 return;
             }
             pluginCommands.add(name);
@@ -484,27 +532,32 @@ public class AgentPluginManager {
         }
 
         @Override
-        public void onWebSearchProviderRegistered(com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider) {
+        public void onWebSearchProviderRegistered(
+                com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider) {
             delegate.onWebSearchProviderRegistered(provider);
         }
 
         @Override
-        public void onImageGenProviderRegistered(com.jimuqu.solon.claw.plugin.provider.ImageGenProvider provider) {
+        public void onImageGenProviderRegistered(
+                com.jimuqu.solon.claw.plugin.provider.ImageGenProvider provider) {
             delegate.onImageGenProviderRegistered(provider);
         }
 
         @Override
-        public void onVideoGenProviderRegistered(com.jimuqu.solon.claw.plugin.provider.VideoGenProvider provider) {
+        public void onVideoGenProviderRegistered(
+                com.jimuqu.solon.claw.plugin.provider.VideoGenProvider provider) {
             delegate.onVideoGenProviderRegistered(provider);
         }
 
         @Override
-        public void onBrowserProviderRegistered(com.jimuqu.solon.claw.plugin.provider.BrowserProvider provider) {
+        public void onBrowserProviderRegistered(
+                com.jimuqu.solon.claw.plugin.provider.BrowserProvider provider) {
             delegate.onBrowserProviderRegistered(provider);
         }
 
         @Override
-        public void onSpeechProviderRegistered(com.jimuqu.solon.claw.plugin.provider.SpeechProvider provider) {
+        public void onSpeechProviderRegistered(
+                com.jimuqu.solon.claw.plugin.provider.SpeechProvider provider) {
             delegate.onSpeechProviderRegistered(provider);
         }
 
@@ -515,7 +568,8 @@ public class AgentPluginManager {
         }
 
         @Override
-        public void onMemoryProviderRegistered(com.jimuqu.solon.claw.core.service.MemoryProvider provider) {
+        public void onMemoryProviderRegistered(
+                com.jimuqu.solon.claw.core.service.MemoryProvider provider) {
             delegate.onMemoryProviderRegistered(provider);
         }
 

@@ -46,7 +46,9 @@ public class McpPackageSecurityServiceTest {
                 new McpPackageSecurityService(http, "https://osv.test/query");
 
         McpPackageSecurityService.SecurityVerdict verdict =
-                service.check("npx.cmd", Arrays.asList("-y", "--package=@scope/server@2.0.0", "server-cli"));
+                service.check(
+                        "npx.cmd",
+                        Arrays.asList("-y", "--package=@scope/server@2.0.0", "server-cli"));
 
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(http.lastBody).contains("\"name\":\"@scope/server\"");
@@ -217,7 +219,8 @@ public class McpPackageSecurityServiceTest {
 
     @Test
     void shouldDescribeMcpPackageSecurityPolicy() {
-        Map<String, Object> summary = new McpPackageSecurityService(new FakeOsvHttpClient("{}")).policySummary();
+        Map<String, Object> summary =
+                new McpPackageSecurityService(new FakeOsvHttpClient("{}")).policySummary();
 
         assertThat(summary)
                 .containsEntry("malwareBlocksSaveAndCheck", Boolean.TRUE)
@@ -226,12 +229,14 @@ public class McpPackageSecurityServiceTest {
                 .containsEntry("npxPackageOptionParsed", Boolean.TRUE)
                 .containsEntry("pipxRunSubcommandSkipped", Boolean.TRUE)
                 .containsEntry("pypiSourceOptionParsed", Boolean.TRUE);
-        assertThat(summary.get("endpointOverrideEnvironment"))
-                .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
+        assertThat(summary.get("endpointOverrideEnvironment")).isEqualTo("SOLONCLAW_OSV_ENDPOINT");
         assertThat(summary.get("projectEndpointOverrideEnvironment"))
                 .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
         assertThat(summary).doesNotContainKey("legacyEndpointOverrideEnvironment");
-        assertThat(String.valueOf(summary.get("checkedLaunchers"))).contains("npx").contains("uvx").contains("pipx");
+        assertThat(String.valueOf(summary.get("checkedLaunchers")))
+                .contains("npx")
+                .contains("uvx")
+                .contains("pipx");
     }
 
     private Map<String, Object> tool(String name) {
@@ -244,7 +249,8 @@ public class McpPackageSecurityServiceTest {
         Connection connection = env.sqliteDatabase.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement("select last_error from mcp_servers where server_id = ?");
+                    connection.prepareStatement(
+                            "select last_error from mcp_servers where server_id = ?");
             statement.setString(1, serverId);
             ResultSet resultSet = statement.executeQuery();
             try {

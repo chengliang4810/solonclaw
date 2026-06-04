@@ -24,8 +24,7 @@ import org.yaml.snakeyaml.Yaml;
 
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
-    private static final List<String> ROOT_PREFIXES =
-            Arrays.asList("approvals.", "security.");
+    private static final List<String> ROOT_PREFIXES = Arrays.asList("approvals.", "security.");
     private static final List<String> SOLONCLAW_PASSTHROUGH_PREFIXES =
             Arrays.asList("solonclaw.channels.wecom.groups.", "solonclaw.terminal.");
     private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
@@ -72,7 +71,8 @@ public class DashboardConfigService {
     }
 
     public Map<String, Object> diagnostics() {
-        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
+        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome())
+                .diagnostics(appConfig);
     }
 
     public Map<String, Object> saveConfig(Map<String, Object> nestedConfig) {
@@ -208,7 +208,9 @@ public class DashboardConfigService {
                         "元宝 runtime footer 覆盖开关"));
         addField(new FieldDefinition("scheduler.enabled", "boolean", "general", "启用定时调度"));
         addField(new FieldDefinition("scheduler.tickSeconds", "number", "general", "调度轮询周期（秒）"));
-        addField(new FieldDefinition("scheduler.wrapResponse", "boolean", "general", "默认包装定时任务投递回复"));
+        addField(
+                new FieldDefinition(
+                        "scheduler.wrapResponse", "boolean", "general", "默认包装定时任务投递回复"));
 
         addField(new FieldDefinition("learning.enabled", "boolean", "agent", "启用主回复后的自动学习"));
         addField(
@@ -216,10 +218,7 @@ public class DashboardConfigService {
                         "learning.toolCallThreshold", "number", "agent", "触发学习所需的最少工具调用数"));
         addField(
                 new FieldDefinition(
-                        "learning.auxiliaryTimeoutSeconds",
-                        "number",
-                        "agent",
-                        "自动学习辅助模型调用总超时（秒）"));
+                        "learning.auxiliaryTimeoutSeconds", "number", "agent", "自动学习辅助模型调用总超时（秒）"));
         addField(
                 new FieldDefinition(
                         "skills.curator.enabled", "boolean", "agent", "启用技能后台维护 Curator"));
@@ -238,10 +237,15 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition("task.busyPolicy", "select", "agent", "运行中输入策略")
                         .options("queue", "steer", "interrupt", "reject"));
-        addField(new FieldDefinition("task.toolOutputInlineLimit", "number", "agent", "工具输出内联字节上限"));
-        addField(new FieldDefinition("task.toolOutputTurnBudget", "number", "agent", "单轮工具输出累计预算字节"));
+        addField(
+                new FieldDefinition("task.toolOutputInlineLimit", "number", "agent", "工具输出内联字节上限"));
+        addField(
+                new FieldDefinition(
+                        "task.toolOutputTurnBudget", "number", "agent", "单轮工具输出累计预算字节"));
         addField(new FieldDefinition("task.toolOutputMaxLines", "number", "agent", "工具文件读取最大行数"));
-        addField(new FieldDefinition("task.toolOutputMaxLineLength", "number", "agent", "工具输出单行最大长度"));
+        addField(
+                new FieldDefinition(
+                        "task.toolOutputMaxLineLength", "number", "agent", "工具输出单行最大长度"));
         addField(
                 new FieldDefinition(
                         "agent.heartbeat.intervalMinutes",
@@ -283,22 +287,13 @@ public class DashboardConfigService {
                         "ReAct 摘要触发 token 阈值"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopWarningsEnabled",
-                        "boolean",
-                        "security",
-                        "启用重复工具调用软提醒"));
+                        "react.toolLoopWarningsEnabled", "boolean", "security", "启用重复工具调用软提醒"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopHardStopEnabled",
-                        "boolean",
-                        "security",
-                        "启用重复工具调用硬停"));
+                        "react.toolLoopHardStopEnabled", "boolean", "security", "启用重复工具调用硬停"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopExactFailureWarnAfter",
-                        "number",
-                        "security",
-                        "相同参数失败提醒阈值"));
+                        "react.toolLoopExactFailureWarnAfter", "number", "security", "相同参数失败提醒阈值"));
         addField(
                 new FieldDefinition(
                         "react.toolLoopExactFailureBlockAfter",
@@ -319,16 +314,10 @@ public class DashboardConfigService {
                         "同一工具失败硬停阈值"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopNoProgressWarnAfter",
-                        "number",
-                        "security",
-                        "只读工具无进展提醒阈值"));
+                        "react.toolLoopNoProgressWarnAfter", "number", "security", "只读工具无进展提醒阈值"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopNoProgressBlockAfter",
-                        "number",
-                        "security",
-                        "只读工具无进展硬停阈值"));
+                        "react.toolLoopNoProgressBlockAfter", "number", "security", "只读工具无进展硬停阈值"));
         addField(
                 new FieldDefinition(
                         "agent.personalities.helpful.description",
@@ -416,30 +405,19 @@ public class DashboardConfigService {
                         "容器浏览器访问宿主机 loopback 地址改写"));
         addField(
                 new FieldDefinition(
-                        "browser.loopbackHostAlias",
-                        "string",
-                        "security",
-                        "容器浏览器访问宿主机的主机别名"));
+                        "browser.loopbackHostAlias", "string", "security", "容器浏览器访问宿主机的主机别名"));
         addField(
                 new FieldDefinition(
-                        "security.websiteBlocklist.enabled",
-                        "boolean",
-                        "security",
-                        "启用网站阻断策略"));
+                        "security.websiteBlocklist.enabled", "boolean", "security", "启用网站阻断策略"));
         addField(
                 new FieldDefinition(
-                        "security.websiteBlocklist.domains",
-                        "list",
-                        "security",
-                        "网站阻断域名列表"));
+                        "security.websiteBlocklist.domains", "list", "security", "网站阻断域名列表"));
         addField(
                 new FieldDefinition(
-                        "security.websiteBlocklist.sharedFiles",
-                        "list",
-                        "security",
-                        "共享网站阻断列表文件"));
+                        "security.websiteBlocklist.sharedFiles", "list", "security", "共享网站阻断列表文件"));
         addField(
-                new FieldDefinition("security.tirithEnabled", "boolean", "security", "启用 Tirith 命令扫描"));
+                new FieldDefinition(
+                        "security.tirithEnabled", "boolean", "security", "启用 Tirith 命令扫描"));
         addField(
                 new FieldDefinition("security.tirithPath", "string", "security", "Tirith 可执行文件路径"));
         addField(
@@ -449,59 +427,28 @@ public class DashboardConfigService {
                 new FieldDefinition(
                         "security.tirithFailOpen", "boolean", "security", "Tirith 不可用时放行"));
         addField(
-                new FieldDefinition(
-                        "security.guardrailMode",
-                        "select",
-                        "security",
-                        "危险命令审批模式")
+                new FieldDefinition("security.guardrailMode", "select", "security", "危险命令审批模式")
                         .options("approval", "strict", "bypass", "smart"));
         addField(
                 new FieldDefinition(
-                        "security.guardrailCronMode",
-                        "select",
-                        "security",
-                        "Cron 危险命令策略")
+                                "security.guardrailCronMode", "select", "security", "Cron 危险命令策略")
                         .options("approval", "strict", "bypass", "approve"));
         addField(
                 new FieldDefinition(
-                        "security.guardrailCronScope",
-                        "select",
-                        "security",
-                        "Cron 审批记忆范围")
+                                "security.guardrailCronScope", "select", "security", "Cron 审批记忆范围")
                         .options("job", "session", "global"));
+        addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "本地审批超时秒数"));
         addField(
                 new FieldDefinition(
-                        "approvals.timeoutSeconds",
-                        "number",
-                        "security",
-                        "本地审批超时秒数"));
+                        "approvals.gatewayTimeoutSeconds", "number", "security", "渠道审批超时秒数"));
         addField(
                 new FieldDefinition(
-                        "approvals.gatewayTimeoutSeconds",
-                        "number",
-                        "security",
-                        "渠道审批超时秒数"));
+                        "approvals.mcpReloadConfirm", "boolean", "security", "MCP reload 需要确认"));
+        addField(new FieldDefinition("terminal.credentialFiles", "list", "security", "终端凭据文件挂载清单"));
         addField(
                 new FieldDefinition(
-                        "approvals.mcpReloadConfirm",
-                        "boolean",
-                        "security",
-                        "MCP reload 需要确认"));
-        addField(
-                new FieldDefinition(
-                        "terminal.credentialFiles",
-                        "list",
-                        "security",
-                        "终端凭据文件挂载清单"));
-        addField(
-                new FieldDefinition(
-                        "terminal.envPassthrough",
-                        "list",
-                        "security",
-                        "终端子进程环境变量放行清单"));
-        addField(
-                new FieldDefinition(
-                        "terminal.sudoPassword", "password", "security", "sudo 密码"));
+                        "terminal.envPassthrough", "list", "security", "终端子进程环境变量放行清单"));
+        addField(new FieldDefinition("terminal.sudoPassword", "password", "security", "sudo 密码"));
 
         addChannelFields("feishu");
         addField(
@@ -751,10 +698,10 @@ public class DashboardConfigService {
                         channelLabel(name) + "是否允许所有用户"));
         addField(
                 new FieldDefinition(
-                        "channels." + name + ".unauthorizedDmBehavior",
-                        "select",
-                        "messaging",
-                        channelLabel(name) + "未授权私聊行为")
+                                "channels." + name + ".unauthorizedDmBehavior",
+                                "select",
+                                "messaging",
+                                channelLabel(name) + "未授权私聊行为")
                         .options("pair", "ignore"));
     }
 
@@ -956,7 +903,8 @@ public class DashboardConfigService {
     private void validateKeys(Iterable<String> keys) {
         for (String key : keys) {
             String canonicalKey = canonicalFieldKey(key);
-            if (canonicalKey.startsWith("runtime.") || canonicalKey.startsWith("solonclaw.runtime.")) {
+            if (canonicalKey.startsWith("runtime.")
+                    || canonicalKey.startsWith("solonclaw.runtime.")) {
                 throw new IllegalStateException(
                         "solonclaw.runtime.* is not editable from the dashboard");
             }
@@ -968,7 +916,8 @@ public class DashboardConfigService {
 
     private void validateValues(Map<String, Object> values) {
         validateCredentialFiles(values.get("terminal.credentialFiles"));
-        validateEnvPassthrough(values.get("terminal.envPassthrough"), "solonclaw.terminal.envPassthrough");
+        validateEnvPassthrough(
+                values.get("terminal.envPassthrough"), "solonclaw.terminal.envPassthrough");
         validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
     }
 

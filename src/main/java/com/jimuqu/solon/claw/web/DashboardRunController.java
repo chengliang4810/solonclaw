@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -86,7 +86,8 @@ public class DashboardRunController {
     }
 
     @Mapping(value = "/api/runs/subagents/{subagentId}/control", method = MethodType.POST)
-    public Map<String, Object> controlSubagent(String subagentId, Context context) throws Exception {
+    public Map<String, Object> controlSubagent(String subagentId, Context context)
+            throws Exception {
         return safeRun(
                 context,
                 new RunAction() {
@@ -127,7 +128,8 @@ public class DashboardRunController {
             if (data instanceof Map) {
                 return node;
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {

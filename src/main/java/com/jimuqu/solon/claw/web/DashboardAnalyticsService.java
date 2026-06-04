@@ -270,16 +270,40 @@ public class DashboardAnalyticsService {
             addSession(dailySessions, dayKey, sessionId);
             addSession(modelSessions, modelKey, sessionId);
 
-            addUsageEvent(dailyInputTokens, dailyOutputTokens, dailyReasoningTokens,
-                    dailyCacheReadTokens, dailyCacheWriteTokens, dailyCostMicros,
-                    dailyUnpricedInput, dailyUnpricedOutput, dailyUnpricedCacheRead,
-                    dailyUnpricedCacheWrite, dailyUnpricedReasoning, dailyPriced,
-                    dailyApproximate, dailyCurrency, dayKey, event);
-            addUsageEvent(modelInputTokens, modelOutputTokens, modelReasoningTokens,
-                    modelCacheReadTokens, modelCacheWriteTokens, modelCostMicros,
-                    modelUnpricedInput, modelUnpricedOutput, modelUnpricedCacheRead,
-                    modelUnpricedCacheWrite, modelUnpricedReasoning, modelPriced,
-                    modelApproximate, modelCurrency, modelKey, event);
+            addUsageEvent(
+                    dailyInputTokens,
+                    dailyOutputTokens,
+                    dailyReasoningTokens,
+                    dailyCacheReadTokens,
+                    dailyCacheWriteTokens,
+                    dailyCostMicros,
+                    dailyUnpricedInput,
+                    dailyUnpricedOutput,
+                    dailyUnpricedCacheRead,
+                    dailyUnpricedCacheWrite,
+                    dailyUnpricedReasoning,
+                    dailyPriced,
+                    dailyApproximate,
+                    dailyCurrency,
+                    dayKey,
+                    event);
+            addUsageEvent(
+                    modelInputTokens,
+                    modelOutputTokens,
+                    modelReasoningTokens,
+                    modelCacheReadTokens,
+                    modelCacheWriteTokens,
+                    modelCostMicros,
+                    modelUnpricedInput,
+                    modelUnpricedOutput,
+                    modelUnpricedCacheRead,
+                    modelUnpricedCacheWrite,
+                    modelUnpricedReasoning,
+                    modelPriced,
+                    modelApproximate,
+                    modelCurrency,
+                    modelKey,
+                    event);
 
             totalInput += Math.max(0L, event.getInputTokens());
             totalOutput += Math.max(0L, event.getOutputTokens());
@@ -484,7 +508,8 @@ public class DashboardAnalyticsService {
         addLong(unpricedReasoning, key, Math.max(0L, event.getUnpricedReasoningTokens()));
         priced.put(key, Boolean.valueOf(booleanValue(priced, key) || event.isPricingAvailable()));
         approximate.put(
-                key, Boolean.valueOf(booleanValue(approximate, key) || event.isBackfillApproximate()));
+                key,
+                Boolean.valueOf(booleanValue(approximate, key) || event.isBackfillApproximate()));
         currency.put(key, mergeCurrency(stringValue(currency, key), event.getCurrency()));
     }
 
@@ -556,7 +581,8 @@ public class DashboardAnalyticsService {
         if (StrUtil.isBlank(normalizedIncoming)) {
             return StrUtil.blankToDefault(current, "");
         }
-        String normalizedCurrent = StrUtil.blankToDefault(current, "").trim().toUpperCase(Locale.ROOT);
+        String normalizedCurrent =
+                StrUtil.blankToDefault(current, "").trim().toUpperCase(Locale.ROOT);
         if (StrUtil.isBlank(normalizedCurrent)) {
             return normalizedIncoming;
         }

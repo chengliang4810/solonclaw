@@ -1,15 +1,15 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
@@ -91,7 +91,8 @@ public final class TerminalSecurityPolicyView {
             return renderCredentialPolicy(securityPolicyService.credentialPolicySummary());
         }
         if ("skill-credentials".equals(mode)) {
-            return renderSkillCredentialPolicy(new SkillCredentialFileService(config).policySummary());
+            return renderSkillCredentialPolicy(
+                    new SkillCredentialFileService(config).policySummary());
         }
         if ("tool-args".equals(mode)) {
             return renderToolArgsPolicy(securityPolicyService.toolArgsPolicySummary());
@@ -127,16 +128,19 @@ public final class TerminalSecurityPolicyView {
             return renderPatchPolicy(SolonClawPatchTools.patchParserPolicySummary());
         }
         if ("code-execution".equals(mode)) {
-            return renderCodeExecutionPolicy(SolonClawCodeExecutionSkills.codeExecutionPolicySummary(config));
+            return renderCodeExecutionPolicy(
+                    SolonClawCodeExecutionSkills.codeExecutionPolicySummary(config));
         }
         if ("subprocess-env".equals(mode)) {
             return renderSubprocessEnvPolicy(SubprocessEnvironmentSanitizer.policySummary(config));
         }
         if ("terminal-output".equals(mode)) {
-            return renderTerminalOutputPolicy(SolonClawShellSkill.terminalOutputPolicySummary(config));
+            return renderTerminalOutputPolicy(
+                    SolonClawShellSkill.terminalOutputPolicySummary(config));
         }
         if ("sudo".equals(mode)) {
-            return renderSudoPolicy(SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured(config)));
+            return renderSudoPolicy(
+                    SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured(config)));
         }
         if ("process".equals(mode)) {
             return renderProcessPolicy(ProcessTools.backgroundProcessPolicySummary(config));
@@ -231,7 +235,9 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("schema")) {
             return "schema";
         }
-        if (rest.startsWith("terminal-paste") || rest.startsWith("paste") || rest.startsWith("local-attachment")) {
+        if (rest.startsWith("terminal-paste")
+                || rest.startsWith("paste")
+                || rest.startsWith("local-attachment")) {
             return "terminal-paste";
         }
         if (rest.startsWith("media-cache") || rest.startsWith("cache-media")) {
@@ -246,7 +252,9 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("patch")) {
             return "patch";
         }
-        if (rest.startsWith("code") || rest.startsWith("execute-code") || rest.startsWith("sandbox")) {
+        if (rest.startsWith("code")
+                || rest.startsWith("execute-code")
+                || rest.startsWith("sandbox")) {
             return "code-execution";
         }
         if (rest.startsWith("subprocess") || rest.startsWith("env")) {
@@ -406,7 +414,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(credential, "pathSuffixCount"))
                 .append(" configured=")
                 .append(value(credential, "configuredCredentialFileCount"));
-        Map<String, Object> skillCredential = new SkillCredentialFileService(config).policySummary();
+        Map<String, Object> skillCredential =
+                new SkillCredentialFileService(config).policySummary();
         buffer.append('\n')
                 .append("- 技能凭据：configured=")
                 .append(value(skillCredential, "configCredentialFileCount"))
@@ -543,12 +552,8 @@ public final class TerminalSecurityPolicyView {
     private static String renderApprovalPolicy(Map<String, Object> approval) {
         StringBuilder buffer = new StringBuilder("审批策略摘要：");
         appendApprovalLine(buffer, approval);
-        buffer.append('\n')
-                .append("- 云存储规则：")
-                .append(value(approval, "cloudStorageRuleSamples"));
-        buffer.append('\n')
-                .append("- 终端护栏：")
-                .append(value(approval, "terminalGuardrails"));
+        buffer.append('\n').append("- 云存储规则：").append(value(approval, "cloudStorageRuleSamples"));
+        buffer.append('\n').append("- 终端护栏：").append(value(approval, "terminalGuardrails"));
         buffer.append('\n')
                 .append("- 凭据处理：")
                 .append(value(approval, "credentialHandlingRuleSamples"));

@@ -122,7 +122,9 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
                                             "终端任务失败："
                                                     + label(input)
                                                     + " - "
-                                                    + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+                                                    + StrUtil.blankToDefault(
+                                                            e.getMessage(),
+                                                            e.getClass().getSimpleName()));
                                     return Integer.valueOf(1);
                                 } finally {
                                     running.decrementAndGet();
@@ -245,7 +247,8 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         }
 
         private synchronized TaskSnapshot snapshot() {
-            return new TaskSnapshot(id, label, status.label, startedAtMillis, completedAtMillis, exitCode);
+            return new TaskSnapshot(
+                    id, label, status.label, startedAtMillis, completedAtMillis, exitCode);
         }
     }
 

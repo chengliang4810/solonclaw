@@ -35,7 +35,8 @@ public final class SkillIgnoreSupport {
                 new Comparator<File>() {
                     @Override
                     public int compare(File left, File right) {
-                        return relativePath(skillDir, left).compareTo(relativePath(skillDir, right));
+                        return relativePath(skillDir, left)
+                                .compareTo(relativePath(skillDir, right));
                     }
                 });
         return result;
@@ -47,7 +48,9 @@ public final class SkillIgnoreSupport {
 
     public static String relativePath(File root, File file) {
         String relative = relativePathOrNull(root, file);
-        return relative == null ? StrUtil.nullToEmpty(file == null ? null : file.getName()) : relative;
+        return relative == null
+                ? StrUtil.nullToEmpty(file == null ? null : file.getName())
+                : relative;
     }
 
     private static SkillIgnoreMatcher load(File skillDir) {
@@ -89,7 +92,8 @@ public final class SkillIgnoreSupport {
             if (filePath.equals(rootPath)) {
                 return "";
             }
-            String rootPrefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
+            String rootPrefix =
+                    rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
             if (!filePath.startsWith(rootPrefix)) {
                 return null;
             }

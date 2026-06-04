@@ -17,9 +17,9 @@ import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.goal.GoalService;
-import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -38,13 +38,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
-import org.noear.snack4.ONode;
 
 public class CommandEnhancementTest {
-    private static final Pattern SLASH_CONFIRM_ID =
-            Pattern.compile("确认编号：([0-9a-fA-F]{32})");
+    private static final Pattern SLASH_CONFIRM_ID = Pattern.compile("确认编号：([0-9a-fA-F]{32})");
 
     @Test
     void shouldSupportResetAndPersonalityCommands() throws Exception {
@@ -129,7 +128,8 @@ public class CommandEnhancementTest {
         assertThat(clearAlways.isError()).isTrue();
         assertThat(clearAlways.getContent()).contains("不支持永久确认");
 
-        GatewayReply staleId = env.send("admin-chat", "admin-user", "/approve 00000000000000000000000000000000");
+        GatewayReply staleId =
+                env.send("admin-chat", "admin-user", "/approve 00000000000000000000000000000000");
         assertThat(staleId.isError()).isTrue();
         assertThat(staleId.getContent()).contains("确认编号不匹配");
 
@@ -142,7 +142,8 @@ public class CommandEnhancementTest {
 
         env.checkpointService.createCheckpoint(
                 sourceKey, session.getSessionId(), Collections.singletonList(file));
-        GatewayReply legacyClearReply = env.send("admin-chat", "admin-user", "/rollback clear --confirm");
+        GatewayReply legacyClearReply =
+                env.send("admin-chat", "admin-user", "/rollback clear --confirm");
         assertThat(legacyClearReply.getContent()).contains("deleted=1").contains("remaining=0");
 
         GatewayReply afterClear = env.send("admin-chat", "admin-user", "/rollback status");
@@ -170,8 +171,9 @@ public class CommandEnhancementTest {
         GatewayReply steer = env.send("admin-chat", "admin-user", "/busy steer");
         assertThat(steer.getContent()).contains("已切换运行中输入策略为 steer");
         assertThat(env.appConfig.getTask().getBusyPolicy()).isEqualTo("steer");
-        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
-                        .get("solonclaw.task.busyPolicy"))
+        assertThat(
+                        RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                                .get("solonclaw.task.busyPolicy"))
                 .isEqualTo("steer");
 
         GatewayReply after = env.send("admin-chat", "admin-user", "/busy status");
@@ -326,9 +328,7 @@ public class CommandEnhancementTest {
         assertThat(slashEvent).isNotNull();
         assertThat(slashEvent.getSessionId()).isEqualTo(session.getSessionId());
         assertThat(slashEvent.getSummary()).isEqualTo("/stop");
-        assertThat(slashEvent.getMetadataJson())
-                .contains("token=***")
-                .doesNotContain(secret);
+        assertThat(slashEvent.getMetadataJson()).contains("token=***").doesNotContain(secret);
 
         DashboardRunService runService = new DashboardRunService(env.agentRunRepository);
         String dashboardEvents = ONode.serialize(runService.events(runId));
@@ -358,7 +358,8 @@ public class CommandEnhancementTest {
 
         GatewayReply repeated = env.send("admin-chat", "admin-user", "/restart");
         assertThat(repeated.getContent()).contains("网关重启已在进行中");
-        assertThat(repeated.getRuntimeMetadata()).containsEntry("restart_first_request", Boolean.FALSE);
+        assertThat(repeated.getRuntimeMetadata())
+                .containsEntry("restart_first_request", Boolean.FALSE);
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/restart").contains("drain");
@@ -415,12 +416,16 @@ public class CommandEnhancementTest {
         assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
                 .doesNotContain("run tests next");
 
-        GatewayReply queuedWithAlias = env.send("admin-chat", "admin-user", "/q inspect queue alias");
+        GatewayReply queuedWithAlias =
+                env.send("admin-chat", "admin-user", "/q inspect queue alias");
         assertThat(queuedWithAlias.getContent()).contains("队列");
         assertThat(queuedWithAlias.getRuntimeMetadata()).containsKey("queue_id");
-        assertThat(env.agentRunRepository
-                        .findRun(String.valueOf(queuedWithAlias.getRuntimeMetadata().get("run_id")))
-                        .getInputPreview())
+        assertThat(
+                        env.agentRunRepository
+                                .findRun(
+                                        String.valueOf(
+                                                queuedWithAlias.getRuntimeMetadata().get("run_id")))
+                                .getInputPreview())
                 .isEqualTo("inspect queue alias");
 
         GatewayReply busyWithQueue = env.send("admin-chat", "admin-user", "/busy status");
@@ -453,8 +458,7 @@ public class CommandEnhancementTest {
         String runId = String.valueOf(steer.getRuntimeMetadata().get("run_id"));
         GatewayReply busy = env.send("admin-chat", "admin-user", "/busy status");
         assertThat(busy.getContent()).contains("active_run_id=" + runId);
-        RunControlCommand pending =
-                env.agentRunRepository.findLatestPendingCommand(runId, "steer");
+        RunControlCommand pending = env.agentRunRepository.findLatestPendingCommand(runId, "steer");
         assertThat(pending).isNotNull();
         assertThat(pending.getPayloadJson()).contains("prefer simpler fix");
         assertThat(slowLlmGateway.interrupted).isFalse();
@@ -490,8 +494,7 @@ public class CommandEnhancementTest {
                 new DashboardRunService(env.agentRunRepository, env.agentRunControlService);
         dashboard.control(runId, "steer", payload);
 
-        RunControlCommand pending =
-                env.agentRunRepository.findLatestPendingCommand(runId, "steer");
+        RunControlCommand pending = env.agentRunRepository.findLatestPendingCommand(runId, "steer");
         assertThat(pending).isNotNull();
         assertThat(pending.getPayloadJson())
                 .contains("ghp_dashcontrol12345")
@@ -531,7 +534,8 @@ public class CommandEnhancementTest {
         env.sessionRepository.save(original);
         env.send("admin-chat", "admin-user", "/new");
 
-        GatewayReply full = env.send("admin-chat", "admin-user", "/resume " + original.getSessionId());
+        GatewayReply full =
+                env.send("admin-chat", "admin-user", "/resume " + original.getSessionId());
         assertThat(full.getContent())
                 .contains("已恢复会话")
                 .contains("恢复测试")
@@ -619,7 +623,8 @@ public class CommandEnhancementTest {
     void shouldSupportGoalCommandLifecycle() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         GatewayMessage message =
-                new GatewayMessage(PlatformType.MEMORY, "goal-chat", "goal-user", "/goal 完成一次端到端验证 --max 4");
+                new GatewayMessage(
+                        PlatformType.MEMORY, "goal-chat", "goal-user", "/goal 完成一次端到端验证 --max 4");
 
         GatewayReply set = env.commandService.handle(message, "/goal 完成一次端到端验证 --max 4");
         assertThat(set.getContent()).contains("Goal set").contains("完成一次端到端验证");
@@ -641,7 +646,9 @@ public class CommandEnhancementTest {
         assertThat(pause.getContent()).contains("Goal paused");
 
         GatewayReply resume = env.commandService.handle(message, "/goal resume");
-        assertThat(resume.getContent()).contains("Goal resumed").contains("Continuing toward your standing goal");
+        assertThat(resume.getContent())
+                .contains("Goal resumed")
+                .contains("Continuing toward your standing goal");
 
         GatewayReply clear = env.commandService.handle(message, "/goal clear");
         assertThat(clear.getContent()).contains("Goal cleared");
@@ -665,9 +672,11 @@ public class CommandEnhancementTest {
                                 + " --deliver feishu --deliver-chat-id chat-create --deliver-thread-id thread-create"
                                 + " --no-wrap-response");
         assertThat(created.getContent()).contains("已创建定时任务");
-        String jobId = env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user")
-                .get(0)
-                .getJobId();
+        String jobId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .get(0)
+                        .getJobId();
         assertThat(cronJobView(env, jobId))
                 .contains("blogwatcher")
                 .contains("maps")
@@ -698,9 +707,7 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/cron edit "
-                                + jobId
-                                + " --add-skills alerts,ops --remove-skills reports");
+                        "/cron edit " + jobId + " --add-skills alerts,ops --remove-skills reports");
         assertThat(pluralSkillAliases.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("blogwatcher")
@@ -717,15 +724,18 @@ public class CommandEnhancementTest {
                 .doesNotContain("alerts")
                 .doesNotContain("ops");
 
-        GatewayReply cleared = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-skills");
+        GatewayReply cleared =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-skills");
         assertThat(cleared.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("skills=[]");
 
-        GatewayReply repeated = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --repeat 3");
+        GatewayReply repeated =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --repeat 3");
         assertThat(repeated.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("repeat={times=3");
 
-        GatewayReply clearedRepeat = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-repeat");
+        GatewayReply clearedRepeat =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-repeat");
         assertThat(clearedRepeat.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("repeat={times=null");
 
@@ -750,7 +760,10 @@ public class CommandEnhancementTest {
                 .contains("enabled_toolsets=[web, terminal]");
 
         GatewayReply dependsOn =
-                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --depends-on " + jobId);
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --depends-on " + jobId);
         assertThat(dependsOn.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("context_from=[" + jobId + "]")
@@ -761,11 +774,18 @@ public class CommandEnhancementTest {
         assertThat(clearedDependsOn.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("context_from=[]").contains("depends_on=[]");
 
-        GatewayReply noAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent --wrap-response");
+        GatewayReply noAgent =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --no-agent --wrap-response");
         assertThat(noAgent.getContent()).contains("已更新定时任务");
-        assertThat(cronJobView(env, jobId)).contains("no_agent=true").contains("wrap_response=true");
+        assertThat(cronJobView(env, jobId))
+                .contains("no_agent=true")
+                .contains("wrap_response=true");
 
-        GatewayReply agent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --agent");
+        GatewayReply agent =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --agent");
         assertThat(agent.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("no_agent=false");
 
@@ -812,7 +832,10 @@ public class CommandEnhancementTest {
                 .contains("deliver_thread_id=null");
 
         GatewayReply clearedWithJimuquEmptyValues =
-                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --script \"\" --workdir \"\"");
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --script \"\" --workdir \"\"");
         assertThat(clearedWithJimuquEmptyValues.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("script=null").contains("workdir=null");
 
@@ -820,7 +843,9 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/cron edit " + jobId + " --state paused --paused-reason \"maintenance window\"");
+                        "/cron edit "
+                                + jobId
+                                + " --state paused --paused-reason \"maintenance window\"");
         assertThat(pausedWithState.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("state=paused")
@@ -833,12 +858,14 @@ public class CommandEnhancementTest {
                 .contains("state=scheduled")
                 .contains("paused_reason=null");
 
-        GatewayReply invalidNoAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent");
+        GatewayReply invalidNoAgent =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent");
         assertThat(invalidNoAgent.getContent()).contains("no_agent requires script");
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
+                .contains(
+                        "/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
     }
 
     @Test
@@ -875,23 +902,39 @@ public class CommandEnhancementTest {
         assertThat(paused.getContent()).contains("已暂停定时任务：" + jobId);
 
         GatewayReply resumed =
-                env.send("admin-chat", "admin-user", "/cron resume \"" + jobId + "\" --ignored-flag");
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron resume \"" + jobId + "\" --ignored-flag");
         assertThat(resumed.getContent()).contains("已恢复定时任务：" + jobId);
         assertThat(cronJobView(env, jobId)).contains("state=scheduled");
 
-        GatewayReply stopped = env.send("admin-chat", "admin-user", "/cron stop \"" + jobId + "\" --reason manual-stop");
+        GatewayReply stopped =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron stop \"" + jobId + "\" --reason manual-stop");
         assertThat(stopped.getContent()).contains("已暂停定时任务：" + jobId);
         assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("PAUSED");
 
-        GatewayReply started = env.send("admin-chat", "admin-user", "/cron start \"" + jobId + "\" --ignored-flag");
+        GatewayReply started =
+                env.send(
+                        "admin-chat", "admin-user", "/cron start \"" + jobId + "\" --ignored-flag");
         assertThat(started.getContent()).contains("已恢复定时任务：" + jobId);
         assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("ACTIVE");
 
-        GatewayReply run = env.send("admin-chat", "admin-user", "/cron run " + jobId + " --accept-hooks");
+        GatewayReply run =
+                env.send("admin-chat", "admin-user", "/cron run " + jobId + " --accept-hooks");
         assertThat(run.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
-        GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry \"" + jobId + "\" --accept-hooks");
+        GatewayReply retry =
+                env.send(
+                        "admin-chat", "admin-user", "/cron retry \"" + jobId + "\" --accept-hooks");
         assertThat(retry.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
-        GatewayReply trigger = env.send("admin-chat", "admin-user", "/cron trigger \"" + jobId + "\" --accept-hooks");
+        GatewayReply trigger =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron trigger \"" + jobId + "\" --accept-hooks");
         assertThat(trigger.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
 
         GatewayReply removed =
@@ -935,10 +978,15 @@ public class CommandEnhancementTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
-        env.send("admin-chat", "admin-user", "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher");
-        String jobId = env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user")
-                .get(0)
-                .getJobId();
+        env.send(
+                "admin-chat",
+                "admin-user",
+                "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher");
+        String jobId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .get(0)
+                        .getJobId();
         GatewayReply activeList = env.send("admin-chat", "admin-user", "/cron list");
         assertThat(activeList.getContent())
                 .contains("Scheduled Jobs:")
@@ -948,7 +996,10 @@ public class CommandEnhancementTest {
                 .contains("Prompt: Check server status");
 
         GatewayReply paused =
-                env.send("admin-chat", "admin-user", "/cron pause " + jobId + " --reason \"maintenance window\"");
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron pause " + jobId + " --reason \"maintenance window\"");
         assertThat(paused.getContent()).contains("已暂停定时任务");
         assertThat(cronJobView(env, jobId)).contains("paused_reason=maintenance window");
 
@@ -1053,7 +1104,10 @@ public class CommandEnhancementTest {
         bootstrapAdmin(env);
 
         env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Later job\" --deliver feishu");
-        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Soon job\" --deliver local --repeat 2");
+        env.send(
+                "admin-chat",
+                "admin-user",
+                "/cron add \"30m\" \"Soon job\" --deliver local --repeat 2");
         env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Paused job\"");
         List<CronJobRecord> records =
                 env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user");
@@ -1131,7 +1185,8 @@ public class CommandEnhancementTest {
                 .contains("--clear-enabled-toolsets")
                 .contains("安全策略：")
                 .contains("prompt_injection")
-                .contains("/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal")
+                .contains(
+                        "/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal")
                 .contains("/cron edit <job-id> --clear-repeat")
                 .contains("/cron history <job-id> --limit 20");
 
@@ -1148,15 +1203,19 @@ public class CommandEnhancementTest {
         assertThat(data.get("aliases").get("pause").toJson()).contains("disable").contains("stop");
         assertThat(data.get("aliases").get("run").toJson()).contains("trigger").contains("retry");
         assertThat(data.get("aliases").get("next").toJson()).contains("upcoming");
-        assertThat(data.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
-        assertThat(data.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
+        assertThat(data.get("delivery").get("targets").toJson())
+                .contains("feishu")
+                .contains("yuanbao");
+        assertThat(data.get("delivery").get("target_forms").toJson())
+                .contains("platform:chat_id:thread_id");
         assertThat(data.get("delivery").get("wrap_flags").toJson()).contains("--no-wrap-response");
         assertThat(data.get("delivery").get("modes").toJson()).contains("target1,target2");
         assertThat(data.get("delivery").get("wrap_response_policy").getString()).contains("--raw");
         assertThat(data.get("runtime_modes").get("clear_flags").toJson())
                 .contains("--clear-repeat")
                 .contains("--clear-enabled-toolsets");
-        assertThat(data.get("skill_binding").get("dependency_flags").toJson()).contains("--depends-on job-id");
+        assertThat(data.get("skill_binding").get("dependency_flags").toJson())
+                .contains("--depends-on job-id");
         assertThat(data.get("security").get("script_validation").getString()).contains("script");
     }
 
@@ -1183,12 +1242,13 @@ public class CommandEnhancementTest {
                         .get(0)
                         .getJobId();
         GatewayReply createdDependency =
-                env.send("admin-chat", "admin-user", "/cron add \"45m\" \"Dependency detail check\"");
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron add \"45m\" \"Dependency detail check\"");
         assertThat(createdDependency.getContent()).contains("已创建定时任务");
         String dependencyId =
-                env.cronJobRepository
-                        .listBySource("MEMORY:admin-chat:admin-user")
-                        .stream()
+                env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user").stream()
                         .filter(record -> !jobId.equals(record.getJobId()))
                         .findFirst()
                         .get()
@@ -1297,7 +1357,9 @@ public class CommandEnhancementTest {
         body.put("name", "Local Docs");
         body.put("transport", "stdio");
         body.put("command", "docs-mcp");
-        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        body.put(
+                "tools",
+                Collections.singletonList(Collections.singletonMap("name", "docs_search")));
         mcpService.save(body);
 
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
@@ -1317,7 +1379,8 @@ public class CommandEnhancementTest {
         SessionRecord reloadedSession =
                 env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
         List<ChatMessage> reloadedMessages =
-                com.jimuqu.solon.claw.support.MessageSupport.loadMessages(reloadedSession.getNdjson());
+                com.jimuqu.solon.claw.support.MessageSupport.loadMessages(
+                        reloadedSession.getNdjson());
         ChatMessage reloadNotice = reloadedMessages.get(reloadedMessages.size() - 1);
         assertThat(reloadNotice.getRole()).isEqualTo(ChatRole.USER);
         assertThat(reloadNotice.getContent())
@@ -1326,7 +1389,8 @@ public class CommandEnhancementTest {
                 .contains("1 MCP tool(s) now available")
                 .contains("The tool list for this conversation has been updated accordingly.");
 
-        assertThat(mcpService.check("local-docs").get("tool_changed_notification")).isEqualTo(false);
+        assertThat(mcpService.check("local-docs").get("tool_changed_notification"))
+                .isEqualTo(false);
 
         Map<String, Object> updated = new LinkedHashMap<String, Object>(body);
         updated.put(
@@ -1368,7 +1432,9 @@ public class CommandEnhancementTest {
         body.put("name", "Slash Confirm Docs");
         body.put("transport", "stdio");
         body.put("command", "docs-mcp");
-        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        body.put(
+                "tools",
+                Collections.singletonList(Collections.singletonMap("name", "docs_search")));
         mcpService.save(body);
 
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
@@ -1393,7 +1459,9 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/approve " + disguisedConfirmId(extractSlashConfirmId(promptAgain)) + " yes");
+                        "/approve "
+                                + disguisedConfirmId(extractSlashConfirmId(promptAgain))
+                                + " yes");
         assertThat(approvedWithAlias.getContent())
                 .contains("MCP reload completed")
                 .contains("tools=1");
@@ -1415,17 +1483,17 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/approve always " + disguisedConfirmId(extractSlashConfirmId(alwaysPrompt)));
+                        "/approve always "
+                                + disguisedConfirmId(extractSlashConfirmId(alwaysPrompt)));
         assertThat(always.getContent()).contains("已永久确认 /reload-mcp");
         assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
-        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
-                        .get("approvals.mcpReloadConfirm"))
+        assertThat(
+                        RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                                .get("approvals.mcpReloadConfirm"))
                 .isEqualTo("false");
 
         GatewayReply direct = env.send("admin-chat", "admin-user", "/reload-mcp");
-        assertThat(direct.getContent())
-                .contains("MCP reload completed")
-                .doesNotContain("确认编号");
+        assertThat(direct.getContent()).contains("MCP reload completed").doesNotContain("确认编号");
     }
 
     @Test
@@ -1488,7 +1556,9 @@ public class CommandEnhancementTest {
         body.put("name", "Slash Confirm Supersede");
         body.put("transport", "stdio");
         body.put("command", "docs-mcp");
-        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        body.put(
+                "tools",
+                Collections.singletonList(Collections.singletonMap("name", "docs_search")));
         mcpService.save(body);
 
         GatewayReply first = env.send("admin-chat", "admin-user", "/reload-mcp");
@@ -1515,7 +1585,9 @@ public class CommandEnhancementTest {
         body.put("name", "Slash Confirm Priority");
         body.put("transport", "stdio");
         body.put("command", "docs-mcp");
-        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        body.put(
+                "tools",
+                Collections.singletonList(Collections.singletonMap("name", "docs_search")));
         mcpService.save(body);
 
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
@@ -1590,7 +1662,8 @@ public class CommandEnhancementTest {
                 "recursive delete needs approval",
                 "rm -rf target/cache");
 
-        GatewayReply approvedAll = env.send("admin-chat", "admin-user", "/approve al\u202El sess\u202Eion");
+        GatewayReply approvedAll =
+                env.send("admin-chat", "admin-user", "/approve al\u202El sess\u202Eion");
         SessionRecord approvedSession =
                 env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
         SqliteAgentSession approvedAgentSession =
@@ -1642,7 +1715,9 @@ public class CommandEnhancementTest {
         body.put("name", "Slash Confirm Cancel Priority");
         body.put("transport", "stdio");
         body.put("command", "docs-mcp");
-        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        body.put(
+                "tools",
+                Collections.singletonList(Collections.singletonMap("name", "docs_search")));
         mcpService.save(body);
 
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
@@ -1682,7 +1757,9 @@ public class CommandEnhancementTest {
         body.put("name", "No Confirm Docs");
         body.put("transport", "stdio");
         body.put("command", "docs-mcp");
-        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        body.put(
+                "tools",
+                Collections.singletonList(Collections.singletonMap("name", "docs_search")));
         mcpService.save(body);
         env.appConfig.getApprovals().setMcpReloadConfirm(false);
 
@@ -1695,7 +1772,8 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldReturnStructuredUnsupportedReplyForRegisteredCommandsWithoutHandlers() throws Exception {
+    void shouldReturnStructuredUnsupportedReplyForRegisteredCommandsWithoutHandlers()
+            throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
@@ -1707,7 +1785,6 @@ public class CommandEnhancementTest {
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "footer");
     }
-
 
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
         env.send("admin-chat", "admin-user", "hello");
@@ -1770,7 +1847,11 @@ public class CommandEnhancementTest {
 
     private Process newSleepProcess() throws Exception {
         return new ProcessBuilder(
-                        System.getProperty("java.home") + File.separator + "bin" + File.separator + "java",
+                        System.getProperty("java.home")
+                                + File.separator
+                                + "bin"
+                                + File.separator
+                                + "java",
                         "-cp",
                         System.getProperty("java.class.path"),
                         SleepProcess.class.getName())

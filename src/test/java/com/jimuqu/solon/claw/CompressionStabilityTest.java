@@ -16,8 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
@@ -143,7 +143,8 @@ public class CompressionStabilityTest {
 
         SessionRecord compressed = service.compressNow(session, "system prompt");
 
-        assertThat(compressed.getCompressedSummary()).contains("Previous Summary\nNext Steps\n旧的后续事项");
+        assertThat(compressed.getCompressedSummary())
+                .contains("Previous Summary\nNext Steps\n旧的后续事项");
         assertThat(compressed.getCompressedSummary()).contains("\nRemaining Work\n");
     }
 
@@ -173,7 +174,8 @@ public class CompressionStabilityTest {
         assertThat(compressed.getCompressedSummary()).contains("Previous Summary");
         assertThat(compressed.getCompressedSummary()).contains("旧进展");
         assertThat(compressed.getCompressedSummary()).contains("新的用户问题优先");
-        assertThat(compressed.getCompressedSummary()).startsWith(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(compressed.getCompressedSummary())
+                .startsWith(CompressionConstants.SUMMARY_PREFIX);
         assertThat(CompressionConstants.SUMMARY_PREFIX)
                 .contains("latest user message")
                 .contains("background reference")
@@ -206,7 +208,8 @@ public class CompressionStabilityTest {
 
         SessionRecord compressed = service.compressNow(session, "system prompt");
 
-        assertThat(compressed.getCompressedSummary()).startsWith(CompressionConstants.SUMMARY_PREFIX);
+        assertThat(compressed.getCompressedSummary())
+                .startsWith(CompressionConstants.SUMMARY_PREFIX);
         assertThat(compressed.getCompressedSummary()).contains("历史任务 A");
         assertThat(compressed.getCompressedSummary()).contains("新的用户问题 B 优先");
         assertThat(compressed.getNdjson()).doesNotContain(OLD_CONFLICTING_SUMMARY_PREFIX);
@@ -352,8 +355,7 @@ public class CompressionStabilityTest {
                 MessageSupport.toNdjson(
                         Arrays.asList(
                                 ChatMessage.ofUser(
-                                        "请分析这张图 data:image/png;base64,"
-                                                + repeat("A", 16_384)))));
+                                        "请分析这张图 data:image/png;base64," + repeat("A", 16_384)))));
 
         SessionRecord compressed = service.compressIfNeeded(session, "system", "继续");
 
@@ -440,8 +442,7 @@ public class CompressionStabilityTest {
                                 ChatMessage.ofUser("排查 /tmp/active.py 的失败分支"),
                                 ChatMessage.ofAssistant("已经定位 /tmp/active.py 的 failing branch"),
                                 ChatMessage.ofTool(
-                                        "ValueError: boom in /tmp/active.py token="
-                                                + secret,
+                                        "ValueError: boom in /tmp/active.py token=" + secret,
                                         "terminal",
                                         "call-old"),
                                 ChatMessage.ofAssistant("下一步补 /tmp/active.py 的回归测试"),
@@ -451,8 +452,11 @@ public class CompressionStabilityTest {
         SessionRecord compressed = service.compressNow(session, "system prompt");
 
         assertThat(compressed.getCompressedSummary()).contains("Last Compacted Turns");
-        String compactedTurns = section(
-                compressed.getCompressedSummary(), "Last Compacted Turns", "Remaining Work");
+        String compactedTurns =
+                section(
+                        compressed.getCompressedSummary(),
+                        "Last Compacted Turns",
+                        "Remaining Work");
         assertThat(compressed.getCompressedSummary())
                 .contains("ASSISTANT: 已经定位 /tmp/active.py 的 failing branch")
                 .contains("TOOL: ValueError: boom in /tmp/active.py");
@@ -524,7 +528,8 @@ public class CompressionStabilityTest {
         List<ChatMessage> messages =
                 new ArrayList<ChatMessage>(
                         Arrays.asList(
-                                assistantWithRawToolCall("call_1", "read_file", "[\"path\",\".env\"]"),
+                                assistantWithRawToolCall(
+                                        "call_1", "read_file", "[\"path\",\".env\"]"),
                                 ChatMessage.ofTool("ok", "read_file", "call_1")));
 
         int repaired = ToolCallArgumentSanitizer.sanitize(messages);
@@ -573,7 +578,8 @@ public class CompressionStabilityTest {
         assertThat(repaired).isEqualTo(1);
         assertThat(messages).hasSize(3);
         assertThat(messages.get(1).getRole().name()).isEqualTo("TOOL");
-        assertThat(messages.get(1).getContent()).isEqualTo(ToolCallArgumentSanitizer.CORRUPTION_MARKER);
+        assertThat(messages.get(1).getContent())
+                .isEqualTo(ToolCallArgumentSanitizer.CORRUPTION_MARKER);
         assertThat(messages.get(2).getContent()).isEqualTo("next turn");
     }
 

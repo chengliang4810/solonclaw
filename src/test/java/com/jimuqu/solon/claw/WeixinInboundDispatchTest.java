@@ -63,12 +63,9 @@ public class WeixinInboundDispatchTest {
                         "normalizeOutboundTextForWeixin", String.class);
         normalize.setAccessible(true);
 
-        assertThat((String) normalize.invoke(null, "第一行\n第二行"))
-                .isEqualTo("第一行\r\n第二行");
-        assertThat((String) normalize.invoke(null, "第一行\r第二行"))
-                .isEqualTo("第一行\r\n第二行");
-        assertThat((String) normalize.invoke(null, "第一行\r\n第二行"))
-                .isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\n第二行")).isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r第二行")).isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r\n第二行")).isEqualTo("第一行\r\n第二行");
     }
 
     @Test
@@ -231,10 +228,7 @@ public class WeixinInboundDispatchTest {
         processInbound.invoke(adapter, inboundText("msg-source-2", "room-1", "wx-user", "第二条"));
 
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
-        assertThat(sourceKeys)
-                .containsExactly(
-                        "WEIXIN:room-1:wx-user",
-                        "WEIXIN:room-1:wx-user");
+        assertThat(sourceKeys).containsExactly("WEIXIN:room-1:wx-user", "WEIXIN:room-1:wx-user");
 
         adapter.disconnect();
     }
@@ -245,8 +239,7 @@ public class WeixinInboundDispatchTest {
         Method isDuplicate =
                 WeiXinChannelAdapter.class.getDeclaredMethod("isDuplicate", String.class);
         isDuplicate.setAccessible(true);
-        Field recentMessageIds =
-                WeiXinChannelAdapter.class.getDeclaredField("recentMessageIds");
+        Field recentMessageIds = WeiXinChannelAdapter.class.getDeclaredField("recentMessageIds");
         recentMessageIds.setAccessible(true);
 
         @SuppressWarnings("unchecked")
@@ -266,8 +259,9 @@ public class WeixinInboundDispatchTest {
     @Test
     void shouldBlockUnsafeWeixinApiBaseUrlBeforeNetworkAccess() throws Exception {
         AppConfig config = newConfig();
-        config.getChannels().getWeixin().setBaseUrl(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://169.254.169.254/latest/meta-data/?token=secret");
         WeiXinChannelAdapter adapter =
                 new WeiXinChannelAdapter(
                         config.getChannels().getWeixin(),
@@ -275,8 +269,7 @@ public class WeixinInboundDispatchTest {
                         new AttachmentCacheService(config),
                         new SecurityPolicyService(config));
         Method apiPost =
-                WeiXinChannelAdapter.class.getDeclaredMethod(
-                        "apiPost", String.class, ONode.class);
+                WeiXinChannelAdapter.class.getDeclaredMethod("apiPost", String.class, ONode.class);
         apiPost.setAccessible(true);
 
         assertThatThrownBy(() -> invoke(apiPost, adapter, "ilink/bot/sendmessage", new ONode()))
@@ -289,8 +282,9 @@ public class WeixinInboundDispatchTest {
     @Test
     void shouldBlockUnsafeWeixinCdnBaseUrlBeforeUpload() throws Exception {
         AppConfig config = newConfig();
-        config.getChannels().getWeixin().setCdnBaseUrl(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getWeixin()
+                .setCdnBaseUrl("http://169.254.169.254/latest/meta-data/?token=secret");
         WeiXinChannelAdapter adapter =
                 new WeiXinChannelAdapter(
                         config.getChannels().getWeixin(),

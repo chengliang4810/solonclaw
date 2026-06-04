@@ -255,8 +255,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         : request.getChannelExtras();
         String approvalId = approvalCardSelector(extras.get("approvalId"));
         String text = buildApprovalText(request, extras);
-        ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(
-                approvalId, approvalCardAllowAlways(extras));
+        ONode keyboard =
+                QQBotKeyboardSupport.buildApprovalKeyboard(
+                        approvalId, approvalCardAllowAlways(extras));
         return buildTextBody(text, request.getThreadId(), keyboard);
     }
 
@@ -266,8 +267,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         ? new LinkedHashMap<String, Object>()
                         : request.getChannelExtras();
         String prompt =
-                StrUtil.blankToDefault(
-                        request.getText(), stringValue(extras.get("updatePrompt"))).trim();
+                StrUtil.blankToDefault(request.getText(), stringValue(extras.get("updatePrompt")))
+                        .trim();
         String defaultAnswer = stringValue(extras.get("updateDefault"));
         StringBuilder text = new StringBuilder("⚕ **更新需要确认**");
         if (StrUtil.isNotBlank(prompt)) {
@@ -301,7 +302,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String approvalCardText(Object value, int maxLength) {
-        return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
+        return SecretRedactor.redact(
+                TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
     }
 
     private String approvalCardSelector(Object value) {
@@ -618,8 +620,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         data.get("author").get("id").getString(),
                         data.get("user_openid").getString(),
                         data.get("openid").getString());
-        String text =
-                firstNonBlank(data.get("content").getString(), data.get("text").getString());
+        String text = firstNonBlank(data.get("content").getString(), data.get("text").getString());
         String asrText = data.get("asr_refer_text").getString();
         if (StrUtil.isBlank(text)) {
             text = asrText;
@@ -884,8 +885,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     protected void writeUpdateResponse(String answer) {
-        String normalized = QQBotKeyboardSupport.updatePromptAnswerFromButtonData(
-                "update_prompt:" + StrUtil.nullToEmpty(answer).trim());
+        String normalized =
+                QQBotKeyboardSupport.updatePromptAnswerFromButtonData(
+                        "update_prompt:" + StrUtil.nullToEmpty(answer).trim());
         if (StrUtil.isBlank(normalized)) {
             return;
         }
@@ -902,9 +904,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(
-                        temp.toPath(),
-                        responsePath.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING);
+                        temp.toPath(), responsePath.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (Exception e) {
             log.warn(

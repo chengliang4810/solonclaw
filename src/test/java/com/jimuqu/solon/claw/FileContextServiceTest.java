@@ -29,8 +29,7 @@ public class FileContextServiceTest {
     }
 
     @Test
-    void shouldPlaceToolsBeforeIdentityAndUserWithoutHeartbeatInNormalPrompt()
-            throws Exception {
+    void shouldPlaceToolsBeforeIdentityAndUserWithoutHeartbeatInNormalPrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileContextService service =
                 new FileContextService(

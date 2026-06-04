@@ -18,38 +18,93 @@ public class AgentPluginManifest {
     private List<String> providesTools = Collections.emptyList();
     private boolean enabled;
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public String getName() {
+        return name;
+    }
 
-    public String getVersion() { return version; }
-    public void setVersion(String version) { this.version = version; }
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
+    public String getVersion() {
+        return version;
+    }
 
-    public String getAuthor() { return author; }
-    public void setAuthor(String author) { this.author = author; }
+    public void setVersion(String version) {
+        this.version = version;
+    }
 
-    public String getKind() { return kind; }
-    public void setKind(String kind) { this.kind = kind; }
+    public String getDescription() {
+        return description;
+    }
 
-    public String getEntry() { return entry; }
-    public void setEntry(String entry) { this.entry = entry; }
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
-    public String getSource() { return source; }
-    public void setSource(String source) { this.source = source; }
+    public String getAuthor() {
+        return author;
+    }
 
-    public Path getDirectory() { return directory; }
-    public void setDirectory(Path directory) { this.directory = directory; }
+    public void setAuthor(String author) {
+        this.author = author;
+    }
 
-    public List<EnvRequirement> getRequiresEnv() { return requiresEnv; }
-    public void setRequiresEnv(List<EnvRequirement> requiresEnv) { this.requiresEnv = requiresEnv; }
+    public String getKind() {
+        return kind;
+    }
 
-    public List<String> getProvidesTools() { return providesTools; }
-    public void setProvidesTools(List<String> providesTools) { this.providesTools = providesTools; }
+    public void setKind(String kind) {
+        this.kind = kind;
+    }
 
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public String getEntry() {
+        return entry;
+    }
+
+    public void setEntry(String entry) {
+        this.entry = entry;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public Path getDirectory() {
+        return directory;
+    }
+
+    public void setDirectory(Path directory) {
+        this.directory = directory;
+    }
+
+    public List<EnvRequirement> getRequiresEnv() {
+        return requiresEnv;
+    }
+
+    public void setRequiresEnv(List<EnvRequirement> requiresEnv) {
+        this.requiresEnv = requiresEnv;
+    }
+
+    public List<String> getProvidesTools() {
+        return providesTools;
+    }
+
+    public void setProvidesTools(List<String> providesTools) {
+        this.providesTools = providesTools;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     /** 是否自动加载（backend/platform 类型自动加载）。 */
     public boolean isAutoLoad() {
@@ -61,11 +116,28 @@ public class AgentPluginManifest {
         private String description;
         private boolean secret;
 
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-        public boolean isSecret() { return secret; }
-        public void setSecret(boolean secret) { this.secret = secret; }
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public boolean isSecret() {
+            return secret;
+        }
+
+        public void setSecret(boolean secret) {
+            this.secret = secret;
+        }
     }
 }

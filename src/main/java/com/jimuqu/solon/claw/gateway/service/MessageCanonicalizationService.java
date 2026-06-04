@@ -8,14 +8,13 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * Message canonicalization service.
- * Normalizes messages from different platforms into a consistent internal format.
+ * Message canonicalization service. Normalizes messages from different platforms into a consistent
+ * internal format.
  */
 public class MessageCanonicalizationService {
     private static final Pattern MENTION_PATTERN =
             Pattern.compile("<@[A-Za-z0-9_-]+>|@[A-Za-z0-9_\\u4e00-\\u9fff]+");
-    private static final Pattern EMOJI_CODE_PATTERN =
-            Pattern.compile(":[a-z0-9_+-]+:");
+    private static final Pattern EMOJI_CODE_PATTERN = Pattern.compile(":[a-z0-9_+-]+:");
     private static final int MAX_TEXT_LENGTH = 32000;
 
     public GatewayMessage canonicalize(GatewayMessage message) {

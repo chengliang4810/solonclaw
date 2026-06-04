@@ -23,8 +23,8 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -34,9 +34,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
+import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.noear.snack4.ONode;
 
 /** 默认子代理委托服务。 */
 public class DefaultDelegationService implements DelegationService {
@@ -140,7 +140,13 @@ public class DefaultDelegationService implements DelegationService {
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
             AgentRunRepository agentRunRepository) {
-        this(conversationHolder, preferenceStore, sessionRepository, agentRunRepository, null, null);
+        this(
+                conversationHolder,
+                preferenceStore,
+                sessionRepository,
+                agentRunRepository,
+                null,
+                null);
     }
 
     public DefaultDelegationService(
@@ -172,7 +178,9 @@ public class DefaultDelegationService implements DelegationService {
         this.appConfig = appConfig;
         this.agentRunControlService = agentRunControlService;
         int maxConcurrency =
-                appConfig == null ? 3 : Math.max(1, appConfig.getTask().getSubagentMaxConcurrency());
+                appConfig == null
+                        ? 3
+                        : Math.max(1, appConfig.getTask().getSubagentMaxConcurrency());
         this.concurrencyLimiter = new Semaphore(maxConcurrency, true);
     }
 
@@ -197,10 +205,12 @@ public class DefaultDelegationService implements DelegationService {
         }
         AgentRunContext parentContext = AgentRunContext.current();
         int depth = resolveDepth(parentContext);
-        int maxDepth = appConfig == null ? 1 : Math.max(1, appConfig.getTask().getSubagentMaxDepth());
+        int maxDepth =
+                appConfig == null ? 1 : Math.max(1, appConfig.getTask().getSubagentMaxDepth());
         if (depth > maxDepth) {
             if (parentContext != null) {
-                parentContext.event("subagent.rejected", "子 Agent depth 超限：" + depth + "/" + maxDepth);
+                parentContext.event(
+                        "subagent.rejected", "子 Agent depth 超限：" + depth + "/" + maxDepth);
             }
             return failureResult("delegate", "Subagent depth limit exceeded.");
         }
@@ -231,7 +241,8 @@ public class DefaultDelegationService implements DelegationService {
                     new GatewayMessage(PlatformType.MEMORY, "", "", decoratePrompt(task));
             message.setSourceKeyOverride(childSourceKey);
             SubagentRunRecord subagent =
-                    startSubagent(subagentId, sourceKey, childSourceKey, task, parentContext, depth);
+                    startSubagent(
+                            subagentId, sourceKey, childSourceKey, task, parentContext, depth);
             if (isInterrupted(subagentId)) {
                 finishInterrupted(subagent, "Subagent interrupted before start.");
                 return failureResult(subagent.getName(), "Subagent interrupted before start.");
@@ -320,7 +331,8 @@ public class DefaultDelegationService implements DelegationService {
                         Math.min(
                                 appConfig == null
                                         ? 3
-                                        : Math.max(1, appConfig.getTask().getSubagentMaxConcurrency()),
+                                        : Math.max(
+                                                1, appConfig.getTask().getSubagentMaxConcurrency()),
                                 tasks.size()));
         try {
             List<Future<DelegationResult>> futures = new ArrayList<Future<DelegationResult>>();
@@ -394,7 +406,8 @@ public class DefaultDelegationService implements DelegationService {
         }
         for (String toolName : requested) {
             String normalized = StrUtil.nullToEmpty(toolName).trim();
-            if (ALL_TOOLS.contains(normalized) && preferenceStore.isToolEnabled(parentSourceKey, normalized)) {
+            if (ALL_TOOLS.contains(normalized)
+                    && preferenceStore.isToolEnabled(parentSourceKey, normalized)) {
                 preferenceStore.setToolEnabled(childSourceKey, normalized, true);
             }
         }
@@ -442,8 +455,7 @@ public class DefaultDelegationService implements DelegationService {
         result.setName(StrUtil.blankToDefault(name, "delegate"));
         result.setError(true);
         result.setContent(
-                SecretRedactor.redact(
-                        StrUtil.blankToDefault(message, "delegation failed"), 1000));
+                SecretRedactor.redact(StrUtil.blankToDefault(message, "delegation failed"), 1000));
         return result;
     }
 
@@ -452,8 +464,7 @@ public class DefaultDelegationService implements DelegationService {
             return "unknown";
         }
         return SecretRedactor.redact(
-                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()),
-                1000);
+                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()), 1000);
     }
 
     private SubagentRunRecord startSubagent(
@@ -527,7 +538,10 @@ public class DefaultDelegationService implements DelegationService {
             return 1;
         }
         try {
-            AgentRunRecord parent = agentRunRepository == null ? null : agentRunRepository.findRun(parentContext.getRunId());
+            AgentRunRecord parent =
+                    agentRunRepository == null
+                            ? null
+                            : agentRunRepository.findRun(parentContext.getRunId());
             if (parent != null && "subagent".equals(parent.getRunKind())) {
                 return 2;
             }
@@ -584,9 +598,7 @@ public class DefaultDelegationService implements DelegationService {
     private String buildTailJson(String content) {
         ONode array = new ONode().asArray();
         ONode item = new ONode().asObject();
-        item.set(
-                "preview",
-                com.jimuqu.solon.claw.core.model.AgentRunContext.safe(content, 1000));
+        item.set("preview", com.jimuqu.solon.claw.core.model.AgentRunContext.safe(content, 1000));
         item.set("is_error", false);
         array.add(item);
         return array.toJson();

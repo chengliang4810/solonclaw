@@ -2,9 +2,9 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -55,7 +55,8 @@ public class SqliteAgentSessionTest {
 
         SqliteAgentSession restored =
                 new SqliteAgentSession(
-                        env.sessionRepository.findById(session.getSessionId()), env.sessionRepository);
+                        env.sessionRepository.findById(session.getSessionId()),
+                        env.sessionRepository);
         restored.pending(false, null);
         restored.updateSnapshot();
 
@@ -73,16 +74,14 @@ public class SqliteAgentSessionTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord fresh =
                 env.sessionRepository.bindNewSession("MEMORY:fresh-pending-room:user");
-        SqliteAgentSession freshAgentSession =
-                new SqliteAgentSession(fresh, env.sessionRepository);
+        SqliteAgentSession freshAgentSession = new SqliteAgentSession(fresh, env.sessionRepository);
         freshAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("启动前中断的审批任务")));
         freshAgentSession.pending(true, "restart_interrupted");
         freshAgentSession.updateSnapshot();
 
         SessionRecord stale =
                 env.sessionRepository.bindNewSession("MEMORY:stale-pending-room:user");
-        SqliteAgentSession staleAgentSession =
-                new SqliteAgentSession(stale, env.sessionRepository);
+        SqliteAgentSession staleAgentSession = new SqliteAgentSession(stale, env.sessionRepository);
         staleAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("过期的审批任务")));
         staleAgentSession.pending(true, "restart_interrupted");
         staleAgentSession.updateSnapshot();
@@ -102,7 +101,9 @@ public class SqliteAgentSessionTest {
         fresh = env.sessionRepository.findById(fresh.getSessionId());
         approval = env.sessionRepository.findById(approval.getSessionId());
 
-        assertThat(env.sessionRepository.listPendingAgentSessions(System.currentTimeMillis() - 60_000L, 10))
+        assertThat(
+                        env.sessionRepository.listPendingAgentSessions(
+                                System.currentTimeMillis() - 60_000L, 10))
                 .extracting(SessionRecord::getSessionId)
                 .contains(fresh.getSessionId())
                 .contains(approval.getSessionId())
@@ -143,8 +144,10 @@ public class SqliteAgentSessionTest {
         assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
                 .contains("上一轮执行被网关重启打断")
                 .contains("尚未处理完的工具结果");
-        assertThat(new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()))
-                        .isPending())
+        assertThat(
+                        new SqliteAgentSession(
+                                        env.sessionRepository.findById(session.getSessionId()))
+                                .isPending())
                 .isFalse();
     }
 
@@ -168,11 +171,15 @@ public class SqliteAgentSessionTest {
 
         assertThat(reply.getSessionId()).isEqualTo(pending.getSessionId());
         assertThat(reply.getContent()).contains("echo:resume");
-        assertThat(new SqliteAgentSession(env.sessionRepository.findById(pending.getSessionId()))
-                        .isPending())
+        assertThat(
+                        new SqliteAgentSession(
+                                        env.sessionRepository.findById(pending.getSessionId()))
+                                .isPending())
                 .isFalse();
-        assertThat(new SqliteAgentSession(env.sessionRepository.findById(rebound.getSessionId()))
-                        .isPending())
+        assertThat(
+                        new SqliteAgentSession(
+                                        env.sessionRepository.findById(rebound.getSessionId()))
+                                .isPending())
                 .isFalse();
         assertThat(env.sessionRepository.getBoundSession(sourceKey).getSessionId())
                 .isEqualTo(rebound.getSessionId());
@@ -192,15 +199,13 @@ public class SqliteAgentSessionTest {
                 env.conversationOrchestrator.resumePending("MEMORY:approval-note-room:user");
 
         assertThat(reply.getContent()).contains("echo:resume");
-        assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
-                .doesNotContain("上一轮执行被网关");
+        assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt).doesNotContain("上一轮执行被网关");
     }
 
     @Test
     void shouldRejectPendingResumeForDifferentSourceBinding() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session =
-                env.sessionRepository.bindNewSession("MEMORY:source-a:user");
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:source-a:user");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
         agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("只允许原 source 恢复")));
         agentSession.pending(true, "restart_timeout");
@@ -212,8 +217,10 @@ public class SqliteAgentSessionTest {
 
         assertThat(reply.isError()).isTrue();
         assertThat(reply.getContent()).contains("不是当前来源键下可恢复的 pending 会话");
-        assertThat(new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()))
-                        .isPending())
+        assertThat(
+                        new SqliteAgentSession(
+                                        env.sessionRepository.findById(session.getSessionId()))
+                                .isPending())
                 .isTrue();
     }
 

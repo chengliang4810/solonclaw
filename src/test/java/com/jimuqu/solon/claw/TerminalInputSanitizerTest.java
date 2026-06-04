@@ -10,8 +10,7 @@ public class TerminalInputSanitizerTest {
     void shouldPreservePlainText() {
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("hello world"))
                 .isEqualTo("hello world");
-        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses(""))
-                .isEqualTo("");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("")).isEqualTo("");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("see [53;1R section"))
                 .isEqualTo("see [53;1R section");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("\u001B[31mred\u001B[0m"))
@@ -26,8 +25,7 @@ public class TerminalInputSanitizerTest {
     void shouldStripDsrResponsesLikeJimuquCli() {
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("\u001B[53;1R"))
                 .isEqualTo("");
-        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("^[[53;1R"))
-                .isEqualTo("");
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("^[[53;1R")).isEqualTo("");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("hello\u001B[53;1Rworld"))
                 .isEqualTo("helloworld");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("hello\u009B53;1Rworld"))
@@ -76,7 +74,9 @@ public class TerminalInputSanitizerTest {
                 "<35;159;11M;44M20;43M0M7M<35;124;26M;47;40M9;15;32M5M2M";
 
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses(burst)).isEqualTo("");
-        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses(burstWithRecoverableFragments))
+        assertThat(
+                        TerminalInputSanitizer.stripLeakedTerminalResponses(
+                                burstWithRecoverableFragments))
                 .isEqualTo("");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("Mmm MMM mmm yummy"))
                 .isEqualTo("Mmm MMM mmm yummy");
@@ -120,9 +120,7 @@ public class TerminalInputSanitizerTest {
                         TerminalInputSanitizer.stripLeakedTerminalResponses(
                                 "\u001B[200~hello\u001B[201~"))
                 .isEqualTo("hello");
-        assertThat(
-                        TerminalInputSanitizer.stripLeakedTerminalResponses(
-                                "a\u001B[200~b\u001B[201~c"))
+        assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("a\u001B[200~b\u001B[201~c"))
                 .isEqualTo("abc");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("\u009B200~text\u009B201~"))
                 .isEqualTo("text");

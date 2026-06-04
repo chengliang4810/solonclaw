@@ -9,8 +9,7 @@ public class ContextTokenEstimatorTest {
     void shouldAddTokenCostForImageMarkers() {
         int plain = ContextTokenEstimator.estimateForBudget("请处理这段文本");
         int withImage =
-                ContextTokenEstimator.estimateForBudget(
-                        "请处理这段文本\nMEDIA:/tmp/example.png\n继续分析");
+                ContextTokenEstimator.estimateForBudget("请处理这段文本\nMEDIA:/tmp/example.png\n继续分析");
 
         assertThat(withImage).isGreaterThan(plain + 100);
     }

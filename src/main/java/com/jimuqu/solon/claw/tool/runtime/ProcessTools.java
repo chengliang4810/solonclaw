@@ -86,7 +86,8 @@ public class ProcessTools {
         summary.put("stdinPrivilegeWrapperDetection", Boolean.TRUE);
         summary.put(
                 "stdinWrapperFamilies",
-                Arrays.asList("env", "sudo", "doas", "pkexec", "runas", "command", "exec", "nohup"));
+                Arrays.asList(
+                        "env", "sudo", "doas", "pkexec", "runas", "command", "exec", "nohup"));
         summary.put("waitTimeoutClamped", Boolean.TRUE);
         summary.put(
                 "processWaitTimeoutSeconds",
@@ -100,7 +101,10 @@ public class ProcessTools {
             description =
                     "Manage tracked background processes. Actions: start, list, status/detail, lifecycle, events/drain, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
     public String process(
-            @Param(name = "action", description = "start, list, status, detail, lifecycle, events, drain, poll, log, wait, kill, stop, write, submit, close")
+            @Param(
+                            name = "action",
+                            description =
+                                    "start, list, status, detail, lifecycle, events, drain, poll, log, wait, kill, stop, write, submit, close")
                     String action,
             @Param(name = "command", required = false, description = "Command for action=start")
                     String command,
@@ -114,7 +118,8 @@ public class ProcessTools {
             @Param(
                             name = "data",
                             required = false,
-                            description = "Text for action=write or submit. submit appends a newline.")
+                            description =
+                                    "Text for action=write or submit. submit appends a newline.")
                     String data,
             @Param(
                             name = "timeout",
@@ -127,7 +132,8 @@ public class ProcessTools {
                             name = "offset",
                             required = false,
                             defaultValue = "0",
-                            description = "Line offset for action=log. With offset=0, returns the last limit lines.")
+                            description =
+                                    "Line offset for action=log. With offset=0, returns the last limit lines.")
                     Integer offset,
             @Param(
                             name = "limit",
@@ -172,7 +178,8 @@ public class ProcessTools {
             if ("close".equals(normalized)) {
                 return close(sessionId);
             }
-            return ToolResultEnvelope.error("Unsupported process action: " + safeText(action)).toJson();
+            return ToolResultEnvelope.error("Unsupported process action: " + safeText(action))
+                    .toJson();
         } catch (Exception e) {
             String message = safeError(e);
             ToolResultEnvelope envelope = ToolResultEnvelope.error(message);
@@ -289,21 +296,23 @@ public class ProcessTools {
                                 managed.isExited()
                                         ? "后台进程已结束：" + managed.getId()
                                         : "后台进程仍在运行：" + managed.getId())
-                .data("session_id", managed.getId())
-                .data("command", SecretRedactor.redact(managed.getCommand()))
-                .data("status", managed.isExited() ? "exited" : "running")
-                .data("pid", managed.getPid())
-                .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
-                .data("output_preview", output)
-                .data("exited", Boolean.valueOf(managed.isExited()))
-                .data("running", Boolean.valueOf(!managed.isExited()))
-                .data("exit_code", managed.getExitCode())
-                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
-                .data("lifecycle", processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
-                .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
-                .data("output", output)
-                .preview(output)
-                .truncated(managed.isTruncated());
+                        .data("session_id", managed.getId())
+                        .data("command", SecretRedactor.redact(managed.getCommand()))
+                        .data("status", managed.isExited() ? "exited" : "running")
+                        .data("pid", managed.getPid())
+                        .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
+                        .data("output_preview", output)
+                        .data("exited", Boolean.valueOf(managed.isExited()))
+                        .data("running", Boolean.valueOf(!managed.isExited()))
+                        .data("exit_code", managed.getExitCode())
+                        .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
+                        .data(
+                                "lifecycle",
+                                processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
+                        .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
+                        .data("output", output)
+                        .preview(output)
+                        .truncated(managed.isTruncated());
         addNotificationMetadata(envelope, managed);
         if (managed.isExited()) {
             processRegistry.markCompletionConsumed(managed.getId());
@@ -314,7 +323,10 @@ public class ProcessTools {
     private String waitFor(String sessionId, Integer timeoutSeconds) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         int maxSeconds = resolveProcessWaitTimeoutSeconds();
-        Integer requested = timeoutSeconds == null ? null : Integer.valueOf(Math.max(0, timeoutSeconds.intValue()));
+        Integer requested =
+                timeoutSeconds == null
+                        ? null
+                        : Integer.valueOf(Math.max(0, timeoutSeconds.intValue()));
         int seconds = requested == null ? maxSeconds : requested.intValue();
         String timeoutNote = null;
         if (requested != null && requested.intValue() > maxSeconds) {
@@ -348,17 +360,19 @@ public class ProcessTools {
         String output = tail(cleanOutput(managed.getOutput()), 2000);
         ToolResultEnvelope envelope =
                 ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
-                .data("session_id", managed.getId())
-                .data("status", "exited")
-                .data("exited", Boolean.valueOf(true))
-                .data("running", Boolean.valueOf(false))
-                .data("pid", managed.getPid())
-                .data("exit_code", managed.getExitCode())
-                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
-                .data("lifecycle", processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
-                .data("output", output)
-                .preview(output)
-                .truncated(managed.isTruncated());
+                        .data("session_id", managed.getId())
+                        .data("status", "exited")
+                        .data("exited", Boolean.valueOf(true))
+                        .data("running", Boolean.valueOf(false))
+                        .data("pid", managed.getPid())
+                        .data("exit_code", managed.getExitCode())
+                        .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
+                        .data(
+                                "lifecycle",
+                                processRegistry.lifecycleEventsForProcess(managed.getId(), 20))
+                        .data("output", output)
+                        .preview(output)
+                        .truncated(managed.isTruncated());
         if (timeoutNote != null) {
             envelope.data("timeout_note", timeoutNote);
         }
@@ -410,7 +424,9 @@ public class ProcessTools {
         assertStdinSafe(managed, payload);
         processRegistry.writeStdin(managed.getId(), payload);
         return ToolResultEnvelope.ok(
-                        appendNewline ? "已向后台进程提交输入：" + managed.getId() : "已写入后台进程 stdin：" + managed.getId())
+                        appendNewline
+                                ? "已向后台进程提交输入：" + managed.getId()
+                                : "已写入后台进程 stdin：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("status", "ok")
                 .data("bytes_written", Integer.valueOf(payload.length()))
@@ -533,7 +549,9 @@ public class ProcessTools {
                         index++;
                         continue;
                     }
-                    if ("-i".equals(option) || "--ignore-environment".equals(option) || "-0".equals(option)) {
+                    if ("-i".equals(option)
+                            || "--ignore-environment".equals(option)
+                            || "-0".equals(option)) {
                         index++;
                         continue;
                     }
@@ -541,7 +559,8 @@ public class ProcessTools {
                         index++;
                         continue;
                     }
-                    if (("-u".equals(option) || "--unset".equals(option)) && index + 1 < tokens.size()) {
+                    if (("-u".equals(option) || "--unset".equals(option))
+                            && index + 1 < tokens.size()) {
                         index += 2;
                         continue;
                     }

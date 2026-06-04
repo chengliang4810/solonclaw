@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
@@ -29,28 +30,26 @@ import com.jimuqu.solon.claw.support.MediaDirectiveSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
-import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -58,12 +57,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
+import org.noear.solon.Utils;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.ai.chat.tool.ToolProvider;
-import org.noear.solon.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,7 +79,8 @@ public class DefaultCronScheduler {
     private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
     private static final ExecutorService MCP_WARMUP_EXECUTOR =
             BoundedExecutorFactory.fixed("cron-mcp-warmup", 1, 16);
-    private static final Pattern SAFE_CONTEXT_JOB_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
+    private static final Pattern SAFE_CONTEXT_JOB_ID =
+            Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
     private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: Cron assembled prompt";
     private static final String CRON_RUNTIME_HINT =
             "[IMPORTANT: You are running as a scheduled cron job. "
@@ -525,7 +524,8 @@ public class DefaultCronScheduler {
         long nextRunAt = CronSupport.nextRunAt(job.getCronExpr(), now);
         int completed = job.getRepeatCompleted() + 1;
         boolean done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
-        String nextStatus = done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
+        String nextStatus =
+                done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
         String output = "";
         String error = null;
         String deliveryError = null;
@@ -576,7 +576,8 @@ public class DefaultCronScheduler {
                     synthetic.setWorkspaceDirOverride(job.getWorkdir());
                 }
                 synthetic.setEnabledToolsetsOverride(resolveCronEnabledToolsets(job));
-                synthetic.setDisabledToolsetsOverride(new ArrayList<String>(CRON_DISABLED_TOOLSETS));
+                synthetic.setDisabledToolsetsOverride(
+                        new ArrayList<String>(CRON_DISABLED_TOOLSETS));
                 warmupMcpTools(job);
                 reply = runScheduledWithAutoDeliveryContext(job, synthetic);
                 output = reply == null ? "" : reply.getContent();
@@ -608,7 +609,16 @@ public class DefaultCronScheduler {
                 deliveryError = deliveryReport.errorSummary();
                 deliveryResultJson = deliveryReport.toJson();
             }
-            recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
+            recordRun(
+                    job,
+                    now,
+                    runStatus,
+                    error,
+                    output,
+                    deliveryError,
+                    deliveryResultJson,
+                    completed,
+                    triggerType);
         } catch (CronApprovalPendingException e) {
             runStatus = "pending_approval";
             error = safeError(e);
@@ -622,8 +632,19 @@ public class DefaultCronScheduler {
                     AgentRunPreview.safe(output),
                     job.getRepeatCompleted(),
                     "PAUSED");
-            cronJobService.pause(job.getJobId(), "waiting for approval: " + safeTarget(e.getDetectionDescription()));
-            recordRun(job, now, runStatus, error, output, null, null, job.getRepeatCompleted(), triggerType);
+            cronJobService.pause(
+                    job.getJobId(),
+                    "waiting for approval: " + safeTarget(e.getDetectionDescription()));
+            recordRun(
+                    job,
+                    now,
+                    runStatus,
+                    error,
+                    output,
+                    null,
+                    null,
+                    job.getRepeatCompleted(),
+                    triggerType);
         } catch (Exception e) {
             runStatus = "error";
             error = safeError(e);
@@ -639,7 +660,16 @@ public class DefaultCronScheduler {
             CronDeliveryReport deliveryReport = deliverErrorBestEffort(job, error);
             deliveryError = deliveryReport.errorSummary();
             deliveryResultJson = deliveryReport.toJson();
-            recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
+            recordRun(
+                    job,
+                    now,
+                    runStatus,
+                    error,
+                    output,
+                    deliveryError,
+                    deliveryResultJson,
+                    completed,
+                    triggerType);
             if (!isCronScriptPathBlock(e)) {
                 throw e;
             }
@@ -695,7 +725,9 @@ public class DefaultCronScheduler {
         } catch (RejectedExecutionException e) {
             log.warn(
                     "Cron job '{}' MCP initialization skipped: {}",
-                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                    job == null
+                            ? "<unknown>"
+                            : StrUtil.blankToDefault(job.getName(), job.getJobId()),
                     safeError(e));
         }
     }
@@ -720,7 +752,9 @@ public class DefaultCronScheduler {
         } catch (Exception e) {
             log.warn(
                     "Cron job '{}' MCP initialization failed (non-fatal): {}",
-                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                    job == null
+                            ? "<unknown>"
+                            : StrUtil.blankToDefault(job.getName(), job.getJobId()),
                     safeError(e));
         }
     }
@@ -754,7 +788,8 @@ public class DefaultCronScheduler {
                         new ThreadFactory() {
                             @Override
                             public Thread newThread(Runnable runnable) {
-                                Thread thread = new Thread(runnable, "cron-agent-run-" + job.getJobId());
+                                Thread thread =
+                                        new Thread(runnable, "cron-agent-run-" + job.getJobId());
                                 thread.setDaemon(true);
                                 return thread;
                             }
@@ -922,7 +957,8 @@ public class DefaultCronScheduler {
         CronDeliveryPayload payload = parseDeliveryPayload(formatDelivery(job, reply.getContent()));
         CronDeliveryReport report = new CronDeliveryReport();
         for (CronDeliveryTarget target : targets) {
-            CronResolvedMedia resolvedMedia = resolveMediaAttachments(target.platform, payload.media);
+            CronResolvedMedia resolvedMedia =
+                    resolveMediaAttachments(target.platform, payload.media);
             DeliveryRequest request = new DeliveryRequest();
             request.setPlatform(target.platform);
             request.setChatId(target.chatId);
@@ -931,10 +967,15 @@ public class DefaultCronScheduler {
             request.setAttachments(resolvedMedia.attachments);
             try {
                 deliveryService.deliver(request);
-                report.addOk(target, request.getAttachments() == null ? 0 : request.getAttachments().size());
+                report.addOk(
+                        target,
+                        request.getAttachments() == null ? 0 : request.getAttachments().size());
             } catch (Exception e) {
                 String error = safeError(e);
-                report.addError(target, request.getAttachments() == null ? 0 : request.getAttachments().size(), error);
+                report.addError(
+                        target,
+                        request.getAttachments() == null ? 0 : request.getAttachments().size(),
+                        error);
                 log.warn(
                         "Cron delivery target failed: jobId={}, platform={}, chatId={}, threadId={}, error={}",
                         job.getJobId(),
@@ -1100,8 +1141,7 @@ public class DefaultCronScheduler {
         return new CronDeliveryTarget(
                 platform,
                 parts[1],
-                normalizeBlank(
-                        StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
+                normalizeBlank(StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
     }
 
     private CronDeliveryTarget targetFromOriginJson(String originJson) {
@@ -1124,7 +1164,8 @@ public class DefaultCronScheduler {
         Map<?, ?> origin = (Map<?, ?>) data;
         PlatformType platform =
                 PlatformType.fromName(firstString(origin, "platform", "channel", "source"));
-        String chatId = firstString(origin, "chat_id", "chatId", "conversation_id", "conversationId");
+        String chatId =
+                firstString(origin, "chat_id", "chatId", "conversation_id", "conversationId");
         String threadId = firstString(origin, "thread_id", "threadId", "topic_id", "topicId");
         if (platform == null || StrUtil.isBlank(chatId)) {
             return null;
@@ -1159,7 +1200,8 @@ public class DefaultCronScheduler {
         if (home == null || StrUtil.isBlank(home.getChatId())) {
             return null;
         }
-        return new CronDeliveryTarget(platform, home.getChatId(), normalizeBlank(home.getThreadId()));
+        return new CronDeliveryTarget(
+                platform, home.getChatId(), normalizeBlank(home.getThreadId()));
     }
 
     private CronDeliveryTarget originFallbackHomeTarget(CronJobRecord job) {
@@ -1209,7 +1251,9 @@ public class DefaultCronScheduler {
         StringBuilder prompt = new StringBuilder(CRON_RUNTIME_HINT);
         Map<String, Object> view = cronJobService.toView(job);
         List<String> skills =
-                view.containsKey("skills") ? (List<String>) view.get("skills") : new ArrayList<String>();
+                view.containsKey("skills")
+                        ? (List<String>) view.get("skills")
+                        : new ArrayList<String>();
         if (!skills.isEmpty()) {
             prompt.append(loadSkillPromptParts(job, skills));
         }
@@ -1243,14 +1287,16 @@ public class DefaultCronScheduler {
             return prompt;
         } catch (IllegalStateException e) {
             String jobLabel =
-                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId());
+                    job == null
+                            ? "<unknown>"
+                            : StrUtil.blankToDefault(job.getName(), job.getJobId());
             String reason =
-                    safeText(StrUtil.blankToDefault(e.getMessage(), "cron prompt injection scanner"));
-            log.warn(
-                    "Cron job '{}' blocked by assembled prompt scanner: {}",
-                    jobLabel,
-                    reason);
-            throw new IllegalStateException(CRON_PROMPT_BLOCK_PREFIX + " matched scanner: " + reason);
+                    safeText(
+                            StrUtil.blankToDefault(
+                                    e.getMessage(), "cron prompt injection scanner"));
+            log.warn("Cron job '{}' blocked by assembled prompt scanner: {}", jobLabel, reason);
+            throw new IllegalStateException(
+                    CRON_PROMPT_BLOCK_PREFIX + " matched scanner: " + reason);
         }
     }
 
@@ -1398,11 +1444,15 @@ public class DefaultCronScheduler {
     }
 
     private CronScriptResult runScriptResult(CronJobRecord job) throws Exception {
-        File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
+        File scriptsDir =
+                FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
         File requested = new File(job.getScript());
-        File script = (requested.isAbsolute() ? requested : new File(scriptsDir, job.getScript())).getCanonicalFile();
+        File script =
+                (requested.isAbsolute() ? requested : new File(scriptsDir, job.getScript()))
+                        .getCanonicalFile();
         if (!isUnderDirectory(scriptsDir, script) || !script.exists() || !script.isFile()) {
-            throw new IllegalStateException("Cron script not found under runtime/scripts: " + job.getScript());
+            throw new IllegalStateException(
+                    "Cron script not found under runtime/scripts: " + job.getScript());
         }
         String name = script.getName().toLowerCase();
         String scriptContent = FileUtil.readString(script, StandardCharsets.UTF_8);
@@ -1430,14 +1480,16 @@ public class DefaultCronScheduler {
         }
         String output = new String(data, StandardCharsets.UTF_8).trim();
         if (process.exitValue() != 0) {
-            throw new IllegalStateException("Cron script exited " + process.exitValue() + ": " + output);
+            throw new IllegalStateException(
+                    "Cron script exited " + process.exitValue() + ": " + output);
         }
         return new CronScriptResult(output, parseWakeAgent(output));
     }
 
     private boolean isUnderDirectory(File root, File target) throws Exception {
         java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
-        java.nio.file.Path targetPath = target.getCanonicalFile().toPath().toAbsolutePath().normalize();
+        java.nio.file.Path targetPath =
+                target.getCanonicalFile().toPath().toAbsolutePath().normalize();
         if (targetPath.equals(rootPath)) {
             return false;
         }
@@ -1453,7 +1505,8 @@ public class DefaultCronScheduler {
                     return value;
                 }
             } catch (Exception e) {
-                log.warn("Invalid SOLONCLAW_CRON_SCRIPT_TIMEOUT={}; using config/default", envValue);
+                log.warn(
+                        "Invalid SOLONCLAW_CRON_SCRIPT_TIMEOUT={}; using config/default", envValue);
             }
         }
         int value =
@@ -1632,7 +1685,9 @@ public class DefaultCronScheduler {
     }
 
     private String defaultPythonCommand() {
-        return System.getProperty("os.name", "").toLowerCase().contains("win") ? "python" : "python3";
+        return System.getProperty("os.name", "").toLowerCase().contains("win")
+                ? "python"
+                : "python3";
     }
 
     private void guardCronScript(CronJobRecord job, String scriptContent) {
@@ -1652,7 +1707,8 @@ public class DefaultCronScheduler {
         }
 
         DangerousCommandApprovalService.DetectionResult dangerous =
-                dangerousCommandApprovalService.detect(ToolNameConstants.EXECUTE_SHELL, scriptContent);
+                dangerousCommandApprovalService.detect(
+                        ToolNameConstants.EXECUTE_SHELL, scriptContent);
         if (dangerous == null) {
             return;
         }
@@ -1709,7 +1765,8 @@ public class DefaultCronScheduler {
             if (session == null) {
                 return false;
             }
-            List<String> approvalKeys = cronApprovalPatternKeys(job, scriptContent, dangerous, scope);
+            List<String> approvalKeys =
+                    cronApprovalPatternKeys(job, scriptContent, dangerous, scope);
             boolean approved = true;
             for (String key : approvalKeys) {
                 boolean keyApproved =
@@ -1717,7 +1774,10 @@ public class DefaultCronScheduler {
                                 ? dangerousCommandApprovalService.isAlwaysApproved(
                                         ToolNameConstants.EXECUTE_SHELL, key, scriptContent)
                                 : dangerousCommandApprovalService.isSessionApproved(
-                                        session, ToolNameConstants.EXECUTE_SHELL, key, scriptContent);
+                                        session,
+                                        ToolNameConstants.EXECUTE_SHELL,
+                                        key,
+                                        scriptContent);
                 if (!keyApproved) {
                     approved = false;
                     break;
@@ -1726,7 +1786,8 @@ public class DefaultCronScheduler {
             if (approved) {
                 return true;
             }
-            String primaryKey = approvalKeys.isEmpty() ? dangerous.getPatternKey() : approvalKeys.get(0);
+            String primaryKey =
+                    approvalKeys.isEmpty() ? dangerous.getPatternKey() : approvalKeys.get(0);
             dangerousCommandApprovalService.storePendingApproval(
                     session,
                     ToolNameConstants.EXECUTE_SHELL,
@@ -1744,9 +1805,10 @@ public class DefaultCronScheduler {
         if (appConfig == null || appConfig.getSecurity() == null) {
             return "job";
         }
-        String scope = StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailCronScope())
-                .trim()
-                .toLowerCase();
+        String scope =
+                StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailCronScope())
+                        .trim()
+                        .toLowerCase();
         if ("global".equals(scope) || "session".equals(scope)) {
             return scope;
         }
@@ -1831,7 +1893,8 @@ public class DefaultCronScheduler {
     private String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
+            byte[] hash =
+                    digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder();
             for (byte item : hash) {
                 String hex = Integer.toHexString(item & 0xff);
@@ -1917,7 +1980,8 @@ public class DefaultCronScheduler {
         private final List<MessageAttachment> attachments;
         private final List<CronMediaRef> resolved;
 
-        private CronResolvedMedia(List<MessageAttachment> attachments, List<CronMediaRef> resolved) {
+        private CronResolvedMedia(
+                List<MessageAttachment> attachments, List<CronMediaRef> resolved) {
             this.attachments = attachments;
             this.resolved = resolved;
         }
@@ -1954,7 +2018,12 @@ public class DefaultCronScheduler {
         private void addError(CronDeliveryTarget target, int attachmentCount, String error) {
             failed++;
             total++;
-            targets.add(targetMap(target, "error", SecretRedactor.redact(StrUtil.nullToEmpty(error), 1000), attachmentCount));
+            targets.add(
+                    targetMap(
+                            target,
+                            "error",
+                            SecretRedactor.redact(StrUtil.nullToEmpty(error), 1000),
+                            attachmentCount));
         }
 
         private boolean hasErrors() {

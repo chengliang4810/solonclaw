@@ -65,7 +65,8 @@ public class MessagingTools {
         String targetChatId = StrUtil.isBlank(chatId) ? parts[1] : chatId;
         String targetThreadId = StrUtil.blankToDefault(threadId, parts[3]);
         CronAutoDeliveryContext.Target autoTarget =
-                CronAutoDeliveryContext.matchingTarget(targetPlatform, targetChatId, targetThreadId);
+                CronAutoDeliveryContext.matchingTarget(
+                        targetPlatform, targetChatId, targetThreadId);
         if (autoTarget != null) {
             return ToolResultEnvelope.ok("Skipped duplicate cron auto-delivery target")
                     .data("skipped", Boolean.TRUE)

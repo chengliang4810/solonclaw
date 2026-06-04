@@ -23,7 +23,8 @@ public final class SecretRedactor {
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
     private static final Pattern ENCODED_URL_USERINFO =
-            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(%(?:25){0,3}3a)([^/?#\\s@]+)@");
+            Pattern.compile(
+                    "(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(%(?:25){0,3}3a)([^/?#\\s@]+)@");
     private static final Pattern SCHEMELESS_URL_USERINFO =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_./:-])([A-Za-z0-9._~+%-]{1,80}):(?!//)([^\\s/@?#]+)@([A-Za-z0-9._~%-]+(?:\\:[0-9]{1,5})?(?:[/#?]|\\b))");
@@ -40,8 +41,7 @@ public final class SecretRedactor {
     private static final String SENSITIVE_QUERY_NAMES =
             "access_token|refresh_token|id_token|auth_token|oauth_token|authorization|proxy_authorization|bearer_token|code_verifier|client_assertion|saml_response|samlresponse|token|access_key|secret_key|session_token|api_key|apikey|client_secret|password|private_key|auth|jwt|session|secret|key|code|signature|security_token|x-amz-signature|x_amz_signature|x_amz_credential|x_amz_security_token|x_goog_signature|x_goog_credential|x_oss_signature|x_oss_security_token|x_cos_signature|x_cos_security_token|x_obs_signature|x_obs_security_token|x_ms_signature";
     private static final Pattern SENSITIVE_QUERY =
-            Pattern.compile(
-                    "(?i)([?&;](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&;#\\s]+");
+            Pattern.compile("(?i)([?&;](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&;#\\s]+");
     private static final Pattern SENSITIVE_PATH =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_])("
@@ -122,7 +122,8 @@ public final class SecretRedactor {
             Pattern.compile(
                     "(?i)((?:^|[^A-Za-z0-9])(?:[A-Za-z0-9_.-]{0,80})(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_))[A-Za-z0-9_-]{10,}");
     private static final Pattern DISPLAY_CONTROL =
-            Pattern.compile("[\\u0000-\\u0008\\u000B-\\u001F\\u007F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]");
+            Pattern.compile(
+                    "[\\u0000-\\u0008\\u000B-\\u001F\\u007F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]");
     private static final int DEFAULT_MAX_LENGTH = 8000;
 
     private SecretRedactor() {}
@@ -263,8 +264,7 @@ public final class SecretRedactor {
         while (matcher.find()) {
             matcher.appendReplacement(
                     buffer,
-                    Matcher.quoteReplacement(
-                            matcher.group(1) + ":***@" + matcher.group(3)));
+                    Matcher.quoteReplacement(matcher.group(1) + ":***@" + matcher.group(3)));
         }
         matcher.appendTail(buffer);
         return buffer.toString();
@@ -335,7 +335,9 @@ public final class SecretRedactor {
         String name = parameter.substring(0, equals);
         String decodedName = normalizeSensitiveQueryName(decodeRepeated(name));
         if (!decodedName.matches("(?i)(?:" + SENSITIVE_QUERY_NAMES + ")")) {
-            return name + "=" + redactEmbeddedEncodedSensitiveQuery(parameter.substring(equals + 1));
+            return name
+                    + "="
+                    + redactEmbeddedEncodedSensitiveQuery(parameter.substring(equals + 1));
         }
         return name + "=***";
     }

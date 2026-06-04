@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -15,7 +15,8 @@ public class DashboardDiagnosticsController {
     private final DashboardGatewayDoctorService doctorService;
 
     public DashboardDiagnosticsController(
-            DashboardDiagnosticsService diagnosticsService, DashboardGatewayDoctorService doctorService) {
+            DashboardDiagnosticsService diagnosticsService,
+            DashboardGatewayDoctorService doctorService) {
         this.diagnosticsService = diagnosticsService;
         this.doctorService = doctorService;
     }
@@ -29,8 +30,7 @@ public class DashboardDiagnosticsController {
     public Map<String, Object> doctor() throws Exception {
         DashboardGatewayDoctorService service = doctorService;
         if (service == null) {
-            return DashboardResponse.error(
-                    "DIAGNOSTICS_DOCTOR_UNAVAILABLE", "Doctor 诊断服务尚未启用。");
+            return DashboardResponse.error("DIAGNOSTICS_DOCTOR_UNAVAILABLE", "Doctor 诊断服务尚未启用。");
         }
         return DashboardResponse.ok(service.doctor());
     }
@@ -52,22 +52,26 @@ public class DashboardDiagnosticsController {
         if (!payload.isSuccess()) {
             return payload.error();
         }
-        return DashboardResponse.ok(diagnosticsService.subprocessEnvironmentProbe(payload.getPayload()));
+        return DashboardResponse.ok(
+                diagnosticsService.subprocessEnvironmentProbe(payload.getPayload()));
     }
 
     @Mapping(value = "/api/diagnostics/approvals", method = MethodType.GET)
     public Map<String, Object> pendingApprovals(Context context) throws Exception {
-        return DashboardResponse.ok(diagnosticsService.pendingApprovals(limit(context.param("limit"))));
+        return DashboardResponse.ok(
+                diagnosticsService.pendingApprovals(limit(context.param("limit"))));
     }
 
     @Mapping(value = "/api/diagnostics/approvals/history", method = MethodType.GET)
     public Map<String, Object> approvalHistory(Context context) throws Exception {
-        return DashboardResponse.ok(diagnosticsService.approvalHistory(limit(context.param("limit"))));
+        return DashboardResponse.ok(
+                diagnosticsService.approvalHistory(limit(context.param("limit"))));
     }
 
     @Mapping(value = "/api/diagnostics/approvals/always", method = MethodType.GET)
     public Map<String, Object> alwaysApprovals(Context context) {
-        return DashboardResponse.ok(diagnosticsService.alwaysApprovals(limit(context.param("limit"))));
+        return DashboardResponse.ok(
+                diagnosticsService.alwaysApprovals(limit(context.param("limit"))));
     }
 
     @SuppressWarnings("unchecked")
@@ -82,7 +86,8 @@ public class DashboardDiagnosticsController {
 
     @Mapping(value = "/api/diagnostics/slash-confirms", method = MethodType.GET)
     public Map<String, Object> pendingSlashConfirms(Context context) {
-        return DashboardResponse.ok(diagnosticsService.pendingSlashConfirms(limit(context.param("limit"))));
+        return DashboardResponse.ok(
+                diagnosticsService.pendingSlashConfirms(limit(context.param("limit"))));
     }
 
     @SuppressWarnings("unchecked")
@@ -111,7 +116,8 @@ public class DashboardDiagnosticsController {
         try {
             raw = context.body();
         } catch (Exception e) {
-            return PayloadResult.error("DIAGNOSTICS_BAD_REQUEST", "请求体读取失败 / Request body read failed");
+            return PayloadResult.error(
+                    "DIAGNOSTICS_BAD_REQUEST", "请求体读取失败 / Request body read failed");
         }
         if (raw == null || raw.trim().length() == 0) {
             return PayloadResult.ok(new LinkedHashMap<String, Object>());
@@ -121,9 +127,12 @@ public class DashboardDiagnosticsController {
             if (body instanceof Map) {
                 return PayloadResult.ok((Map<String, Object>) body);
             }
-            return PayloadResult.error("DIAGNOSTICS_BAD_REQUEST", "请求体必须是 JSON 对象 / Request body must be a JSON object");
+            return PayloadResult.error(
+                    "DIAGNOSTICS_BAD_REQUEST",
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (Exception e) {
-            return PayloadResult.error("DIAGNOSTICS_BAD_REQUEST", "请求体 JSON 解析失败 / Request body JSON parse failed");
+            return PayloadResult.error(
+                    "DIAGNOSTICS_BAD_REQUEST", "请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 

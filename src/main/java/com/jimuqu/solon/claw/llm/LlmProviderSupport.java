@@ -199,8 +199,7 @@ public final class LlmProviderSupport {
                     + "/models";
         }
         if (StrUtil.endWithIgnoreCase(normalized, "/v1/responses")) {
-            return normalized.substring(0, normalized.length() - "/responses".length())
-                    + "/models";
+            return normalized.substring(0, normalized.length() - "/responses".length()) + "/models";
         }
         if (isProviderAwareOpenAiCompatibleBase(providerKey, normalized)) {
             return normalized + "/models";
@@ -215,8 +214,7 @@ public final class LlmProviderSupport {
             return normalized;
         }
         if (StrUtil.endWithIgnoreCase(normalized, "/v1/messages")) {
-            return normalized.substring(0, normalized.length() - "/messages".length())
-                    + "/models";
+            return normalized.substring(0, normalized.length() - "/messages".length()) + "/models";
         }
         return StrUtil.endWithIgnoreCase(normalized, "/v1")
                 ? normalized + "/models"
@@ -254,11 +252,13 @@ public final class LlmProviderSupport {
         return normalized + "/v1beta/models";
     }
 
-    private static boolean isProviderAwareOpenAiCompatibleBase(String providerKey, String normalizedBaseUrl) {
+    private static boolean isProviderAwareOpenAiCompatibleBase(
+            String providerKey, String normalizedBaseUrl) {
         if (StrUtil.isBlank(normalizedBaseUrl)) {
             return false;
         }
-        String normalizedProviderKey = StrUtil.nullToEmpty(providerKey).trim().toLowerCase(Locale.ROOT);
+        String normalizedProviderKey =
+                StrUtil.nullToEmpty(providerKey).trim().toLowerCase(Locale.ROOT);
         if ("openrouter".equals(normalizedProviderKey)) {
             return true;
         }

@@ -67,8 +67,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
     }
 
     private List<UsageEventRecord> listBetweenInternal(
-            long fromInclusive, long toInclusive, boolean limited, int limit)
-            throws Exception {
+            long fromInclusive, long toInclusive, boolean limited, int limit) throws Exception {
         List<UsageEventRecord> records = new ArrayList<UsageEventRecord>();
         Connection connection = database.openConnection();
         try {

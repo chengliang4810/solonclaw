@@ -13,7 +13,9 @@ public class MessageCanonicalizationServiceTest {
 
     @Test
     void shouldNormalizeWhitespace() {
-        GatewayMessage msg = new GatewayMessage(PlatformType.MEMORY, "room", "user", "hello  \r\n  world\n\n\n\n\nend");
+        GatewayMessage msg =
+                new GatewayMessage(
+                        PlatformType.MEMORY, "room", "user", "hello  \r\n  world\n\n\n\n\nend");
         service.canonicalize(msg);
         // \r\n -> \n, trailing spaces on lines stripped, 4+ consecutive newlines -> 3
         assertThat(msg.getText()).doesNotContain("\r");
@@ -25,24 +27,27 @@ public class MessageCanonicalizationServiceTest {
 
     @Test
     void shouldStripFeishuMentions() {
-        GatewayMessage msg = new GatewayMessage(PlatformType.FEISHU, "room", "user",
-                "<at user_id=\"ou_abc123\">张三</at> 帮我查一下");
+        GatewayMessage msg =
+                new GatewayMessage(
+                        PlatformType.FEISHU,
+                        "room",
+                        "user",
+                        "<at user_id=\"ou_abc123\">张三</at> 帮我查一下");
         service.canonicalize(msg);
         assertThat(msg.getText()).isEqualTo("帮我查一下");
     }
 
     @Test
     void shouldStripDingTalkMentions() {
-        GatewayMessage msg = new GatewayMessage(PlatformType.DINGTALK, "room", "user",
-                "@机器人 执行任务");
+        GatewayMessage msg = new GatewayMessage(PlatformType.DINGTALK, "room", "user", "@机器人 执行任务");
         service.canonicalize(msg);
         assertThat(msg.getText()).isEqualTo("执行任务");
     }
 
     @Test
     void shouldStripQQBotMentions() {
-        GatewayMessage msg = new GatewayMessage(PlatformType.QQBOT, "room", "user",
-                "<@!123456789> 你好");
+        GatewayMessage msg =
+                new GatewayMessage(PlatformType.QQBOT, "room", "user", "<@!123456789> 你好");
         service.canonicalize(msg);
         assertThat(msg.getText()).isEqualTo("你好");
     }

@@ -43,8 +43,7 @@ public class DashboardProviderService {
     private final Map<String, ModelListCacheEntry> modelListCache =
             new LinkedHashMap<String, ModelListCacheEntry>(16, 0.75f, true) {
                 @Override
-                protected boolean removeEldestEntry(
-                        Map.Entry<String, ModelListCacheEntry> eldest) {
+                protected boolean removeEldestEntry(Map.Entry<String, ModelListCacheEntry> eldest) {
                     return size() > MODEL_LIST_CACHE_MAX_ENTRIES;
                 }
             };
@@ -103,7 +102,11 @@ public class DashboardProviderService {
             model.put("provider", entry.getKey());
             model.put("model", provider.getDefaultModel());
             model.put("dialect", provider.getDialect());
-            model.put("role", entry.getKey().equals(appConfig.getModel().getProviderKey()) ? "primary" : "auxiliary");
+            model.put(
+                    "role",
+                    entry.getKey().equals(appConfig.getModel().getProviderKey())
+                            ? "primary"
+                            : "auxiliary");
             model.put("status", providerStatus(provider));
             model.put("metadata", metadataMap(metadata));
             model.put("api_url", SecretRedactor.maskUrl(metadata.getApiUrl()));
@@ -207,8 +210,7 @@ public class DashboardProviderService {
             putPriceField(pricing, "output", price.outputMicrosPerTokenExact(), currency);
             putPriceField(pricing, "cache", price.cacheReadMicrosPerTokenExact(), currency);
             putPriceField(pricing, "cache_read", price.cacheReadMicrosPerTokenExact(), currency);
-            putPriceField(
-                    pricing, "cache_write", price.cacheWriteMicrosPerTokenExact(), currency);
+            putPriceField(pricing, "cache_write", price.cacheWriteMicrosPerTokenExact(), currency);
             putPriceField(pricing, "reasoning", price.reasoningMicrosPerTokenExact(), currency);
         }
         pricing.put("free", Boolean.valueOf(free));
@@ -379,7 +381,9 @@ public class DashboardProviderService {
 
             ModelListCacheEntry refreshed =
                     new ModelListCacheEntry(
-                            SecretRedactor.maskUrl(url), parseModels(body, dialect), currentTimeMillis());
+                            SecretRedactor.maskUrl(url),
+                            parseModels(body, dialect),
+                            currentTimeMillis());
             cacheModelList(cacheKey, refreshed);
             return modelListResult(refreshed, cached == null ? "miss" : "refresh");
         } catch (IllegalArgumentException e) {
@@ -394,7 +398,9 @@ public class DashboardProviderService {
 
     public Map<String, Object> validateProvider(Map<String, Object> data) {
         ProviderProbe probe = resolveProviderProbe(data);
-        String url = LlmProviderSupport.buildModelListUrl(probe.providerKey, probe.baseUrl, probe.dialect);
+        String url =
+                LlmProviderSupport.buildModelListUrl(
+                        probe.providerKey, probe.baseUrl, probe.dialect);
         assertSafeProviderUrl(url);
         try {
             HttpResponse response = executeModelListRequest(url, probe.apiKey, probe.dialect, 0);
@@ -404,21 +410,13 @@ public class DashboardProviderService {
                 if (status >= 200 && status < 300) {
                     Map<String, Object> result =
                             providerValidationResult(
-                                    true,
-                                    true,
-                                    "valid",
-                                    "Provider reachable.",
-                                    url);
+                                    true, true, "valid", "Provider reachable.", url);
                     result.put("models", parseModels(body, probe.dialect));
                     return result;
                 }
                 if (status == 429) {
                     return providerValidationResult(
-                            true,
-                            true,
-                            "rate_limited",
-                            "HTTP 429 " + trimForError(body),
-                            url);
+                            true, true, "rate_limited", "HTTP 429 " + trimForError(body), url);
                 }
                 if (status == 401 || status == 403) {
                     return providerValidationResult(
@@ -429,11 +427,7 @@ public class DashboardProviderService {
                             url);
                 }
                 return providerValidationResult(
-                        false,
-                        true,
-                        "error",
-                        "HTTP " + status + " " + trimForError(body),
-                        url);
+                        false, true, "error", "HTTP " + status + " " + trimForError(body), url);
             } finally {
                 response.close();
             }
@@ -441,11 +435,7 @@ public class DashboardProviderService {
             throw e;
         } catch (RuntimeException e) {
             return providerValidationResult(
-                    false,
-                    false,
-                    "unreachable",
-                    validationRuntimeMessage(e),
-                    url);
+                    false, false, "unreachable", validationRuntimeMessage(e), url);
         }
     }
 
@@ -489,7 +479,8 @@ public class DashboardProviderService {
         if (StrUtil.isBlank(message) && e.getCause() != null) {
             message = e.getCause().getMessage();
         }
-        return SecretRedactor.redact(StrUtil.blankToDefault(message, e.getClass().getSimpleName()), 1000);
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(message, e.getClass().getSimpleName()), 1000);
     }
 
     protected long currentTimeMillis() {
@@ -520,7 +511,8 @@ public class DashboardProviderService {
         return ttl > 0L && currentTimeMillis() - entry.cachedAt <= ttl;
     }
 
-    private String modelListCacheKey(String providerKey, String url, String dialect, String apiKey) {
+    private String modelListCacheKey(
+            String providerKey, String url, String dialect, String apiKey) {
         return StrUtil.nullToEmpty(providerKey)
                 + "|"
                 + StrUtil.nullToEmpty(dialect)
@@ -641,8 +633,7 @@ public class DashboardProviderService {
         item.put("hasApiKey", SecretValueGuard.hasUsableSecret(provider.getApiKey()));
         item.put("isDefault", StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         item.put("metadata", metadataMap(modelMetadataService.resolve(providerKey, provider)));
-        appendProviderDisplay(
-                item, ProviderDisplayGrouping.providerDisplay(providerKey, provider));
+        appendProviderDisplay(item, ProviderDisplayGrouping.providerDisplay(providerKey, provider));
         return item;
     }
 
@@ -782,7 +773,10 @@ public class DashboardProviderService {
     }
 
     private Boolean readBooleanValue(
-            Map<String, Object> source, String sourceKey, Map<String, Object> base, String baseKey) {
+            Map<String, Object> source,
+            String sourceKey,
+            Map<String, Object> base,
+            String baseKey) {
         if (source != null && source.containsKey(sourceKey)) {
             return toOptionalBoolean(source.get(sourceKey));
         }
@@ -801,9 +795,7 @@ public class DashboardProviderService {
             return null;
         }
         return Boolean.valueOf(
-                "true".equalsIgnoreCase(text)
-                        || "1".equals(text)
-                        || "yes".equalsIgnoreCase(text));
+                "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text));
     }
 
     private void assertSafeProviderBaseUrl(String baseUrl) {

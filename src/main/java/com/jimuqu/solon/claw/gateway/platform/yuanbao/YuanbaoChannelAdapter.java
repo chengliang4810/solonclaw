@@ -111,9 +111,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             setLastError("yuanbao_connect_failed", safeError(e));
             setDetail("connect failed: " + safeError(e));
             log.warn(
-                    "[YUANBAO] connect failed: errorType={}, error={}",
-                    errorType(e),
-                    safeError(e));
+                    "[YUANBAO] connect failed: errorType={}, error={}", errorType(e), safeError(e));
             return false;
         }
     }

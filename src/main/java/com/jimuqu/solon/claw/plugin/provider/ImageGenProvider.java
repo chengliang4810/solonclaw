@@ -21,11 +21,24 @@ public interface ImageGenProvider {
             this.error = error;
         }
 
-        public static ImageGenResult ok(String url) { return new ImageGenResult(true, url, null); }
-        public static ImageGenResult fail(String error) { return new ImageGenResult(false, null, error); }
+        public static ImageGenResult ok(String url) {
+            return new ImageGenResult(true, url, null);
+        }
 
-        public boolean isSuccess() { return success; }
-        public String getUrl() { return url; }
-        public String getError() { return error; }
+        public static ImageGenResult fail(String error) {
+            return new ImageGenResult(false, null, error);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public String getError() {
+            return error;
+        }
     }
 }

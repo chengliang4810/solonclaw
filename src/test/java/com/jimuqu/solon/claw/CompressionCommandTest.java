@@ -104,8 +104,7 @@ public class CompressionCommandTest {
         env.sessionRepository.save(session);
 
         GatewayReply reply =
-                env.gatewayService.handle(
-                        env.message("admin-chat", "admin-user", "/compact 发布流程"));
+                env.gatewayService.handle(env.message("admin-chat", "admin-user", "/compact 发布流程"));
         SessionRecord updated = env.sessionRepository.findById(session.getSessionId());
 
         assertThat(reply.getContent()).contains("关注主题");
@@ -139,8 +138,7 @@ public class CompressionCommandTest {
         env.sessionRepository.save(session);
 
         GatewayReply reply =
-                env.gatewayService.handle(
-                        env.message("admin-chat", "admin-user", "/compact 发布流程"));
+                env.gatewayService.handle(env.message("admin-chat", "admin-user", "/compact 发布流程"));
         SessionRecord updated = env.sessionRepository.findById(session.getSessionId());
 
         assertThat(reply.getContent()).contains("正在运行");
@@ -189,7 +187,8 @@ public class CompressionCommandTest {
         }
 
         @Override
-        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects)
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, null, toolObjects);
         }

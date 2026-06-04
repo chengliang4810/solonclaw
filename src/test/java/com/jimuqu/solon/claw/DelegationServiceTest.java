@@ -11,8 +11,8 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DelegateTools;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -121,7 +121,8 @@ public class DelegationServiceTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(gateway.lastToolObjects).hasSize(2);
-        assertThat(gateway.lastToolObjects.toString()).contains("SafeCodeSearchTool", "SafeWebsearchTool");
+        assertThat(gateway.lastToolObjects.toString())
+                .contains("SafeCodeSearchTool", "SafeWebsearchTool");
         assertThat(env.toolRegistry.resolveEnabledToolNames(result.getSourceKey()))
                 .containsExactly("codesearch", "websearch");
     }
@@ -151,13 +152,13 @@ public class DelegationServiceTest {
     @Test
     void delegateToolShouldRedactErrors() throws Exception {
         DelegateTools missingService = new DelegateTools(null, "MEMORY:room-a:user-a");
-        String notReady = missingService.delegateTask("single", "ghp_1234567890abcdef", null, null, null, null, null, null);
+        String notReady =
+                missingService.delegateTask(
+                        "single", "ghp_1234567890abcdef", null, null, null, null, null, null);
         assertThat(notReady).contains("\"success\":false").doesNotContain("ghp_1234567890abcdef");
 
         DelegateTools failing =
-                new DelegateTools(
-                        new FailingDelegationService(),
-                        "MEMORY:room-a:user-a");
+                new DelegateTools(new FailingDelegationService(), "MEMORY:room-a:user-a");
         String failed =
                 failing.delegateTask(
                         "single",
@@ -206,9 +207,7 @@ public class DelegationServiceTest {
         assertThat(single)
                 .contains("Authorization: Bearer ***")
                 .doesNotContain("ghp_delegatesingle12345");
-        assertThat(batch)
-                .contains("batch token=***")
-                .doesNotContain("ghp_delegatebatch12345");
+        assertThat(batch).contains("batch token=***").doesNotContain("ghp_delegatebatch12345");
         assertThat(service.singleTask.getPrompt()).contains("ghp_delegateprompt12345");
         assertThat(service.batchTasks.get(0).getPrompt()).contains("ghp_delegateprompt12345");
     }

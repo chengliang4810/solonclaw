@@ -162,8 +162,7 @@ public class TirithSecurityServiceTest {
         AppConfig config = config(missingAbsolutePath(token));
         config.getSecurity().setTirithFailOpen(false);
 
-        TirithSecurityService.Diagnostic diagnostic =
-                new TirithSecurityService(config).diagnose();
+        TirithSecurityService.Diagnostic diagnostic = new TirithSecurityService(config).diagnose();
 
         assertThat(diagnostic.isEnabled()).isTrue();
         assertThat(diagnostic.isConfigured()).isTrue();
@@ -201,7 +200,8 @@ public class TirithSecurityServiceTest {
         assertThat(summary.get("failureMode")).isEqualTo("fail-closed");
         assertThat(summary.get("failureBehavior")).isEqualTo("block_on_operational_failure");
         assertThat(summary.get("diagnosticSummary")).isInstanceOf(Map.class);
-        Map<String, Object> diagnosticSummary = (Map<String, Object>) summary.get("diagnosticSummary");
+        Map<String, Object> diagnosticSummary =
+                (Map<String, Object>) summary.get("diagnosticSummary");
         assertThat(diagnosticSummary.get("scannerConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(diagnosticSummary.get("scannerAvailable")).isEqualTo(Boolean.FALSE);
         assertThat(diagnosticSummary.get("failureMode")).isEqualTo("fail-closed");
@@ -225,8 +225,7 @@ public class TirithSecurityServiceTest {
         assertThat(sampleAudit.get("surface")).isEqualTo("tirith_command_scan");
         assertThat(sampleAudit.get("approvalRequired")).isEqualTo(Boolean.TRUE);
         assertThat(sampleAudit.get("rawFindingsExposed")).isEqualTo(Boolean.FALSE);
-        assertThat(String.valueOf(sampleAudit.get("findingRuleSamples")))
-                .contains("security_scan");
+        assertThat(String.valueOf(sampleAudit.get("findingRuleSamples"))).contains("security_scan");
         assertThat(String.valueOf(summary.get("actions")))
                 .contains("allow")
                 .contains("warn")
@@ -337,7 +336,12 @@ public class TirithSecurityServiceTest {
     void shouldExpandTildeInConfiguredTirithPath() throws Exception {
         String oldHome = System.getProperty("user.home");
         Path fakeHome = Files.createTempDirectory("jimuqu-tirith-home");
-        Path binary = scriptIn(fakeHome, "tirith", "printf '%s\\n' '{\"findings\":[],\"summary\":\"tilde ok\"}'", 0);
+        Path binary =
+                scriptIn(
+                        fakeHome,
+                        "tirith",
+                        "printf '%s\\n' '{\"findings\":[],\"summary\":\"tilde ok\"}'",
+                        0);
         try {
             System.setProperty("user.home", fakeHome.toString());
             TirithSecurityService.ScanResult result =
@@ -358,7 +362,8 @@ public class TirithSecurityServiceTest {
         Path binary = captureArgsScript(dir, argsFile);
         TirithSecurityService service = new TirithSecurityService(config(binary));
 
-        service.checkCommandSecurityForTool("execute_shell", "powershell -NoProfile -Command Get-Process");
+        service.checkCommandSecurityForTool(
+                "execute_shell", "powershell -NoProfile -Command Get-Process");
         assertThat(Files.readAllBytes(argsFile))
                 .asString(StandardCharsets.UTF_8)
                 .contains("--shell", "powershell");
@@ -373,7 +378,8 @@ public class TirithSecurityServiceTest {
                 .asString(StandardCharsets.UTF_8)
                 .contains("--shell", "posix");
 
-        service.checkCommandSecurityForTool("config_get", "powershell -NoProfile -Command Get-Process");
+        service.checkCommandSecurityForTool(
+                "config_get", "powershell -NoProfile -Command Get-Process");
         assertThat(Files.readAllBytes(argsFile))
                 .asString(StandardCharsets.UTF_8)
                 .contains("--shell", "posix");
@@ -402,7 +408,10 @@ public class TirithSecurityServiceTest {
     }
 
     private Path scriptIn(Path dir, String basename, String body, int exitCode) throws Exception {
-        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        boolean windows =
+                System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win");
         Path file = dir.resolve(windows ? basename + ".cmd" : basename);
         String content;
         if (windows) {
@@ -416,7 +425,10 @@ public class TirithSecurityServiceTest {
     }
 
     private Path captureArgsScript(Path dir, Path argsFile) throws Exception {
-        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        boolean windows =
+                System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win");
         Path file = dir.resolve(windows ? "tirith.cmd" : "tirith");
         String argsPath = argsFile.toAbsolutePath().toString();
         String content;
@@ -449,7 +461,9 @@ public class TirithSecurityServiceTest {
             return "echo " + value;
         }
         if (trimmed.startsWith("printf '%s' '") && trimmed.endsWith("' >&2")) {
-            String value = trimmed.substring("printf '%s' '".length(), trimmed.length() - "' >&2".length());
+            String value =
+                    trimmed.substring(
+                            "printf '%s' '".length(), trimmed.length() - "' >&2".length());
             return "echo " + value + " 1>&2";
         }
         if (trimmed.startsWith("powershell ")) {
@@ -459,7 +473,10 @@ public class TirithSecurityServiceTest {
     }
 
     private String sleepBody(int seconds) {
-        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        boolean windows =
+                System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win");
         if (windows) {
             return "powershell -NoProfile -Command \"Start-Sleep -Seconds " + seconds + "\"";
         }
@@ -471,7 +488,10 @@ public class TirithSecurityServiceTest {
     }
 
     private String missingAbsolutePath(String suffix) {
-        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        boolean windows =
+                System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win");
         String name = suffix == null ? "tirith" : "tirith-" + suffix;
         if (windows) {
             return "Z:\\jimuqu-missing-tirith\\" + name + ".exe";
@@ -488,11 +508,7 @@ public class TirithSecurityServiceTest {
         for (int i = 0; i < count; i++) {
             findings.add("{\"rule_id\":\"rule_" + i + "\"}");
         }
-        return "{\"findings\":["
-                + join(findings)
-                + "],\"summary\":\""
-                + repeat("x", 700)
-                + "\"}";
+        return "{\"findings\":[" + join(findings) + "],\"summary\":\"" + repeat("x", 700) + "\"}";
     }
 
     private String join(List<String> values) {

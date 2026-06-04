@@ -12,12 +12,12 @@ import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
-import java.util.Arrays;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -95,10 +95,7 @@ public class CliShellTipsTest {
         StringWriter buffer = new StringWriter();
 
         int exitCode =
-                sendOnce(
-                        shell,
-                        new PrintWriter(buffer),
-                        "/tips]11;rgb:ffff/ffff/ffff\u0007");
+                sendOnce(shell, new PrintWriter(buffer), "/tips]11;rgb:ffff/ffff/ffff\u0007");
 
         assertThat(exitCode).isEqualTo(0);
         assertThat(buffer.toString()).contains("终端提示");
@@ -350,9 +347,10 @@ public class CliShellTipsTest {
                 .contains("executesCommand=false")
                 .contains("writesFile=false")
                 .contains("secretRedaction=true");
-        assertThat(TerminalSecurityPolicyView.render(
-                        null,
-                        "/security status echo token=ghp_terminalstatus12345 http://127.0.0.1/?token=terminal-status-secret target/sk-terminal-status-secret.txt"))
+        assertThat(
+                        TerminalSecurityPolicyView.render(
+                                null,
+                                "/security status echo token=ghp_terminalstatus12345 http://127.0.0.1/?token=terminal-status-secret target/sk-terminal-status-secret.txt"))
                 .contains("安全策略状态摘要")
                 .contains("executesCommand=false")
                 .contains("statusAlias=true")
@@ -502,7 +500,8 @@ public class CliShellTipsTest {
                         String.class,
                         boolean.class);
         method.setAccessible(true);
-        return ((Integer) method.invoke(shell, null, writer, "cli-test", input, Boolean.TRUE)).intValue();
+        return ((Integer) method.invoke(shell, null, writer, "cli-test", input, Boolean.TRUE))
+                .intValue();
     }
 
     private static String renderEvents(CliShell shell) throws Exception {

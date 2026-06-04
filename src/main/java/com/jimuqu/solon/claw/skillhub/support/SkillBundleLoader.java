@@ -16,8 +16,8 @@ import org.noear.snack4.ONode;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * Skill bundle loader and manager.
- * Bundles are YAML/JSON files that define a set of skills to load together.
+ * Skill bundle loader and manager. Bundles are YAML/JSON files that define a set of skills to load
+ * together.
  */
 public class SkillBundleLoader {
     private final File bundlesDir;

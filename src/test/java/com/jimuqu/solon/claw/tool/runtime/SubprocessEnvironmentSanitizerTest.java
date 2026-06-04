@@ -25,7 +25,8 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(((Integer) summary.get("providerBlocklistCount")).intValue()).isGreaterThan(50);
         assertThat(summary.get("configuredPassthroughCount")).isEqualTo(Integer.valueOf(2));
         assertThat(summary.get("providerBlocklistOverridesPassthrough")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("forcePrefix")).isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
+        assertThat(summary.get("forcePrefix"))
+                .isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
         assertThat(summary.get("decisionProbeSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("decisionProbeValueRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("decisionProbeEffectiveNameSupported")).isEqualTo(Boolean.TRUE);
@@ -73,8 +74,8 @@ public class SubprocessEnvironmentSanitizerTest {
         env.put(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN", "forced-secret");
         env.put("BAD-NAME", "bad");
 
-        Map<String, Map<String, Object>> decisions = decisionsByName(
-                SubprocessEnvironmentSanitizer.probeDecisions(env, config));
+        Map<String, Map<String, Object>> decisions =
+                decisionsByName(SubprocessEnvironmentSanitizer.probeDecisions(env, config));
 
         assertThat(decisions.get("PATH"))
                 .containsEntry("decision", "allow")
@@ -157,18 +158,7 @@ public class SubprocessEnvironmentSanitizerTest {
         config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+                        config, null, null, null, null, null, null, null, null, null, null, null);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put(
                 "names",
@@ -479,10 +469,7 @@ public class SubprocessEnvironmentSanitizerTest {
         AutoCloseable scope =
                 SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
                         Arrays.asList(
-                                "TENOR_API_KEY",
-                                "OPENAI_API_KEY",
-                                "OpenAi_Api_Key",
-                                "BAD-NAME"));
+                                "TENOR_API_KEY", "OPENAI_API_KEY", "OpenAi_Api_Key", "BAD-NAME"));
         try {
             SubprocessEnvironmentSanitizer.sanitize(env);
         } finally {
@@ -575,8 +562,7 @@ public class SubprocessEnvironmentSanitizerTest {
 
         SubprocessEnvironmentSanitizer.sanitize(env);
 
-        assertThat(env)
-                .containsEntry("SOLONCLAW_PROFILE", "reviewer");
+        assertThat(env).containsEntry("SOLONCLAW_PROFILE", "reviewer");
         assertThat(env)
                 .doesNotContainKeys(
                         "JIMUQU_PROFILE",
@@ -589,8 +575,7 @@ public class SubprocessEnvironmentSanitizerTest {
     @Test
     void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeJimuqu() {
         String result =
-                SubprocessEnvironmentSanitizer.pathWithSaneFallback(
-                        "/some/custom/bin", false);
+                SubprocessEnvironmentSanitizer.pathWithSaneFallback("/some/custom/bin", false);
 
         assertThat(result).startsWith("/some/custom/bin:");
         assertThat(result).contains("/opt/homebrew/bin");

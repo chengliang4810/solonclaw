@@ -182,51 +182,59 @@ public class LlmUsage {
         if (anthropic) {
             inputTokens = firstLong(usage, "input_tokens", "prompt_tokens");
             cacheReadTokens = firstLong(usage, "cache_read_input_tokens", "cache_read_tokens");
-            cacheWriteTokens = firstLong(
-                    usage,
-                    "cache_creation_input_tokens",
-                    "cache_write_input_tokens",
-                    "cache_write_tokens");
+            cacheWriteTokens =
+                    firstLong(
+                            usage,
+                            "cache_creation_input_tokens",
+                            "cache_write_input_tokens",
+                            "cache_write_tokens");
         } else if (responses || nestedMap(usage, "input_tokens_details") != null) {
             long inputTotal = firstLong(usage, "input_tokens", "prompt_tokens");
             Map<String, Object> details = nestedMap(usage, "input_tokens_details");
-            cacheReadTokens = max(
-                    longValue(details, "cached_tokens"),
-                    longValue(usage, "cache_read_input_tokens"),
-                    longValue(usage, "cache_read_tokens"));
-            cacheWriteTokens = max(
-                    longValue(details, "cache_creation_tokens"),
-                    longValue(details, "cache_write_tokens"),
-                    longValue(usage, "cache_creation_input_tokens"),
-                    longValue(usage, "cache_write_tokens"));
+            cacheReadTokens =
+                    max(
+                            longValue(details, "cached_tokens"),
+                            longValue(usage, "cache_read_input_tokens"),
+                            longValue(usage, "cache_read_tokens"));
+            cacheWriteTokens =
+                    max(
+                            longValue(details, "cache_creation_tokens"),
+                            longValue(details, "cache_write_tokens"),
+                            longValue(usage, "cache_creation_input_tokens"),
+                            longValue(usage, "cache_write_tokens"));
             inputTokens = Math.max(0L, inputTotal - cacheReadTokens - cacheWriteTokens);
         } else if (hasKey(usage, "prompt_tokens")) {
             long promptTotal = longValue(usage, "prompt_tokens");
             Map<String, Object> details = nestedMap(usage, "prompt_tokens_details");
-            cacheReadTokens = max(
-                    longValue(details, "cached_tokens"),
-                    longValue(usage, "cache_read_input_tokens"),
-                    longValue(usage, "cache_read_tokens"));
-            cacheWriteTokens = max(
-                    longValue(details, "cache_write_tokens"),
-                    longValue(details, "cache_creation_tokens"),
-                    longValue(usage, "cache_creation_input_tokens"),
-                    longValue(usage, "cache_write_tokens"));
+            cacheReadTokens =
+                    max(
+                            longValue(details, "cached_tokens"),
+                            longValue(usage, "cache_read_input_tokens"),
+                            longValue(usage, "cache_read_tokens"));
+            cacheWriteTokens =
+                    max(
+                            longValue(details, "cache_write_tokens"),
+                            longValue(details, "cache_creation_tokens"),
+                            longValue(usage, "cache_creation_input_tokens"),
+                            longValue(usage, "cache_write_tokens"));
             inputTokens = Math.max(0L, promptTotal - cacheReadTokens - cacheWriteTokens);
         } else {
             inputTokens = longValue(usage, "input_tokens");
             cacheReadTokens = firstLong(usage, "cache_read_input_tokens", "cache_read_tokens");
-            cacheWriteTokens = firstLong(
-                    usage,
-                    "cache_creation_input_tokens",
-                    "cache_write_input_tokens",
-                    "cache_write_tokens");
+            cacheWriteTokens =
+                    firstLong(
+                            usage,
+                            "cache_creation_input_tokens",
+                            "cache_write_input_tokens",
+                            "cache_write_tokens");
         }
 
-        long reasoningTokens = max(
-                longValue(nestedMap(usage, "completion_tokens_details"), "reasoning_tokens"),
-                longValue(nestedMap(usage, "output_tokens_details"), "reasoning_tokens"),
-                longValue(usage, "reasoning_tokens"));
+        long reasoningTokens =
+                max(
+                        longValue(
+                                nestedMap(usage, "completion_tokens_details"), "reasoning_tokens"),
+                        longValue(nestedMap(usage, "output_tokens_details"), "reasoning_tokens"),
+                        longValue(usage, "reasoning_tokens"));
         long requestCount = firstPositiveLong(usage, "request_count", "requests");
         return builder()
                 .inputTokens(inputTokens)

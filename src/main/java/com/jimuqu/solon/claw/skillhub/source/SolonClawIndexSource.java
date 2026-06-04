@@ -11,8 +11,7 @@ import org.noear.snack4.ONode;
 
 /** SolonClaw central skill index source. */
 public class SolonClawIndexSource implements SkillSource {
-    private static final String INDEX_URL =
-            "https://solon-claw.local/docs/api/skills-index.json";
+    private static final String INDEX_URL = "https://solon-claw.local/docs/api/skills-index.json";
 
     private final SkillHubHttpClient httpClient;
     private final SkillHubStateStore stateStore;

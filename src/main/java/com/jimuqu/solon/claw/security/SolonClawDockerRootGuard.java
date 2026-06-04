@@ -29,11 +29,7 @@ public final class SolonClawDockerRootGuard {
     }
 
     static void requireServerMayStart(
-            String officialImage,
-            String allowRoot,
-            Integer uid,
-            String userName,
-            File entrypoint) {
+            String officialImage, String allowRoot, Integer uid, String userName, File entrypoint) {
         if (!isTruthy(officialImage)) {
             return;
         }

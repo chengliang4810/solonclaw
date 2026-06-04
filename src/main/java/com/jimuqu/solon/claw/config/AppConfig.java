@@ -214,10 +214,7 @@ public class AppConfig {
                 .setTtl(
                         resolveConfigString(
                                 readString(
-                                        props,
-                                        overrides,
-                                        "solonclaw.llm.promptCache.ttl",
-                                        "5m")));
+                                        props, overrides, "solonclaw.llm.promptCache.ttl", "5m")));
         config.getLlm()
                 .getPromptCache()
                 .setLayout(
@@ -248,7 +245,10 @@ public class AppConfig {
                 .setWrapResponse(
                         resolveBoolean(
                                 readBoolean(
-                                        props, overrides, "solonclaw.scheduler.wrapResponse", true)));
+                                        props,
+                                        overrides,
+                                        "solonclaw.scheduler.wrapResponse",
+                                        true)));
         config.getScheduler()
                 .setScriptTimeoutSeconds(
                         positiveInt(
@@ -389,27 +389,17 @@ public class AppConfig {
         config.getSkills()
                 .setExternalDirs(
                         resolveList(
-                                readRaw(
-                                        props,
-                                        overrides,
-                                        "solonclaw.skills.externalDirs",
-                                        "")));
+                                readRaw(props, overrides, "solonclaw.skills.externalDirs", "")));
         config.getSkills()
                 .setTemplateVars(
                         resolveBoolean(
                                 readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.skills.templateVars",
-                                        true)));
+                                        props, overrides, "solonclaw.skills.templateVars", true)));
         config.getSkills()
                 .setInlineShell(
                         resolveBoolean(
                                 readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.skills.inlineShell",
-                                        false)));
+                                        props, overrides, "solonclaw.skills.inlineShell", false)));
         config.getSkills()
                 .setInlineShellTimeoutSeconds(
                         resolveInt(
@@ -1109,8 +1099,7 @@ public class AppConfig {
                                 readString(
                                         props, overrides, "solonclaw.dashboard.accessToken", "")));
         config.getDashboard()
-                .setBindHost(
-                        resolveConfigString(readString(props, overrides, "server.host", "")));
+                .setBindHost(resolveConfigString(readString(props, overrides, "server.host", "")));
         config.getDashboard()
                 .setBindPort(resolveInt(readInt(props, overrides, "server.port", 8080)));
         config.getAgent().setPersonalities(loadPersonalities(props, overrides));
@@ -1309,7 +1298,10 @@ public class AppConfig {
                 .setBusyPolicy(
                         resolveConfigString(
                                 readString(
-                                        props, overrides, "solonclaw.task.busyPolicy", "interrupt")));
+                                        props,
+                                        overrides,
+                                        "solonclaw.task.busyPolicy",
+                                        "interrupt")));
         config.getTask()
                 .setRestartDrainTimeoutSeconds(
                         Math.max(
@@ -1385,13 +1377,10 @@ public class AppConfig {
                                         "solonclaw.task.mediaCacheTtlHours",
                                         168)));
         config.getSecurity()
-                .setAllowPrivateUrls(
-                        resolveBoolean(
-                                readAllowPrivateUrls(props, overrides)));
+                .setAllowPrivateUrls(resolveBoolean(readAllowPrivateUrls(props, overrides)));
         config.getSecurity()
                 .setRewriteBrowserLoopbackUrls(
-                        resolveBoolean(
-                                readBrowserLoopbackRewriteEnabled(props, overrides)));
+                        resolveBoolean(readBrowserLoopbackRewriteEnabled(props, overrides)));
         config.getSecurity()
                 .setBrowserLoopbackHostAlias(
                         resolveConfigString(
@@ -1430,19 +1419,11 @@ public class AppConfig {
         config.getSecurity()
                 .setTirithEnabled(
                         resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "security.tirithEnabled",
-                                        true)));
+                                readBoolean(props, overrides, "security.tirithEnabled", true)));
         config.getSecurity()
                 .setTirithPath(
                         resolveConfigString(
-                                readString(
-                                        props,
-                                        overrides,
-                                        "security.tirithPath",
-                                        "tirith")));
+                                readString(props, overrides, "security.tirithPath", "tirith")));
         config.getSecurity()
                 .setTirithTimeoutSeconds(
                         positiveInt(
@@ -1456,38 +1437,34 @@ public class AppConfig {
         config.getSecurity()
                 .setTirithFailOpen(
                         resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "security.tirithFailOpen",
-                                        true)));
+                                readBoolean(props, overrides, "security.tirithFailOpen", true)));
         config.getSecurity()
                 .setGuardrailMode(
                         normalizeGuardrailMode(
                                 resolveConfigString(
                                         readString(
-                                        props,
-                                        overrides,
-                                        "security.guardrailMode",
-                                        "approval"))));
+                                                props,
+                                                overrides,
+                                                "security.guardrailMode",
+                                                "approval"))));
         config.getSecurity()
                 .setGuardrailCronMode(
                         normalizeGuardrailCronMode(
                                 resolveConfigString(
                                         readString(
-                                        props,
-                                        overrides,
-                                        "security.guardrailCronMode",
-                                        config.getSecurity().getGuardrailMode()))));
+                                                props,
+                                                overrides,
+                                                "security.guardrailCronMode",
+                                                config.getSecurity().getGuardrailMode()))));
         config.getSecurity()
                 .setGuardrailCronScope(
                         normalizeGuardrailCronScope(
                                 resolveConfigString(
                                         readString(
-                                        props,
-                                        overrides,
-                                        "security.guardrailCronScope",
-                                        "job"))));
+                                                props,
+                                                overrides,
+                                                "security.guardrailCronScope",
+                                                "job"))));
         config.getSecurity()
                 .setHardlineAllowlist(
                         resolveList(
@@ -1500,7 +1477,8 @@ public class AppConfig {
                 .setMode(
                         normalizeApprovalMode(
                                 resolveConfigString(
-                                        guardrailApprovalMode(config.getSecurity().getGuardrailMode()))));
+                                        guardrailApprovalMode(
+                                                config.getSecurity().getGuardrailMode()))));
         config.getApprovals()
                 .setCronMode(
                         normalizeGuardrailCronMode(
@@ -1509,19 +1487,12 @@ public class AppConfig {
                 .setSubagentAutoApprove(
                         resolveBoolean(
                                 readBoolean(
-                                        props,
-                                        overrides,
-                                        "approvals.subagentAutoApprove",
-                                        false)));
+                                        props, overrides, "approvals.subagentAutoApprove", false)));
         config.getApprovals()
                 .setTimeoutSeconds(
                         positiveInt(
                                 resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "approvals.timeoutSeconds",
-                                                60)),
+                                        readInt(props, overrides, "approvals.timeoutSeconds", 60)),
                                 60));
         config.getApprovals()
                 .setGatewayTimeoutSeconds(
@@ -1536,11 +1507,7 @@ public class AppConfig {
         config.getApprovals()
                 .setMcpReloadConfirm(
                         resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "approvals.mcpReloadConfirm",
-                                        true)));
+                                readBoolean(props, overrides, "approvals.mcpReloadConfirm", true)));
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(
@@ -1557,10 +1524,7 @@ public class AppConfig {
                 .setBraveSearchApiKey(
                         resolveConfigString(
                                 readString(
-                                        props,
-                                        overrides,
-                                        "solonclaw.web.braveSearchApiKey",
-                                        "")));
+                                        props, overrides, "solonclaw.web.braveSearchApiKey", "")));
         config.getTerminal()
                 .setCredentialFiles(
                         resolveList(
@@ -1915,7 +1879,8 @@ public class AppConfig {
         this.terminal.setWriteSafeRoot(other.getWriteSafeRoot());
         this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
         this.terminal.setForegroundMaxRetries(other.getForegroundMaxRetries());
-        this.terminal.setForegroundRetryBaseDelaySeconds(other.getForegroundRetryBaseDelaySeconds());
+        this.terminal.setForegroundRetryBaseDelaySeconds(
+                other.getForegroundRetryBaseDelaySeconds());
         this.terminal.setProcessWaitTimeoutSeconds(other.getProcessWaitTimeoutSeconds());
     }
 
@@ -1937,7 +1902,8 @@ public class AppConfig {
                 .setDomains(new ArrayList<String>(other.getWebsiteBlocklist().getDomains()));
         this.security
                 .getWebsiteBlocklist()
-                .setSharedFiles(new ArrayList<String>(other.getWebsiteBlocklist().getSharedFiles()));
+                .setSharedFiles(
+                        new ArrayList<String>(other.getWebsiteBlocklist().getSharedFiles()));
     }
 
     private void copyWeb(WebConfig other) {
@@ -2469,7 +2435,8 @@ public class AppConfig {
                     price,
                     "input",
                     firstStringValue(map, "input_cost_per_million", "prompt_cost_per_million"),
-                    firstPresentLongValue(map, "input_micros_per_token", "prompt_micros_per_token"));
+                    firstPresentLongValue(
+                            map, "input_micros_per_token", "prompt_micros_per_token"));
             applyModelTokenPrice(
                     price,
                     "output",
@@ -2497,7 +2464,8 @@ public class AppConfig {
             }
             price.setSource(stringValue(map, "source"));
             price.setSourceUrl(firstStringValue(map, "source_url", "sourceUrl"));
-            price.setPricingVersion(firstStringValue(map, "pricing_version", "pricingVersion", "version"));
+            price.setPricingVersion(
+                    firstStringValue(map, "pricing_version", "pricingVersion", "version"));
             price.setFetchedAt(firstLongValue(map, "fetched_at", "fetchedAt"));
             if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
                 prices.add(price);
@@ -2825,20 +2793,12 @@ public class AppConfig {
         if (env.length() > 0) {
             return parseBooleanText(env, false);
         }
-        return readBoolean(
-                props,
-                overrides,
-                "security.allowPrivateUrls",
-                true);
+        return readBoolean(props, overrides, "security.allowPrivateUrls", true);
     }
 
     private static boolean readBrowserLoopbackRewriteEnabled(
             Props props, Map<String, Object> overrides) {
-        return readBoolean(
-                props,
-                overrides,
-                "solonclaw.browser.rewriteLoopbackUrls",
-                false);
+        return readBoolean(props, overrides, "solonclaw.browser.rewriteLoopbackUrls", false);
     }
 
     private static void applyProviderConfiguration(

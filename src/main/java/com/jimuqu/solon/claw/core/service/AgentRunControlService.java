@@ -63,8 +63,8 @@ public interface AgentRunControlService {
         return RunBusyDecision.runNow("steer");
     }
 
-    default Map<String, Object> controlRun(String runId, String command, Map<String, Object> payload)
-            throws Exception {
+    default Map<String, Object> controlRun(
+            String runId, String command, Map<String, Object> payload) throws Exception {
         throw new UnsupportedOperationException("run control unavailable");
     }
 
@@ -75,6 +75,7 @@ public interface AgentRunControlService {
     default void onRunFinished(
             String sourceKey,
             String sessionId,
-            java.util.function.Function<GatewayMessage, com.jimuqu.solon.claw.core.model.GatewayReply>
+            java.util.function.Function<
+                            GatewayMessage, com.jimuqu.solon.claw.core.model.GatewayReply>
                     runner) {}
 }

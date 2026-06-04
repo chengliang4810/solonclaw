@@ -50,7 +50,8 @@ public class DashboardConfigController {
                     @Override
                     public Map<String, Object> run() throws Exception {
                         return configService.saveConfig(
-                                ONode.deserialize(body(context).get("config").toJson(), LinkedHashMap.class));
+                                ONode.deserialize(
+                                        body(context).get("config").toJson(), LinkedHashMap.class));
                     }
                 });
     }
@@ -62,8 +63,7 @@ public class DashboardConfigController {
                 new ConfigAction() {
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return configService.saveRaw(
-                                body(context).get("yaml_text").getString());
+                        return configService.saveRaw(body(context).get("yaml_text").getString());
                     }
                 });
     }
@@ -99,7 +99,8 @@ public class DashboardConfigController {
             if (data instanceof Map) {
                 return node;
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {

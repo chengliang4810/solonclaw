@@ -6,9 +6,9 @@ import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -68,7 +68,9 @@ public class DashboardMcpService {
                                 new SecurityPolicyService(appConfig))
                         : packageSecurityService;
         this.mcpRuntimeService =
-                mcpRuntimeService == null ? new McpRuntimeService(appConfig, database) : mcpRuntimeService;
+                mcpRuntimeService == null
+                        ? new McpRuntimeService(appConfig, database)
+                        : mcpRuntimeService;
         this.securityPolicyService = new SecurityPolicyService(appConfig);
     }
 
@@ -104,7 +106,8 @@ public class DashboardMcpService {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement("select * from mcp_servers order by updated_at desc");
+                    connection.prepareStatement(
+                            "select * from mcp_servers order by updated_at desc");
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {
@@ -137,7 +140,8 @@ public class DashboardMcpService {
         }
         McpPackageSecurityService.SecurityVerdict securityVerdict =
                 TRANSPORT_STDIO.equals(transport)
-                        ? checkPackageSecurity(read(body, "command"), body == null ? null : body.get("args"))
+                        ? checkPackageSecurity(
+                                read(body, "command"), body == null ? null : body.get("args"))
                         : McpPackageSecurityService.SecurityVerdict.allow();
         long now = System.currentTimeMillis();
         Connection connection = database.openConnection();
@@ -184,7 +188,10 @@ public class DashboardMcpService {
             statement.setString(12, previousToolsHash);
             statement.setString(13, previousLastToolsJson);
             statement.setString(
-                    14, securityVerdict.isAllowed() ? null : safeDisplayError(securityVerdict.getMessage()));
+                    14,
+                    securityVerdict.isAllowed()
+                            ? null
+                            : safeDisplayError(securityVerdict.getMessage()));
             statement.setInt(15, asBoolean(body.get("enabled"), true) ? 1 : 0);
             statement.setLong(16, createdAt);
             statement.setLong(17, now);
@@ -202,10 +209,11 @@ public class DashboardMcpService {
     }
 
     private String normalizeTransport(String rawTransport) {
-        String transport = StrUtil.blankToDefault(rawTransport, TRANSPORT_STDIO)
-                .trim()
-                .toLowerCase()
-                .replace('-', '_');
+        String transport =
+                StrUtil.blankToDefault(rawTransport, TRANSPORT_STDIO)
+                        .trim()
+                        .toLowerCase()
+                        .replace('-', '_');
         if (TRANSPORT_HTTP.equals(transport)) {
             return TRANSPORT_STREAMABLE;
         }
@@ -287,7 +295,11 @@ public class DashboardMcpService {
                 "expires_in_seconds",
                 expiresAt == null
                         ? null
-                        : Long.valueOf(Math.max(0L, (expiresAt.longValue() - System.currentTimeMillis()) / 1000L)));
+                        : Long.valueOf(
+                                Math.max(
+                                        0L,
+                                        (expiresAt.longValue() - System.currentTimeMillis())
+                                                / 1000L)));
         Object scopes = oauth.get("scopes");
         if (scopes != null) {
             result.put("scopes", scopes);
@@ -362,7 +374,8 @@ public class DashboardMcpService {
         long now = System.currentTimeMillis();
         clearOAuthSecrets(oauth);
         oauth.put("enabled", Boolean.TRUE);
-        oauth.put("auth_type", StrUtil.blankToDefault(string(oauth.get("auth_type")), "oauth_pkce"));
+        oauth.put(
+                "auth_type", StrUtil.blankToDefault(string(oauth.get("auth_type")), "oauth_pkce"));
         oauth.put("status", "pending");
         oauth.put("authorization_endpoint", authorizationEndpoint);
         oauth.put("client_id", clientId);
@@ -378,7 +391,10 @@ public class DashboardMcpService {
         result.put("server_id", serverId);
         result.put("status", "pending");
         result.put("state", state);
-        result.put("authorization_url", authorizationUrl(authorizationEndpoint, clientId, redirectUri, state, codeChallenge, scope));
+        result.put(
+                "authorization_url",
+                authorizationUrl(
+                        authorizationEndpoint, clientId, redirectUri, state, codeChallenge, scope));
         result.put("code_challenge_method", "S256");
         result.put("redirect_uri", redirectUri);
         if (StrUtil.isNotBlank(scope)) {
@@ -409,20 +425,10 @@ public class DashboardMcpService {
             throw new IllegalStateException("MCP OAuth state mismatch");
         }
         String tokenEndpoint =
-                firstText(
-                        body,
-                        "token_endpoint",
-                        "tokenEndpoint",
-                        "token_url",
-                        "tokenUrl");
+                firstText(body, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         if (StrUtil.isBlank(tokenEndpoint)) {
             tokenEndpoint =
-                    firstText(
-                            oauth,
-                            "token_endpoint",
-                            "tokenEndpoint",
-                            "token_url",
-                            "tokenUrl");
+                    firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         }
         String clientId = firstText(oauth, "client_id", "clientId");
         String redirectUri = firstText(oauth, "redirect_uri", "redirectUri");
@@ -465,7 +471,8 @@ public class DashboardMcpService {
         if (!asBoolean(oauth.get("enabled"), false)) {
             throw new IllegalStateException("MCP OAuth is disabled for server: " + serverId);
         }
-        String tokenEndpoint = firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+        String tokenEndpoint =
+                firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         String clientId = firstText(oauth, "client_id", "clientId");
         String refreshToken = string(oauth.get("refresh_token"));
         if (StrUtil.isBlank(tokenEndpoint)) {
@@ -498,7 +505,13 @@ public class DashboardMcpService {
         Map<String, Object> oauth = oauthMap(serverId);
         if (asBoolean(oauth.get("enabled"), false)
                 && hasSecret(oauth, "refresh_token")
-                && StrUtil.isNotBlank(firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl"))) {
+                && StrUtil.isNotBlank(
+                        firstText(
+                                oauth,
+                                "token_endpoint",
+                                "tokenEndpoint",
+                                "token_url",
+                                "tokenUrl"))) {
             try {
                 Map<String, Object> refreshed = refreshOAuth(serverId);
                 refreshed.put("recovered", Boolean.TRUE);
@@ -508,7 +521,8 @@ public class DashboardMcpService {
                 return needsReauth(serverId, "refresh_failed", safeError(e));
             }
         }
-        return needsReauth(serverId, "missing_refresh_token", "MCP server requires re-authentication.");
+        return needsReauth(
+                serverId, "missing_refresh_token", "MCP server requires re-authentication.");
     }
 
     public McpReloadResult reloadAll() throws Exception {
@@ -599,12 +613,8 @@ public class DashboardMcpService {
         map.put(
                 "tool_changed_notification",
                 Boolean.valueOf(!result.getChangedServers().isEmpty()));
-        map.put(
-                "changed_count",
-                Integer.valueOf(result.getChangedServers().size()));
-        map.put(
-                "unchanged_count",
-                Integer.valueOf(result.getUnchangedServers().size()));
+        map.put("changed_count", Integer.valueOf(result.getChangedServers().size()));
+        map.put("unchanged_count", Integer.valueOf(result.getUnchangedServers().size()));
         map.put(
                 "server_count",
                 Integer.valueOf(
@@ -633,7 +643,8 @@ public class DashboardMcpService {
                     args = parse(queryResult.getString("args_json"));
                     toolsJson = queryResult.getString("tools_json");
                     previousHash = StrUtil.nullToEmpty(queryResult.getString("last_tools_hash"));
-                    previousToolsJson = StrUtil.nullToEmpty(queryResult.getString("last_tools_json"));
+                    previousToolsJson =
+                            StrUtil.nullToEmpty(queryResult.getString("last_tools_json"));
                 }
             } finally {
                 queryResult.close();
@@ -684,9 +695,13 @@ public class DashboardMcpService {
             List<String> previousTools = toolNames(previousToolsJson);
             List<String> nextTools = toolNames(toolsJson);
             List<String> addedTools =
-                    toolsChanged ? difference(nextTools, previousTools) : Collections.<String>emptyList();
+                    toolsChanged
+                            ? difference(nextTools, previousTools)
+                            : Collections.<String>emptyList();
             List<String> removedTools =
-                    toolsChanged ? difference(previousTools, nextTools) : Collections.<String>emptyList();
+                    toolsChanged
+                            ? difference(previousTools, nextTools)
+                            : Collections.<String>emptyList();
             PreparedStatement statement =
                     connection.prepareStatement(
                             "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_hash = ?, last_tools_json = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end where server_id = ?");
@@ -947,7 +962,8 @@ public class DashboardMcpService {
         }
     }
 
-    private void updateOAuth(String serverId, Map<String, Object> oauth, long now) throws Exception {
+    private void updateOAuth(String serverId, Map<String, Object> oauth, long now)
+            throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -984,7 +1000,8 @@ public class DashboardMcpService {
         for (Map.Entry<String, Object> entry : oauth.entrySet()) {
             String key = entry.getKey();
             if (isSecretOAuthKey(key)) {
-                if (entry.getValue() != null && StrUtil.isNotBlank(String.valueOf(entry.getValue()))) {
+                if (entry.getValue() != null
+                        && StrUtil.isNotBlank(String.valueOf(entry.getValue()))) {
                     result.put("has_" + key, Boolean.TRUE);
                 }
             } else if (isOAuthDisplayErrorKey(key)) {
@@ -1126,11 +1143,13 @@ public class DashboardMcpService {
         }
         try {
             if (redirectCount >= MAX_OAUTH_TOKEN_REDIRECTS) {
-                throw new IllegalStateException("MCP OAuth token_endpoint redirect count exceeds limit");
+                throw new IllegalStateException(
+                        "MCP OAuth token_endpoint redirect count exceeds limit");
             }
             String location = response.header("Location");
             if (StrUtil.isBlank(location)) {
-                throw new IllegalStateException("MCP OAuth token_endpoint redirect missing Location");
+                throw new IllegalStateException(
+                        "MCP OAuth token_endpoint redirect missing Location");
             }
             String nextUrl = resolveRedirectUrl(url, location);
             response.close();
@@ -1208,8 +1227,7 @@ public class DashboardMcpService {
         }
     }
 
-    private void copyIfPresent(
-            Map<String, Object> source, Map<String, Object> target, String key) {
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
         }
@@ -1281,8 +1299,7 @@ public class DashboardMcpService {
         result.put(
                 "error",
                 safeDisplayError(
-                        StrUtil.blankToDefault(
-                                message, "MCP server requires re-authentication.")));
+                        StrUtil.blankToDefault(message, "MCP server requires re-authentication.")));
         return result;
     }
 
@@ -1336,7 +1353,10 @@ public class DashboardMcpService {
             return null;
         }
         try {
-            long parsed = value instanceof Number ? ((Number) value).longValue() : Long.parseLong(String.valueOf(value));
+            long parsed =
+                    value instanceof Number
+                            ? ((Number) value).longValue()
+                            : Long.parseLong(String.valueOf(value));
             if (parsed > 0L && parsed < 100000000000L) {
                 parsed = parsed * 1000L;
             }
@@ -1437,7 +1457,8 @@ public class DashboardMcpService {
                             + " URL: "
                             + SecretRedactor.maskUrl(floorVerdict.getUrl()));
         }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlAllowingPrivate(url);
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrlAllowingPrivate(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
                     label

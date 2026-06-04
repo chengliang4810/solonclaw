@@ -94,10 +94,17 @@ public class SkillCredentialFileService {
         summary.put("configCredentialFileCount", Integer.valueOf(configCredentialFileCount()));
         summary.put("configuredMountCount", Integer.valueOf(credentialPlan.getMounts().size()));
         summary.put("configuredMissingCount", Integer.valueOf(credentialPlan.getMissing().size()));
-        summary.put("configuredRejectedCount", Integer.valueOf(credentialPlan.getRejected().size()));
-        summary.put("sandboxCredentialMountCount", Integer.valueOf(sandboxPlan.getCredentialFiles().size()));
-        summary.put("skillsDirectoryMountCount", Integer.valueOf(sandboxPlan.getSkillsDirectories().size()));
-        summary.put("cacheDirectoryMountCount", Integer.valueOf(sandboxPlan.getCacheDirectories().size()));
+        summary.put(
+                "configuredRejectedCount", Integer.valueOf(credentialPlan.getRejected().size()));
+        summary.put(
+                "sandboxCredentialMountCount",
+                Integer.valueOf(sandboxPlan.getCredentialFiles().size()));
+        summary.put(
+                "skillsDirectoryMountCount",
+                Integer.valueOf(sandboxPlan.getSkillsDirectories().size()));
+        summary.put(
+                "cacheDirectoryMountCount",
+                Integer.valueOf(sandboxPlan.getCacheDirectories().size()));
         summary.put("runtimeRelativeOnly", Boolean.TRUE);
         summary.put("absolutePathRejected", Boolean.TRUE);
         summary.put("pathTraversalRejected", Boolean.TRUE);
@@ -117,8 +124,10 @@ public class SkillCredentialFileService {
     }
 
     public List<DirectoryMount> skillsDirectoryMounts(String containerBase) {
-        String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
-                .replace('\\', '/'));
+        String base =
+                stripTrailingSlash(
+                        StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
+                                .replace('\\', '/'));
         List<DirectoryMount> mounts = new ArrayList<DirectoryMount>();
         if (skillsDir.isDirectory()) {
             File hostDir = symlinkSafeSkillsDir(skillsDir, "skills");
@@ -129,8 +138,7 @@ public class SkillCredentialFileService {
             File externalDir = externalDirs.get(i);
             File hostDir = symlinkSafeSkillsDir(externalDir, "external-skills-" + i);
             mounts.add(
-                    new DirectoryMount(
-                            hostDir.getAbsolutePath(), base + "/external_skills/" + i));
+                    new DirectoryMount(hostDir.getAbsolutePath(), base + "/external_skills/" + i));
         }
         return mounts;
     }
@@ -140,8 +148,10 @@ public class SkillCredentialFileService {
     }
 
     public List<FileMount> iterSkillsFiles(String containerBase) {
-        String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
-                .replace('\\', '/'));
+        String base =
+                stripTrailingSlash(
+                        StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
+                                .replace('\\', '/'));
         List<FileMount> files = new ArrayList<FileMount>();
         if (skillsDir.isDirectory() && !isSymbolicLink(skillsDir)) {
             collectFiles(skillsDir, skillsDir, base + "/skills", files);
@@ -183,8 +193,10 @@ public class SkillCredentialFileService {
     }
 
     public List<FileMount> iterCacheFiles(String containerBase) {
-        String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
-                .replace('\\', '/'));
+        String base =
+                stripTrailingSlash(
+                        StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
+                                .replace('\\', '/'));
         List<FileMount> files = new ArrayList<FileMount>();
         for (CacheMountDirectory directory : CACHE_MOUNT_DIRS) {
             File dir = resolveCacheDirectory(directory);
@@ -245,10 +257,12 @@ public class SkillCredentialFileService {
             if (!candidate.isFile()) {
                 return CredentialFileMount.missing(relativePath);
             }
-            String containerPath = containerBase.replace('\\', '/').replaceAll("/+$", "")
-                    + "/"
-                    + relativePath.replace('\\', '/');
-            return CredentialFileMount.registered(relativePath, candidate.getAbsolutePath(), containerPath);
+            String containerPath =
+                    containerBase.replace('\\', '/').replaceAll("/+$", "")
+                            + "/"
+                            + relativePath.replace('\\', '/');
+            return CredentialFileMount.registered(
+                    relativePath, candidate.getAbsolutePath(), containerPath);
         } catch (Exception e) {
             return CredentialFileMount.rejected(rawPath, "invalid credential file path");
         }
@@ -313,7 +327,8 @@ public class SkillCredentialFileService {
         }
     }
 
-    private void collectFiles(File root, File current, String containerRoot, List<FileMount> files) {
+    private void collectFiles(
+            File root, File current, String containerRoot, List<FileMount> files) {
         if (current == null || !current.exists() || isSymbolicLink(current)) {
             return;
         }
@@ -415,7 +430,8 @@ public class SkillCredentialFileService {
     }
 
     private int configCredentialFileCount() {
-        if (appConfig == null || appConfig.getTerminal() == null
+        if (appConfig == null
+                || appConfig.getTerminal() == null
                 || appConfig.getTerminal().getCredentialFiles() == null) {
             return 0;
         }
@@ -643,7 +659,11 @@ public class SkillCredentialFileService {
 
         private Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
-            map.put("path", "registered".equals(status) ? relativePath : SecretRedactor.redact(relativePath, 400));
+            map.put(
+                    "path",
+                    "registered".equals(status)
+                            ? relativePath
+                            : SecretRedactor.redact(relativePath, 400));
             map.put("container_path", containerPath);
             map.put("status", status);
             map.put("reason", reason);

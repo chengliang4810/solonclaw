@@ -95,9 +95,7 @@ public class SlashConfirmService {
             return null;
         }
         if (requireConfirmId
-                && !StrUtil.equals(
-                        cleanDisplay(confirm.getConfirmId()),
-                        cleanDisplay(confirmId))) {
+                && !StrUtil.equals(cleanDisplay(confirm.getConfirmId()), cleanDisplay(confirmId))) {
             return null;
         }
         pendingBySource.remove(key);
@@ -141,7 +139,9 @@ public class SlashConfirmService {
             return new LinkedHashSet<String>();
         }
         try {
-            String raw = globalSettingRepository.get(AgentSettingConstants.SLASH_CONFIRM_ALWAYS_COMMANDS);
+            String raw =
+                    globalSettingRepository.get(
+                            AgentSettingConstants.SLASH_CONFIRM_ALWAYS_COMMANDS);
             if (StrUtil.isBlank(raw)) {
                 return new LinkedHashSet<String>();
             }

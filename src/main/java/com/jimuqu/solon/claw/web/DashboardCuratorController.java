@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -59,8 +59,7 @@ public class DashboardCuratorController {
                     @Override
                     public Map<String, Object> run() throws Exception {
                         Map<String, Object> body = body(context);
-                        return curatorService.ignore(
-                                read(body, "skill"), read(body, "suggestion"));
+                        return curatorService.ignore(read(body, "skill"), read(body, "suggestion"));
                     }
                 });
     }
@@ -86,7 +85,8 @@ public class DashboardCuratorController {
             if (node.toData() instanceof Map) {
                 return ONode.deserialize(node.toJson(), LinkedHashMap.class);
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -94,7 +94,8 @@ public class DashboardCuratorController {
         }
     }
 
-    private Map<String, Object> safeCurator(Context context, CuratorAction action) throws Exception {
+    private Map<String, Object> safeCurator(Context context, CuratorAction action)
+            throws Exception {
         try {
             return DashboardResponse.ok(action.run());
         } catch (IllegalArgumentException e) {

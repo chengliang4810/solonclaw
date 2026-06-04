@@ -21,7 +21,8 @@ public class BrowserTools {
     public BrowserRuntimeService.BrowserResult navigate(
             @Param(name = "sessionId", description = "浏览器会话 ID") String sessionId,
             @Param(name = "url", description = "目标 URL") String url,
-            @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒") Integer timeoutSeconds) {
+            @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒")
+                    Integer timeoutSeconds) {
         return browserRuntimeService.navigate(sessionId, url, timeoutSeconds);
     }
 
@@ -29,7 +30,8 @@ public class BrowserTools {
     public BrowserRuntimeService.BrowserResult click(
             @Param(name = "sessionId", description = "浏览器会话 ID") String sessionId,
             @Param(name = "selector", description = "CSS 选择器") String selector,
-            @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒") Integer timeoutSeconds) {
+            @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒")
+                    Integer timeoutSeconds) {
         return browserRuntimeService.click(sessionId, selector, timeoutSeconds);
     }
 
@@ -38,7 +40,8 @@ public class BrowserTools {
             @Param(name = "sessionId", description = "浏览器会话 ID") String sessionId,
             @Param(name = "selector", description = "CSS 选择器") String selector,
             @Param(name = "text", description = "输入文本") String text,
-            @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒") Integer timeoutSeconds) {
+            @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒")
+                    Integer timeoutSeconds) {
         return browserRuntimeService.type(sessionId, selector, text, timeoutSeconds);
     }
 
@@ -46,7 +49,8 @@ public class BrowserTools {
     public BrowserRuntimeService.BrowserResult screenshot(
             @Param(name = "sessionId", description = "浏览器会话 ID") String sessionId,
             @Param(name = "path", required = false, description = "截图输出路径") String path,
-            @Param(name = "fullPage", required = false, description = "是否截取完整页面") Boolean fullPage) {
+            @Param(name = "fullPage", required = false, description = "是否截取完整页面")
+                    Boolean fullPage) {
         return browserRuntimeService.screenshot(sessionId, path, fullPage);
     }
 

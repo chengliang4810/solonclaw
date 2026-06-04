@@ -34,52 +34,106 @@ public class CronjobTools {
                             description =
                                     "动作：create/add、list、status、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun、history")
                     String action,
-            @Param(name = "job_id", description = "任务 ID；update/pause/resume/remove/run/history 必填，先 list 再使用", required = false)
+            @Param(
+                            name = "job_id",
+                            description =
+                                    "任务 ID；update/pause/resume/remove/run/history 必填，先 list 再使用",
+                            required = false)
                     String jobId,
             @Param(name = "name", description = "任务名", required = false) String name,
-            @Param(name = "schedule", description = "cron、every 2h、30m 或 ISO 时间", required = false) String schedule,
+            @Param(name = "schedule", description = "cron、every 2h、30m 或 ISO 时间", required = false)
+                    String schedule,
             @Param(name = "prompt", description = "任务提示词", required = false) String prompt,
             @Param(
                             name = "deliver",
                             description =
                                     "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标")
                     Object deliver,
-            @Param(name = "deliver_chat_id", description = "指定投递会话 ID；update 时传空字符串清空", required = false)
+            @Param(
+                            name = "deliver_chat_id",
+                            description = "指定投递会话 ID；update 时传空字符串清空",
+                            required = false)
                     String deliverChatId,
-            @Param(name = "deliver_thread_id", description = "指定投递线程 ID；update 时传空字符串清空", required = false)
+            @Param(
+                            name = "deliver_thread_id",
+                            description = "指定投递线程 ID；update 时传空字符串清空",
+                            required = false)
                     String deliverThreadId,
             @Param(name = "skill", description = "单个技能名；兼容字符串或数组", required = false) Object skill,
-            @Param(name = "skills", description = "技能列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object skills,
-            @Param(name = "add_skill", description = "update 时追加单个技能，不会重复添加", required = false) Object addSkill,
-            @Param(name = "add_skills", description = "update 时追加技能列表，支持数组、JSON 数组或逗号分隔字符串", required = false) Object addSkills,
-            @Param(name = "remove_skill", description = "update 时移除单个技能", required = false) Object removeSkill,
-            @Param(name = "remove_skills", description = "update 时移除技能列表，支持数组、JSON 数组或逗号分隔字符串", required = false) Object removeSkills,
-            @Param(name = "clear_skills", description = "update 时清空所有技能绑定", required = false) Boolean clearSkills,
+            @Param(name = "skills", description = "技能列表；支持数组、JSON 数组或逗号分隔字符串", required = false)
+                    Object skills,
+            @Param(name = "add_skill", description = "update 时追加单个技能，不会重复添加", required = false)
+                    Object addSkill,
+            @Param(
+                            name = "add_skills",
+                            description = "update 时追加技能列表，支持数组、JSON 数组或逗号分隔字符串",
+                            required = false)
+                    Object addSkills,
+            @Param(name = "remove_skill", description = "update 时移除单个技能", required = false)
+                    Object removeSkill,
+            @Param(
+                            name = "remove_skills",
+                            description = "update 时移除技能列表，支持数组、JSON 数组或逗号分隔字符串",
+                            required = false)
+                    Object removeSkills,
+            @Param(name = "clear_skills", description = "update 时清空所有技能绑定", required = false)
+                    Boolean clearSkills,
             @Param(name = "repeat", description = "重复次数；0 表示无限", required = false) Integer repeat,
-            @Param(name = "include_disabled", description = "list 时是否包含暂停任务；工具调用默认包含，传 false 可只看启用任务", required = false)
+            @Param(
+                            name = "include_disabled",
+                            description = "list 时是否包含暂停任务；工具调用默认包含，传 false 可只看启用任务",
+                            required = false)
                     Boolean includeDisabled,
-            @Param(name = "wrap_response", description = "是否包装定时任务投递结果", required = false) Boolean wrapResponse,
-            @Param(name = "script", description = "runtime/scripts 下的相对脚本路径；update 时传空字符串清空", required = false)
+            @Param(name = "wrap_response", description = "是否包装定时任务投递结果", required = false)
+                    Boolean wrapResponse,
+            @Param(
+                            name = "script",
+                            description = "runtime/scripts 下的相对脚本路径；update 时传空字符串清空",
+                            required = false)
                     String script,
-            @Param(name = "workdir", description = "绝对工作目录；会注入项目上下文并设置工具 cwd，update 时传空字符串清空", required = false)
+            @Param(
+                            name = "workdir",
+                            description = "绝对工作目录；会注入项目上下文并设置工具 cwd，update 时传空字符串清空",
+                            required = false)
                     String workdir,
             @Param(
                             name = "no_agent",
                             description =
                                     "是否跳过 Agent 直接投递脚本输出；true 时必须设置 script，非空 stdout 原样投递，空 stdout 静默，非零退出发送错误")
                     Boolean noAgent,
-            @Param(name = "context_from", description = "上游 job id 列表；注入最近完成输出，update 传空数组清空", required = false)
+            @Param(
+                            name = "context_from",
+                            description = "上游 job id 列表；注入最近完成输出，update 传空数组清空",
+                            required = false)
                     Object contextFrom,
-            @Param(name = "depends_on", description = "context_from 的别名；上游 job id 列表，update 传空数组清空", required = false)
+            @Param(
+                            name = "depends_on",
+                            description = "context_from 的别名；上游 job id 列表，update 传空数组清空",
+                            required = false)
                     Object dependsOn,
-            @Param(name = "enabled_toolsets", description = "工具集限制列表，例如 web、terminal、file、delegation；update 传空数组清空", required = false)
+            @Param(
+                            name = "enabled_toolsets",
+                            description = "工具集限制列表，例如 web、terminal、file、delegation；update 传空数组清空",
+                            required = false)
                     Object enabledToolsets,
-            @Param(name = "model", description = "任务固定模型；支持字符串或 {provider, model} 对象", required = false) Object model,
-            @Param(name = "provider", description = "任务固定 provider", required = false) String provider,
-            @Param(name = "base_url", description = "任务固定模型 API base URL", required = false) String baseUrl,
-            @Param(name = "enabled", description = "编辑任务启用状态；false 会暂停，true 会恢复", required = false) Boolean enabled,
-            @Param(name = "status", description = "编辑任务状态：active、paused、completed 等", required = false) String jobStatus,
-            @Param(name = "state", description = "status 的别名；编辑任务状态", required = false) String state,
+            @Param(
+                            name = "model",
+                            description = "任务固定模型；支持字符串或 {provider, model} 对象",
+                            required = false)
+                    Object model,
+            @Param(name = "provider", description = "任务固定 provider", required = false)
+                    String provider,
+            @Param(name = "base_url", description = "任务固定模型 API base URL", required = false)
+                    String baseUrl,
+            @Param(name = "enabled", description = "编辑任务启用状态；false 会暂停，true 会恢复", required = false)
+                    Boolean enabled,
+            @Param(
+                            name = "status",
+                            description = "编辑任务状态：active、paused、completed 等",
+                            required = false)
+                    String jobStatus,
+            @Param(name = "state", description = "status 的别名；编辑任务状态", required = false)
+                    String state,
             @Param(name = "paused_reason", description = "任务暂停原因；仅暂停状态下生效", required = false)
                     String pausedReason,
             @Param(name = "trigger_type", description = "run/retry 时写入执行历史的短触发来源", required = false)
@@ -88,235 +142,255 @@ public class CronjobTools {
             @Param(name = "reason", description = "pause 时记录的暂停原因", required = false) String reason)
             throws Exception {
         try {
-        String normalized = action == null ? "list" : action.trim().toLowerCase(java.util.Locale.ROOT);
-        if ("add".equals(normalized)) {
-            normalized = "create";
-        }
-        if ("edit".equals(normalized)) {
-            normalized = "update";
-        }
-        if ("disable".equals(normalized) || "stop".equals(normalized)) {
-            normalized = "pause";
-        }
-        if ("enable".equals(normalized) || "start".equals(normalized)) {
-            normalized = "resume";
-        }
-        if ("delete".equals(normalized) || "rm".equals(normalized)) {
-            normalized = "remove";
-        }
-        if ("run_now".equals(normalized)
-                || "trigger".equals(normalized)
-                || "retry".equals(normalized)
-                || "rerun".equals(normalized)) {
-            normalized = "run";
-        }
-        if ("show".equals(normalized) || "detail".equals(normalized)) {
-            normalized = "inspect";
-        }
-        if ("upcoming".equals(normalized)) {
-            normalized = "next";
-        }
-        if ("capabilities".equals(normalized) || "policy".equals(normalized)) {
-            Map<String, Object> policy = cronJobService.policy();
-            return ToolResultEnvelope.ok("Cronjob tool policy")
-                    .data("policy", policy)
-                    .data("actions", policy.get("actions"))
-                    .data("action_syntax", policy.get("action_syntax"))
-                    .data("update_fields", policy.get("update_fields"))
-                    .data("clear_fields", policy.get("clear_fields"))
-                    .data("status_fields", policy.get("status_fields"))
-                    .data("history_fields", policy.get("history_fields"))
-                    .data("delivery", policy.get("delivery"))
-                    .data("skill_binding", policy.get("skill_binding"))
-                    .data("execution", policy.get("execution"))
-                    .data("runtime_isolation", policy.get("runtime_isolation"))
-                    .preview("cronjob policy: add/edit/pause/resume/run/remove/history, skills, delivery, wrap_response")
-                    .toJson();
-        }
+            String normalized =
+                    action == null ? "list" : action.trim().toLowerCase(java.util.Locale.ROOT);
+            if ("add".equals(normalized)) {
+                normalized = "create";
+            }
+            if ("edit".equals(normalized)) {
+                normalized = "update";
+            }
+            if ("disable".equals(normalized) || "stop".equals(normalized)) {
+                normalized = "pause";
+            }
+            if ("enable".equals(normalized) || "start".equals(normalized)) {
+                normalized = "resume";
+            }
+            if ("delete".equals(normalized) || "rm".equals(normalized)) {
+                normalized = "remove";
+            }
+            if ("run_now".equals(normalized)
+                    || "trigger".equals(normalized)
+                    || "retry".equals(normalized)
+                    || "rerun".equals(normalized)) {
+                normalized = "run";
+            }
+            if ("show".equals(normalized) || "detail".equals(normalized)) {
+                normalized = "inspect";
+            }
+            if ("upcoming".equals(normalized)) {
+                normalized = "next";
+            }
+            if ("capabilities".equals(normalized) || "policy".equals(normalized)) {
+                Map<String, Object> policy = cronJobService.policy();
+                return ToolResultEnvelope.ok("Cronjob tool policy")
+                        .data("policy", policy)
+                        .data("actions", policy.get("actions"))
+                        .data("action_syntax", policy.get("action_syntax"))
+                        .data("update_fields", policy.get("update_fields"))
+                        .data("clear_fields", policy.get("clear_fields"))
+                        .data("status_fields", policy.get("status_fields"))
+                        .data("history_fields", policy.get("history_fields"))
+                        .data("delivery", policy.get("delivery"))
+                        .data("skill_binding", policy.get("skill_binding"))
+                        .data("execution", policy.get("execution"))
+                        .data("runtime_isolation", policy.get("runtime_isolation"))
+                        .preview(
+                                "cronjob policy: add/edit/pause/resume/run/remove/history, skills, delivery, wrap_response")
+                        .toJson();
+            }
 
-        if ("status".equals(normalized)) {
-            List<CronJobRecord> jobs =
-                    cronJobService.listBySource(sourceKey, includeDisabled == null || includeDisabled.booleanValue());
-            Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
-            return ToolResultEnvelope.ok("Cronjob status")
-                    .data("status", status)
-                    .data("count", status.get("total"))
-                    .data("next", status.get("next"))
-                    .data("recent_failures", status.get("recent_failures"))
-                    .preview(statusPreview(status))
-                    .toJson();
-        }
+            if ("status".equals(normalized)) {
+                List<CronJobRecord> jobs =
+                        cronJobService.listBySource(
+                                sourceKey,
+                                includeDisabled == null || includeDisabled.booleanValue());
+                Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
+                return ToolResultEnvelope.ok("Cronjob status")
+                        .data("status", status)
+                        .data("count", status.get("total"))
+                        .data("next", status.get("next"))
+                        .data("recent_failures", status.get("recent_failures"))
+                        .preview(statusPreview(status))
+                        .toJson();
+            }
 
-        if ("list".equals(normalized)) {
-            List<CronJobRecord> jobs =
-                    cronJobService.listBySource(sourceKey, includeDisabled == null || includeDisabled.booleanValue());
-            return ToolResultEnvelope.ok("Listed cron jobs")
-                    .data("jobs", views(jobs))
-                    .data("count", Integer.valueOf(jobs.size()))
-                    .preview(preview(jobs))
-                    .toJson();
-        }
+            if ("list".equals(normalized)) {
+                List<CronJobRecord> jobs =
+                        cronJobService.listBySource(
+                                sourceKey,
+                                includeDisabled == null || includeDisabled.booleanValue());
+                return ToolResultEnvelope.ok("Listed cron jobs")
+                        .data("jobs", views(jobs))
+                        .data("count", Integer.valueOf(jobs.size()))
+                        .preview(preview(jobs))
+                        .toJson();
+            }
 
-        if ("next".equals(normalized)) {
-            List<CronJobRecord> jobs =
-                    cronJobService.listBySource(sourceKey, includeDisabled == null || includeDisabled.booleanValue());
-            List<CronJobRecord> upcoming = upcoming(jobs, limit == null ? 5 : limit.intValue());
-            return ToolResultEnvelope.ok("Listed upcoming cron jobs")
-                    .data("jobs", views(upcoming))
-                    .data("count", Integer.valueOf(upcoming.size()))
-                    .data("limit", Integer.valueOf(safeLimit(limit == null ? 5 : limit.intValue())))
-                    .preview(preview(upcoming))
-                    .toJson();
-        }
+            if ("next".equals(normalized)) {
+                List<CronJobRecord> jobs =
+                        cronJobService.listBySource(
+                                sourceKey,
+                                includeDisabled == null || includeDisabled.booleanValue());
+                List<CronJobRecord> upcoming = upcoming(jobs, limit == null ? 5 : limit.intValue());
+                return ToolResultEnvelope.ok("Listed upcoming cron jobs")
+                        .data("jobs", views(upcoming))
+                        .data("count", Integer.valueOf(upcoming.size()))
+                        .data(
+                                "limit",
+                                Integer.valueOf(safeLimit(limit == null ? 5 : limit.intValue())))
+                        .preview(preview(upcoming))
+                        .toJson();
+            }
 
-        if ("create".equals(normalized)) {
-            Map<String, Object> createBody =
-                    body(
-                            name,
-                            schedule,
-                            prompt,
-                            deliver,
-                            deliverChatId,
-                            deliverThreadId,
-                            skill,
-                            skills,
-                            addSkill,
-                            addSkills,
-                            removeSkill,
-                            removeSkills,
-                            clearSkills,
-                            repeat,
-                            wrapResponse,
-                            script,
-                            workdir,
-                            noAgent,
-                            contextFrom,
-                            dependsOn,
-                            enabledToolsets,
-                            model,
-                            provider,
-                            baseUrl,
-                            enabled,
-                            jobStatus,
-                            state,
-                            pausedReason);
-            applyDefaultOriginDelivery(createBody);
-            CronJobRecord job = cronJobService.create(sourceKey, createBody);
-            Map<String, Object> view = formattedView(job);
-            return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
-                    .data("job_id", job.getJobId())
-                    .data("name", safeText(job.getName()))
-                    .data("skill", view.get("skill"))
-                    .data("skills", view.get("skills"))
-                    .data("schedule", job.getCronExpr())
-                    .data("repeat", repeatDisplay(job))
-                    .data("deliver", safeText(job.getDeliverPlatform()))
-                    .data("next_run_at", Long.valueOf(job.getNextRunAt()))
-                    .data("job", view)
-                    .data("message", "Cron job '" + safeText(job.getName()) + "' created.")
-                    .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
-                    .toJson();
-        }
+            if ("create".equals(normalized)) {
+                Map<String, Object> createBody =
+                        body(
+                                name,
+                                schedule,
+                                prompt,
+                                deliver,
+                                deliverChatId,
+                                deliverThreadId,
+                                skill,
+                                skills,
+                                addSkill,
+                                addSkills,
+                                removeSkill,
+                                removeSkills,
+                                clearSkills,
+                                repeat,
+                                wrapResponse,
+                                script,
+                                workdir,
+                                noAgent,
+                                contextFrom,
+                                dependsOn,
+                                enabledToolsets,
+                                model,
+                                provider,
+                                baseUrl,
+                                enabled,
+                                jobStatus,
+                                state,
+                                pausedReason);
+                applyDefaultOriginDelivery(createBody);
+                CronJobRecord job = cronJobService.create(sourceKey, createBody);
+                Map<String, Object> view = formattedView(job);
+                return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
+                        .data("job_id", job.getJobId())
+                        .data("name", safeText(job.getName()))
+                        .data("skill", view.get("skill"))
+                        .data("skills", view.get("skills"))
+                        .data("schedule", job.getCronExpr())
+                        .data("repeat", repeatDisplay(job))
+                        .data("deliver", safeText(job.getDeliverPlatform()))
+                        .data("next_run_at", Long.valueOf(job.getNextRunAt()))
+                        .data("job", view)
+                        .data("message", "Cron job '" + safeText(job.getName()) + "' created.")
+                        .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
+                        .toJson();
+            }
 
-        if (jobId == null || jobId.trim().length() == 0) {
-            return ToolResultEnvelope.error("job_id is required for action: " + safeText(normalized)).toJson();
-        }
+            if (jobId == null || jobId.trim().length() == 0) {
+                return ToolResultEnvelope.error(
+                                "job_id is required for action: " + safeText(normalized))
+                        .toJson();
+            }
 
-        if ("inspect".equals(normalized)) {
-            CronJobRecord job = cronJobService.require(jobId);
-            Map<String, Object> view = formattedView(job);
-            int historyLimit = safeLimit(limit == null ? 5 : limit.intValue());
-            List<CronJobRunRecord> runs = cronJobService.history(jobId, historyLimit);
-            return ToolResultEnvelope.ok("Cron job details: " + job.getJobId())
-                    .data("job_id", job.getJobId())
-                    .data("job", view)
-                    .data("runs", runViews(runs))
-                    .data("run_count", Integer.valueOf(runs.size()))
-                    .data("limit", Integer.valueOf(historyLimit))
-                    .data("message", "Cron job '" + safeText(job.getName()) + "' details.")
+            if ("inspect".equals(normalized)) {
+                CronJobRecord job = cronJobService.require(jobId);
+                Map<String, Object> view = formattedView(job);
+                int historyLimit = safeLimit(limit == null ? 5 : limit.intValue());
+                List<CronJobRunRecord> runs = cronJobService.history(jobId, historyLimit);
+                return ToolResultEnvelope.ok("Cron job details: " + job.getJobId())
+                        .data("job_id", job.getJobId())
+                        .data("job", view)
+                        .data("runs", runViews(runs))
+                        .data("run_count", Integer.valueOf(runs.size()))
+                        .data("limit", Integer.valueOf(historyLimit))
+                        .data("message", "Cron job '" + safeText(job.getName()) + "' details.")
+                        .preview(
+                                safeText(
+                                        job.getJobId()
+                                                + " "
+                                                + job.getName()
+                                                + " "
+                                                + job.getStatus()))
+                        .toJson();
+            }
+
+            if ("history".equals(normalized)) {
+                List<CronJobRunRecord> runs =
+                        cronJobService.history(jobId, limit == null ? 20 : limit.intValue());
+                return ToolResultEnvelope.ok("Listed cron run history")
+                        .data("job_id", jobId)
+                        .data("runs", runViews(runs))
+                        .data("count", Integer.valueOf(runs.size()))
+                        .preview(previewRuns(runs))
+                        .toJson();
+            }
+
+            CronJobRecord job;
+            if ("update".equals(normalized)) {
+                Map<String, Object> updateBody =
+                        body(
+                                name,
+                                schedule,
+                                prompt,
+                                deliver,
+                                deliverChatId,
+                                deliverThreadId,
+                                skill,
+                                skills,
+                                addSkill,
+                                addSkills,
+                                removeSkill,
+                                removeSkills,
+                                clearSkills,
+                                repeat,
+                                wrapResponse,
+                                script,
+                                workdir,
+                                noAgent,
+                                contextFrom,
+                                dependsOn,
+                                enabledToolsets,
+                                model,
+                                provider,
+                                baseUrl,
+                                enabled,
+                                jobStatus,
+                                state,
+                                pausedReason);
+                if (updateBody.isEmpty()) {
+                    return ToolResultEnvelope.error("No updates provided.").toJson();
+                }
+                job = cronJobService.update(jobId, updateBody);
+            } else if ("pause".equals(normalized)) {
+                job = cronJobService.pause(jobId, pauseReason(reason, "paused by cronjob tool"));
+            } else if ("resume".equals(normalized)) {
+                job = cronJobService.resume(jobId);
+            } else if ("remove".equals(normalized)) {
+                job = cronJobService.remove(jobId);
+                return ToolResultEnvelope.ok("Cron job '" + safeText(job.getName()) + "' removed.")
+                        .data("message", "Cron job '" + safeText(job.getName()) + "' removed.")
+                        .data("removed_job", removedView(job))
+                        .preview(safeText(job.getJobId() + " " + job.getName() + " REMOVED"))
+                        .toJson();
+            } else if ("run".equals(normalized)) {
+                job = cronJobService.trigger(jobId, runTriggerType(triggerType, reason));
+                Map<String, Object> view = formattedView(job);
+                return ToolResultEnvelope.ok(
+                                "Cron job queued for immediate run: " + safeText(job.getName()))
+                        .data("job", view)
+                        .data("triggered", Boolean.TRUE)
+                        .data("next_run_at", view.get("next_run_at"))
+                        .data(
+                                "trigger_message",
+                                "Cron job '"
+                                        + safeText(job.getName())
+                                        + "' will run on the next scheduler tick.")
+                        .preview(safeText(job.getJobId() + " " + job.getName() + " TRIGGERED"))
+                        .toJson();
+            } else {
+                return ToolResultEnvelope.error("Unsupported cronjob action: " + safeText(action))
+                        .toJson();
+            }
+            return ToolResultEnvelope.ok("Cron job action completed: " + normalized)
+                    .data("job", formattedView(job))
                     .preview(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
                     .toJson();
-        }
-
-        if ("history".equals(normalized)) {
-            List<CronJobRunRecord> runs =
-                    cronJobService.history(jobId, limit == null ? 20 : limit.intValue());
-            return ToolResultEnvelope.ok("Listed cron run history")
-                    .data("job_id", jobId)
-                    .data("runs", runViews(runs))
-                    .data("count", Integer.valueOf(runs.size()))
-                    .preview(previewRuns(runs))
-                    .toJson();
-        }
-
-        CronJobRecord job;
-        if ("update".equals(normalized)) {
-            Map<String, Object> updateBody =
-                    body(
-                            name,
-                            schedule,
-                            prompt,
-                            deliver,
-                            deliverChatId,
-                            deliverThreadId,
-                            skill,
-                            skills,
-                            addSkill,
-                            addSkills,
-                            removeSkill,
-                            removeSkills,
-                            clearSkills,
-                            repeat,
-                            wrapResponse,
-                            script,
-                            workdir,
-                            noAgent,
-                            contextFrom,
-                            dependsOn,
-                            enabledToolsets,
-                            model,
-                            provider,
-                            baseUrl,
-                            enabled,
-                            jobStatus,
-                            state,
-                            pausedReason);
-            if (updateBody.isEmpty()) {
-                return ToolResultEnvelope.error("No updates provided.").toJson();
-            }
-            job = cronJobService.update(jobId, updateBody);
-        } else if ("pause".equals(normalized)) {
-            job = cronJobService.pause(jobId, pauseReason(reason, "paused by cronjob tool"));
-        } else if ("resume".equals(normalized)) {
-            job = cronJobService.resume(jobId);
-        } else if ("remove".equals(normalized)) {
-            job = cronJobService.remove(jobId);
-            return ToolResultEnvelope.ok("Cron job '" + safeText(job.getName()) + "' removed.")
-                    .data("message", "Cron job '" + safeText(job.getName()) + "' removed.")
-                    .data("removed_job", removedView(job))
-                    .preview(safeText(job.getJobId() + " " + job.getName() + " REMOVED"))
-                    .toJson();
-        } else if ("run".equals(normalized)) {
-            job = cronJobService.trigger(jobId, runTriggerType(triggerType, reason));
-            Map<String, Object> view = formattedView(job);
-            return ToolResultEnvelope.ok("Cron job queued for immediate run: " + safeText(job.getName()))
-                    .data("job", view)
-                    .data("triggered", Boolean.TRUE)
-                    .data("next_run_at", view.get("next_run_at"))
-                    .data(
-                            "trigger_message",
-                            "Cron job '"
-                                    + safeText(job.getName())
-                                    + "' will run on the next scheduler tick.")
-                    .preview(safeText(job.getJobId() + " " + job.getName() + " TRIGGERED"))
-                    .toJson();
-        } else {
-            return ToolResultEnvelope.error("Unsupported cronjob action: " + safeText(action)).toJson();
-        }
-        return ToolResultEnvelope.ok("Cron job action completed: " + normalized)
-                .data("job", formattedView(job))
-                .preview(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
-                .toJson();
         } catch (Exception e) {
             return ToolResultEnvelope.error(safeError(e)).toJson();
         }
@@ -756,7 +830,10 @@ public class CronjobTools {
         } else if (skill != null || skills != null) {
             put(body, "skill", skill);
             put(body, "skills", skills);
-        } else if (addSkill != null || addSkills != null || removeSkill != null || removeSkills != null) {
+        } else if (addSkill != null
+                || addSkills != null
+                || removeSkill != null
+                || removeSkills != null) {
             put(body, "skills_delta", skillDelta(addSkill, addSkills, removeSkill, removeSkills));
         }
         if (repeat != null) {
@@ -885,7 +962,8 @@ public class CronjobTools {
             if (job == null || job.getNextRunAt() <= 0L) {
                 continue;
             }
-            if ("PAUSED".equalsIgnoreCase(job.getStatus()) || "COMPLETED".equalsIgnoreCase(job.getStatus())) {
+            if ("PAUSED".equalsIgnoreCase(job.getStatus())
+                    || "COMPLETED".equalsIgnoreCase(job.getStatus())) {
                 continue;
             }
             result.add(job);
@@ -947,7 +1025,8 @@ public class CronjobTools {
         }
         List<Map<String, Object>> limitedNext = views(upcoming(next, safeLimit));
         if (recentFailures.size() > safeLimit) {
-            recentFailures = new ArrayList<Map<String, Object>>(recentFailures.subList(0, safeLimit));
+            recentFailures =
+                    new ArrayList<Map<String, Object>>(recentFailures.subList(0, safeLimit));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("total", Integer.valueOf(jobs.size()));
@@ -978,7 +1057,8 @@ public class CronjobTools {
         result.put("last_status", job.getLastStatus());
         result.put("last_error", safeText(job.getLastError()));
         result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
-        result.put("last_run_at", job.getLastRunAt() <= 0L ? null : Long.valueOf(job.getLastRunAt()));
+        result.put(
+                "last_run_at", job.getLastRunAt() <= 0L ? null : Long.valueOf(job.getLastRunAt()));
         return result;
     }
 
@@ -1040,7 +1120,8 @@ public class CronjobTools {
             result.put("depends_on", safeContextFrom);
         }
         Object enabledToolsets = base.get("enabled_toolsets");
-        if (enabledToolsets instanceof Iterable && ((Iterable<?>) enabledToolsets).iterator().hasNext()) {
+        if (enabledToolsets instanceof Iterable
+                && ((Iterable<?>) enabledToolsets).iterator().hasNext()) {
             result.put("enabled_toolsets", safeValue(enabledToolsets));
         }
         put(result, "workdir", safeObjectText(base.get("workdir")));

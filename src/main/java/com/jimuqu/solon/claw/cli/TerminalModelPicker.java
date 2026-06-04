@@ -129,14 +129,17 @@ public class TerminalModelPicker {
         return ProviderDisplayGrouping.group(items);
     }
 
-    private void addResolved(List<ModelChoice> result, LlmProviderService.ResolvedProvider resolved) {
+    private void addResolved(
+            List<ModelChoice> result, LlmProviderService.ResolvedProvider resolved) {
         if (resolved == null || StrUtil.isBlank(resolved.getModel())) {
             return;
         }
         ProviderDisplayGrouping.ProviderDisplay display =
                 ProviderDisplayGrouping.providerDisplay(
                         resolved.getProviderKey(),
-                        appConfig == null ? null : appConfig.getProviders().get(resolved.getProviderKey()));
+                        appConfig == null
+                                ? null
+                                : appConfig.getProviders().get(resolved.getProviderKey()));
         ModelChoice choice =
                 new ModelChoice(
                         resolved.getProviderKey(),
@@ -163,11 +166,13 @@ public class TerminalModelPicker {
     }
 
     private String currentId() {
-        LlmProviderService.ResolvedProvider resolved = safeResolve(defaultProviderKey(), defaultModel());
+        LlmProviderService.ResolvedProvider resolved =
+                safeResolve(defaultProviderKey(), defaultModel());
         if (resolved == null) {
             return "";
         }
-        return new ModelChoice(resolved.getProviderKey(), resolved.getModel(), resolved.getLabel()).id();
+        return new ModelChoice(resolved.getProviderKey(), resolved.getModel(), resolved.getLabel())
+                .id();
     }
 
     private String defaultProviderKey() {
@@ -233,7 +238,8 @@ public class TerminalModelPicker {
         }
 
         String displayText() {
-            return StrUtil.blankToDefault(displayDescription, StrUtil.blankToDefault(label, providerKey));
+            return StrUtil.blankToDefault(
+                    displayDescription, StrUtil.blankToDefault(label, providerKey));
         }
 
         ProviderDisplayGrouping.Item groupingItem(AppConfig appConfig) {

@@ -192,7 +192,8 @@ public class TuiShell {
                 && !value.toLowerCase(java.util.Locale.ROOT).startsWith("/retry ");
     }
 
-    private int send(LocalTerminalTaskRunner taskRunner, PrintWriter writer, String sessionId, String input)
+    private int send(
+            LocalTerminalTaskRunner taskRunner, PrintWriter writer, String sessionId, String input)
             throws Exception {
         input = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
         String trimmed = StrUtil.nullToEmpty(input).trim();
@@ -202,7 +203,10 @@ public class TuiShell {
             return 0;
         }
         if (TerminalSkin.isSkinCommand(trimmed)) {
-            String next = trimmed.length() <= "/skin".length() ? "" : trimmed.substring("/skin".length()).trim();
+            String next =
+                    trimmed.length() <= "/skin".length()
+                            ? ""
+                            : trimmed.substring("/skin".length()).trim();
             if (StrUtil.isNotBlank(next)) {
                 skin = TerminalSkin.resolve(next);
             }
@@ -362,8 +366,8 @@ public class TuiShell {
         writer.println(skin.bold("Solon Claw TUI"));
         writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
-                        skin.dim(
-                                "tips: /help 命令  /tips 提示  /tasks 任务  /queue 排队  /steer 引导  /sessions 会话  /goal 目标  /cron 自动化  /security 安全  /recap 摘要  /reload-mcp MCP  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
+                skin.dim(
+                        "tips: /help 命令  /tips 提示  /tasks 任务  /queue 排队  /steer 引导  /sessions 会话  /goal 目标  /cron 自动化  /security 安全  /recap 摘要  /reload-mcp MCP  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
         writer.println(skin.dim("tip: " + TerminalTips.current(sessionId)));
         writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
@@ -383,11 +387,13 @@ public class TuiShell {
         return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
     }
 
-    private void renderFooter(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+    private void renderFooter(
+            PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(skin.dim(footerLine(sessionId, taskRunner)));
     }
 
-    private void renderShutdownSummary(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+    private void renderShutdownSummary(
+            PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(
                 skin.dim(
                         TerminalLifecycleSummary.render(
@@ -459,7 +465,9 @@ public class TuiShell {
             String policy = statusValue(content, "busy_policy");
             String activeRunId = statusValue(content, "active_run_id");
             String queuePending = statusValue(content, "queue_pending");
-            if (StrUtil.isBlank(policy) && StrUtil.isBlank(activeRunId) && StrUtil.isBlank(queuePending)) {
+            if (StrUtil.isBlank(policy)
+                    && StrUtil.isBlank(activeRunId)
+                    && StrUtil.isBlank(queuePending)) {
                 return "";
             }
             return "  busy="
@@ -496,7 +504,10 @@ public class TuiShell {
             return "当前终端未启用附件解析。";
         }
         String value = StrUtil.nullToEmpty(input).trim();
-        String rest = value.length() <= "/attachments".length() ? "" : value.substring("/attachments".length()).trim();
+        String rest =
+                value.length() <= "/attachments".length()
+                        ? ""
+                        : value.substring("/attachments".length()).trim();
         return attachmentResolver.renderPreview(rest);
     }
 }

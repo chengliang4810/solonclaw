@@ -111,7 +111,8 @@ public class BoundedAttachmentIOTest {
             server.createContext(
                     "/media",
                     exchange -> {
-                        if (!"Bearer token-a".equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                        if (!"Bearer token-a"
+                                .equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
                             exchange.sendResponseHeaders(401, -1);
                             exchange.close();
                             return;
@@ -162,8 +163,7 @@ public class BoundedAttachmentIOTest {
                         exchange.close();
                     });
             target.start();
-            String targetUrl =
-                    "http://localhost:" + target.getAddress().getPort() + "/media";
+            String targetUrl = "http://localhost:" + target.getAddress().getPort() + "/media";
             redirector.createContext(
                     "/media",
                     exchange -> {

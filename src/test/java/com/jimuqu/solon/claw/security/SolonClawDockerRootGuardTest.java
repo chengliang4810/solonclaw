@@ -1,8 +1,8 @@
 package com.jimuqu.solon.claw.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -81,14 +81,7 @@ public class SolonClawDockerRootGuardTest {
         Path entrypoint = new File("docker/entrypoint.sh").toPath();
         List<String> lines = Files.readAllLines(entrypoint, StandardCharsets.UTF_8);
 
-        assertThat(
-                        resolveUidGid(
-                                lines,
-                                env(
-                                        "SOLONCLAW_UID",
-                                        "2000",
-                                        "SOLONCLAW_GID",
-                                        "2001")))
+        assertThat(resolveUidGid(lines, env("SOLONCLAW_UID", "2000", "SOLONCLAW_GID", "2001")))
                 .isEqualTo("2000:2001");
         assertThat(resolveUidGid(lines, env("PUID", "1000", "PGID", "10")))
                 .isEqualTo("10000:10000");

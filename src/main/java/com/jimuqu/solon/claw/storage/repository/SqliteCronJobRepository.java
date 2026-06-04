@@ -175,7 +175,8 @@ public class SqliteCronJobRepository implements CronJobRepository {
                     connection.prepareStatement(
                             "update cron_jobs set status = ?, paused_at = ?, updated_at = ? where job_id = ?");
             statement.setString(1, status);
-            statement.setLong(2, "PAUSED".equalsIgnoreCase(status) ? System.currentTimeMillis() : 0L);
+            statement.setLong(
+                    2, "PAUSED".equalsIgnoreCase(status) ? System.currentTimeMillis() : 0L);
             statement.setLong(3, System.currentTimeMillis());
             statement.setString(4, jobId);
             statement.executeUpdate();
