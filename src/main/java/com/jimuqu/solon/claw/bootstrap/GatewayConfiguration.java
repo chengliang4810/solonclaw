@@ -265,6 +265,7 @@ public class GatewayConfiguration {
             GatewayAuthorizationService gatewayAuthorizationService,
             SkillLearningService skillLearningService,
             AttachmentCacheService attachmentCacheService,
+            Map<PlatformType, ChannelAdapter> channelAdapters,
             ChannelConnectionManager channelConnectionManager,
             GatewayRestartNotificationService gatewayRestartNotificationService) {
         final DefaultGatewayService service =
@@ -275,7 +276,8 @@ public class GatewayConfiguration {
                         sessionRepository,
                         gatewayAuthorizationService,
                         skillLearningService,
-                        attachmentCacheService);
+                        attachmentCacheService,
+                        channelAdapters);
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {

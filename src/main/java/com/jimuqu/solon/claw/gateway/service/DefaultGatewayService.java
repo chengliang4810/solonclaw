@@ -2,12 +2,14 @@ package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunCancelledException;
+import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
@@ -17,6 +19,8 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.GatewayMediaDeliverySupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
@@ -48,6 +52,9 @@ public class DefaultGatewayService {
     /** 任务后自动学习服务。 */
     private final SkillLearningService skillLearningService;
 
+    /** 平台到渠道适配器的映射，用于触发处理状态表情回应生命周期。 */
+    private final Map<PlatformType, ChannelAdapter> channelAdapters;
+
     /** 回复文本中的 MEDIA: 指令解析器。 */
     private final GatewayMediaDeliverySupport mediaDeliverySupport;
 
@@ -69,6 +76,7 @@ public class DefaultGatewayService {
                 sessionRepository,
                 gatewayAuthorizationService,
                 skillLearningService,
+                null,
                 null);
     }
 
@@ -80,12 +88,36 @@ public class DefaultGatewayService {
             GatewayAuthorizationService gatewayAuthorizationService,
             SkillLearningService skillLearningService,
             AttachmentCacheService attachmentCacheService) {
+        this(
+                commandService,
+                conversationOrchestrator,
+                deliveryService,
+                sessionRepository,
+                gatewayAuthorizationService,
+                skillLearningService,
+                attachmentCacheService,
+                null);
+    }
+
+    public DefaultGatewayService(
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            SessionRepository sessionRepository,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            SkillLearningService skillLearningService,
+            AttachmentCacheService attachmentCacheService,
+            Map<PlatformType, ChannelAdapter> channelAdapters) {
         this.commandService = commandService;
         this.conversationOrchestrator = conversationOrchestrator;
         this.deliveryService = deliveryService;
         this.sessionRepository = sessionRepository;
         this.gatewayAuthorizationService = gatewayAuthorizationService;
         this.skillLearningService = skillLearningService;
+        this.channelAdapters =
+                channelAdapters == null
+                        ? Collections.<PlatformType, ChannelAdapter>emptyMap()
+                        : channelAdapters;
         this.mediaDeliverySupport =
                 attachmentCacheService == null
                         ? null
@@ -111,6 +143,8 @@ public class DefaultGatewayService {
         }
 
         boolean authorized = false;
+        boolean processingStarted = false;
+        ProcessingOutcome processingOutcome = null;
         try {
             GatewayReply preAuth = gatewayAuthorizationService.preAuthorize(message);
             if (preAuth != null) {
@@ -124,6 +158,9 @@ public class DefaultGatewayService {
                 return null;
             }
 
+            safeProcessingStart(message);
+            processingStarted = true;
+
             GatewayReply reply;
             if (text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
                 reply = commandService.handle(message, text);
@@ -134,6 +171,10 @@ public class DefaultGatewayService {
                 reply = conversationOrchestrator.handleIncoming(message);
             }
 
+            processingOutcome =
+                    reply != null && reply.isError()
+                            ? ProcessingOutcome.FAILURE
+                            : ProcessingOutcome.SUCCESS;
             if (reply != null) {
                 safeDeliver(message, reply);
                 safeDeliverGoalNotice(message, reply);
@@ -149,6 +190,7 @@ public class DefaultGatewayService {
             Throwable cause = rootCause(e);
             if (cause instanceof AgentRunCancelledException) {
                 GatewayReply cancelledReply = GatewayReply.ok(cause.getMessage());
+                processingOutcome = ProcessingOutcome.CANCELLED;
                 if (authorized) {
                     safeDeliver(message, cancelledReply);
                 }
@@ -163,10 +205,17 @@ public class DefaultGatewayService {
                     errorType(e),
                     safeMessage(e));
             GatewayReply errorReply = GatewayReply.error("处理消息失败：" + safeMessage(e));
+            processingOutcome = ProcessingOutcome.FAILURE;
             if (authorized) {
                 safeDeliver(message, errorReply);
             }
             return errorReply;
+        } finally {
+            if (processingStarted) {
+                safeProcessingComplete(
+                        message,
+                        processingOutcome == null ? ProcessingOutcome.SUCCESS : processingOutcome);
+            }
         }
     }
 
@@ -353,6 +402,53 @@ public class DefaultGatewayService {
                     errorType(e),
                     safeMessage(e));
         }
+    }
+
+    /** 安全触发渠道处理开始表情回应，不让渠道状态反馈影响主处理链。 */
+    private void safeProcessingStart(GatewayMessage message) {
+        ChannelAdapter adapter = channelAdapter(message);
+        if (adapter == null) {
+            return;
+        }
+        try {
+            adapter.onProcessingStart(message);
+        } catch (Exception e) {
+            log.warn(
+                    "Processing reaction start failed: platform={}, chatId={}, threadId={}, errorType={}, error={}",
+                    message.getPlatform(),
+                    message.getChatId(),
+                    message.getThreadId(),
+                    errorType(e),
+                    safeMessage(e));
+        }
+    }
+
+    /** 安全触发渠道处理完成表情回应，不让渠道状态反馈影响主处理链。 */
+    private void safeProcessingComplete(GatewayMessage message, ProcessingOutcome outcome) {
+        ChannelAdapter adapter = channelAdapter(message);
+        if (adapter == null) {
+            return;
+        }
+        try {
+            adapter.onProcessingComplete(message, outcome);
+        } catch (Exception e) {
+            log.warn(
+                    "Processing reaction complete failed: platform={}, chatId={}, threadId={}, outcome={}, errorType={}, error={}",
+                    message.getPlatform(),
+                    message.getChatId(),
+                    message.getThreadId(),
+                    outcome,
+                    errorType(e),
+                    safeMessage(e));
+        }
+    }
+
+    /** 查找入站消息所属平台的渠道适配器。 */
+    private ChannelAdapter channelAdapter(GatewayMessage message) {
+        if (message == null || message.getPlatform() == null) {
+            return null;
+        }
+        return channelAdapters.get(message.getPlatform());
     }
 
     /** 安全触发后台学习，不让后台线程调度问题影响当前回复。 */

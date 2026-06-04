@@ -28,6 +28,10 @@ import com.aliyun.dingtalkrobot_1_0.models.OrgGroupSendResponse;
 import com.aliyun.dingtalkrobot_1_0.models.RobotMessageFileDownloadHeaders;
 import com.aliyun.dingtalkrobot_1_0.models.RobotMessageFileDownloadRequest;
 import com.aliyun.dingtalkrobot_1_0.models.RobotMessageFileDownloadResponse;
+import com.aliyun.dingtalkrobot_1_0.models.RobotRecallEmotionHeaders;
+import com.aliyun.dingtalkrobot_1_0.models.RobotRecallEmotionRequest;
+import com.aliyun.dingtalkrobot_1_0.models.RobotReplyEmotionHeaders;
+import com.aliyun.dingtalkrobot_1_0.models.RobotReplyEmotionRequest;
 import com.aliyun.dingtalkstorage_2_0.models.CommitFileHeaders;
 import com.aliyun.dingtalkstorage_2_0.models.CommitFileRequest;
 import com.aliyun.dingtalkstorage_2_0.models.CommitFileResponse;
@@ -44,6 +48,7 @@ import com.dingtalk.open.app.api.models.bot.MessageContent;
 import com.dingtalk.open.app.api.security.AuthClientCredential;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -60,11 +65,12 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 import org.noear.snack4.ONode;
 
 /** DingTalkChannelAdapter 实现。 */
@@ -75,6 +81,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final String STATE_LAST_SPACE_ID = "last_space_id";
     private static final String STATE_SESSION_WEBHOOK = "session_webhook";
     private static final String STATE_SESSION_WEBHOOK_EXPIRES_AT = "session_webhook_expires_at";
+    private static final String PROCESSING_EMOTION_THINKING = "🤔Thinking";
+    private static final String PROCESSING_EMOTION_DONE = "🥳Done";
+    private static final int PROCESSING_EMOTION_TYPE = 2;
+    private static final String PROCESSING_TEXT_EMOTION_ID = "2659900";
+    private static final String PROCESSING_TEXT_EMOTION_BACKGROUND_ID = "im_bg_1";
+    private static final int PROCESSING_EMOTION_CACHE_SIZE = 1024;
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
     private final AttachmentCacheService attachmentCacheService;
@@ -94,6 +106,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             new ConcurrentHashMap<String, SessionWebhookState>();
     private final Map<String, String> cardInstanceBindings =
             new ConcurrentHashMap<String, String>();
+    private final Map<String, Boolean> processingEmotionStarts = newProcessingEmotionCache();
+    private final Map<String, Boolean> processingEmotionCompletions = newProcessingEmotionCache();
 
     public DingTalkChannelAdapter(
             AppConfig.ChannelConfig config,
@@ -269,6 +283,63 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 在钉钉原消息上添加“处理中”自定义表情回应。 */
+    @Override
+    public void onProcessingStart(GatewayMessage message) {
+        String conversationId = inboundConversationId(message);
+        String messageId = inboundMessageId(message);
+        String key = processingEmotionKey(conversationId, messageId);
+        if (isBlank(key) || processingEmotionStarts.putIfAbsent(key, Boolean.TRUE) != null) {
+            return;
+        }
+        sendProcessingEmotion(conversationId, messageId, PROCESSING_EMOTION_THINKING, false);
+    }
+
+    /** 根据处理结果撤回或切换钉钉原消息上的自定义表情回应。 */
+    @Override
+    public void onProcessingComplete(GatewayMessage message, ProcessingOutcome outcome) {
+        String conversationId = inboundConversationId(message);
+        String messageId = inboundMessageId(message);
+        String key = processingEmotionKey(conversationId, messageId);
+        if (isBlank(key) || processingEmotionCompletions.putIfAbsent(key, Boolean.TRUE) != null) {
+            return;
+        }
+        sendProcessingEmotion(conversationId, messageId, PROCESSING_EMOTION_THINKING, true);
+        if (ProcessingOutcome.SUCCESS.equals(outcome)) {
+            sendProcessingEmotion(conversationId, messageId, PROCESSING_EMOTION_DONE, false);
+        }
+        processingEmotionStarts.remove(key);
+    }
+
+    /** 返回入站原始会话 ID，钉钉 emotion API 要求 openConversationId。 */
+    private String inboundConversationId(GatewayMessage message) {
+        return message == null ? "" : StrUtil.nullToEmpty(message.getChatId()).trim();
+    }
+
+    /** 返回入站原始消息 ID，当前统一承载在 threadId。 */
+    private String inboundMessageId(GatewayMessage message) {
+        return message == null ? "" : StrUtil.nullToEmpty(message.getThreadId()).trim();
+    }
+
+    /** 生成处理状态缓存键，避免同一条原消息重复添加或重复完成。 */
+    private String processingEmotionKey(String conversationId, String messageId) {
+        if (isBlank(conversationId) || isBlank(messageId)) {
+            return "";
+        }
+        return conversationId + "\n" + messageId;
+    }
+
+    /** 创建有界处理状态缓存，避免长时间运行后积累历史消息 ID。 */
+    private Map<String, Boolean> newProcessingEmotionCache() {
+        return Collections.synchronizedMap(
+                new LinkedHashMap<String, Boolean>(64, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                        return size() > PROCESSING_EMOTION_CACHE_SIZE;
+                    }
+                });
+    }
+
     private void handleInbound(final ChatbotMessage message) {
         if (callbackExecutor == null || inboundMessageHandler() == null || message == null) {
             return;
@@ -399,6 +470,75 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 返回钉钉 SDK 调用实际使用的机器人编码；扫码授权未返回时复用客户端 ID。 */
     protected String effectiveRobotCode() {
         return StrUtil.blankToDefault(config.getRobotCode(), config.getClientId());
+    }
+
+    /** 发送或撤回钉钉处理状态自定义表情，失败只记录日志，不阻断主消息回复。 */
+    protected void sendProcessingEmotion(
+            String conversationId, String messageId, String emotionName, boolean recall) {
+        if (isBlank(conversationId) || isBlank(messageId) || isBlank(emotionName)) {
+            return;
+        }
+        try {
+            refreshAccessTokenIfNecessary();
+            if (recall) {
+                RobotRecallEmotionHeaders headers = new RobotRecallEmotionHeaders();
+                headers.setXAcsDingtalkAccessToken(accessToken);
+                robotClient.robotRecallEmotionWithOptions(
+                        buildRecallEmotionRequest(conversationId, messageId, emotionName),
+                        headers,
+                        new com.aliyun.teautil.models.RuntimeOptions());
+            } else {
+                RobotReplyEmotionHeaders headers = new RobotReplyEmotionHeaders();
+                headers.setXAcsDingtalkAccessToken(accessToken);
+                robotClient.robotReplyEmotionWithOptions(
+                        buildReplyEmotionRequest(conversationId, messageId, emotionName),
+                        headers,
+                        new com.aliyun.teautil.models.RuntimeOptions());
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "[DINGTALK] processing emotion {} failed: conversationId={}, messageId={}, emotion={}, errorType={}, error={}",
+                    recall ? "recall" : "reply",
+                    conversationId,
+                    messageId,
+                    emotionName,
+                    errorType(e),
+                    safeError(e));
+        }
+    }
+
+    /** 构造钉钉添加自定义表情请求，字段与平台 emotion API 保持一一对应。 */
+    private RobotReplyEmotionRequest buildReplyEmotionRequest(
+            String conversationId, String messageId, String emotionName) {
+        return new RobotReplyEmotionRequest()
+                .setRobotCode(effectiveRobotCode())
+                .setOpenConversationId(conversationId)
+                .setOpenMsgId(messageId)
+                .setEmotionType(Integer.valueOf(PROCESSING_EMOTION_TYPE))
+                .setEmotionName(emotionName)
+                .setTextEmotion(
+                        new RobotReplyEmotionRequest.RobotReplyEmotionRequestTextEmotion()
+                                .setEmotionId(PROCESSING_TEXT_EMOTION_ID)
+                                .setEmotionName(emotionName)
+                                .setText(emotionName)
+                                .setBackgroundId(PROCESSING_TEXT_EMOTION_BACKGROUND_ID));
+    }
+
+    /** 构造钉钉撤回自定义表情请求，用于清理“处理中”状态。 */
+    private RobotRecallEmotionRequest buildRecallEmotionRequest(
+            String conversationId, String messageId, String emotionName) {
+        return new RobotRecallEmotionRequest()
+                .setRobotCode(effectiveRobotCode())
+                .setOpenConversationId(conversationId)
+                .setOpenMsgId(messageId)
+                .setEmotionType(Integer.valueOf(PROCESSING_EMOTION_TYPE))
+                .setEmotionName(emotionName)
+                .setTextEmotion(
+                        new RobotRecallEmotionRequest.RobotRecallEmotionRequestTextEmotion()
+                                .setEmotionId(PROCESSING_TEXT_EMOTION_ID)
+                                .setEmotionName(emotionName)
+                                .setText(emotionName)
+                                .setBackgroundId(PROCESSING_TEXT_EMOTION_BACKGROUND_ID));
     }
 
     private String buildMarkdownParam(String text) {

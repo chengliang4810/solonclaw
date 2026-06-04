@@ -6,6 +6,7 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -42,6 +43,7 @@ import com.lark.oapi.service.im.v1.model.P2MessageReceiveV1Data;
 import com.lark.oapi.service.im.v1.model.UserId;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,11 +63,16 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final String MESSAGE_RESOURCE_URL =
             "https://open.feishu.cn/open-apis/im/v1/messages/%s/resources/%s?type=%s";
     private static final String BOT_INFO_URL = "https://open.feishu.cn/open-apis/bot/v3/info";
+    private static final String MESSAGE_REACTION_URL =
+            "https://open.feishu.cn/open-apis/im/v1/messages/%s/reactions";
     private static final String COMMENT_REPLY_TARGET_PREFIX = "comment|";
     private static final String COMMENT_REPLY_URL =
             "https://open.feishu.cn/open-apis/drive/v1/files/%s/comments/%s/replies?file_type=%s";
     private static final String COMMENT_ADD_URL =
             "https://open.feishu.cn/open-apis/drive/v1/files/%s/new_comments";
+    private static final String PROCESSING_REACTION_TYPING = "Typing";
+    private static final String PROCESSING_REACTION_FAILURE = "CrossMark";
+    private static final int PROCESSING_REACTION_CACHE_SIZE = 1024;
 
     private final AppConfig.ChannelConfig config;
     private final AttachmentCacheService attachmentCacheService;
@@ -74,6 +81,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     private volatile long tokenExpireAt;
     private volatile com.lark.oapi.ws.Client wsClient;
     private ExecutorService inboundExecutor;
+    private final Map<String, String> processingReactions =
+            Collections.synchronizedMap(
+                    new LinkedHashMap<String, String>(64, 0.75f, true) {
+                        @Override
+                        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                            return size() > PROCESSING_REACTION_CACHE_SIZE;
+                        }
+                    });
 
     public FeishuChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
@@ -267,6 +282,43 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 throw new IllegalStateException("Feishu websocket handle failed", e);
             }
         }
+    }
+
+    /** 在飞书原消息上添加“处理中”表情回应。 */
+    @Override
+    public void onProcessingStart(GatewayMessage message) {
+        String messageId = inboundMessageId(message);
+        if (StrUtil.isBlank(messageId) || processingReactions.containsKey(messageId)) {
+            return;
+        }
+        String reactionId = createProcessingReaction(messageId, PROCESSING_REACTION_TYPING);
+        if (StrUtil.isNotBlank(reactionId)) {
+            processingReactions.put(messageId, reactionId);
+        }
+    }
+
+    /** 根据处理结果清理或切换飞书原消息上的表情回应。 */
+    @Override
+    public void onProcessingComplete(GatewayMessage message, ProcessingOutcome outcome) {
+        String messageId = inboundMessageId(message);
+        if (StrUtil.isBlank(messageId)) {
+            return;
+        }
+        String reactionId = processingReactions.get(messageId);
+        if (StrUtil.isNotBlank(reactionId)) {
+            if (!deleteProcessingReaction(messageId, reactionId)) {
+                return;
+            }
+            processingReactions.remove(messageId);
+        }
+        if (ProcessingOutcome.FAILURE.equals(outcome)) {
+            createProcessingReaction(messageId, PROCESSING_REACTION_FAILURE);
+        }
+    }
+
+    /** 返回渠道原始消息 ID，当前统一承载在 threadId。 */
+    private String inboundMessageId(GatewayMessage message) {
+        return message == null ? "" : StrUtil.nullToEmpty(message.getThreadId()).trim();
     }
 
     private void handleReactionCreatedEvent(P2MessageReactionCreatedV1Data event) {
@@ -1446,6 +1498,69 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             return guardedResponseBody(response, "Feishu API request");
         } finally {
             response.close();
+        }
+    }
+
+    /** 创建飞书消息表情回应，并返回平台 reaction_id 供后续删除。 */
+    protected String createProcessingReaction(String messageId, String emojiType) {
+        if (StrUtil.isBlank(messageId) || StrUtil.isBlank(emojiType)) {
+            return null;
+        }
+        try {
+            refreshTenantTokenIfNecessary();
+            ONode body =
+                    new ONode()
+                            .set(
+                                    "reaction_type",
+                                    new ONode().set("emoji_type", emojiType));
+            String url = String.format(MESSAGE_REACTION_URL, messageId);
+            ONode response =
+                    ensureOk(postJson(url, body.toJson()), "Feishu reaction create failed");
+            return firstNonBlank(
+                    response.get("data").get("reaction_id").getString(),
+                    response.get("data").get("reaction").get("reaction_id").getString());
+        } catch (Exception e) {
+            log.warn(
+                    "[FEISHU] processing reaction create failed: messageId={}, emoji={}, errorType={}, error={}",
+                    messageId,
+                    emojiType,
+                    errorType(e),
+                    safeError(e));
+            return null;
+        }
+    }
+
+    /** 删除飞书消息表情回应，删除失败时返回 false 以避免叠加冲突状态。 */
+    protected boolean deleteProcessingReaction(String messageId, String reactionId) {
+        if (StrUtil.isBlank(messageId) || StrUtil.isBlank(reactionId)) {
+            return false;
+        }
+        try {
+            refreshTenantTokenIfNecessary();
+            String url = String.format(MESSAGE_REACTION_URL, messageId) + "/" + reactionId;
+            assertSafeUrl(url, "Feishu reaction delete URL");
+            HttpResponse response =
+                    HttpRequest.delete(url)
+                            .header("Authorization", "Bearer " + tenantAccessToken)
+                            .timeout(15000)
+                            .setFollowRedirects(false)
+                            .execute();
+            String body;
+            try {
+                body = guardedResponseBody(response, "Feishu reaction delete");
+            } finally {
+                response.close();
+            }
+            ensureOk(body, "Feishu reaction delete failed");
+            return true;
+        } catch (Exception e) {
+            log.warn(
+                    "[FEISHU] processing reaction delete failed: messageId={}, reactionId={}, errorType={}, error={}",
+                    messageId,
+                    reactionId,
+                    errorType(e),
+                    safeError(e));
+            return false;
         }
     }
 

@@ -1,8 +1,10 @@
 package com.jimuqu.solon.claw.core.service;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 
 /** 渠道适配器统一接口。 */
 public interface ChannelAdapter {
@@ -30,6 +32,17 @@ public interface ChannelAdapter {
     /** 注册入站消息处理器。 */
     default void setInboundMessageHandler(InboundMessageHandler inboundMessageHandler) {
         // 留给具体渠道按需实现。
+    }
+
+    /** 标记渠道已开始处理入站消息，用于添加“处理中”表情回应。 */
+    default void onProcessingStart(GatewayMessage message) throws Exception {
+        // 默认渠道不支持处理状态表情回应。
+    }
+
+    /** 标记渠道已结束处理入站消息，用于清理或切换处理状态表情回应。 */
+    default void onProcessingComplete(GatewayMessage message, ProcessingOutcome outcome)
+            throws Exception {
+        // 默认渠道不支持处理状态表情回应。
     }
 
     /** 返回渠道状态快照，供 dashboard / doctor 聚合。 */
