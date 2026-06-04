@@ -17,6 +17,32 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DingTalkAiCardRoutingTest {
+    /** 验证缺省机器人编码会复用客户端 ID，保持扫码授权后的旧配置可直接运行。 */
+    @Test
+    void shouldFallbackRobotCodeToClientIdWhenRobotCodeIsBlank() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = Files.createTempDirectory("solon-claw-dingtalk-robot-code").toFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime()
+                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+        config.getChannels().getDingtalk().setEnabled(true);
+        config.getChannels().getDingtalk().setClientId("ding-client");
+        config.getChannels().getDingtalk().setClientSecret("ding-secret");
+
+        ChannelStateRepository stateRepository =
+                new SqliteChannelStateRepository(new SqliteDatabase(config));
+        TestableDingTalkChannelAdapter adapter =
+                new TestableDingTalkChannelAdapter(
+                        config.getChannels().getDingtalk(),
+                        stateRepository,
+                        new AttachmentCacheService(config));
+
+        assertThat(adapter.exposeEffectiveRobotCode()).isEqualTo("ding-client");
+    }
+
     @Test
     void shouldRouteDeliveryRequestWithCardExtrasToAiCardSend() throws Exception {
         AppConfig config = new AppConfig();
@@ -66,5 +92,21 @@ public class DingTalkAiCardRoutingTest {
 
         assertThat(captured[0]).isNotNull();
         assertThat(captured[0].getChannelExtras()).containsEntry("cardTemplateId", "tpl-001");
+    }
+
+    /** 暴露钉钉适配器内部有效机器人编码，避免单元测试触发真实平台连接。 */
+    private static class TestableDingTalkChannelAdapter extends DingTalkChannelAdapter {
+        /** 创建测试用钉钉适配器。 */
+        private TestableDingTalkChannelAdapter(
+                AppConfig.ChannelConfig config,
+                ChannelStateRepository channelStateRepository,
+                AttachmentCacheService attachmentCacheService) {
+            super(config, channelStateRepository, attachmentCacheService);
+        }
+
+        /** 返回运行时最终使用的机器人编码。 */
+        private String exposeEffectiveRobotCode() {
+            return effectiveRobotCode();
+        }
     }
 }

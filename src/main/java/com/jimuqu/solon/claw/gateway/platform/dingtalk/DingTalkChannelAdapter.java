@@ -140,11 +140,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     @Override
     public boolean connect() {
         log.info(
-                "[DINGTALK] connect called: enabled={}, hasClientId={}, hasClientSecret={}, hasRobotCode={}",
+                "[DINGTALK] connect called: enabled={}, hasClientId={}, hasClientSecret={}, hasEffectiveRobotCode={}",
                 isEnabled(),
                 !isBlank(config.getClientId()),
                 !isBlank(config.getClientSecret()),
-                !isBlank(config.getRobotCode()));
+                !isBlank(effectiveRobotCode()));
         if (!isEnabled()) {
             setSetupState("disabled");
             return false;
@@ -154,7 +154,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 credentialField("solonclaw.channels.dingtalk.clientId", config.getClientId()),
                 credentialField(
                         "solonclaw.channels.dingtalk.clientSecret", config.getClientSecret()),
-                credentialField("solonclaw.channels.dingtalk.robotCode", config.getRobotCode()))) {
+                credentialField("solonclaw.channels.dingtalk.robotCode", effectiveRobotCode()))) {
             return false;
         }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
@@ -164,21 +164,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (isBlank(config.getClientSecret())) {
             missing.add("solonclaw.channels.dingtalk.clientSecret");
         }
-        if (isBlank(config.getRobotCode())) {
-            missing.add("solonclaw.channels.dingtalk.robotCode");
-        }
         if (!missing.isEmpty()) {
             setSetupState("missing_config");
             setMissingConfig(missing);
-            setLastError("dingtalk_missing_credentials", "missing clientId/clientSecret/robotCode");
+            setLastError("dingtalk_missing_credentials", "missing clientId/clientSecret");
         }
         if (isBlank(config.getClientId()) || isBlank(config.getClientSecret())) {
             setDetail("missing clientId/clientSecret");
-            log.warn("[DINGTALK] connect aborted: {}", detail());
-            return false;
-        }
-        if (isBlank(config.getRobotCode())) {
-            setDetail("missing robotCode");
             log.warn("[DINGTALK] connect aborted: {}", detail());
             return false;
         }
@@ -404,6 +396,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         accessTokenExpireAt = now + (body.getExpireIn() * 1000L);
     }
 
+    /** 返回钉钉 SDK 调用实际使用的机器人编码；扫码授权未返回时复用客户端 ID。 */
+    protected String effectiveRobotCode() {
+        return StrUtil.blankToDefault(config.getRobotCode(), config.getClientId());
+    }
+
     private String buildMarkdownParam(String text) {
         return new ONode().set("title", resolveMarkdownTitle(text)).set("text", text).toJson();
     }
@@ -564,7 +561,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         RobotMessageFileDownloadRequest request =
                 new RobotMessageFileDownloadRequest()
                         .setDownloadCode(downloadCode)
-                        .setRobotCode(config.getRobotCode());
+                        .setRobotCode(effectiveRobotCode());
         RobotMessageFileDownloadResponse response =
                 robotClient.robotMessageFileDownloadWithOptions(
                         request, headers, new com.aliyun.teautil.models.RuntimeOptions());
@@ -584,7 +581,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 headers.setXAcsDingtalkAccessToken(accessToken);
 
                 OrgGroupSendRequest sendRequest = new OrgGroupSendRequest();
-                sendRequest.setRobotCode(config.getRobotCode());
+                sendRequest.setRobotCode(effectiveRobotCode());
                 sendRequest.setOpenConversationId(request.getChatId());
                 sendRequest.setMsgKey("sampleMarkdown");
                 sendRequest.setMsgParam(buildMarkdownParam(request.getText()));
@@ -629,7 +626,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 headers.setXAcsDingtalkAccessToken(accessToken);
 
                 BatchSendOTORequest sendRequest = new BatchSendOTORequest();
-                sendRequest.setRobotCode(config.getRobotCode());
+                sendRequest.setRobotCode(effectiveRobotCode());
                 sendRequest.setUserIds(java.util.Collections.singletonList(privateUserId));
                 sendRequest.setMsgKey("sampleMarkdown");
                 sendRequest.setMsgParam(buildMarkdownParam(request.getText()));
@@ -709,7 +706,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         SendRobotInteractiveCardHeaders headers = new SendRobotInteractiveCardHeaders();
         headers.setXAcsDingtalkAccessToken(accessToken);
         SendRobotInteractiveCardRequest sendRequest = new SendRobotInteractiveCardRequest();
-        sendRequest.setRobotCode(config.getRobotCode());
+        sendRequest.setRobotCode(effectiveRobotCode());
         sendRequest.setCardTemplateId(cardTemplateId);
         sendRequest.setCardData(cardData);
         sendRequest.setCardBizId(

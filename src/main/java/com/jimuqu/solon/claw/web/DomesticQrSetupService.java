@@ -254,12 +254,14 @@ public class DomesticQrSetupService {
                         DEFAULT_FEISHU_ACCOUNTS_BASE_URL));
     }
 
+    /** 持久化钉钉扫码授权结果，并把机器人编码默认写为客户端 ID 以兼容钉钉扫码返回字段。 */
     private void persistDingTalk(String clientId, String clientSecret) {
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
         updates.put("channels.dingtalk.enabled", Boolean.TRUE);
         configService.savePartialFlat(updates, false);
         configResolver.setFileValue("solonclaw.channels.dingtalk.clientId", clientId);
         configResolver.setFileValue("solonclaw.channels.dingtalk.clientSecret", clientSecret);
+        configResolver.setFileValue("solonclaw.channels.dingtalk.robotCode", clientId);
         gatewayRuntimeRefreshService.refreshNow();
     }
 

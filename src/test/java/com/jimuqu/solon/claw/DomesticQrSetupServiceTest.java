@@ -78,6 +78,7 @@ public class DomesticQrSetupServiceTest {
         assertThat(FileUtil.readUtf8String(new File(runtimeHome, "config.yml")))
                 .contains("clientId: ding-client")
                 .contains("clientSecret: ding-secret")
+                .contains("robotCode: ding-client")
                 .contains("enabled: true");
     }
 
