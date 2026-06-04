@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -318,54 +319,212 @@ public class SqliteSessionRepository implements SessionRepository {
 
     @Override
     public List<SessionRecord> search(String keyword, int limit) throws Exception {
-        List<SessionRecord> results = new ArrayList<SessionRecord>();
+        LinkedHashMap<String, SessionRecord> results = new LinkedHashMap<String, SessionRecord>();
+        int safeLimit = Math.max(1, limit);
         Connection connection = database.openConnection();
         try {
-            try {
-                PreparedStatement statement =
-                        connection.prepareStatement(
-                                "select "
-                                        + SELECT_COLUMNS_WITH_ALIAS
-                                        + " "
-                                        + "from sessions_fts f join sessions s on s.session_id = f.session_id "
-                                        + "where sessions_fts match ? order by bm25(sessions_fts), s.updated_at desc limit ?");
-                statement.setString(1, keyword);
-                statement.setInt(2, limit);
-                ResultSet resultSet = statement.executeQuery();
+            for (String ftsQuery : sessionFtsQueries(keyword)) {
                 try {
-                    while (resultSet.next()) {
-                        results.add(map(resultSet));
+                    PreparedStatement statement =
+                            connection.prepareStatement(
+                                    "select "
+                                            + SELECT_COLUMNS_WITH_ALIAS
+                                            + " "
+                                            + "from sessions_fts f join sessions s on s.session_id = f.session_id "
+                                            + "where sessions_fts match ? order by bm25(sessions_fts), s.updated_at desc limit ?");
+                    statement.setString(1, ftsQuery);
+                    statement.setInt(2, safeLimit);
+                    ResultSet resultSet = statement.executeQuery();
+                    try {
+                        while (resultSet.next()) {
+                            putSearchResult(results, map(resultSet));
+                        }
+                    } finally {
+                        resultSet.close();
+                        statement.close();
                     }
-                } finally {
-                    resultSet.close();
-                    statement.close();
+                } catch (Exception ignored) {
+                    // FTS5 对 '-'、冒号和中文长串较敏感；失败时继续尝试安全拆词和 LIKE 兜底。
                 }
-            } catch (Exception e) {
-                PreparedStatement fallback =
-                        connection.prepareStatement(
-                                "select "
-                                        + SELECT_COLUMNS
-                                        + " "
-                                        + "from sessions where ndjson like ? or compressed_summary like ? or title like ? order by updated_at desc limit ?");
-                String like = "%" + keyword + "%";
-                fallback.setString(1, like);
-                fallback.setString(2, like);
-                fallback.setString(3, like);
-                fallback.setInt(4, limit);
-                ResultSet resultSet = fallback.executeQuery();
-                try {
-                    while (resultSet.next()) {
-                        results.add(map(resultSet));
-                    }
-                } finally {
-                    resultSet.close();
-                    fallback.close();
+                if (results.size() >= safeLimit) {
+                    break;
                 }
             }
+            appendLikeSearchResults(connection, results, keyword, safeLimit);
         } finally {
             connection.close();
         }
-        return results;
+        return new ArrayList<SessionRecord>(results.values());
+    }
+
+    /** 生成安全的 FTS 查询：把连字符、中文长串和多关键词拆成 OR 召回表达式。 */
+    private List<String> sessionFtsQueries(String keyword) {
+        List<String> queries = new ArrayList<String>();
+        String raw = StrUtil.nullToEmpty(keyword).trim();
+        List<String> terms = sessionSearchTerms(raw);
+        if (!terms.isEmpty()) {
+            queries.add(joinQuotedTerms(terms));
+        }
+        String safeRaw = quoteFtsTerm(raw);
+        if (StrUtil.isNotBlank(safeRaw) && !queries.contains(safeRaw)) {
+            queries.add(safeRaw);
+        }
+        return queries;
+    }
+
+    /** 从用户搜索词提取可单独召回的词元，避免 '-' 被 FTS 当成 NOT/列语法。 */
+    private List<String> sessionSearchTerms(String keyword) {
+        LinkedHashSet<String> terms = new LinkedHashSet<String>();
+        StringBuilder current = new StringBuilder();
+        int currentKind = 0;
+        for (int i = 0; i < keyword.length(); i++) {
+            char ch = keyword.charAt(i);
+            int kind = searchCharKind(ch);
+            if (kind == 0) {
+                addSearchTerm(terms, current);
+                currentKind = 0;
+                continue;
+            }
+            if (current.length() > 0 && currentKind != 0 && currentKind != kind) {
+                addSearchTerm(terms, current);
+            }
+            current.append(ch);
+            currentKind = kind;
+        }
+        addSearchTerm(terms, current);
+        return new ArrayList<String>(terms);
+    }
+
+    /** 区分 ASCII 词、中文词和其他字母数字，便于中英文相邻时拆开。 */
+    private int searchCharKind(char ch) {
+        if ((ch >= 'A' && ch <= 'Z')
+                || (ch >= 'a' && ch <= 'z')
+                || (ch >= '0' && ch <= '9')
+                || ch == '_') {
+            return 1;
+        }
+        if (ch >= '\u4e00' && ch <= '\u9fff') {
+            return 2;
+        }
+        if (Character.isLetterOrDigit(ch)) {
+            return 3;
+        }
+        return 0;
+    }
+
+    /** 记录有效搜索词，并限制过长词元避免生成异常大的 SQL/FTS 表达式。 */
+    private void addSearchTerm(LinkedHashSet<String> terms, StringBuilder current) {
+        if (current.length() == 0) {
+            return;
+        }
+        String term = current.toString().trim();
+        current.setLength(0);
+        if (term.length() == 0) {
+            return;
+        }
+        terms.add(term.length() > 80 ? term.substring(0, 80) : term);
+    }
+
+    /** 把词元拼成 FTS5 OR 表达式，提升跨渠道历史召回的容错率。 */
+    private String joinQuotedTerms(List<String> terms) {
+        StringBuilder builder = new StringBuilder();
+        int count = 0;
+        for (String term : terms) {
+            String quoted = quoteFtsTerm(term);
+            if (StrUtil.isBlank(quoted)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(" OR ");
+            }
+            builder.append(quoted);
+            count++;
+            if (count >= 12) {
+                break;
+            }
+        }
+        return builder.toString();
+    }
+
+    /** FTS5 短语转义，避免特殊符号被解释成查询语法。 */
+    private String quoteFtsTerm(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (text.length() == 0) {
+            return "";
+        }
+        return "\"" + text.replace("\"", "\"\"") + "\"";
+    }
+
+    /** FTS 召回不足时按整串和逐词 LIKE 兜底，兼容中文长串与 FTS 分词缺失。 */
+    private void appendLikeSearchResults(
+            Connection connection,
+            LinkedHashMap<String, SessionRecord> results,
+            String keyword,
+            int limit)
+            throws Exception {
+        List<String> patterns = likePatterns(keyword);
+        if (patterns.isEmpty() || results.size() >= limit) {
+            return;
+        }
+        StringBuilder sql = new StringBuilder();
+        sql.append("select ").append(SELECT_COLUMNS).append(" from sessions where ");
+        for (int i = 0; i < patterns.size(); i++) {
+            if (i > 0) {
+                sql.append(" or ");
+            }
+            sql.append(
+                    "(ndjson like ? escape '\\' or compressed_summary like ? escape '\\' or title like ? escape '\\')");
+        }
+        sql.append(" order by updated_at desc limit ?");
+        PreparedStatement fallback = connection.prepareStatement(sql.toString());
+        int index = 1;
+        for (String pattern : patterns) {
+            fallback.setString(index++, pattern);
+            fallback.setString(index++, pattern);
+            fallback.setString(index++, pattern);
+        }
+        fallback.setInt(index, Math.max(limit, 10));
+        ResultSet resultSet = fallback.executeQuery();
+        try {
+            while (resultSet.next() && results.size() < limit) {
+                putSearchResult(results, map(resultSet));
+            }
+        } finally {
+            resultSet.close();
+            fallback.close();
+        }
+    }
+
+    /** LIKE 兜底先查完整串，再查拆分后的关键词。 */
+    private List<String> likePatterns(String keyword) {
+        LinkedHashSet<String> values = new LinkedHashSet<String>();
+        String raw = StrUtil.nullToEmpty(keyword).trim();
+        if (raw.length() > 0) {
+            values.add(raw);
+        }
+        for (String term : sessionSearchTerms(raw)) {
+            values.add(term);
+            if (values.size() >= 12) {
+                break;
+            }
+        }
+        List<String> patterns = new ArrayList<String>();
+        for (String value : values) {
+            patterns.add("%" + escapeLike(value) + "%");
+        }
+        return patterns;
+    }
+
+    /** 转义 LIKE 通配符，防止用户输入扩大为无意义的全表通配。 */
+    private String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /** 以 session_id 去重保序，避免 FTS 和 LIKE 兜底重复返回同一会话。 */
+    private void putSearchResult(LinkedHashMap<String, SessionRecord> results, SessionRecord record) {
+        if (record != null && StrUtil.isNotBlank(record.getSessionId())) {
+            results.put(record.getSessionId(), record);
+        }
     }
 
     @Override

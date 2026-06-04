@@ -1018,7 +1018,7 @@ public class CommandEnhancementTest {
         GatewayReply status = env.send("admin-chat", "admin-user", "/cron status");
         assertThat(status.getContent())
                 .contains("Cron 状态")
-                .contains("范围：当前会话")
+                .contains("范围：全部任务")
                 .contains("总数：1")
                 .contains("active=0")
                 .contains("paused=1")
@@ -1127,7 +1127,7 @@ public class CommandEnhancementTest {
 
         assertThat(next.getContent())
                 .contains("Cron 即将运行")
-                .contains("范围：当前会话")
+                .contains("范围：全部任务")
                 .contains("1. ")
                 .contains(soon.getJobId())
                 .contains("Soon job")

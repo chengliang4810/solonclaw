@@ -1374,7 +1374,8 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldBlockDangerousNoAgentCronScriptWhenCronApprovalModeDenies() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getApprovals().setCronMode("deny");
+        env.appConfig.getSecurity().setGuardrailCronMode("strict");
+        env.appConfig.getApprovals().setCronMode("strict");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
         env.gatewayService.handle(
@@ -2673,6 +2674,29 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldListCronJobsAcrossChannelSourcesFromTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "wechat-created-job");
+        body.put("schedule", "30m");
+        body.put("prompt", "created from weixin");
+        body.put("deliver", "origin");
+        Map<String, Object> origin = new LinkedHashMap<String, Object>();
+        origin.put("platform", "WEIXIN");
+        origin.put("chat_id", "wx-chat");
+        origin.put("user_id", "wx-user");
+        body.put("origin", origin);
+        service.create("WEIXIN:wx-chat:wx-user", body);
+
+        CronjobTools feishuTools = new CronjobTools(service, "FEISHU:fs-chat:fs-user");
+        Map<?, ?> listed = (Map<?, ?>) ONode.ofJson(cronjobList(feishuTools)).toData();
+
+        assertThat(listed.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(String.valueOf(listed.get("preview"))).contains("wechat-created-job");
+    }
+
+    @Test
     void shouldClearCronjobToolEditableMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -3553,7 +3577,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldExposeCronjobSourceScopedStatusAndRetryAliases() throws Exception {
+    void shouldExposeCronjobGlobalStatusAndRetryAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         CronjobTools tools = new CronjobTools(service, "MEMORY:status-room:user");
@@ -3603,14 +3627,14 @@ public class DefaultCronSchedulerTest {
                                                 Integer.valueOf(10)))
                                 .toData();
         Map<?, ?> overview = (Map<?, ?>) status.get("status");
-        assertThat(overview.get("total")).isEqualTo(Integer.valueOf(2));
-        assertThat(overview.get("active")).isEqualTo(Integer.valueOf(1));
+        assertThat(overview.get("total")).isEqualTo(Integer.valueOf(3));
+        assertThat(overview.get("active")).isEqualTo(Integer.valueOf(2));
         assertThat(overview.get("paused")).isEqualTo(Integer.valueOf(1));
         assertThat(String.valueOf(overview.get("recent_failures")))
                 .contains("status-failed")
+                .contains("status-other")
                 .contains("token=***")
                 .contains("api_key=***")
-                .doesNotContain("status-other")
                 .doesNotContain("ghp_cronstatus12345")
                 .doesNotContain("sk-cronstatus-secret12345")
                 .doesNotContain("\u202E");
@@ -5001,6 +5025,29 @@ public class DefaultCronSchedulerTest {
             }
         }
         throw new IllegalStateException("cronjob tool method not found");
+    }
+
+    private String cronjobList(CronjobTools tools) throws Exception {
+        return tools.cronjob(
+                "list",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     private String paramDescription(Method method, String name) {

@@ -3044,8 +3044,7 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
-            List<CronJobRecord> jobs =
-                    cronJobService.listBySource(message.sourceKey(), options.all);
+            List<CronJobRecord> jobs = cronJobService.listAll(options.all);
             String listText = formatCronList(jobs);
             return GatewayReply.ok(overview ? cronOverview(listText) : listText);
         }
@@ -3352,8 +3351,7 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String formatCronStatus(String sourceKey, boolean all) throws Exception {
-        List<CronJobRecord> jobs =
-                all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
+        List<CronJobRecord> jobs = cronJobService.listAll(true);
         long now = System.currentTimeMillis();
         int active = 0;
         int paused = 0;
@@ -3393,7 +3391,7 @@ public class DefaultCommandService implements CommandService {
         }
 
         StringBuilder buffer = new StringBuilder("Cron 状态");
-        buffer.append('\n').append("范围：").append(all ? "全部任务" : "当前会话");
+        buffer.append('\n').append("范围：全部任务");
         buffer.append('\n').append("总数：").append(jobs.size());
         buffer.append('\n')
                 .append("状态：active=")
@@ -3440,8 +3438,7 @@ public class DefaultCommandService implements CommandService {
 
     private String formatCronNext(String sourceKey, boolean all, int limit) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
-        List<CronJobRecord> jobs =
-                all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
+        List<CronJobRecord> jobs = cronJobService.listAll(true);
         List<CronJobRecord> upcoming = new ArrayList<CronJobRecord>();
         for (CronJobRecord job : jobs) {
             String state = cronState(job);
@@ -3468,7 +3465,7 @@ public class DefaultCommandService implements CommandService {
                 });
 
         StringBuilder buffer = new StringBuilder("Cron 即将运行");
-        buffer.append('\n').append("范围：").append(all ? "全部任务" : "当前会话");
+        buffer.append('\n').append("范围：全部任务");
         if (upcoming.isEmpty()) {
             buffer.append('\n').append("暂无即将运行的任务。");
             return buffer.toString();

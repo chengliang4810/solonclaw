@@ -192,8 +192,7 @@ public class CronjobTools {
 
             if ("status".equals(normalized)) {
                 List<CronJobRecord> jobs =
-                        cronJobService.listBySource(
-                                sourceKey,
+                        cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
                 Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
                 return ToolResultEnvelope.ok("Cronjob status")
@@ -207,8 +206,7 @@ public class CronjobTools {
 
             if ("list".equals(normalized)) {
                 List<CronJobRecord> jobs =
-                        cronJobService.listBySource(
-                                sourceKey,
+                        cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
                 return ToolResultEnvelope.ok("Listed cron jobs")
                         .data("jobs", views(jobs))
@@ -219,8 +217,7 @@ public class CronjobTools {
 
             if ("next".equals(normalized)) {
                 List<CronJobRecord> jobs =
-                        cronJobService.listBySource(
-                                sourceKey,
+                        cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
                 List<CronJobRecord> upcoming = upcoming(jobs, limit == null ? 5 : limit.intValue());
                 return ToolResultEnvelope.ok("Listed upcoming cron jobs")
