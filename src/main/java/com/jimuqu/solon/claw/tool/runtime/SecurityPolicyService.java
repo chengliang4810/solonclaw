@@ -869,7 +869,7 @@ public class SecurityPolicyService {
     public Map<String, Object> privateUrlPolicySummary() {
         Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
         summary.put("allowPrivateUrls", Boolean.valueOf(resolveAllowPrivateUrls()));
-        summary.put("environmentOverrideName", "JIMUQU_ALLOW_PRIVATE_URLS");
+        summary.put("environmentOverrideName", "SOLONCLAW_ALLOW_PRIVATE_URLS");
         summary.put("cloudMetadataAlwaysBlocked", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("obfuscatedIpv4Checked", Boolean.TRUE);
@@ -3858,9 +3858,6 @@ public class SecurityPolicyService {
             safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
             safeRoot = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
@@ -4751,7 +4748,7 @@ public class SecurityPolicyService {
     }
 
     private boolean resolveAllowPrivateUrls() {
-        Boolean envOverride = parseBooleanOverride(readEnvironment("JIMUQU_ALLOW_PRIVATE_URLS"));
+        Boolean envOverride = parseBooleanOverride(readEnvironment("SOLONCLAW_ALLOW_PRIVATE_URLS"));
         if (envOverride != null) {
             return envOverride.booleanValue();
         }

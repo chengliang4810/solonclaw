@@ -22,7 +22,7 @@ public class DashboardSearchController {
         this.sessionSearchService = sessionSearchService;
     }
 
-    @Mapping(value = "/api/jimuqu/search", method = MethodType.GET)
+    @Mapping(value = "/api/search", method = MethodType.GET)
     public Map<String, Object> search(Context context) throws Exception {
         SessionSearchQuery query = new SessionSearchQuery();
         query.setSourceKey(first(context.param("sourceKey"), context.param("source")));

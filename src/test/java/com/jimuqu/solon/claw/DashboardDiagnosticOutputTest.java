@@ -1026,8 +1026,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(mcpPackagePolicy.get("pipxRunSubcommandSkipped")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackagePolicy.get("pypiSourceOptionParsed")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackagePolicy.get("projectEndpointOverrideEnvironment"))
-                .isEqualTo("JIMUQU_OSV_ENDPOINT");
-        assertThat(mcpPackagePolicy.get("legacyEndpointOverrideEnvironment")).isEqualTo("OSV_ENDPOINT");
+                .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
+        assertThat(mcpPackagePolicy).doesNotContainKey("legacyEndpointOverrideEnvironment");
         assertThat(coverage.get("toolResultStorage")).isEqualTo(Boolean.TRUE);
         Map<String, Object> storagePolicy =
                 (Map<String, Object>) coverage.get("toolResultStoragePolicy");
@@ -1123,7 +1123,7 @@ public class DashboardDiagnosticOutputTest {
                         "PATH",
                         "TENOR_API_KEY",
                         "OPENAI_API_KEY",
-                        "_JIMUQU_FORCE_CUSTOM_TOKEN",
+                        "_SOLONCLAW_FORCE_CUSTOM_TOKEN",
                         "ghp_probe1234567890"));
 
         Map<String, Object> result = diagnosticsService.subprocessEnvironmentProbe(body);
@@ -3584,7 +3584,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(sensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveTee.get("skipped")).isNull();
-        assertThat(String.valueOf(sensitiveTee)).contains("JIMUQU_HOME");
+        assertThat(String.valueOf(sensitiveTee)).contains("SOLONCLAW_HOME");
         assertThat(copyIntoProjectSensitive.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("skipped")).isNull();

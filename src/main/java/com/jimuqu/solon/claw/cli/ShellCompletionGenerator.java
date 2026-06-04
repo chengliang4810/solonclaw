@@ -37,10 +37,10 @@ public class ShellCompletionGenerator {
     }
 
     String bash() {
-        return "# Jimuqu Agent bash completion\n"
+        return "# Solon Claw bash completion\n"
                 + "# Add to ~/.bashrc:\n"
-                + "#   eval \"$(jimuqu-agent completion bash)\"\n\n"
-                + "_jimuqu_agent_completion() {\n"
+                + "#   eval \"$(solon-claw completion bash)\"\n\n"
+                + "_solon_claw_completion() {\n"
                 + "    local cur prev\n"
                 + "    COMPREPLY=()\n"
                 + "    cur=\"${COMP_WORDS[COMP_CWORD]}\"\n"
@@ -72,15 +72,15 @@ public class ShellCompletionGenerator {
                 + "            ;;\n"
                 + "    esac\n"
                 + "}\n\n"
-                + "complete -F _jimuqu_agent_completion jimuqu-agent\n";
+                + "complete -F _solon_claw_completion solon-claw\n";
     }
 
     String zsh() {
-        return "#compdef jimuqu-agent\n"
-                + "# Jimuqu Agent zsh completion\n"
+        return "#compdef solon-claw\n"
+                + "# Solon Claw zsh completion\n"
                 + "# Add to ~/.zshrc:\n"
-                + "#   eval \"$(jimuqu-agent completion zsh)\"\n\n"
-                + "_jimuqu_agent() {\n"
+                + "#   eval \"$(solon-claw completion zsh)\"\n\n"
+                + "_solon_claw() {\n"
                 + "    local context state line\n"
                 + "    typeset -A opt_args\n\n"
                 + "    _arguments -C \\\n"
@@ -100,7 +100,7 @@ public class ShellCompletionGenerator {
                 + "                'tui:Run terminal UI'\n"
                 + "                'completion:Print shell completion script'\n"
                 + "            )\n"
-                + "            _describe 'jimuqu-agent command' cmds\n"
+                + "            _describe 'solon-claw command' cmds\n"
                 + "            ;;\n"
                 + "        args)\n"
                 + "            case ${line[1]} in\n"
@@ -113,27 +113,27 @@ public class ShellCompletionGenerator {
                 + "            ;;\n"
                 + "    esac\n"
                 + "}\n\n"
-                + "_jimuqu_agent \"$@\"\n";
+                + "_solon_claw \"$@\"\n";
     }
 
     String fish() {
-        return "# Jimuqu Agent fish completion\n"
+        return "# Solon Claw fish completion\n"
                 + "# Add to your config:\n"
-                + "#   jimuqu-agent completion fish | source\n\n"
-                + "complete -c jimuqu-agent -f\n"
-                + "complete -c jimuqu-agent -f -l cli -d 'Run line-oriented CLI'\n"
-                + "complete -c jimuqu-agent -f -l tui -d 'Run terminal UI'\n"
-                + "complete -c jimuqu-agent -f -l session -d 'Session id'\n"
-                + "complete -c jimuqu-agent -f -s p -l ask -d 'Send one prompt'\n"
-                + "complete -c jimuqu-agent -f -n '__fish_seen_subcommand_from cli tui; and __fish_seen_argument -s p -l ask' -a '"
+                + "#   solon-claw completion fish | source\n\n"
+                + "complete -c solon-claw -f\n"
+                + "complete -c solon-claw -f -l cli -d 'Run line-oriented CLI'\n"
+                + "complete -c solon-claw -f -l tui -d 'Run terminal UI'\n"
+                + "complete -c solon-claw -f -l session -d 'Session id'\n"
+                + "complete -c solon-claw -f -s p -l ask -d 'Send one prompt'\n"
+                + "complete -c solon-claw -f -n '__fish_seen_subcommand_from cli tui; and __fish_seen_argument -s p -l ask' -a '"
                 + words(LOCAL_SLASH_COMMANDS)
                 + "'\n"
-                + "complete -c jimuqu-agent -f -n 'not __fish_seen_subcommand_from "
+                + "complete -c solon-claw -f -n 'not __fish_seen_subcommand_from "
                 + words(TOP_LEVEL)
                 + "' -a '"
                 + words(TOP_LEVEL)
                 + "'\n"
-                + "complete -c jimuqu-agent -f -n '__fish_seen_subcommand_from completion' -a '"
+                + "complete -c solon-claw -f -n '__fish_seen_subcommand_from completion' -a '"
                 + words(COMPLETION_SHELLS)
                 + "'\n";
     }

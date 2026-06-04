@@ -16,17 +16,17 @@ import java.util.Map;
 
 /** Validation for skill-declared credential files. */
 public class SkillCredentialFileService {
-    private static final String DEFAULT_CONTAINER_BASE = "/root/.jimuqu-agent";
+    private static final String DEFAULT_CONTAINER_BASE = "/root/.solon-claw";
     private static final List<CacheMountDirectory> CACHE_MOUNT_DIRS =
             Collections.unmodifiableList(
                     Arrays.asList(
-                            new CacheMountDirectory("documents", "document_cache"),
-                            new CacheMountDirectory("images", "image_cache"),
-                            new CacheMountDirectory("audio", "audio_cache"),
-                            new CacheMountDirectory("screenshots", "browser_screenshots"),
-                            new CacheMountDirectory("media", null),
-                            new CacheMountDirectory("pdf", null),
-                            new CacheMountDirectory("tool-results", null)));
+                            new CacheMountDirectory("documents"),
+                            new CacheMountDirectory("images"),
+                            new CacheMountDirectory("audio"),
+                            new CacheMountDirectory("screenshots"),
+                            new CacheMountDirectory("media"),
+                            new CacheMountDirectory("pdf"),
+                            new CacheMountDirectory("tool-results")));
 
     private final AppConfig appConfig;
     private final File runtimeHome;
@@ -111,7 +111,7 @@ public class SkillCredentialFileService {
         summary.put("skillsSymlinkSafeCopy", Boolean.TRUE);
         summary.put("cacheSymlinksSkipped", Boolean.TRUE);
         summary.put("skillFrontmatterKey", "required_credential_files");
-        summary.put("configKey", "terminal.credentialFiles");
+        summary.put("configKey", "solonclaw.terminal.credentialFiles");
         summary.put("cacheMountDirectories", cacheMountDirectoryNames());
         return summary;
     }
@@ -348,12 +348,6 @@ public class SkillCredentialFileService {
     }
 
     private File resolveCacheDirectory(CacheMountDirectory directory) {
-        if (StrUtil.isNotBlank(directory.legacyName)) {
-            File legacy = new File(runtimeHome, directory.legacyName);
-            if (legacy.isDirectory()) {
-                return legacy;
-            }
-        }
         return new File(cacheDir, directory.containerName);
     }
 
@@ -463,11 +457,9 @@ public class SkillCredentialFileService {
 
     private static class CacheMountDirectory {
         private final String containerName;
-        private final String legacyName;
 
-        private CacheMountDirectory(String containerName, String legacyName) {
+        private CacheMountDirectory(String containerName) {
             this.containerName = containerName;
-            this.legacyName = legacyName;
         }
     }
 

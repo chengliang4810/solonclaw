@@ -104,9 +104,9 @@ public class TuiShell {
         LineReader reader =
                 LineReaderBuilder.builder()
                         .terminal(terminal)
-                        .appName("jimuqu-agent-tui")
+                        .appName("solon-claw-tui")
                         .completer(new StringsCompleter(COMMANDS))
-                        .variable(LineReader.HISTORY_FILE, ".jimuqu-tui-history")
+                        .variable(LineReader.HISTORY_FILE, ".solonclaw-tui-history")
                         .build();
         TerminalShortcuts.install(reader);
         renderHeader(writer, sessionId);
@@ -359,7 +359,7 @@ public class TuiShell {
     }
 
     private void renderHeader(PrintWriter writer, String sessionId) {
-        writer.println(skin.bold("Jimuqu Agent TUI"));
+        writer.println(skin.bold("Solon Claw TUI"));
         writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
                         skin.dim(

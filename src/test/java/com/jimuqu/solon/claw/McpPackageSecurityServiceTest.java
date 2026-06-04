@@ -227,10 +227,10 @@ public class McpPackageSecurityServiceTest {
                 .containsEntry("pipxRunSubcommandSkipped", Boolean.TRUE)
                 .containsEntry("pypiSourceOptionParsed", Boolean.TRUE);
         assertThat(summary.get("endpointOverrideEnvironment"))
-                .isEqualTo("JIMUQU_OSV_ENDPOINT,OSV_ENDPOINT");
+                .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
         assertThat(summary.get("projectEndpointOverrideEnvironment"))
-                .isEqualTo("JIMUQU_OSV_ENDPOINT");
-        assertThat(summary.get("legacyEndpointOverrideEnvironment")).isEqualTo("OSV_ENDPOINT");
+                .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
+        assertThat(summary).doesNotContainKey("legacyEndpointOverrideEnvironment");
         assertThat(String.valueOf(summary.get("checkedLaunchers"))).contains("npx").contains("uvx").contains("pipx");
     }
 

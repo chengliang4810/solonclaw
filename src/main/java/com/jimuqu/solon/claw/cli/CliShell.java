@@ -16,7 +16,7 @@ import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
-/** Jimuqu line-oriented CLI. */
+/** Solon Claw line-oriented CLI. */
 public class CliShell {
     private static final String PROMPT = "\u001B[36mjimuqu>\u001B[0m ";
     private static final String[] COMMANDS = TerminalCommandCatalog.SLASH_COMMANDS;
@@ -96,12 +96,12 @@ public class CliShell {
         LineReader reader =
                 LineReaderBuilder.builder()
                         .terminal(terminal)
-                        .appName("jimuqu-agent")
+                        .appName("solon-claw")
                         .completer(new StringsCompleter(COMMANDS))
-                        .variable(LineReader.HISTORY_FILE, ".jimuqu-cli-history")
+                        .variable(LineReader.HISTORY_FILE, ".solonclaw-cli-history")
                         .build();
         TerminalShortcuts.install(reader);
-        writer.println("Jimuqu Agent CLI。输入 /help 查看命令，/exit 退出。");
+        writer.println("Solon Claw CLI。输入 /help 查看命令，/exit 退出。");
         writer.flush();
         LocalTerminalTaskRunner taskRunner = new LocalTerminalTaskRunner(writer);
         try {

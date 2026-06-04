@@ -448,9 +448,7 @@ public class DefaultSkillImportService implements SkillImportService {
         }
         java.util.Map<String, Object> frontmatter =
                 SkillFrontmatterSupport.parseFrontmatter(skillMd);
-        java.util.Map<String, Object> Jimuqu =
-                SkillFrontmatterSupport.getCompatibilityMetadata(frontmatter);
-        Object category = Jimuqu.get("category");
+        Object category = frontmatter.get("category");
         if (category instanceof String && StrUtil.isNotBlank((String) category)) {
             return SkillBundlePathSupport.normalizeCategoryName((String) category);
         }

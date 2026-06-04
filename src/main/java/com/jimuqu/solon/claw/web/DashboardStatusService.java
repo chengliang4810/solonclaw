@@ -138,7 +138,6 @@ public class DashboardStatusService {
             result.put("fallbackProviders", safeFallbackProviders());
         }
         result.put("auto_context_length", appConfig.getLlm().getContextWindowTokens());
-        result.put("config_context_length", appConfig.getLlm().getContextWindowTokens());
         result.put("effective_context_length", appConfig.getLlm().getContextWindowTokens());
 
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
@@ -329,9 +328,6 @@ public class DashboardStatusService {
         capabilities.put("memory_delivery", Boolean.TRUE);
         capabilities.put(
                 "approval_mode", safeText(cronApprovalMode(), 80));
-        capabilities.put(
-                "legacy_approval_mode",
-                safeText(appConfig.getScheduler().getCronApprovalMode(), 80));
         return capabilities;
     }
 
@@ -360,11 +356,6 @@ public class DashboardStatusService {
         capabilities.put("dangerous_command_approval", Boolean.TRUE);
         capabilities.put("approval_mode", safeText(guardrailMode(), 80));
         capabilities.put("cron_approval_mode", safeText(cronApprovalMode(), 80));
-        capabilities.put(
-                "legacy_approval_mode", safeText(appConfig.getApprovals().getMode(), 80));
-        capabilities.put(
-                "legacy_cron_approval_mode",
-                safeText(appConfig.getApprovals().getCronMode(), 80));
         capabilities.put(
                 "subagent_auto_approve",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
@@ -452,27 +443,19 @@ public class DashboardStatusService {
                 "inactivity_timeout_seconds",
                 Integer.valueOf(appConfig.getScheduler().getInactivityTimeoutSeconds()));
         status.put("approval_mode", safeText(cronApprovalMode(), 80));
-        status.put(
-                "legacy_approval_mode",
-                safeText(appConfig.getScheduler().getCronApprovalMode(), 80));
         return status;
     }
 
     private String cronApprovalMode() {
-        if (appConfig.getSecurity() == null) {
-            return appConfig.getScheduler().getCronApprovalMode();
-        }
-        return StrUtil.blankToDefault(
-                appConfig.getSecurity().getGuardrailCronMode(),
-                appConfig.getScheduler().getCronApprovalMode());
+        return appConfig.getSecurity() == null
+                ? "approval"
+                : StrUtil.blankToDefault(appConfig.getSecurity().getGuardrailCronMode(), "approval");
     }
 
     private String guardrailMode() {
-        if (appConfig.getSecurity() == null) {
-            return appConfig.getApprovals().getMode();
-        }
-        return StrUtil.blankToDefault(
-                appConfig.getSecurity().getGuardrailMode(), appConfig.getApprovals().getMode());
+        return appConfig.getSecurity() == null
+                ? "approval"
+                : StrUtil.blankToDefault(appConfig.getSecurity().getGuardrailMode(), "approval");
     }
 
     private Map<String, Object> skillsStatus(boolean detailed) {
@@ -510,10 +493,6 @@ public class DashboardStatusService {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("approval_mode", safeText(guardrailMode(), 80));
         status.put("cron_approval_mode", safeText(cronApprovalMode(), 80));
-        status.put("legacy_approval_mode", safeText(appConfig.getApprovals().getMode(), 80));
-        status.put(
-                "legacy_cron_approval_mode",
-                safeText(appConfig.getApprovals().getCronMode(), 80));
         status.put(
                 "subagent_auto_approve",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));

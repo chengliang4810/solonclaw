@@ -368,33 +368,27 @@ solonclaw:
     toolOutputInlineLimit: 50000
     # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
     toolOutputTurnBudget: 200000
-    # 对齐 tool_output.max_lines，供文件读取/分页输出限制使用。
+    # 供文件读取/分页输出限制使用。
     toolOutputMaxLines: 2000
-    # 对齐 tool_output.max_line_length，供单行输出截断使用。
+    # 供单行输出截断使用。
     toolOutputMaxLineLength: 2000
     # 媒体缓存 TTL，单位小时。
     mediaCacheTtlHours: 168
 
-  # 工具输出限制兼容别名。max_bytes 会映射到 task.toolOutputInlineLimit。
-  tool_output:
-    max_bytes: 50000
-    max_lines: 2000
-    max_line_length: 2000
-
   # 终端/沙箱执行配置。
   terminal:
-    # 对齐 terminal.credential_files。这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
+    # 这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
     # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到隔离环境内。
     credentialFiles: []
-    # 对齐 terminal.env_passthrough。默认本地子进程不会继承 API key/token/secret。
+    # 默认本地子进程不会继承 API key/token/secret。
     # 这里仅用于明确放行第三方技能变量；模型、渠道、网关等内置凭据仍会被强制拦截。
     envPassthrough: []
-    # 对齐 terminal.shell_init_files。非 Windows 本地 shell 执行前会静默 source 这些文件。
+    # 非 Windows 本地 shell 执行前会静默 source 这些文件。
     # 留空时会按 autoSourceBashrc 规则自动尝试 ~/.profile、~/.bash_profile、~/.bashrc。
     shellInitFiles: []
-    # 对齐 terminal.auto_source_bashrc。用于让 nvm/asdf/pyenv 等写入 shell rc 的 PATH 初始化在工具进程可见。
+    # 用于让 nvm/asdf/pyenv 等写入 shell rc 的 PATH 初始化在工具进程可见。
     autoSourceBashrc: true
-    # 可选 sudo 密码；也可通过环境变量 SUDO_PASSWORD 提供。用于把实际 sudo 命令改写为 sudo -S -p ''。
+    # 可选 sudo 密码；也可通过环境变量 SOLONCLAW_SUDO_PASSWORD 提供。用于把实际 sudo 命令改写为 sudo -S -p ''。
     # 留空时不改写 sudo，避免在未配置凭据时改变命令行为。
     sudoPassword: ""
     # 留空表示不限制普通工作区写入；填写后 file_write/patch/shell 写入只能落在该目录内。

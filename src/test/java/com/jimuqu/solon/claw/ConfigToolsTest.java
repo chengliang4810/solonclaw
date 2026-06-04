@@ -61,23 +61,32 @@ public class ConfigToolsTest {
         assertThat(configSetTool).isNotNull();
         Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
         String allowedResponse =
-                (String) method.invoke(configSetTool, "terminal.env_passthrough", "TENOR_API_KEY");
+                (String)
+                        method.invoke(
+                                configSetTool,
+                                "solonclaw.terminal.envPassthrough",
+                                "TENOR_API_KEY");
         assertThat(ONode.ofJson(allowedResponse).get("success").getBoolean()).isTrue();
         assertThat(env.appConfig.getTerminal().getEnvPassthrough())
                 .containsExactly("TENOR_API_KEY");
 
         String rejectedResponse =
-                (String) method.invoke(configSetTool, "terminal.env_passthrough", "OPENAI_API_KEY");
+                (String)
+                        method.invoke(
+                                configSetTool,
+                                "solonclaw.terminal.envPassthrough",
+                                "OPENAI_API_KEY");
         assertThat(ONode.ofJson(rejectedResponse).get("success").getBoolean()).isFalse();
         assertThat(ONode.ofJson(rejectedResponse).get("error").getString())
-                .contains("terminal.envPassthrough")
+                .contains("solonclaw.terminal.envPassthrough")
                 .contains("OPENAI_API_KEY")
                 .contains("high-risk");
         String pathResponse =
-                (String) method.invoke(configSetTool, "terminal.envPassthrough", "PATH");
+                (String)
+                        method.invoke(configSetTool, "solonclaw.terminal.envPassthrough", "PATH");
         assertThat(ONode.ofJson(pathResponse).get("success").getBoolean()).isFalse();
         assertThat(ONode.ofJson(pathResponse).get("error").getString())
-                .contains("terminal.envPassthrough")
+                .contains("solonclaw.terminal.envPassthrough")
                 .contains("PATH")
                 .contains("high-risk");
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
@@ -324,7 +333,7 @@ public class ConfigToolsTest {
                         (String)
                                 method.invoke(
                                         configGetTool,
-                                        "[\"PATH\",\"TENOR_API_KEY\",\"OPENAI_API_KEY\",\"_JIMUQU_FORCE_CUSTOM_TOKEN\",\"ghp_probe1234567890\"]"));
+                                        "[\"PATH\",\"TENOR_API_KEY\",\"OPENAI_API_KEY\",\"_SOLONCLAW_FORCE_CUSTOM_TOKEN\",\"ghp_probe1234567890\"]"));
 
         assertThat(response.get("success").getBoolean()).isTrue();
         assertThat(response.get("requestedCount").getInt()).isEqualTo(5);

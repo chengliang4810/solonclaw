@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
 import { NSelect, useMessage } from 'naive-ui'
-import { useAgentsStore } from '@/stores/jimuqu/agents'
+import { useAgentsStore } from '@/stores/solonclaw/agents'
 
 const props = defineProps<{
   sessionId?: string | null

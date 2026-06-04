@@ -56,8 +56,8 @@ public class DangerousCommandApprovalService {
     private static final String HOME_PATH_PREFIX =
             "(?:~|\\$home|\\$\\{home\\}|\\$env:home|\\$env:userprofile|%userprofile%|%homepath%)";
     private static final String AGENT_HOME_PATH_PREFIX =
-            "(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%|"
-                    + "\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%)";
+            "(?:\\$solonclaw_home|\\$\\{solonclaw_home\\}|\\$env:solonclaw_home|%solonclaw_home%|"
+                    + "\\$solonclaw_home|\\$\\{solonclaw_home\\}|\\$env:solonclaw_home|%solonclaw_home%)";
     private static final String SHELL_PROFILE_WRITE_TARGET =
             HOME_PATH_PREFIX
                     + PATH_SEPARATOR
@@ -84,7 +84,7 @@ public class DangerousCommandApprovalService {
                     + "(?:settings\\.xml|credentials|credentials\\.toml|credentials\\.tfrc\\.json|oauth_creds\\.json|nuget\\.config|pip\\.conf)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:jimuqu-agent|Jimuqu)"
+                    + "\\.(?:solon-claw|solonclaw)"
                     + PATH_SEPARATOR
                     + "\\.env\\b|"
                     + AGENT_HOME_PATH_PREFIX
@@ -1385,12 +1385,12 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "gateway_stop_restart",
                                     "stop/restart gateway (kills running agents)",
-                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
+                                    pattern("\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(stop|restart)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "app_update_restart",
                                     "agent update (restarts gateway, kills running agents)",
-                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+update\\b"),
+                                    pattern("\\b(?:solon-claw|solonclaw)\\s+update\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gateway_run_detached",
@@ -1401,7 +1401,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "kill_agent_process",
                                     "kill agent/gateway process (self-termination)",
-                                    pattern("\\b(pkill|killall)\\b.*\\b(Jimuqu|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
+                                    pattern("\\b(pkill|killall)\\b.*\\b(solon-claw|solonclaw|gateway)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
@@ -3338,9 +3338,7 @@ public class DangerousCommandApprovalService {
                 "configKeys",
                 Arrays.asList(
                         "security.guardrailCronMode",
-                        "security.guardrailCronScope",
-                        "approvals.cronMode",
-                        "scheduler.cronApprovalMode"));
+                        "security.guardrailCronScope"));
         summary.put("approveAliases", Arrays.asList("approve", "allow", "off", "yes"));
         summary.put("approvalAliases", Arrays.asList("approval", "ask", "prompt", "manual"));
         summary.put("strictAliases", Arrays.asList("strict", "deny", "block", "enforce", "false"));
@@ -3361,7 +3359,7 @@ public class DangerousCommandApprovalService {
         summary.put("scriptContentChecked", Boolean.TRUE);
         summary.put(
                 "description",
-                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve preserves the legacy auto-approve behavior; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
+                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve auto-approves approvable commands; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
         return summary;
     }
 
@@ -3430,7 +3428,6 @@ public class DangerousCommandApprovalService {
                         "/deny all"));
         summary.put("pendingQueueSupported", Boolean.TRUE);
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
-        summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
         summary.put("approvalKeySelectorHidden", Boolean.TRUE);
         summary.put("pendingListUsesSafeSelector", Boolean.TRUE);
@@ -3553,7 +3550,6 @@ public class DangerousCommandApprovalService {
     public Map<String, Object> approvalLifecyclePolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
-        summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListPrunedBeforeRead", Boolean.TRUE);
         summary.put("selectorSupported", Boolean.TRUE);
         summary.put("listSupported", Boolean.TRUE);
@@ -4761,22 +4757,10 @@ public class DangerousCommandApprovalService {
     }
 
     private String configuredGuardrailMode() {
-        String legacyMode =
-                appConfig == null || appConfig.getApprovals() == null
-                        ? ""
-                        : appConfig.getApprovals().getMode();
-        if (StrUtil.isNotBlank(legacyMode)
-                && !"on".equalsIgnoreCase(legacyMode.trim())
-                && !"true".equalsIgnoreCase(legacyMode.trim())) {
-            return legacyMode.trim().toLowerCase(Locale.ROOT);
-        }
         String mode =
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailMode();
-        if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getApprovals() != null) {
-            mode = appConfig.getApprovals().getMode();
-        }
         return StrUtil.blankToDefault(mode, "approval").trim().toLowerCase(Locale.ROOT);
     }
 
@@ -4810,12 +4794,12 @@ public class DangerousCommandApprovalService {
                 : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();
     }
 
-    protected String jimuquYoloModeEnv() {
-        return System.getenv("JIMUQU_YOLO_MODE");
+    protected String solonClawYoloModeEnv() {
+        return System.getenv("SOLONCLAW_YOLO_MODE");
     }
 
     private boolean isCompatibilityYoloModeEnabled() {
-        String value = StrUtil.nullToEmpty(jimuquYoloModeEnv()).trim();
+        String value = StrUtil.nullToEmpty(solonClawYoloModeEnv()).trim();
         return "true".equalsIgnoreCase(value)
                 || "1".equals(value)
                 || "yes".equalsIgnoreCase(value)
@@ -4886,21 +4870,10 @@ public class DangerousCommandApprovalService {
     }
 
     public String cronApprovalMode() {
-        String legacyMode =
-                appConfig == null || appConfig.getApprovals() == null
-                        ? ""
-                        : appConfig.getApprovals().getCronMode();
-        if (StrUtil.isNotBlank(legacyMode)
-                && !"approval".equalsIgnoreCase(legacyMode.trim())) {
-            return normalizeCronApprovalMode(legacyMode);
-        }
         String mode =
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailCronMode();
-        if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getScheduler() != null) {
-            mode = appConfig.getScheduler().getCronApprovalMode();
-        }
         return normalizeCronApprovalMode(mode);
     }
 
@@ -5163,16 +5136,6 @@ public class DangerousCommandApprovalService {
             queue = ((Map<?, ?>) vars).get(CONTEXT_PENDING_APPROVAL_QUEUE);
         }
         pending.addAll(toPendingApprovalList(queue));
-        if (pending.isEmpty()) {
-            Object legacy = contextValue(context, CONTEXT_PENDING_APPROVAL);
-            if (legacy == null && vars instanceof Map) {
-                legacy = ((Map<?, ?>) vars).get(CONTEXT_PENDING_APPROVAL);
-            }
-            PendingApproval legacyPending = toPendingApproval(legacy);
-            if (legacyPending != null) {
-                pending.add(legacyPending);
-            }
-        }
         return pending;
     }
 

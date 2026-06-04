@@ -126,12 +126,12 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldAllowPrivateUrlsFromJimuquEnvironmentOverride() {
+    void shouldAllowPrivateUrlsFromSolonClawEnvironmentOverride() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService policy =
                 new FixedDnsEnvSecurityPolicyService(
-                        config, "192.168.1.1", env("JIMUQU_ALLOW_PRIVATE_URLS", "true"));
+                        config, "192.168.1.1", env("SOLONCLAW_ALLOW_PRIVATE_URLS", "true"));
 
         SecurityPolicyService.UrlVerdict privateUrl = policy.checkUrl("http://router.example/");
         SecurityPolicyService.UrlVerdict metadata = policy.checkUrl("http://169.254.169.254/");
@@ -142,7 +142,7 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldSupportJimuquAllowPrivateUrlEnvironmentCompatibility() {
+    void shouldIgnoreJimuquAllowPrivateUrlEnvironmentCompatibility() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService policy =
@@ -151,7 +151,8 @@ public class SecurityPolicyServiceTest {
 
         SecurityPolicyService.UrlVerdict verdict = policy.checkUrl("https://internal.example/");
 
-        assertThat(verdict.isAllowed()).isTrue();
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
     }
 
     @Test
@@ -170,11 +171,10 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldLetJimuquEnvironmentOverrideWinOverJimuquCompatibilityValue() {
+    void shouldLetSolonClawEnvironmentOverrideWinOverConfigValue() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(true);
-        Map<String, String> environment = env("JIMUQU_ALLOW_PRIVATE_URLS", "true");
-        environment.put("JIMUQU_ALLOW_PRIVATE_URLS", "false");
+        Map<String, String> environment = env("SOLONCLAW_ALLOW_PRIVATE_URLS", "false");
         SecurityPolicyService policy =
                 new FixedDnsEnvSecurityPolicyService(config, "172.16.0.5", environment);
 
@@ -190,7 +190,7 @@ public class SecurityPolicyServiceTest {
         config.getSecurity().setAllowPrivateUrls(false);
         SecurityPolicyService policy =
                 new FixedDnsEnvSecurityPolicyService(
-                        config, "127.0.0.1", env("JIMUQU_ALLOW_PRIVATE_URLS", "false"));
+                        config, "127.0.0.1", env("SOLONCLAW_ALLOW_PRIVATE_URLS", "false"));
 
         SecurityPolicyService.UrlVerdict defaultVerdict = policy.checkUrl("http://localhost:8080/");
         SecurityPolicyService.UrlVerdict explicitVerdict =

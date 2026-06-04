@@ -194,7 +194,7 @@ public class SolonClawCodeExecutionSkills {
                     builder.directory(new File(workDir));
                     builder.redirectErrorStream(false);
                     configureSandboxEnvironment(builder.environment(), staging);
-                    builder.environment().put("JIMUQU_RPC_DIR", rpcDir.toString());
+                    builder.environment().put("SOLONCLAW_RPC_DIR", rpcDir.toString());
                     Process process = builder.start();
                     process.getOutputStream().close();
                     AtomicBoolean rpcAccepting = new AtomicBoolean(true);
@@ -339,7 +339,7 @@ public class SolonClawCodeExecutionSkills {
                     "import json, os, shlex, time\n"
                             + "\n"
                             + "_seq = 0\n"
-                            + "_rpc_dir = os.environ.get('JIMUQU_RPC_DIR')\n"
+                            + "_rpc_dir = os.environ.get('SOLONCLAW_RPC_DIR')\n"
                             + "\n"
                             + "def json_parse(text):\n"
                             + "    return json.loads(text, strict=False)\n"
@@ -361,7 +361,7 @@ public class SolonClawCodeExecutionSkills {
                             + "def _call(tool_name, args):\n"
                             + "    global _seq\n"
                             + "    if not _rpc_dir:\n"
-                            + "        raise RuntimeError('JIMUQU_RPC_DIR is not configured')\n"
+                            + "        raise RuntimeError('SOLONCLAW_RPC_DIR is not configured')\n"
                             + "    _seq += 1\n"
                             + "    seq = '%06d' % _seq\n"
                             + "    req = os.path.join(_rpc_dir, 'req_' + seq + '.json')\n"

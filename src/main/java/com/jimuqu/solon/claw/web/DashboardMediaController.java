@@ -17,13 +17,13 @@ public class DashboardMediaController {
         this.mediaService = mediaService;
     }
 
-    @Mapping(value = "/api/jimuqu/media", method = MethodType.GET)
+    @Mapping(value = "/api/media", method = MethodType.GET)
     public Map<String, Object> list(Context context) throws Exception {
         return DashboardResponse.ok(
                 mediaService.list(context.param("platform"), context.paramAsInt("limit", 50)));
     }
 
-    @Mapping(value = "/api/jimuqu/media/index", method = MethodType.POST)
+    @Mapping(value = "/api/media/index", method = MethodType.POST)
     public Map<String, Object> index(Context context) throws Exception {
         return safeMedia(
                 context,
@@ -35,12 +35,12 @@ public class DashboardMediaController {
                 });
     }
 
-    @Mapping(value = "/api/jimuqu/media/{mediaId}", method = MethodType.GET)
+    @Mapping(value = "/api/media/{mediaId}", method = MethodType.GET)
     public Map<String, Object> detail(String mediaId) throws Exception {
         return DashboardResponse.ok(mediaService.detail(mediaId));
     }
 
-    @Mapping(value = "/api/jimuqu/media/{mediaId}/refresh", method = MethodType.POST)
+    @Mapping(value = "/api/media/{mediaId}/refresh", method = MethodType.POST)
     public Map<String, Object> refresh(String mediaId) throws Exception {
         return safeMedia(
                 Context.current(),
@@ -52,7 +52,7 @@ public class DashboardMediaController {
                 });
     }
 
-    @Mapping(value = "/api/jimuqu/media/{mediaId}/download", method = MethodType.POST)
+    @Mapping(value = "/api/media/{mediaId}/download", method = MethodType.POST)
     public Map<String, Object> download(String mediaId) throws Exception {
         return safeMedia(
                 Context.current(),
@@ -64,7 +64,7 @@ public class DashboardMediaController {
                 });
     }
 
-    @Mapping(value = "/api/jimuqu/media/{mediaId}/reference", method = MethodType.POST)
+    @Mapping(value = "/api/media/{mediaId}/reference", method = MethodType.POST)
     public Map<String, Object> reference(String mediaId) throws Exception {
         return safeMedia(
                 Context.current(),

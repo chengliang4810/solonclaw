@@ -149,8 +149,8 @@ public class SolonClawShellSkillTest {
         Map<String, Object> summary = skill.sudoRewritePolicySummary();
 
         assertThat(summary.get("configured")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("envKey")).isEqualTo("SUDO_PASSWORD");
-        assertThat(summary.get("configKey")).isEqualTo("terminal.sudoPassword");
+        assertThat(summary.get("envKey")).isEqualTo("SOLONCLAW_SUDO_PASSWORD");
+        assertThat(summary.get("configKey")).isEqualTo("solonclaw.terminal.sudoPassword");
         assertThat(summary.get("rewritesRealSudoInvocations")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("stdinPasswordInjection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("passwordRedacted")).isEqualTo(Boolean.TRUE);

@@ -17,28 +17,28 @@ public class DashboardCuratorController {
         this.curatorService = curatorService;
     }
 
-    @Mapping(value = "/api/jimuqu/curator", method = MethodType.GET)
+    @Mapping(value = "/api/curator", method = MethodType.GET)
     public Map<String, Object> list(Context context) throws Exception {
         return DashboardResponse.ok(curatorService.list(context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/run", method = MethodType.POST)
+    @Mapping(value = "/api/curator/run", method = MethodType.POST)
     public Map<String, Object> run(Context context) throws Exception {
         return DashboardResponse.ok(
                 curatorService.run(Boolean.parseBoolean(context.param("force"))));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/{reportId}", method = MethodType.GET)
+    @Mapping(value = "/api/curator/{reportId}", method = MethodType.GET)
     public Map<String, Object> detail(String reportId) throws Exception {
         return DashboardResponse.ok(curatorService.detail(reportId));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/improvements", method = MethodType.GET)
+    @Mapping(value = "/api/curator/improvements", method = MethodType.GET)
     public Map<String, Object> improvements(Context context) throws Exception {
         return DashboardResponse.ok(curatorService.improvements(context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/apply", method = MethodType.POST)
+    @Mapping(value = "/api/curator/apply", method = MethodType.POST)
     public Map<String, Object> apply(Context context) throws Exception {
         return safeCurator(
                 context,
@@ -51,7 +51,7 @@ public class DashboardCuratorController {
                 });
     }
 
-    @Mapping(value = "/api/jimuqu/curator/ignore", method = MethodType.POST)
+    @Mapping(value = "/api/curator/ignore", method = MethodType.POST)
     public Map<String, Object> ignore(Context context) throws Exception {
         return safeCurator(
                 context,

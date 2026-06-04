@@ -337,7 +337,7 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security mcp-package"))
                 .contains("MCP 包安全策略摘要")
                 .contains("launchers=[npx, uvx, pipx]")
-                .contains("env=JIMUQU_OSV_ENDPOINT,OSV_ENDPOINT")
+                .contains("env=SOLONCLAW_OSV_ENDPOINT")
                 .contains("malwarePrefix=MAL-")
                 .contains("npxPackageOption=true")
                 .contains("pypiSourceOption=true")
@@ -393,7 +393,7 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security subprocess-env"))
                 .contains("子进程环境安全策略摘要")
                 .contains("defaultDenyUnknown")
-                .contains("_JIMUQU_FORCE_");
+                .contains("_SOLONCLAW_FORCE_");
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-output"))
                 .contains("终端输出安全策略摘要")
                 .contains("maxInlineChars")

@@ -139,7 +139,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "runtime_env_access",
                             "critical",
                             "exfiltration",
-                            "\\$HOME/\\.jimuqu-agent/\\.env|~/\\.jimuqu-agent/\\.env|runtime/\\.env|runtime/auth\\.json|runtime/cache/bws_cache\\.json|runtime/mcp-tokens",
+                            "\\$HOME/\\.solon-claw/\\.env|~/\\.solon-claw/\\.env|runtime/\\.env|runtime/auth\\.json|runtime/cache/bws_cache\\.json|runtime/mcp-tokens",
                             "directly references local runtime secrets or token stores"),
                     new ThreatPattern(
                             "read_secrets_file",
@@ -583,7 +583,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "runtime_config_mod",
                             "critical",
                             "persistence",
-                            "\\.jimuqu-agent/config\\.yml|runtime/config\\.yml|runtime/config\\.example\\.yml",
+                            "\\.solon-claw/config\\.yml|runtime/config\\.yml|runtime/config\\.example\\.yml",
                             "references local runtime configuration files"),
                     new ThreatPattern(
                             "other_agent_config",

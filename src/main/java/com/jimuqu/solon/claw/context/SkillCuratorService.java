@@ -312,8 +312,7 @@ public class SkillCuratorService {
         if (curator instanceof Map && asBoolean(((Map<String, Object>) curator).get("pinned"))) {
             return true;
         }
-        Object Jimuqu = metadata.get("Jimuqu");
-        return Jimuqu instanceof Map && asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
+        return false;
     }
 
     private boolean asBoolean(Object value) {

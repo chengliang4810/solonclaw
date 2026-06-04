@@ -149,7 +149,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     @ToolMapping(
             name = "file_read",
             description =
-                    "读取文本文件内容。返回带行号的 JSON 结果；offset 从 1 开始，limit 默认 500，并受 tool_output.max_lines 限制。")
+                    "读取文本文件内容。返回带行号的 JSON 结果；offset 从 1 开始，limit 默认 500，并受 solonclaw.task.toolOutputMaxLines 限制。")
     public String read(
             @Param("fileName") String fileName,
             @Param(
@@ -162,7 +162,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                             name = "limit",
                             required = false,
                             defaultValue = "500",
-                            description = "最多读取多少行，会按 tool_output.max_lines 截断。")
+                            description = "最多读取多少行，会按 solonclaw.task.toolOutputMaxLines 截断。")
                     Integer limit) {
         assertSafe(ToolNameConstants.FILE_READ, fileName);
         return readPaged(fileName, offset, limit);

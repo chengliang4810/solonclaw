@@ -302,14 +302,13 @@ public class DashboardStatusServiceTest {
         Map<String, Object> cronCapabilities = (Map<String, Object>) capabilities.get("cron");
         assertThat(cronCapabilities)
                 .containsEntry("approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
         Map<String, Object> toolSafetyCapabilities =
                 (Map<String, Object>) capabilities.get("tool_safety");
         assertThat(toolSafetyCapabilities)
                 .containsEntry("approval_mode", "bypass")
                 .containsEntry("cron_approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "on")
-                .containsEntry("legacy_cron_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
                 .containsEntry("service", "solon-claw")
@@ -327,14 +326,13 @@ public class DashboardStatusServiceTest {
         Map<String, Object> cronStatus = (Map<String, Object>) runtimeStatus.get("cron");
         assertThat(cronStatus)
                 .containsEntry("approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
         Map<String, Object> toolSafetyStatus =
                 (Map<String, Object>) runtimeStatus.get("tool_safety");
         assertThat(toolSafetyStatus)
                 .containsEntry("approval_mode", "bypass")
                 .containsEntry("cron_approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "on")
-                .containsEntry("legacy_cron_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
 
         String json = ONode.serialize(status);
         assertThat(json)

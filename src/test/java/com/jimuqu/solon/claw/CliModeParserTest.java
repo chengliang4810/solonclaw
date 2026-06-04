@@ -64,14 +64,14 @@ public class CliModeParserTest {
         String fish = completion(generator, "fish");
 
         assertThat(bash)
-                .contains("_jimuqu_agent_completion()")
-                .contains("complete -F _jimuqu_agent_completion jimuqu-agent")
+                .contains("_solon_claw_completion()")
+                .contains("complete -F _solon_claw_completion solon-claw")
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains("--session --ask -p")
                 .contains("/reload-mcp now");
         assertThat(zsh)
-                .contains("#compdef jimuqu-agent")
+                .contains("#compdef solon-claw")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
@@ -79,7 +79,7 @@ public class CliModeParserTest {
                 .contains("/reload-mcp always")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
-                .contains("complete -c jimuqu-agent -f")
+                .contains("complete -c solon-claw -f")
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
                 .contains("__fish_seen_argument -s p -l ask")

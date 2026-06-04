@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 
 /** Subprocess environment filtering for local tools. */
 public final class SubprocessEnvironmentSanitizer {
-    public static final String FORCE_PREFIX = "_JIMUQU_FORCE_";
+    public static final String FORCE_PREFIX = "_SOLONCLAW_FORCE_";
 
     private static final Pattern ENV_NAME_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final String[] SAFE_ENV_PREFIXES =
@@ -26,7 +26,7 @@ public final class SubprocessEnvironmentSanitizer {
             };
     private static final String[] SAFE_CONTEXT_ENV_NAMES =
             new String[] {
-                "JIMUQU_PROFILE"
+                "SOLONCLAW_PROFILE"
             };
     private static final String[] SECRET_ENV_SUBSTRINGS =
             new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
@@ -543,7 +543,6 @@ public final class SubprocessEnvironmentSanitizer {
                     "TERMINAL_SSH_HOST",
                     "TERMINAL_SSH_USER",
                     "TERMINAL_SSH_KEY",
-                    "SUDO_PASSWORD",
                     "FEISHU_APP_ID",
                     "FEISHU_APP_SECRET",
                     "DINGTALK_CLIENT_ID",

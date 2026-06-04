@@ -139,19 +139,10 @@ public class RuntimeConfigResolver {
         reloadIfNeeded();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> unknownKeys = new ArrayList<Map<String, Object>>();
-        List<Map<String, Object>> legacyKeys = new ArrayList<Map<String, Object>>();
         List<Map<String, Object>> effectiveDiffs = new ArrayList<Map<String, Object>>();
         List<String> knownPrefixes = knownDynamicPrefixes(appConfig);
         for (Map.Entry<String, Object> entry : fileValues.entrySet()) {
             String key = entry.getKey();
-            if (isRuntimeHomeKey(key)) {
-                legacyKeys.add(configKeyItem(key, entry.getValue(), "runtime_home_ignored"));
-                continue;
-            }
-            if (isKnownLegacyKey(key)) {
-                legacyKeys.add(configKeyItem(key, entry.getValue(), "legacy_alias"));
-                continue;
-            }
             if (!isKnownConfigKey(key, knownPrefixes)) {
                 unknownKeys.add(configKeyItem(key, entry.getValue(), "unknown"));
             }
@@ -179,15 +170,13 @@ public class RuntimeConfigResolver {
         result.put("config_file", configFileReference());
         result.put("raw_key_count", Integer.valueOf(fileValues.size()));
         result.put("unknown_keys", unknownKeys);
-        result.put("legacy_keys", legacyKeys);
         result.put("effective_diffs", effectiveDiffs);
         result.put("unknown_count", Integer.valueOf(unknownKeys.size()));
-        result.put("legacy_count", Integer.valueOf(legacyKeys.size()));
         result.put("effective_diff_count", Integer.valueOf(effectiveDiffs.size()));
         result.put(
                 "has_issues",
                 Boolean.valueOf(
-                        !unknownKeys.isEmpty() || !legacyKeys.isEmpty() || !effectiveDiffs.isEmpty()));
+                        !unknownKeys.isEmpty() || !effectiveDiffs.isEmpty()));
         return result;
     }
 
@@ -366,10 +355,6 @@ public class RuntimeConfigResolver {
         return "solonclaw.runtime.home".equals(key);
     }
 
-    private static boolean isKnownLegacyKey(String key) {
-        return "provider".equals(key) || "base_url".equals(key) || "baseUrl".equals(key);
-    }
-
     private static boolean isKnownConfigKey(String key, List<String> dynamicPrefixes) {
         if (KEY_PATHS.containsKey(key) || KEY_PATHS.containsValue(key)) {
             return true;
@@ -397,23 +382,15 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "solonclaw.gateway.platforms.");
         addDynamicPrefix(prefixes, "solonclaw.agent.personalities.");
         addDynamicPrefix(prefixes, "solonclaw.channels.wecom.groups.");
-        addDynamicPrefix(prefixes, "solonclaw.scheduler.cronApprovalMode");
         addDynamicPrefix(prefixes, "solonclaw.scheduler.enabledToolsets");
         addDynamicPrefix(prefixes, "security.guardrailMode");
         addDynamicPrefix(prefixes, "security.guardrailCronMode");
         addDynamicPrefix(prefixes, "security.guardrailCronScope");
         addDynamicPrefix(prefixes, "security.hardlineAllowlist");
-        addDynamicPrefix(prefixes, "security.guardrail_mode");
-        addDynamicPrefix(prefixes, "security.guardrail_cron_mode");
-        addDynamicPrefix(prefixes, "security.guardrail_cron_scope");
-        addDynamicPrefix(prefixes, "security.hardline_allowlist");
         addDynamicPrefix(prefixes, "solonclaw.task.restartDrainTimeoutSeconds");
         addDynamicPrefix(prefixes, "solonclaw.terminal.shellInitFiles");
-        addDynamicPrefix(prefixes, "terminal.shell_init_files");
         addDynamicPrefix(prefixes, "solonclaw.terminal.autoSourceBashrc");
-        addDynamicPrefix(prefixes, "terminal.auto_source_bashrc");
         addDynamicPrefix(prefixes, "solonclaw.terminal.processWaitTimeoutSeconds");
-        addDynamicPrefix(prefixes, "terminal.process_wait_timeout");
         if (appConfig != null) {
             for (String providerKey : appConfig.getProviders().keySet()) {
                 addDynamicPrefix(prefixes, "providers." + providerKey + ".");
@@ -450,33 +427,6 @@ public class RuntimeConfigResolver {
         if (configKey.startsWith("solonclaw.")) {
             return configKey.substring("solonclaw.".length());
         }
-        if (configKey.startsWith("jimuqu.security.")) {
-            return "security." + configKey.substring("jimuqu.security.".length());
-        }
-        if (configKey.startsWith("jimuqu.approvals.")) {
-            return "approvals." + configKey.substring("jimuqu.approvals.".length());
-        }
-        if (configKey.startsWith("jimuqu.terminal.")) {
-            return "terminal." + configKey.substring("jimuqu.terminal.".length());
-        }
-        if ("tool_output.max_bytes".equals(configKey)) {
-            return "task.toolOutputInlineLimit";
-        }
-        if ("tool_output.turn_budget_bytes".equals(configKey)) {
-            return "task.toolOutputTurnBudget";
-        }
-        if ("tool_output.max_lines".equals(configKey)) {
-            return "task.toolOutputMaxLines";
-        }
-        if ("tool_output.max_line_length".equals(configKey)) {
-            return "task.toolOutputMaxLineLength";
-        }
-        if (configKey.startsWith("web.")) {
-            return "web." + configKey.substring("web.".length());
-        }
-        if (configKey.startsWith("browser.")) {
-            return "security.browser" + upperFirst(configKey.substring("browser.".length()));
-        }
         if (configKey.startsWith("security.")) {
             return configKey;
         }
@@ -490,13 +440,6 @@ public class RuntimeConfigResolver {
             return configKey;
         }
         return null;
-    }
-
-    private static String upperFirst(String value) {
-        if (StrUtil.isBlank(value)) {
-            return "";
-        }
-        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     private static boolean sameConfigValue(Object rawValue, Object effectiveValue) {
@@ -782,7 +725,6 @@ public class RuntimeConfigResolver {
                 "solonclaw.display.toolProgress",
                 "solonclaw.display.showReasoning",
                 "solonclaw.display.resumeDisplay",
-                "solonclaw.display.resume_display",
                 "solonclaw.display.toolPreviewLength",
                 "solonclaw.display.progressThrottleMs",
                 "solonclaw.display.runtimeFooter.enabled",
@@ -811,20 +753,6 @@ public class RuntimeConfigResolver {
                 "solonclaw.react.toolLoopSameToolFailureHaltAfter",
                 "solonclaw.react.toolLoopNoProgressWarnAfter",
                 "solonclaw.react.toolLoopNoProgressBlockAfter",
-                "tool_loop_guardrails.warnings_enabled",
-                "tool_loop_guardrails.hard_stop_enabled",
-                "tool_loop_guardrails.warn_after.exact_failure",
-                "tool_loop_guardrails.warn_after.same_tool_failure",
-                "tool_loop_guardrails.warn_after.idempotent_no_progress",
-                "tool_loop_guardrails.hard_stop_after.exact_failure",
-                "tool_loop_guardrails.hard_stop_after.same_tool_failure",
-                "tool_loop_guardrails.hard_stop_after.idempotent_no_progress",
-                "tool_loop_guardrails.exact_failure_warn_after",
-                "tool_loop_guardrails.exact_failure_block_after",
-                "tool_loop_guardrails.same_tool_failure_warn_after",
-                "tool_loop_guardrails.same_tool_failure_halt_after",
-                "tool_loop_guardrails.no_progress_warn_after",
-                "tool_loop_guardrails.no_progress_block_after",
                 "solonclaw.trace.retentionDays",
                 "solonclaw.trace.maxAttempts",
                 "solonclaw.trace.toolPreviewLength",
@@ -836,109 +764,37 @@ public class RuntimeConfigResolver {
                 "solonclaw.task.toolOutputTurnBudget",
                 "solonclaw.task.toolOutputMaxLines",
                 "solonclaw.task.toolOutputMaxLineLength",
-                "tool_output.max_bytes",
-                "tool_output.turn_budget_bytes",
-                "tool_output.max_lines",
-                "tool_output.max_line_length",
                 "solonclaw.task.mediaCacheTtlHours",
                 "solonclaw.browser.rewriteLoopbackUrls",
-                "solonclaw.browser.rewrite_loopback_urls",
                 "solonclaw.browser.loopbackHostAlias",
-                "solonclaw.browser.loopback_host_alias",
-                "jimuqu.security.allowPrivateUrls",
                 "security.allowPrivateUrls",
-                "jimuqu.security.allow_private_urls",
-                "security.allow_private_urls",
-                "jimuqu.browser.allow_private_urls",
-                "browser.allow_private_urls",
-                "jimuqu.security.websiteBlocklist.enabled",
-                "jimuqu.security.websiteBlocklist.domains",
-                "jimuqu.security.websiteBlocklist.sharedFiles",
-                "jimuqu.security.website_blocklist.enabled",
-                "jimuqu.security.website_blocklist.domains",
-                "jimuqu.security.website_blocklist.shared_files",
                 "security.websiteBlocklist.enabled",
                 "security.websiteBlocklist.domains",
                 "security.websiteBlocklist.sharedFiles",
-                "security.website_blocklist.enabled",
-                "security.website_blocklist.domains",
-                "security.website_blocklist.shared_files",
-                "jimuqu.security.tirithEnabled",
-                "jimuqu.security.tirithPath",
-                "jimuqu.security.tirithTimeoutSeconds",
-                "jimuqu.security.tirithFailOpen",
-                "jimuqu.security.tirith_enabled",
-                "jimuqu.security.tirith_path",
-                "jimuqu.security.tirith_timeout",
-                "jimuqu.security.tirith_fail_open",
                 "security.tirithEnabled",
                 "security.tirithPath",
                 "security.tirithTimeoutSeconds",
                 "security.tirithFailOpen",
-                "security.tirith_enabled",
-                "security.tirith_path",
-                "security.tirith_timeout",
-                "security.tirith_fail_open",
                 "security.guardrailMode",
                 "security.guardrailCronMode",
                 "security.guardrailCronScope",
                 "security.hardlineAllowlist",
-                "security.guardrail_mode",
-                "security.guardrail_cron_mode",
-                "security.guardrail_cron_scope",
-                "security.hardline_allowlist",
                 "solonclaw.web.searchBackend",
-                "solonclaw.web.search_backend",
                 "solonclaw.web.braveSearchApiKey",
-                "solonclaw.web.brave_search_api_key",
-                "web.backend",
-                "web.search_backend",
-                "web.brave_search_api_key",
-                "jimuqu.approvals.mode",
-                "jimuqu.approvals.cronMode",
-                "jimuqu.approvals.cron_mode",
-                "jimuqu.approvals.subagentAutoApprove",
-                "jimuqu.approvals.subagent_auto_approve",
-                "delegation.subagent_auto_approve",
-                "jimuqu.approvals.timeoutSeconds",
-                "jimuqu.approvals.timeout",
-                "jimuqu.approvals.gatewayTimeoutSeconds",
-                "jimuqu.approvals.gateway_timeout",
-                "jimuqu.approvals.mcpReloadConfirm",
-                "jimuqu.approvals.mcp_reload_confirm",
-                "approvals.mode",
-                "approvals.cronMode",
-                "approvals.cron_mode",
                 "approvals.subagentAutoApprove",
-                "approvals.subagent_auto_approve",
                 "approvals.timeoutSeconds",
-                "approvals.timeout",
                 "approvals.gatewayTimeoutSeconds",
-                "approvals.gateway_timeout",
                 "approvals.mcpReloadConfirm",
-                "approvals.mcp_reload_confirm",
-                "jimuqu.terminal.credentialFiles",
-                "jimuqu.terminal.credential_files",
-                "terminal.credentialFiles",
-                "terminal.credential_files",
-                "jimuqu.terminal.envPassthrough",
-                "jimuqu.terminal.env_passthrough",
-                "terminal.envPassthrough",
-                "terminal.env_passthrough",
-                "jimuqu.terminal.sudoPassword",
-                "jimuqu.terminal.sudo_password",
-                "terminal.sudoPassword",
-                "terminal.sudo_password",
-                "jimuqu.terminal.writeSafeRoot",
-                "jimuqu.terminal.write_safe_root",
-                "terminal.writeSafeRoot",
-                "terminal.write_safe_root",
+                "solonclaw.terminal.credentialFiles",
+                "solonclaw.terminal.envPassthrough",
+                "solonclaw.terminal.sudoPassword",
+                "solonclaw.terminal.writeSafeRoot",
+                "solonclaw.terminal.shellInitFiles",
+                "solonclaw.terminal.autoSourceBashrc",
+                "solonclaw.terminal.processWaitTimeoutSeconds",
                 "solonclaw.terminal.maxForegroundTimeoutSeconds",
-                "terminal.max_foreground_timeout",
                 "solonclaw.terminal.foregroundMaxRetries",
-                "terminal.foreground_max_retries",
                 "solonclaw.terminal.foregroundRetryBaseDelaySeconds",
-                "terminal.foreground_retry_base_delay",
                 "solonclaw.mcp.enabled",
                 "solonclaw.update.repo",
                 "solonclaw.update.releaseApiUrl",
@@ -953,9 +809,6 @@ public class RuntimeConfigResolver {
                 "solonclaw.integrations.github.privateKeyPath",
                 "solonclaw.integrations.github.installationId",
                 "solonclaw.pdf.fontPath");
-        mappings.put("model.maxTokens", "solonclaw.llm.maxTokens");
-        mappings.put("model.max_tokens", "solonclaw.llm.maxTokens");
-
         addChannelMappings(
                 mappings,
                 "feishu",
@@ -1043,7 +896,6 @@ public class RuntimeConfigResolver {
         for (String field : extraFields) {
             add(mappings, base + field);
         }
-        mappings.put(base + "allowed_chats", base + "allowedChats");
     }
 
     private static void addAll(Map<String, String> mappings, String... paths) {

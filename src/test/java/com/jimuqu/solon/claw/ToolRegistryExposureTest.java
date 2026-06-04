@@ -156,8 +156,8 @@ public class ToolRegistryExposureTest {
                                 env.appConfig.getTask().getToolOutputTurnBudget(),
                                 env.appConfig.getTrace().getToolPreviewLength()),
                         env.appConfig);
-        env.appConfig.getApprovals().setMode("smart");
-        env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getSecurity().setGuardrailMode("smart");
+        env.appConfig.getSecurity().setGuardrailCronMode("approve");
         env.appConfig.getApprovals().setSubagentAutoApprove(false);
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
         env.appConfig
@@ -402,9 +402,10 @@ public class ToolRegistryExposureTest {
                                 .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("cronApprovalPolicy")))
-                .contains("approvals.cronMode")
                 .contains("security.guardrailCronMode")
-                .contains("approvalModeCanPauseCron");
+                .contains("approvalModeCanPauseCron")
+                .doesNotContain("approvals.cronMode")
+                .doesNotContain("scheduler.cronApprovalMode");
         assertThat(
                         policyStatus
                                 .get("policy")
@@ -1076,7 +1077,7 @@ public class ToolRegistryExposureTest {
         assertThat(privateUrlPolicyDetails.get("siteLocalBlocked").getBoolean()).isTrue();
         assertThat(privateUrlPolicyDetails.get("reservedDocumentationRangesBlocked").getBoolean()).isTrue();
         assertThat(String.valueOf(privateUrlPolicyDetails))
-                .contains("JIMUQU_ALLOW_PRIVATE_URLS")
+                .contains("SOLONCLAW_ALLOW_PRIVATE_URLS")
                 .contains("metadata.google.internal")
                 .doesNotContain("secret-sudo");
         ONode websitePolicyDetails =
@@ -1555,7 +1556,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldRedactSecretsInSecurityAuditFindingsLikeJimuqu() throws Exception {
+    void shouldRedactSecretsInSecurityAuditFindingsWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SecurityAuditTools tools =
@@ -2125,7 +2126,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldRedactSensitiveWatchPatternsThroughProcessToolLikeJimuqu() throws Exception {
+    void shouldRedactSensitiveWatchPatternsThroughProcessToolWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry.ManagedProcess managed =
                 env.processRegistry.start(javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
@@ -5122,7 +5123,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldDeduplicateUnchangedRepeatedFileReadsLikeJimuqu() throws Exception {
+    void shouldDeduplicateUnchangedRepeatedFileReadsWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
@@ -5217,7 +5218,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldWarnButNotBlockWhenWritingStaleReadFileLikeJimuqu() throws Exception {
+    void shouldWarnButNotBlockWhenWritingStaleReadFileWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path file = workspace.resolve("stale-write.txt");
@@ -5267,7 +5268,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldWarnWhenPatchingStaleReadFileLikeJimuqu() throws Exception {
+    void shouldWarnWhenPatchingStaleReadFileWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path file = workspace.resolve("stale-patch.txt");
@@ -5309,7 +5310,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldRefuseWritingInternalReadDedupStatusTextLikeJimuqu() throws Exception {
+    void shouldRefuseWritingInternalReadDedupStatusTextWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(

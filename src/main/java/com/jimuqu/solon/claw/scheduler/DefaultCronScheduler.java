@@ -852,14 +852,14 @@ public class DefaultCronScheduler {
     }
 
     private int agentInactivityTimeoutSeconds() {
-        String envValue = StrUtil.trim(System.getenv("JIMUQU_CRON_TIMEOUT"));
+        String envValue = StrUtil.trim(System.getenv("SOLONCLAW_CRON_TIMEOUT"));
         if (StrUtil.isNotBlank(envValue)) {
             try {
                 int value = (int) Double.parseDouble(envValue);
                 return value >= 0 ? value : DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS;
             } catch (Exception e) {
                 log.warn(
-                        "Invalid JIMUQU_CRON_TIMEOUT={}; using default {}s",
+                        "Invalid SOLONCLAW_CRON_TIMEOUT={}; using default {}s",
                         envValue,
                         DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS);
                 return DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS;
@@ -1445,7 +1445,7 @@ public class DefaultCronScheduler {
     }
 
     private int scriptTimeoutSeconds() {
-        String envValue = StrUtil.trim(System.getenv("JIMUQU_CRON_SCRIPT_TIMEOUT"));
+        String envValue = StrUtil.trim(System.getenv("SOLONCLAW_CRON_SCRIPT_TIMEOUT"));
         if (StrUtil.isNotBlank(envValue)) {
             try {
                 int value = (int) Double.parseDouble(envValue);
@@ -1453,7 +1453,7 @@ public class DefaultCronScheduler {
                     return value;
                 }
             } catch (Exception e) {
-                log.warn("Invalid JIMUQU_CRON_SCRIPT_TIMEOUT={}; using config/default", envValue);
+                log.warn("Invalid SOLONCLAW_CRON_SCRIPT_TIMEOUT={}; using config/default", envValue);
             }
         }
         int value =

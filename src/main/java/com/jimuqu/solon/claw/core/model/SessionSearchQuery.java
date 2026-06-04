@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Dashboard/jimuqu search 过滤条件。 */
+/** Dashboard search 过滤条件。 */
 @Getter
 @Setter
 @NoArgsConstructor

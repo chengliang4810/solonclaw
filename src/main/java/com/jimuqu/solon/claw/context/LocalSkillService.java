@@ -785,11 +785,6 @@ public class LocalSkillService implements SkillCatalogService {
                 pinned = pinned || asBoolean(((Map<String, Object>) curator).get("pinned"));
                 readOnly = readOnly || asBoolean(((Map<String, Object>) curator).get("readonly"));
             }
-            Object Jimuqu = metadata.get("Jimuqu");
-            if (Jimuqu instanceof Map) {
-                pinned = pinned || asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
-                readOnly = readOnly || asBoolean(((Map<String, Object>) Jimuqu).get("readonly"));
-            }
         }
         if (pinned || readOnly || !"agent-created".equals(descriptor.getTrustLevel())) {
             throw new IllegalStateException(
@@ -985,30 +980,19 @@ public class LocalSkillService implements SkillCatalogService {
         if (SkillSetupState.UNSUPPORTED.name().equals(descriptor.getSetupState())) {
             return false;
         }
-        Map<String, Object> Jimuqu =
-                SkillFrontmatterSupport.getCompatibilityMetadata(descriptor.getMetadata());
         if (!checkRequiresTools(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_tools")),
+                SkillFrontmatterSupport.parseStringList(descriptor.getMetadata().get("requires_tools")),
                 agentScope)) {
             return false;
         }
         if (!checkRequiresToolsets(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_toolsets")),
+                SkillFrontmatterSupport.parseStringList(descriptor.getMetadata().get("requires_toolsets")),
                 agentScope)) {
             return false;
         }
-        if (!checkFallbackTools(
-                sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_tools")),
-                agentScope)) {
-            return false;
-        }
-        return checkFallbackToolsets(
-                sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_toolsets")),
-                agentScope);
+        return true;
     }
 
     private boolean checkRequiresTools(

@@ -393,15 +393,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.skills.externalDirs",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "solonclaw.skills.external_dirs",
-                                                readRaw(
-                                                        props,
-                                                        overrides,
-                                                        "skills.external_dirs",
-                                                        "")))));
+                                        "")));
         config.getSkills()
                 .setTemplateVars(
                         resolveBoolean(
@@ -409,19 +401,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.skills.templateVars",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "solonclaw.skills.template_vars",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "skills.templateVars",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "skills.template_vars",
-                                                                true))))));
+                                        true)));
         config.getSkills()
                 .setInlineShell(
                         resolveBoolean(
@@ -429,19 +409,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.skills.inlineShell",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "solonclaw.skills.inline_shell",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "skills.inlineShell",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "skills.inline_shell",
-                                                                false))))));
+                                        false)));
         config.getSkills()
                 .setInlineShellTimeoutSeconds(
                         resolveInt(
@@ -449,23 +417,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.skills.inlineShellTimeoutSeconds",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.skills.inline_shell_timeout_seconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "skills.inlineShellTimeoutSeconds",
-                                                        readInt(
-                                                                props,
-                                                                overrides,
-                                                                "skills.inline_shell_timeout_seconds",
-                                                                readInt(
-                                                                        props,
-                                                                        overrides,
-                                                                        "skills.inline_shell_timeout",
-                                                                        10)))))));
+                                        10)));
 
         config.getRollback()
                 .setEnabled(
@@ -519,11 +471,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.display.resumeDisplay",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "solonclaw.display.resume_display",
-                                                "full"))));
+                                        "full")));
         config.getDisplay()
                 .setToolPreviewLength(
                         resolveInt(
@@ -1396,11 +1344,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.task.toolOutputInlineLimit",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_output.max_bytes",
-                                                        50000))),
+                                                50000)),
                                 50000));
         config.getTask()
                 .setToolOutputTurnBudget(
@@ -1410,11 +1354,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.task.toolOutputTurnBudget",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_output.turn_budget_bytes",
-                                                        200000))),
+                                                200000)),
                                 200000));
         config.getTask()
                 .setToolOutputMaxLines(
@@ -1424,11 +1364,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.task.toolOutputMaxLines",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_output.max_lines",
-                                                        2000))),
+                                                2000)),
                                 2000));
         config.getTask()
                 .setToolOutputMaxLineLength(
@@ -1438,11 +1374,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.task.toolOutputMaxLineLength",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_output.max_line_length",
-                                                        2000))),
+                                                2000)),
                                 2000));
         config.getTask()
                 .setMediaCacheTtlHours(
@@ -1467,19 +1399,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.browser.loopbackHostAlias",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "solonclaw.browser.loopback_host_alias",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "browser.loopbackHostAlias",
-                                                        readString(
-                                                                props,
-                                                                overrides,
-                                                                "browser.loopback_host_alias",
-                                                                "host.docker.internal"))))));
+                                        "host.docker.internal")));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setEnabled(
@@ -1488,19 +1408,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.websiteBlocklist.enabled",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "security.website_blocklist.enabled",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.security.websiteBlocklist.enabled",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.website_blocklist.enabled",
-                                                                false))))));
+                                        false)));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setDomains(
@@ -1509,19 +1417,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.websiteBlocklist.domains",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "security.website_blocklist.domains",
-                                                readRaw(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.security.websiteBlocklist.domains",
-                                                        readRaw(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.website_blocklist.domains",
-                                                                ""))))));
+                                        "")));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setSharedFiles(
@@ -1530,19 +1426,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.websiteBlocklist.sharedFiles",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "security.website_blocklist.shared_files",
-                                                readRaw(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.security.websiteBlocklist.sharedFiles",
-                                                        readRaw(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.website_blocklist.shared_files",
-                                                                ""))))));
+                                        "")));
         config.getSecurity()
                 .setTirithEnabled(
                         resolveBoolean(
@@ -1550,19 +1434,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.tirithEnabled",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "security.tirith_enabled",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.security.tirithEnabled",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.tirith_enabled",
-                                                                true))))));
+                                        true)));
         config.getSecurity()
                 .setTirithPath(
                         resolveConfigString(
@@ -1570,19 +1442,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.tirithPath",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "security.tirith_path",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.security.tirithPath",
-                                                        readString(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.tirith_path",
-                                                                "tirith"))))));
+                                        "tirith")));
         config.getSecurity()
                 .setTirithTimeoutSeconds(
                         positiveInt(
@@ -1591,19 +1451,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "security.tirithTimeoutSeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "security.tirith_timeout",
-                                                        readInt(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.tirithTimeoutSeconds",
-                                                                readInt(
-                                                                        props,
-                                                                        overrides,
-                                                                        "jimuqu.security.tirith_timeout",
-                                                                        5))))),
+                                                5)),
                                 5));
         config.getSecurity()
                 .setTirithFailOpen(
@@ -1612,59 +1460,34 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.tirithFailOpen",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "security.tirith_fail_open",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.security.tirithFailOpen",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "jimuqu.security.tirith_fail_open",
-                                                                true))))));
+                                        true)));
         config.getSecurity()
                 .setGuardrailMode(
                         normalizeGuardrailMode(
                                 resolveConfigString(
                                         readString(
-                                                props,
-                                                overrides,
-                                                "security.guardrailMode",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "security.guardrail_mode",
-                                                        "approval")))));
+                                        props,
+                                        overrides,
+                                        "security.guardrailMode",
+                                        "approval"))));
         config.getSecurity()
                 .setGuardrailCronMode(
                         normalizeGuardrailCronMode(
                                 resolveConfigString(
                                         readString(
-                                                props,
-                                                overrides,
-                                                "security.guardrailCronMode",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "security.guardrail_cron_mode",
-                                                        config.getSecurity()
-                                                                .getGuardrailMode())))));
+                                        props,
+                                        overrides,
+                                        "security.guardrailCronMode",
+                                        config.getSecurity().getGuardrailMode()))));
         config.getSecurity()
                 .setGuardrailCronScope(
                         normalizeGuardrailCronScope(
                                 resolveConfigString(
                                         readString(
-                                                props,
-                                                overrides,
-                                                "security.guardrailCronScope",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "security.guardrail_cron_scope",
-                                                        "job")))));
+                                        props,
+                                        overrides,
+                                        "security.guardrailCronScope",
+                                        "job"))));
         config.getSecurity()
                 .setHardlineAllowlist(
                         resolveList(
@@ -1672,72 +1495,24 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "security.hardlineAllowlist",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "security.hardline_allowlist",
-                                                defaultHardlineAllowlist()))));
+                                        defaultHardlineAllowlist())));
         config.getApprovals()
                 .setMode(
                         normalizeApprovalMode(
                                 resolveConfigString(
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "jimuqu.approvals.mode",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "approvals.mode",
-                                                        guardrailApprovalMode(
-                                                                config.getSecurity()
-                                                                        .getGuardrailMode()))))));
-        String rawCronGuardrailMode =
-                readString(
-                        props,
-                        overrides,
-                        "jimuqu.approvals.cronMode",
-                        readString(
-                                props,
-                                overrides,
-                                "jimuqu.approvals.cron_mode",
-                                readString(
-                                        props,
-                                        overrides,
-                                        "approvals.cronMode",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "approvals.cron_mode",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "solonclaw.scheduler.cronApprovalMode",
-                                                        config.getSecurity()
-                                                                .getGuardrailCronMode())))));
+                                        guardrailApprovalMode(config.getSecurity().getGuardrailMode()))));
         config.getApprovals()
                 .setCronMode(
-                        normalizeGuardrailCronMode(resolveConfigString(rawCronGuardrailMode)));
+                        normalizeGuardrailCronMode(
+                                resolveConfigString(config.getSecurity().getGuardrailCronMode())));
         config.getApprovals()
                 .setSubagentAutoApprove(
                         resolveBoolean(
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "jimuqu.approvals.subagentAutoApprove",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "jimuqu.approvals.subagent_auto_approve",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "approvals.subagentAutoApprove",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "delegation.subagent_auto_approve",
-                                                                false))))));
+                                        "approvals.subagentAutoApprove",
+                                        false)));
         config.getApprovals()
                 .setTimeoutSeconds(
                         positiveInt(
@@ -1745,20 +1520,8 @@ public class AppConfig {
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "jimuqu.approvals.timeoutSeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.approvals.timeout",
-                                                        readInt(
-                                                                props,
-                                                                overrides,
-                                                                "approvals.timeoutSeconds",
-                                                                readInt(
-                                                                        props,
-                                                                        overrides,
-                                                                        "approvals.timeout",
-                                                                        60))))),
+                                                "approvals.timeoutSeconds",
+                                                60)),
                                 60));
         config.getApprovals()
                 .setGatewayTimeoutSeconds(
@@ -1767,20 +1530,8 @@ public class AppConfig {
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "jimuqu.approvals.gatewayTimeoutSeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "jimuqu.approvals.gateway_timeout",
-                                                        readInt(
-                                                                props,
-                                                                overrides,
-                                                                "approvals.gatewayTimeoutSeconds",
-                                                                readInt(
-                                                                        props,
-                                                                        overrides,
-                                                                        "approvals.gateway_timeout",
-                                                                        300))))),
+                                                "approvals.gatewayTimeoutSeconds",
+                                                300)),
                                 300));
         config.getApprovals()
                 .setMcpReloadConfirm(
@@ -1788,20 +1539,8 @@ public class AppConfig {
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "jimuqu.approvals.mcpReloadConfirm",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "jimuqu.approvals.mcp_reload_confirm",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "approvals.mcpReloadConfirm",
-                                                        readBoolean(
-                                                                props,
-                                                                overrides,
-                                                                "approvals.mcp_reload_confirm",
-                                                                true))))));
+                                        "approvals.mcpReloadConfirm",
+                                        true)));
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(
@@ -1813,19 +1552,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.web.searchBackend",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "solonclaw.web.search_backend",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "web.search_backend",
-                                                        readString(
-                                                                props,
-                                                                overrides,
-                                                                "web.backend",
-                                                                "solon-ai"))))));
+                                        "solon-ai")));
         config.getWeb()
                 .setBraveSearchApiKey(
                         resolveConfigString(
@@ -1833,55 +1560,23 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.web.braveSearchApiKey",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "solonclaw.web.brave_search_api_key",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "web.brave_search_api_key",
-                                                        "")))));
+                                        "")));
         config.getTerminal()
                 .setCredentialFiles(
                         resolveList(
                                 readRaw(
                                         props,
                                         overrides,
-                                        "jimuqu.terminal.credentialFiles",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "jimuqu.terminal.credential_files",
-                                                readRaw(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.credentialFiles",
-                                                        readRaw(
-                                                                props,
-                                                                overrides,
-                                                                "terminal.credential_files",
-                                                                ""))))));
+                                        "solonclaw.terminal.credentialFiles",
+                                        "")));
         config.getTerminal()
                 .setEnvPassthrough(
                         resolveList(
                                 readRaw(
                                         props,
                                         overrides,
-                                        "jimuqu.terminal.envPassthrough",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "jimuqu.terminal.env_passthrough",
-                                                readRaw(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.envPassthrough",
-                                                        readRaw(
-                                                                props,
-                                                                overrides,
-                                                                "terminal.env_passthrough",
-                                                                ""))))));
+                                        "solonclaw.terminal.envPassthrough",
+                                        "")));
         config.getTerminal()
                 .setShellInitFiles(
                         resolveList(
@@ -1889,11 +1584,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.terminal.shellInitFiles",
-                                        readRaw(
-                                                props,
-                                                overrides,
-                                                "terminal.shell_init_files",
-                                                ""))));
+                                        "")));
         config.getTerminal()
                 .setAutoSourceBashrc(
                         resolveBoolean(
@@ -1901,51 +1592,23 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.terminal.autoSourceBashrc",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "terminal.auto_source_bashrc",
-                                                true))));
+                                        true)));
         config.getTerminal()
                 .setSudoPassword(
                         resolveConfigString(
                                 readString(
                                         props,
                                         overrides,
-                                        "jimuqu.terminal.sudoPassword",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "jimuqu.terminal.sudo_password",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.sudoPassword",
-                                                        readString(
-                                                                props,
-                                                                overrides,
-                                                                "terminal.sudo_password",
-                                                                null))))));
+                                        "solonclaw.terminal.sudoPassword",
+                                        null)));
         config.getTerminal()
                 .setWriteSafeRoot(
                         resolveConfigString(
                                 readString(
                                         props,
                                         overrides,
-                                        "jimuqu.terminal.writeSafeRoot",
-                                        readString(
-                                                props,
-                                                overrides,
-                                                "jimuqu.terminal.write_safe_root",
-                                                readString(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.writeSafeRoot",
-                                                        readString(
-                                                                props,
-                                                                overrides,
-                                                                "terminal.write_safe_root",
-                                                                null))))));
+                                        "solonclaw.terminal.writeSafeRoot",
+                                        null)));
         config.getTerminal()
                 .setMaxForegroundTimeoutSeconds(
                         positiveInt(
@@ -1954,11 +1617,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.terminal.maxForegroundTimeoutSeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.max_foreground_timeout",
-                                                        600))),
+                                                600)),
                                 600));
         config.getTerminal()
                 .setForegroundMaxRetries(
@@ -1969,11 +1628,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.terminal.foregroundMaxRetries",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.foreground_max_retries",
-                                                        3)))));
+                                                3))));
         config.getTerminal()
                 .setForegroundRetryBaseDelaySeconds(
                         Math.max(
@@ -1983,11 +1638,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.terminal.foregroundRetryBaseDelaySeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.foreground_retry_base_delay",
-                                                        2)))));
+                                                2))));
         config.getTerminal()
                 .setProcessWaitTimeoutSeconds(
                         positiveInt(
@@ -1996,11 +1647,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.terminal.processWaitTimeoutSeconds",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "terminal.timeout",
-                                                        180))),
+                                                180)),
                                 180));
 
         config.normalizePaths();
@@ -3174,35 +2821,15 @@ public class AppConfig {
     }
 
     private static boolean readAllowPrivateUrls(Props props, Map<String, Object> overrides) {
-        String env = StrUtil.nullToEmpty(System.getenv("JIMUQU_ALLOW_PRIVATE_URLS")).trim();
+        String env = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_ALLOW_PRIVATE_URLS")).trim();
         if (env.length() > 0) {
             return parseBooleanText(env, false);
         }
         return readBoolean(
                 props,
                 overrides,
-                "jimuqu.security.allowPrivateUrls",
-                readBoolean(
-                        props,
-                        overrides,
-                        "security.allowPrivateUrls",
-                        readBoolean(
-                                props,
-                                overrides,
-                                "jimuqu.security.allow_private_urls",
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "security.allow_private_urls",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "jimuqu.browser.allow_private_urls",
-                                                readBoolean(
-                                                        props,
-                                                        overrides,
-                                                        "browser.allow_private_urls",
-                                                        true))))));
+                "security.allowPrivateUrls",
+                true);
     }
 
     private static boolean readBrowserLoopbackRewriteEnabled(
@@ -3211,19 +2838,7 @@ public class AppConfig {
                 props,
                 overrides,
                 "solonclaw.browser.rewriteLoopbackUrls",
-                readBoolean(
-                        props,
-                        overrides,
-                        "solonclaw.browser.rewrite_loopback_urls",
-                        readBoolean(
-                                props,
-                                overrides,
-                                "browser.rewriteLoopbackUrls",
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "browser.rewrite_loopback_urls",
-                                        false))));
+                false);
     }
 
     private static void applyProviderConfiguration(
@@ -3872,7 +3487,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class SkillsConfig {
-        /** 对齐 Jimuqu skills.external_dirs，额外只读技能目录清单。 */
+        /** 额外只读技能目录清单。 */
         private List<String> externalDirs = new ArrayList<String>();
 
         /** 是否启用 SKILL.md 模板变量替换。 */
@@ -3900,7 +3515,7 @@ public class AppConfig {
         /** 单文件快照大小上限，单位 MB。 */
         private int maxFileSizeMb = CheckpointConstants.DEFAULT_MAX_FILE_SIZE_MB;
 
-        /** Jimuqu v2 风格的默认排除模式，避免 checkpoint 膨胀或保存密钥。 */
+        /** 默认排除模式，避免 checkpoint 膨胀或保存密钥。 */
         private List<String> excludePatterns =
                 new ArrayList<String>(
                         Arrays.asList(
@@ -4112,10 +3727,10 @@ public class AppConfig {
         /** 单轮工具输出累计超过该长度时，后续输出会落盘/摘要化。 */
         private int toolOutputTurnBudget = 200000;
 
-        /** 对齐 Jimuqu tool_output.max_lines，供文件读取/分页输出限制使用。 */
+        /** 文件读取/分页输出的最大行数限制。 */
         private int toolOutputMaxLines = 2000;
 
-        /** 对齐 Jimuqu tool_output.max_line_length，供单行输出截断使用。 */
+        /** 文件读取/分页输出的单行截断长度。 */
         private int toolOutputMaxLineLength = 2000;
 
         /** 媒体缓存 TTL，单位小时。 */
@@ -4126,34 +3741,34 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class TerminalConfig {
-        /** 对齐 Jimuqu terminal.credential_files，相对 runtime home 的凭据文件挂载清单。 */
+        /** 相对 runtime home 的凭据文件挂载清单。 */
         private List<String> credentialFiles = new ArrayList<String>();
 
-        /** 对齐 Jimuqu terminal.env_passthrough，允许技能显式传给本地子进程的第三方环境变量名。 */
+        /** 允许技能显式传给本地子进程的第三方环境变量名。 */
         private List<String> envPassthrough = new ArrayList<String>();
 
-        /** 对齐 Jimuqu terminal.shell_init_files，执行非 Windows 本地 shell 前静默 source 的初始化文件。 */
+        /** 执行非 Windows 本地 shell 前静默 source 的初始化文件。 */
         private List<String> shellInitFiles = new ArrayList<String>();
 
-        /** 对齐 Jimuqu terminal.auto_source_bashrc，未显式配置初始化文件时自动尝试 ~/.profile 等文件。 */
+        /** 未显式配置初始化文件时自动尝试 ~/.profile 等文件。 */
         private boolean autoSourceBashrc = true;
 
-        /** 对齐 Jimuqu SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
+        /** 用于 sudo -S 改写的 sudo 密码。 */
         private String sudoPassword;
 
-        /** 对齐 Jimuqu JIMUQU_WRITE_SAFE_ROOT / terminal.write_safe_root；为空表示不限制工作区写入根。 */
+        /** 写入安全根；为空表示不限制工作区写入根。 */
         private String writeSafeRoot;
 
-        /** 对齐 Jimuqu TERMINAL_MAX_FOREGROUND_TIMEOUT；单位秒。 */
+        /** 前台 terminal 最大超时时间，单位秒。 */
         private int maxForegroundTimeoutSeconds = 600;
 
-        /** 对齐 Jimuqu foreground terminal transient failure retry count。 */
+        /** 前台 terminal 瞬时失败重试次数。 */
         private int foregroundMaxRetries = 3;
 
         /** 前台 terminal 执行异常重试的指数退避基准，单位秒；默认 2 秒，即 2/4/8。 */
         private int foregroundRetryBaseDelaySeconds = 2;
 
-        /** 对齐 Jimuqu TERMINAL_TIMEOUT，限制 process(wait) 单次阻塞时长，单位秒。 */
+        /** process(wait) 单次阻塞时长限制，单位秒。 */
         private int processWaitTimeoutSeconds = 180;
     }
 
@@ -4246,22 +3861,22 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ApprovalsConfig {
-        /** 兼容旧配置项；危险命令审批模式：on / off / smart。smart 会先由辅助模型判定低风险命令。 */
+        /** 危险命令审批模式：on / off / smart。smart 会先由辅助模型判定低风险命令。 */
         private String mode = "on";
 
-        /** 兼容旧配置项；cron 遇到可审批危险命令时的模式。 */
+        /** cron 遇到可审批危险命令时的模式。 */
         private String cronMode = "approval";
 
-        /** 子 Agent 遇到危险命令时是否自动批准一次；对齐 Jimuqu delegation.subagent_auto_approve，默认拒绝。 */
+        /** 子 Agent 遇到危险命令时是否自动批准一次，默认拒绝。 */
         private boolean subagentAutoApprove = false;
 
-        /** CLI/直接审批超时秒数；对齐 Jimuqu approvals.timeout。 */
+        /** CLI/直接审批超时秒数。 */
         private int timeoutSeconds = 60;
 
-        /** 网关/渠道审批超时秒数；对齐 Jimuqu approvals.gateway_timeout。 */
+        /** 网关/渠道审批超时秒数。 */
         private int gatewayTimeoutSeconds = 300;
 
-        /** /reload-mcp 是否需要确认；对齐 Jimuqu approvals.mcp_reload_confirm，默认开启。 */
+        /** /reload-mcp 是否需要确认，默认开启。 */
         private boolean mcpReloadConfirm = true;
     }
 

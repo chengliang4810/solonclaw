@@ -253,8 +253,8 @@ public class WeixinQrSetupService {
         result.put("message", state.message);
         result.put("error_code", state.errorCode);
         result.put("error_message", state.errorMessage);
-        result.put("qr_code", state.qrCode);
-        result.put("qr_image_url", state.qrImageUrl);
+        result.put("qrcode", state.qrCode);
+        result.put("qrcode_url", state.qrImageUrl);
         result.put("created_at", isoTime(state.createdAt));
         result.put("updated_at", isoTime(state.updatedAt));
         result.put("expires_at", isoTime(state.expiresAt));

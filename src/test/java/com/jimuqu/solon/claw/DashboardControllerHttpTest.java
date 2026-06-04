@@ -122,10 +122,11 @@ public class DashboardControllerHttpTest {
         assertThat(authorizedRuntimeConfig.status).isEqualTo(200);
         assertThat(authorizedRuntimeConfig.body)
                 .contains("providers.default.apiKey")
-                .contains("tool_output.max_bytes")
-                .contains("tool_output.turn_budget_bytes")
-                .contains("tool_output.max_lines")
-                .contains("tool_output.max_line_length");
+                .contains("solonclaw.task.toolOutputInlineLimit")
+                .contains("solonclaw.task.toolOutputTurnBudget")
+                .contains("solonclaw.task.toolOutputMaxLines")
+                .contains("solonclaw.task.toolOutputMaxLineLength")
+                .doesNotContain("tool_output.max_bytes");
 
         HttpResult unauthorizedDoctor = request("GET", "/api/gateway/doctor", null, null);
         assertThat(unauthorizedDoctor.status).isEqualTo(401);
@@ -184,7 +185,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/subprocess-environment/probe",
-                        "{\"names\":[\"PATH\",\"OPENAI_API_KEY\",\"_JIMUQU_FORCE_CUSTOM_TOKEN\",\"ghp_httpdiag1234567890\"]}",
+                        "{\"names\":[\"PATH\",\"OPENAI_API_KEY\",\"_SOLONCLAW_FORCE_CUSTOM_TOKEN\",\"ghp_httpdiag1234567890\"]}",
                         token);
 
         assertThat(result.status).isEqualTo(200);
@@ -368,12 +369,12 @@ public class DashboardControllerHttpTest {
             assertThat(diagnostics.body)
                     .contains("\"unknown_keys\"")
                     .contains("solonclaw.oldPanel.apiKey")
-                    .contains("\"legacy_keys\"")
                     .contains("\"provider\"")
                     .contains("\"effective_diffs\"")
                     .contains("solonclaw.scheduler.tickSeconds")
                     .contains("\"raw_value\"")
                     .contains("\"effective_value\"")
+                    .doesNotContain("\"legacy_keys\"")
                     .doesNotContain("sk-dashboardconfigdrift12345");
 
             HttpResult doctor = request("GET", "/api/diagnostics/doctor", null, token);
@@ -381,7 +382,7 @@ public class DashboardControllerHttpTest {
             assertThat(doctor.body)
                     .contains("\"config\"")
                     .contains("config_unknown_keys")
-                    .contains("config_legacy_keys")
+                    .doesNotContain("config_legacy_keys")
                     .doesNotContain("sk-dashboardconfigdrift12345");
         } finally {
             if (previous == null) {
@@ -451,10 +452,11 @@ public class DashboardControllerHttpTest {
         HttpResult configSchema = request("GET", "/api/config/schema", null, token);
         assertThat(configSchema.status).isEqualTo(200);
         assertThat(configSchema.body)
-                .contains("\"tool_output.max_bytes\"")
-                .contains("\"tool_output.turn_budget_bytes\"")
-                .contains("\"tool_output.max_lines\"")
-                .contains("\"tool_output.max_line_length\"");
+                .contains("\"task.toolOutputInlineLimit\"")
+                .contains("\"task.toolOutputTurnBudget\"")
+                .contains("\"task.toolOutputMaxLines\"")
+                .contains("\"task.toolOutputMaxLineLength\"")
+                .doesNotContain("\"tool_output.max_bytes\"");
 
         HttpResult saveRuntimeConfig =
                 request(
@@ -470,12 +472,13 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/runtime-config",
-                        "{\"key\":\"tool_output.turn_budget_bytes\",\"value\":\"123456\"}",
+                        "{\"key\":\"solonclaw.task.toolOutputTurnBudget\",\"value\":\"123456\"}",
                         token);
         assertThat(saveToolOutputBudget.status).isEqualTo(200);
         assertThat(FileUtil.readUtf8String(overrideFile))
-                .contains("tool_output:")
-                .contains("turn_budget_bytes: '123456'");
+                .contains("task:")
+                .contains("toolOutputTurnBudget: '123456'")
+                .doesNotContain("tool_output:");
 
         HttpResult revealRuntimeConfig =
                 request(
@@ -712,7 +715,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"hostPathsOmittedFromMetadata\":true")
                 .contains("\"rejectedPathsRedacted\":true")
                 .contains("\"skillFrontmatterKey\":\"required_credential_files\"")
-                .contains("\"configKey\":\"terminal.credentialFiles\"")
+                .contains("\"configKey\":\"solonclaw.terminal.credentialFiles\"")
                 .contains("\"terminal_output_policy\"")
                 .contains("\"secretRedactionApplied\":true")
                 .contains("\"headTailTruncation\":true")
@@ -1030,14 +1033,14 @@ public class DashboardControllerHttpTest {
         HttpResult cronNextLimited = request("GET", "/api/cron/jobs/next?limit=500", null, token);
         assertThat(ONode.ofJson(cronNextLimited.body).get("data").get("limit").getInt()).isEqualTo(50);
         HttpResult apiCronNext =
-                request("GET", "/api/jobs/next?include_disabled=true&limit=1", null, token);
+                request("GET", "/api/cron/jobs/next?include_disabled=true&limit=1", null, token);
         assertThat(apiCronNext.status).isEqualTo(200);
-        ONode apiCronNextData = ONode.ofJson(apiCronNext.body);
+        ONode apiCronNextData = ONode.ofJson(apiCronNext.body).get("data");
         assertThat(apiCronNextData.get("count").getInt()).isEqualTo(1);
         assertThat(apiCronNextData.get("include_disabled").getBoolean()).isTrue();
         assertThat(apiCronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
-        HttpResult apiCronNextDefaulted = request("GET", "/api/jobs/next?limit=0", null, token);
-        assertThat(ONode.ofJson(apiCronNextDefaulted.body).get("limit").getInt()).isEqualTo(5);
+        HttpResult apiCronNextDefaulted = request("GET", "/api/cron/jobs/next?limit=0", null, token);
+        assertThat(ONode.ofJson(apiCronNextDefaulted.body).get("data").get("limit").getInt()).isEqualTo(5);
 
         HttpResult triggerCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
@@ -1062,17 +1065,10 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
         assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
-        HttpResult cronHistoryAlias =
-                request("GET", "/api/cron/jobs/" + dashboardCronId + "/history?limit=5", null, token);
-        assertThat(cronHistoryAlias.status).isEqualTo(200);
-        ONode cronHistoryAliasData = ONode.ofJson(cronHistoryAlias.body).get("data");
-        assertThat(cronHistoryAliasData.get("job_id").getString()).isEqualTo(dashboardCronId);
-        assertThat(cronHistoryAliasData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
-
         HttpResult apiCronRuns =
-                request("GET", "/api/jobs/" + dashboardCronId + "/runs?limit=5", null, token);
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/runs?limit=5", null, token);
         assertThat(apiCronRuns.status).isEqualTo(200);
-        ONode apiCronRunsData = ONode.ofJson(apiCronRuns.body);
+        ONode apiCronRunsData = ONode.ofJson(apiCronRuns.body).get("data");
         assertThat(apiCronRunsData.get("job_id").getString()).isEqualTo(dashboardCronId);
         assertThat(apiCronRunsData.get("count").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiCronRunsData.get("runs").get(0).get("run_id").getString()).isNotBlank();
@@ -1082,24 +1078,23 @@ public class DashboardControllerHttpTest {
         HttpResult apiPutCron =
                 request(
                         "PUT",
-                        "/api/jobs/" + dashboardCronId,
+                        "/api/cron/jobs/" + dashboardCronId,
                         "{\"name\":\"Daily summary via API\",\"schedule\":\"0 10 * * *\"}",
                         token);
         assertThat(apiPutCron.status).isEqualTo(200);
         assertThat(apiPutCron.body)
-                .contains("\"job\"")
                 .contains("\"name\":\"Daily summary via API\"")
                 .contains("\"schedule_display\":\"0 10 * * *\"");
 
         HttpResult apiTriggerCron =
-                request("POST", "/api/jobs/" + dashboardCronId + "/trigger", "{}", token);
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
         assertThat(apiTriggerCron.status).isEqualTo(200);
-        assertThat(apiTriggerCron.body).contains("\"job\"").contains("\"last_status\":\"ok\"");
+        assertThat(apiTriggerCron.body).contains("\"data\"").contains("\"last_status\":\"ok\"");
 
         HttpResult apiCronHistory =
-                request("GET", "/api/jobs/" + dashboardCronId + "/history?limit=2", null, token);
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/runs?limit=2", null, token);
         assertThat(apiCronHistory.status).isEqualTo(200);
-        ONode apiCronHistoryData = ONode.ofJson(apiCronHistory.body);
+        ONode apiCronHistoryData = ONode.ofJson(apiCronHistory.body).get("data");
         assertThat(apiCronHistoryData.get("job_id").getString()).isEqualTo(dashboardCronId);
         assertThat(apiCronHistoryData.get("count").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiCronHistoryData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
@@ -1115,19 +1110,12 @@ public class DashboardControllerHttpTest {
                 .contains("dashboard trigger ok: daily summary");
 
         HttpResult apiCronInspect =
-                request("GET", "/api/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
         assertThat(apiCronInspect.status).isEqualTo(200);
-        ONode apiCronInspectData = ONode.ofJson(apiCronInspect.body);
+        ONode apiCronInspectData = ONode.ofJson(apiCronInspect.body).get("data");
         assertThat(apiCronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
         assertThat(apiCronInspectData.get("run_count").getInt()).isEqualTo(1);
         assertThat(apiCronInspectData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
-
-        HttpResult apiCronShow =
-                request("GET", "/api/jobs/" + dashboardCronId + "/show?limit=1", null, token);
-        assertThat(apiCronShow.status).isEqualTo(200);
-        ONode apiCronShowData = ONode.ofJson(apiCronShow.body);
-        assertThat(apiCronShowData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
-        assertThat(apiCronShowData.get("run_count").getInt()).isEqualTo(1);
 
         HttpResult cronStatus = request("GET", "/api/cron/jobs/status?limit=2", null, token);
         assertThat(cronStatus.status).isEqualTo(200);
@@ -1136,9 +1124,9 @@ public class DashboardControllerHttpTest {
         assertThat(cronStatusData.get("active").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(cronStatusData.get("due").getInt()).isGreaterThanOrEqualTo(0);
 
-        HttpResult apiJobsStatus = request("GET", "/api/jobs/status?limit=2", null, token);
+        HttpResult apiJobsStatus = request("GET", "/api/cron/jobs/status?limit=2", null, token);
         assertThat(apiJobsStatus.status).isEqualTo(200);
-        ONode apiJobsStatusData = ONode.ofJson(apiJobsStatus.body);
+        ONode apiJobsStatusData = ONode.ofJson(apiJobsStatus.body).get("data");
         assertThat(apiJobsStatusData.get("total").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiJobsStatusData.get("active").getInt()).isGreaterThanOrEqualTo(1);
 
@@ -1152,26 +1140,26 @@ public class DashboardControllerHttpTest {
         assertThat(ONode.ofJson(pauseCron.body).get("data").get("paused_reason").getString())
                 .isEqualTo("dashboard maintenance");
         HttpResult enableCron =
-                request("POST", "/api/cron/jobs/" + dashboardCronId + "/enable", "{}", token);
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/resume", "{}", token);
         assertThat(enableCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(enableCron.body).get("data").get("enabled").getBoolean()).isTrue();
         HttpResult stopCron =
-                request("POST", "/api/cron/jobs/" + dashboardCronId + "/stop", "{}", token);
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/pause", "{}", token);
         assertThat(stopCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(stopCron.body).get("data").get("enabled").getBoolean()).isFalse();
         HttpResult apiJobsStatusWithStopped =
-                request("GET", "/api/jobs/status?include_disabled=true&limit=2", null, token);
+                request("GET", "/api/cron/jobs/status?include_disabled=true&limit=2", null, token);
         assertThat(apiJobsStatusWithStopped.status).isEqualTo(200);
-        ONode apiJobsStatusWithStoppedData = ONode.ofJson(apiJobsStatusWithStopped.body);
+        ONode apiJobsStatusWithStoppedData = ONode.ofJson(apiJobsStatusWithStopped.body).get("data");
         assertThat(apiJobsStatusWithStoppedData.get("total").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiJobsStatusWithStoppedData.get("paused").getInt()).isGreaterThanOrEqualTo(1);
 
         HttpResult startCron =
-                request("POST", "/api/cron/jobs/" + dashboardCronId + "/start", "{}", token);
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/resume", "{}", token);
         assertThat(startCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(startCron.body).get("data").get("enabled").getBoolean()).isTrue();
         HttpResult disableCron =
-                request("POST", "/api/cron/jobs/" + dashboardCronId + "/disable", "{}", token);
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/pause", "{}", token);
         assertThat(disableCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(disableCron.body).get("data").get("enabled").getBoolean()).isFalse();
         HttpResult resumeCron =
@@ -1179,22 +1167,17 @@ public class DashboardControllerHttpTest {
         assertThat(resumeCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(resumeCron.body).get("data").get("enabled").getBoolean()).isTrue();
         HttpResult runCron =
-                request("POST", "/api/cron/jobs/" + dashboardCronId + "/run", "{}", token);
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
         assertThat(runCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(runCron.body).get("data").get("id").getString()).isEqualTo(dashboardCronId);
         HttpResult retryCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/retry", "{}", token);
         assertThat(retryCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(retryCron.body).get("data").get("id").getString()).isEqualTo(dashboardCronId);
-        HttpResult rerunCron =
-                request("POST", "/api/cron/jobs/" + dashboardCronId + "/rerun", "{}", token);
-        assertThat(rerunCron.status).isEqualTo(200);
-        assertThat(ONode.ofJson(rerunCron.body).get("data").get("id").getString()).isEqualTo(dashboardCronId);
-
         HttpResult invalidMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"bad-mcp\",\"token\":\"ghp_invalidmcp12345\"",
                         token);
         assertThat(invalidMcp.status).isEqualTo(400);
@@ -1208,13 +1191,13 @@ public class DashboardControllerHttpTest {
         HttpResult createMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"}]}",
                         token);
         assertThat(createMcp.status).isEqualTo(200);
 
         HttpResult checkMcp =
-                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcp.status).isEqualTo(200);
         assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
         assertThat(checkMcp.body)
@@ -1225,20 +1208,20 @@ public class DashboardControllerHttpTest {
                 .contains("\"security\":{\"allowed\":true,\"reason\":\"allow\"}");
 
         HttpResult checkMcpAgain =
-                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcpAgain.status).isEqualTo(200);
         assertThat(checkMcpAgain.body).contains("\"tool_changed_notification\":false");
 
         HttpResult updateMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
                         token);
         assertThat(updateMcp.status).isEqualTo(200);
 
         HttpResult changedMcp =
-                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(changedMcp.status).isEqualTo(200);
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body)
@@ -1248,13 +1231,13 @@ public class DashboardControllerHttpTest {
         HttpResult removeMcpTool =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
                         token);
         assertThat(removeMcpTool.status).isEqualTo(200);
 
         HttpResult removedMcp =
-                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(removedMcp.status).isEqualTo(200);
         assertThat(removedMcp.body)
                 .contains("\"tool_changed_notification\"")
@@ -1264,13 +1247,13 @@ public class DashboardControllerHttpTest {
         HttpResult updateMcpForReloadAll =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"},{\"name\":\"docs_rank\",\"description\":\"Rank docs\"}]}",
                         token);
         assertThat(updateMcpForReloadAll.status).isEqualTo(200);
 
         HttpResult reloadAllMcp =
-                request("POST", "/api/jimuqu/mcp/reload", "{}", token);
+                request("POST", "/api/mcp/reload", "{}", token);
         assertThat(reloadAllMcp.status).isEqualTo(200);
         ONode reloadAllMcpData = ONode.ofJson(reloadAllMcp.body).get("data");
         assertThat(reloadAllMcpData.get("tool_count").getInt()).isGreaterThanOrEqualTo(3);
@@ -1279,11 +1262,11 @@ public class DashboardControllerHttpTest {
         assertThat(reloadAllMcp.body).contains("\"tool_changed_notification\":true");
 
         HttpResult reloadAllMcpAgain =
-                request("POST", "/api/jimuqu/mcp/reload", "{}", token);
+                request("POST", "/api/mcp/reload", "{}", token);
         assertThat(reloadAllMcpAgain.status).isEqualTo(200);
         assertThat(stringsAt(reloadAllMcpAgain.body, "unchanged_servers")).contains("dashboard-local-docs");
 
-        HttpResult mcpList = request("GET", "/api/jimuqu/mcp", null, token);
+        HttpResult mcpList = request("GET", "/api/mcp", null, token);
         assertThat(mcpList.status).isEqualTo(200);
         assertThat(mcpList.body).contains("Local Docs");
         assertThat(mcpList.body).contains("\"oauth\"");
@@ -1293,11 +1276,11 @@ public class DashboardControllerHttpTest {
         HttpResult secretToolMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"secret-tool-docs\",\"name\":\"Secret Tool Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"tools\":[{\"name\":\"docs_secret\",\"title\":\"Read with token=secret-title-token\",\"description\":\"Use bearer ghp_toolsecret12345\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"api_key\":{\"type\":\"string\",\"description\":\"OPENAI_API_KEY=sk-test-tool-secret\"}}},\"output_schema\":{\"type\":\"object\",\"properties\":{\"access_token\":{\"type\":\"string\",\"description\":\"secret-output-token\"}}}}]}",
                         token);
         assertThat(secretToolMcp.status).isEqualTo(200);
-        HttpResult secretToolMcpList = request("GET", "/api/jimuqu/mcp", null, token);
+        HttpResult secretToolMcpList = request("GET", "/api/mcp", null, token);
         assertThat(secretToolMcpList.status).isEqualTo(200);
         assertThat(secretToolMcpList.body)
                 .contains("token=***")
@@ -1312,12 +1295,12 @@ public class DashboardControllerHttpTest {
         HttpResult secretChangedToolMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"secret-changed-tool-docs\",\"name\":\"Secret Changed Tool Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"tools\":[{\"name\":\"docs_token_ghp_mcpchanged12345\",\"description\":\"Search docs\"}]}",
                         token);
         assertThat(secretChangedToolMcp.status).isEqualTo(200);
         HttpResult secretChangedToolCheck =
-                request("POST", "/api/jimuqu/mcp/secret-changed-tool-docs/check", "{}", token);
+                request("POST", "/api/mcp/secret-changed-tool-docs/check", "{}", token);
         assertThat(secretChangedToolCheck.status).isEqualTo(200);
         assertThat(stringsAt(secretChangedToolCheck.body, "added_tools"))
                 .containsExactly("docs_token_ghp_***");
@@ -1326,14 +1309,14 @@ public class DashboardControllerHttpTest {
         HttpResult secretMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
                         token);
         assertThat(secretMcp.status).isEqualTo(200);
         HttpResult userInfoMcp =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"userinfo-docs\",\"name\":\"Userinfo Docs\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-userinfo-token\",\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(userInfoMcp.status).isEqualTo(400);
@@ -1342,7 +1325,7 @@ public class DashboardControllerHttpTest {
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("secret-endpoint-pass")
                 .doesNotContain("secret-userinfo-token");
-        HttpResult secretMcpList = request("GET", "/api/jimuqu/mcp", null, token);
+        HttpResult secretMcpList = request("GET", "/api/mcp", null, token);
         assertThat(secretMcpList.status).isEqualTo(200);
         assertThat(secretMcpList.body)
                 .contains("OPENAI_API_KEY=***")
@@ -1358,13 +1341,13 @@ public class DashboardControllerHttpTest {
         HttpResult updateMcpOAuth =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(updateMcpOAuth.status).isEqualTo(200);
 
         HttpResult oauthStatus =
-                request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
         assertThat(oauthStatus.status).isEqualTo(200);
         assertThat(oauthStatus.body).contains("\"status\":\"authenticated\"");
         assertThat(oauthStatus.body).contains("\"has_access_token\":true");
@@ -1376,12 +1359,12 @@ public class DashboardControllerHttpTest {
         HttpResult oauthErrorServer =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"oauth-error-docs\",\"name\":\"OAuth Error Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"pending\",\"error\":\"access_token=ghp_oautherror12345&callback=http://localhost/cb?api%255Fkey=oauth-encoded-secret&token=secret-oauth-error\",\"message\":\"client_secret=oauth-message-secret https://example.test/callback#refresh_token=oauth-fragment-secret\"},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(oauthErrorServer.status).isEqualTo(200);
         HttpResult oauthErrorStatus =
-                request("GET", "/api/jimuqu/mcp/oauth-error-docs/oauth/status", null, token);
+                request("GET", "/api/mcp/oauth-error-docs/oauth/status", null, token);
         assertThat(oauthErrorStatus.status).isEqualTo(200);
         assertThat(oauthErrorStatus.body).contains("access_token=***");
         assertThat(oauthErrorStatus.body).contains("api%255Fkey=***");
@@ -1394,14 +1377,14 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("oauth-fragment-secret")
                 .doesNotContain("oauth-message-secret");
 
-        HttpResult mcpListWithOAuth = request("GET", "/api/jimuqu/mcp", null, token);
+        HttpResult mcpListWithOAuth = request("GET", "/api/mcp", null, token);
         assertThat(mcpListWithOAuth.body).contains("\"has_access_token\":true");
         assertThat(mcpListWithOAuth.body).doesNotContain("secret-access");
 
         HttpResult beginOAuth =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                        "/api/mcp/oauth-docs/oauth/begin",
                         "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                 + "https://example.com/oauth/token"
                                 + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
@@ -1417,7 +1400,7 @@ public class DashboardControllerHttpTest {
         HttpResult oauthCallbackError =
                 request(
                         "GET",
-                        "/api/jimuqu/mcp/oauth-docs/oauth/callback?error="
+                        "/api/mcp/oauth-docs/oauth/callback?error="
                                 + URLEncoder.encode(
                                         "access_token=ghp_callbackerror12345&redirect_uri=http://localhost/cb?token=secret-callback-error",
                                         "UTF-8"),
@@ -1434,7 +1417,7 @@ public class DashboardControllerHttpTest {
         HttpResult blockedAuthorizationEndpoint =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                        "/api/mcp/oauth-docs/oauth/begin",
                         "{\"authorization_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-auth\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\"}",
                         token);
         assertThat(blockedAuthorizationEndpoint.status).isEqualTo(400);
@@ -1444,7 +1427,7 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("secret-auth");
 
         HttpResult pendingStatus =
-                request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
         assertThat(pendingStatus.body).contains("\"status\":\"pending\"");
         assertThat(pendingStatus.body).contains("\"has_access_token\":false");
         assertThat(pendingStatus.body).contains("\"has_code_verifier\":true");
@@ -1455,7 +1438,7 @@ public class DashboardControllerHttpTest {
         HttpResult blockedTokenEndpoint =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp/oauth-docs/oauth/callback",
+                        "/api/mcp/oauth-docs/oauth/callback",
                         "{\"code\":\"auth-code-blocked\",\"state\":\""
                                 + pendingState
                                 + "\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-token\"}",
@@ -1469,7 +1452,7 @@ public class DashboardControllerHttpTest {
         HttpResult stateMismatch =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp/oauth-docs/oauth/callback",
+                        "/api/mcp/oauth-docs/oauth/callback",
                         "{\"code\":\"bad-code\",\"state\":\"wrong\",\"token_endpoint\":\"http://127.0.0.1:1/token\"}",
                         token);
         assertThat(stateMismatch.status).isEqualTo(400);
@@ -1480,20 +1463,20 @@ public class DashboardControllerHttpTest {
             beginOAuth =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                            "/api/mcp/oauth-docs/oauth/begin",
                             "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
             pendingStatus =
-                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             tokenEndpoint.failNextTokenResponse();
             HttpResult tokenEndpointError =
                     request(
                             "GET",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                            "/api/mcp/oauth-docs/oauth/callback"
                                     + "?code=auth-code-error&state="
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
@@ -1514,19 +1497,19 @@ public class DashboardControllerHttpTest {
             beginOAuth =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                            "/api/mcp/oauth-docs/oauth/begin",
                             "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
             pendingStatus =
-                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             HttpResult completeOAuth =
                     request(
                             "GET",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                            "/api/mcp/oauth-docs/oauth/callback"
                                     + "?code=auth-code-1&state="
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
@@ -1544,7 +1527,7 @@ public class DashboardControllerHttpTest {
             assertThat(tokenEndpoint.lastForm.get("code_verifier")).isNotBlank();
 
             HttpResult authenticatedStatus =
-                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             assertThat(authenticatedStatus.body).contains("\"status\":\"authenticated\"");
             assertThat(authenticatedStatus.body).contains("\"has_access_token\":true");
             assertThat(authenticatedStatus.body).doesNotContain("token-secret-1");
@@ -1553,7 +1536,7 @@ public class DashboardControllerHttpTest {
             HttpResult refreshTokenEndpointError =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/refresh",
+                            "/api/mcp/oauth-docs/oauth/refresh",
                             "{}",
                             token);
             assertThat(refreshTokenEndpointError.status).isEqualTo(400);
@@ -1572,7 +1555,7 @@ public class DashboardControllerHttpTest {
             HttpResult refreshOAuth =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/refresh",
+                            "/api/mcp/oauth-docs/oauth/refresh",
                             "{}",
                             token);
             assertThat(refreshOAuth.status).isEqualTo(200);
@@ -1593,7 +1576,7 @@ public class DashboardControllerHttpTest {
             HttpResult handle401RefreshError =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/handle-401",
+                            "/api/mcp/oauth-docs/oauth/handle-401",
                             "{}",
                             token);
             assertThat(handle401RefreshError.status).isEqualTo(200);
@@ -1613,7 +1596,7 @@ public class DashboardControllerHttpTest {
 
             request(
                     "GET",
-                    "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                    "/api/mcp/oauth-docs/oauth/callback"
                             + "?error="
                             + URLEncoder.encode("reset-pending-after-refresh-error", "UTF-8"),
                     null,
@@ -1621,19 +1604,19 @@ public class DashboardControllerHttpTest {
             beginOAuth =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                            "/api/mcp/oauth-docs/oauth/begin",
                             "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
             pendingStatus =
-                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             completeOAuth =
                     request(
                             "GET",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                            "/api/mcp/oauth-docs/oauth/callback"
                                     + "?code=auth-code-recover&state="
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
@@ -1644,7 +1627,7 @@ public class DashboardControllerHttpTest {
             HttpResult handle401 =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/handle-401",
+                            "/api/mcp/oauth-docs/oauth/handle-401",
                             "{}",
                             token);
             assertThat(handle401.status).isEqualTo(200);
@@ -1660,19 +1643,19 @@ public class DashboardControllerHttpTest {
             beginOAuth =
                     request(
                             "POST",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                            "/api/mcp/oauth-docs/oauth/begin",
                             "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.redirectUrl()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
             pendingStatus =
-                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             HttpResult redirectedTokenEndpoint =
                     request(
                             "GET",
-                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                            "/api/mcp/oauth-docs/oauth/callback"
                                     + "?code=auth-code-redirect&state="
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
@@ -1691,14 +1674,14 @@ public class DashboardControllerHttpTest {
         HttpResult blockedRefreshServer =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp",
+                        "/api/mcp",
                         "{\"serverId\":\"blocked-oauth-docs\",\"name\":\"Blocked OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"authenticated\",\"client_id\":\"client-1\",\"access_token\":\"secret-access\",\"refresh_token\":\"refresh-secret\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-refresh-url\"},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(blockedRefreshServer.status).isEqualTo(200);
         HttpResult blockedRefresh =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp/blocked-oauth-docs/oauth/refresh",
+                        "/api/mcp/blocked-oauth-docs/oauth/refresh",
                         "{}",
                         token);
         assertThat(blockedRefresh.status).isEqualTo(400);
@@ -1708,20 +1691,20 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("secret-refresh-url");
 
         HttpResult clearOAuth =
-                request("POST", "/api/jimuqu/mcp/oauth-docs/oauth/clear", "{}", token);
+                request("POST", "/api/mcp/oauth-docs/oauth/clear", "{}", token);
         assertThat(clearOAuth.status).isEqualTo(200);
         assertThat(clearOAuth.body).contains("\"cleared\":true");
         assertThat(clearOAuth.body).doesNotContain("secret-refresh");
 
         HttpResult clearedStatus =
-                request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+                request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
         assertThat(clearedStatus.body).contains("\"status\":\"cleared\"");
         assertThat(clearedStatus.body).contains("\"has_access_token\":false");
 
         HttpResult handle401AfterClear =
                 request(
                         "POST",
-                        "/api/jimuqu/mcp/oauth-docs/oauth/handle-401",
+                        "/api/mcp/oauth-docs/oauth/handle-401",
                         "{}",
                         token);
         assertThat(handle401AfterClear.status).isEqualTo(200);
@@ -2273,13 +2256,6 @@ public class DashboardControllerHttpTest {
                         "/api/cron/jobs",
                         "{\"name\":\"bad-cron\",\"token\":\"ghp_invalidcron12345\"",
                         token);
-        HttpResult apiCron =
-                request(
-                        "POST",
-                        "/api/jobs",
-                        "{\"name\":\"bad-api-cron\",\"token\":\"ghp_invalidapicron12345\"",
-                        token);
-
         assertThat(dashboardCron.status).isEqualTo(400);
         assertThat(dashboardCron.body)
                 .contains("\"success\":false")
@@ -2287,308 +2263,6 @@ public class DashboardControllerHttpTest {
                 .contains("请求体 JSON 解析失败")
                 .doesNotContain("ghp_invalidcron12345")
                 .doesNotContain("bad-cron");
-        assertThat(apiCron.status).isEqualTo(400);
-        assertThat(apiCron.body)
-                .contains("\"error\"")
-                .contains("请求体 JSON 解析失败")
-                .doesNotContain("ghp_invalidapicron12345")
-                .doesNotContain("bad-api-cron");
-    }
-
-    @Test
-    void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
-
-        HttpResult promptNamed =
-                request("POST", "/api/jobs", "{\"schedule\":\"every 1h\",\"prompt\":\"missing name\"}", token);
-        assertThat(promptNamed.status).isEqualTo(200);
-        ONode defaultNamed = ONode.ofJson(promptNamed.body).get("job");
-        assertThat(defaultNamed.get("name").getString()).isEqualTo("missing name");
-
-        request("DELETE", "/api/jobs/" + defaultNamed.get("id").getString(), null, token);
-
-        HttpResult skillNamed =
-                request("POST", "/api/jobs", "{\"schedule\":\"every 1h\",\"skill\":\"weekly-report\"}", token);
-        assertThat(skillNamed.status).isEqualTo(200);
-        ONode defaultSkillNamed = ONode.ofJson(skillNamed.body).get("job");
-        assertThat(defaultSkillNamed.get("name").getString()).isEqualTo("weekly-report");
-        assertThat(defaultSkillNamed.get("skills").toJson()).contains("weekly-report");
-
-        request("DELETE", "/api/jobs/" + defaultSkillNamed.get("id").getString(), null, token);
-
-        HttpResult unlimitedRepeat =
-                request(
-                        "POST",
-                        "/api/jobs",
-                        "{\"name\":\"unlimited-repeat\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"repeat\":0}",
-                        token);
-        assertThat(unlimitedRepeat.status).isEqualTo(200);
-        assertThat(ONode.ofJson(unlimitedRepeat.body).get("job").get("repeat").get("times").isNull()).isTrue();
-
-        request("DELETE", "/api/jobs/" + ONode.ofJson(unlimitedRepeat.body).get("job").get("id").getString(), null, token);
-
-        HttpResult invalidRepeat =
-                request(
-                        "POST",
-                        "/api/jobs",
-                        "{\"name\":\"bad-repeat\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"repeat\":-1}",
-                        token);
-        assertThat(invalidRepeat.status).isEqualTo(400);
-        assertThat(invalidRepeat.body).contains("repeat");
-
-        HttpResult create =
-                request(
-                        "POST",
-                        "/api/jobs",
-                        "{\"name\":\"compat-cron\",\"schedule\":\"every 1h\",\"prompt\":\"compat prompt\",\"repeat\":2,\"no_agent\":true,\"script\":\"compat-run.py\"}",
-                        token);
-        assertThat(create.status).isEqualTo(200);
-        ONode created = ONode.ofJson(create.body).get("job");
-        String jobId = created.get("id").getString();
-        assertThat(jobId).isNotBlank();
-        assertThat(created.get("name").getString()).isEqualTo("compat-cron");
-
-        HttpResult list = request("GET", "/api/jobs", null, token);
-        assertThat(list.status).isEqualTo(200);
-        assertThat(list.body).contains("\"jobs\"").contains("compat-cron");
-
-        HttpResult dashboardGuide = request("GET", "/api/cron/jobs/guide", null, token);
-        assertThat(dashboardGuide.status).isEqualTo(200);
-        ONode dashboardGuideData = ONode.ofJson(dashboardGuide.body).get("data");
-        assertThat(dashboardGuideData.get("editable_fields").toJson())
-                .contains("deliver_chat_id")
-                .contains("wrap_response");
-        assertThat(dashboardGuideData.get("action_syntax").get("add").getString()).contains("--deliver target");
-        assertThat(dashboardGuideData.get("action_syntax").get("pause").getString()).contains("disable");
-        assertThat(dashboardGuideData.get("skill_binding").get("remove").toJson()).contains("--remove-skill");
-        assertThat(dashboardGuideData.get("skill_binding").get("dependency_flags").toJson())
-                .contains("--context-from job-id")
-                .contains("--clear-context-from");
-        assertThat(dashboardGuideData.get("runtime_modes").get("clear_flags").toJson())
-                .contains("--clear-repeat")
-                .contains("--clear-script")
-                .contains("--clear-enabled-toolsets");
-        assertThat(dashboardGuideData.get("api_routes").toJson())
-                .contains("DELETE /api/cron/jobs/{id}")
-                .contains("POST /api/cron/jobs/{id}/disable")
-                .contains("POST /api/cron/jobs/{id}/trigger")
-                .contains("POST /api/cron/jobs/{id}/rerun")
-                .contains("PATCH /api/jobs/{id}")
-                .contains("DELETE /api/jobs/{id}")
-                .contains("GET /api/jobs/{id}/history")
-                .contains("POST /api/jobs/{id}/retry");
-        assertThat(dashboardGuideData.get("security").get("prompt_scan").toJson()).contains("prompt_injection");
-
-        HttpResult apiGuide = request("GET", "/api/jobs/guide", null, token);
-        assertThat(apiGuide.status).isEqualTo(200);
-        ONode apiGuideData = ONode.ofJson(apiGuide.body);
-        assertThat(apiGuideData.get("aliases").get("run").toJson()).contains("retry").contains("rerun");
-        assertThat(apiGuideData.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
-        assertThat(apiGuideData.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
-        assertThat(apiGuideData.get("delivery").get("wrap_flags").toJson()).contains("--raw");
-        assertThat(apiGuideData.get("delivery").get("modes").toJson()).contains("target1,target2");
-        assertThat(apiGuideData.get("delivery").get("wrap_response_policy").getString()).contains("--no-wrap-response");
-
-        HttpResult dashboardPolicy = request("GET", "/api/cron/jobs/policy", null, token);
-        assertThat(dashboardPolicy.status).isEqualTo(200);
-        ONode dashboardPolicyData = ONode.ofJson(dashboardPolicy.body).get("data");
-        assertThat(dashboardPolicyData.get("actions").toJson())
-                .contains("add")
-                .contains("edit")
-                .contains("pause")
-                .contains("resume")
-                .contains("run")
-                .contains("remove")
-                .contains("history");
-        assertThat(dashboardPolicyData.get("action_syntax").get("edit").getString()).contains("--add-skill name");
-        assertThat(dashboardPolicyData.get("action_syntax").get("run").getString()).contains("retry");
-        assertThat(dashboardPolicyData.get("delivery").get("supportedPlatforms").toJson())
-                .contains("FEISHU")
-                .contains("DINGTALK")
-                .contains("WEIXIN")
-                .contains("YUANBAO");
-        assertThat(dashboardPolicyData.get("delivery").get("targetForms").toJson())
-                .contains("platform:chat_id:thread_id");
-        assertThat(dashboardPolicyData.get("delivery").get("wrapFlags").toJson()).contains("--no-wrap-response");
-        assertThat(dashboardPolicyData.get("delivery").get("targetModes").toJson()).contains("multiple targets");
-        assertThat(dashboardPolicyData.get("skill_binding").get("skillRewriteSupported").getBoolean()).isTrue();
-        assertThat(dashboardPolicyData.get("skill_binding").get("dependencyFlags").toJson()).contains("--depends-on job-id");
-        assertThat(dashboardPolicyData.get("execution").get("historySupported").getBoolean()).isTrue();
-        assertThat(dashboardPolicyData.get("execution").get("dangerousCommandApprovalApplied").getBoolean()).isTrue();
-
-        HttpResult apiPolicy = request("GET", "/api/jobs/policy", null, token);
-        assertThat(apiPolicy.status).isEqualTo(200);
-        ONode apiPolicyData = ONode.ofJson(apiPolicy.body);
-        assertThat(apiPolicyData.get("delivery").get("originDefaultOnCreate").getBoolean()).isTrue();
-        assertThat(apiPolicyData.get("delivery").get("dashboardDefaultLocal").getBoolean()).isTrue();
-        assertThat(apiPolicyData.get("execution").get("manualRunSupported").getBoolean()).isTrue();
-
-        HttpResult get = request("GET", "/api/jobs/" + jobId, null, token);
-        assertThat(get.status).isEqualTo(200);
-        assertThat(get.body).contains("\"job\"").contains("compat prompt");
-
-        CronJobRepository cronJobRepository = bean(CronJobRepository.class);
-        CronJobRecord failed = new CronJobRecord();
-        failed.setJobId("abcdef1234567890");
-        failed.setName("api secret cron");
-        failed.setSourceKey("MEMORY:dashboard:cron");
-        failed.setCronExpr("every 1h");
-        failed.setPrompt("api secret prompt");
-        failed.setStatus("ACTIVE");
-        failed.setLastStatus("error");
-        failed.setLastError("api last error token=ghp_apicronstatus12345\u202E");
-        failed.setLastDeliveryError("api delivery error api_key=sk-apicronstatus-secret12345\u202E");
-        failed.setLastOutput("api output Authorization: Bearer ghp_apicronoutput12345\u202E");
-        failed.setCreatedAt(System.currentTimeMillis());
-        failed.setLastRunAt(System.currentTimeMillis());
-        cronJobRepository.save(failed);
-        CronJobRunRecord failedRun = new CronJobRunRecord();
-        failedRun.setRunId("api-secret-run");
-        failedRun.setJobId(failed.getJobId());
-        failedRun.setSourceKey(failed.getSourceKey());
-        failedRun.setTriggerType("manual");
-        failedRun.setAttempt(1);
-        failedRun.setStartedAt(System.currentTimeMillis() - 1000L);
-        failedRun.setFinishedAt(System.currentTimeMillis());
-        failedRun.setStatus("error");
-        failedRun.setOutput("api run output token=ghp_apicronrunoutput12345\u202E");
-        failedRun.setError("api run error api_key=sk-apicronrunerror-secret12345\u202E");
-        failedRun.setDeliveryError("api run delivery bearer ghp_apicronrundelivery12345\u202E");
-        failedRun.setDeliveryResultJson(
-                "{\"targets\":[{\"chat_id\":\"api-room\",\"error\":\"token=ghp_apicrontarget12345\\u202E\"}],"
-                        + "\"summary\":\"api_key=sk-apicronsummary-secret12345\\u202E\"}");
-        failedRun.setSummary("api summary Authorization: Bearer ghp_apicronsummary12345\u202E");
-        cronJobRepository.saveRun(failedRun);
-
-        HttpResult redactedStatus = request("GET", "/api/jobs/status?include_disabled=true&limit=5", null, token);
-        assertThat(redactedStatus.status).isEqualTo(200);
-        assertThat(redactedStatus.body)
-                .contains("abcdef1234567890")
-                .contains("api secret cron")
-                .contains("token=***")
-                .contains("api_key=***")
-                .doesNotContain("ghp_apicronstatus12345")
-                .doesNotContain("sk-apicronstatus-secret12345")
-                .doesNotContain("ghp_apicronoutput12345")
-                .doesNotContain("\u202E");
-
-        HttpResult redactedHistory =
-                request("GET", "/api/jobs/" + failed.getJobId() + "/history?limit=1", null, token);
-        assertThat(redactedHistory.status).isEqualTo(200);
-        assertThat(redactedHistory.body)
-                .contains("api-secret-run")
-                .contains("token=***")
-                .contains("api_key=***")
-                .contains("bearer ***")
-                .contains("Authorization: Bearer ***")
-                .doesNotContain("ghp_apicronrunoutput12345")
-                .doesNotContain("sk-apicronrunerror-secret12345")
-                .doesNotContain("ghp_apicronrundelivery12345")
-                .doesNotContain("ghp_apicrontarget12345")
-                .doesNotContain("sk-apicronsummary-secret12345")
-                .doesNotContain("ghp_apicronsummary12345")
-                .doesNotContain("\u202E");
-
-        HttpResult next = request("GET", "/api/jobs/next?limit=1", null, token);
-        assertThat(next.status).isEqualTo(200);
-        ONode nextJob = ONode.ofJson(next.body).get("jobs").get(0);
-        assertThat(nextJob.get("id").getString()).isEqualTo(jobId);
-        assertThat(nextJob.get("name").getString()).isEqualTo("compat-cron");
-
-        HttpResult invalidId = request("GET", "/api/jobs/not-a-valid-hex!", null, token);
-        assertThat(invalidId.status).isEqualTo(400);
-        assertThat(invalidId.body).contains("Invalid");
-
-        HttpResult patchUnknown =
-                request("PATCH", "/api/jobs/" + jobId, "{\"evil_field\":\"ignored\"}", token);
-        assertThat(patchUnknown.status).isEqualTo(400);
-        assertThat(patchUnknown.body).contains("No valid fields");
-
-        HttpResult patch =
-                request(
-                        "PATCH",
-                        "/api/jobs/" + jobId,
-                        "{\"name\":\"compat-renamed\",\"evil_field\":\"ignored\",\"__proto__\":\"ignored\"}",
-                        token);
-        assertThat(patch.status).isEqualTo(200);
-        assertThat(patch.body).contains("compat-renamed");
-        assertThat(patch.body).doesNotContain("evil_field");
-        assertThat(patch.body).doesNotContain("__proto__");
-
-        HttpResult clearRepeat =
-                request("PATCH", "/api/jobs/" + jobId, "{\"repeat\":0}", token);
-        assertThat(clearRepeat.status).isEqualTo(200);
-        assertThat(clearRepeat.body).contains("\"repeat\":{\"completed\":0}");
-
-        HttpResult patchPaused =
-                request(
-                        "PATCH",
-                        "/api/jobs/" + jobId,
-                        "{\"status\":\"paused\",\"paused_reason\":\"maintenance\"}",
-                        token);
-        assertThat(patchPaused.status).isEqualTo(200);
-        assertThat(patchPaused.body)
-                .contains("\"enabled\":false")
-                .contains("\"paused_reason\":\"maintenance\"");
-
-        HttpResult patchResumed =
-                request("PATCH", "/api/jobs/" + jobId, "{\"state\":\"active\"}", token);
-        assertThat(patchResumed.status).isEqualTo(200);
-        assertThat(patchResumed.body)
-                .contains("\"enabled\":true")
-                .doesNotContain("maintenance");
-
-        HttpResult pause = request("POST", "/api/jobs/" + jobId + "/pause", "{}", token);
-        assertThat(pause.status).isEqualTo(200);
-        assertThat(pause.body).contains("\"enabled\":false");
-
-        HttpResult enable = request("POST", "/api/jobs/" + jobId + "/enable", "{}", token);
-        assertThat(enable.status).isEqualTo(200);
-        assertThat(enable.body).contains("\"enabled\":true");
-
-        HttpResult disable = request("POST", "/api/jobs/" + jobId + "/disable", "{}", token);
-        assertThat(disable.status).isEqualTo(200);
-        assertThat(disable.body).contains("\"enabled\":false");
-
-        HttpResult listDefault = request("GET", "/api/jobs", null, token);
-        assertThat(listDefault.body).doesNotContain("compat-renamed");
-
-        HttpResult listAll = request("GET", "/api/jobs?include_disabled=true", null, token);
-        assertThat(listAll.body).contains("compat-renamed");
-
-        HttpResult resume = request("POST", "/api/jobs/" + jobId + "/resume", "{}", token);
-        assertThat(resume.status).isEqualTo(200);
-        assertThat(resume.body).contains("\"enabled\":true");
-
-        HttpResult stop = request("POST", "/api/jobs/" + jobId + "/stop", "{}", token);
-        assertThat(stop.status).isEqualTo(200);
-        assertThat(stop.body).contains("\"enabled\":false");
-
-        HttpResult start = request("POST", "/api/jobs/" + jobId + "/start", "{}", token);
-        assertThat(start.status).isEqualTo(200);
-        assertThat(start.body).contains("\"enabled\":true");
-
-        File scriptsDir = new File(runtimeHome, "scripts");
-        FileUtil.mkdir(scriptsDir);
-        FileUtil.writeUtf8String("print('compat cron run')\n", new File(scriptsDir, "compat-run.py"));
-        HttpResult run = request("POST", "/api/jobs/" + jobId + "/run", "{}", token);
-        assertThat(run.status).isEqualTo(200);
-        assertThat(run.body).contains("\"job\"").contains("compat-renamed");
-
-        HttpResult retry = request("POST", "/api/jobs/" + jobId + "/retry", "{}", token);
-        assertThat(retry.status).isEqualTo(200);
-        assertThat(retry.body).contains("\"job\"").contains("compat-renamed");
-
-        HttpResult rerun = request("POST", "/api/jobs/" + jobId + "/rerun", "{}", token);
-        assertThat(rerun.status).isEqualTo(200);
-        assertThat(rerun.body).contains("\"job\"").contains("compat-renamed");
-
-        HttpResult delete = request("DELETE", "/api/jobs/" + jobId, null, token);
-        assertThat(delete.status).isEqualTo(200);
-        assertThat(delete.body).contains("\"ok\":true");
-
-        HttpResult missing = request("GET", "/api/jobs/" + jobId, null, token);
-        assertThat(missing.status).isEqualTo(404);
     }
 
     @Test
@@ -2750,13 +2424,13 @@ public class DashboardControllerHttpTest {
     void shouldHideCuratorHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
-        HttpResult run = request("POST", "/api/jimuqu/curator/run?force=true", "{}", token);
+        HttpResult run = request("POST", "/api/curator/run?force=true", "{}", token);
         assertThat(run.status).isEqualTo(200);
         assertThat(run.body).contains("curator://report");
         assertThat(run.body).contains("skill://sample-skill");
         assertThat(run.body).doesNotContain(runtimeHome.getAbsolutePath());
 
-        HttpResult list = request("GET", "/api/jimuqu/curator?limit=5", null, token);
+        HttpResult list = request("GET", "/api/curator?limit=5", null, token);
         assertThat(list.status).isEqualTo(200);
         assertThat(list.body).contains("curator://report");
         assertThat(list.body).doesNotContain(runtimeHome.getAbsolutePath());
@@ -2768,7 +2442,7 @@ public class DashboardControllerHttpTest {
                         .get("report_id")
                         .getString();
 
-        HttpResult detail = request("GET", "/api/jimuqu/curator/" + reportId, null, token);
+        HttpResult detail = request("GET", "/api/curator/" + reportId, null, token);
         assertThat(detail.status).isEqualTo(200);
         assertThat(detail.body).contains("curator://report");
         assertThat(detail.body).contains("skill://sample-skill");
@@ -2777,7 +2451,7 @@ public class DashboardControllerHttpTest {
         HttpResult invalidJson =
                 request(
                         "POST",
-                        "/api/jimuqu/curator/apply",
+                        "/api/curator/apply",
                         "{\"skill\":\"sample-skill token=ghp_curatorparse12345\"",
                         token);
         assertThat(invalidJson.status).isEqualTo(400);
@@ -2995,7 +2669,7 @@ public class DashboardControllerHttpTest {
         HttpResult invalidJson =
                 request(
                         "POST",
-                        "/api/jimuqu/runs/subagents/sub-invalid-json/control",
+                        "/api/runs/subagents/sub-invalid-json/control",
                         "{\"command\":\"pause token=ghp_invalidsubcommand12345\"",
                         token);
         assertThat(invalidJson.status).isEqualTo(400);
@@ -3008,7 +2682,7 @@ public class DashboardControllerHttpTest {
         HttpResult control =
                 request(
                         "POST",
-                        "/api/jimuqu/runs/subagents/sub-token=ghp_subagent12345/control",
+                        "/api/runs/subagents/sub-token=ghp_subagent12345/control",
                         "{\"command\":\"pause token=ghp_subcommand12345\"}",
                         token);
         assertThat(control.status).isEqualTo(200);
@@ -3063,7 +2737,7 @@ public class DashboardControllerHttpTest {
         HttpResult index =
                 request(
                         "POST",
-                        "/api/jimuqu/media/index",
+                        "/api/media/index",
                         "{\"mediaId\":\"dashboard-media-secret\",\"platform\":\"MEMORY\","
                                 + "\"localPath\":\""
                                 + jsonEscape(cached.getAbsolutePath())
@@ -3074,7 +2748,7 @@ public class DashboardControllerHttpTest {
         assertThat(index.status).isEqualTo(200);
 
         HttpResult detail =
-                request("GET", "/api/jimuqu/media/dashboard-media-secret", null, token);
+                request("GET", "/api/media/dashboard-media-secret", null, token);
         assertThat(detail.status).isEqualTo(200);
         assertThat(detail.body).contains("media://MEMORY/dashboard-secret-token.txt");
         assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
@@ -3083,7 +2757,7 @@ public class DashboardControllerHttpTest {
         HttpResult download =
                 request(
                         "POST",
-                        "/api/jimuqu/media/dashboard-media-secret/download",
+                        "/api/media/dashboard-media-secret/download",
                         "{}",
                         token);
         assertThat(download.status).isEqualTo(200);
@@ -3093,7 +2767,7 @@ public class DashboardControllerHttpTest {
         HttpResult reference =
                 request(
                         "POST",
-                        "/api/jimuqu/media/dashboard-media-secret/reference",
+                        "/api/media/dashboard-media-secret/reference",
                         "{}",
                         token);
         assertThat(reference.status).isEqualTo(200);
@@ -3110,7 +2784,7 @@ public class DashboardControllerHttpTest {
         HttpResult invalidPath =
                 request(
                         "POST",
-                        "/api/jimuqu/media/index",
+                        "/api/media/index",
                         "{\"mediaId\":\"media-token=ghp_mediaindex12345\","
                                 + "\"localPath\":\""
                                 + jsonEscape(secret.getAbsolutePath())
@@ -3126,7 +2800,7 @@ public class DashboardControllerHttpTest {
         HttpResult invalidJson =
                 request(
                         "POST",
-                        "/api/jimuqu/media/index",
+                        "/api/media/index",
                         "{\"mediaId\":\"media-token=ghp_mediaparse12345\"",
                         token);
         assertThat(invalidJson.status).isEqualTo(400);
@@ -3139,7 +2813,7 @@ public class DashboardControllerHttpTest {
         HttpResult missing =
                 request(
                         "POST",
-                        "/api/jimuqu/media/missing-token=ghp_mediamissing12345/download",
+                        "/api/media/missing-token=ghp_mediamissing12345/download",
                         "{}",
                         token);
         assertThat(missing.status).isEqualTo(400);
@@ -3325,7 +2999,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/config",
-                        "{\"config\":{\"terminal\":{\"credentialFiles\":[\"C:/secret/ghp_configsave12345.txt\"]}}}",
+                        "{\"config\":{\"solonclaw\":{\"terminal\":{\"credentialFiles\":[\"C:/secret/ghp_configsave12345.txt\"]}}}}",
                         token);
         assertThat(unsupportedSave.status).isEqualTo(400);
         assertThat(unsupportedSave.body)
@@ -3350,7 +3024,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/config/raw",
-                        "{\"yaml_text\":\"terminal:\\n  credentialFiles:\\n    - C:/secret/ghp_configraw12345.txt\"}",
+                        "{\"yaml_text\":\"solonclaw:\\n  terminal:\\n    credentialFiles:\\n      - C:/secret/ghp_configraw12345.txt\"}",
                         token);
         assertThat(unsupportedRaw.status).isEqualTo(400);
         assertThat(unsupportedRaw.body)

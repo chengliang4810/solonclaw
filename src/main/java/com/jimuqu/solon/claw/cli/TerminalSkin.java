@@ -22,7 +22,7 @@ public final class TerminalSkin {
     }
 
     public static TerminalSkin fromEnvironment() {
-        return resolve(System.getenv("JIMUQU_TERMINAL_SKIN"));
+        return resolve(System.getenv("SOLONCLAW_TERMINAL_SKIN"));
     }
 
     public static TerminalSkin resolve(String value) {

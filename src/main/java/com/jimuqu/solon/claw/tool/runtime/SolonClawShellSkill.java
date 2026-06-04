@@ -479,8 +479,8 @@ public class SolonClawShellSkill extends ShellSkill {
     public static Map<String, Object> sudoRewritePolicySummary(boolean sudoPasswordConfigured) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("configured", Boolean.valueOf(sudoPasswordConfigured));
-        summary.put("envKey", "SUDO_PASSWORD");
-        summary.put("configKey", "terminal.sudoPassword");
+        summary.put("envKey", "SOLONCLAW_SUDO_PASSWORD");
+        summary.put("configKey", "solonclaw.terminal.sudoPassword");
         summary.put("rewritesRealSudoInvocations", Boolean.TRUE);
         summary.put("stdinPasswordInjection", Boolean.TRUE);
         summary.put("passwordRedacted", Boolean.TRUE);
@@ -678,7 +678,7 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private String resolveSudoPassword() {
-        String envValue = System.getenv("SUDO_PASSWORD");
+        String envValue = System.getenv("SOLONCLAW_SUDO_PASSWORD");
         if (envValue != null) {
             return envValue;
         }
@@ -757,8 +757,8 @@ public class SolonClawShellSkill extends ShellSkill {
         }
         String hint =
                 "提示：sudo 需要密码或交互式终端。"
-                        + "如需在消息渠道或后台任务中使用 sudo，请在运行环境设置 SUDO_PASSWORD，"
-                        + "或在 dashboard 安全配置中设置 terminal.sudoPassword。";
+                        + "如需在消息渠道或后台任务中使用 sudo，请在运行环境设置 SOLONCLAW_SUDO_PASSWORD，"
+                        + "或在 dashboard 安全配置中设置 solonclaw.terminal.sudoPassword。";
         if (value.contains(hint)) {
             return value;
         }

@@ -1546,7 +1546,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "endpointUrlSafetyChecked");
             copyPolicyValue(summary, safe, "endpointOverrideEnvironment");
             copyPolicyValue(summary, safe, "projectEndpointOverrideEnvironment");
-            copyPolicyValue(summary, safe, "legacyEndpointOverrideEnvironment");
             copyPolicyValue(summary, safe, "malwareAdvisoryPrefix");
             copyPolicyValue(summary, safe, "nonMalwareVulnerabilitiesIgnored");
             copyPolicyValue(summary, safe, "malwareBlocksSaveAndCheck");
@@ -4660,21 +4659,21 @@ public class DashboardDiagnosticsService {
                         "gateway_stop_restart",
                         "网关停止或重启审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "jimuqu-agent gateway restart",
+                        "solon-claw gateway restart",
                         "gateway_stop_restart"));
         items.add(
                 approvalDetectionProbe(
                         "app_update_restart",
                         "应用更新重启审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "jimuqu-agent update",
+                        "solon-claw update",
                         "app_update_restart"));
         items.add(
                 approvalDetectionProbe(
                         "kill_agent_process",
                         "Agent 进程终止审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "pkill jimuqu-agent",
+                        "pkill solon-claw",
                         "kill_agent_process"));
         items.add(
                 approvalDetectionProbe(
@@ -4968,7 +4967,7 @@ public class DashboardDiagnosticsService {
                         "sensitive_tee",
                         "敏感路径 tee 写入审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "echo x | tee $JIMUQU_HOME/.env",
+                        "echo x | tee $SOLONCLAW_HOME/.env",
                         "sensitive_tee"));
         items.add(
                 approvalDetectionProbe(
@@ -7238,7 +7237,8 @@ public class DashboardDiagnosticsService {
                         + ":recursive_delete:dashboard-expired-command");
         expired.put("createdAt", Long.valueOf(System.currentTimeMillis() - 10000L));
         expired.put("expiresAt", Long.valueOf(System.currentTimeMillis() - 1000L));
-        session.getContext().put("_dangerous_command_pending_", expired);
+        session.getContext().put(
+                "_dangerous_command_pending_queue_", Collections.singletonList(expired));
 
         boolean expiredPruned =
                 approvalService.getPendingApproval(session) == null

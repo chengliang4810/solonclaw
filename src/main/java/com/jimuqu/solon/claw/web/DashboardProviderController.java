@@ -23,12 +23,12 @@ public class DashboardProviderController {
         return providerService.listProviders();
     }
 
-    @Mapping(value = "/api/jimuqu/models", method = MethodType.GET)
+    @Mapping(value = "/api/models", method = MethodType.GET)
     public Map<String, Object> JimuquModels() {
         return DashboardResponse.ok(providerService.JimuquModels());
     }
 
-    @Mapping(value = "/api/jimuqu/models/health", method = MethodType.GET)
+    @Mapping(value = "/api/models/health", method = MethodType.GET)
     public Map<String, Object> JimuquModelHealth() {
         return DashboardResponse.ok(providerService.health());
     }

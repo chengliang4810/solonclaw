@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
-/** Jimuqu 风格 Cron 任务管理服务。 */
+/** Solon Claw Cron 任务管理服务。 */
 public class CronJobService {
     public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
@@ -85,7 +85,7 @@ public class CronJobService {
                         "(?:\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(?:restart|stop|start)\\b)"
                                 + "|(?:\\blaunchctl\\s+(?:kickstart|unload|load|stop|restart)\\b[^\\n]*solon-?claw)"
                                 + "|(?:\\bsystemctl\\s+(?:restart|stop|start)\\b[^\\n]*solon-?claw)"
-                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:Jimuqu|jimuqu-agent|solon-claw|solonclaw|gateway))"
+                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:solon-claw|solonclaw|gateway))"
                                 + "|(?:\\bkill\\b[^\\n]*(?:\\$\\(\\s*(?:pgrep|pidof)\\b|`\\s*(?:pgrep|pidof)\\b))")
             };
 
@@ -597,41 +597,10 @@ public class CronJobService {
                         "DELETE /api/cron/jobs/{id}",
                         "GET /api/cron/jobs/{id}/inspect",
                         "POST /api/cron/jobs/{id}/pause",
-                        "POST /api/cron/jobs/{id}/disable",
-                        "POST /api/cron/jobs/{id}/stop",
                         "POST /api/cron/jobs/{id}/resume",
-                        "POST /api/cron/jobs/{id}/enable",
-                        "POST /api/cron/jobs/{id}/start",
-                        "POST /api/cron/jobs/{id}/run",
                         "POST /api/cron/jobs/{id}/trigger",
                         "POST /api/cron/jobs/{id}/retry",
-                        "POST /api/cron/jobs/{id}/rerun",
-                        "GET /api/cron/jobs/{id}/runs",
-                        "GET /api/cron/jobs/{id}/history",
-                        "GET /api/jobs/guide",
-                        "GET /api/jobs/policy",
-                        "GET /api/jobs/status",
-                        "GET /api/jobs/next",
-                        "GET /api/jobs",
-                        "POST /api/jobs",
-                        "PATCH /api/jobs/{id}",
-                        "PUT /api/jobs/{id}",
-                        "DELETE /api/jobs/{id}",
-                        "GET /api/jobs/{id}",
-                        "GET /api/jobs/{id}/inspect",
-                        "GET /api/jobs/{id}/show",
-                        "POST /api/jobs/{id}/pause",
-                        "POST /api/jobs/{id}/disable",
-                        "POST /api/jobs/{id}/stop",
-                        "POST /api/jobs/{id}/resume",
-                        "POST /api/jobs/{id}/enable",
-                        "POST /api/jobs/{id}/start",
-                        "POST /api/jobs/{id}/run",
-                        "POST /api/jobs/{id}/trigger",
-                        "POST /api/jobs/{id}/retry",
-                        "POST /api/jobs/{id}/rerun",
-                        "GET /api/jobs/{id}/runs",
-                        "GET /api/jobs/{id}/history"));
+                        "GET /api/cron/jobs/{id}/runs"));
         return result;
     }
 
@@ -827,7 +796,7 @@ public class CronJobService {
         isolation.put("workdirJobsSerialized", Boolean.TRUE);
         isolation.put("parallelBySourceWithoutWorkdir", Boolean.TRUE);
         isolation.put("inactivityTimeoutSeconds", Integer.valueOf(cronInactivityTimeoutSeconds()));
-        isolation.put("inactivityTimeoutEnv", "JIMUQU_CRON_TIMEOUT");
+        isolation.put("inactivityTimeoutEnv", "SOLONCLAW_CRON_TIMEOUT");
         isolation.put("missedRunCatchupWindow", "half_period_clamped_120s_to_2h");
         isolation.put("oneShotGraceWindowSeconds", Integer.valueOf(120));
         return isolation;
@@ -948,7 +917,7 @@ public class CronJobService {
         result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         result.put("protected_disabled_overrides_enabled_toolsets", Boolean.TRUE);
         result.put("local_delivery", "deliver=local 时只写入运行历史，不外投消息。");
-        result.put("inactivity_timeout", "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 JIMUQU_CRON_TIMEOUT 控制。");
+        result.put("inactivity_timeout", "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 SOLONCLAW_CRON_TIMEOUT 控制。");
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
         result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
         result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));

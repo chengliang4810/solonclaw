@@ -886,7 +886,7 @@ public class MemoryAndSkillsTest {
         List<Object> rejected = (List<Object>) credentialFiles.get("rejected");
 
         assertThat(mounts.toString()).contains("credentials/token.json");
-        assertThat(mounts.toString()).contains("/root/.jimuqu-agent/credentials/token.json");
+        assertThat(mounts.toString()).contains("/root/.solon-claw/credentials/token.json");
         assertThat(missing).contains("missing.json");
         assertThat(rejected.toString()).contains("[REDACTED_PATH]");
         assertThat(rejected.toString()).doesNotContain("../../.ssh/id_rsa");
@@ -917,7 +917,7 @@ public class MemoryAndSkillsTest {
         assertThat(plan.getMounts()).hasSize(1);
         assertThat(plan.getMounts().get(0).getRelativePath()).isEqualTo("credentials/oauth.json");
         assertThat(plan.getMounts().get(0).getContainerPath())
-                .isEqualTo("/root/.jimuqu-agent/credentials/oauth.json");
+                .isEqualTo("/root/.solon-claw/credentials/oauth.json");
         assertThat(plan.getMissing()).contains("credentials/missing.json");
         assertThat(plan.getRejected()).hasSize(1);
         assertThat(plan.getRejected().get(0).getRelativePath()).isEqualTo("../outside.json");
@@ -1019,11 +1019,11 @@ public class MemoryAndSkillsTest {
         env.appConfig.getTerminal().getCredentialFiles().add("credentials/oauth.json");
 
         SkillCredentialFileService.CredentialFilePlan plan =
-                new SkillCredentialFileService(env.appConfig).configPlan("/home/user/.jimuqu-agent/");
+                new SkillCredentialFileService(env.appConfig).configPlan("/home/user/.solon-claw/");
 
         assertThat(plan.getMounts()).hasSize(1);
         assertThat(plan.getMounts().get(0).getContainerPath())
-                .isEqualTo("/home/user/.jimuqu-agent/credentials/oauth.json");
+                .isEqualTo("/home/user/.solon-claw/credentials/oauth.json");
     }
 
     @Test
@@ -1036,12 +1036,12 @@ public class MemoryAndSkillsTest {
 
         SkillCredentialFileService.CredentialFilePlan plan =
                 new SkillCredentialFileService(env.appConfig)
-                        .plan("credentials/direct.json", "/home/user/.jimuqu-agent");
+                        .plan("credentials/direct.json", "/home/user/.solon-claw");
 
         assertThat(plan.getMounts()).hasSize(1);
         assertThat(plan.getMounts().get(0).getRelativePath()).isEqualTo("credentials/direct.json");
         assertThat(plan.getMounts().get(0).getContainerPath())
-                .isEqualTo("/home/user/.jimuqu-agent/credentials/direct.json");
+                .isEqualTo("/home/user/.solon-claw/credentials/direct.json");
         assertThat(plan.getMissing()).isEmpty();
         assertThat(plan.getRejected()).isEmpty();
     }
@@ -1138,7 +1138,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldPlanJimuquStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
+    void shouldPlanCurrentSandboxMountsForCredentialsSkillsAndCache() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
         File credentialFile =
@@ -1158,15 +1158,15 @@ public class MemoryAndSkillsTest {
 
         assertThat(plan.getCredentialFiles()).hasSize(1);
         assertThat(plan.getCredentialFiles().get(0).getContainerPath())
-                .isEqualTo("/root/.jimuqu-agent/credentials/oauth.json");
+                .isEqualTo("/root/.solon-claw/credentials/oauth.json");
         assertThat(plan.getSkillsDirectories()).hasSize(1);
         assertThat(plan.getSkillsDirectories().get(0).getHostPath())
                 .isEqualTo(new File(env.appConfig.getRuntime().getSkillsDir()).getAbsolutePath());
         assertThat(plan.getSkillsDirectories().get(0).getContainerPath())
-                .isEqualTo("/root/.jimuqu-agent/skills");
+                .isEqualTo("/root/.solon-claw/skills");
         assertThat(plan.getCacheDirectories()).hasSize(1);
         assertThat(plan.getCacheDirectories().get(0).getContainerPath())
-                .isEqualTo("/root/.jimuqu-agent/cache/media");
+                .isEqualTo("/root/.solon-claw/cache/media");
         assertThat(plan.toMetadata().toString())
                 .contains("credential_files")
                 .contains("skills_directories")
@@ -1236,18 +1236,18 @@ public class MemoryAndSkillsTest {
 
         assertThat(skillContainerPaths)
                 .contains(
-                        "/root/.jimuqu-agent/external_skills/0/docs/external-iter/SKILL.md",
-                        "/root/.jimuqu-agent/external_skills/0/docs/external-iter/scripts/run.ps1");
+                        "/root/.solon-claw/external_skills/0/docs/external-iter/SKILL.md",
+                        "/root/.solon-claw/external_skills/0/docs/external-iter/scripts/run.ps1");
         if (symlinkCreated) {
             assertThat(skillContainerPaths.toString()).doesNotContain("secret-link.txt");
         }
     }
 
     @Test
-    void shouldResolveLegacyCacheDirectoriesLikeJimuquCredentialFiles() throws Exception {
+    void shouldMountCurrentCacheDirectoriesOnly() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        File documentCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "document_cache");
-        File imageCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "image_cache");
+        File documentCache = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "documents");
+        File imageCache = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "images");
         FileUtil.mkdir(documentCache);
         FileUtil.mkdir(imageCache);
 
@@ -1257,10 +1257,10 @@ public class MemoryAndSkillsTest {
         assertThat(mounts).hasSize(2);
         assertThat(mounts.get(0).getHostPath()).isEqualTo(documentCache.getAbsolutePath());
         assertThat(mounts.get(0).getContainerPath())
-                .isEqualTo("/root/.jimuqu-agent/cache/documents");
+                .isEqualTo("/root/.solon-claw/cache/documents");
         assertThat(mounts.get(1).getHostPath()).isEqualTo(imageCache.getAbsolutePath());
         assertThat(mounts.get(1).getContainerPath())
-                .isEqualTo("/root/.jimuqu-agent/cache/images");
+                .isEqualTo("/root/.solon-claw/cache/images");
     }
 
     @Test
@@ -1331,10 +1331,10 @@ public class MemoryAndSkillsTest {
 
         assertThat(skillContainerPaths)
                 .contains(
-                        "/root/.jimuqu-agent/skills/ops/iter-skill/SKILL.md",
-                        "/root/.jimuqu-agent/skills/ops/iter-skill/scripts/run.ps1");
+                        "/root/.solon-claw/skills/ops/iter-skill/SKILL.md",
+                        "/root/.solon-claw/skills/ops/iter-skill/scripts/run.ps1");
         assertThat(cacheContainerPaths)
-                .contains("/root/.jimuqu-agent/cache/screenshots/session-a/screen1.png");
+                .contains("/root/.solon-claw/cache/screenshots/session-a/screen1.png");
         if (symlinkCreated) {
             assertThat(skillContainerPaths.toString()).doesNotContain("secret-link.txt");
             assertThat(cacheContainerPaths.toString()).doesNotContain("screen-link.png");

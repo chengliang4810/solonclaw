@@ -89,8 +89,6 @@ export SOLONCLAW_GID="$(id -g)"
 docker compose up -d
 ```
 
-The entrypoint also accepts the common NAS-style `PUID` / `PGID` aliases. If both forms are set, `SOLONCLAW_UID` / `SOLONCLAW_GID` take precedence.
-
 ## Configuration
 
 Default configuration lives in:
@@ -165,10 +163,10 @@ Common runtime settings:
 | `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
 | `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
 | `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |
-| `terminal.credentialFiles` | empty | Runtime-relative credential files available to isolated execution |
-| `terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |
-| `terminal.sudoPassword` | empty | Optional sudo password for `sudo -S` rewriting |
-| `terminal.writeSafeRoot` | empty | When set, constrains file writes, patches, and shell writes to this root |
+| `solonclaw.terminal.credentialFiles` | empty | Runtime-relative credential files available to isolated execution |
+| `solonclaw.terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |
+| `solonclaw.terminal.sudoPassword` | empty | Optional sudo password for `sudo -S` rewriting; can also be supplied with `SOLONCLAW_SUDO_PASSWORD` |
+| `solonclaw.terminal.writeSafeRoot` | empty | When set, constrains file writes, patches, and shell writes to this root |
 | `solonclaw.trace.retentionDays` | `14` | Run trace retention in days |
 | `solonclaw.trace.maxAttempts` | `2` | Maximum outer attempts per run |
 | `solonclaw.task.busyPolicy` | `interrupt` | Policy for new messages while a session is already running |
