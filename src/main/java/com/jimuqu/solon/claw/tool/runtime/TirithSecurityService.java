@@ -40,8 +40,7 @@ public class TirithSecurityService {
     }
 
     private ScanResult checkCommandSecurity(String command, String shell) {
-        AppConfig.SecurityConfig security =
-                appConfig == null ? null : appConfig.getSecurity();
+        AppConfig.SecurityConfig security = appConfig == null ? null : appConfig.getSecurity();
         if (security != null && !security.isTirithEnabled()) {
             return recordAndReturn(command, shell, ScanResult.allow());
         }
@@ -50,10 +49,7 @@ public class TirithSecurityService {
                 security == null
                         ? "tirith"
                         : StrUtil.blankToDefault(security.getTirithPath(), "tirith").trim();
-        int timeoutSeconds =
-                security == null
-                        ? 5
-                        : Math.max(1, security.getTirithTimeoutSeconds());
+        int timeoutSeconds = security == null ? 5 : Math.max(1, security.getTirithTimeoutSeconds());
         boolean failOpen = security == null || security.isTirithFailOpen();
         String resolvedPath = resolvePath(path);
         if (StrUtil.isBlank(resolvedPath)) {
@@ -131,10 +127,13 @@ public class TirithSecurityService {
             }
 
             ParsedOutput parsed = parseOutput(out, action);
-            if (StrUtil.isBlank(parsed.summary) && StrUtil.isNotBlank(err) && !"allow".equals(action)) {
+            if (StrUtil.isBlank(parsed.summary)
+                    && StrUtil.isNotBlank(err)
+                    && !"allow".equals(action)) {
                 parsed.summary = safeText(err.trim(), MAX_SUMMARY_LENGTH);
             }
-            return recordAndReturn(command, shell, new ScanResult(action, parsed.findings, parsed.summary));
+            return recordAndReturn(
+                    command, shell, new ScanResult(action, parsed.findings, parsed.summary));
         } catch (Exception e) {
             String message = safeMessage(e);
             return recordAndReturn(
@@ -161,17 +160,13 @@ public class TirithSecurityService {
     }
 
     public Diagnostic diagnose() {
-        AppConfig.SecurityConfig security =
-                appConfig == null ? null : appConfig.getSecurity();
+        AppConfig.SecurityConfig security = appConfig == null ? null : appConfig.getSecurity();
         boolean enabled = security == null || security.isTirithEnabled();
         String configuredPath =
                 security == null
                         ? "tirith"
                         : StrUtil.blankToDefault(security.getTirithPath(), "tirith").trim();
-        int timeoutSeconds =
-                security == null
-                        ? 5
-                        : Math.max(1, security.getTirithTimeoutSeconds());
+        int timeoutSeconds = security == null ? 5 : Math.max(1, security.getTirithTimeoutSeconds());
         boolean failOpen = security == null || security.isTirithFailOpen();
         String resolvedPath = resolvePath(configuredPath);
         boolean configured = StrUtil.isNotBlank(configuredPath);
@@ -247,7 +242,9 @@ public class TirithSecurityService {
         summary.put("sampleAuditRedacted", Boolean.TRUE);
         summary.put("shellDetection", java.util.Arrays.asList("posix", "powershell", "cmd"));
         summary.put("failOpenMode", diagnostic.getFailureBehavior());
-        summary.put("description", "Tirith scans command text through an external checker, maps warn/block findings into approval-required security results, and redacts diagnostics before exposing them.");
+        summary.put(
+                "description",
+                "Tirith scans command text through an external checker, maps warn/block findings into approval-required security results, and redacts diagnostics before exposing them.");
         return summary;
     }
 
@@ -324,7 +321,8 @@ public class TirithSecurityService {
 
     private ScanResult recordAndReturn(String command, String shell, ScanResult result) {
         try {
-            lastAuditSummary = AuditSummary.from(command, normalizeShell(shell), result, diagnose());
+            lastAuditSummary =
+                    AuditSummary.from(command, normalizeShell(shell), result, diagnose());
         } catch (Exception ignored) {
             // Diagnostics must never change the security decision.
         }
@@ -343,9 +341,7 @@ public class TirithSecurityService {
                 || text.startsWith("pwsh.exe ")) {
             return "powershell";
         }
-        if (text.startsWith("cmd /")
-                || text.startsWith("cmd.exe /")
-                || text.startsWith("cmd ")) {
+        if (text.startsWith("cmd /") || text.startsWith("cmd.exe /") || text.startsWith("cmd ")) {
             return "cmd";
         }
         return "posix";
@@ -461,7 +457,9 @@ public class TirithSecurityService {
             List<Finding> findings = parseFindings(map.get("findings"));
             Object rawSummary = map.get("summary");
             String summary =
-                    safeText(rawSummary == null ? "" : String.valueOf(rawSummary), MAX_SUMMARY_LENGTH);
+                    safeText(
+                            rawSummary == null ? "" : String.valueOf(rawSummary),
+                            MAX_SUMMARY_LENGTH);
             return new ParsedOutput(findings, summary);
         } catch (Exception e) {
             return parseFailure(action);
@@ -602,7 +600,8 @@ public class TirithSecurityService {
             this.findingRuleSamples =
                     findingRuleSamples == null
                             ? Collections.<String>emptyList()
-                            : Collections.unmodifiableList(new ArrayList<String>(findingRuleSamples));
+                            : Collections.unmodifiableList(
+                                    new ArrayList<String>(findingRuleSamples));
             this.summaryPreview = safeText(summaryPreview, MAX_SUMMARY_LENGTH);
             this.redactionApplied = redactionApplied;
             this.rawCommandExposed = rawCommandExposed;
@@ -725,7 +724,10 @@ public class TirithSecurityService {
                     break;
                 }
                 if (finding != null) {
-                    samples.add(safeText(StrUtil.blankToDefault(finding.getRuleId(), "security_scan"), 200));
+                    samples.add(
+                            safeText(
+                                    StrUtil.blankToDefault(finding.getRuleId(), "security_scan"),
+                                    200));
                 }
             }
             return samples;
@@ -920,7 +922,9 @@ public class TirithSecurityService {
             return "path://tirith";
         }
         File file = new File(value);
-        if (file.isAbsolute() || value.indexOf(File.separatorChar) >= 0 || value.indexOf('/') >= 0) {
+        if (file.isAbsolute()
+                || value.indexOf(File.separatorChar) >= 0
+                || value.indexOf('/') >= 0) {
             String name = StrUtil.blankToDefault(file.getName(), "tirith");
             return "path://" + safeText(name, 200);
         }

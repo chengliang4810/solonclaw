@@ -132,8 +132,7 @@ public class DefaultSkillImportService implements SkillImportService {
                         SkillBundlePathSupport.requireCanonicalUnderRoot(
                                 skillsDir,
                                 FileUtil.file(
-                                        quarantineRoot,
-                                        skillName + "-backup-" + System.nanoTime()),
+                                        quarantineRoot, skillName + "-backup-" + System.nanoTime()),
                                 "backup path");
                 FileUtil.move(installDir, backupDir, true);
             }
@@ -428,7 +427,9 @@ public class DefaultSkillImportService implements SkillImportService {
         File target =
                 SkillBundlePathSupport.requireCanonicalUnderRoot(
                         skillsDir,
-                        FileUtil.file(importedRoot, prefix + "-" + safeSourceName + "-" + System.nanoTime()),
+                        FileUtil.file(
+                                importedRoot,
+                                prefix + "-" + safeSourceName + "-" + System.nanoTime()),
                         "imported path");
         FileUtil.mkParentDirs(target);
         FileUtil.move(sourceArtifact, target, true);
@@ -448,9 +449,7 @@ public class DefaultSkillImportService implements SkillImportService {
         }
         java.util.Map<String, Object> frontmatter =
                 SkillFrontmatterSupport.parseFrontmatter(skillMd);
-        java.util.Map<String, Object> Jimuqu =
-                SkillFrontmatterSupport.getCompatibilityMetadata(frontmatter);
-        Object category = Jimuqu.get("category");
+        Object category = frontmatter.get("category");
         if (category instanceof String && StrUtil.isNotBlank((String) category)) {
             return SkillBundlePathSupport.normalizeCategoryName((String) category);
         }

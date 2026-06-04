@@ -5,8 +5,8 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 /**
  * 网关会话上下文隔离工具。
  *
- * <p>确保每个 platform + chatId + userId 组合拥有独立的会话上下文，防止不同聊天间的工具状态、
- * 文件状态、审批状态互相影响。隔离键与 {@link GatewayMessage#sourceKey()} 保持一致。
+ * <p>确保每个 platform + chatId + userId 组合拥有独立的会话上下文，防止不同聊天间的工具状态、 文件状态、审批状态互相影响。隔离键与 {@link
+ * GatewayMessage#sourceKey()} 保持一致。
  */
 public final class GatewayContextIsolation {
 

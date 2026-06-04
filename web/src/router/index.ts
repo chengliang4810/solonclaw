@@ -11,89 +11,79 @@ const router = createRouter({
       meta: { public: true },
     },
     {
-      path: '/jimuqu/chat',
-      name: 'Jimuqu.chat',
-      component: () => import('@/views/jimuqu/ChatView.vue'),
+      path: '/solonclaw/chat',
+      name: 'SolonClaw.chat',
+      component: () => import('@/views/solonclaw/ChatView.vue'),
     },
     {
-      path: '/jimuqu/agents',
-      name: 'Jimuqu.agents',
-      component: () => import('@/views/jimuqu/AgentsView.vue'),
+      path: '/solonclaw/agents',
+      name: 'SolonClaw.agents',
+      component: () => import('@/views/solonclaw/AgentsView.vue'),
     },
     {
-      path: '/jimuqu/jobs',
-      name: 'Jimuqu.jobs',
-      component: () => import('@/views/jimuqu/JobsView.vue'),
+      path: '/solonclaw/jobs',
+      name: 'SolonClaw.jobs',
+      component: () => import('@/views/solonclaw/JobsView.vue'),
     },
     {
-      path: '/jimuqu/models',
-      name: 'Jimuqu.models',
-      component: () => import('@/views/jimuqu/ModelsView.vue'),
+      path: '/solonclaw/models',
+      name: 'SolonClaw.models',
+      component: () => import('@/views/solonclaw/ModelsView.vue'),
     },
     {
-      path: '/jimuqu/persona/journal',
-      name: 'Jimuqu.persona.journal',
-      component: () => import('@/views/jimuqu/PersonaDiaryView.vue'),
+      path: '/solonclaw/persona/journal',
+      name: 'SolonClaw.persona.journal',
+      component: () => import('@/views/solonclaw/PersonaDiaryView.vue'),
     },
     {
-      path: '/jimuqu/persona/:key',
-      name: 'Jimuqu.persona.file',
-      component: () => import('@/views/jimuqu/PersonaFileView.vue'),
+      path: '/solonclaw/persona/:key',
+      name: 'SolonClaw.persona.file',
+      component: () => import('@/views/solonclaw/PersonaFileView.vue'),
     },
     {
-      path: '/jimuqu/logs',
-      name: 'Jimuqu.logs',
-      component: () => import('@/views/jimuqu/LogsView.vue'),
+      path: '/solonclaw/logs',
+      name: 'SolonClaw.logs',
+      component: () => import('@/views/solonclaw/LogsView.vue'),
     },
     {
-      path: '/jimuqu/usage',
-      name: 'Jimuqu.usage',
-      component: () => import('@/views/jimuqu/UsageView.vue'),
+      path: '/solonclaw/usage',
+      name: 'SolonClaw.usage',
+      component: () => import('@/views/solonclaw/UsageView.vue'),
     },
     {
-      path: '/jimuqu/runs',
-      name: 'Jimuqu.runs',
-      component: () => import('@/views/jimuqu/RunsView.vue'),
+      path: '/solonclaw/runs',
+      name: 'SolonClaw.runs',
+      component: () => import('@/views/solonclaw/RunsView.vue'),
     },
     {
-      path: '/jimuqu/skills',
-      name: 'Jimuqu.skills',
-      component: () => import('@/views/jimuqu/SkillsView.vue'),
+      path: '/solonclaw/skills',
+      name: 'SolonClaw.skills',
+      component: () => import('@/views/solonclaw/SkillsView.vue'),
     },
     {
-      path: '/jimuqu/memory',
-      name: 'Jimuqu.memory',
-      redirect: '/jimuqu/persona/memory',
+      path: '/solonclaw/settings',
+      name: 'SolonClaw.settings',
+      component: () => import('@/views/solonclaw/SettingsView.vue'),
     },
     {
-      path: '/jimuqu/settings',
-      name: 'Jimuqu.settings',
-      component: () => import('@/views/jimuqu/SettingsView.vue'),
+      path: '/solonclaw/diagnostics',
+      name: 'SolonClaw.diagnostics',
+      component: () => import('@/views/solonclaw/DiagnosticsView.vue'),
     },
     {
-      path: '/jimuqu/diagnostics',
-      name: 'Jimuqu.diagnostics',
-      component: () => import('@/views/jimuqu/DiagnosticsView.vue'),
+      path: '/solonclaw/channels',
+      name: 'SolonClaw.channels',
+      component: () => import('@/views/solonclaw/ChannelsView.vue'),
     },
     {
-      path: '/jimuqu/gateways',
-      name: 'Jimuqu.gateways',
-      redirect: '/jimuqu/channels',
+      path: '/solonclaw/mcp',
+      name: 'SolonClaw.mcp',
+      component: () => import('@/views/solonclaw/McpView.vue'),
     },
     {
-      path: '/jimuqu/channels',
-      name: 'Jimuqu.channels',
-      component: () => import('@/views/jimuqu/ChannelsView.vue'),
-    },
-    {
-      path: '/jimuqu/mcp',
-      name: 'Jimuqu.mcp',
-      component: () => import('@/views/jimuqu/McpView.vue'),
-    },
-    {
-      path: '/jimuqu/files',
-      name: 'Jimuqu.files',
-      component: () => import('@/views/jimuqu/FilesView.vue'),
+      path: '/solonclaw/files',
+      name: 'SolonClaw.files',
+      component: () => import('@/views/solonclaw/FilesView.vue'),
     },
   ],
 })
@@ -103,7 +93,7 @@ router.beforeEach((to, _from, next) => {
   if (to.meta.public) {
     // Already has key, skip login
     if (to.name === 'login' && hasApiKey()) {
-      next({ path: '/jimuqu/chat' })
+      next({ path: '/solonclaw/chat' })
       return
     }
     next()

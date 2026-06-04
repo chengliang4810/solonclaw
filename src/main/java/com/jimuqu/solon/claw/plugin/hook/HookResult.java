@@ -27,11 +27,27 @@ public class HookResult {
         return new HookResult("inject", null, context);
     }
 
-    public String getAction() { return action; }
-    public String getMessage() { return message; }
-    public String getContent() { return content; }
+    public String getAction() {
+        return action;
+    }
 
-    public boolean isBlock() { return "block".equals(action); }
-    public boolean isReplace() { return "replace".equals(action); }
-    public boolean isInject() { return "inject".equals(action); }
+    public String getMessage() {
+        return message;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public boolean isBlock() {
+        return "block".equals(action);
+    }
+
+    public boolean isReplace() {
+        return "replace".equals(action);
+    }
+
+    public boolean isInject() {
+        return "inject".equals(action);
+    }
 }

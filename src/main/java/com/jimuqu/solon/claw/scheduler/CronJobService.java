@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
-/** Jimuqu 风格 Cron 任务管理服务。 */
+/** Solon Claw Cron 任务管理服务。 */
 public class CronJobService {
     public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
@@ -70,12 +70,8 @@ public class CronJobService {
                         "curl\\s+[^\\n]*(?:-H|--header)\\s+[\"']Authorization:\\s*(?:Bearer|token)\\s+"
                                 + CRON_SECRET_VAR
                                 + "[\"']"),
-                threat(
-                        "exfil_curl",
-                        "curl\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
-                threat(
-                        "exfil_wget",
-                        "wget\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
+                threat("exfil_curl", "curl\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
+                threat("exfil_wget", "wget\\s+[^\\n]*https?://[^\\s\"'`]*" + CRON_SECRET_VAR),
                 threat("read_secrets", "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass)"),
                 threat("ssh_backdoor", "authorized_keys"),
                 threat("sudoers_mod", "/etc/sudoers|visudo"),
@@ -85,7 +81,7 @@ public class CronJobService {
                         "(?:\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(?:restart|stop|start)\\b)"
                                 + "|(?:\\blaunchctl\\s+(?:kickstart|unload|load|stop|restart)\\b[^\\n]*solon-?claw)"
                                 + "|(?:\\bsystemctl\\s+(?:restart|stop|start)\\b[^\\n]*solon-?claw)"
-                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:Jimuqu|jimuqu-agent|solon-claw|solonclaw|gateway))"
+                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:solon-claw|solonclaw|gateway))"
                                 + "|(?:\\bkill\\b[^\\n]*(?:\\$\\(\\s*(?:pgrep|pidof)\\b|`\\s*(?:pgrep|pidof)\\b))")
             };
 
@@ -137,8 +133,10 @@ public class CronJobService {
         String deliver = deliverValue(body.get("deliver"), defaultDeliver(body));
         validateDeliverTargets(deliver);
         record.setDeliverPlatform(deliver);
-        record.setDeliverChatId(string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
-        record.setDeliverThreadId(string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
+        record.setDeliverChatId(
+                string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
+        record.setDeliverThreadId(
+                string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
         record.setOriginJson(json(body.get("origin")));
         record.setSkillsJson(json(skills));
         record.setRepeatTimes(intValue(body.get("repeat"), 0));
@@ -150,7 +148,9 @@ public class CronJobService {
         record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
         applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         record.setWrapResponse(
-                bool(body.get("wrap_response"), bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
+                bool(
+                        body.get("wrap_response"),
+                        bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
         record.setStatus(STATUS_ACTIVE);
         record.setNextRunAt(CronSupport.nextRunAt(schedule, now));
         record.setLastRunAt(0L);
@@ -170,7 +170,8 @@ public class CronJobService {
             record.setPrompt(prompt);
         }
         if (body.containsKey("schedule") || body.containsKey("cronExpr")) {
-            String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), record.getCronExpr());
+            String schedule =
+                    scheduleValue(body.get("schedule"), body.get("cronExpr"), record.getCronExpr());
             CronSupport.validate(schedule);
             record.setCronExpr(schedule);
             record.setNextRunAt(CronSupport.nextRunAt(schedule, System.currentTimeMillis()));
@@ -184,10 +185,14 @@ public class CronJobService {
             record.setDeliverPlatform(deliver);
         }
         if (body.containsKey("deliver_chat_id") || body.containsKey("deliverChatId")) {
-            record.setDeliverChatId(string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
+            record.setDeliverChatId(
+                    string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
         }
         if (body.containsKey("deliver_thread_id") || body.containsKey("deliverThreadId")) {
-            record.setDeliverThreadId(string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
+            record.setDeliverThreadId(
+                    string(
+                            body.get("deliver_thread_id"),
+                            string(body.get("deliverThreadId"), null)));
         }
         if (clearSkills(body)) {
             record.setSkillsJson(json(new ArrayList<String>()));
@@ -236,10 +241,12 @@ public class CronJobService {
                             defaultModelValue(body, record),
                             defaultProviderValue(body, record),
                             defaultBaseUrlValue(body, record));
-            applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
+            applyModelPin(
+                    record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         }
         if (body.containsKey("wrap_response") || body.containsKey("wrapResponse")) {
-            record.setWrapResponse(bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
+            record.setWrapResponse(
+                    bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
         }
         if (body.containsKey("enabled")) {
             boolean enabled = bool(body.get("enabled"), true);
@@ -250,7 +257,8 @@ public class CronJobService {
             }
         }
         if (body.containsKey("status") || body.containsKey("state")) {
-            applyEditableStatus(record, string(body.get("status"), string(body.get("state"), null)));
+            applyEditableStatus(
+                    record, string(body.get("status"), string(body.get("state"), null)));
         }
         if (body.containsKey("paused_reason") || body.containsKey("pausedReason")) {
             String reason =
@@ -316,7 +324,8 @@ public class CronJobService {
         return result;
     }
 
-    public List<CronJobRecord> listBySource(String sourceKey, boolean includeDisabled) throws Exception {
+    public List<CronJobRecord> listBySource(String sourceKey, boolean includeDisabled)
+            throws Exception {
         List<CronJobRecord> result = new ArrayList<CronJobRecord>();
         for (CronJobRecord job : cronJobRepository.listBySource(sourceKey)) {
             if (includeDisabled || !STATUS_PAUSED.equalsIgnoreCase(job.getStatus())) {
@@ -348,7 +357,8 @@ public class CronJobService {
         record.setPausedAt(0L);
         record.setPausedReason(null);
         if (record.getNextRunAt() <= System.currentTimeMillis()) {
-            record.setNextRunAt(CronSupport.nextRunAt(record.getCronExpr(), System.currentTimeMillis()));
+            record.setNextRunAt(
+                    CronSupport.nextRunAt(record.getCronExpr(), System.currentTimeMillis()));
         }
         return cronJobRepository.update(record);
     }
@@ -444,8 +454,12 @@ public class CronJobService {
         result.put("source_key", record.getSourceKey());
         result.put("trigger", StrUtil.blankToDefault(record.getTriggerType(), "scheduled"));
         result.put("attempt", Integer.valueOf(record.getAttempt()));
-        result.put("started_at", record.getStartedAt() <= 0 ? null : Long.valueOf(record.getStartedAt()));
-        result.put("finished_at", record.getFinishedAt() <= 0 ? null : Long.valueOf(record.getFinishedAt()));
+        result.put(
+                "started_at",
+                record.getStartedAt() <= 0 ? null : Long.valueOf(record.getStartedAt()));
+        result.put(
+                "finished_at",
+                record.getFinishedAt() <= 0 ? null : Long.valueOf(record.getFinishedAt()));
         result.put("finished", Boolean.valueOf(record.getFinishedAt() > 0));
         result.put("duration_ms", durationMillis(record));
         result.put("status", record.getStatus());
@@ -475,16 +489,16 @@ public class CronJobService {
             Long absoluteRunAt = CronSupport.absoluteRunAt(record.getCronExpr());
             schedule.put(
                     "run_at",
-                    absoluteRunAt == null
-                            ? Long.valueOf(record.getNextRunAt())
-                            : absoluteRunAt);
+                    absoluteRunAt == null ? Long.valueOf(record.getNextRunAt()) : absoluteRunAt);
         } else {
             schedule.put("expr", record.getCronExpr());
         }
         schedule.put("display", scheduleDisplay(record));
 
         Map<String, Object> repeat = new LinkedHashMap<String, Object>();
-        repeat.put("times", record.getRepeatTimes() <= 0 ? null : Integer.valueOf(record.getRepeatTimes()));
+        repeat.put(
+                "times",
+                record.getRepeatTimes() <= 0 ? null : Integer.valueOf(record.getRepeatTimes()));
         repeat.put("completed", Integer.valueOf(record.getRepeatCompleted()));
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -512,19 +526,26 @@ public class CronJobService {
         List<String> contextFrom = parseList(record.getContextFromJson());
         result.put("context_from", contextFrom);
         result.put("depends_on", contextFrom);
-        result.put("enabled_toolsets", filterProtectedCronToolsets(parseList(record.getEnabledToolsetsJson())));
+        result.put(
+                "enabled_toolsets",
+                filterProtectedCronToolsets(parseList(record.getEnabledToolsetsJson())));
         result.put("model", record.getModel());
         result.put("provider", record.getProvider());
         result.put("base_url", record.getBaseUrl());
         result.put("wrap_response", Boolean.valueOf(record.isWrapResponse()));
-        result.put("last_run_at", record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
-        result.put("next_run_at", record.getNextRunAt() <= 0 ? null : Long.valueOf(record.getNextRunAt()));
+        result.put(
+                "last_run_at",
+                record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
+        result.put(
+                "next_run_at",
+                record.getNextRunAt() <= 0 ? null : Long.valueOf(record.getNextRunAt()));
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeViewText(record.getLastError()));
         result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
         result.put("pending_trigger", safeViewText(record.getPendingTriggerType()));
         result.put("last_output", safeViewText(record.getLastOutput()));
-        result.put("paused_at", record.getPausedAt() <= 0 ? null : Long.valueOf(record.getPausedAt()));
+        result.put(
+                "paused_at", record.getPausedAt() <= 0 ? null : Long.valueOf(record.getPausedAt()));
         result.put("paused_reason", record.getPausedReason());
         result.put("created_at", Long.valueOf(record.getCreatedAt()));
         return result;
@@ -597,41 +618,10 @@ public class CronJobService {
                         "DELETE /api/cron/jobs/{id}",
                         "GET /api/cron/jobs/{id}/inspect",
                         "POST /api/cron/jobs/{id}/pause",
-                        "POST /api/cron/jobs/{id}/disable",
-                        "POST /api/cron/jobs/{id}/stop",
                         "POST /api/cron/jobs/{id}/resume",
-                        "POST /api/cron/jobs/{id}/enable",
-                        "POST /api/cron/jobs/{id}/start",
-                        "POST /api/cron/jobs/{id}/run",
                         "POST /api/cron/jobs/{id}/trigger",
                         "POST /api/cron/jobs/{id}/retry",
-                        "POST /api/cron/jobs/{id}/rerun",
-                        "GET /api/cron/jobs/{id}/runs",
-                        "GET /api/cron/jobs/{id}/history",
-                        "GET /api/jobs/guide",
-                        "GET /api/jobs/policy",
-                        "GET /api/jobs/status",
-                        "GET /api/jobs/next",
-                        "GET /api/jobs",
-                        "POST /api/jobs",
-                        "PATCH /api/jobs/{id}",
-                        "PUT /api/jobs/{id}",
-                        "DELETE /api/jobs/{id}",
-                        "GET /api/jobs/{id}",
-                        "GET /api/jobs/{id}/inspect",
-                        "GET /api/jobs/{id}/show",
-                        "POST /api/jobs/{id}/pause",
-                        "POST /api/jobs/{id}/disable",
-                        "POST /api/jobs/{id}/stop",
-                        "POST /api/jobs/{id}/resume",
-                        "POST /api/jobs/{id}/enable",
-                        "POST /api/jobs/{id}/start",
-                        "POST /api/jobs/{id}/run",
-                        "POST /api/jobs/{id}/trigger",
-                        "POST /api/jobs/{id}/retry",
-                        "POST /api/jobs/{id}/rerun",
-                        "GET /api/jobs/{id}/runs",
-                        "GET /api/jobs/{id}/history"));
+                        "GET /api/cron/jobs/{id}/runs"));
         return result;
     }
 
@@ -640,27 +630,9 @@ public class CronJobService {
         policy.put(
                 "actions",
                 Arrays.asList(
-                        "create",
-                        "add",
-                        "update",
-                        "edit",
-                        "pause",
-                        "disable",
-                        "stop",
-                        "resume",
-                        "enable",
-                        "start",
-                        "run",
-                        "run_now",
-                        "trigger",
-                        "retry",
-                        "rerun",
-                        "remove",
-                        "delete",
-                        "history",
-                        "inspect",
-                        "list",
-                        "next"));
+                        "create", "add", "update", "edit", "pause", "disable", "stop", "resume",
+                        "enable", "start", "run", "run_now", "trigger", "retry", "rerun", "remove",
+                        "delete", "history", "inspect", "list", "next"));
         policy.put("action_syntax", cronGuideActionSyntax());
         policy.put("sourceScopedList", Boolean.TRUE);
         policy.put("freshSessionRuns", Boolean.TRUE);
@@ -711,10 +683,25 @@ public class CronJobService {
                         "base_url"));
         policy.put(
                 "status_fields",
-                Arrays.asList("total", "active", "paused", "completed", "due", "next", "recent_failures"));
+                Arrays.asList(
+                        "total",
+                        "active",
+                        "paused",
+                        "completed",
+                        "due",
+                        "next",
+                        "recent_failures"));
         policy.put(
                 "history_fields",
-                Arrays.asList("run_id", "trigger", "attempt", "status", "output", "error", "delivery_result", "summary"));
+                Arrays.asList(
+                        "run_id",
+                        "trigger",
+                        "attempt",
+                        "status",
+                        "output",
+                        "error",
+                        "delivery_result",
+                        "summary"));
         policy.put("trigger_type_fields", Arrays.asList("trigger_type", "triggerType", "reason"));
         policy.put("custom_manual_trigger_supported", Boolean.TRUE);
         policy.put("custom_retry_trigger_supported", Boolean.TRUE);
@@ -738,12 +725,20 @@ public class CronJobService {
         delivery.put("multiTargetDeliverySupported", Boolean.TRUE);
         delivery.put("threadTargetSupported", Boolean.TRUE);
         delivery.put("wrapResponseSupported", Boolean.TRUE);
-        delivery.put("clearFlags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
-        delivery.put("wrapFlags", Arrays.asList("--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
-        delivery.put("wrapResponsePolicy", "--wrap-response wraps job output; --raw, --no-wrap, and --no-wrap-response deliver raw output.");
+        delivery.put(
+                "clearFlags",
+                Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
+        delivery.put(
+                "wrapFlags",
+                Arrays.asList(
+                        "--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
+        delivery.put(
+                "wrapResponsePolicy",
+                "--wrap-response wraps job output; --raw, --no-wrap, and --no-wrap-response deliver raw output.");
         delivery.put(
                 "supportedPlatforms",
-                Arrays.asList("MEMORY", "FEISHU", "DINGTALK", "WECOM", "WEIXIN", "QQBOT", "YUANBAO"));
+                Arrays.asList(
+                        "MEMORY", "FEISHU", "DINGTALK", "WECOM", "WEIXIN", "QQBOT", "YUANBAO"));
         delivery.put(
                 "targetForms",
                 Arrays.asList(
@@ -769,7 +764,8 @@ public class CronJobService {
         skillBinding.put("skillRewriteSupported", Boolean.TRUE);
         skillBinding.put("replaceFlags", Arrays.asList("--skill name", "--skills a,b"));
         skillBinding.put("appendFlags", Arrays.asList("--add-skill name", "--add-skills a,b"));
-        skillBinding.put("removeFlags", Arrays.asList("--remove-skill name", "--remove-skills a,b"));
+        skillBinding.put(
+                "removeFlags", Arrays.asList("--remove-skill name", "--remove-skills a,b"));
         skillBinding.put("clearFlags", Arrays.asList("--clear-skills"));
         skillBinding.put("contextFromSupported", Boolean.TRUE);
         skillBinding.put("dependsOnAliasSupported", Boolean.TRUE);
@@ -782,7 +778,8 @@ public class CronJobService {
                         "--clear-depends-on"));
         skillBinding.put("enabledToolsetsSupported", Boolean.TRUE);
         skillBinding.put("enabledToolsetsAliasSupported", Boolean.TRUE);
-        skillBinding.put("enabledToolsetsFields", Arrays.asList("enabled_toolsets", "enabledToolsets"));
+        skillBinding.put(
+                "enabledToolsetsFields", Arrays.asList("enabled_toolsets", "enabledToolsets"));
         skillBinding.put("protectedDisabledToolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         skillBinding.put("protectedDisabledOverridesEnabledToolsets", Boolean.TRUE);
         skillBinding.put("dedupeApplied", Boolean.TRUE);
@@ -827,7 +824,7 @@ public class CronJobService {
         isolation.put("workdirJobsSerialized", Boolean.TRUE);
         isolation.put("parallelBySourceWithoutWorkdir", Boolean.TRUE);
         isolation.put("inactivityTimeoutSeconds", Integer.valueOf(cronInactivityTimeoutSeconds()));
-        isolation.put("inactivityTimeoutEnv", "JIMUQU_CRON_TIMEOUT");
+        isolation.put("inactivityTimeoutEnv", "SOLONCLAW_CRON_TIMEOUT");
         isolation.put("missedRunCatchupWindow", "half_period_clamped_120s_to_2h");
         isolation.put("oneShotGraceWindowSeconds", Integer.valueOf(120));
         return isolation;
@@ -860,11 +857,17 @@ public class CronJobService {
 
     private Map<String, Object> cronGuideActionSyntax() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("add", "/cron add \"every 2h\" \"task\" [--skill name] [--deliver target] [--wrap-response|--no-wrap-response]");
-        result.put("edit", "/cron edit <job-id> [--schedule expr] [--prompt text] [--add-skill name] [--remove-skill name]");
+        result.put(
+                "add",
+                "/cron add \"every 2h\" \"task\" [--skill name] [--deliver target] [--wrap-response|--no-wrap-response]");
+        result.put(
+                "edit",
+                "/cron edit <job-id> [--schedule expr] [--prompt text] [--add-skill name] [--remove-skill name]");
         result.put("pause", "/cron pause|disable|stop <job-id> [--reason reason]");
         result.put("resume", "/cron resume|enable|start <job-id>");
-        result.put("run", "/cron run|trigger|retry|rerun <job-id> [--trigger-type name|--reason name]");
+        result.put(
+                "run",
+                "/cron run|trigger|retry|rerun <job-id> [--trigger-type name|--reason name]");
         result.put("remove", "/cron remove|delete|rm <job-id>");
         result.put("history", "/cron history <job-id> [--limit 20]");
         result.put("status", "/cron status [--all]");
@@ -910,8 +913,20 @@ public class CronJobService {
 
     private Map<String, Object> cronGuideDelivery() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("targets", Arrays.asList("origin", "local", "feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
-        result.put("fields", Arrays.asList("deliver", "deliver_chat_id", "deliver_thread_id", "wrap_response"));
+        result.put(
+                "targets",
+                Arrays.asList(
+                        "origin",
+                        "local",
+                        "feishu",
+                        "dingtalk",
+                        "wecom",
+                        "weixin",
+                        "qqbot",
+                        "yuanbao"));
+        result.put(
+                "fields",
+                Arrays.asList("deliver", "deliver_chat_id", "deliver_thread_id", "wrap_response"));
         result.put(
                 "modes",
                 Arrays.asList(
@@ -922,9 +937,16 @@ public class CronJobService {
                         "target1,target2: 同一次运行投递到多个目标"));
         result.put("default_from_slash", "origin");
         result.put("default_from_dashboard", "local");
-        result.put("clear_flags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
-        result.put("wrap_flags", Arrays.asList("--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
-        result.put("wrap_response_policy", "--wrap-response 会包装任务输出，--raw/--no-wrap/--no-wrap-response 会投递原始输出。");
+        result.put(
+                "clear_flags",
+                Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
+        result.put(
+                "wrap_flags",
+                Arrays.asList(
+                        "--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
+        result.put(
+                "wrap_response_policy",
+                "--wrap-response 会包装任务输出，--raw/--no-wrap/--no-wrap-response 会投递原始输出。");
         result.put(
                 "target_forms",
                 Arrays.asList(
@@ -948,7 +970,9 @@ public class CronJobService {
         result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         result.put("protected_disabled_overrides_enabled_toolsets", Boolean.TRUE);
         result.put("local_delivery", "deliver=local 时只写入运行历史，不外投消息。");
-        result.put("inactivity_timeout", "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 JIMUQU_CRON_TIMEOUT 控制。");
+        result.put(
+                "inactivity_timeout",
+                "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 SOLONCLAW_CRON_TIMEOUT 控制。");
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
         result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
         result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));
@@ -969,23 +993,67 @@ public class CronJobService {
 
     private Map<String, Object> cronGuideHistoryAndStatus() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("status_fields", Arrays.asList("total", "active", "paused", "completed", "due", "next", "recent_failures"));
-        result.put("run_fields", Arrays.asList("run_id", "trigger", "attempt", "status", "output", "error", "delivery_result", "summary"));
+        result.put(
+                "status_fields",
+                Arrays.asList(
+                        "total",
+                        "active",
+                        "paused",
+                        "completed",
+                        "due",
+                        "next",
+                        "recent_failures"));
+        result.put(
+                "run_fields",
+                Arrays.asList(
+                        "run_id",
+                        "trigger",
+                        "attempt",
+                        "status",
+                        "output",
+                        "error",
+                        "delivery_result",
+                        "summary"));
         result.put("trigger_type_fields", Arrays.asList("trigger_type", "triggerType", "reason"));
-        result.put("trigger_type_policy", "手动 run/retry 可记录短触发来源；空格会规范化为下划线，scheduled 会回退为 manual/retry。");
-        result.put("action_flags", Arrays.asList("can_inspect", "can_edit", "can_pause", "can_resume", "can_run", "can_retry", "can_history"));
+        result.put(
+                "trigger_type_policy",
+                "手动 run/retry 可记录短触发来源；空格会规范化为下划线，scheduled 会回退为 manual/retry。");
+        result.put(
+                "action_flags",
+                Arrays.asList(
+                        "can_inspect",
+                        "can_edit",
+                        "can_pause",
+                        "can_resume",
+                        "can_run",
+                        "can_retry",
+                        "can_history"));
         result.put("limits", "status、next、history 和 inspect 的 limit 会限制到安全范围。");
         return result;
     }
 
     private Map<String, Object> cronGuideSecurity() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("prompt_scan", Arrays.asList("prompt_injection", "deception_hide", "sys_prompt_override", "disregard_rules", "exfil_curl", "exfil_wget", "read_secrets", "ssh_backdoor", "sudoers_mod", "destructive_root_rm"));
+        result.put(
+                "prompt_scan",
+                Arrays.asList(
+                        "prompt_injection",
+                        "deception_hide",
+                        "sys_prompt_override",
+                        "disregard_rules",
+                        "exfil_curl",
+                        "exfil_wget",
+                        "read_secrets",
+                        "ssh_backdoor",
+                        "sudoers_mod",
+                        "destructive_root_rm"));
         result.put("script_validation", "script 禁止绝对路径、父目录跳转、shell 片段、控制字符和 URL。");
         result.put("workdir_validation", "workdir 会规范化到 runtime home 内部，禁止逃逸工作目录。");
         result.put("delivery_validation", "deliver 只允许本地、origin 或已支持平台。");
         result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
-        result.put("enabled_toolsets_policy", "protected disabled toolsets override per-job and scheduler enabled_toolsets.");
+        result.put(
+                "enabled_toolsets_policy",
+                "protected disabled toolsets override per-job and scheduler enabled_toolsets.");
         result.put("approval_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
@@ -1076,9 +1144,12 @@ public class CronJobService {
             throw new IllegalStateException("script must stay within runtime/scripts");
         }
         try {
-            File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
+            File scriptsDir =
+                    FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
             File requested = new File(value);
-            File target = (requested.isAbsolute() ? requested : new File(scriptsDir, value)).getCanonicalFile();
+            File target =
+                    (requested.isAbsolute() ? requested : new File(scriptsDir, value))
+                            .getCanonicalFile();
             if (!isUnderDirectory(scriptsDir, target)) {
                 throw new IllegalStateException("script must stay within runtime/scripts");
             }
@@ -1089,7 +1160,8 @@ public class CronJobService {
 
     private boolean isUnderDirectory(File root, File target) throws java.io.IOException {
         java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
-        java.nio.file.Path targetPath = target.getCanonicalFile().toPath().toAbsolutePath().normalize();
+        java.nio.file.Path targetPath =
+                target.getCanonicalFile().toPath().toAbsolutePath().normalize();
         if (targetPath.equals(rootPath)) {
             return false;
         }
@@ -1117,7 +1189,8 @@ public class CronJobService {
             }
             File canonical = file.getCanonicalFile();
             SecurityPolicyService.FileVerdict verdict =
-                    new SecurityPolicyService(appConfig).checkPath(canonical.getAbsolutePath(), false);
+                    new SecurityPolicyService(appConfig)
+                            .checkPath(canonical.getAbsolutePath(), false);
             if (!verdict.isAllowed()) {
                 throw new IllegalStateException(
                         "workdir blocked by security policy: "
@@ -1125,7 +1198,8 @@ public class CronJobService {
                                 + " - "
                                 + verdict.getMessage());
             }
-            String normalized = file.getAbsoluteFile().toPath().normalize().toFile().getAbsolutePath();
+            String normalized =
+                    file.getAbsoluteFile().toPath().normalize().toFile().getAbsolutePath();
             if (usesForwardSlash(value)) {
                 return normalized.replace('\\', '/');
             }
@@ -1139,7 +1213,8 @@ public class CronJobService {
         if (e == null) {
             return "Exception";
         }
-        return SecretRedactor.redact(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     private String workdirReference(String workdir) {
@@ -1213,14 +1288,15 @@ public class CronJobService {
         }
         for (CronPromptThreat threat : CRON_PROMPT_THREATS) {
             if (threat.pattern.matcher(promptToScan).find()) {
-                throw new IllegalStateException(
-                        "Blocked unsafe cron prompt pattern: " + threat.id);
+                throw new IllegalStateException("Blocked unsafe cron prompt pattern: " + threat.id);
             }
         }
     }
 
     private static String stripCronSafeConstructs(String prompt) {
-        return CRON_GITHUB_AUTH_HEADER.matcher(prompt).replaceAll("curl https://api.github.com/user");
+        return CRON_GITHUB_AUTH_HEADER
+                .matcher(prompt)
+                .replaceAll("curl https://api.github.com/user");
     }
 
     private static boolean isInvisibleInjectionChar(char ch, String text, int index) {
@@ -1248,7 +1324,8 @@ public class CronJobService {
         while (right < text.length() && text.charAt(right) == VARIATION_SELECTOR_CP) {
             right++;
         }
-        return left >= 0 && right < text.length()
+        return left >= 0
+                && right < text.length()
                 && isEmojiCodePoint(text.codePointBefore(left + 1))
                 && isEmojiCodePoint(text.codePointAt(right));
     }
@@ -1396,7 +1473,10 @@ public class CronJobService {
         if (body == null) {
             return new ArrayList<String>();
         }
-        Object value = body.containsKey("enabled_toolsets") ? body.get("enabled_toolsets") : body.get("enabledToolsets");
+        Object value =
+                body.containsKey("enabled_toolsets")
+                        ? body.get("enabled_toolsets")
+                        : body.get("enabledToolsets");
         return filterProtectedCronToolsets(stringList(value));
     }
 
@@ -1407,7 +1487,8 @@ public class CronJobService {
         }
         for (String value : values) {
             String normalized = normalizeToolsetName(value);
-            if (StrUtil.isBlank(normalized) || PROTECTED_CRON_DISABLED_TOOLSETS.contains(normalized)) {
+            if (StrUtil.isBlank(normalized)
+                    || PROTECTED_CRON_DISABLED_TOOLSETS.contains(normalized)) {
                 continue;
             }
             if (!result.contains(normalized)) {
@@ -1522,7 +1603,8 @@ public class CronJobService {
         return builder.toString();
     }
 
-    private void applyModelPin(CronJobRecord record, String model, String provider, String baseUrl) {
+    private void applyModelPin(
+            CronJobRecord record, String model, String provider, String baseUrl) {
         String normalizedModel = normalizeBlank(model);
         String normalizedProvider = normalizeBlank(provider);
         String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
@@ -1563,13 +1645,15 @@ public class CronJobService {
                 providerValue != null
                         ? string(providerValue, defaultProvider)
                         : modelObject != null
-                                ? firstString(modelObject, "provider", "providerKey", "provider_key")
+                                ? firstString(
+                                        modelObject, "provider", "providerKey", "provider_key")
                                 : defaultProvider;
         String baseUrl =
                 baseUrlValue != null || baseUrlAliasValue != null
                         ? string(baseUrlValue, string(baseUrlAliasValue, defaultBaseUrl))
                         : modelObject != null
-                                ? firstString(modelObject, "base_url", "baseUrl", "api_url", "apiUrl")
+                                ? firstString(
+                                        modelObject, "base_url", "baseUrl", "api_url", "apiUrl")
                                 : defaultBaseUrl;
         return new ModelOverride(model, provider, baseUrl);
     }
@@ -1583,7 +1667,9 @@ public class CronJobService {
     }
 
     private String defaultBaseUrlValue(Map<String, Object> body, CronJobRecord record) {
-        return body.containsKey("base_url") || body.containsKey("baseUrl") ? null : record.getBaseUrl();
+        return body.containsKey("base_url") || body.containsKey("baseUrl")
+                ? null
+                : record.getBaseUrl();
     }
 
     private Map<?, ?> objectMap(Object value) {
@@ -1640,7 +1726,9 @@ public class CronJobService {
             }
         }
         while (builder.length() > 0
-                && (builder.charAt(0) == '_' || builder.charAt(0) == '-' || builder.charAt(0) == '.')) {
+                && (builder.charAt(0) == '_'
+                        || builder.charAt(0) == '-'
+                        || builder.charAt(0) == '.')) {
             builder.deleteCharAt(0);
         }
         while (builder.length() > 0) {
@@ -1671,13 +1759,25 @@ public class CronJobService {
 
     private List<String> applySkillsDelta(List<String> current, Map<String, Object> body) {
         List<String> result = normalizedList(current);
-        Object raw = body.containsKey("skills_delta") ? body.get("skills_delta") : body.get("skillsDelta");
+        Object raw =
+                body.containsKey("skills_delta")
+                        ? body.get("skills_delta")
+                        : body.get("skillsDelta");
         Map<?, ?> delta = raw instanceof Map ? (Map<?, ?>) raw : body;
-        List<String> remove = mergedStringList(delta, "remove", "remove_skill", "remove_skills", "removeSkill", "removeSkills");
+        List<String> remove =
+                mergedStringList(
+                        delta,
+                        "remove",
+                        "remove_skill",
+                        "remove_skills",
+                        "removeSkill",
+                        "removeSkills");
         if (!remove.isEmpty()) {
             result.removeAll(remove);
         }
-        for (String item : mergedStringList(delta, "add", "add_skill", "add_skills", "addSkill", "addSkills")) {
+        for (String item :
+                mergedStringList(
+                        delta, "add", "add_skill", "add_skills", "addSkill", "addSkills")) {
             addString(result, item);
         }
         return result;
@@ -1697,7 +1797,8 @@ public class CronJobService {
     }
 
     private boolean clearSkills(Map<String, Object> body) {
-        return Boolean.TRUE.equals(body.get("clear_skills")) || Boolean.TRUE.equals(body.get("clearSkills"));
+        return Boolean.TRUE.equals(body.get("clear_skills"))
+                || Boolean.TRUE.equals(body.get("clearSkills"));
     }
 
     private List<String> mergedStringList(Map<?, ?> map, String... keys) {
@@ -1729,7 +1830,11 @@ public class CronJobService {
     }
 
     private String defaultJobName(
-            Map<String, Object> body, String prompt, List<String> skills, String script, boolean noAgent) {
+            Map<String, Object> body,
+            String prompt,
+            List<String> skills,
+            String script,
+            boolean noAgent) {
         String explicit = string(body.get("name"), null);
         if (StrUtil.isNotBlank(explicit)) {
             return explicit;

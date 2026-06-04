@@ -6,7 +6,8 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.List;
 
 /** Resumes cron jobs that were paused only to wait for guardrail approval. */
-public class CronApprovalResumeObserver implements DangerousCommandApprovalService.ApprovalObserver {
+public class CronApprovalResumeObserver
+        implements DangerousCommandApprovalService.ApprovalObserver {
     private static final String CRON_JOB_PREFIX = "cron-job:";
     private static final String APPROVAL_PAUSE_PREFIX = "waiting for approval:";
 

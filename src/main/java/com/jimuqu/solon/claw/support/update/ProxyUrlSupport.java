@@ -12,7 +12,9 @@ import java.util.Map;
 /** 版本检查代理地址解析与校验。 */
 public final class ProxyUrlSupport {
     private static final String[] PROXY_ENV_KEYS =
-            new String[] {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"};
+            new String[] {
+                "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"
+            };
 
     private ProxyUrlSupport() {}
 

@@ -159,7 +159,8 @@ public final class MessageSupport {
         return repairs;
     }
 
-    private static Set<String> followingToolResultIds(List<ChatMessage> messages, int assistantIndex) {
+    private static Set<String> followingToolResultIds(
+            List<ChatMessage> messages, int assistantIndex) {
         Set<String> answered = new HashSet<String>();
         for (int i = assistantIndex + 1; i < messages.size(); i++) {
             ChatMessage next = messages.get(i);
@@ -247,7 +248,8 @@ public final class MessageSupport {
                     && canMergeUser((UserMessage) merged.get(merged.size() - 1))
                     && canMergeUser((UserMessage) message)) {
                 UserMessage previous = (UserMessage) merged.remove(merged.size() - 1);
-                merged.add(ChatMessage.ofUser(mergeText(previous.getContent(), message.getContent())));
+                merged.add(
+                        ChatMessage.ofUser(mergeText(previous.getContent(), message.getContent())));
                 repairs++;
             } else {
                 merged.add(message);
@@ -261,7 +263,8 @@ public final class MessageSupport {
     }
 
     private static boolean canMergeUser(UserMessage message) {
-        if (message == null || (message.getMetadata() != null && !message.getMetadata().isEmpty())) {
+        if (message == null
+                || (message.getMetadata() != null && !message.getMetadata().isEmpty())) {
             return false;
         }
         List<ContentBlock> blocks = message.getBlocks();

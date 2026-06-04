@@ -114,8 +114,7 @@ public class SkillHubStateStore {
         if (container == null || container.getInstalled() == null) {
             return new LinkedHashMap<String, HubInstallRecord>();
         }
-        Map<String, HubInstallRecord> safeInstalled =
-                new LinkedHashMap<String, HubInstallRecord>();
+        Map<String, HubInstallRecord> safeInstalled = new LinkedHashMap<String, HubInstallRecord>();
         for (HubInstallRecord record : container.getInstalled().values()) {
             try {
                 validateRecord(record);
@@ -140,8 +139,7 @@ public class SkillHubStateStore {
         String safeKey = SkillBundlePathSupport.normalizeSkillName(key);
         File indexCacheDir = hubFile(SkillHubPathSupport.indexCacheDir(skillsDir), "cache path");
         File target = FileUtil.file(indexCacheDir, safeKey + ".json");
-        return SkillBundlePathSupport.requireCanonicalUnderRoot(
-                indexCacheDir, target, "cache key");
+        return SkillBundlePathSupport.requireCanonicalUnderRoot(indexCacheDir, target, "cache key");
     }
 
     private File hubFile(File target, String fieldName) {
@@ -153,7 +151,8 @@ public class SkillHubStateStore {
             throw new IllegalStateException("Unsafe install record: empty path");
         }
         String safeName = SkillBundlePathSupport.normalizeSkillName(record.getName());
-        String safeInstallPath = SkillBundlePathSupport.normalizeBundlePath(record.getInstallPath());
+        String safeInstallPath =
+                SkillBundlePathSupport.normalizeBundlePath(record.getInstallPath());
         if (!safeInstallPath.equals(safeName) && !safeInstallPath.endsWith("/" + safeName)) {
             throw new IllegalStateException("Unsafe install path: does not match skill name");
         }

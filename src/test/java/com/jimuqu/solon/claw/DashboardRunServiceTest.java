@@ -7,8 +7,8 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
-import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
+import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -19,8 +19,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 
 public class DashboardRunServiceTest {
     @Test
@@ -59,7 +59,8 @@ public class DashboardRunServiceTest {
         run.setProvider("provider-ghp_runprovider12345");
         run.setModel("model-ghp_runmodel12345");
         run.setAgentSnapshotJson(
-                ONode.serialize(Collections.singletonMap("env", "OPENAI_API_KEY=sk-test-snapshotsecret")));
+                ONode.serialize(
+                        Collections.singletonMap("env", "OPENAI_API_KEY=sk-test-snapshotsecret")));
         run.setRecoveryHint("retry with password=run-password");
         run.setError("failed with Authorization: Bearer ghp_runerrorsecret123");
         repository.runs.add(run);
@@ -72,7 +73,9 @@ public class DashboardRunServiceTest {
         event.setModel("event-model-ghp_eventmodel12345");
         event.setSummary("metadata token=ghp_eventsummary123");
         event.setMetadataJson(
-                ONode.serialize(Collections.singletonMap("url", "https://u:p@example.com/cb?token=event-token")));
+                ONode.serialize(
+                        Collections.singletonMap(
+                                "url", "https://u:p@example.com/cb?token=event-token")));
         repository.events.add(event);
 
         ToolCallRecord tool = new ToolCallRecord();
@@ -98,14 +101,17 @@ public class DashboardRunServiceTest {
         recovery.setRunId("run-secret");
         recovery.setSummary("recover token=ghp_recoverysummary123");
         recovery.setPayloadJson(
-                ONode.serialize(Collections.singletonMap("authorization", "Bearer ghp_recoverypayload123")));
+                ONode.serialize(
+                        Collections.singletonMap(
+                                "authorization", "Bearer ghp_recoverypayload123")));
         repository.recoveries.add(recovery);
 
         RunControlCommand command = new RunControlCommand();
         command.setCommandId("command-secret");
         command.setRunId("run-secret");
         command.setCommand("steer api_key=sk-test-commandsecret");
-        command.setPayloadJson(ONode.serialize(Collections.singletonMap("token", "ghp_commandpayload123")));
+        command.setPayloadJson(
+                ONode.serialize(Collections.singletonMap("token", "ghp_commandpayload123")));
         repository.commands.add(command);
 
         DashboardRunService service = new DashboardRunService(repository);
@@ -114,9 +120,7 @@ public class DashboardRunServiceTest {
         assertThat(response).doesNotContain("sk-test-runinputsecret");
         assertThat(response).doesNotContain("ghp_runreplysecret123");
         assertThat(response).contains("provider-ghp_***").contains("model-ghp_***");
-        assertThat(response)
-                .contains("event-provider-ghp_***")
-                .contains("event-model-ghp_***");
+        assertThat(response).contains("event-provider-ghp_***").contains("event-model-ghp_***");
         assertThat(response).doesNotContain("runprovider12345");
         assertThat(response).doesNotContain("runmodel12345");
         assertThat(response).doesNotContain("eventprovider12345");
@@ -260,12 +264,10 @@ public class DashboardRunServiceTest {
         List<Map<String, Object>> runs = (List<Map<String, Object>>) response.get("runs");
         assertThat(runs).hasSize(1);
         Map<String, Object> item = runs.get(0);
-        assertThat(item.get("recovery_hint"))
-                .isEqualTo("manual review required token=***");
+        assertThat(item.get("recovery_hint")).isEqualTo("manual review required token=***");
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> diagnosis =
-                (Map<String, Object>) item.get("recovery_diagnosis");
+        Map<String, Object> diagnosis = (Map<String, Object>) item.get("recovery_diagnosis");
         assertThat(diagnosis)
                 .containsEntry("reason", "recoverable_run_requires_operator_review")
                 .containsEntry("heartbeat_age_ms", Long.valueOf(0L))
@@ -289,8 +291,7 @@ public class DashboardRunServiceTest {
         payload.put("nested", Collections.singletonMap("api_key", "sk-controlpayload-secret"));
 
         DashboardRunService service = new DashboardRunService(repository);
-        String response =
-                ONode.serialize(service.control("run-control-secret", "steer", payload));
+        String response = ONode.serialize(service.control("run-control-secret", "steer", payload));
 
         assertThat(response).contains("control_unavailable");
         assertThat(response)
@@ -312,15 +313,13 @@ public class DashboardRunServiceTest {
         active.put("status", "running");
         active.put("depth", Integer.valueOf(1));
         active.put(
-                "output_tail",
-                "stdout api_key=sk-activesubagent-secret token=ghp_activetail12345");
+                "output_tail", "stdout api_key=sk-activesubagent-secret token=ghp_activetail12345");
         active.put(
                 "nested",
                 Collections.singletonMap("authorization", "Bearer ghp_activenested12345"));
         delegationService.active.add(active);
 
-        DashboardRunService service =
-                new DashboardRunService(repository, null, delegationService);
+        DashboardRunService service = new DashboardRunService(repository, null, delegationService);
         String response = ONode.serialize(service.activeSubagents());
 
         assertThat(response)
@@ -440,7 +439,8 @@ public class DashboardRunServiceTest {
         }
 
         @Override
-        public void markQueuedMessage(String queueId, String status, long timestamp, String error) {}
+        public void markQueuedMessage(
+                String queueId, String status, long timestamp, String error) {}
 
         @Override
         public void saveToolCall(ToolCallRecord record) {}
@@ -484,8 +484,7 @@ public class DashboardRunServiceTest {
     }
 
     private static class FakeDelegationService implements DelegationService {
-        private final List<Map<String, Object>> active =
-                new ArrayList<Map<String, Object>>();
+        private final List<Map<String, Object>> active = new ArrayList<Map<String, Object>>();
 
         @Override
         public DelegationResult delegateSingle(String sourceKey, String prompt, String context) {

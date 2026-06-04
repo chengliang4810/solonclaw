@@ -42,7 +42,8 @@ public final class LocalTerminalHelp {
                 + "/confirm - 查看待确认 slash 命令\n"
                 + "/yolo [status|on|off] - 查看或切换当前会话危险命令自动批准模式\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
-                + TerminalShortcuts.helpLine() + "\n"
+                + TerminalShortcuts.helpLine()
+                + "\n"
                 + "/exit 或 /quit - 退出当前终端会话；有后台任务时先显示退出保护\n"
                 + "/exit! 或 /quit! - 停止运行中的后台任务并强制退出\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"

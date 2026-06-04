@@ -49,8 +49,7 @@ public class ChannelConfigPolicyLoadTest {
         assertThat(config.getChannels().getFeishu().getGroupPolicy()).isEqualTo("open");
         assertThat(config.getChannels().getFeishu().getGroupAllowedUsers())
                 .containsExactly("oc_group_a");
-        assertThat(config.getChannels().getFeishu().getAllowedChats())
-                .containsExactly("oc_chat_a");
+        assertThat(config.getChannels().getFeishu().getAllowedChats()).containsExactly("oc_chat_a");
         assertThat(config.getChannels().getDingtalk().getAllowedChats())
                 .containsExactly("cidLegacy", "cidCompat");
         assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("SolonClaw Bot");

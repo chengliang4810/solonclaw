@@ -23,7 +23,8 @@ public final class ProviderDisplayGrouping {
             display.groupId = StrUtil.nullToEmpty(provider.getGroupId()).trim();
             display.groupLabel = StrUtil.nullToEmpty(provider.getGroupLabel()).trim();
             display.groupDescription = StrUtil.nullToEmpty(provider.getGroupDescription()).trim();
-            display.displayDescription = StrUtil.nullToEmpty(provider.getDisplayDescription()).trim();
+            display.displayDescription =
+                    StrUtil.nullToEmpty(provider.getDisplayDescription()).trim();
         }
         if (StrUtil.isNotBlank(display.groupId)) {
             display.groupId = display.groupId.toLowerCase();
@@ -68,7 +69,12 @@ public final class ProviderDisplayGrouping {
             if (members == null || members.size() <= 1) {
                 rows.add(Row.single(item));
             } else {
-                rows.add(Row.group(groupId, item.getGroupLabel(), item.getGroupDescription(), members));
+                rows.add(
+                        Row.group(
+                                groupId,
+                                item.getGroupLabel(),
+                                item.getGroupDescription(),
+                                members));
             }
         }
         return rows;
@@ -230,11 +236,7 @@ public final class ProviderDisplayGrouping {
         private final List<Item> members;
 
         private Row(
-                String kind,
-                String groupId,
-                String label,
-                String description,
-                List<Item> members) {
+                String kind, String groupId, String label, String description, List<Item> members) {
             this.kind = kind;
             this.groupId = groupId;
             this.label = label;

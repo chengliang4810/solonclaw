@@ -82,8 +82,7 @@ public class SkillCuratorService {
         result.put("minIdleHours", Double.valueOf(appConfig.getCurator().getMinIdleHours()));
         result.put("staleAfterDays", Integer.valueOf(appConfig.getCurator().getStaleAfterDays()));
         result.put(
-                "archiveAfterDays",
-                Integer.valueOf(appConfig.getCurator().getArchiveAfterDays()));
+                "archiveAfterDays", Integer.valueOf(appConfig.getCurator().getArchiveAfterDays()));
         Object skills = state.get("skills");
         result.put(
                 "trackedSkills",
@@ -192,8 +191,7 @@ public class SkillCuratorService {
         List<String> flags = new ArrayList<String>();
         try {
             String content =
-                    FileUtil.readUtf8String(
-                            FileUtil.file(descriptor.getSkillDir(), "SKILL.md"));
+                    FileUtil.readUtf8String(FileUtil.file(descriptor.getSkillDir(), "SKILL.md"));
             String normalized = StrUtil.nullToEmpty(content).toLowerCase();
             if (normalized.contains("todo") || normalized.contains("待补充")) {
                 flags.add("hollow: contains TODO/待补充");
@@ -312,8 +310,7 @@ public class SkillCuratorService {
         if (curator instanceof Map && asBoolean(((Map<String, Object>) curator).get("pinned"))) {
             return true;
         }
-        Object Jimuqu = metadata.get("Jimuqu");
-        return Jimuqu instanceof Map && asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
+        return false;
     }
 
     private boolean asBoolean(Object value) {

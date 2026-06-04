@@ -10,13 +10,13 @@ public class MessageAttachmentSupportTest {
     void shouldRedactSensitiveAttachmentPathInMissingFileMessage() {
         MessageAttachment attachment = new MessageAttachment();
         attachment.setOriginalName("id_rsa-token=ghp_attachmentpath12345");
-        attachment.setLocalPath(
-                "C:/Users/test/.ssh/id_rsa-token=ghp_attachmentpath12345");
+        attachment.setLocalPath("C:/Users/test/.ssh/id_rsa-token=ghp_attachmentpath12345");
 
         String message = MessageAttachmentSupport.fileNotFoundMessage("Feishu", attachment);
 
         assertThat(message)
-                .isEqualTo("Feishu attachment file not found: [redacted-sensitive-name] (path=[redacted-sensitive-path])")
+                .isEqualTo(
+                        "Feishu attachment file not found: [redacted-sensitive-name] (path=[redacted-sensitive-path])")
                 .doesNotContain("ghp_attachmentpath12345")
                 .doesNotContain(".ssh")
                 .doesNotContain("id_rsa-token");

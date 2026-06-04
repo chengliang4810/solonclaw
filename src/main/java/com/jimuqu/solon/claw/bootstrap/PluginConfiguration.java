@@ -1,8 +1,8 @@
 package com.jimuqu.solon.claw.bootstrap;
 
+import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
-import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.plugin.*;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
@@ -25,8 +25,7 @@ import org.slf4j.LoggerFactory;
 public class PluginConfiguration implements PluginRegistrationSink {
     private static final Logger log = LoggerFactory.getLogger(PluginConfiguration.class);
 
-    @Inject
-    private AppConfig appConfig;
+    @Inject private AppConfig appConfig;
 
     private final AgentHookRegistry hookRegistry = new AgentHookRegistry();
     private final List<WebSearchProvider> webSearchProviders = new CopyOnWriteArrayList<>();
@@ -65,9 +64,13 @@ public class PluginConfiguration implements PluginRegistrationSink {
     @Init
     public void loadPlugins(@Inject AgentPluginManager manager) {
         manager.discoverAndLoad(this);
-        log.info("Plugin providers registered: web_search={}, image_gen={}, video_gen={}, browser={}, memory={}",
-                webSearchProviders.size(), imageGenProviders.size(),
-                videoGenProviders.size(), browserProviders.size(), pluginMemoryProviders.size());
+        log.info(
+                "Plugin providers registered: web_search={}, image_gen={}, video_gen={}, browser={}, memory={}",
+                webSearchProviders.size(),
+                imageGenProviders.size(),
+                videoGenProviders.size(),
+                browserProviders.size(),
+                pluginMemoryProviders.size());
     }
 
     @Bean
@@ -135,7 +138,8 @@ public class PluginConfiguration implements PluginRegistrationSink {
     @Override
     public boolean hasCommand(String name) {
         String normalized = normalizeCommandName(name);
-        return CommandRegistry.resolve(normalized) != null || pluginCommands.containsKey(normalized);
+        return CommandRegistry.resolve(normalized) != null
+                || pluginCommands.containsKey(normalized);
     }
 
     @Override

@@ -7,12 +7,12 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
+import java.math.BigInteger;
 import java.net.IDN;
-import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLDecoder;
-import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.Normalizer;
@@ -151,12 +151,7 @@ public class SecurityPolicyService {
                     "/var/run/docker.sock",
                     "/run/docker.sock");
     private static final List<String> WRITE_DENIED_HOME_FILE_NAMES =
-            Arrays.asList(
-                    ".bashrc",
-                    ".zshrc",
-                    ".profile",
-                    ".bash_profile",
-                    ".zprofile");
+            Arrays.asList(".bashrc", ".zshrc", ".profile", ".bash_profile", ".zprofile");
     private static final List<String> WRITE_DENIED_PREFIXES =
             Arrays.asList(
                     "/boot/",
@@ -202,9 +197,7 @@ public class SecurityPolicyService {
                     "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*(?:\\([A-Za-z0-9_ -]+\\))?%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern QUOTED_WINDOWS_PATH_PATTERN =
-            Pattern.compile(
-                    "([\"'])([A-Za-z]:[\\\\/][^\"'`|;&<>]+)\\1",
-                    Pattern.CASE_INSENSITIVE);
+            Pattern.compile("([\"'])([A-Za-z]:[\\\\/][^\"'`|;&<>]+)\\1", Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN =
             Pattern.compile(
                     "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.codex|\\.qwen|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
@@ -218,7 +211,8 @@ public class SecurityPolicyService {
     private static final Pattern PROC_STDIO_FD_PATTERN =
             Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
     private static final Pattern RAW_BLOCK_DEVICE_PATTERN =
-            Pattern.compile("^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
+            Pattern.compile(
+                    "^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
     private static final List<String> CREDENTIAL_PATH_OPTION_NAMES =
             Arrays.asList(
                     "--key",
@@ -261,9 +255,16 @@ public class SecurityPolicyService {
     private static final List<String> NETWORK_CREDENTIAL_SHORT_OPTIONS =
             Arrays.asList("-b", "-c", "-E", "-K");
     private static final List<String> NETWORK_UPLOAD_FILE_OPTIONS =
-            Arrays.asList("--upload-file", "--data-binary", "--data-raw", "--data", "-d", "--json", "--post-file", "--body-file");
-    private static final List<String> NETWORK_UPLOAD_FILE_SHORT_OPTIONS =
-            Arrays.asList("-T");
+            Arrays.asList(
+                    "--upload-file",
+                    "--data-binary",
+                    "--data-raw",
+                    "--data",
+                    "-d",
+                    "--json",
+                    "--post-file",
+                    "--body-file");
+    private static final List<String> NETWORK_UPLOAD_FILE_SHORT_OPTIONS = Arrays.asList("-T");
     private static final List<String> LOCAL_MANAGEMENT_SOCKET_PATHS =
             Arrays.asList(
                     "/var/run/docker.sock",
@@ -293,7 +294,8 @@ public class SecurityPolicyService {
     private static final Pattern IPV4_CIDR_TOKEN_PATTERN =
             Pattern.compile("^(?:\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$");
     private static final Pattern IPV6_CIDR_TOKEN_PATTERN =
-            Pattern.compile("^\\[[0-9a-fA-F:.%]+\\]/\\d{1,3}$|^[0-9a-fA-F:.%]*:[0-9a-fA-F:.%]*/\\d{1,3}$");
+            Pattern.compile(
+                    "^\\[[0-9a-fA-F:.%]+\\]/\\d{1,3}$|^[0-9a-fA-F:.%]*:[0-9a-fA-F:.%]*/\\d{1,3}$");
     private static final Pattern BARE_HOST_TOKEN_PATTERN =
             Pattern.compile(
                     "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
@@ -518,7 +520,8 @@ public class SecurityPolicyService {
             if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
                 return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
             }
-            if (!allowPrivate && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+            if (!allowPrivate
+                    && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
                 return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
             }
         }
@@ -574,17 +577,12 @@ public class SecurityPolicyService {
         InetAddress literalAddress = parseAddressLiteral(host);
         if (literalAddress != null && isAlwaysBlockedAddress(literalAddress)) {
             return UrlVerdict.block(
-                    raw,
-                    "阻断云元数据/链路本地地址："
-                            + host
-                            + " -> "
-                            + literalAddress.getHostAddress());
+                    raw, "阻断云元数据/链路本地地址：" + host + " -> " + literalAddress.getHostAddress());
         }
         int[] hostIpv4 = parseObfuscatedIpv4(host);
         if (hostIpv4 != null
                 && isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-            return UrlVerdict.block(
-                    raw, "阻断云元数据/链路本地地址：" + host + " -> " + formatIpv4(hostIpv4));
+            return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + formatIpv4(hostIpv4));
         }
         return UrlVerdict.allow();
     }
@@ -604,9 +602,7 @@ public class SecurityPolicyService {
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
         ToolArgCredentialVerdict credentialVerdict = checkStructuredCredentialToolArgs(args);
         if (!credentialVerdict.allowed) {
-            return UrlVerdict.block(
-                    credentialVerdict.reference,
-                    "工具参数包含敏感凭据字段，禁止通过结构化请求参数发送凭据");
+            return UrlVerdict.block(credentialVerdict.reference, "工具参数包含敏感凭据字段，禁止通过结构化请求参数发送凭据");
         }
         List<String> urls = extractUrls(toolName, args);
         for (String url : urls) {
@@ -656,13 +652,10 @@ public class SecurityPolicyService {
         }
         String normalizedKey = normalizeStructuredCredentialKey(key);
         boolean nextRequestContext =
-                requestContext
-                        || looksLikeRequestContextKey(normalizedKey)
-                        || looksLikeUrlKey(key);
+                requestContext || looksLikeRequestContextKey(normalizedKey) || looksLikeUrlKey(key);
         if (raw instanceof Map) {
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
-                String childKey =
-                        entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                String childKey = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
                 Object value = entry.getValue();
                 String normalizedChildKey = normalizeStructuredCredentialKey(childKey);
                 if (looksLikeSensitiveStructuredCredentialKey(normalizedChildKey)
@@ -791,18 +784,23 @@ public class SecurityPolicyService {
         summary.put("pathSuffixCount", Integer.valueOf(CREDENTIAL_PATH_SUFFIXES.size()));
         summary.put("keyFileExtensionCount", Integer.valueOf(SENSITIVE_KEY_FILE_EXTENSIONS.size()));
         summary.put("keyFileMarkerCount", Integer.valueOf(SENSITIVE_KEY_FILE_MARKERS.size()));
-        summary.put("configuredCredentialFileCount", Integer.valueOf(configuredCredentialFiles().size()));
+        summary.put(
+                "configuredCredentialFileCount",
+                Integer.valueOf(configuredCredentialFiles().size()));
         summary.put("directorySegmentSamples", sample(CREDENTIAL_DIR_SEGMENTS, 6));
         summary.put("fileNameSamples", sample(CREDENTIAL_FILE_NAMES, 8));
         summary.put("pathSuffixSamples", sample(CREDENTIAL_PATH_SUFFIXES, 4));
-        summary.put("configuredCredentialFileSamples", redactSample(configuredCredentialFiles(), 6));
+        summary.put(
+                "configuredCredentialFileSamples", redactSample(configuredCredentialFiles(), 6));
         summary.put("envExampleFilesAllowed", Boolean.TRUE);
         summary.put("projectEnvFileReadBlocked", Boolean.TRUE);
         summary.put("projectEnvFileWriteBlocked", Boolean.TRUE);
         summary.put("credentialPathReadBlocked", Boolean.TRUE);
         summary.put("credentialPathWriteBlocked", Boolean.TRUE);
         summary.put("writePolicySharesCredentialClassifier", Boolean.TRUE);
-        summary.put("description", "Credential paths are blocked for file tools, patch targets, command reads, writes, archives, uploads, and compact output paths.");
+        summary.put(
+                "description",
+                "Credential paths are blocked for file tools, patch targets, command reads, writes, archives, uploads, and compact output paths.");
         return summary;
     }
 
@@ -825,16 +823,22 @@ public class SecurityPolicyService {
         summary.put("trustedPrivateIpHostCount", Integer.valueOf(TRUSTED_PRIVATE_IP_HOSTS.length));
         summary.put("alwaysBlockedHostSamples", sample(Arrays.asList(ALWAYS_BLOCKED_HOSTS), 4));
         summary.put("alwaysBlockedIpSamples", sample(Arrays.asList(ALWAYS_BLOCKED_IPS), 4));
-        summary.put("sensitiveQueryNameCount", Integer.valueOf(SENSITIVE_URL_PARAMETER_NAMES.size()));
+        summary.put(
+                "sensitiveQueryNameCount", Integer.valueOf(SENSITIVE_URL_PARAMETER_NAMES.size()));
         summary.put("sensitiveQueryNameSamples", sample(SENSITIVE_URL_PARAMETER_NAMES, 6));
-        summary.put("websiteBlocklistEnabled", Boolean.valueOf(blocklist != null && blocklist.isEnabled()));
+        summary.put(
+                "websiteBlocklistEnabled",
+                Boolean.valueOf(blocklist != null && blocklist.isEnabled()));
         summary.put("websiteBlocklistDomainCount", Integer.valueOf(configuredDomains.size()));
         summary.put("websiteBlocklistDomainSamples", redactSample(configuredDomains, 6));
-        summary.put("websiteBlocklistSharedFileCount", Integer.valueOf(configuredSharedFiles.size()));
+        summary.put(
+                "websiteBlocklistSharedFileCount", Integer.valueOf(configuredSharedFiles.size()));
         summary.put("websiteBlocklistSharedFileSamples", redactSample(configuredSharedFiles, 6));
         summary.put("websiteBlocklistSharedRuleCount", Integer.valueOf(shared.ruleCount));
-        summary.put("websiteBlocklistLoadedSharedFileCount", Integer.valueOf(shared.loadedFileCount));
-        summary.put("websiteBlocklistSkippedSharedFileCount", Integer.valueOf(shared.skippedFileCount));
+        summary.put(
+                "websiteBlocklistLoadedSharedFileCount", Integer.valueOf(shared.loadedFileCount));
+        summary.put(
+                "websiteBlocklistSkippedSharedFileCount", Integer.valueOf(shared.skippedFileCount));
         summary.put("websiteBlocklistSharedRuleSamples", redactSample(shared.ruleSamples, 6));
         summary.put("allowedNetworkSchemes", Arrays.asList("http", "https", "ws", "wss"));
         summary.put("unsupportedNetworkSchemeBlocked", Boolean.TRUE);
@@ -862,14 +866,16 @@ public class SecurityPolicyService {
         summary.put("fragmentSensitiveQueryBlocked", Boolean.TRUE);
         summary.put("sensitivePathCredentialBlocked", Boolean.TRUE);
         summary.put("cloudMetadataBlocked", Boolean.TRUE);
-        summary.put("description", "URL safety blocks cloud metadata, private addresses unless explicitly allowed, userinfo credentials, plain/encoded sensitive URL parameters, and configured website rules.");
+        summary.put(
+                "description",
+                "URL safety blocks cloud metadata, private addresses unless explicitly allowed, userinfo credentials, plain/encoded sensitive URL parameters, and configured website rules.");
         return summary;
     }
 
     public Map<String, Object> privateUrlPolicySummary() {
         Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
         summary.put("allowPrivateUrls", Boolean.valueOf(resolveAllowPrivateUrls()));
-        summary.put("environmentOverrideName", "JIMUQU_ALLOW_PRIVATE_URLS");
+        summary.put("environmentOverrideName", "SOLONCLAW_ALLOW_PRIVATE_URLS");
         summary.put("cloudMetadataAlwaysBlocked", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("obfuscatedIpv4Checked", Boolean.TRUE);
@@ -881,10 +887,13 @@ public class SecurityPolicyService {
         summary.put("multicastBlocked", Boolean.TRUE);
         summary.put("reservedDocumentationRangesBlocked", Boolean.TRUE);
         summary.put("trustedPrivateIpHostCount", Integer.valueOf(TRUSTED_PRIVATE_IP_HOSTS.length));
-        summary.put("trustedPrivateIpHostSamples", sample(Arrays.asList(TRUSTED_PRIVATE_IP_HOSTS), 4));
+        summary.put(
+                "trustedPrivateIpHostSamples", sample(Arrays.asList(TRUSTED_PRIVATE_IP_HOSTS), 4));
         summary.put("alwaysBlockedHostSamples", sample(Arrays.asList(ALWAYS_BLOCKED_HOSTS), 4));
         summary.put("alwaysBlockedIpSamples", sample(Arrays.asList(ALWAYS_BLOCKED_IPS), 4));
-        summary.put("description", "Private URL safety resolves hosts and blocks loopback, link-local, private, multicast, documentation, and cloud metadata addresses unless private URL access is explicitly allowed.");
+        summary.put(
+                "description",
+                "Private URL safety resolves hosts and blocks loopback, link-local, private, multicast, documentation, and cloud metadata addresses unless private URL access is explicitly allowed.");
         return summary;
     }
 
@@ -914,7 +923,9 @@ public class SecurityPolicyService {
         summary.put("schemeAndPathIgnoredForRules", Boolean.TRUE);
         summary.put("wwwPrefixIgnored", Boolean.TRUE);
         summary.put("sharedFilePathSafetyChecked", Boolean.TRUE);
-        summary.put("description", "Website policy matches normalized host rules from configured domains and safe shared files before any network access.");
+        summary.put(
+                "description",
+                "Website policy matches normalized host rules from configured domains and safe shared files before any network access.");
         return summary;
     }
 
@@ -946,11 +957,18 @@ public class SecurityPolicyService {
         summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
         summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
-        summary.put("writeDeniedWindowsPrefixCount", Integer.valueOf(WRITE_DENIED_WINDOWS_PREFIXES.size()));
-        summary.put("writeDeniedHomeFileCount", Integer.valueOf(WRITE_DENIED_HOME_FILE_NAMES.size()));
+        summary.put(
+                "writeDeniedWindowsPrefixCount",
+                Integer.valueOf(WRITE_DENIED_WINDOWS_PREFIXES.size()));
+        summary.put(
+                "writeDeniedHomeFileCount", Integer.valueOf(WRITE_DENIED_HOME_FILE_NAMES.size()));
         summary.put("blockedDevicePathCount", Integer.valueOf(BLOCKED_DEVICE_PATHS.size()));
-        summary.put("localManagementSocketPathCount", Integer.valueOf(LOCAL_MANAGEMENT_SOCKET_PATHS.size()));
-        summary.put("localManagementPipePathCount", Integer.valueOf(LOCAL_MANAGEMENT_PIPE_PATHS.size()));
+        summary.put(
+                "localManagementSocketPathCount",
+                Integer.valueOf(LOCAL_MANAGEMENT_SOCKET_PATHS.size()));
+        summary.put(
+                "localManagementPipePathCount",
+                Integer.valueOf(LOCAL_MANAGEMENT_PIPE_PATHS.size()));
         summary.put("writeDeniedExactPathSamples", sample(WRITE_DENIED_EXACT_PATHS, 6));
         summary.put("writeDeniedPrefixSamples", sample(WRITE_DENIED_PREFIXES, 6));
         summary.put("writeDeniedWindowsPrefixSamples", sample(WRITE_DENIED_WINDOWS_PREFIXES, 6));
@@ -959,7 +977,9 @@ public class SecurityPolicyService {
         summary.put("localManagementSocketPathSamples", sample(LOCAL_MANAGEMENT_SOCKET_PATHS, 4));
         summary.put("localManagementPipePathSamples", sample(LOCAL_MANAGEMENT_PIPE_PATHS, 4));
         summary.put("workdirSafePattern", WORKDIR_SAFE_PATTERN.pattern());
-        summary.put("description", "Path safety blocks traversal, control characters, device files, sensitive system writes, local management endpoints, internal skill hub access, and writes outside the configured safe root.");
+        summary.put(
+                "description",
+                "Path safety blocks traversal, control characters, device files, sensitive system writes, local management endpoints, internal skill hub access, and writes outside the configured safe root.");
         return summary;
     }
 
@@ -971,7 +991,9 @@ public class SecurityPolicyService {
         summary.put("returnedDocumentContentChecked", Boolean.TRUE);
         summary.put("returnedDocumentMetadataUrlChecked", Boolean.TRUE);
         summary.put("returnedPojoUrlChecked", Boolean.TRUE);
-        summary.put("returnedUrlKeySamples", Arrays.asList("href", "link", "browser_download_url", "source_url", "finalUrl"));
+        summary.put(
+                "returnedUrlKeySamples",
+                Arrays.asList("href", "link", "browser_download_url", "source_url", "finalUrl"));
         summary.put("recursivePathExtraction", Boolean.TRUE);
         summary.put("encodedUrlParameterPolicyInherited", Boolean.TRUE);
         summary.put("rawPathControlCharacterPolicyInherited", Boolean.TRUE);
@@ -999,7 +1021,9 @@ public class SecurityPolicyService {
         summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
         summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
         summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
-        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths and network upload source paths, checks returned document content, metadata, and structured POJO fields, and parses patch/diff targets before tool execution.");
+        summary.put(
+                "description",
+                "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths and network upload source paths, checks returned document content, metadata, and structured POJO fields, and parses patch/diff targets before tool execution.");
         return summary;
     }
 
@@ -1051,7 +1075,8 @@ public class SecurityPolicyService {
         }
         Matcher credentialMatcher = SHELL_CREDENTIAL_TOKEN_PATTERN.matcher(code);
         while (credentialMatcher.find()) {
-            FileVerdict verdict = checkPath(cleanCredentialPathToken(credentialMatcher.group(1)), false);
+            FileVerdict verdict =
+                    checkPath(cleanCredentialPathToken(credentialMatcher.group(1)), false);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1097,7 +1122,9 @@ public class SecurityPolicyService {
             String path = credentialPathOptionValue(token);
             if (StrUtil.isBlank(path) && networkCredentialMode) {
                 path = networkUploadFileOptionValue(token);
-                if (StrUtil.isBlank(path) && isDetachedNetworkUploadFileOption(token) && i + 1 < tokens.size()) {
+                if (StrUtil.isBlank(path)
+                        && isDetachedNetworkUploadFileOption(token)
+                        && i + 1 < tokens.size()) {
                     path = cleanUrlToken(tokens.get(++i));
                 }
                 if (StrUtil.isNotBlank(path)) {
@@ -1379,38 +1406,37 @@ public class SecurityPolicyService {
             }
             if (StrUtil.isBlank(path)) {
                 path = localManagementHostOptionValue(token);
-                if (StrUtil.isBlank(path) && isDetachedLocalManagementHostOption(token) && i + 1 < tokens.size()) {
+                if (StrUtil.isBlank(path)
+                        && isDetachedLocalManagementHostOption(token)
+                        && i + 1 < tokens.size()) {
                     path = localManagementSocketEnvironmentPath(tokens.get(++i));
                 }
             }
             if (StrUtil.isNotBlank(path)) {
                 if (isLocalManagementSocket(path)) {
                     return UrlVerdict.block(
-                            path,
-                            "阻断本地容器/运行时管理套接字访问："
-                                    + localManagementReference(path));
+                            path, "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
                 }
                 String endpointPipe = localManagementPipeToken(path);
                 if (StrUtil.isNotBlank(endpointPipe)) {
                     return UrlVerdict.block(
                             endpointPipe,
-                            "阻断本地容器/运行时管理命名管道访问："
-                                    + localManagementReference(endpointPipe));
+                            "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(endpointPipe));
                 }
             }
             String pipe = localManagementPipeToken(token);
             if (StrUtil.isNotBlank(pipe)) {
                 return UrlVerdict.block(
-                        pipe,
-                        "阻断本地容器/运行时管理命名管道访问："
-                                + localManagementReference(pipe));
+                        pipe, "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
             }
         }
         return UrlVerdict.allow();
     }
 
     private UrlVerdict checkPowerShellLocalManagementEnvironment(String command) {
-        Matcher matcher = POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN.matcher(StrUtil.nullToEmpty(command));
+        Matcher matcher =
+                POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN.matcher(
+                        StrUtil.nullToEmpty(command));
         while (matcher.find()) {
             String value = matcher.group(2);
             if (StrUtil.isBlank(value)) {
@@ -1419,14 +1445,12 @@ public class SecurityPolicyService {
             String path = localManagementSocketEnvironmentPath(value);
             if (isLocalManagementSocket(path)) {
                 return UrlVerdict.block(
-                        path,
-                        "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
+                        path, "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
             }
             String pipe = localManagementPipeToken(path);
             if (StrUtil.isNotBlank(pipe)) {
                 return UrlVerdict.block(
-                        pipe,
-                        "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
+                        pipe, "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
             }
         }
         return UrlVerdict.allow();
@@ -1527,7 +1551,10 @@ public class SecurityPolicyService {
         value = HtmlUtil.unescape(value).trim();
         value = decodePathText(value);
         value = value.replace('\\', '/').toLowerCase(Locale.ROOT);
-        while (value.endsWith(",") || value.endsWith(";") || value.endsWith("\"") || value.endsWith("'")) {
+        while (value.endsWith(",")
+                || value.endsWith(";")
+                || value.endsWith("\"")
+                || value.endsWith("'")) {
             value = value.substring(0, value.length() - 1).trim();
         }
         if (value.startsWith("npipe:////./")) {
@@ -1548,8 +1575,8 @@ public class SecurityPolicyService {
                     value.startsWith("//")
                             ? checkAlwaysBlockedUrl("http:" + value)
                             : value.contains("://")
-                            ? checkAlwaysBlockedUrl(value)
-                            : checkAlwaysBlockedSchemelessUrl(value);
+                                    ? checkAlwaysBlockedUrl(value)
+                                    : checkAlwaysBlockedSchemelessUrl(value);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1586,11 +1613,7 @@ public class SecurityPolicyService {
                             : "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
         }
         if (matchesCredentialPath(normalized)) {
-            return FileVerdict.block(
-                    path,
-                    writeLike
-                            ? "写入敏感系统/凭据文件被阻断"
-                            : "读取敏感系统/凭据文件被阻断");
+            return FileVerdict.block(path, writeLike ? "写入敏感系统/凭据文件被阻断" : "读取敏感系统/凭据文件被阻断");
         }
         if (writeLike && isOutsideSafeWriteRoot(path)) {
             return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
@@ -1599,18 +1622,11 @@ public class SecurityPolicyService {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
         if (isLocalManagementSocket(path)) {
-            return FileVerdict.block(
-                    path,
-                    writeLike
-                            ? "写入本地容器/运行时管理套接字被阻断"
-                            : "访问本地容器/运行时管理套接字被阻断");
+            return FileVerdict.block(path, writeLike ? "写入本地容器/运行时管理套接字被阻断" : "访问本地容器/运行时管理套接字被阻断");
         }
         if (isLocalManagementPipe(path)) {
             return FileVerdict.block(
-                    path,
-                    writeLike
-                            ? "写入本地容器/运行时管理命名管道被阻断"
-                            : "访问本地容器/运行时管理命名管道被阻断");
+                    path, writeLike ? "写入本地容器/运行时管理命名管道被阻断" : "访问本地容器/运行时管理命名管道被阻断");
         }
         return FileVerdict.allow();
     }
@@ -1984,13 +2000,15 @@ public class SecurityPolicyService {
         List<String> tokens = shellLikeTokens(text, 200);
         for (int i = 0; i < tokens.size(); i++) {
             String command = StrUtil.nullToEmpty(tokens.get(i)).trim();
-            if ("Set-ItemProperty".equalsIgnoreCase(command) || "New-ItemProperty".equalsIgnoreCase(command)) {
+            if ("Set-ItemProperty".equalsIgnoreCase(command)
+                    || "New-ItemProperty".equalsIgnoreCase(command)) {
                 extractWindowsRegistryProxyCommand(tokens, i + 1, urls);
             }
         }
     }
 
-    private void extractWindowsRegistryProxyCommand(List<String> tokens, int start, List<String> urls) {
+    private void extractWindowsRegistryProxyCommand(
+            List<String> tokens, int start, List<String> urls) {
         String propertyName = "";
         String propertyValue = "";
         boolean internetSettings = false;
@@ -2021,11 +2039,13 @@ public class SecurityPolicyService {
                 propertyValue = inlineValue;
                 continue;
             }
-            if (POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN.matcher(token).matches() && i + 1 < tokens.size()) {
+            if (POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN.matcher(token).matches()
+                    && i + 1 < tokens.size()) {
                 propertyName = tokens.get(++i);
                 continue;
             }
-            if (POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN.matcher(token).matches() && i + 1 < tokens.size()) {
+            if (POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN.matcher(token).matches()
+                    && i + 1 < tokens.size()) {
                 propertyValue = tokens.get(++i);
             }
         }
@@ -2046,7 +2066,8 @@ public class SecurityPolicyService {
         return separator == ':' || separator == '=' ? token.substring(option.length() + 1) : "";
     }
 
-    private void addWindowsRegistryProxyValue(String propertyName, String propertyValue, List<String> urls) {
+    private void addWindowsRegistryProxyValue(
+            String propertyName, String propertyValue, List<String> urls) {
         String name = StrUtil.nullToEmpty(propertyName).trim();
         String value = stripOptionalQuote(propertyValue);
         if ("ProxyServer".equalsIgnoreCase(name)) {
@@ -2438,7 +2459,8 @@ public class SecurityPolicyService {
             if (slash > 0) {
                 token = token.substring(0, slash);
             }
-            String host = token.contains("://") ? extractUrlishHost(token) : extractSchemelessHost(token);
+            String host =
+                    token.contains("://") ? extractUrlishHost(token) : extractSchemelessHost(token);
             if (StrUtil.isNotBlank(host)) {
                 urls.add(token.contains("://") ? token : "http://" + token);
             }
@@ -2454,13 +2476,15 @@ public class SecurityPolicyService {
         if (at >= 0 && at + 1 < value.length()) {
             String hostWithCredential =
                     value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
-            if (StrUtil.isNotBlank(hostWithCredential) && !shouldCheckBareHost(hostWithCredential)) {
+            if (StrUtil.isNotBlank(hostWithCredential)
+                    && !shouldCheckBareHost(hostWithCredential)) {
                 urls.add(value);
                 return;
             }
             value = value.substring(at + 1);
         }
-        String host = value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
+        String host =
+                value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
         if (StrUtil.isBlank(host)) {
             return;
         }
@@ -2618,7 +2642,8 @@ public class SecurityPolicyService {
     }
 
     private int extractNmcliDnsServers(List<String> tokens, int index, List<String> urls) {
-        if (!matchesToken(tokens, index + 1, "connection") || !matchesToken(tokens, index + 2, "modify")) {
+        if (!matchesToken(tokens, index + 1, "connection")
+                || !matchesToken(tokens, index + 2, "modify")) {
             return index;
         }
         for (int i = index + 3; i < tokens.size(); i++) {
@@ -3112,14 +3137,7 @@ public class SecurityPolicyService {
 
     private static List<String> toolArgsUrlKeySamples() {
         return Arrays.asList(
-                "url",
-                "uri",
-                "href",
-                "endpoint",
-                "base_url",
-                "callback_url",
-                "proxy",
-                "*_url");
+                "url", "uri", "href", "endpoint", "base_url", "callback_url", "proxy", "*_url");
     }
 
     private static List<String> toolArgsPathKeySamples() {
@@ -3140,23 +3158,11 @@ public class SecurityPolicyService {
 
     private static List<String> toolArgsWriteIntentSamples() {
         return Arrays.asList(
-                "write",
-                "append",
-                "delete",
-                "remove",
-                "move",
-                "rename",
-                "create",
-                "patch");
+                "write", "append", "delete", "remove", "move", "rename", "create", "patch");
     }
 
     private static List<String> toolArgsPatchIntentSamples() {
-        return Arrays.asList(
-                "patch",
-                "apply_patch",
-                "patch_apply",
-                "diff_apply",
-                "apply_diff");
+        return Arrays.asList("patch", "apply_patch", "patch_apply", "diff_apply", "apply_diff");
     }
 
     private static List<String> toolArgsPatchTextKeySamples() {
@@ -3516,7 +3522,8 @@ public class SecurityPolicyService {
         if (path.equals(hub) || path.startsWith(hub + "/")) {
             return true;
         }
-        String runtimeSkillsHub = normalizeRuntimePath(RuntimePathConstants.SKILLS_DIR_NAME, ".hub");
+        String runtimeSkillsHub =
+                normalizeRuntimePath(RuntimePathConstants.SKILLS_DIR_NAME, ".hub");
         return runtimeSkillsHub.length() > 0
                 && (normalized.equals(runtimeSkillsHub)
                         || normalized.startsWith(runtimeSkillsHub + "/"));
@@ -3542,7 +3549,8 @@ public class SecurityPolicyService {
             if (path.equals(normalizedSegment) || path.contains("/" + normalizedSegment + "/")) {
                 return true;
             }
-            if (path.startsWith(normalizedSegment + "/") || path.endsWith("/" + normalizedSegment)) {
+            if (path.startsWith(normalizedSegment + "/")
+                    || path.endsWith("/" + normalizedSegment)) {
                 return true;
             }
         }
@@ -3628,7 +3636,8 @@ public class SecurityPolicyService {
                 return FileVerdict.block(configured, "读取敏感系统/凭据文件被阻断");
             }
             String runtimePath = normalizeRuntimeFilePath(configuredPath);
-            if (StrUtil.isNotBlank(runtimePath) && containsPathToken(normalizedCommand, runtimePath)) {
+            if (StrUtil.isNotBlank(runtimePath)
+                    && containsPathToken(normalizedCommand, runtimePath)) {
                 return FileVerdict.block(configured, "读取敏感系统/凭据文件被阻断");
             }
         }
@@ -3640,9 +3649,7 @@ public class SecurityPolicyService {
             return false;
         }
         String[] candidates =
-                new String[] {
-                    normalizedPath, "./" + normalizedPath, "../" + normalizedPath
-                };
+                new String[] {normalizedPath, "./" + normalizedPath, "../" + normalizedPath};
         for (String candidate : candidates) {
             if (containsExactPathToken(normalizedText, candidate)) {
                 return true;
@@ -3703,7 +3710,8 @@ public class SecurityPolicyService {
                 && (normalized.equals(runtimePath) || strippedPath.equals(runtimePath))) {
             return true;
         }
-        return normalized.endsWith("/" + configuredPath) || strippedPath.endsWith("/" + configuredPath);
+        return normalized.endsWith("/" + configuredPath)
+                || strippedPath.endsWith("/" + configuredPath);
     }
 
     private String normalizeConfiguredCredentialPath(String rawPath) {
@@ -3770,9 +3778,10 @@ public class SecurityPolicyService {
             if (appConfig == null || appConfig.getRuntime() == null) {
                 return "";
             }
-            Path path = Paths.get(appConfig.getRuntime().getHome(), relativePath)
-                    .toAbsolutePath()
-                    .normalize();
+            Path path =
+                    Paths.get(appConfig.getRuntime().getHome(), relativePath)
+                            .toAbsolutePath()
+                            .normalize();
             return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
         } catch (Exception ignored) {
             return "";
@@ -3795,7 +3804,8 @@ public class SecurityPolicyService {
             }
         }
         for (String prefix : WRITE_DENIED_PREFIXES) {
-            if ((normalized.startsWith(prefix) && !(underUserHome && prefix.startsWith("/private/var/")))
+            if ((normalized.startsWith(prefix)
+                            && !(underUserHome && prefix.startsWith("/private/var/")))
                     || path.startsWith(prefix.substring(1))) {
                 return true;
             }
@@ -3856,9 +3866,6 @@ public class SecurityPolicyService {
         String safeRoot = "";
         if (appConfig != null && appConfig.getTerminal() != null) {
             safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
             safeRoot = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_WRITE_SAFE_ROOT")).trim();
@@ -3944,7 +3951,9 @@ public class SecurityPolicyService {
             Path runtimeHome =
                     appConfig == null || appConfig.getRuntime() == null
                             ? null
-                            : Paths.get(appConfig.getRuntime().getHome()).toAbsolutePath().normalize();
+                            : Paths.get(appConfig.getRuntime().getHome())
+                                    .toAbsolutePath()
+                                    .normalize();
             if (runtimeHome != null) {
                 String runtime = runtimeHome.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
                 if (value.startsWith(runtime + "/")) {
@@ -3961,9 +3970,10 @@ public class SecurityPolicyService {
             if (appConfig == null || appConfig.getRuntime() == null) {
                 return "";
             }
-            Path path = Paths.get(appConfig.getRuntime().getHome(), first, second)
-                    .toAbsolutePath()
-                    .normalize();
+            Path path =
+                    Paths.get(appConfig.getRuntime().getHome(), first, second)
+                            .toAbsolutePath()
+                            .normalize();
             return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
         } catch (Exception ignored) {
             return "";
@@ -4076,9 +4086,10 @@ public class SecurityPolicyService {
             File runtimeHome =
                     appConfig == null || appConfig.getRuntime() == null
                             ? new File(".")
-                            : new File(StrUtil.blankToDefault(
-                                    appConfig.getRuntime().getHome(),
-                                    RuntimePathConstants.RUNTIME_HOME));
+                            : new File(
+                                    StrUtil.blankToDefault(
+                                            appConfig.getRuntime().getHome(),
+                                            RuntimePathConstants.RUNTIME_HOME));
             File home = runtimeHome.getCanonicalFile();
             File file = new File(home, path).getCanonicalFile();
             if (isInside(file, home)) {
@@ -4262,7 +4273,8 @@ public class SecurityPolicyService {
                 }
                 continue;
             }
-            if (isSensitiveUrlParameterName(name) && hasFollowingPathCredentialValue(segments, i + 1)) {
+            if (isSensitiveUrlParameterName(name)
+                    && hasFollowingPathCredentialValue(segments, i + 1)) {
                 return true;
             }
         }
@@ -4346,8 +4358,9 @@ public class SecurityPolicyService {
     }
 
     private boolean containsStructuredSensitiveParameterName(String value) {
-        Matcher matcher = Pattern.compile("(?iu)[\"']?([A-Za-z][A-Za-z0-9_.-]{2,})[\"']?\\s*[:=]")
-                .matcher(StrUtil.nullToEmpty(value));
+        Matcher matcher =
+                Pattern.compile("(?iu)[\"']?([A-Za-z][A-Za-z0-9_.-]{2,})[\"']?\\s*[:=]")
+                        .matcher(StrUtil.nullToEmpty(value));
         while (matcher.find()) {
             if (isSensitiveUrlParameterName(matcher.group(1))) {
                 return true;
@@ -4751,7 +4764,7 @@ public class SecurityPolicyService {
     }
 
     private boolean resolveAllowPrivateUrls() {
-        Boolean envOverride = parseBooleanOverride(readEnvironment("JIMUQU_ALLOW_PRIVATE_URLS"));
+        Boolean envOverride = parseBooleanOverride(readEnvironment("SOLONCLAW_ALLOW_PRIVATE_URLS"));
         if (envOverride != null) {
             return envOverride.booleanValue();
         }
@@ -5028,7 +5041,8 @@ public class SecurityPolicyService {
             }
             safeKey = safeKey.replaceAll("\\s+", "_");
             safeKey = SecretRedactor.redact(safeKey, 200);
-            this.reference = safeKey.length() == 0 ? "tool_arg://credential" : "tool_arg://" + safeKey;
+            this.reference =
+                    safeKey.length() == 0 ? "tool_arg://credential" : "tool_arg://" + safeKey;
         }
 
         private static String canonicalStructuredCredentialKey(String normalizedKey) {

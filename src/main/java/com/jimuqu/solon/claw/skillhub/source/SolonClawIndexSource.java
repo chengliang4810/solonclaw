@@ -9,10 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.noear.snack4.ONode;
 
-/** Jimuqu 中央索引来源。 */
+/** SolonClaw central skill index source. */
 public class SolonClawIndexSource implements SkillSource {
-    private static final String INDEX_URL =
-            "https://jimuqu-agent.local/docs/api/skills-index.json";
+    private static final String INDEX_URL = "https://solon-claw.local/docs/api/skills-index.json";
 
     private final SkillHubHttpClient httpClient;
     private final SkillHubStateStore stateStore;
@@ -88,7 +87,7 @@ public class SolonClawIndexSource implements SkillSource {
 
     @Override
     public String sourceId() {
-        return "Jimuqu-index";
+        return "solonclaw-index";
     }
 
     @Override
@@ -104,12 +103,12 @@ public class SolonClawIndexSource implements SkillSource {
     }
 
     private ONode loadIndex() throws Exception {
-        String cached = stateStore.readCachedIndex("Jimuqu-index");
+        String cached = stateStore.readCachedIndex("solonclaw-index");
         if (StrUtil.isNotBlank(cached)) {
             return ONode.ofJson(cached);
         }
         String text = httpClient.getText(INDEX_URL, null);
-        stateStore.writeCachedIndex("Jimuqu-index", text);
+        stateStore.writeCachedIndex("solonclaw-index", text);
         return ONode.ofJson(text);
     }
 
@@ -159,4 +158,3 @@ public class SolonClawIndexSource implements SkillSource {
         return normalized;
     }
 }
-

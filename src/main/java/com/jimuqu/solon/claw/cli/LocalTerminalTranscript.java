@@ -127,7 +127,10 @@ public class LocalTerminalTranscript {
         if (isShowCommand(value)) {
             return DEFAULT_LIMIT;
         }
-        String rest = value.length() <= "/transcript".length() ? "" : value.substring("/transcript".length()).trim();
+        String rest =
+                value.length() <= "/transcript".length()
+                        ? ""
+                        : value.substring("/transcript".length()).trim();
         if (StrUtil.isBlank(rest)) {
             return DEFAULT_LIMIT;
         }

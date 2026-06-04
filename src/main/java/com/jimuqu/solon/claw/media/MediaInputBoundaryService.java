@@ -80,7 +80,9 @@ public class MediaInputBoundaryService {
                 if ("data".equals(scheme)) {
                     String dataPart = dataUriPayload(url);
                     ImagePayload payload =
-                            dataPart == null ? null : imagePayload(Base64.decode(dataPart), mimeType);
+                            dataPart == null
+                                    ? null
+                                    : imagePayload(Base64.decode(dataPart), mimeType);
                     if (payload == null) {
                         return null;
                     }
@@ -182,8 +184,7 @@ public class MediaInputBoundaryService {
         Graphics2D graphics = target.createGraphics();
         try {
             graphics.setRenderingHint(
-                    RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             graphics.setRenderingHint(
                     RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             graphics.setRenderingHint(

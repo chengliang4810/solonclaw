@@ -25,7 +25,8 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(((Integer) summary.get("providerBlocklistCount")).intValue()).isGreaterThan(50);
         assertThat(summary.get("configuredPassthroughCount")).isEqualTo(Integer.valueOf(2));
         assertThat(summary.get("providerBlocklistOverridesPassthrough")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("forcePrefix")).isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
+        assertThat(summary.get("forcePrefix"))
+                .isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
         assertThat(summary.get("decisionProbeSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("decisionProbeValueRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("decisionProbeEffectiveNameSupported")).isEqualTo(Boolean.TRUE);
@@ -73,8 +74,8 @@ public class SubprocessEnvironmentSanitizerTest {
         env.put(SubprocessEnvironmentSanitizer.FORCE_PREFIX + "CUSTOM_TOKEN", "forced-secret");
         env.put("BAD-NAME", "bad");
 
-        Map<String, Map<String, Object>> decisions = decisionsByName(
-                SubprocessEnvironmentSanitizer.probeDecisions(env, config));
+        Map<String, Map<String, Object>> decisions =
+                decisionsByName(SubprocessEnvironmentSanitizer.probeDecisions(env, config));
 
         assertThat(decisions.get("PATH"))
                 .containsEntry("decision", "allow")
@@ -157,18 +158,7 @@ public class SubprocessEnvironmentSanitizerTest {
         config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
-                        config,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+                        config, null, null, null, null, null, null, null, null, null, null, null);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put(
                 "names",
@@ -235,9 +225,9 @@ public class SubprocessEnvironmentSanitizerTest {
     @Test
     void shouldAllowExplicitForcePrefixForIntentionalSubprocessSecrets() {
         Map<String, String> env = new LinkedHashMap<String, String>();
-        env.put("_JIMUQU_FORCE_OPENAI_API_KEY", "sk-explicit");
-        env.put("_JIMUQU_FORCE_CUSTOM_TOKEN", "token-explicit");
-        env.put("_JIMUQU_FORCE_BAD-NAME", "bad");
+        env.put("_SOLONCLAW_FORCE_OPENAI_API_KEY", "sk-explicit");
+        env.put("_SOLONCLAW_FORCE_CUSTOM_TOKEN", "token-explicit");
+        env.put("_SOLONCLAW_FORCE_BAD-NAME", "bad");
 
         SubprocessEnvironmentSanitizer.sanitize(env);
 
@@ -246,9 +236,9 @@ public class SubprocessEnvironmentSanitizerTest {
                 .containsEntry("CUSTOM_TOKEN", "token-explicit");
         assertThat(env)
                 .doesNotContainKeys(
-                        "_JIMUQU_FORCE_OPENAI_API_KEY",
-                        "_JIMUQU_FORCE_CUSTOM_TOKEN",
-                        "_JIMUQU_FORCE_BAD-NAME",
+                        "_SOLONCLAW_FORCE_OPENAI_API_KEY",
+                        "_SOLONCLAW_FORCE_CUSTOM_TOKEN",
+                        "_SOLONCLAW_FORCE_BAD-NAME",
                         "BAD-NAME");
     }
 
@@ -328,7 +318,7 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThatThrownBy(
                         () ->
                                 SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
-                                        Arrays.asList("_JIMUQU_FORCE_OPENAI_API_KEY"),
+                                        Arrays.asList("_SOLONCLAW_FORCE_OPENAI_API_KEY"),
                                         "terminal.env_passthrough"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("terminal.env_passthrough")
@@ -336,7 +326,7 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldStripToolBackendSecretsAndGatewayRuntimeVarsLikeJimuqu() {
+    void shouldStripToolBackendSecretsAndGatewayRuntimeVars() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
         env.put("OPENAI_API_BASE", "https://legacy.example/v1");
@@ -357,7 +347,7 @@ public class SubprocessEnvironmentSanitizerTest {
         env.put("FAL_KEY", "fal-secret");
         env.put("TOOL_GATEWAY_USER_TOKEN", "gateway-token");
         env.put("TERMINAL_SSH_KEY", "ssh-secret");
-        env.put("SUDO_PASSWORD", "sudo-secret");
+        env.put("SOLONCLAW_SUDO_PASSWORD", "sudo-secret");
         env.put("MODAL_TOKEN_ID", "modal-id");
         env.put("MODAL_TOKEN_SECRET", "modal-secret");
         env.put("DAYTONA_API_KEY", "daytona-secret");
@@ -389,7 +379,7 @@ public class SubprocessEnvironmentSanitizerTest {
                         "FAL_KEY",
                         "TOOL_GATEWAY_USER_TOKEN",
                         "TERMINAL_SSH_KEY",
-                        "SUDO_PASSWORD",
+                        "SOLONCLAW_SUDO_PASSWORD",
                         "MODAL_TOKEN_ID",
                         "MODAL_TOKEN_SECRET",
                         "DAYTONA_API_KEY",
@@ -448,7 +438,7 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldKeepJimuquBlocklistAboveConfiguredPassthroughForToolBackendVars() {
+    void shouldKeepBlocklistAboveConfiguredPassthroughForToolBackendVars() {
         AppConfig config = new AppConfig();
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         config.getTerminal().getEnvPassthrough().add("FIRECRAWL_API_KEY");
@@ -479,10 +469,7 @@ public class SubprocessEnvironmentSanitizerTest {
         AutoCloseable scope =
                 SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
                         Arrays.asList(
-                                "TENOR_API_KEY",
-                                "OPENAI_API_KEY",
-                                "OpenAi_Api_Key",
-                                "BAD-NAME"));
+                                "TENOR_API_KEY", "OPENAI_API_KEY", "OpenAi_Api_Key", "BAD-NAME"));
         try {
             SubprocessEnvironmentSanitizer.sanitize(env);
         } finally {
@@ -563,32 +550,32 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldKeepNonSecretJimuquExecutionContextButDropSafetyTogglesAndTokens() {
+    void shouldKeepCurrentExecutionContextButDropSafetyTogglesAndTokens() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
+        env.put("SOLONCLAW_PROFILE", "reviewer");
         env.put("JIMUQU_PROFILE", "reviewer");
-        env.put("JIMUQU_RPC_DIR", "/tmp/jimuqu-rpc");
-        env.put("JIMUQU_ALLOW_PRIVATE_URLS", "true");
-        env.put("JIMUQU_WRITE_SAFE_ROOT", "/");
-        env.put("JIMUQU_DASHBOARD_ACCESS_TOKEN", "dashboard-secret");
+        env.put("SOLONCLAW_RPC_DIR", "/tmp/solonclaw-rpc");
+        env.put("SOLONCLAW_ALLOW_PRIVATE_URLS", "true");
+        env.put("SOLONCLAW_WRITE_SAFE_ROOT", "/");
+        env.put("SOLONCLAW_DASHBOARD_ACCESS_TOKEN", "dashboard-secret");
 
         SubprocessEnvironmentSanitizer.sanitize(env);
 
-        assertThat(env)
-                .containsEntry("JIMUQU_PROFILE", "reviewer");
+        assertThat(env).containsEntry("SOLONCLAW_PROFILE", "reviewer");
         assertThat(env)
                 .doesNotContainKeys(
-                        "JIMUQU_RPC_DIR",
-                        "JIMUQU_ALLOW_PRIVATE_URLS",
-                        "JIMUQU_WRITE_SAFE_ROOT",
-                        "JIMUQU_DASHBOARD_ACCESS_TOKEN");
+                        "JIMUQU_PROFILE",
+                        "SOLONCLAW_RPC_DIR",
+                        "SOLONCLAW_ALLOW_PRIVATE_URLS",
+                        "SOLONCLAW_WRITE_SAFE_ROOT",
+                        "SOLONCLAW_DASHBOARD_ACCESS_TOKEN");
     }
 
     @Test
     void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeJimuqu() {
         String result =
-                SubprocessEnvironmentSanitizer.pathWithSaneFallback(
-                        "/some/custom/bin", false);
+                SubprocessEnvironmentSanitizer.pathWithSaneFallback("/some/custom/bin", false);
 
         assertThat(result).startsWith("/some/custom/bin:");
         assertThat(result).contains("/opt/homebrew/bin");

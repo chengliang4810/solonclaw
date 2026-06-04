@@ -91,8 +91,6 @@ export SOLONCLAW_GID="$(id -g)"
 docker compose up -d
 ```
 
-也兼容常见 NAS 平台使用的 `PUID` / `PGID` 环境变量；同时设置时，`SOLONCLAW_UID` / `SOLONCLAW_GID` 优先生效。
-
 ## 配置
 
 默认配置位于：
@@ -167,10 +165,10 @@ solonclaw:
 | `approvals.timeoutSeconds` | `60` | 本地/直接审批超时秒数 |
 | `approvals.gatewayTimeoutSeconds` | `300` | 消息渠道审批超时秒数 |
 | `approvals.mcpReloadConfirm` | `true` | `/reload-mcp` 是否需要确认 |
-| `terminal.credentialFiles` | 空 | 可挂载到隔离执行环境的 runtime 相对凭据文件列表 |
-| `terminal.envPassthrough` | 空 | 允许传给本地子进程的第三方环境变量名 |
-| `terminal.sudoPassword` | 空 | 可选 sudo 密码，用于 `sudo -S` 改写 |
-| `terminal.writeSafeRoot` | 空 | 非空时限制文件写入、patch 和 shell 写入根目录 |
+| `solonclaw.terminal.credentialFiles` | 空 | 可挂载到隔离执行环境的 runtime 相对凭据文件列表 |
+| `solonclaw.terminal.envPassthrough` | 空 | 允许传给本地子进程的第三方环境变量名 |
+| `solonclaw.terminal.sudoPassword` | 空 | 可选 sudo 密码，用于 `sudo -S` 改写；也可通过 `SOLONCLAW_SUDO_PASSWORD` 提供 |
+| `solonclaw.terminal.writeSafeRoot` | 空 | 非空时限制文件写入、patch 和 shell 写入根目录 |
 | `solonclaw.trace.retentionDays` | `14` | 运行轨迹保留天数 |
 | `solonclaw.trace.maxAttempts` | `2` | 每个 run 最大外层 attempt 数 |
 | `solonclaw.task.busyPolicy` | `interrupt` | 同一会话运行中收到新消息时的处理策略 |

@@ -127,7 +127,8 @@ public final class BoundedAttachmentIO {
         if (securityPolicyService == null) {
             return;
         }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlBlockingPrivate(url);
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrlBlockingPrivate(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
                     "Attachment download URL blocked: "
@@ -304,8 +305,7 @@ public final class BoundedAttachmentIO {
             Response response = client.newCall(request).execute();
             try {
                 if (!response.isSuccessful()) {
-                    throw new IllegalStateException(
-                            safeOkHttpError(response, response.code()));
+                    throw new IllegalStateException(safeOkHttpError(response, response.code()));
                 }
                 return new OkHttpDownloadResult(
                         readOkHttpResponse(response, maxBytes), response.header("Content-Type"));
@@ -341,11 +341,7 @@ public final class BoundedAttachmentIO {
                 }
                 String nextUrl = resolveRedirectUrl(url, location);
                 return downloadOkHttpWithRedirectGuard(
-                        client,
-                        nextUrl,
-                        maxBytes,
-                        securityPolicyService,
-                        redirectCount + 1);
+                        client, nextUrl, maxBytes, securityPolicyService, redirectCount + 1);
             }
             if (!response.isSuccessful()) {
                 throw new IllegalStateException(safeOkHttpError(response, status));

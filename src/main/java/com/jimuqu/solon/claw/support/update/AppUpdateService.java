@@ -590,7 +590,8 @@ public class AppUpdateService {
         if (e == null) {
             return "Exception";
         }
-        return SecretRedactor.redact(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     private void clearLastError() {
@@ -624,7 +625,8 @@ public class AppUpdateService {
         }
 
         public static UpdateResult error(String message) {
-            return new UpdateResult(true, SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
+            return new UpdateResult(
+                    true, SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
         }
 
         public boolean isError() {

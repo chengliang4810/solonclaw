@@ -165,7 +165,8 @@ public class HealthController {
                 Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
     }
 
-    private Map<String, Object> gatewaySummary(Map<String, Object> status, String fallbackUpdatedAt) {
+    private Map<String, Object> gatewaySummary(
+            Map<String, Object> status, String fallbackUpdatedAt) {
         Map<String, Object> gateway = new LinkedHashMap<String, Object>();
         gateway.put("state", status.get("gateway_state"));
         gateway.put("running", status.get("gateway_running"));

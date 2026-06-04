@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -42,7 +41,8 @@ public class DomesticQrSetupService {
             gatewayRuntimeRefreshService;
     private final RuntimeConfigResolver configResolver;
     private final SecurityPolicyService securityPolicyService;
-    private final ExecutorService executor = BoundedExecutorFactory.fixed("domestic-qr-setup", 2, 32);
+    private final ExecutorService executor =
+            BoundedExecutorFactory.fixed("domestic-qr-setup", 2, 32);
     private final ConcurrentMap<String, TicketState> tickets =
             new ConcurrentHashMap<String, TicketState>();
 
@@ -145,7 +145,8 @@ public class DomesticQrSetupService {
                                 baseUrl + "/app/registration/poll",
                                 mapOf("device_code", deviceCode));
                 ensureDingTalkOk(poll, "poll");
-                String status = StrUtil.nullToEmpty(poll.get("status").getString()).trim().toUpperCase();
+                String status =
+                        StrUtil.nullToEmpty(poll.get("status").getString()).trim().toUpperCase();
                 if ("SUCCESS".equals(status)) {
                     String clientId = poll.get("client_id").getString();
                     String clientSecret = poll.get("client_secret").getString();
@@ -296,7 +297,8 @@ public class DomesticQrSetupService {
                         .execute();
         try {
             return ONode.ofJson(
-                    BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES));
+                    BoundedAttachmentIO.readHutoolText(
+                            response, BoundedAttachmentIO.JSON_MAX_BYTES));
         } finally {
             response.close();
         }
@@ -313,7 +315,8 @@ public class DomesticQrSetupService {
                         .execute();
         try {
             return ONode.ofJson(
-                    BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES));
+                    BoundedAttachmentIO.readHutoolText(
+                            response, BoundedAttachmentIO.JSON_MAX_BYTES));
         } finally {
             response.close();
         }
@@ -326,7 +329,8 @@ public class DomesticQrSetupService {
                     "钉钉扫码注册 "
                             + step
                             + " 失败："
-                            + StrUtil.blankToDefault(node.get("errmsg").getString(), "errcode=" + errcode));
+                            + StrUtil.blankToDefault(
+                                    node.get("errmsg").getString(), "errcode=" + errcode));
         }
     }
 
@@ -406,7 +410,8 @@ public class DomesticQrSetupService {
                 parts.add(
                         URLEncoder.encode(entry.getKey(), "UTF-8")
                                 + "="
-                                + URLEncoder.encode(StrUtil.nullToEmpty(entry.getValue()), "UTF-8"));
+                                + URLEncoder.encode(
+                                        StrUtil.nullToEmpty(entry.getValue()), "UTF-8"));
             } catch (Exception e) {
                 throw new IllegalStateException("表单编码失败", e);
             }

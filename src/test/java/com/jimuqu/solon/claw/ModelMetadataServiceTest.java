@@ -188,7 +188,8 @@ public class ModelMetadataServiceTest {
         assertThat(metadata.isSupportsAttachment()).isTrue();
         assertThat(metadata.isSupportsMultimodal()).isTrue();
         assertThat(metadata.isSupportsPdf()).isTrue();
-        assertThat(metadata.getInputModalities()).containsExactly("text", "image", "pdf", "audio", "file");
+        assertThat(metadata.getInputModalities())
+                .containsExactly("text", "image", "pdf", "audio", "file");
         assertThat(metadata.getOutputModalities()).containsExactly("text");
         assertThat(metadata.getApiUrl())
                 .isEqualTo("https://generativelanguage.googleapis.com/v1beta");
@@ -226,7 +227,8 @@ public class ModelMetadataServiceTest {
         provider.setDefaultModel("claude-sonnet-4");
         provider.setDialect("anthropic");
 
-        ModelMetadata metadata = new ModelMetadataService(config).resolve("anthropic-main", provider);
+        ModelMetadata metadata =
+                new ModelMetadataService(config).resolve("anthropic-main", provider);
 
         assertThat(metadata.getProvider()).isEqualTo("anthropic-main");
         assertThat(metadata.getModel()).isEqualTo("claude-sonnet-4");
@@ -276,7 +278,8 @@ public class ModelMetadataServiceTest {
         ModelMetadata gemini = resolveMetadata(config, "gemini", "gemini-2.5-pro");
         assertThat(gemini.isSupportsPdf()).isTrue();
         assertThat(gemini.isSupportsStructuredOutput()).isTrue();
-        assertThat(gemini.getInputModalities()).containsExactly("text", "image", "pdf", "audio", "file");
+        assertThat(gemini.getInputModalities())
+                .containsExactly("text", "image", "pdf", "audio", "file");
 
         ModelMetadata qwen = resolveMetadata(config, "openai", "qwen2.5-vl-72b-instruct");
         assertThat(qwen.isSupportsPdf()).isTrue();
@@ -318,7 +321,8 @@ public class ModelMetadataServiceTest {
         provider.setDialect("openai");
         provider.setBaseUrl("https://api.moonshot.ai/v1");
 
-        ModelMetadata metadata = new ModelMetadataService(config).resolve("moonshot-main", provider);
+        ModelMetadata metadata =
+                new ModelMetadataService(config).resolve("moonshot-main", provider);
 
         assertThat(metadata.getApiUrl()).isEqualTo("https://api.moonshot.ai/v1/chat/completions");
         assertThat(metadata.getModelListUrl()).isEqualTo("https://api.moonshot.ai/v1/models");

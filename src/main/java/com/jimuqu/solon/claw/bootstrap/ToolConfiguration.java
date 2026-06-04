@@ -28,10 +28,9 @@ import com.jimuqu.solon.claw.engine.DefaultDelegationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.mcp.McpRuntimeService;
-import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
@@ -39,6 +38,7 @@ import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -110,7 +110,10 @@ public class ToolConfiguration {
             CronJobService cronJobService) {
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
-                globalSettingRepository, appConfig, securityPolicyService, tirithSecurityService);
+                        globalSettingRepository,
+                        appConfig,
+                        securityPolicyService,
+                        tirithSecurityService);
         service.addApprovalObserver(new ApprovalAuditObserver(approvalAuditRepository));
         service.addApprovalObserver(new CronApprovalResumeObserver(cronJobService));
         return service;
@@ -275,14 +278,15 @@ public class ToolConfiguration {
             ToolCallLoopGuardrailService toolCallLoopGuardrailService,
             SecurityPolicyService securityPolicyService,
             HookBridgeInterceptor hookBridgeInterceptor) {
-        SolonAiLlmGateway gateway = new SolonAiLlmGateway(
-                appConfig,
-                sessionRepository,
-                dangerousCommandApprovalService,
-                llmProviderService,
-                toolResultTransformService,
-                toolCallLoopGuardrailService,
-                securityPolicyService);
+        SolonAiLlmGateway gateway =
+                new SolonAiLlmGateway(
+                        appConfig,
+                        sessionRepository,
+                        dangerousCommandApprovalService,
+                        llmProviderService,
+                        toolResultTransformService,
+                        toolCallLoopGuardrailService,
+                        securityPolicyService);
         gateway.setHookBridgeInterceptor(hookBridgeInterceptor);
         return gateway;
     }

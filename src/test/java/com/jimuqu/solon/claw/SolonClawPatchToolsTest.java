@@ -4,16 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
-import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class SolonClawPatchToolsTest {
@@ -179,10 +179,7 @@ public class SolonClawPatchToolsTest {
         Path file = dir.resolve("old.txt");
         Files.write(file, "obsolete\n".getBytes(StandardCharsets.UTF_8));
         SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
-        String patch =
-                "*** Begin Patch\n"
-                        + "*** Delete File: old.txt\n"
-                        + "*** End Patch";
+        String patch = "*** Begin Patch\n" + "*** Delete File: old.txt\n" + "*** End Patch";
 
         String json = tools.patch("patch", null, null, null, null, patch);
 
@@ -337,7 +334,8 @@ public class SolonClawPatchToolsTest {
                         + "+beta\n"
                         + "*** End Patch";
 
-        Map<?, ?> moveFileResult = parse(tools.patch("patch", null, null, null, null, moveFilePatch));
+        Map<?, ?> moveFileResult =
+                parse(tools.patch("patch", null, null, null, null, moveFilePatch));
         Map<?, ?> updateMoveResult =
                 parse(tools.patch("patch", null, null, null, null, updateMovePatch));
 
@@ -365,12 +363,7 @@ public class SolonClawPatchToolsTest {
 
         String json =
                 tools.patch(
-                        "replace",
-                        "missing-ghp_1234567890abcdef.txt",
-                        "old",
-                        "new",
-                        false,
-                        null);
+                        "replace", "missing-ghp_1234567890abcdef.txt", "old", "new", false, null);
 
         Map<?, ?> result = parse(json);
         assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
@@ -475,11 +468,7 @@ public class SolonClawPatchToolsTest {
         Path file = dir.resolve("loose.txt");
         Files.write(file, "alpha\n".getBytes(StandardCharsets.UTF_8));
         SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
-        String patch =
-                "*** Update File: loose.txt\n"
-                        + "@@ alpha @@\n"
-                        + "-alpha\n"
-                        + "+beta\n";
+        String patch = "*** Update File: loose.txt\n" + "@@ alpha @@\n" + "-alpha\n" + "+beta\n";
 
         String json = tools.patch("patch", null, null, null, null, patch);
 
@@ -531,10 +520,7 @@ public class SolonClawPatchToolsTest {
         Path source = dir.resolve("source.txt");
         Files.write(source, "alpha\n".getBytes(StandardCharsets.UTF_8));
         SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
-        String patch =
-                "*** Begin Patch\n"
-                        + "*** Move File: source.txt\n"
-                        + "*** End Patch";
+        String patch = "*** Begin Patch\n" + "*** Move File: source.txt\n" + "*** End Patch";
 
         String json = tools.patch("patch", null, null, null, null, patch);
 
@@ -556,7 +542,9 @@ public class SolonClawPatchToolsTest {
             Files.createSymbolicLink(link, target);
             return true;
         } catch (Exception ignored) {
-            if (!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            if (!System.getProperty("os.name", "")
+                    .toLowerCase(java.util.Locale.ROOT)
+                    .contains("win")) {
                 return false;
             }
             try {

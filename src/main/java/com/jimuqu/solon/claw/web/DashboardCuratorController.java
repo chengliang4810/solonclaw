@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -17,28 +17,28 @@ public class DashboardCuratorController {
         this.curatorService = curatorService;
     }
 
-    @Mapping(value = "/api/jimuqu/curator", method = MethodType.GET)
+    @Mapping(value = "/api/curator", method = MethodType.GET)
     public Map<String, Object> list(Context context) throws Exception {
         return DashboardResponse.ok(curatorService.list(context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/run", method = MethodType.POST)
+    @Mapping(value = "/api/curator/run", method = MethodType.POST)
     public Map<String, Object> run(Context context) throws Exception {
         return DashboardResponse.ok(
                 curatorService.run(Boolean.parseBoolean(context.param("force"))));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/{reportId}", method = MethodType.GET)
+    @Mapping(value = "/api/curator/{reportId}", method = MethodType.GET)
     public Map<String, Object> detail(String reportId) throws Exception {
         return DashboardResponse.ok(curatorService.detail(reportId));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/improvements", method = MethodType.GET)
+    @Mapping(value = "/api/curator/improvements", method = MethodType.GET)
     public Map<String, Object> improvements(Context context) throws Exception {
         return DashboardResponse.ok(curatorService.improvements(context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/jimuqu/curator/apply", method = MethodType.POST)
+    @Mapping(value = "/api/curator/apply", method = MethodType.POST)
     public Map<String, Object> apply(Context context) throws Exception {
         return safeCurator(
                 context,
@@ -51,7 +51,7 @@ public class DashboardCuratorController {
                 });
     }
 
-    @Mapping(value = "/api/jimuqu/curator/ignore", method = MethodType.POST)
+    @Mapping(value = "/api/curator/ignore", method = MethodType.POST)
     public Map<String, Object> ignore(Context context) throws Exception {
         return safeCurator(
                 context,
@@ -59,8 +59,7 @@ public class DashboardCuratorController {
                     @Override
                     public Map<String, Object> run() throws Exception {
                         Map<String, Object> body = body(context);
-                        return curatorService.ignore(
-                                read(body, "skill"), read(body, "suggestion"));
+                        return curatorService.ignore(read(body, "skill"), read(body, "suggestion"));
                     }
                 });
     }
@@ -86,7 +85,8 @@ public class DashboardCuratorController {
             if (node.toData() instanceof Map) {
                 return ONode.deserialize(node.toJson(), LinkedHashMap.class);
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -94,7 +94,8 @@ public class DashboardCuratorController {
         }
     }
 
-    private Map<String, Object> safeCurator(Context context, CuratorAction action) throws Exception {
+    private Map<String, Object> safeCurator(Context context, CuratorAction action)
+            throws Exception {
         try {
             return DashboardResponse.ok(action.run());
         } catch (IllegalArgumentException e) {

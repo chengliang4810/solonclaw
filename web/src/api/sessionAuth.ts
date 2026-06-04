@@ -6,10 +6,10 @@ declare global {
 }
 
 const DEFAULT_BASE_URL = ''
-const TOKEN_KEY = 'jimuqu_api_key'
+const TOKEN_KEY = 'solonclaw_api_key'
 
 export function getBaseUrlValue(): string {
-  return localStorage.getItem('jimuqu_server_url') || DEFAULT_BASE_URL
+  return localStorage.getItem('solonclaw_server_url') || DEFAULT_BASE_URL
 }
 
 export function getInjectedToken(): string {
@@ -21,7 +21,7 @@ export function getApiKey(): string {
 }
 
 export function setServerUrl(url: string) {
-  localStorage.setItem('jimuqu_server_url', url)
+  localStorage.setItem('solonclaw_server_url', url)
 }
 
 export function setApiKey(key: string) {

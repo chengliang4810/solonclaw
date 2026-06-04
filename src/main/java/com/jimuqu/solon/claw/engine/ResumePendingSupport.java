@@ -13,9 +13,7 @@ final class ResumePendingSupport {
             Collections.unmodifiableSet(
                     new LinkedHashSet<String>(
                             Arrays.asList(
-                                    "restart_timeout",
-                                    "shutdown_timeout",
-                                    "restart_interrupted")));
+                                    "restart_timeout", "shutdown_timeout", "restart_interrupted")));
 
     private ResumePendingSupport() {}
 

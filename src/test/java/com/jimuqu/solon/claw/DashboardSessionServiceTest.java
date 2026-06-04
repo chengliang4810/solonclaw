@@ -188,7 +188,8 @@ public class DashboardSessionServiceTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String sourceKey = "MEMORY:dash-checkpoint:ghp_dashboardcheckpointsource";
         SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
-        File checkpointDir = new File(env.appConfig.getRuntime().getCacheDir(), "checkpoints/dashboard");
+        File checkpointDir =
+                new File(env.appConfig.getRuntime().getCacheDir(), "checkpoints/dashboard");
         File manifest = new File(checkpointDir, "manifest.json");
         insertCheckpoint(
                 env,

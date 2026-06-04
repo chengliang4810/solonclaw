@@ -21,7 +21,8 @@ public class CliRuntime {
     private final ConversationOrchestrator conversationOrchestrator;
     private final AgentRunControlService agentRunControlService;
 
-    public CliRuntime(CommandService commandService, ConversationOrchestrator conversationOrchestrator) {
+    public CliRuntime(
+            CommandService commandService, ConversationOrchestrator conversationOrchestrator) {
         this(commandService, conversationOrchestrator, null);
     }
 
@@ -84,7 +85,8 @@ public class CliRuntime {
         if (!text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
             return false;
         }
-        String withoutSlash = text.substring(GatewayCommandConstants.COMMAND_PREFIX.length()).trim();
+        String withoutSlash =
+                text.substring(GatewayCommandConstants.COMMAND_PREFIX.length()).trim();
         if (StrUtil.isBlank(withoutSlash)) {
             return false;
         }

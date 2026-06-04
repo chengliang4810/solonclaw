@@ -129,11 +129,18 @@ public class AsyncSkillLearningService implements SkillLearningService {
         String decision = classifyImprovement(session, message, hasRecentCheckpoint);
         String skillName = inferSkillName(session);
         SkillDescriptor descriptor = findSkill(skillName);
-        if (descriptor != null && ("new_skill".equals(decision) || "update_loaded_skill".equals(decision))) {
+        if (descriptor != null
+                && ("new_skill".equals(decision) || "update_loaded_skill".equals(decision))) {
             decision = "update_existing_skill";
         }
         if ("no_change".equals(decision) || "memory_only".equals(decision)) {
-            writeImprovementReport(session, null, decision, "Rubric decision: " + decision, Collections.<String>emptyList(), false);
+            writeImprovementReport(
+                    session,
+                    null,
+                    decision,
+                    "Rubric decision: " + decision,
+                    Collections.<String>emptyList(),
+                    false);
             return;
         }
         if (descriptor == null) {
@@ -179,7 +186,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + hasRecentCheckpoint
                             + "\n会话摘要："
                             + SecretRedactor.redact(
-                                    StrUtil.blankToDefault(session.getCompressedSummary(), ""), 2000);
+                                    StrUtil.blankToDefault(session.getCompressedSummary(), ""),
+                                    2000);
             LlmResult result =
                     callAuxiliaryChat(
                             rubricSession,
@@ -421,7 +429,10 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             @Override
                             public LlmResult call() throws Exception {
                                 return llmGateway.chat(
-                                        session, systemPrompt, userMessage, Collections.emptyList());
+                                        session,
+                                        systemPrompt,
+                                        userMessage,
+                                        Collections.emptyList());
                             }
                         });
         try {
@@ -606,8 +617,10 @@ public class AsyncSkillLearningService implements SkillLearningService {
             statement.setString(1, IdSupport.newId());
             statement.setString(2, asString(report.get("sessionId")));
             statement.setString(3, asString(report.get("runId")));
-            statement.setString(4, StrUtil.blankToDefault(asString(report.get("skillName")), "memory"));
-            statement.setString(5, StrUtil.blankToDefault(asString(report.get("action")), "unknown"));
+            statement.setString(
+                    4, StrUtil.blankToDefault(asString(report.get("skillName")), "memory"));
+            statement.setString(
+                    5, StrUtil.blankToDefault(asString(report.get("action")), "unknown"));
             statement.setString(6, asString(report.get("summary")));
             statement.setString(7, org.noear.snack4.ONode.serialize(report.get("changedFiles")));
             statement.setString(8, org.noear.snack4.ONode.serialize(report));

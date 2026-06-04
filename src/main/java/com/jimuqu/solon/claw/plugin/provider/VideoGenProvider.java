@@ -21,11 +21,24 @@ public interface VideoGenProvider {
             this.error = error;
         }
 
-        public static VideoGenResult ok(String url) { return new VideoGenResult(true, url, null); }
-        public static VideoGenResult fail(String error) { return new VideoGenResult(false, null, error); }
+        public static VideoGenResult ok(String url) {
+            return new VideoGenResult(true, url, null);
+        }
 
-        public boolean isSuccess() { return success; }
-        public String getUrl() { return url; }
-        public String getError() { return error; }
+        public static VideoGenResult fail(String error) {
+            return new VideoGenResult(false, null, error);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public String getError() {
+            return error;
+        }
     }
 }

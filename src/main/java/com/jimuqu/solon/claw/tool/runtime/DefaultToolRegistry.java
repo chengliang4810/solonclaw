@@ -18,8 +18,8 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
+import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -93,7 +93,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.BROWSER,
                     ToolNameConstants.SECURITY_AUDIT,
                     ToolNameConstants.CLARIFY);
-
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -616,10 +615,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         SolonClawFileStateTracker fileStateTracker = new SolonClawFileStateTracker();
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(
-                        sysWorkDir,
-                        securityPolicyService,
-                        appConfig,
-                        fileStateTracker);
+                        sysWorkDir, securityPolicyService, appConfig, fileStateTracker);
         SolonClawPatchTools patchTools =
                 new SolonClawPatchTools(sysWorkDir, securityPolicyService, fileStateTracker);
         ProcessRegistry activeProcessRegistry = resolveProcessRegistry();
@@ -627,7 +623,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new SolonClawShellSkill(
                         sysWorkDir, appConfig, securityPolicyService, activeProcessRegistry);
         ProcessTools processTools =
-                new ProcessTools(activeProcessRegistry, sysWorkDir, securityPolicyService, appConfig);
+                new ProcessTools(
+                        activeProcessRegistry, sysWorkDir, securityPolicyService, appConfig);
         SolonClawCodeExecutionSkills.SafePythonSkill pythonSkill =
                 new SolonClawCodeExecutionSkills.SafePythonSkill(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);
@@ -791,10 +788,7 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     private ToolGatewaySkill buildToolGateway(List<Object> candidates) {
         ToolGatewaySkill gateway =
-                new ToolGatewaySkill()
-                        .dynamicThreshold(0)
-                        .listThreshold(40)
-                        .searchThreshold(100);
+                new ToolGatewaySkill().dynamicThreshold(0).listThreshold(40).searchThreshold(100);
         boolean added = false;
         for (Object candidate : candidates) {
             if (candidate == null || candidate instanceof ToolGatewaySkill) {
@@ -837,7 +831,8 @@ public class DefaultToolRegistry implements ToolRegistry {
             }
         }
         for (String toolName : pluginToolNames()) {
-            if (isPluginToolAllowed(agentScope, sourceKey, toolName) && isEnabled(sourceKey, toolName)) {
+            if (isPluginToolAllowed(agentScope, sourceKey, toolName)
+                    && isEnabled(sourceKey, toolName)) {
                 result.add(toolName);
             }
         }
@@ -948,11 +943,13 @@ public class DefaultToolRegistry implements ToolRegistry {
         return result;
     }
 
-    private boolean isPluginToolAllowed(AgentRuntimeScope agentScope, String sourceKey, String toolName) {
+    private boolean isPluginToolAllowed(
+            AgentRuntimeScope agentScope, String sourceKey, String toolName) {
         if (isDelegateSourceKey(sourceKey) && !hasExplicitScopedToolToggle(sourceKey, toolName)) {
             return false;
         }
-        return AgentRuntimePolicy.resolveAllowedTools(agentScope, listToolNames()).contains(toolName);
+        return AgentRuntimePolicy.resolveAllowedTools(agentScope, listToolNames())
+                .contains(toolName);
     }
 
     private boolean isDelegateSourceKey(String sourceKey) {

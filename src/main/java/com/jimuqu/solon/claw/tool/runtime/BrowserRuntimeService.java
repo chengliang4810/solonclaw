@@ -61,10 +61,12 @@ public class BrowserRuntimeService {
         try {
             providerSession = provider.createSession(StrUtil.blankToDefault(taskId, newTaskId()));
         } catch (Exception e) {
-            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+            return BrowserResult.error(
+                    "provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
         if (providerSession == null || StrUtil.isBlank(providerSession.getSessionId())) {
-            return BrowserResult.error("provider_error", "Browser provider did not create a session");
+            return BrowserResult.error(
+                    "provider_error", "Browser provider did not create a session");
         }
         String leaseId = "browser-" + UUID.randomUUID().toString();
         Lease lease =
@@ -121,7 +123,8 @@ public class BrowserRuntimeService {
             details.put("urlRewrite", rewrite.toDetails());
             return BrowserResult.success(result.getSessionId(), result.getStatus(), details);
         } catch (Exception e) {
-            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+            return BrowserResult.error(
+                    "provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
     }
 
@@ -129,7 +132,8 @@ public class BrowserRuntimeService {
         return action(sessionId, "clicked", selector, null, timeoutSeconds);
     }
 
-    public BrowserResult type(String sessionId, String selector, String text, Integer timeoutSeconds) {
+    public BrowserResult type(
+            String sessionId, String selector, String text, Integer timeoutSeconds) {
         return action(sessionId, "typed", selector, text, timeoutSeconds);
     }
 
@@ -150,7 +154,8 @@ public class BrowserRuntimeService {
                             fullPage != null && fullPage.booleanValue());
             return toBrowserResult(lease, actionResult, "screenshot", "path", path);
         } catch (Exception e) {
-            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+            return BrowserResult.error(
+                    "provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
     }
 
@@ -171,7 +176,8 @@ public class BrowserRuntimeService {
                             StrUtil.blankToDefault(format, "text"));
             return toBrowserResult(lease, actionResult, "extracted", "selector", selector);
         } catch (Exception e) {
-            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+            return BrowserResult.error(
+                    "provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
     }
 
@@ -223,7 +229,8 @@ public class BrowserRuntimeService {
             }
             return toBrowserResult(lease, actionResult, action, "selector", selector);
         } catch (Exception e) {
-            return BrowserResult.error("provider_error", SecretRedactor.redact(e.getMessage(), 500));
+            return BrowserResult.error(
+                    "provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
     }
 
@@ -279,12 +286,14 @@ public class BrowserRuntimeService {
             String fallbackKey,
             String fallbackValue) {
         if (actionResult == null) {
-            return BrowserResult.error("provider_error", "Browser provider returned no action result");
+            return BrowserResult.error(
+                    "provider_error", "Browser provider returned no action result");
         }
         if (!actionResult.isSuccess()) {
             return BrowserResult.error(
                     StrUtil.blankToDefault(actionResult.getErrorCode(), "provider_error"),
-                    StrUtil.blankToDefault(actionResult.getErrorMessage(), "Browser provider action failed"));
+                    StrUtil.blankToDefault(
+                            actionResult.getErrorMessage(), "Browser provider action failed"));
         }
         SecurityPolicyService.UrlVerdict verdict = checkProviderUrl(actionResult.getCurrentUrl());
         if (!verdict.isAllowed()) {
@@ -305,9 +314,7 @@ public class BrowserRuntimeService {
             details.put(fallbackKey, sanitizeFallbackValue(fallbackKey, fallbackValue));
         }
         return BrowserResult.success(
-                lease.id,
-                StrUtil.blankToDefault(actionResult.getStatus(), defaultStatus),
-                details);
+                lease.id, StrUtil.blankToDefault(actionResult.getStatus(), defaultStatus), details);
     }
 
     private SecurityPolicyService.UrlVerdict checkProviderUrl(String url) {
@@ -330,8 +337,11 @@ public class BrowserRuntimeService {
             Object value = entry.getValue();
             if ("text".equalsIgnoreCase(key) || "input".equalsIgnoreCase(key)) {
                 details.put(key, "[redacted]");
-                details.put(key + "Length", Integer.valueOf(StrUtil.nullToEmpty(String.valueOf(value)).length()));
-            } else if (value instanceof String && key.toLowerCase(java.util.Locale.ROOT).contains("url")) {
+                details.put(
+                        key + "Length",
+                        Integer.valueOf(StrUtil.nullToEmpty(String.valueOf(value)).length()));
+            } else if (value instanceof String
+                    && key.toLowerCase(java.util.Locale.ROOT).contains("url")) {
                 details.put(key, SecretRedactor.maskUrl(String.valueOf(value)));
             } else if (value instanceof String) {
                 details.put(key, safe(String.valueOf(value)));
@@ -370,7 +380,8 @@ public class BrowserRuntimeService {
                 || !appConfig.getSecurity().isRewriteBrowserLoopbackUrls()) {
             return LoopbackRewrite.none(url);
         }
-        String alias = StrUtil.nullToEmpty(appConfig.getSecurity().getBrowserLoopbackHostAlias()).trim();
+        String alias =
+                StrUtil.nullToEmpty(appConfig.getSecurity().getBrowserLoopbackHostAlias()).trim();
         if (alias.length() == 0) {
             return LoopbackRewrite.none(url);
         }

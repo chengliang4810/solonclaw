@@ -157,7 +157,8 @@ public class MessagingToolsAttachmentTest {
     void shouldSniffImageMimeFromCachedFileBeforeSuffix() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
-        File image = new File(attachmentCacheService.platformDir(PlatformType.MEMORY), "real_png.webp");
+        File image =
+                new File(attachmentCacheService.platformDir(PlatformType.MEMORY), "real_png.webp");
         Files.createDirectories(image.getParentFile().toPath());
         Files.write(image.toPath(), pngBytes());
 
@@ -308,11 +309,7 @@ public class MessagingToolsAttachmentTest {
         Files.write(pdf.toPath(), new byte[] {1, 2, 3});
 
         tools.sendMessage(
-                null,
-                null,
-                "发送报告",
-                Collections.singletonList(pdf.getAbsolutePath()),
-                null);
+                null, null, "发送报告", Collections.singletonList(pdf.getAbsolutePath()), null);
 
         DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
         assertThat(request.getAttachments()).hasSize(1);
@@ -349,19 +346,6 @@ public class MessagingToolsAttachmentTest {
     }
 
     private byte[] pngBytes() {
-        return new byte[] {
-            (byte) 0x89,
-            'P',
-            'N',
-            'G',
-            0x0D,
-            0x0A,
-            0x1A,
-            0x0A,
-            0,
-            0,
-            0,
-            0
-        };
+        return new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
     }
 }

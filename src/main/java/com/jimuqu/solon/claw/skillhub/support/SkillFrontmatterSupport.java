@@ -121,24 +121,7 @@ public final class SkillFrontmatterSupport {
     }
 
     public static List<String> resolveTags(Map<String, Object> frontmatter) {
-        List<String> tags = parseStringList(frontmatter.get("tags"));
-        if (!tags.isEmpty()) {
-            return tags;
-        }
-        Map<String, Object> compatibility = getCompatibilityMetadata(frontmatter);
-        return parseStringList(compatibility.get("tags"));
-    }
-
-    public static Map<String, Object> getCompatibilityMetadata(Map<String, Object> frontmatter) {
-        Object metadata = frontmatter.get("metadata");
-        if (!(metadata instanceof Map)) {
-            return Collections.emptyMap();
-        }
-        Object compatibility = ((Map<?, ?>) metadata).get("Jimuqu");
-        if (!(compatibility instanceof Map)) {
-            return Collections.emptyMap();
-        }
-        return sanitizeMap((Map<?, ?>) compatibility);
+        return parseStringList(frontmatter.get("tags"));
     }
 
     public static SkillSetupState resolveSetupState(Map<String, Object> frontmatter) {

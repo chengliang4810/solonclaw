@@ -93,7 +93,8 @@ public class GoalService {
             return "⊙ Goal (active, " + turns + judge + "): " + state.getGoal();
         }
         if (GoalState.STATUS_PAUSED.equals(state.getStatus())) {
-            String extra = StrUtil.isBlank(state.getPausedReason()) ? "" : " — " + state.getPausedReason();
+            String extra =
+                    StrUtil.isBlank(state.getPausedReason()) ? "" : " — " + state.getPausedReason();
             return "⏸ Goal (paused, " + turns + judge + extra + "): " + state.getGoal();
         }
         if (GoalState.STATUS_DONE.equals(state.getStatus())) {
@@ -106,11 +107,13 @@ public class GoalService {
         if (state == null || StrUtil.isBlank(state.getLastVerdict())) {
             return "";
         }
-        String reason = StrUtil.isBlank(state.getLastReason()) ? "" : ", reason=" + state.getLastReason();
+        String reason =
+                StrUtil.isBlank(state.getLastReason()) ? "" : ", reason=" + state.getLastReason();
         return ", judge=" + state.getLastVerdict() + reason;
     }
 
-    public GoalDecision evaluateAfterTurn(SessionRecord session, String lastResponse) throws Exception {
+    public GoalDecision evaluateAfterTurn(SessionRecord session, String lastResponse)
+            throws Exception {
         GoalDecision decision = new GoalDecision();
         GoalState state = get(session);
         if (state == null || !GoalState.STATUS_ACTIVE.equals(state.getStatus())) {
@@ -139,7 +142,11 @@ public class GoalService {
         if (state.getTurnsUsed() >= state.getMaxTurns()) {
             state.setStatus(GoalState.STATUS_PAUSED);
             state.setPausedReason(
-                    "turn budget exhausted (" + state.getTurnsUsed() + "/" + state.getMaxTurns() + ")");
+                    "turn budget exhausted ("
+                            + state.getTurnsUsed()
+                            + "/"
+                            + state.getMaxTurns()
+                            + ")");
             save(session, state);
             decision.setStatus(GoalState.STATUS_PAUSED);
             decision.setVerdict(GoalVerdict.CONTINUE);

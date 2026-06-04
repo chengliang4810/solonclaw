@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 public class TerminalDimensionSupportTest {
     @Test
     void shouldPassThroughNormalTerminalSize() {
-        Size size = TerminalDimensionSupport.sanitizeSize(Integer.valueOf(120), Integer.valueOf(40));
+        Size size =
+                TerminalDimensionSupport.sanitizeSize(Integer.valueOf(120), Integer.valueOf(40));
 
         assertThat(size.getColumns()).isEqualTo(120);
         assertThat(size.getRows()).isEqualTo(40);
@@ -20,7 +21,9 @@ public class TerminalDimensionSupportTest {
 
     @Test
     void shouldClampAbsurdTerminalSizeToSafeBounds() {
-        Size size = TerminalDimensionSupport.sanitizeSize(Integer.valueOf(131072), Integer.valueOf(99999));
+        Size size =
+                TerminalDimensionSupport.sanitizeSize(
+                        Integer.valueOf(131072), Integer.valueOf(99999));
 
         assertThat(size.getColumns()).isEqualTo(TerminalDimensionSupport.MAX_COLUMNS);
         assertThat(size.getRows()).isEqualTo(TerminalDimensionSupport.MAX_ROWS);
@@ -36,7 +39,9 @@ public class TerminalDimensionSupportTest {
 
     @Test
     void shouldFloorFractionalTerminalSize() {
-        Size size = TerminalDimensionSupport.sanitizeSize(Double.valueOf(100.9D), Double.valueOf(30.8D));
+        Size size =
+                TerminalDimensionSupport.sanitizeSize(
+                        Double.valueOf(100.9D), Double.valueOf(30.8D));
 
         assertThat(size.getColumns()).isEqualTo(100);
         assertThat(size.getRows()).isEqualTo(30);
@@ -62,7 +67,8 @@ public class TerminalDimensionSupportTest {
                                     if ("getHeight".equals(method.getName())) {
                                         return Integer.valueOf(24);
                                     }
-                                    if ("flush".equals(method.getName()) || "close".equals(method.getName())) {
+                                    if ("flush".equals(method.getName())
+                                            || "close".equals(method.getName())) {
                                         return null;
                                     }
                                     if (method.getReturnType().equals(Boolean.TYPE)) {
@@ -74,6 +80,7 @@ public class TerminalDimensionSupportTest {
                                     return null;
                                 });
 
-        assertThatCode(() -> TerminalDimensionSupport.sanitize(terminal)).doesNotThrowAnyException();
+        assertThatCode(() -> TerminalDimensionSupport.sanitize(terminal))
+                .doesNotThrowAnyException();
     }
 }

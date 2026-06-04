@@ -586,9 +586,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             } catch (Exception e) {
                 log.warn(
-                        "[WEIXIN] poll failed: errorType={}, error={}",
-                        errorType(e),
-                        safeError(e));
+                        "[WEIXIN] poll failed: errorType={}, error={}", errorType(e), safeError(e));
                 sleepQuietly(2);
             }
         }
@@ -650,10 +648,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private void enqueueTextBatch(
-            GatewayMessage gatewayMessage,
-            String chatType,
-            String chatId,
-            String contextToken) {
+            GatewayMessage gatewayMessage, String chatType, String chatId, String contextToken) {
         final String key =
                 String.valueOf(gatewayMessage.getPlatform())
                         + ":"
@@ -1179,8 +1174,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             String nextUrl = resolveRedirect(url, response, redirectCount, "Weixin API URL");
             if (!sameOrigin(initialUrl, nextUrl)) {
                 throw new IllegalStateException(
-                        "Weixin API redirect crosses origin: "
-                                + SecretRedactor.maskUrl(nextUrl));
+                        "Weixin API redirect crosses origin: " + SecretRedactor.maskUrl(nextUrl));
             }
             response.close();
             return executeApiPost(nextUrl, body, timeoutMs, initialUrl, redirectCount + 1);

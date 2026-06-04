@@ -43,7 +43,8 @@ public class SessionArtifactServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> conversations =
                 (List<Map<String, Object>>) trajectory.get("conversations");
-        assertThat(conversations).extracting(row -> row.get("from"))
+        assertThat(conversations)
+                .extracting(row -> row.get("from"))
                 .containsExactly("system", "human", "gpt", "human", "gpt");
         assertThat(conversations.get(1).get("value")).isEqualTo("请检查项目");
         assertThat(conversations.get(2).get("value").toString()).contains("<think>");
@@ -61,13 +62,17 @@ public class SessionArtifactServiceTest {
         session.setTitle("dashboard artifact");
         env.sessionRepository.save(session);
 
-        GatewayReply recap = env.gatewayService.handle(env.message("artifact-room", "artifact-user", "/recap"));
+        GatewayReply recap =
+                env.gatewayService.handle(env.message("artifact-room", "artifact-user", "/recap"));
         GatewayReply trajectory =
-                env.gatewayService.handle(env.message("artifact-room", "artifact-user", "/trajectory"));
+                env.gatewayService.handle(
+                        env.message("artifact-room", "artifact-user", "/trajectory"));
         DashboardSessionService dashboard = new DashboardSessionService(env.sessionRepository);
 
         assertThat(recap.getContent()).contains("用户: start").contains("助手: echo:start");
-        assertThat(trajectory.getContent()).contains("\"conversations\"").contains("\"from\":\"human\"");
+        assertThat(trajectory.getContent())
+                .contains("\"conversations\"")
+                .contains("\"from\":\"human\"");
         assertThat(dashboard.recap(session.getSessionId(), 10).get("text").toString())
                 .contains("echo:start");
         assertThat(dashboard.trajectory(session.getSessionId(), null, true).get("conversations"))
@@ -81,7 +86,8 @@ public class SessionArtifactServiceTest {
         ToolResultStorageService storageService =
                 new ToolResultStorageService(cacheDir.getAbsolutePath(), 20, 200000, 300);
         ToolResultStorageService.StoredResult stored =
-                storageService.observe("execute_shell", repeat("line\n", 100), "run-artifact", "call-artifact");
+                storageService.observe(
+                        "execute_shell", repeat("line\n", 100), "run-artifact", "call-artifact");
         ToolCall call = new ToolCall("0", "call-artifact", "execute_shell", "{}", null);
         SessionRecord session = new SessionRecord();
         session.setSessionId("session-tool-artifact");
@@ -92,9 +98,12 @@ public class SessionArtifactServiceTest {
                                 new org.noear.solon.ai.chat.message.AssistantMessage(
                                         "", false, null, null, Arrays.asList(call), null),
                                 ChatMessage.ofTool(
-                                        stored.getObservation(), "execute_shell", "call-artifact"))));
+                                        stored.getObservation(),
+                                        "execute_shell",
+                                        "call-artifact"))));
 
-        Map<String, Object> trajectory = new SessionArtifactService().trajectory(session, null, true);
+        Map<String, Object> trajectory =
+                new SessionArtifactService().trajectory(session, null, true);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> conversations =
@@ -102,7 +111,8 @@ public class SessionArtifactServiceTest {
         String toolResponse = String.valueOf(conversations.get(3).get("value"));
         assertThat(toolResponse)
                 .contains("\"tool_call_id\":\"call-artifact\"")
-                .contains("\"result_ref\":\"runtime://tool-results/run-artifact/call-artifact.txt\"")
+                .contains(
+                        "\"result_ref\":\"runtime://tool-results/run-artifact/call-artifact.txt\"")
                 .contains("\"truncated\":true")
                 .contains("\"size\":")
                 .doesNotContain("<persisted-output>")
@@ -119,14 +129,14 @@ public class SessionArtifactServiceTest {
         session.setNdjson(
                 MessageSupport.toNdjson(
                         Arrays.asList(
-                                ChatMessage.ofUser("写一个测试"),
-                                ChatMessage.ofAssistant("测试已完成"))));
+                                ChatMessage.ofUser("写一个测试"), ChatMessage.ofAssistant("测试已完成"))));
 
         SessionArtifactService service =
                 new SessionArtifactService(new SessionArtifactStorageService(artifactsDir));
         Map<String, Object> saved = service.saveTrajectory(session, null, true);
 
-        assertThat(String.valueOf(saved.get("path"))).isEqualTo("runtime://artifacts/trajectory_samples.jsonl");
+        assertThat(String.valueOf(saved.get("path")))
+                .isEqualTo("runtime://artifacts/trajectory_samples.jsonl");
         assertThat(saved).doesNotContainKey("host_path");
         File target = new File(artifactsDir, "trajectory_samples.jsonl");
         assertThat(target.getName()).isEqualTo("trajectory_samples.jsonl");
@@ -153,12 +163,11 @@ public class SessionArtifactServiceTest {
         env.send("artifact-save-room", "artifact-save-user", "/pairing claim-admin");
         env.send("artifact-save-room", "artifact-save-user", "start");
         SessionRecord session =
-                env.sessionRepository.getBoundSession("MEMORY:artifact-save-room:artifact-save-user");
+                env.sessionRepository.getBoundSession(
+                        "MEMORY:artifact-save-room:artifact-save-user");
         DashboardSessionService dashboard =
                 new DashboardSessionService(
-                        env.sessionRepository,
-                        null,
-                        new SessionArtifactService(env.appConfig));
+                        env.sessionRepository, null, new SessionArtifactService(env.appConfig));
 
         GatewayReply slash =
                 env.gatewayService.handle(
@@ -169,7 +178,9 @@ public class SessionArtifactServiceTest {
         Map<String, Object> dashboardSaved =
                 dashboard.saveTrajectory(session.getSessionId(), "原始问题", false);
 
-        assertThat(slash.getContent()).contains("已保存 trajectory").contains("trajectory_samples.jsonl");
+        assertThat(slash.getContent())
+                .contains("已保存 trajectory")
+                .contains("trajectory_samples.jsonl");
         assertThat(slash.getContent()).doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(String.valueOf(dashboardSaved.get("path")))
                 .isEqualTo("runtime://artifacts/failed_trajectories.jsonl");

@@ -77,22 +77,20 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldUpdateJimuquWebsiteBlocklistRuntimeKeysWithoutReconnectingChannels()
+    void shouldUpdateCanonicalWebsiteBlocklistRuntimeKeysWithoutReconnectingChannels()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue("security.website_blocklist.enabled", "true");
+        runtimeSettingsService.setConfigValue("security.websiteBlocklist.enabled", "true");
         runtimeSettingsService.setConfigValue(
-                "security.website_blocklist.domains",
-                "blocked.example, *.tracking.example");
+                "security.websiteBlocklist.domains", "blocked.example, *.tracking.example");
         runtimeSettingsService.setConfigValue(
-                "security.website_blocklist.shared_files",
-                "community-blocklist.txt");
+                "security.websiteBlocklist.sharedFiles", "community-blocklist.txt");
         runtimeSettingsService.setConfigValue("security.tirithEnabled", "false");
         runtimeSettingsService.setConfigValue("security.tirithTimeoutSeconds", "9");
-        runtimeSettingsService.setConfigValue("security.hardline_allowlist", "hardline_delete_root");
+        runtimeSettingsService.setConfigValue("security.hardlineAllowlist", "hardline_delete_root");
 
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getDomains())
@@ -111,8 +109,8 @@ public class RuntimeRefreshBehaviorTest {
                 .isNotNull();
         String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
         assertThat(config)
-                .contains("website_blocklist:")
-                .contains("hardline_allowlist:")
+                .contains("websiteBlocklist:")
+                .contains("hardlineAllowlist:")
                 .contains("- hardline_delete_root")
                 .contains("blocked.example")
                 .contains("community-blocklist.txt")
@@ -127,13 +125,16 @@ public class RuntimeRefreshBehaviorTest {
     void shouldPersistPromptCacheDashboardConfigWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
-        Map<PlatformType, ChannelAdapter> adapters = new LinkedHashMap<PlatformType, ChannelAdapter>();
+        Map<PlatformType, ChannelAdapter> adapters =
+                new LinkedHashMap<PlatformType, ChannelAdapter>();
         adapters.put(adapter.platform(), adapter);
         GatewayRuntimeRefreshService refreshService =
                 new GatewayRuntimeRefreshService(
                         env.appConfig,
-                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(adapters));
-        DashboardConfigService configService = new DashboardConfigService(env.appConfig, refreshService);
+                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
+                                adapters));
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, refreshService);
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
         updates.put("llm.promptCache.enabled", Boolean.TRUE);
         updates.put("llm.promptCache.ttl", "1h");
@@ -162,7 +163,8 @@ public class RuntimeRefreshBehaviorTest {
                         env.appConfig,
                         new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
                                 adapters));
-        DashboardConfigService configService = new DashboardConfigService(env.appConfig, refreshService);
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, refreshService);
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
@@ -188,18 +190,18 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldUpdateJimuquAllowPrivateUrlRuntimeKeysWithoutReconnectingChannels()
+    void shouldUpdateCanonicalAllowPrivateUrlRuntimeKeysWithoutReconnectingChannels()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue("security.allow_private_urls", "true");
+        runtimeSettingsService.setConfigValue("security.allowPrivateUrls", "true");
 
         assertThat(env.appConfig.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("allow_private_urls: true")
-                .doesNotContain("solonclaw:\n  security:\n    allow_private_urls:");
+                .contains("allowPrivateUrls: true")
+                .doesNotContain("allow_private_urls:");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -211,13 +213,15 @@ public class RuntimeRefreshBehaviorTest {
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue("browser.rewriteLoopbackUrls", "true");
-        runtimeSettingsService.setConfigValue("browser.loopbackHostAlias", "host.containers.internal");
+        runtimeSettingsService.setConfigValue("solonclaw.browser.rewriteLoopbackUrls", "true");
+        runtimeSettingsService.setConfigValue(
+                "solonclaw.browser.loopbackHostAlias", "host.containers.internal");
 
         assertThat(env.appConfig.getSecurity().isRewriteBrowserLoopbackUrls()).isTrue();
         assertThat(env.appConfig.getSecurity().getBrowserLoopbackHostAlias())
                 .isEqualTo("host.containers.internal");
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("solonclaw:")
                 .contains("browser:")
                 .contains("rewriteLoopbackUrls: true")
                 .contains("loopbackHostAlias: host.containers.internal");
@@ -239,8 +243,9 @@ public class RuntimeRefreshBehaviorTest {
                 .contains("approvals:")
                 .contains("mcpReloadConfirm: false")
                 .doesNotContain("solonclaw:\n  approvals:");
-        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
-                        .get("approvals.mcpReloadConfirm"))
+        assertThat(
+                        RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                                .get("approvals.mcpReloadConfirm"))
                 .isEqualTo("false");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
@@ -253,12 +258,15 @@ public class RuntimeRefreshBehaviorTest {
                 new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
 
-        updates.put("terminal.credentialFiles", Collections.singletonList("credentials/oauth.json"));
+        updates.put(
+                "solonclaw.terminal.credentialFiles",
+                Collections.singletonList("credentials/oauth.json"));
         configService.savePartialFlat(updates, false);
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("solonclaw:")
+                .contains("terminal:")
                 .contains("credentialFiles:")
-                .contains("credentials/oauth.json")
-                .doesNotContain("solonclaw:\n  terminal:");
+                .contains("credentials/oauth.json");
 
         assertCredentialPathRejected(configService, "../secret.json", "path traversal");
         assertCredentialPathRejected(configService, "/tmp/secret.json", "runtime-relative");
@@ -274,38 +282,42 @@ public class RuntimeRefreshBehaviorTest {
                 new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
 
-        updates.put("terminal.envPassthrough", Collections.singletonList("TENOR_API_KEY"));
+        updates.put(
+                "solonclaw.terminal.envPassthrough", Collections.singletonList("TENOR_API_KEY"));
         configService.savePartialFlat(updates, false);
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("solonclaw:")
+                .contains("terminal:")
                 .contains("envPassthrough:")
-                .contains("TENOR_API_KEY")
-                .doesNotContain("solonclaw:\n  terminal:");
+                .contains("TENOR_API_KEY");
 
         assertEnvPassthroughRejected(configService, "OPENAI_API_KEY", "high-risk");
         assertEnvPassthroughRejected(configService, "PATH", "high-risk");
         assertEnvPassthroughRejected(configService, "LD_PRELOAD", "high-risk");
         assertEnvPassthroughRejected(configService, "PYTHONPATH", "high-risk");
-        assertEnvPassthroughRejected(configService, "_JIMUQU_FORCE_OPENAI_API_KEY", "force prefix");
+        assertEnvPassthroughRejected(
+                configService, "_SOLONCLAW_FORCE_OPENAI_API_KEY", "force prefix");
         assertEnvPassthroughRejected(configService, "BAD-NAME", "invalid env var name");
     }
 
     @Test
-    void shouldWriteTerminalEnvPassthroughSnakeCaseAliasAtRoot() throws Exception {
+    void shouldWriteTerminalEnvPassthroughCanonicalKey() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue("terminal.env_passthrough", "TENOR_API_KEY,NOTION_TOKEN");
+        runtimeSettingsService.setConfigValue(
+                "solonclaw.terminal.envPassthrough", "TENOR_API_KEY,NOTION_TOKEN");
 
         String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
         assertThat(env.appConfig.getTerminal().getEnvPassthrough())
                 .containsExactly("TENOR_API_KEY", "NOTION_TOKEN");
         assertThat(config)
+                .contains("solonclaw:")
                 .contains("terminal:")
                 .contains("envPassthrough:")
                 .contains("TENOR_API_KEY")
-                .doesNotContain("env_passthrough:")
-                .doesNotContain("solonclaw:\n  terminal:");
+                .doesNotContain("env_passthrough:");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -320,16 +332,15 @@ public class RuntimeRefreshBehaviorTest {
                         () ->
                                 runtimeSettingsService.setConfigValue(
                                         "terminal.env_passthrough", "OPENAI_API_KEY"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("terminal.envPassthrough")
-                .hasMessageContaining("OPENAI_API_KEY")
-                .hasMessageContaining("high-risk");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported config key")
+                .hasMessageContaining("terminal.env_passthrough");
         assertThatThrownBy(
                         () ->
                                 runtimeSettingsService.setConfigValue(
-                                        "terminal.env_passthrough", "PATH"))
+                                        "solonclaw.terminal.envPassthrough", "PATH"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("terminal.envPassthrough")
+                .hasMessageContaining("solonclaw.terminal.envPassthrough")
                 .hasMessageContaining("PATH")
                 .hasMessageContaining("high-risk");
         assertThat(new java.io.File(env.appConfig.getRuntime().getConfigFile())).doesNotExist();
@@ -343,22 +354,22 @@ public class RuntimeRefreshBehaviorTest {
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue("terminal.writeSafeRoot", "D:/workspace/jimuqu-safe");
+        runtimeSettingsService.setConfigValue(
+                "solonclaw.terminal.writeSafeRoot", "D:/workspace/solonclaw-safe");
 
         String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
         assertThat(env.appConfig.getTerminal().getWriteSafeRoot())
-                .isEqualTo("D:/workspace/jimuqu-safe");
+                .isEqualTo("D:/workspace/solonclaw-safe");
         assertThat(config)
+                .contains("solonclaw:")
                 .contains("terminal:")
-                .contains("writeSafeRoot: D:/workspace/jimuqu-safe")
-                .doesNotContain("solonclaw:\n  terminal:");
+                .contains("writeSafeRoot: D:/workspace/solonclaw-safe");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
 
     @Test
-    void shouldRejectUnsafeWebsiteBlocklistSharedFilePathsFromDashboardWrites()
-            throws Exception {
+    void shouldRejectUnsafeWebsiteBlocklistSharedFilePathsFromDashboardWrites() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardConfigService configService =
                 new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
@@ -635,8 +646,7 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldReuseFreshProviderModelListCacheAndFallbackWhenRefreshFails()
-            throws Exception {
+    void shouldReuseFreshProviderModelListCacheAndFallbackWhenRefreshFails() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
             final int[] hits = new int[] {0};
@@ -766,8 +776,7 @@ public class RuntimeRefreshBehaviorTest {
             Map<String, Object> result =
                     providerService.validateProvider(
                             providerProbe(
-                                    "http://127.0.0.1:" + server.getAddress().getPort(),
-                                    "openai"));
+                                    "http://127.0.0.1:" + server.getAddress().getPort(), "openai"));
 
             assertThat(result.get("ok")).isEqualTo(Boolean.FALSE);
             assertThat(result.get("reachable")).isEqualTo(Boolean.TRUE);
@@ -786,8 +795,7 @@ public class RuntimeRefreshBehaviorTest {
                 new ThrowingDashboardProviderService(
                         new AppConfig(), "connect failed token=ghp_unreachablevalidate12345");
         Map<String, Object> unreachable =
-                providerService.validateProvider(
-                        providerProbe("http://127.0.0.1:1", "openai"));
+                providerService.validateProvider(providerProbe("http://127.0.0.1:1", "openai"));
 
         assertThat(unreachable.get("ok")).isEqualTo(Boolean.FALSE);
         assertThat(unreachable.get("reachable")).isEqualTo(Boolean.FALSE);
@@ -828,20 +836,20 @@ public class RuntimeRefreshBehaviorTest {
     private void assertCredentialPathRejected(
             DashboardConfigService configService, String value, String messagePart) {
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
-        updates.put("terminal.credentialFiles", Collections.singletonList(value));
+        updates.put("solonclaw.terminal.credentialFiles", Collections.singletonList(value));
         assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("terminal.credentialFiles")
+                .hasMessageContaining("solonclaw.terminal.credentialFiles")
                 .hasMessageContaining(messagePart);
     }
 
     private void assertEnvPassthroughRejected(
             DashboardConfigService configService, String value, String messagePart) {
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
-        updates.put("terminal.envPassthrough", Collections.singletonList(value));
+        updates.put("solonclaw.terminal.envPassthrough", Collections.singletonList(value));
         assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("terminal.envPassthrough")
+                .hasMessageContaining("solonclaw.terminal.envPassthrough")
                 .hasMessageContaining(messagePart);
     }
 
@@ -915,7 +923,11 @@ public class RuntimeRefreshBehaviorTest {
                 GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
                 LlmProviderService llmProviderService,
                 SecurityPolicyService securityPolicyService) {
-            super(appConfig, gatewayRuntimeRefreshService, llmProviderService, securityPolicyService);
+            super(
+                    appConfig,
+                    gatewayRuntimeRefreshService,
+                    llmProviderService,
+                    securityPolicyService);
         }
 
         @Override

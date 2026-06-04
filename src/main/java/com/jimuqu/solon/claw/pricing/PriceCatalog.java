@@ -29,26 +29,226 @@ public class PriceCatalog {
 
     public static PriceCatalog builtinDefaults() {
         Map<String, ModelPrice> defaults = new LinkedHashMap<String, ModelPrice>();
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "gpt-4o", "2.50", "10.00", "1.25", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "gpt-4o-mini", "0.15", "0.60", "0.075", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "gpt-4.1", "2.00", "8.00", "0.50", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "gpt-4.1-mini", "0.40", "1.60", "0.10", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "gpt-4.1-nano", "0.10", "0.40", "0.025", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "o3", "10.00", "40.00", "2.50", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_OPENAI, "o3-mini", "1.10", "4.40", "0.55", "0", "openai-pricing-2026-03-16", "https://openai.com/api/pricing/"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-opus-4-8", "5.00", "25.00", "0.50", "6.25", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-opus-4-8-fast", "10.00", "50.00", "1.00", "12.50", "anthropic-pricing-2026-05", "https://openrouter.ai/anthropic/claude-opus-4.8-fast"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-opus-4-7", "5.00", "25.00", "0.50", "6.25", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-opus-4-6", "5.00", "25.00", "0.50", "6.25", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-sonnet-4-6", "3.00", "15.00", "0.30", "3.75", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-opus-4-5", "5.00", "25.00", "0.50", "6.25", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-sonnet-4-5", "3.00", "15.00", "0.30", "3.75", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-haiku-4-5", "1.00", "5.00", "0.10", "1.25", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-3-5-sonnet-20241022", "3.00", "15.00", "0.30", "3.75", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_ANTHROPIC, "claude-3-5-haiku-20241022", "0.80", "4.00", "0.08", "1.00", "anthropic-pricing-2026-05", "https://platform.claude.com/docs/en/about-claude/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_GEMINI, "gemini-2.5-pro", "1.25", "10.00", "0", "0", "google-pricing-2026-03-16", "https://ai.google.dev/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_GEMINI, "gemini-2.5-flash", "0.15", "0.60", "0", "0", "google-pricing-2026-03-16", "https://ai.google.dev/pricing"));
-        add(defaults, price(LlmConstants.PROVIDER_GEMINI, "gemini-2.0-flash", "0.10", "0.40", "0", "0", "google-pricing-2026-03-16", "https://ai.google.dev/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "gpt-4o",
+                        "2.50",
+                        "10.00",
+                        "1.25",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "gpt-4o-mini",
+                        "0.15",
+                        "0.60",
+                        "0.075",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "gpt-4.1",
+                        "2.00",
+                        "8.00",
+                        "0.50",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "gpt-4.1-mini",
+                        "0.40",
+                        "1.60",
+                        "0.10",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "gpt-4.1-nano",
+                        "0.10",
+                        "0.40",
+                        "0.025",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "o3",
+                        "10.00",
+                        "40.00",
+                        "2.50",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_OPENAI,
+                        "o3-mini",
+                        "1.10",
+                        "4.40",
+                        "0.55",
+                        "0",
+                        "openai-pricing-2026-03-16",
+                        "https://openai.com/api/pricing/"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-opus-4-8",
+                        "5.00",
+                        "25.00",
+                        "0.50",
+                        "6.25",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-opus-4-8-fast",
+                        "10.00",
+                        "50.00",
+                        "1.00",
+                        "12.50",
+                        "anthropic-pricing-2026-05",
+                        "https://openrouter.ai/anthropic/claude-opus-4.8-fast"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-opus-4-7",
+                        "5.00",
+                        "25.00",
+                        "0.50",
+                        "6.25",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-opus-4-6",
+                        "5.00",
+                        "25.00",
+                        "0.50",
+                        "6.25",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-sonnet-4-6",
+                        "3.00",
+                        "15.00",
+                        "0.30",
+                        "3.75",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-opus-4-5",
+                        "5.00",
+                        "25.00",
+                        "0.50",
+                        "6.25",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-sonnet-4-5",
+                        "3.00",
+                        "15.00",
+                        "0.30",
+                        "3.75",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-haiku-4-5",
+                        "1.00",
+                        "5.00",
+                        "0.10",
+                        "1.25",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-3-5-sonnet-20241022",
+                        "3.00",
+                        "15.00",
+                        "0.30",
+                        "3.75",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_ANTHROPIC,
+                        "claude-3-5-haiku-20241022",
+                        "0.80",
+                        "4.00",
+                        "0.08",
+                        "1.00",
+                        "anthropic-pricing-2026-05",
+                        "https://platform.claude.com/docs/en/about-claude/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_GEMINI,
+                        "gemini-2.5-pro",
+                        "1.25",
+                        "10.00",
+                        "0",
+                        "0",
+                        "google-pricing-2026-03-16",
+                        "https://ai.google.dev/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_GEMINI,
+                        "gemini-2.5-flash",
+                        "0.15",
+                        "0.60",
+                        "0",
+                        "0",
+                        "google-pricing-2026-03-16",
+                        "https://ai.google.dev/pricing"));
+        add(
+                defaults,
+                price(
+                        LlmConstants.PROVIDER_GEMINI,
+                        "gemini-2.0-flash",
+                        "0.10",
+                        "0.40",
+                        "0",
+                        "0",
+                        "google-pricing-2026-03-16",
+                        "https://ai.google.dev/pricing"));
         add(defaults, free(LlmConstants.PROVIDER_OLLAMA, "llama3"));
         add(defaults, free(LlmConstants.PROVIDER_OLLAMA, "llama3.1"));
         add(defaults, free(LlmConstants.PROVIDER_OLLAMA, "llama3.2"));
@@ -62,7 +262,8 @@ public class PriceCatalog {
     }
 
     public static PriceCatalog forConfig(AppConfig appConfig) {
-        Map<String, ModelPrice> defaults = new LinkedHashMap<String, ModelPrice>(builtinDefaults().prices);
+        Map<String, ModelPrice> defaults =
+                new LinkedHashMap<String, ModelPrice>(builtinDefaults().prices);
         addProviderAliases(defaults, appConfig);
         List<ModelPrice> configured =
                 appConfig == null || appConfig.getPricing() == null
@@ -77,7 +278,9 @@ public class PriceCatalog {
         PriceCatalog configured = fromPrices(modelPrices);
         for (Map.Entry<String, ModelPrice> entry : configured.prices.entrySet()) {
             ModelPrice base = merged.get(entry.getKey());
-            merged.put(entry.getKey(), base == null ? entry.getValue() : base.mergeOverride(entry.getValue()));
+            merged.put(
+                    entry.getKey(),
+                    base == null ? entry.getValue() : base.mergeOverride(entry.getValue()));
         }
         return new PriceCatalog(merged);
     }
@@ -87,10 +290,14 @@ public class PriceCatalog {
             return;
         }
         PriceCatalog defaults = builtinDefaults();
-        for (Map.Entry<String, AppConfig.ProviderConfig> entry : appConfig.getProviders().entrySet()) {
+        for (Map.Entry<String, AppConfig.ProviderConfig> entry :
+                appConfig.getProviders().entrySet()) {
             String providerKey = ModelPrice.normalize(entry.getKey());
             AppConfig.ProviderConfig provider = entry.getValue();
-            String dialect = provider == null ? "" : LlmProviderSupport.normalizeDialect(provider.getDialect());
+            String dialect =
+                    provider == null
+                            ? ""
+                            : LlmProviderSupport.normalizeDialect(provider.getDialect());
             if (StrUtil.isBlank(providerKey)
                     || StrUtil.isBlank(dialect)
                     || providerKey.equals(dialect)
@@ -148,7 +355,8 @@ public class PriceCatalog {
                     price,
                     "output",
                     firstText(node, "output_cost_per_million", "completion_cost_per_million"),
-                    firstPresentNumber(node, "output_micros_per_token", "completion_micros_per_token"));
+                    firstPresentNumber(
+                            node, "output_micros_per_token", "completion_micros_per_token"));
             applyTokenPrice(
                     price,
                     "cache_read",
@@ -170,7 +378,8 @@ public class PriceCatalog {
             }
             price.setSource(text(node, "source"));
             price.setSourceUrl(firstText(node, "source_url", "sourceUrl"));
-            price.setPricingVersion(firstText(node, "pricing_version", "pricingVersion", "version"));
+            price.setPricingVersion(
+                    firstText(node, "pricing_version", "pricingVersion", "version"));
             price.setFetchedAt(firstNumber(node, "fetched_at", "fetchedAt"));
             if (StrUtil.isNotBlank(price.getProvider()) && StrUtil.isNotBlank(price.getModel())) {
                 parsed.put(price.key(), price);
@@ -247,7 +456,8 @@ public class PriceCatalog {
         String normalizedProvider = ModelPrice.normalize(provider);
         String normalizedModel = ModelPrice.normalize(model);
         for (String candidateProvider : providerCandidates(normalizedProvider)) {
-            ModelPrice price = findByProvider(candidateProvider, normalizedProvider, normalizedModel);
+            ModelPrice price =
+                    findByProvider(candidateProvider, normalizedProvider, normalizedModel);
             if (price != null) {
                 return price;
             }

@@ -12,17 +12,32 @@ public class PlatformRegistration {
     private List<String> requiredEnv;
     private String installHint = "";
 
-    public PlatformRegistration(String name, String label, Supplier<ChannelAdapter> adapterFactory) {
+    public PlatformRegistration(
+            String name, String label, Supplier<ChannelAdapter> adapterFactory) {
         this.name = name;
         this.label = label;
         this.adapterFactory = adapterFactory;
     }
 
-    public String getName() { return name; }
-    public String getLabel() { return label; }
-    public Supplier<ChannelAdapter> getAdapterFactory() { return adapterFactory; }
-    public List<String> getRequiredEnv() { return requiredEnv; }
-    public String getInstallHint() { return installHint; }
+    public String getName() {
+        return name;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public Supplier<ChannelAdapter> getAdapterFactory() {
+        return adapterFactory;
+    }
+
+    public List<String> getRequiredEnv() {
+        return requiredEnv;
+    }
+
+    public String getInstallHint() {
+        return installHint;
+    }
 
     public PlatformRegistration requiredEnv(List<String> requiredEnv) {
         this.requiredEnv = requiredEnv;

@@ -1305,9 +1305,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode card = new ONode();
         card.getOrNew("config").set("wide_screen_mode", true);
         ONode header = card.getOrNew("header");
-        header.getOrNew("title")
-                .set("content", "⚠️ 危险命令审批")
-                .set("tag", "plain_text");
+        header.getOrNew("title").set("content", "⚠️ 危险命令审批").set("tag", "plain_text");
         header.set("template", "orange");
         card.set("elements", elements);
         return card;
@@ -1327,7 +1325,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String approvalCardText(Object value, int maxLength) {
-        return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
+        return SecretRedactor.redact(
+                TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
     }
 
     private String approvalCardSelector(Object value) {

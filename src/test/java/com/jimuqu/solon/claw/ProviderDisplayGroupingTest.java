@@ -194,8 +194,7 @@ public class ProviderDisplayGroupingTest {
         assertThat(moonshot).isNotNull();
         assertThat(moonshot.get("api_url"))
                 .isEqualTo("https://api.moonshot.ai/v1/chat/completions");
-        assertThat(moonshot.get("model_list_url"))
-                .isEqualTo("https://api.moonshot.ai/v1/models");
+        assertThat(moonshot.get("model_list_url")).isEqualTo("https://api.moonshot.ai/v1/models");
         assertThat(((Map<?, ?>) moonshot.get("metadata")).get("model_list_url"))
                 .isEqualTo("https://api.moonshot.ai/v1/models");
     }

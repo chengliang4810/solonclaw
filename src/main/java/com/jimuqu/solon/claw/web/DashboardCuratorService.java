@@ -74,11 +74,14 @@ public class DashboardCuratorService {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement("select * from curator_reports where report_id = ?");
+                    connection.prepareStatement(
+                            "select * from curator_reports where report_id = ?");
             statement.setString(1, reportId);
             ResultSet resultSet = statement.executeQuery();
             try {
-                return resultSet.next() ? map(resultSet, true) : new LinkedHashMap<String, Object>();
+                return resultSet.next()
+                        ? map(resultSet, true)
+                        : new LinkedHashMap<String, Object>();
             } finally {
                 resultSet.close();
                 statement.close();
@@ -191,7 +194,8 @@ public class DashboardCuratorService {
             sanitized.put(entry.getKey(), sanitizeObject(entry.getValue()));
         }
         if (sanitized.containsKey("stateFile")) {
-            sanitized.put("stateFile", curatorReference(String.valueOf(sanitized.get("stateFile"))));
+            sanitized.put(
+                    "stateFile", curatorReference(String.valueOf(sanitized.get("stateFile"))));
         }
         Object items = sanitized.get("items");
         if (items instanceof List) {

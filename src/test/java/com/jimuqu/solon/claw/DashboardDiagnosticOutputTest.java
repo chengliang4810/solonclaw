@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -25,23 +26,22 @@ import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
-import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
-import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsController;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
-import cn.hutool.core.io.FileUtil;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,7 +68,8 @@ public class DashboardDiagnosticOutputTest {
         FileUtil.mkdir(runtimeHome);
 
         ProcessRegistry processRegistry = new ProcessRegistry(config);
-        List<ProcessRegistry.ManagedProcess> managedProcesses = new ArrayList<ProcessRegistry.ManagedProcess>();
+        List<ProcessRegistry.ManagedProcess> managedProcesses =
+                new ArrayList<ProcessRegistry.ManagedProcess>();
         try {
             String longOutputMarker = "diagnostic-output-unbounded-marker";
             String longOutputCommand =
@@ -77,16 +78,12 @@ public class DashboardDiagnosticOutputTest {
                             + "printf 'tail-preview token=ghp_diagnosticlongsecret12345\\n'";
             ProcessRegistry.ManagedProcess completed =
                     processRegistry.start(
-                            longOutputCommand,
-                            runtimeHome,
-                            true,
-                            Collections.<String>emptyList());
+                            longOutputCommand, runtimeHome, true, Collections.<String>emptyList());
             processRegistry.waitFor(completed.getId(), 5000L);
             for (int i = 0; i < 7; i++) {
                 managedProcesses.add(
                         processRegistry.start(
-                                "sleep 30 # token=ghp_diagnosticprocess" + i,
-                                runtimeHome));
+                                "sleep 30 # token=ghp_diagnosticprocess" + i, runtimeHome));
             }
 
             DashboardDiagnosticsService diagnosticsService =
@@ -153,8 +150,7 @@ public class DashboardDiagnosticOutputTest {
         AppConfig config = new AppConfig();
         File runtimeHome = new File("target/diagnostic-secret-runtime").getAbsoluteFile();
         File externalState =
-                new File(
-                        "target/diagnostic-external-token=ghp_diagnosticexternal123/state.db")
+                new File("target/diagnostic-external-token=ghp_diagnosticexternal123/state.db")
                         .getAbsoluteFile();
         config.getRuntime().setHome(runtimeHome.getAbsolutePath());
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
@@ -163,7 +159,8 @@ public class DashboardDiagnosticOutputTest {
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
         config.getLlm().setStream(true);
         FileUtil.mkdir(runtimeHome);
-        String refreshSecretPath = new File(runtimeHome, "secrets/refresh-token.txt").getAbsolutePath();
+        String refreshSecretPath =
+                new File(runtimeHome, "secrets/refresh-token.txt").getAbsolutePath();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  default:\n"
@@ -207,7 +204,8 @@ public class DashboardDiagnosticOutputTest {
         channelStatus.setReconnectAttempt(2);
         channelStatus.setLastReconnectAt(1000L);
         channelStatus.setNextReconnectAt(6000L);
-        channelStatus.setLastReconnectError("retry token=ghp_doctorretry123 password=retry-password");
+        channelStatus.setLastReconnectError(
+                "retry token=ghp_doctorretry123 password=retry-password");
 
         FixedDeliveryService deliveryService = new FixedDeliveryService(channelStatus);
         GatewayRuntimeRefreshService refreshService =
@@ -325,8 +323,7 @@ public class DashboardDiagnosticOutputTest {
         AppConfig config = new AppConfig();
         File runtimeHome = new File("target/diagnostic-model-runtime").getAbsoluteFile();
         config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime()
-                .setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("");
 
@@ -346,17 +343,14 @@ public class DashboardDiagnosticOutputTest {
         local.setApiKey("");
         config.getProviders().put("local", local);
 
-        AppConfig.FallbackProviderConfig missingFallback =
-                new AppConfig.FallbackProviderConfig();
+        AppConfig.FallbackProviderConfig missingFallback = new AppConfig.FallbackProviderConfig();
         missingFallback.setProvider("missing");
-        AppConfig.FallbackProviderConfig duplicateFallback =
-                new AppConfig.FallbackProviderConfig();
+        AppConfig.FallbackProviderConfig duplicateFallback = new AppConfig.FallbackProviderConfig();
         duplicateFallback.setProvider("local");
         AppConfig.FallbackProviderConfig duplicateFallbackAgain =
                 new AppConfig.FallbackProviderConfig();
         duplicateFallbackAgain.setProvider("local");
-        AppConfig.FallbackProviderConfig primaryFallback =
-                new AppConfig.FallbackProviderConfig();
+        AppConfig.FallbackProviderConfig primaryFallback = new AppConfig.FallbackProviderConfig();
         primaryFallback.setProvider("default");
         config.setFallbackProviders(
                 Arrays.asList(
@@ -381,8 +375,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(model.get("provider")).isEqualTo("default");
         assertThat(model.get("effective_model")).isEqualTo("gpt-test");
         assertThat(model.get("has_api_key")).isEqualTo(Boolean.FALSE);
-        assertThat(model.get("base_url"))
-                .isEqualTo("https://user:***@example.com/v1?token=***");
+        assertThat(model.get("base_url")).isEqualTo("https://user:***@example.com/v1?token=***");
         assertThat(String.valueOf(model.get("model_list_url")))
                 .doesNotContain("provider-pass")
                 .doesNotContain("provider-token");
@@ -415,7 +408,8 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeDedicatedProviderHealthCheckSkipLogic() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-dedicated-provider-runtime").getAbsoluteFile();
+        File runtimeHome =
+                new File("target/diagnostic-dedicated-provider-runtime").getAbsoluteFile();
         config.getRuntime().setHome(runtimeHome.getAbsolutePath());
         config.getModel().setProviderKey("anthropic-main");
         config.getModel().setDefault("claude-sonnet-4.6");
@@ -538,7 +532,8 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeRedactedShutdownForensicsSummary() throws Exception {
         Path parent = Files.createTempDirectory("solon-claw-dashboard-forensics");
-        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_forensicshome123"));
+        Path runtimeHome =
+                Files.createDirectory(parent.resolve("runtime-token=ghp_forensicshome123"));
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(runtimeHome.toString());
         config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
@@ -580,9 +575,12 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> shutdown = (Map<String, Object>) doctor.get("last_shutdown");
         assertThat(shutdown).isNotNull();
         assertThat(shutdown.get("available")).isEqualTo(Boolean.TRUE);
-        assertThat(shutdown.get("record")).isEqualTo("runtime://forensics/" + latestShutdownFile(runtimeHome));
+        assertThat(shutdown.get("record"))
+                .isEqualTo("runtime://forensics/" + latestShutdownFile(runtimeHome));
         assertThat(shutdown.get("reason")).isEqualTo("SIGTERM token=***");
-        assertThat(shutdown).containsKeys("timestamp", "timestamp_iso", "uptime_ms", "pid", "memory", "threads");
+        assertThat(shutdown)
+                .containsKeys(
+                        "timestamp", "timestamp_iso", "uptime_ms", "pid", "memory", "threads");
         assertThat(shutdown).doesNotContainKeys("javaVersion", "osName");
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
@@ -602,7 +600,8 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldSummarizeDoctorIssuesAndNextActionsInStableOrder() throws Exception {
         Path parent = Files.createTempDirectory("solon-claw-dashboard-doctor-summary");
-        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_summaryhome123"));
+        Path runtimeHome =
+                Files.createDirectory(parent.resolve("runtime-token=ghp_summaryhome123"));
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(runtimeHome.toString());
         config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
@@ -646,11 +645,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(summary.get("highestSeverity")).isEqualTo("warning");
         List<Map<String, Object>> issues = (List<Map<String, Object>>) summary.get("issues");
         assertThat(issues).hasSize(3);
-        assertThat(issues).extracting(issue -> issue.get("code"))
+        assertThat(issues)
+                .extracting(issue -> issue.get("code"))
                 .containsExactly(
-                        "api_key_missing",
-                        "channel_missing_config",
-                        "last_shutdown_abnormal");
+                        "api_key_missing", "channel_missing_config", "last_shutdown_abnormal");
         List<String> nextActions = (List<String>) summary.get("nextActions");
         assertThat(nextActions)
                 .containsExactly(
@@ -729,8 +727,9 @@ public class DashboardDiagnosticOutputTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeRuntimeMemoryMonitorSummaryWithoutLeakingPaths() {
-        Path runtimeHome = Paths.get("target/dashboard-memory-monitor-token=ghp_memorysecret123")
-                .toAbsolutePath();
+        Path runtimeHome =
+                Paths.get("target/dashboard-memory-monitor-token=ghp_memorysecret123")
+                        .toAbsolutePath();
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(runtimeHome.toString());
         config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
@@ -883,16 +882,20 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeWebsiteSharedPolicyDiagnosticsWithoutLeakingPaths() throws Exception {
         Path parent = Files.createTempDirectory("jimuqu-dashboard-website-policy");
-        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_dashboardwebsecret123"));
+        Path runtimeHome =
+                Files.createDirectory(parent.resolve("runtime-token=ghp_dashboardwebsecret123"));
         File shared = runtimeHome.resolve("shared-token=sk-dashboard-secret.txt").toFile();
-        FileUtil.writeUtf8String("blocked.example\nshared-token-sk-dashboardsecret.example\n", shared);
+        FileUtil.writeUtf8String(
+                "blocked.example\nshared-token-sk-dashboardsecret.example\n", shared);
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(runtimeHome.toString());
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("inline.example"));
         config.getSecurity()
                 .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList(shared.getName(), "../missing-token=sk-dashboard-secret.txt"));
+                .setSharedFiles(
+                        Arrays.asList(
+                                shared.getName(), "../missing-token=sk-dashboard-secret.txt"));
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
@@ -916,8 +919,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> policy = (Map<String, Object>) result.get("policy");
         Map<String, Object> security = (Map<String, Object>) policy.get("security");
         assertThat(security.get("websiteBlocklistSharedFileCount")).isEqualTo(Integer.valueOf(2));
-        assertThat(security.get("websiteBlocklistLoadedSharedFileCount")).isEqualTo(Integer.valueOf(1));
-        assertThat(security.get("websiteBlocklistSkippedSharedFileCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(security.get("websiteBlocklistLoadedSharedFileCount"))
+                .isEqualTo(Integer.valueOf(1));
+        assertThat(security.get("websiteBlocklistSkippedSharedFileCount"))
+                .isEqualTo(Integer.valueOf(1));
         assertThat(security.get("websiteBlocklistSharedRuleCount")).isEqualTo(Integer.valueOf(2));
         String json = ONode.serialize(result);
         assertThat(json)
@@ -932,7 +937,8 @@ public class DashboardDiagnosticOutputTest {
     void shouldExposeTirithSecurityDiagnosticsWithoutLeakingRawPathOrSecrets() throws Exception {
         String token = "sk-dashboard-tirithsecret12345";
         AppConfig config = new AppConfig();
-        config.getSecurity().setTirithPath("/tmp/jimuqu-dashboard-tirith/secret-" + token + "/tirith");
+        config.getSecurity()
+                .setTirithPath("/tmp/jimuqu-dashboard-tirith/secret-" + token + "/tirith");
         config.getSecurity().setTirithFailOpen(false);
         config.getSecurity().setTirithTimeoutSeconds(9);
         DashboardDiagnosticsService diagnosticsService =
@@ -1026,8 +1032,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(mcpPackagePolicy.get("pipxRunSubcommandSkipped")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackagePolicy.get("pypiSourceOptionParsed")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackagePolicy.get("projectEndpointOverrideEnvironment"))
-                .isEqualTo("JIMUQU_OSV_ENDPOINT");
-        assertThat(mcpPackagePolicy.get("legacyEndpointOverrideEnvironment")).isEqualTo("OSV_ENDPOINT");
+                .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
+        assertThat(mcpPackagePolicy).doesNotContainKey("legacyEndpointOverrideEnvironment");
         assertThat(coverage.get("toolResultStorage")).isEqualTo(Boolean.TRUE);
         Map<String, Object> storagePolicy =
                 (Map<String, Object>) coverage.get("toolResultStoragePolicy");
@@ -1078,7 +1084,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(result.get("decision")).isEqualTo("allow");
         assertThat(result.get("approval_required")).isEqualTo(Boolean.FALSE);
         assertThat(result.get("blocking")).isEqualTo(Boolean.FALSE);
-        assertThat(result.get("summary")).isEqualTo("Security policy status is available without exposing secret values.");
+        assertThat(result.get("summary"))
+                .isEqualTo("Security policy status is available without exposing secret values.");
         Map<String, Object> policy = (Map<String, Object>) result.get("policy");
         Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
         Map<String, Object> readOnlyAuditPolicy =
@@ -1095,10 +1102,10 @@ public class DashboardDiagnosticOutputTest {
                 .doesNotContain("sk-status-alias-secret");
     }
 
-
     @Test
     @SuppressWarnings("unchecked")
-    void shouldExposeSubprocessEnvironmentProbeDiagnosticsWithoutLeakingTokenLikeNames() throws Exception {
+    void shouldExposeSubprocessEnvironmentProbeDiagnosticsWithoutLeakingTokenLikeNames()
+            throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         DashboardDiagnosticsService diagnosticsService =
@@ -1123,7 +1130,7 @@ public class DashboardDiagnosticOutputTest {
                         "PATH",
                         "TENOR_API_KEY",
                         "OPENAI_API_KEY",
-                        "_JIMUQU_FORCE_CUSTOM_TOKEN",
+                        "_SOLONCLAW_FORCE_CUSTOM_TOKEN",
                         "ghp_probe1234567890"));
 
         Map<String, Object> result = diagnosticsService.subprocessEnvironmentProbe(body);
@@ -1145,6 +1152,7 @@ public class DashboardDiagnosticOutputTest {
                 .contains("***")
                 .doesNotContain("ghp_probe1234567890");
     }
+
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() throws Exception {
@@ -1162,7 +1170,10 @@ public class DashboardDiagnosticOutputTest {
                         null, config, new SecurityPolicyService(config));
         TirithSecurityService tirithSecurityService =
                 new FixedTirithSecurityService(
-                        scanResult("warn", Collections.<TirithSecurityService.Finding>emptyList(), "probe warning"));
+                        scanResult(
+                                "warn",
+                                Collections.<TirithSecurityService.Finding>emptyList(),
+                                "probe warning"));
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
@@ -1214,8 +1225,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "hardline_windows_delete_profile");
         Map<String, Object> hardlineWindowsSystemDir =
                 findProbe(items, "hardline_windows_system_dir");
-        Map<String, Object> hardlineWindowsShutdown =
-                findProbe(items, "hardline_windows_shutdown");
+        Map<String, Object> hardlineWindowsShutdown = findProbe(items, "hardline_windows_shutdown");
         Map<String, Object> sudoRewrite = findProbe(items, "sudo_rewrite");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
         Map<String, Object> terminalOutput = findProbe(items, "terminal_output");
@@ -1224,36 +1234,29 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> loopbackUrl = findProbe(items, "loopback_url");
         Map<String, Object> ipv6LoopbackUrl = findProbe(items, "ipv6_loopback_url");
         Map<String, Object> numericLoopbackUrl = findProbe(items, "numeric_loopback_url");
-        Map<String, Object> ipv4MappedLoopbackUrl =
-                findProbe(items, "ipv4_mapped_loopback_url");
+        Map<String, Object> ipv4MappedLoopbackUrl = findProbe(items, "ipv4_mapped_loopback_url");
         Map<String, Object> protocolRelativePrivateUrl =
                 findProbe(items, "protocol_relative_private_url");
-        Map<String, Object> encodedPrivateHostUrl =
-                findProbe(items, "encoded_private_host_url");
+        Map<String, Object> encodedPrivateHostUrl = findProbe(items, "encoded_private_host_url");
         Map<String, Object> unsupportedNetworkScheme =
                 findProbe(items, "unsupported_network_scheme");
-        Map<String, Object> unsupportedSftpScheme =
-                findProbe(items, "unsupported_sftp_scheme");
-        Map<String, Object> unsupportedScpScheme =
-                findProbe(items, "unsupported_scp_scheme");
+        Map<String, Object> unsupportedSftpScheme = findProbe(items, "unsupported_sftp_scheme");
+        Map<String, Object> unsupportedScpScheme = findProbe(items, "unsupported_scp_scheme");
         Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
         Map<String, Object> encodedSensitiveQuery = findProbe(items, "encoded_sensitive_query");
         Map<String, Object> repeatedEncodedSensitiveQuery =
                 findProbe(items, "repeated_encoded_sensitive_query");
-        Map<String, Object> semicolonSensitiveQuery =
-                findProbe(items, "semicolon_sensitive_query");
+        Map<String, Object> semicolonSensitiveQuery = findProbe(items, "semicolon_sensitive_query");
         Map<String, Object> sensitiveQueryAlias = findProbe(items, "sensitive_query_alias");
         Map<String, Object> signedUrl = findProbe(items, "signed_url");
         Map<String, Object> nestedSignedUrl = findProbe(items, "nested_signed_url");
         Map<String, Object> encodedUserinfoUrl = findProbe(items, "encoded_userinfo_url");
-        Map<String, Object> schemelessUserinfoUrl =
-                findProbe(items, "schemeless_userinfo_url");
+        Map<String, Object> schemelessUserinfoUrl = findProbe(items, "schemeless_userinfo_url");
         Map<String, Object> sensitivePathSegmentUrl =
                 findProbe(items, "sensitive_path_segment_url");
         Map<String, Object> schemelessSensitiveQuery =
                 findProbe(items, "schemeless_sensitive_query");
-        Map<String, Object> schemelessSensitivePath =
-                findProbe(items, "schemeless_sensitive_path");
+        Map<String, Object> schemelessSensitivePath = findProbe(items, "schemeless_sensitive_path");
         Map<String, Object> encodedSeparatorSensitiveQuery =
                 findProbe(items, "encoded_separator_sensitive_query");
         Map<String, Object> htmlEntitySensitiveQuery =
@@ -1266,8 +1269,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> pathControlCharacter = findProbe(items, "path_control_character");
         Map<String, Object> devicePathRead = findProbe(items, "device_path_read");
         Map<String, Object> rawBlockDeviceWrite = findProbe(items, "raw_block_device_write");
-        Map<String, Object> skillsHubInternalPath =
-                findProbe(items, "skills_hub_internal_path");
+        Map<String, Object> skillsHubInternalPath = findProbe(items, "skills_hub_internal_path");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
         Map<String, Object> workdirTextPolicy = findProbe(items, "workdir_text_policy");
         Map<String, Object> toolArgsRepeatedEncodedSensitiveUrl =
@@ -1325,8 +1327,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_java_proxy_property_policy");
         Map<String, Object> commandJavaProxyOptionsPolicy =
                 findProbe(items, "command_java_proxy_options_policy");
-        Map<String, Object> commandProxyEnvPolicy =
-                findProbe(items, "command_proxy_env_policy");
+        Map<String, Object> commandProxyEnvPolicy = findProbe(items, "command_proxy_env_policy");
         Map<String, Object> commandProxyEnvSetitemPolicy =
                 findProbe(items, "command_proxy_env_setitem_policy");
         Map<String, Object> commandProxyEnvSetenvironmentPolicy =
@@ -1361,8 +1362,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_package_proxy_bypass_powershell_policy");
         Map<String, Object> commandPackagePersistentProxyPolicy =
                 findProbe(items, "command_package_persistent_proxy_policy");
-        Map<String, Object> commandSystemDnsPolicy =
-                findProbe(items, "command_system_dns_policy");
+        Map<String, Object> commandSystemDnsPolicy = findProbe(items, "command_system_dns_policy");
         Map<String, Object> commandRegistryProxyPolicy =
                 findProbe(items, "command_registry_proxy_policy");
         Map<String, Object> commandRegistrySplitProxyPolicy =
@@ -1427,10 +1427,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandHostsFileWrite = findProbe(items, "command_hosts_file_write");
         Map<String, Object> commandResolverFileWrite =
                 findProbe(items, "command_resolver_file_write");
-        Map<String, Object> commandPasswdFileWrite =
-                findProbe(items, "command_passwd_file_write");
-        Map<String, Object> commandShadowFileWrite =
-                findProbe(items, "command_shadow_file_write");
+        Map<String, Object> commandPasswdFileWrite = findProbe(items, "command_passwd_file_write");
+        Map<String, Object> commandShadowFileWrite = findProbe(items, "command_shadow_file_write");
         Map<String, Object> commandSudoersFileWrite =
                 findProbe(items, "command_sudoers_file_write");
         Map<String, Object> commandSudoersDropinWrite =
@@ -1443,24 +1441,17 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_home_profile_write");
         Map<String, Object> commandSystemdUnitWrite =
                 findProbe(items, "command_systemd_unit_write");
-        Map<String, Object> commandBootLoaderWrite =
-                findProbe(items, "command_boot_loader_write");
-        Map<String, Object> commandSbinWrite =
-                findProbe(items, "command_sbin_write");
-        Map<String, Object> commandUsrSbinWrite =
-                findProbe(items, "command_usr_sbin_write");
-        Map<String, Object> commandBinWrite =
-                findProbe(items, "command_bin_write");
-        Map<String, Object> commandUsrBinWrite =
-                findProbe(items, "command_usr_bin_write");
+        Map<String, Object> commandBootLoaderWrite = findProbe(items, "command_boot_loader_write");
+        Map<String, Object> commandSbinWrite = findProbe(items, "command_sbin_write");
+        Map<String, Object> commandUsrSbinWrite = findProbe(items, "command_usr_sbin_write");
+        Map<String, Object> commandBinWrite = findProbe(items, "command_bin_write");
+        Map<String, Object> commandUsrBinWrite = findProbe(items, "command_usr_bin_write");
         Map<String, Object> commandUsrLocalBinWrite =
                 findProbe(items, "command_usr_local_bin_write");
         Map<String, Object> commandUsrLocalSbinWrite =
                 findProbe(items, "command_usr_local_sbin_write");
-        Map<String, Object> commandPrivateEtcWrite =
-                findProbe(items, "command_private_etc_write");
-        Map<String, Object> commandPrivateVarWrite =
-                findProbe(items, "command_private_var_write");
+        Map<String, Object> commandPrivateEtcWrite = findProbe(items, "command_private_etc_write");
+        Map<String, Object> commandPrivateVarWrite = findProbe(items, "command_private_var_write");
         Map<String, Object> commandWindowsSystemWrite =
                 findProbe(items, "command_windows_system_write");
         Map<String, Object> commandWindowsProgramFilesWrite =
@@ -1481,8 +1472,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_windows_braced_program_files_write");
         Map<String, Object> commandWindowsPercentProgramFilesX86Write =
                 findProbe(items, "command_windows_percent_program_files_x86_write");
-        Map<String, Object> commandDevicePathRead =
-                findProbe(items, "command_device_path_read");
+        Map<String, Object> commandDevicePathRead = findProbe(items, "command_device_path_read");
         Map<String, Object> commandRawBlockDeviceWrite =
                 findProbe(items, "command_raw_block_device_write");
         Map<String, Object> commandBarePackedIpv4Metadata =
@@ -1602,20 +1592,17 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "cli_login_credential_option");
         Map<String, Object> credentialHistoryErasure =
                 findProbe(items, "credential_history_erasure");
-        Map<String, Object> gitRemoteCredentialUrl =
-                findProbe(items, "git_remote_credential_url");
+        Map<String, Object> gitRemoteCredentialUrl = findProbe(items, "git_remote_credential_url");
         Map<String, Object> gitCredentialStoreChange =
                 findProbe(items, "git_credential_store_change");
         Map<String, Object> sshHostKeyCheckDisabled =
                 findProbe(items, "ssh_host_key_check_disabled");
-        Map<String, Object> sshConfigTrustWeaken =
-                findProbe(items, "ssh_config_trust_weaken");
+        Map<String, Object> sshConfigTrustWeaken = findProbe(items, "ssh_config_trust_weaken");
         Map<String, Object> tlsCertificateCheckDisabled =
                 findProbe(items, "tls_certificate_check_disabled");
         Map<String, Object> gitTlsCertificateCheckDisabled =
                 findProbe(items, "git_tls_certificate_check_disabled");
-        Map<String, Object> systemTrustStoreChange =
-                findProbe(items, "system_trust_store_change");
+        Map<String, Object> systemTrustStoreChange = findProbe(items, "system_trust_store_change");
         Map<String, Object> systemPackageSourceTrustChange =
                 findProbe(items, "system_package_source_trust_change");
         Map<String, Object> persistentProxyConfigurationChange =
@@ -1633,11 +1620,9 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> linuxCredentialMaterialDump =
                 findProbe(items, "linux_credential_material_dump");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
-        Map<String, Object> pythonRecursiveDelete =
-                findProbe(items, "python_recursive_delete");
+        Map<String, Object> pythonRecursiveDelete = findProbe(items, "python_recursive_delete");
         Map<String, Object> pythonFileDelete = findProbe(items, "python_file_delete");
-        Map<String, Object> pythonShellExecution =
-                findProbe(items, "python_shell_execution");
+        Map<String, Object> pythonShellExecution = findProbe(items, "python_shell_execution");
         Map<String, Object> pythonSubprocessCredentialOutput =
                 findProbe(items, "python_subprocess_credential_output");
         Map<String, Object> pythonSubprocessExecution =
@@ -1671,12 +1656,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> jsChildProcessExecution =
                 findProbe(items, "js_child_process_execution");
         Map<String, Object> jsRequireChildProcess = findProbe(items, "js_require_child_process");
-        Map<String, Object> jsDynamicCodeExecution =
-                findProbe(items, "js_dynamic_code_execution");
+        Map<String, Object> jsDynamicCodeExecution = findProbe(items, "js_dynamic_code_execution");
         Map<String, Object> jsHttpCredentialHeaderSend =
                 findProbe(items, "js_http_credential_header_send");
-        Map<String, Object> jsCredentialFileStdout =
-                findProbe(items, "js_credential_file_stdout");
+        Map<String, Object> jsCredentialFileStdout = findProbe(items, "js_credential_file_stdout");
         Map<String, Object> jsCredentialFileVariableStdout =
                 findProbe(items, "js_credential_file_variable_stdout");
         Map<String, Object> jsCredentialFileExceptionOutput =
@@ -1720,16 +1703,14 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "remote_fleet_command_execution");
         Map<String, Object> containerPrivilegedHostMount =
                 findProbe(items, "container_privileged_host_mount");
-        Map<String, Object> containerSecretExposure =
-                findProbe(items, "container_secret_exposure");
+        Map<String, Object> containerSecretExposure = findProbe(items, "container_secret_exposure");
         Map<String, Object> containerDestructivePrune =
                 findProbe(items, "container_destructive_prune");
         Map<String, Object> containerForceRemove = findProbe(items, "container_force_remove");
         Map<String, Object> kubernetesResourceDelete =
                 findProbe(items, "kubernetes_resource_delete");
         Map<String, Object> kubernetesPodExec = findProbe(items, "kubernetes_pod_exec");
-        Map<String, Object> kubernetesRemoteApply =
-                findProbe(items, "kubernetes_remote_apply");
+        Map<String, Object> kubernetesRemoteApply = findProbe(items, "kubernetes_remote_apply");
         Map<String, Object> kubernetesContextCredentialChange =
                 findProbe(items, "kubernetes_context_credential_change");
         Map<String, Object> kubernetesNetworkExposure =
@@ -1762,8 +1743,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "remote_script_process_substitution");
         Map<String, Object> remoteScriptShellSubstitution =
                 findProbe(items, "remote_script_shell_substitution");
-        Map<String, Object> encodedPayloadExecute =
-                findProbe(items, "encoded_payload_execute");
+        Map<String, Object> encodedPayloadExecute = findProbe(items, "encoded_payload_execute");
         Map<String, Object> projectSensitiveRedirection =
                 findProbe(items, "project_sensitive_redirection");
         Map<String, Object> overwriteEtcRedirection = findProbe(items, "overwrite_etc_redirection");
@@ -1775,8 +1755,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "copy_into_project_sensitive");
         Map<String, Object> chmodSetuidSetgid = findProbe(items, "chmod_setuid_setgid");
         Map<String, Object> worldWritable = findProbe(items, "world_writable");
-        Map<String, Object> worldWritableLongFlag =
-                findProbe(items, "world_writable_long_flag");
+        Map<String, Object> worldWritableLongFlag = findProbe(items, "world_writable_long_flag");
         Map<String, Object> linuxAclPermissionWiden =
                 findProbe(items, "linux_acl_permission_widen");
         Map<String, Object> chownRoot = findProbe(items, "chown_root");
@@ -1802,8 +1781,7 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "system_config_inplace_edit");
         Map<String, Object> sshTunnelNetworkExposure =
                 findProbe(items, "ssh_tunnel_network_exposure");
-        Map<String, Object> scriptHeredocExecution =
-                findProbe(items, "script_heredoc_execution");
+        Map<String, Object> scriptHeredocExecution = findProbe(items, "script_heredoc_execution");
         Map<String, Object> remoteContentPipeInterpreter =
                 findProbe(items, "remote_content_pipe_interpreter");
         Map<String, Object> remoteDownloadExecute = findProbe(items, "remote_download_execute");
@@ -1839,8 +1817,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> windowsRegDelete = findProbe(items, "windows_reg_delete");
         Map<String, Object> windowsFormat = findProbe(items, "windows_format");
         Map<String, Object> windowsClearDisk = findProbe(items, "windows_clear_disk");
-        Map<String, Object> windowsRemovePartition =
-                findProbe(items, "windows_remove_partition");
+        Map<String, Object> windowsRemovePartition = findProbe(items, "windows_remove_partition");
         Map<String, Object> windowsFormatVolume = findProbe(items, "windows_format_volume");
         Map<String, Object> windowsDiskpartScript = findProbe(items, "windows_diskpart_script");
         Map<String, Object> windowsSecurityRegistryWeaken =
@@ -1857,10 +1834,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "windows_lolbin_remote_execution");
         Map<String, Object> windowsAuditPolicyDisabled =
                 findProbe(items, "windows_audit_policy_disabled");
-        Map<String, Object> windowsDisableFirewall =
-                findProbe(items, "windows_disable_firewall");
-        Map<String, Object> windowsDisableDefender =
-                findProbe(items, "windows_disable_defender");
+        Map<String, Object> windowsDisableFirewall = findProbe(items, "windows_disable_firewall");
+        Map<String, Object> windowsDisableDefender = findProbe(items, "windows_disable_defender");
         Map<String, Object> windowsDefenderExclusion =
                 findProbe(items, "windows_defender_exclusion");
         Map<String, Object> windowsStopService = findProbe(items, "windows_stop_service");
@@ -1886,8 +1861,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> sqlDropStatement = findProbe(items, "sql_drop_statement");
         Map<String, Object> databaseDropdb = findProbe(items, "database_dropdb");
         Map<String, Object> databaseFlush = findProbe(items, "database_flush");
-        Map<String, Object> mongodbDestructiveEval =
-                findProbe(items, "mongodb_destructive_eval");
+        Map<String, Object> mongodbDestructiveEval = findProbe(items, "mongodb_destructive_eval");
         Map<String, Object> volumeDelete = findProbe(items, "volume_delete");
         Map<String, Object> snapshotDelete = findProbe(items, "snapshot_delete");
         Map<String, Object> backupPruneDelete = findProbe(items, "backup_prune_delete");
@@ -1903,8 +1877,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> windowsDeleteShadowCopies =
                 findProbe(items, "windows_delete_shadow_copies");
         Map<String, Object> windowsDeleteBackup = findProbe(items, "windows_delete_backup");
-        Map<String, Object> windowsDisableRecovery =
-                findProbe(items, "windows_disable_recovery");
+        Map<String, Object> windowsDisableRecovery = findProbe(items, "windows_disable_recovery");
         Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
@@ -2109,8 +2082,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(nestedSignedUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(nestedSignedUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(nestedSignedUrl.get("skipped")).isNull();
-        assertThat(String.valueOf(nestedSignedUrl))
-                .doesNotContain("dashboard-nested-signature");
+        assertThat(String.valueOf(nestedSignedUrl)).doesNotContain("dashboard-nested-signature");
         assertThat(encodedUserinfoUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(encodedUserinfoUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(encodedUserinfoUrl.get("skipped")).isNull();
@@ -2162,7 +2134,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(projectEnvFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(projectEnvFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(projectEnvFileWrite.get("skipped")).isNull();
-        assertThat(String.valueOf(projectEnvFileWrite)).contains("[REDACTED_PATH]").doesNotContain(".env.local");
+        assertThat(String.valueOf(projectEnvFileWrite))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env.local");
         assertThat(credentialPathSuffix.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPathSuffix.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPathSuffix.get("skipped")).isNull();
@@ -2274,8 +2248,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandProtocolRelativeUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandProtocolRelativeUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandProtocolRelativeUrlPolicy.get("skipped")).isNull();
-        assertThat(String.valueOf(commandProtocolRelativeUrlPolicy))
-                .contains("//169.254.169.254");
+        assertThat(String.valueOf(commandProtocolRelativeUrlPolicy)).contains("//169.254.169.254");
         assertThat(commandEncodedHostUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedHostUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedHostUrlPolicy.get("skipped")).isNull();
@@ -2456,7 +2429,8 @@ public class DashboardDiagnosticOutputTest {
                 .contains("pnpm install")
                 .contains("metadata.google.internal");
         assertThat(commandPackageProxyBypassPowershellPolicy.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandPackageProxyBypassPowershellPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackageProxyBypassPowershellPolicy.get("blocked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(commandPackageProxyBypassPowershellPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandPackageProxyBypassPowershellPolicy))
                 .contains("$env:NPM_***")
@@ -2565,7 +2539,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(fileToolProjectEnvWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolProjectEnvWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolProjectEnvWrite.get("skipped")).isNull();
-        assertThat(String.valueOf(fileToolProjectEnvWrite)).contains("[REDACTED_PATH]").doesNotContain(".env.local");
+        assertThat(String.valueOf(fileToolProjectEnvWrite))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env.local");
         assertThat(patchToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("skipped")).isNull();
@@ -2826,7 +2802,8 @@ public class DashboardDiagnosticOutputTest {
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("${programfiles}/Probe/probe.txt");
         assertThat(commandWindowsPercentProgramFilesX86Write.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandWindowsPercentProgramFilesX86Write.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsPercentProgramFilesX86Write.get("blocked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(commandWindowsPercentProgramFilesX86Write.get("skipped")).isNull();
         assertThat(String.valueOf(commandWindowsPercentProgramFilesX86Write.get("target")))
                 .contains("[REDACTED_PATH]")
@@ -3272,8 +3249,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(pythonCredentialFileArchiveArtifactWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileArchiveArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileArchiveArtifactWrite.get("skipped")).isNull();
-        assertThat(String.valueOf(pythonCredentialFileArchiveArtifactWrite))
-                .contains("debug.zip");
+        assertThat(String.valueOf(pythonCredentialFileArchiveArtifactWrite)).contains("debug.zip");
         assertThat(pythonCredentialFileNotificationOutput.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileNotificationOutput.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileNotificationOutput.get("skipped")).isNull();
@@ -3572,19 +3548,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(projectSensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveTee.get("skipped")).isNull();
-        assertThat(String.valueOf(projectSensitiveTee))
-                .contains("tee")
-                .contains("[REDACTED_PATH]");
+        assertThat(String.valueOf(projectSensitiveTee)).contains("tee").contains("[REDACTED_PATH]");
         assertThat(overwriteEtcTee.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(overwriteEtcTee.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(overwriteEtcTee.get("skipped")).isNull();
-        assertThat(String.valueOf(overwriteEtcTee))
-                .contains("tee")
-                .contains("/etc/app.conf");
+        assertThat(String.valueOf(overwriteEtcTee)).contains("tee").contains("/etc/app.conf");
         assertThat(sensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveTee.get("skipped")).isNull();
-        assertThat(String.valueOf(sensitiveTee)).contains("JIMUQU_HOME");
+        assertThat(String.valueOf(sensitiveTee)).contains("SOLONCLAW_HOME");
         assertThat(copyIntoProjectSensitive.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("skipped")).isNull();
@@ -3732,7 +3704,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(cloudNetworkExposureChange.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(cloudNetworkExposureChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(cloudNetworkExposureChange.get("skipped")).isNull();
-        assertThat(String.valueOf(cloudNetworkExposureChange)).contains("authorize-security-group-ingress");
+        assertThat(String.valueOf(cloudNetworkExposureChange))
+                .contains("authorize-security-group-ingress");
         assertThat(gcloudResourceDelete.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(gcloudResourceDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(gcloudResourceDelete.get("skipped")).isNull();
@@ -4072,10 +4045,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> nestedEndpoint =
                 findProbe(items, "tool_args_nested_endpoint_private_url");
-        Map<String, Object> hostTarget =
-                findProbe(items, "tool_args_host_target_private_url");
-        Map<String, Object> commandPreproxy =
-                findProbe(items, "command_preproxy_url_policy");
+        Map<String, Object> hostTarget = findProbe(items, "tool_args_host_target_private_url");
+        Map<String, Object> commandPreproxy = findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandWinhttpBypass =
                 findProbe(items, "command_winhttp_bypass_policy");
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
@@ -4122,8 +4093,7 @@ public class DashboardDiagnosticOutputTest {
 
         Map<String, Object> policy = (Map<String, Object>) result.get("policy");
         Map<String, Object> terminal = (Map<String, Object>) policy.get("terminal");
-        Map<String, Object> sudoPolicy =
-                (Map<String, Object>) terminal.get("sudoRewritePolicy");
+        Map<String, Object> sudoPolicy = (Map<String, Object>) terminal.get("sudoRewritePolicy");
         assertThat(terminal.get("sudoPasswordConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(sudoPolicy.get("configured")).isEqualTo(Boolean.TRUE);
         assertThat(sudoPolicy.get("stdinPasswordInjection")).isEqualTo(Boolean.TRUE);
@@ -4190,8 +4160,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> item = findApprovalItem(items, "session-approval");
         Map<String, Object> localItem = findApprovalItem(items, "session-local-approval");
 
-        assertThat((List<String>) item.get("rule_sources"))
-                .containsExactly("security_scan");
+        assertThat((List<String>) item.get("rule_sources")).containsExactly("security_scan");
         assertThat((List<String>) item.get("scope_options")).containsExactly("once", "session");
         assertThat(item.get("permanent_allowed")).isEqualTo(Boolean.FALSE);
         assertThat(String.valueOf(item.get("permanent_disabled_reason"))).contains("安全扫描");
@@ -4230,12 +4199,9 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("networkCredentialFieldAliasDetection"))
                 .isEqualTo(Boolean.TRUE);
-        assertThat(approvalPolicy.get("sensitiveHttpHeaderAliasDetection"))
-                .isEqualTo(Boolean.TRUE);
-        assertThat(approvalPolicy.get("rawCredentialFileUploadDetection"))
-                .isEqualTo(Boolean.TRUE);
-        assertThat(approvalPolicy.get("codeCredentialFileStdoutDetection"))
-                .isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("sensitiveHttpHeaderAliasDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("rawCredentialFileUploadDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("codeCredentialFileStdoutDetection")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(approvalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
@@ -4244,7 +4210,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalsCronPolicy.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsSubagentPolicy =
                 (Map<String, Object>) approvals.get("subagentApprovalPolicy");
-        assertThat(approvalsSubagentPolicy.get("terminalGuardrailPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSubagentPolicy.get("terminalGuardrailPrechecked"))
+                .isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsSmartPolicy =
                 (Map<String, Object>) approvals.get("smartApprovalPolicy");
         assertThat(approvalsSmartPolicy.get("tirithFindingsIncluded")).isEqualTo(Boolean.TRUE);
@@ -4270,7 +4237,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalsCardPolicy.get("outboundApprovalIdSanitized")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("unsafeApprovalIdFallsBackToKeySelector"))
                 .isEqualTo(Boolean.TRUE);
-        assertThat(approvalsCardPolicy.get("commandPreviewRedactedInExtras")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("commandPreviewRedactedInExtras"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("rawCommandRedactedInExtras")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsCardPolicy.get("encodedUrlParameterRedactedInExtras"))
                 .isEqualTo(Boolean.TRUE);
@@ -4282,18 +4250,21 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalsAuditPolicy.get("approvalKeyRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> approvalsMcpReloadPolicy =
                 (Map<String, Object>) approvals.get("mcpReloadPolicy");
-        assertThat(approvalsMcpReloadPolicy.get("persistentDisableSupported")).isEqualTo(Boolean.TRUE);
-        assertThat(approvalsMcpReloadPolicy.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
-        Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
-        assertThat(coverage.get("configuredCredentialCommandPathApproval"))
+        assertThat(approvalsMcpReloadPolicy.get("persistentDisableSupported"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(approvalsMcpReloadPolicy.get("encodedUrlParameterRedacted"))
+                .isEqualTo(Boolean.TRUE);
+        Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        assertThat(coverage.get("configuredCredentialCommandPathApproval")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(policy.get("activeSurfaces")))
                 .contains("configuredCredentialCommandPathApproval");
         Map<String, Object> coverageApprovalPolicy =
                 (Map<String, Object>) coverage.get("dangerousCommandApprovalPolicy");
         assertThat(coverageApprovalPolicy.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
-        assertThat(coverageApprovalPolicy.get("privateUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
-        assertThat(coverageApprovalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(coverageApprovalPolicy.get("privateUrlPolicyPrechecked"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("unsafeUrlApprovalBypassAllowed"))
+                .isEqualTo(Boolean.FALSE);
         assertThat(coverageApprovalPolicy.get("configuredCredentialCommandPathDetection"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(coverageApprovalPolicy.get("recursiveStructuredToolArgsDetection"))
@@ -4318,7 +4289,8 @@ public class DashboardDiagnosticOutputTest {
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
         Map<String, Object> hardlinePolicy = (Map<String, Object>) coverage.get("hardlinePolicy");
-        assertThat(hardlinePolicy.get("ruleCount")).isEqualTo(approvalPolicy.get("hardlineRuleCount"));
+        assertThat(hardlinePolicy.get("ruleCount"))
+                .isEqualTo(approvalPolicy.get("hardlineRuleCount"));
         assertThat(hardlinePolicy.get("approvalBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("slashApproveBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("sessionApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
@@ -4330,10 +4302,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardlinePolicy.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(hardlinePolicy.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
         assertThat(hardlinePolicy.get("pythonShellExtractionCovered")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlinePolicy.get("javascriptChildProcessExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlinePolicy.get("javascriptChildProcessExtractionCovered"))
+                .isEqualTo(Boolean.TRUE);
         Map<String, Object> terminalGuardrailPolicy =
                 (Map<String, Object>) coverage.get("terminalGuardrailPolicy");
-        assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("sudoPasswordRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("managedBackgroundProcessRequired"))
@@ -4345,15 +4319,18 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("powershellStartProcessPassThruNotEnough"))
                 .isEqualTo(Boolean.TRUE);
-        assertThat(terminalGuardrailPolicy.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("codeToolShellExtractionCovered"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(terminalGuardrailPolicy.get("codeToolShellSources")))
                 .contains("execute_python")
                 .contains("execute_js");
         Map<String, Object> credentialMountPolicyDetails =
                 (Map<String, Object>) coverage.get("credentialMountPolicyDetails");
         assertThat(credentialMountPolicyDetails.get("runtimeRelativeOnly")).isEqualTo(Boolean.TRUE);
-        assertThat(credentialMountPolicyDetails.get("absolutePathRejected")).isEqualTo(Boolean.TRUE);
-        assertThat(credentialMountPolicyDetails.get("rejectedPathsRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialMountPolicyDetails.get("absolutePathRejected"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(credentialMountPolicyDetails.get("rejectedPathsRedacted"))
+                .isEqualTo(Boolean.TRUE);
         Map<String, Object> smartApprovalPolicy =
                 (Map<String, Object>) coverage.get("smartApprovalPolicy");
         assertThat(smartApprovalPolicy.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
@@ -4365,8 +4342,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> subagentApprovalPolicy =
                 (Map<String, Object>) coverage.get("subagentApprovalPolicyDetails");
         assertThat(subagentApprovalPolicy.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
-        assertThat(subagentApprovalPolicy.get("pendingApprovalCreatedWhenDenied")).isEqualTo(Boolean.FALSE);
-        Map<String, Object> sudoRewritePolicy = (Map<String, Object>) coverage.get("sudoRewritePolicy");
+        assertThat(subagentApprovalPolicy.get("pendingApprovalCreatedWhenDenied"))
+                .isEqualTo(Boolean.FALSE);
+        Map<String, Object> sudoRewritePolicy =
+                (Map<String, Object>) coverage.get("sudoRewritePolicy");
         assertThat(sudoRewritePolicy.get("passwordRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> terminalOutputPolicy =
                 (Map<String, Object>) coverage.get("terminalOutputPolicy");
@@ -4375,12 +4354,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminalOutputPolicy.get("bidiControlsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(terminalOutputPolicy.get("exitCodeSemanticsAvailable")).isEqualTo(Boolean.TRUE);
         assertThat(terminalOutputPolicy.get("exitCodeMeaningReturned")).isEqualTo(Boolean.TRUE);
-        assertThat(terminalOutputPolicy.get("executeShellExitMeaningNotice")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalOutputPolicy.get("executeShellExitMeaningNotice"))
+                .isEqualTo(Boolean.TRUE);
         Map<String, Object> backgroundProcessPolicy =
                 (Map<String, Object>) coverage.get("backgroundProcessPolicy");
         assertThat(backgroundProcessPolicy.get("startHardlineBlocked")).isEqualTo(Boolean.TRUE);
-        assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked")).isEqualTo(Boolean.TRUE);
-        assertThat(backgroundProcessPolicy.get("stdinPrivilegeWrapperDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessPolicy.get("stdinPrivilegeWrapperDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(backgroundProcessPolicy.get("stdinExecutionTools")))
                 .contains("execute_shell")
                 .contains("execute_python");
@@ -4389,19 +4371,23 @@ public class DashboardDiagnosticOutputTest {
                 .contains("nohup");
         Map<String, Object> toolArgsPolicy = (Map<String, Object>) coverage.get("toolArgsPolicy");
         assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
-        assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("systemDnsCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
-        assertThat(toolArgsPolicy.get("windowsRegistryProxyCommandChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsPolicy.get("windowsRegistryProxyCommandChecked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         Map<String, Object> readOnlyAuditPolicy =
                 (Map<String, Object>) coverage.get("readOnlyAuditPolicy");
         assertThat(readOnlyAuditPolicy.get("executesCommand")).isEqualTo(Boolean.FALSE);
         assertThat(readOnlyAuditPolicy.get("opensNetworkConnection")).isEqualTo(Boolean.FALSE);
         assertThat(readOnlyAuditPolicy.get("secretRedactionApplied")).isEqualTo(Boolean.TRUE);
-        assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited")).isEqualTo(Boolean.TRUE);
-        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted"))
+                .isEqualTo(Boolean.TRUE);
         Map<String, Object> schemaSanitizerPolicy =
                 (Map<String, Object>) coverage.get("schemaSanitizerPolicy");
         assertThat(schemaSanitizerPolicy.get("inputSchemaSanitized")).isEqualTo(Boolean.TRUE);
@@ -4410,7 +4396,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> patchParserPolicy =
                 (Map<String, Object>) coverage.get("patchParserPolicy");
         assertThat(patchParserPolicy.get("atomicValidationBeforeWrite")).isEqualTo(Boolean.TRUE);
-        assertThat(patchParserPolicy.get("noPartialWritesOnValidationFailure")).isEqualTo(Boolean.TRUE);
+        assertThat(patchParserPolicy.get("noPartialWritesOnValidationFailure"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(patchParserPolicy.get("pathTraversalBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchParserPolicy.get("credentialPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         Map<String, Object> mcpRuntimePolicy =
@@ -4418,9 +4405,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(mcpRuntimePolicy.get("remoteEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
         assertThat(mcpRuntimePolicy.get("remoteToolArgumentUrlSafety")).isEqualTo(Boolean.TRUE);
         assertThat(mcpRuntimePolicy.get("resourceUriPathSafety")).isEqualTo(Boolean.TRUE);
-        assertThat(mcpRuntimePolicy.get("toolsChangeNotificationPersisted")).isEqualTo(Boolean.TRUE);
-        Map<String, Object> mcpOAuthPolicy =
-                (Map<String, Object>) coverage.get("mcpOAuthPolicy");
+        assertThat(mcpRuntimePolicy.get("toolsChangeNotificationPersisted"))
+                .isEqualTo(Boolean.TRUE);
+        Map<String, Object> mcpOAuthPolicy = (Map<String, Object>) coverage.get("mcpOAuthPolicy");
         assertThat(mcpOAuthPolicy.get("authorizationEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
         assertThat(mcpOAuthPolicy.get("stateValidationRequired")).isEqualTo(Boolean.TRUE);
         assertThat(mcpOAuthPolicy.get("accessTokenRedacted")).isEqualTo(Boolean.TRUE);
@@ -4594,7 +4581,8 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void shouldReturnStructuredResolveApprovalFailureWhenDependenciesUnavailable() throws Exception {
+    void shouldReturnStructuredResolveApprovalFailureWhenDependenciesUnavailable()
+            throws Exception {
         AppConfig config = new AppConfig();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("sessionId", "session-missing-service");
@@ -4616,8 +4604,7 @@ public class DashboardDiagnosticOutputTest {
                                 null, config, new SecurityPolicyService(config)),
                         new SecurityPolicyService(config),
                         null);
-        Map<String, Object> missingSessionResult =
-                missingSessionRepository.resolveApproval(body);
+        Map<String, Object> missingSessionResult = missingSessionRepository.resolveApproval(body);
         assertThat(missingSessionResult.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(missingSessionResult.get("code")).isEqualTo("approval_unavailable");
         assertThat(String.valueOf(missingSessionResult.get("message"))).contains("审批服务");
@@ -4636,8 +4623,7 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         new SecurityPolicyService(config),
                         null);
-        Map<String, Object> missingApprovalResult =
-                missingApprovalService.resolveApproval(body);
+        Map<String, Object> missingApprovalResult = missingApprovalService.resolveApproval(body);
         assertThat(missingApprovalResult.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(missingApprovalResult.get("code")).isEqualTo("approval_unavailable");
         assertThat(String.valueOf(missingApprovalResult.get("message"))).contains("审批服务");
@@ -4653,15 +4639,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(alwaysResult.get("available")).isEqualTo(Boolean.FALSE);
         assertThat(alwaysResult.get("code")).isEqualTo("approval_unavailable");
 
-        Map<String, Object> revokeResult = missingApprovalService.revokeAlwaysApproval(
-                Collections.singletonMap("approvalId", "approval-missing-service"));
+        Map<String, Object> revokeResult =
+                missingApprovalService.revokeAlwaysApproval(
+                        Collections.singletonMap("approvalId", "approval-missing-service"));
         assertThat(revokeResult.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(revokeResult.get("code")).isEqualTo("approval_unavailable");
     }
 
     @Test
-    void shouldReturnStructuredApprovalHistoryFailureWhenRepositoryUnavailable()
-            throws Exception {
+    void shouldReturnStructuredApprovalHistoryFailureWhenRepositoryUnavailable() throws Exception {
         AppConfig config = new AppConfig();
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -4688,8 +4674,7 @@ public class DashboardDiagnosticOutputTest {
     }
 
     @Test
-    void shouldReturnStructuredSlashConfirmFailureWhenServiceUnavailable()
-            throws Exception {
+    void shouldReturnStructuredSlashConfirmFailureWhenServiceUnavailable() throws Exception {
         AppConfig config = new AppConfig();
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -4984,8 +4969,10 @@ public class DashboardDiagnosticOutputTest {
         String json = ONode.serialize(items.get(0));
 
         assertThat(json)
-                .contains("\"command_preview\":\"/reload-mcp https://example.test/callback?api%255Fkey=***\"")
-                .contains("\"prompt_preview\":\"确认执行 https://example.test/callback?api%255Fkey=***\"")
+                .contains(
+                        "\"command_preview\":\"/reload-mcp https://example.test/callback?api%255Fkey=***\"")
+                .contains(
+                        "\"prompt_preview\":\"确认执行 https://example.test/callback?api%255Fkey=***\"")
                 .doesNotContain("slash-secret");
     }
 
@@ -5184,7 +5171,9 @@ public class DashboardDiagnosticOutputTest {
                 new FixedApprovalAuditRepository(Collections.<ApprovalAuditEvent>emptyList());
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
-                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+                        new MemoryGlobalSettingRepository(),
+                        config,
+                        new SecurityPolicyService(config));
         SessionRecord record = new SessionRecord();
         record.setSessionId("session-revoke");
         SqliteAgentSession session = new SqliteAgentSession(record);
@@ -5269,8 +5258,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
         assertThat(auditRepository.events).hasSize(1);
         ApprovalAuditEvent event = auditRepository.events.get(0);
-        assertThat(event.getApprovalKey())
-                .isEqualTo("execute_shell:***");
+        assertThat(event.getApprovalKey()).isEqualTo("execute_shell:***");
         assertThat(event.getApprovalKey())
                 .doesNotContain("\u202E")
                 .doesNotContain("revokeapprovalsecret123");
@@ -5285,7 +5273,9 @@ public class DashboardDiagnosticOutputTest {
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
-                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+                        new MemoryGlobalSettingRepository(),
+                        config,
+                        new SecurityPolicyService(config));
         SessionRecord record = new SessionRecord();
         record.setSessionId("session-reject-raw-revoke");
         SqliteAgentSession session = new SqliteAgentSession(record);
@@ -5322,7 +5312,9 @@ public class DashboardDiagnosticOutputTest {
 
         assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(result.get("code")).isEqualTo("missing_approval");
-        assertThat(approvalService.isAlwaysApproved("execute_shell", "recursive_delete", "rm -rf runtime/cache"))
+        assertThat(
+                        approvalService.isAlwaysApproved(
+                                "execute_shell", "recursive_delete", "rm -rf runtime/cache"))
                 .isTrue();
     }
 
@@ -5391,8 +5383,7 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public GatewayReply resumePending(String sourceKey) {
-            GatewayReply reply =
-                    GatewayReply.ok("resumed token=ghp_resolvereplycontent12345");
+            GatewayReply reply = GatewayReply.ok("resumed token=ghp_resolvereplycontent12345");
             reply.setSessionId("session-ghp_resolvereplysession12345");
             reply.setBranchName("branch-token=ghp_resolvebranch12345");
             return reply;
@@ -5414,8 +5405,7 @@ public class DashboardDiagnosticOutputTest {
         }
     }
 
-    private static Map<String, Object> findProbe(
-            List<Map<String, Object>> items, String key) {
+    private static Map<String, Object> findProbe(List<Map<String, Object>> items, String key) {
         for (Map<String, Object> item : items) {
             if (key.equals(item.get("key"))) {
                 return item;
@@ -5497,7 +5487,9 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public List<ChannelStatus> statuses() {
-            return status == null ? Collections.<ChannelStatus>emptyList() : Collections.singletonList(status);
+            return status == null
+                    ? Collections.<ChannelStatus>emptyList()
+                    : Collections.singletonList(status);
         }
     }
 
@@ -5538,7 +5530,8 @@ public class DashboardDiagnosticOutputTest {
         public void bindSource(String sourceKey, String sessionId) {}
 
         @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+        public SessionRecord cloneSession(
+                String sourceKey, String sourceSessionId, String branchName) {
             return null;
         }
 
@@ -5727,7 +5720,8 @@ public class DashboardDiagnosticOutputTest {
         }
 
         @Override
-        public void markQueuedMessage(String queueId, String status, long timestamp, String error) {}
+        public void markQueuedMessage(
+                String queueId, String status, long timestamp, String error) {}
 
         @Override
         public void saveToolCall(ToolCallRecord record) {}

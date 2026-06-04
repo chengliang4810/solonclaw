@@ -16,8 +16,7 @@ public class TerminalHistoryViewerTest {
         SessionRecord session = session();
         TerminalHistoryViewer viewer =
                 new TerminalHistoryViewer(
-                        new BoundSessionRepository(session),
-                        new CliRuntime(null, null));
+                        new BoundSessionRepository(session), new CliRuntime(null, null));
 
         String text = viewer.render("work", "/history");
 
@@ -36,8 +35,7 @@ public class TerminalHistoryViewerTest {
         SessionRecord session = session();
         TerminalHistoryViewer viewer =
                 new TerminalHistoryViewer(
-                        new BoundSessionRepository(session),
-                        new CliRuntime(null, null));
+                        new BoundSessionRepository(session), new CliRuntime(null, null));
 
         String text = viewer.render("work", "/history 1");
 
@@ -49,8 +47,7 @@ public class TerminalHistoryViewerTest {
         SessionRecord session = session();
         TerminalHistoryViewer viewer =
                 new TerminalHistoryViewer(
-                        new BoundSessionRepository(session),
-                        new CliRuntime(null, null));
+                        new BoundSessionRepository(session), new CliRuntime(null, null));
 
         String text = viewer.render("work", "/history show 1");
 

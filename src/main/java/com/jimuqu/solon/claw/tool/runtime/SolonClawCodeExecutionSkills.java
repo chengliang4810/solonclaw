@@ -11,8 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,11 +25,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
-import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
 import org.noear.solon.ai.skills.sys.NodejsSkill;
 import org.noear.solon.ai.skills.sys.PythonSkill;
+import org.noear.solon.annotation.Param;
 
 /** Solon AI code execution skills wrapped with local safety checks. */
 public class SolonClawCodeExecutionSkills {
@@ -50,6 +50,7 @@ public class SolonClawCodeExecutionSkills {
             Pattern.compile(
                     "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file)\\s*\\(\\s*(['\"])(.*?)\\1",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
     private SolonClawCodeExecutionSkills() {}
 
     public static Map<String, Object> codeExecutionPolicySummary(AppConfig appConfig) {
@@ -69,7 +70,9 @@ public class SolonClawCodeExecutionSkills {
         summary.put("stagingPrefix", "execute_code_");
         summary.put("stagingCleanup", Boolean.TRUE);
         summary.put("sandboxEnvironmentSanitized", Boolean.TRUE);
-        summary.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
+        summary.put(
+                "subprocessEnvironmentPolicy",
+                SubprocessEnvironmentSanitizer.policySummary(appConfig));
         summary.put("pythonPathPrependsStaging", Boolean.TRUE);
         summary.put("pythonIoEncodingUtf8", Boolean.TRUE);
         summary.put("pythonDontWriteBytecode", Boolean.TRUE);
@@ -107,13 +110,7 @@ public class SolonClawCodeExecutionSkills {
                 String pythonCommand,
                 SecurityPolicyService securityPolicyService,
                 AppConfig appConfig) {
-            this(
-                    workDir,
-                    pythonCommand,
-                    securityPolicyService,
-                    appConfig,
-                    null,
-                    null);
+            this(workDir, pythonCommand, securityPolicyService, appConfig, null, null);
         }
 
         SafeExecuteCodeTool(
@@ -130,17 +127,12 @@ public class SolonClawCodeExecutionSkills {
             this.fileStateTracker = new SolonClawFileStateTracker();
             this.fileSkill =
                     new SolonClawFileReadWriteSkill(
-                            this.workDir,
-                            securityPolicyService,
-                            appConfig,
-                            fileStateTracker);
-            this.patchTools = new SolonClawPatchTools(this.workDir, securityPolicyService, fileStateTracker);
+                            this.workDir, securityPolicyService, appConfig, fileStateTracker);
+            this.patchTools =
+                    new SolonClawPatchTools(this.workDir, securityPolicyService, fileStateTracker);
             this.shellSkill =
                     new SolonClawShellSkill(
-                            this.workDir,
-                            appConfig,
-                            securityPolicyService,
-                            new ProcessRegistry());
+                            this.workDir, appConfig, securityPolicyService, new ProcessRegistry());
             this.websearchTool =
                     websearchTool == null
                             ? new SolonClawWebTools.SafeWebsearchTool(
@@ -182,7 +174,8 @@ public class SolonClawCodeExecutionSkills {
                 }
                 assertSafeExecuteCodeScript(code, securityPolicyService);
 
-                Path staging = Files.createTempDirectory(new File(workDir).toPath(), "execute_code_");
+                Path staging =
+                        Files.createTempDirectory(new File(workDir).toPath(), "execute_code_");
                 try {
                     Path rpcDir = staging.resolve("rpc");
                     Files.createDirectories(rpcDir);
@@ -194,7 +187,7 @@ public class SolonClawCodeExecutionSkills {
                     builder.directory(new File(workDir));
                     builder.redirectErrorStream(false);
                     configureSandboxEnvironment(builder.environment(), staging);
-                    builder.environment().put("JIMUQU_RPC_DIR", rpcDir.toString());
+                    builder.environment().put("SOLONCLAW_RPC_DIR", rpcDir.toString());
                     Process process = builder.start();
                     process.getOutputStream().close();
                     AtomicBoolean rpcAccepting = new AtomicBoolean(true);
@@ -203,10 +196,14 @@ public class SolonClawCodeExecutionSkills {
                                     () -> runRpcLoop(rpcDir, toolCallsMade, rpcAccepting));
                     CompletableFuture<String> stdout =
                             CompletableFuture.supplyAsync(
-                                    () -> readProcessText(process.getInputStream(), maxStdoutChars()));
+                                    () ->
+                                            readProcessText(
+                                                    process.getInputStream(), maxStdoutChars()));
                     CompletableFuture<String> stderr =
                             CompletableFuture.supplyAsync(
-                                    () -> readProcessText(process.getErrorStream(), MAX_STDERR_CHARS));
+                                    () ->
+                                            readProcessText(
+                                                    process.getErrorStream(), MAX_STDERR_CHARS));
 
                     boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
                     String status = "success";
@@ -219,14 +216,16 @@ public class SolonClawCodeExecutionSkills {
                         rpcFuture.get(3, TimeUnit.SECONDS);
                     } catch (Exception ignored) {
                     }
-                    String stdoutText = cleanOutput(stdout.get(3, TimeUnit.SECONDS), maxStdoutChars());
-                    String stderrText = cleanOutput(stderr.get(3, TimeUnit.SECONDS), MAX_STDERR_CHARS);
+                    String stdoutText =
+                            cleanOutput(stdout.get(3, TimeUnit.SECONDS), maxStdoutChars());
+                    String stderrText =
+                            cleanOutput(stderr.get(3, TimeUnit.SECONDS), MAX_STDERR_CHARS);
                     int exitCode = finished ? process.exitValue() : -1;
                     Map<String, Object> result =
-                            baseExecuteCodeResult(
-                                    status, stdoutText, toolCallsMade.get(), started);
+                            baseExecuteCodeResult(status, stdoutText, toolCallsMade.get(), started);
                     if ("timeout".equals(status)) {
-                        String timeoutMessage = "Script timed out after " + timeout + "s and was killed.";
+                        String timeoutMessage =
+                                "Script timed out after " + timeout + "s and was killed.";
                         result.put("error", timeoutMessage);
                         result.put(
                                 "output",
@@ -266,10 +265,10 @@ public class SolonClawCodeExecutionSkills {
         }
 
         private String executeCodeError(String error, int toolCallsMade, long started) {
-            Map<String, Object> result =
-                    baseExecuteCodeResult(
-                            "error", "", toolCallsMade, started);
-            result.put("error", cleanOutput(SecretRedactor.redact(error, MAX_STDERR_CHARS), MAX_STDERR_CHARS));
+            Map<String, Object> result = baseExecuteCodeResult("error", "", toolCallsMade, started);
+            result.put(
+                    "error",
+                    cleanOutput(SecretRedactor.redact(error, MAX_STDERR_CHARS), MAX_STDERR_CHARS));
             return ONode.serialize(result);
         }
 
@@ -339,7 +338,7 @@ public class SolonClawCodeExecutionSkills {
                     "import json, os, shlex, time\n"
                             + "\n"
                             + "_seq = 0\n"
-                            + "_rpc_dir = os.environ.get('JIMUQU_RPC_DIR')\n"
+                            + "_rpc_dir = os.environ.get('SOLONCLAW_RPC_DIR')\n"
                             + "\n"
                             + "def json_parse(text):\n"
                             + "    return json.loads(text, strict=False)\n"
@@ -361,7 +360,7 @@ public class SolonClawCodeExecutionSkills {
                             + "def _call(tool_name, args):\n"
                             + "    global _seq\n"
                             + "    if not _rpc_dir:\n"
-                            + "        raise RuntimeError('JIMUQU_RPC_DIR is not configured')\n"
+                            + "        raise RuntimeError('SOLONCLAW_RPC_DIR is not configured')\n"
                             + "    _seq += 1\n"
                             + "    seq = '%06d' % _seq\n"
                             + "    req = os.path.join(_rpc_dir, 'req_' + seq + '.json')\n"
@@ -396,8 +395,7 @@ public class SolonClawCodeExecutionSkills {
             Files.write(target, source.getBytes(StandardCharsets.UTF_8));
         }
 
-        private void runRpcLoop(
-                Path rpcDir, AtomicInteger toolCallsMade, AtomicBoolean accepting) {
+        private void runRpcLoop(Path rpcDir, AtomicInteger toolCallsMade, AtomicBoolean accepting) {
             while (accepting.get() || hasPendingRequests(rpcDir)) {
                 try {
                     List<Path> requests = listRequestFiles(rpcDir);
@@ -429,7 +427,9 @@ public class SolonClawCodeExecutionSkills {
                 Map<String, Object> payload =
                         castMap(
                                 ONode.deserialize(
-                                        new String(Files.readAllBytes(request), StandardCharsets.UTF_8),
+                                        new String(
+                                                Files.readAllBytes(request),
+                                                StandardCharsets.UTF_8),
                                         Object.class));
                 seq = getInt(payload, "seq", extractSeq(request));
                 String toolName = getString(payload, "tool", "");
@@ -470,8 +470,7 @@ public class SolonClawCodeExecutionSkills {
                 if ("write_file".equals(toolName)) {
                     return normalizeToolResult(
                             fileSkill.write(
-                                    getString(args, "path", null),
-                                    getString(args, "content", "")));
+                                    getString(args, "path", null), getString(args, "content", "")));
                 }
                 if ("patch".equals(toolName)) {
                     return normalizeToolResult(
@@ -595,7 +594,8 @@ public class SolonClawCodeExecutionSkills {
                     continue;
                 }
                 if ("files".equalsIgnoreCase(target)) {
-                    if (!relText.toLowerCase(Locale.ROOT).contains(pattern.toLowerCase(Locale.ROOT))) {
+                    if (!relText.toLowerCase(Locale.ROOT)
+                            .contains(pattern.toLowerCase(Locale.ROOT))) {
                         continue;
                     }
                     if (skipped++ < offset) {
@@ -604,14 +604,20 @@ public class SolonClawCodeExecutionSkills {
                     matches.add(matchMap(relText, null, null));
                 } else {
                     String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-                    int index = content.toLowerCase(Locale.ROOT).indexOf(pattern.toLowerCase(Locale.ROOT));
+                    int index =
+                            content.toLowerCase(Locale.ROOT)
+                                    .indexOf(pattern.toLowerCase(Locale.ROOT));
                     if (index < 0) {
                         continue;
                     }
                     if (skipped++ < offset) {
                         continue;
                     }
-                    matches.add(matchMap(relText, Integer.valueOf(lineNumber(content, index)), previewLine(content, index)));
+                    matches.add(
+                            matchMap(
+                                    relText,
+                                    Integer.valueOf(lineNumber(content, index)),
+                                    previewLine(content, index)));
                 }
                 if (matches.size() >= limit) {
                     break;
@@ -657,7 +663,9 @@ public class SolonClawCodeExecutionSkills {
                 item.put("url", url);
                 try {
                     Document doc = webfetchTool.webfetch(url, "markdown", Integer.valueOf(120));
-                    item.put("title", StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
+                    item.put(
+                            "title",
+                            StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
                     item.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
                     item.put("error", null);
                 } catch (Exception e) {
@@ -673,7 +681,8 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
-        private Map<String, Object> normalizeWebSearchDocument(Document doc, String query, int limit) {
+        private Map<String, Object> normalizeWebSearchDocument(
+                Document doc, String query, int limit) {
             String content = doc == null ? "" : StrUtil.nullToEmpty(doc.getContent());
             try {
                 Object parsed = ONode.deserialize(content, Object.class);
@@ -689,7 +698,11 @@ public class SolonClawCodeExecutionSkills {
             List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("url", doc == null ? "" : StrUtil.nullToEmpty(doc.getUrl()));
-            item.put("title", doc == null ? "Web search: " + query : StrUtil.blankToDefault(doc.getTitle(), "Web search: " + query));
+            item.put(
+                    "title",
+                    doc == null
+                            ? "Web search: " + query
+                            : StrUtil.blankToDefault(doc.getTitle(), "Web search: " + query));
             item.put("description", content);
             web.add(item);
             return webSearchResult(web);
@@ -729,7 +742,9 @@ public class SolonClawCodeExecutionSkills {
                     Map<String, Object> item = new LinkedHashMap<String, Object>();
                     item.put("url", firstString(one, "url", "link"));
                     item.put("title", firstString(one, "title", "name"));
-                    item.put("description", firstString(one, "description", "snippet", "content", "text"));
+                    item.put(
+                            "description",
+                            firstString(one, "description", "snippet", "content", "text"));
                     web.add(item);
                 }
             }
@@ -746,7 +761,8 @@ public class SolonClawCodeExecutionSkills {
             SecurityPolicyService.FileVerdict verdict =
                     securityPolicyService.checkFileToolArgs(ToolNameConstants.FILE_LIST, fileArgs);
             if (!verdict.isAllowed()) {
-                throw new IllegalArgumentException(blockedFileMessage(ToolNameConstants.FILE_LIST, verdict));
+                throw new IllegalArgumentException(
+                        blockedFileMessage(ToolNameConstants.FILE_LIST, verdict));
             }
         }
 
@@ -765,7 +781,10 @@ public class SolonClawCodeExecutionSkills {
         }
 
         private String safePath(String path) {
-            String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).replace('\\', '/').trim();
+            String value =
+                    SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
+                            .replace('\\', '/')
+                            .trim();
             if (value.length() == 0) {
                 return "[unknown]";
             }
@@ -782,10 +801,7 @@ public class SolonClawCodeExecutionSkills {
                 return Collections.singletonList(base);
             }
             final List<Path> files = new ArrayList<Path>();
-            Files.walk(base)
-                    .filter(Files::isRegularFile)
-                    .limit(10000)
-                    .forEach(files::add);
+            Files.walk(base).filter(Files::isRegularFile).limit(10000).forEach(files::add);
             return files;
         }
 
@@ -857,8 +873,7 @@ public class SolonClawCodeExecutionSkills {
         private List<Path> listRequestFiles(Path rpcDir) {
             try {
                 List<Path> files = new ArrayList<Path>();
-                Files.newDirectoryStream(rpcDir, "req_*.json")
-                        .forEach(files::add);
+                Files.newDirectoryStream(rpcDir, "req_*.json").forEach(files::add);
                 Collections.sort(files);
                 return files;
             } catch (Exception e) {
@@ -985,7 +1000,6 @@ public class SolonClawCodeExecutionSkills {
             } catch (Exception ignored) {
             }
         }
-
     }
 
     public static class SafePythonSkill extends PythonSkill {
@@ -1001,7 +1015,11 @@ public class SolonClawCodeExecutionSkills {
         @ToolMapping(name = "execute_python", description = "执行 Python 代码，并返回标准输出。")
         public String execute(
                 @Param("code") String code,
-                @Param(name = "timeout", required = false, defaultValue = "120000", description = "可选超时时间，单位为毫秒")
+                @Param(
+                                name = "timeout",
+                                required = false,
+                                defaultValue = "120000",
+                                description = "可选超时时间，单位为毫秒")
                         Integer timeout) {
             assertSafe(ToolNameConstants.EXECUTE_PYTHON, code, securityPolicyService);
             return SecretRedactor.redact(super.execute(code, timeout), 20000);
@@ -1020,7 +1038,11 @@ public class SolonClawCodeExecutionSkills {
         @ToolMapping(name = "execute_js", description = "执行 Node.js JavaScript 代码，并返回标准输出。")
         public String execute(
                 @Param("code") String code,
-                @Param(name = "timeout", required = false, defaultValue = "120000", description = "可选超时时间，单位为毫秒")
+                @Param(
+                                name = "timeout",
+                                required = false,
+                                defaultValue = "120000",
+                                description = "可选超时时间，单位为毫秒")
                         Integer timeout) {
             assertSafe(ToolNameConstants.EXECUTE_JS, code, securityPolicyService);
             return SecretRedactor.redact(super.execute(code, timeout), 20000);
@@ -1063,7 +1085,8 @@ public class SolonClawCodeExecutionSkills {
             SecurityPolicyService.FileVerdict fileVerdict =
                     securityPolicyService.checkCommandPaths(code);
             if (!fileVerdict.isAllowed()) {
-                throw new IllegalArgumentException(blockedFileMessage(approvalToolName, fileVerdict));
+                throw new IllegalArgumentException(
+                        blockedFileMessage(approvalToolName, fileVerdict));
             }
             SecurityPolicyService.UrlVerdict urlVerdict =
                     securityPolicyService.checkCommandUrls(code);
@@ -1081,7 +1104,8 @@ public class SolonClawCodeExecutionSkills {
             throw new IllegalArgumentException(blockedHardlineMessage(approvalToolName, hardline));
         }
         if (rejectForegroundPatterns) {
-            String foregroundGuidance = approvalService.foregroundBackgroundGuidance(ruleToolName, code);
+            String foregroundGuidance =
+                    approvalService.foregroundBackgroundGuidance(ruleToolName, code);
             if (foregroundGuidance != null) {
                 throw new IllegalArgumentException(foregroundGuidance);
             }
@@ -1093,7 +1117,8 @@ public class SolonClawCodeExecutionSkills {
                     approvalToolName, code)) {
                 return;
             }
-            throw new IllegalArgumentException(blockedDangerousMessage(approvalToolName, dangerous));
+            throw new IllegalArgumentException(
+                    blockedDangerousMessage(approvalToolName, dangerous));
         }
     }
 
@@ -1146,7 +1171,8 @@ public class SolonClawCodeExecutionSkills {
         Matcher matcher = MANAGED_FILE_TOOL_CALL.matcher(value);
         StringBuffer buffer = new StringBuffer(value.length());
         while (matcher.find()) {
-            String replacement = matcher.group().replace(matcher.group(2), "__managed_file_tool_path__");
+            String replacement =
+                    matcher.group().replace(matcher.group(2), "__managed_file_tool_path__");
             matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(buffer);
@@ -1192,8 +1218,7 @@ public class SolonClawCodeExecutionSkills {
 
     private static String readProcessText(java.io.InputStream inputStream, int maxChars) {
         try {
-            InputStreamReader reader =
-                    new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+            InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
             StringBuilder buffer = new StringBuilder();
             int maxReadChars = Math.max(1024, maxChars * 2);
             char[] chars = new char[4096];
@@ -1206,9 +1231,10 @@ public class SolonClawCodeExecutionSkills {
             }
             return buffer.toString();
         } catch (Exception e) {
-            return "系统失败: " + SecretRedactor.redact(
-                    StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
-                    1000);
+            return "系统失败: "
+                    + SecretRedactor.redact(
+                            StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                            1000);
         }
     }
 

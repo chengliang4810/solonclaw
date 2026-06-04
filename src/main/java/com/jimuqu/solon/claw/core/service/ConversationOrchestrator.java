@@ -39,8 +39,7 @@ public interface ConversationOrchestrator {
 
     /** 按会话 ID 恢复指定 pending 会话，并输出运行过程。 */
     default GatewayReply resumePending(
-            String sourceKey, String sessionId, ConversationEventSink eventSink)
-            throws Exception {
+            String sourceKey, String sessionId, ConversationEventSink eventSink) throws Exception {
         return resumePending(sourceKey, eventSink);
     }
 }

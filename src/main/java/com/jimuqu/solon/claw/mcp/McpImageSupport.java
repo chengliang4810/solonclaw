@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Handles MCP tool results that contain image content blocks.
- * Converts image content to internal attachment-friendly format.
+ * Handles MCP tool results that contain image content blocks. Converts image content to internal
+ * attachment-friendly format.
  */
 public class McpImageSupport {
     private static final int MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB cap
@@ -17,9 +17,9 @@ public class McpImageSupport {
     private McpImageSupport() {}
 
     /**
-     * Extracts image attachments from an MCP tool result object.
-     * Returns a list of image descriptor maps, each with keys:
-     * {@code mime_type}, {@code data} (base64), {@code size_bytes}, {@code source}.
+     * Extracts image attachments from an MCP tool result object. Returns a list of image descriptor
+     * maps, each with keys: {@code mime_type}, {@code data} (base64), {@code size_bytes}, {@code
+     * source}.
      */
     public static List<Map<String, Object>> extractImages(Object toolResult) {
         List<Map<String, Object>> images = new ArrayList<Map<String, Object>>();
@@ -53,16 +53,14 @@ public class McpImageSupport {
         return images;
     }
 
-    /**
-     * Returns true if the tool result contains at least one image content block.
-     */
+    /** Returns true if the tool result contains at least one image content block. */
     public static boolean hasImages(Object toolResult) {
         return !extractImages(toolResult).isEmpty();
     }
 
     /**
-     * Converts an image descriptor map (from {@link #extractImages}) to a
-     * base64 data URI string suitable for embedding in HTML or markdown.
+     * Converts an image descriptor map (from {@link #extractImages}) to a base64 data URI string
+     * suitable for embedding in HTML or markdown.
      */
     public static String toDataUri(Map<String, Object> imageDescriptor) {
         if (imageDescriptor == null) {
@@ -81,7 +79,8 @@ public class McpImageSupport {
         String mimeType = "";
         String data = "";
 
-        // MCP image block: { type: "image", source: { type: "base64", media_type: "...", data: "..." } }
+        // MCP image block: { type: "image", source: { type: "base64", media_type: "...", data:
+        // "..." } }
         Object sourceObj = block.get("source");
         if (sourceObj instanceof Map) {
             Map<?, ?> sourceMap = (Map<?, ?>) sourceObj;

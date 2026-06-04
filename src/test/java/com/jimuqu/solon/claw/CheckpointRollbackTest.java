@@ -41,7 +41,8 @@ public class CheckpointRollbackTest {
 
         String checkpointId =
                 env.checkpointService
-                        .createCheckpoint(sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .createCheckpoint(
+                                sourceKey, session.getSessionId(), Collections.singletonList(file))
                         .getCheckpointId();
         FileUtil.writeUtf8String("v2", file);
 
@@ -65,12 +66,15 @@ public class CheckpointRollbackTest {
 
         String checkpointId =
                 env.checkpointService
-                        .createCheckpoint(sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .createCheckpoint(
+                                sourceKey, session.getSessionId(), Collections.singletonList(file))
                         .getCheckpointId();
 
         Map<String, Object> preview = env.checkpointService.preview(checkpointId);
         assertThat((List<?>) preview.get("files")).isEmpty();
-        assertThat(String.valueOf(preview.get("skipped"))).contains("weights.bin").contains("too_large:1mb");
+        assertThat(String.valueOf(preview.get("skipped")))
+                .contains("weights.bin")
+                .contains("too_large:1mb");
     }
 
     @Test
@@ -86,7 +90,8 @@ public class CheckpointRollbackTest {
         FileUtil.writeUtf8String("v1", file);
         String checkpointId =
                 env.checkpointService
-                        .createCheckpoint(sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .createCheckpoint(
+                                sourceKey, session.getSessionId(), Collections.singletonList(file))
                         .getCheckpointId();
 
         Map<String, Object> preview = env.checkpointService.preview(checkpointId);
@@ -105,7 +110,8 @@ public class CheckpointRollbackTest {
     void shouldRedactCheckpointPreviewIdentifiers() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File checkpointDir =
-                FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "checkpoints", "identifiers");
+                FileUtil.file(
+                        env.appConfig.getRuntime().getCacheDir(), "checkpoints", "identifiers");
         File manifest = FileUtil.file(checkpointDir, "manifest.json");
         FileUtil.writeUtf8String("{\"files\":[],\"skipped\":[]}", manifest);
         insertCheckpoint(
@@ -141,7 +147,8 @@ public class CheckpointRollbackTest {
     void shouldRedactUnsafeCheckpointRollbackPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File checkpointDir = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "checkpoints", "unsafe");
+        File checkpointDir =
+                FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "checkpoints", "unsafe");
         File manifest = FileUtil.file(checkpointDir, "manifest.json");
         File outside =
                 new File(
@@ -166,13 +173,13 @@ public class CheckpointRollbackTest {
     void shouldRedactUnsafeCheckpointSnapshotPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File checkpointDir = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "checkpoints", "unsafe-snapshot");
+        File checkpointDir =
+                FileUtil.file(
+                        env.appConfig.getRuntime().getCacheDir(), "checkpoints", "unsafe-snapshot");
         File target = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "restore-target.txt");
         File manifest = FileUtil.file(checkpointDir, "manifest.json");
         File outsideSnapshot =
-                new File(
-                        runtimeHome.getParentFile(),
-                        "snapshot-token=ghp_snapshotsecret.bak");
+                new File(runtimeHome.getParentFile(), "snapshot-token=ghp_snapshotsecret.bak");
         FileUtil.writeUtf8String("snapshot", outsideSnapshot);
         String manifestJson =
                 "{\"files\":[{\"path\":\""
@@ -195,12 +202,7 @@ public class CheckpointRollbackTest {
             TestEnvironment env, String checkpointId, File checkpointDir, File manifest)
             throws Exception {
         insertCheckpoint(
-                env,
-                checkpointId,
-                "MEMORY:room-a:user-a",
-                "session-a",
-                checkpointDir,
-                manifest);
+                env, checkpointId, "MEMORY:room-a:user-a", "session-a", checkpointDir, manifest);
     }
 
     private static void insertCheckpoint(

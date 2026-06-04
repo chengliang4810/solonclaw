@@ -9,8 +9,7 @@ import org.junit.jupiter.api.Test;
 public class HutoolHttpErrorFormatterTest {
     @Test
     void shouldRedactFailureResponsePreview() {
-        String body =
-                "{\"error\":\"token=ghp_hutoolerror12345 api_key=sk-hutool-error-secret\"}";
+        String body = "{\"error\":\"token=ghp_hutoolerror12345 api_key=sk-hutool-error-secret\"}";
 
         String message =
                 HutoolHttpErrorFormatter.failure(
@@ -50,9 +49,7 @@ public class HutoolHttpErrorFormatterTest {
     void shouldOmitPreviewWhenFailureBodyIsEmpty() {
         String message =
                 HutoolHttpErrorFormatter.failure(
-                        "Weixin CDN upload",
-                        503,
-                        new ByteArrayInputStream(new byte[0]));
+                        "Weixin CDN upload", 503, new ByteArrayInputStream(new byte[0]));
 
         assertThat(message).isEqualTo("Weixin CDN upload failed: HTTP 503");
     }
@@ -68,8 +65,7 @@ public class HutoolHttpErrorFormatterTest {
                 HutoolHttpErrorFormatter.failure(
                         "Channel request",
                         500,
-                        new ByteArrayInputStream(
-                                body.toString().getBytes(StandardCharsets.UTF_8)));
+                        new ByteArrayInputStream(body.toString().getBytes(StandardCharsets.UTF_8)));
 
         assertThat(message)
                 .contains("Channel request failed: HTTP 500")

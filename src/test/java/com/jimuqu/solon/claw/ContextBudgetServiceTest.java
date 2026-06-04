@@ -22,8 +22,7 @@ class ContextBudgetServiceTest {
                 MessageSupport.toNdjson(
                         Arrays.asList(
                                 ChatMessage.ofUser(
-                                        "请分析这张图 data:image/png;base64,"
-                                                + repeat("A", 16_384)))));
+                                        "请分析这张图 data:image/png;base64," + repeat("A", 16_384)))));
 
         ContextBudgetDecision decision = service.decide(session, "system", "继续", config.getLlm());
 
@@ -44,7 +43,8 @@ class ContextBudgetServiceTest {
         ContextBudgetDecision decision = service.decide(session, "system", "继续", config.getLlm());
 
         assertThat(decision.isShouldCompress()).isTrue();
-        assertThat(decision.getEstimatedTokens()).isGreaterThanOrEqualTo(decision.getThresholdTokens());
+        assertThat(decision.getEstimatedTokens())
+                .isGreaterThanOrEqualTo(decision.getThresholdTokens());
     }
 
     private AppConfig config() {

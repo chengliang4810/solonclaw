@@ -179,8 +179,7 @@ public class FileContextService implements ContextService {
                     "Memory Manager",
                     memoryManager == null ? "" : memoryManager.buildSystemPrompt(sourceKey));
         } catch (Exception e) {
-            appendBlock(
-                    buffer, "Memory Manager", "Failed to load memory context: " + safeError(e));
+            appendBlock(buffer, "Memory Manager", "Failed to load memory context: " + safeError(e));
         }
     }
 

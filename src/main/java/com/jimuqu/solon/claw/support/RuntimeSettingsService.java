@@ -69,9 +69,10 @@ public class RuntimeSettingsService {
                     "task.toolOutputTurnBudget",
                     "task.toolOutputMaxLines",
                     "task.toolOutputMaxLineLength",
-                    "tool_output.max_bytes",
-                    "tool_output.max_lines",
-                    "tool_output.max_line_length",
+                    "solonclaw.task.toolOutputInlineLimit",
+                    "solonclaw.task.toolOutputTurnBudget",
+                    "solonclaw.task.toolOutputMaxLines",
+                    "solonclaw.task.toolOutputMaxLineLength",
                     "agent.heartbeat.intervalMinutes",
                     "rollback.enabled",
                     "rollback.maxCheckpointsPerSource",
@@ -100,12 +101,8 @@ public class RuntimeSettingsService {
                     "gateway.injectionMaxBodyBytes",
                     "gateway.injectionReplayWindowSeconds",
                     "security.allowPrivateUrls",
-                    "security.allow_private_urls",
-                    "browser.allow_private_urls",
-                    "browser.rewriteLoopbackUrls",
-                    "browser.rewrite_loopback_urls",
-                    "browser.loopbackHostAlias",
-                    "browser.loopback_host_alias",
+                    "solonclaw.browser.rewriteLoopbackUrls",
+                    "solonclaw.browser.loopbackHostAlias",
                     "security.tirithEnabled",
                     "security.tirithPath",
                     "security.tirithTimeoutSeconds",
@@ -113,25 +110,22 @@ public class RuntimeSettingsService {
                     "security.websiteBlocklist.enabled",
                     "security.websiteBlocklist.domains",
                     "security.websiteBlocklist.sharedFiles",
-                    "security.website_blocklist.enabled",
-                    "security.website_blocklist.domains",
-                    "security.website_blocklist.shared_files",
                     "security.hardlineAllowlist",
-                    "security.hardline_allowlist",
-                    "approvals.mode",
-                    "approvals.cronMode",
+                    "security.guardrailMode",
+                    "security.guardrailCronMode",
+                    "security.guardrailCronScope",
                     "approvals.subagentAutoApprove",
                     "approvals.timeoutSeconds",
                     "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
-                    "terminal.credentialFiles",
-                    "terminal.envPassthrough",
-                    "terminal.env_passthrough",
-                    "terminal.sudoPassword",
-                    "terminal.writeSafeRoot",
-                    "terminal.maxForegroundTimeoutSeconds",
-                    "terminal.foregroundMaxRetries",
-                    "terminal.foregroundRetryBaseDelaySeconds");
+                    "solonclaw.terminal.credentialFiles",
+                    "solonclaw.terminal.envPassthrough",
+                    "solonclaw.terminal.sudoPassword",
+                    "solonclaw.terminal.writeSafeRoot",
+                    "solonclaw.terminal.maxForegroundTimeoutSeconds",
+                    "solonclaw.terminal.foregroundMaxRetries",
+                    "solonclaw.terminal.foregroundRetryBaseDelaySeconds",
+                    "solonclaw.terminal.processWaitTimeoutSeconds");
 
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =
             Arrays.asList(
@@ -408,7 +402,8 @@ public class RuntimeSettingsService {
     }
 
     public void setSecretValue(String key, String value) {
-        dashboardRuntimeConfigService.updateSecret(key, value, shouldReconnectChannelsForRuntimeKey(key));
+        dashboardRuntimeConfigService.updateSecret(
+                key, value, shouldReconnectChannelsForRuntimeKey(key));
     }
 
     private void ensureConfigKeyAllowed(String key) {
@@ -451,14 +446,10 @@ public class RuntimeSettingsService {
                 || "skills.curator.enabled".equals(key)
                 || "gateway.allowAllUsers".equals(key)
                 || "security.allowPrivateUrls".equals(key)
-                || "security.allow_private_urls".equals(key)
-                || "browser.allow_private_urls".equals(key)
-                || "browser.rewriteLoopbackUrls".equals(key)
-                || "browser.rewrite_loopback_urls".equals(key)
+                || "solonclaw.browser.rewriteLoopbackUrls".equals(key)
                 || "security.tirithEnabled".equals(key)
                 || "security.tirithFailOpen".equals(key)
                 || "security.websiteBlocklist.enabled".equals(key)
-                || "security.website_blocklist.enabled".equals(key)
                 || "approvals.subagentAutoApprove".equals(key)
                 || "approvals.mcpReloadConfirm".equals(key)) {
             return "true".equalsIgnoreCase(value)
@@ -499,9 +490,14 @@ public class RuntimeSettingsService {
                 || "security.tirithTimeoutSeconds".equals(key)
                 || "approvals.timeoutSeconds".equals(key)
                 || "approvals.gatewayTimeoutSeconds".equals(key)
-                || "terminal.maxForegroundTimeoutSeconds".equals(key)
-                || "terminal.foregroundMaxRetries".equals(key)
-                || "terminal.foregroundRetryBaseDelaySeconds".equals(key)) {
+                || "solonclaw.terminal.maxForegroundTimeoutSeconds".equals(key)
+                || "solonclaw.terminal.foregroundMaxRetries".equals(key)
+                || "solonclaw.terminal.foregroundRetryBaseDelaySeconds".equals(key)
+                || "solonclaw.terminal.processWaitTimeoutSeconds".equals(key)
+                || "solonclaw.task.toolOutputInlineLimit".equals(key)
+                || "solonclaw.task.toolOutputTurnBudget".equals(key)
+                || "solonclaw.task.toolOutputMaxLines".equals(key)
+                || "solonclaw.task.toolOutputMaxLineLength".equals(key)) {
             return Integer.valueOf(value);
         }
         if ("react.summarizationEnabled".equals(key)
@@ -527,13 +523,9 @@ public class RuntimeSettingsService {
                 || "gateway.allowedUsers".equals(key)
                 || "security.websiteBlocklist.domains".equals(key)
                 || "security.websiteBlocklist.sharedFiles".equals(key)
-                || "security.website_blocklist.domains".equals(key)
-                || "security.website_blocklist.shared_files".equals(key)
                 || "security.hardlineAllowlist".equals(key)
-                || "security.hardline_allowlist".equals(key)
-                || "terminal.credentialFiles".equals(key)
-                || "terminal.envPassthrough".equals(key)
-                || "terminal.env_passthrough".equals(key)
+                || "solonclaw.terminal.credentialFiles".equals(key)
+                || "solonclaw.terminal.envPassthrough".equals(key)
                 || "rollback.excludePatterns".equals(key)
                 || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();
@@ -636,15 +628,6 @@ public class RuntimeSettingsService {
     }
 
     private String canonicalDashboardConfigKey(String key) {
-        if ("browser.rewrite_loopback_urls".equals(key)) {
-            return "browser.rewriteLoopbackUrls";
-        }
-        if ("browser.loopback_host_alias".equals(key)) {
-            return "browser.loopbackHostAlias";
-        }
-        if ("terminal.env_passthrough".equals(key)) {
-            return "terminal.envPassthrough";
-        }
         return key;
     }
 
@@ -665,7 +648,7 @@ public class RuntimeSettingsService {
         if ("providers.default.apikey".equals(lower)
                 || "gateway.injectionsecret".equals(lower)
                 || "solonclaw.gateway.injectionsecret".equals(lower)
-                || "terminal.sudopassword".equals(lower)
+                || "solonclaw.terminal.sudopassword".equals(lower)
                 || "solonclaw.dashboard.accesstoken".equals(lower)) {
             return true;
         }

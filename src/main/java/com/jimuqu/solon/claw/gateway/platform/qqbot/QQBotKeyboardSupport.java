@@ -22,7 +22,8 @@ final class QQBotKeyboardSupport {
     }
 
     static ONode buildApprovalKeyboard(String approvalId, boolean allowAlways) {
-        String safeApprovalId = DangerousCommandApprovalService.safeApprovalSelectorToken(approvalId);
+        String safeApprovalId =
+                DangerousCommandApprovalService.safeApprovalSelectorToken(approvalId);
         if (safeApprovalId == null) {
             safeApprovalId = "";
         }
@@ -74,7 +75,8 @@ final class QQBotKeyboardSupport {
         if (!matcher.matches()) {
             return null;
         }
-        String approvalId = DangerousCommandApprovalService.safeApprovalSelectorToken(matcher.group(1));
+        String approvalId =
+                DangerousCommandApprovalService.safeApprovalSelectorToken(matcher.group(1));
         if (approvalId == null) {
             return null;
         }
@@ -110,12 +112,7 @@ final class QQBotKeyboardSupport {
     }
 
     private static Object button(
-            String id,
-            String label,
-            String visitedLabel,
-            String data,
-            int style,
-            String groupId) {
+            String id, String label, String visitedLabel, String data, int style, String groupId) {
         ONode root = new ONode();
         root.set("id", id);
         root.getOrNew("render_data")

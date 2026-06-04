@@ -96,7 +96,10 @@ public class ApprovalAuditObserverTest {
                 "recursive_delete",
                 "recursive delete",
                 "rm -rf runtime/cache");
-        service.approve(session, DangerousCommandApprovalService.ApprovalScope.ONCE, "ops token=ghp_approver123");
+        service.approve(
+                session,
+                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                "ops token=ghp_approver123");
 
         assertThat(repository.events).hasSize(2);
         ApprovalAuditEvent response = repository.events.get(1);
@@ -110,8 +113,7 @@ public class ApprovalAuditObserverTest {
     }
 
     @Test
-    void shouldStripDisplayControlsAndSecretsFromApprovalAuditIdentifiers()
-            throws Exception {
+    void shouldStripDisplayControlsAndSecretsFromApprovalAuditIdentifiers() throws Exception {
         CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService service =

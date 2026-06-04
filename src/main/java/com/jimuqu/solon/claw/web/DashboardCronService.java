@@ -74,7 +74,8 @@ public class DashboardCronService {
             if (record.getNextRunAt() <= 0L) {
                 continue;
             }
-            if ("PAUSED".equalsIgnoreCase(record.getStatus()) || "COMPLETED".equalsIgnoreCase(record.getStatus())) {
+            if ("PAUSED".equalsIgnoreCase(record.getStatus())
+                    || "COMPLETED".equalsIgnoreCase(record.getStatus())) {
                 continue;
             }
             jobs.add(record);
@@ -260,11 +261,16 @@ public class DashboardCronService {
         if (body == null || body.isEmpty()) {
             return fallback;
         }
-        Object raw = body.containsKey("trigger_type") ? body.get("trigger_type") : body.get("triggerType");
+        Object raw =
+                body.containsKey("trigger_type")
+                        ? body.get("trigger_type")
+                        : body.get("triggerType");
         if (raw == null) {
             raw = body.get("reason");
         }
-        String normalized = cronJobService.normalizeTriggerType(raw == null ? null : String.valueOf(raw), fallback);
+        String normalized =
+                cronJobService.normalizeTriggerType(
+                        raw == null ? null : String.valueOf(raw), fallback);
         if ("scheduled".equals(normalized)) {
             return fallback;
         }
@@ -282,7 +288,8 @@ public class DashboardCronService {
     public List<Map<String, Object>> history(String id, int limit) throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRunRecord record : cronJobService.history(id, limit)) {
-            Map<String, Object> view = new LinkedHashMap<String, Object>(cronJobService.runToView(record));
+            Map<String, Object> view =
+                    new LinkedHashMap<String, Object>(cronJobService.runToView(record));
             convertTime(view, "started_at");
             convertTime(view, "finished_at");
             result.add(view);
@@ -317,7 +324,8 @@ public class DashboardCronService {
         String lastStatus = record.getLastStatus() == null ? "" : record.getLastStatus();
         return "error".equalsIgnoreCase(lastStatus)
                 || (record.getLastError() != null && record.getLastError().trim().length() > 0)
-                || (record.getLastDeliveryError() != null && record.getLastDeliveryError().trim().length() > 0);
+                || (record.getLastDeliveryError() != null
+                        && record.getLastDeliveryError().trim().length() > 0);
     }
 
     private Map<String, Object> failureView(CronJobRecord record) {
@@ -366,7 +374,8 @@ public class DashboardCronService {
         if (name != null && String.valueOf(name).trim().length() > API_MAX_NAME_LENGTH) {
             throw new IllegalArgumentException("name must be at most 200 characters");
         }
-        Object schedule = body.containsKey("schedule") ? body.get("schedule") : body.get("cronExpr");
+        Object schedule =
+                body.containsKey("schedule") ? body.get("schedule") : body.get("cronExpr");
         if (schedule == null || String.valueOf(schedule).trim().length() == 0) {
             throw new IllegalArgumentException("schedule is required");
         }
@@ -411,7 +420,9 @@ public class DashboardCronService {
         }
         if (value < 0 || (!allowZero && value == 0)) {
             throw new IllegalArgumentException(
-                    allowZero ? "repeat must be a non-negative integer" : "repeat must be a positive integer");
+                    allowZero
+                            ? "repeat must be a non-negative integer"
+                            : "repeat must be a positive integer");
         }
     }
 

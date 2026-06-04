@@ -2,19 +2,19 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
-import cn.hutool.core.io.FileUtil;
 import java.io.File;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.noear.solon.core.Props;
 import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.core.Props;
 
 public class ToolCallLoopGuardrailServiceTest {
     @TempDir File tempDir;
@@ -53,8 +53,7 @@ public class ToolCallLoopGuardrailServiceTest {
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
         assertThat(trace.getLastObservation()).contains("repeated_exact_failure_block");
-        Object haltDecision =
-                trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
+        Object haltDecision = trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
         assertThat(haltDecision).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> haltMetadata = (Map<String, Object>) haltDecision;
@@ -102,8 +101,7 @@ public class ToolCallLoopGuardrailServiceTest {
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
         assertThat(trace.getLastObservation()).contains("same_tool_failure_halt");
-        Object haltDecision =
-                trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
+        Object haltDecision = trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
         assertThat(haltDecision).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> haltMetadata = (Map<String, Object>) haltDecision;
@@ -130,7 +128,9 @@ public class ToolCallLoopGuardrailServiceTest {
         interceptor.onAction(trace, "web_search", reorderedArgs);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getLastObservation()).contains("args_hash").contains("repeated_exact_failure_block");
+        assertThat(trace.getLastObservation())
+                .contains("args_hash")
+                .contains("repeated_exact_failure_block");
         assertThat(trace.getLastObservation()).contains("\"message\"");
         assertThat(trace.getLastObservation())
                 .doesNotContain("secret-token-value")
@@ -150,8 +150,18 @@ public class ToolCallLoopGuardrailServiceTest {
         ReActTrace trace = newTrace();
         Map<String, Object> args = args("path", "README.md");
 
-        runSuccessfulCall(interceptor, trace, "read_file", args, "{\"status\":\"success\",\"content\":\"same\"}");
-        runSuccessfulCall(interceptor, trace, "read_file", args, "{\"content\":\"same\",\"status\":\"success\"}");
+        runSuccessfulCall(
+                interceptor,
+                trace,
+                "read_file",
+                args,
+                "{\"status\":\"success\",\"content\":\"same\"}");
+        runSuccessfulCall(
+                interceptor,
+                trace,
+                "read_file",
+                args,
+                "{\"content\":\"same\",\"status\":\"success\"}");
 
         assertThat(trace.getLastObservation()).contains("工具循环提醒");
         assertThat(trace.getLastObservation()).contains("idempotent_no_progress_warning");
@@ -167,15 +177,24 @@ public class ToolCallLoopGuardrailServiceTest {
         ReActTrace trace = newTrace();
         Map<String, Object> args = args("path", "README.md");
 
-        runSuccessfulCall(interceptor, trace, "read_file", args, "{\"status\":\"success\",\"content\":\"same\"}");
-        runSuccessfulCall(interceptor, trace, "read_file", args, "{\"content\":\"same\",\"status\":\"success\"}");
+        runSuccessfulCall(
+                interceptor,
+                trace,
+                "read_file",
+                args,
+                "{\"status\":\"success\",\"content\":\"same\"}");
+        runSuccessfulCall(
+                interceptor,
+                trace,
+                "read_file",
+                args,
+                "{\"content\":\"same\",\"status\":\"success\"}");
         interceptor.onAction(trace, "read_file", args);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
         assertThat(trace.getLastObservation()).contains("idempotent_no_progress_block");
-        Object haltDecision =
-                trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
+        Object haltDecision = trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
         assertThat(haltDecision).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> haltMetadata = (Map<String, Object>) haltDecision;
@@ -285,8 +304,12 @@ public class ToolCallLoopGuardrailServiceTest {
     }
 
     private void runFailedCall(
-            ReActInterceptor interceptor, ReActTrace trace, String toolName, Map<String, Object> args) {
-        runSuccessfulCall(interceptor, trace, toolName, args, "{\"status\":\"error\",\"error\":\"boom\"}");
+            ReActInterceptor interceptor,
+            ReActTrace trace,
+            String toolName,
+            Map<String, Object> args) {
+        runSuccessfulCall(
+                interceptor, trace, toolName, args, "{\"status\":\"error\",\"error\":\"boom\"}");
     }
 
     private void runSuccessfulCall(

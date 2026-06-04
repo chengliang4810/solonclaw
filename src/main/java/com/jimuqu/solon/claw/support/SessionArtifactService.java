@@ -58,8 +58,8 @@ public class SessionArtifactService {
         return String.valueOf(recap(session, maxExchanges).get("text"));
     }
 
-    public Map<String, Object> trajectory(SessionRecord session, String userQuery, boolean completed)
-            throws Exception {
+    public Map<String, Object> trajectory(
+            SessionRecord session, String userQuery, boolean completed) throws Exception {
         List<ChatMessage> messages =
                 MessageSupport.loadMessages(session == null ? null : session.getNdjson());
         List<Map<String, Object>> conversations =
@@ -82,7 +82,8 @@ public class SessionArtifactService {
 
     public Map<String, Object> saveTrajectory(
             SessionRecord session, String userQuery, boolean completed) throws Exception {
-        return storageService.appendTrajectory(trajectory(session, userQuery, completed), completed);
+        return storageService.appendTrajectory(
+                trajectory(session, userQuery, completed), completed);
     }
 
     private List<Map<String, Object>> recapEntries(List<ChatMessage> messages, int maxExchanges) {
@@ -114,8 +115,13 @@ public class SessionArtifactService {
     }
 
     private String assistantRecap(AssistantMessage message) {
-        String content = message == null ? "" : StrUtil.blankToDefault(message.getResultContent(), message.getContent());
-        if (message != null && message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
+        String content =
+                message == null
+                        ? ""
+                        : StrUtil.blankToDefault(message.getResultContent(), message.getContent());
+        if (message != null
+                && message.getToolCalls() != null
+                && !message.getToolCalls().isEmpty()) {
             StringBuilder tools = new StringBuilder();
             for (ToolCall call : message.getToolCalls()) {
                 if (tools.length() > 0) {
@@ -154,7 +160,10 @@ public class SessionArtifactService {
         trajectory.add(trajectoryEntry("system", trajectorySystemPrompt()));
 
         int firstUserIndex = findFirstUser(messages);
-        String query = StrUtil.blankToDefault(userQuery, firstUserIndex >= 0 ? messages.get(firstUserIndex).getContent() : "");
+        String query =
+                StrUtil.blankToDefault(
+                        userQuery,
+                        firstUserIndex >= 0 ? messages.get(firstUserIndex).getContent() : "");
         trajectory.add(trajectoryEntry("human", query));
 
         int i = firstUserIndex >= 0 ? firstUserIndex + 1 : 0;

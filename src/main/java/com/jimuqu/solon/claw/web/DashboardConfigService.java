@@ -24,14 +24,9 @@ import org.yaml.snakeyaml.Yaml;
 
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
-    private static final List<String> PASSTHROUGH_PREFIXES =
-            Arrays.asList(
-                    "approvals.",
-                    "channels.wecom.groups.",
-                    "security.",
-                    "terminal.");
-    private static final List<String> PASSTHROUGH_KEYS =
-            Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");
+    private static final List<String> ROOT_PREFIXES = Arrays.asList("approvals.", "security.");
+    private static final List<String> SOLONCLAW_PASSTHROUGH_PREFIXES =
+            Arrays.asList("solonclaw.channels.wecom.groups.", "solonclaw.terminal.");
     private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
     private static final Object WRITE_LOCK = new Object();
 
@@ -76,7 +71,8 @@ public class DashboardConfigService {
     }
 
     public Map<String, Object> diagnostics() {
-        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
+        return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome())
+                .diagnostics(appConfig);
     }
 
     public Map<String, Object> saveConfig(Map<String, Object> nestedConfig) {
@@ -103,9 +99,10 @@ public class DashboardConfigService {
 
     public Map<String, Object> savePartialFlat(
             Map<String, Object> flatUpdates, boolean reconnectChannels) {
-        validateKeys(flatUpdates.keySet());
+        Map<String, Object> normalizedUpdates = normalizeFlatUpdates(flatUpdates);
+        validateKeys(normalizedUpdates.keySet());
         Map<String, Object> merged = mergeBaseValues();
-        merged.putAll(flatUpdates);
+        merged.putAll(normalizedUpdates);
         validateValues(merged);
         writeOverrideFile(merged);
         if (reconnectChannels) {
@@ -114,6 +111,20 @@ public class DashboardConfigService {
             gatewayRuntimeRefreshService.refreshConfigOnly();
         }
         return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    private Map<String, Object> normalizeFlatUpdates(Map<String, Object> flatUpdates) {
+        Assert.notNull(flatUpdates, "config updates are required");
+        Map<String, Object> normalized = new LinkedHashMap<String, Object>();
+        for (Map.Entry<String, Object> entry : flatUpdates.entrySet()) {
+            String canonicalKey = canonicalFieldKey(entry.getKey());
+            if (fields.containsKey(canonicalKey)) {
+                normalized.put(canonicalKey, entry.getValue());
+            } else {
+                normalized.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return normalized;
     }
 
     private void registerFields() {
@@ -197,7 +208,9 @@ public class DashboardConfigService {
                         "元宝 runtime footer 覆盖开关"));
         addField(new FieldDefinition("scheduler.enabled", "boolean", "general", "启用定时调度"));
         addField(new FieldDefinition("scheduler.tickSeconds", "number", "general", "调度轮询周期（秒）"));
-        addField(new FieldDefinition("scheduler.wrapResponse", "boolean", "general", "默认包装定时任务投递回复"));
+        addField(
+                new FieldDefinition(
+                        "scheduler.wrapResponse", "boolean", "general", "默认包装定时任务投递回复"));
 
         addField(new FieldDefinition("learning.enabled", "boolean", "agent", "启用主回复后的自动学习"));
         addField(
@@ -205,10 +218,7 @@ public class DashboardConfigService {
                         "learning.toolCallThreshold", "number", "agent", "触发学习所需的最少工具调用数"));
         addField(
                 new FieldDefinition(
-                        "learning.auxiliaryTimeoutSeconds",
-                        "number",
-                        "agent",
-                        "自动学习辅助模型调用总超时（秒）"));
+                        "learning.auxiliaryTimeoutSeconds", "number", "agent", "自动学习辅助模型调用总超时（秒）"));
         addField(
                 new FieldDefinition(
                         "skills.curator.enabled", "boolean", "agent", "启用技能后台维护 Curator"));
@@ -227,10 +237,15 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition("task.busyPolicy", "select", "agent", "运行中输入策略")
                         .options("queue", "steer", "interrupt", "reject"));
-        addField(new FieldDefinition("tool_output.max_bytes", "number", "agent", "工具输出内联字节上限"));
-        addField(new FieldDefinition("tool_output.turn_budget_bytes", "number", "agent", "单轮工具输出累计预算字节"));
-        addField(new FieldDefinition("tool_output.max_lines", "number", "agent", "工具文件读取最大行数"));
-        addField(new FieldDefinition("tool_output.max_line_length", "number", "agent", "工具输出单行最大长度"));
+        addField(
+                new FieldDefinition("task.toolOutputInlineLimit", "number", "agent", "工具输出内联字节上限"));
+        addField(
+                new FieldDefinition(
+                        "task.toolOutputTurnBudget", "number", "agent", "单轮工具输出累计预算字节"));
+        addField(new FieldDefinition("task.toolOutputMaxLines", "number", "agent", "工具文件读取最大行数"));
+        addField(
+                new FieldDefinition(
+                        "task.toolOutputMaxLineLength", "number", "agent", "工具输出单行最大长度"));
         addField(
                 new FieldDefinition(
                         "agent.heartbeat.intervalMinutes",
@@ -272,22 +287,13 @@ public class DashboardConfigService {
                         "ReAct 摘要触发 token 阈值"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopWarningsEnabled",
-                        "boolean",
-                        "security",
-                        "启用重复工具调用软提醒"));
+                        "react.toolLoopWarningsEnabled", "boolean", "security", "启用重复工具调用软提醒"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopHardStopEnabled",
-                        "boolean",
-                        "security",
-                        "启用重复工具调用硬停"));
+                        "react.toolLoopHardStopEnabled", "boolean", "security", "启用重复工具调用硬停"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopExactFailureWarnAfter",
-                        "number",
-                        "security",
-                        "相同参数失败提醒阈值"));
+                        "react.toolLoopExactFailureWarnAfter", "number", "security", "相同参数失败提醒阈值"));
         addField(
                 new FieldDefinition(
                         "react.toolLoopExactFailureBlockAfter",
@@ -308,16 +314,10 @@ public class DashboardConfigService {
                         "同一工具失败硬停阈值"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopNoProgressWarnAfter",
-                        "number",
-                        "security",
-                        "只读工具无进展提醒阈值"));
+                        "react.toolLoopNoProgressWarnAfter", "number", "security", "只读工具无进展提醒阈值"));
         addField(
                 new FieldDefinition(
-                        "react.toolLoopNoProgressBlockAfter",
-                        "number",
-                        "security",
-                        "只读工具无进展硬停阈值"));
+                        "react.toolLoopNoProgressBlockAfter", "number", "security", "只读工具无进展硬停阈值"));
         addField(
                 new FieldDefinition(
                         "agent.personalities.helpful.description",
@@ -405,30 +405,19 @@ public class DashboardConfigService {
                         "容器浏览器访问宿主机 loopback 地址改写"));
         addField(
                 new FieldDefinition(
-                        "browser.loopbackHostAlias",
-                        "string",
-                        "security",
-                        "容器浏览器访问宿主机的主机别名"));
+                        "browser.loopbackHostAlias", "string", "security", "容器浏览器访问宿主机的主机别名"));
         addField(
                 new FieldDefinition(
-                        "security.websiteBlocklist.enabled",
-                        "boolean",
-                        "security",
-                        "启用网站阻断策略"));
+                        "security.websiteBlocklist.enabled", "boolean", "security", "启用网站阻断策略"));
         addField(
                 new FieldDefinition(
-                        "security.websiteBlocklist.domains",
-                        "list",
-                        "security",
-                        "网站阻断域名列表"));
+                        "security.websiteBlocklist.domains", "list", "security", "网站阻断域名列表"));
         addField(
                 new FieldDefinition(
-                        "security.websiteBlocklist.sharedFiles",
-                        "list",
-                        "security",
-                        "共享网站阻断列表文件"));
+                        "security.websiteBlocklist.sharedFiles", "list", "security", "共享网站阻断列表文件"));
         addField(
-                new FieldDefinition("security.tirithEnabled", "boolean", "security", "启用 Tirith 命令扫描"));
+                new FieldDefinition(
+                        "security.tirithEnabled", "boolean", "security", "启用 Tirith 命令扫描"));
         addField(
                 new FieldDefinition("security.tirithPath", "string", "security", "Tirith 可执行文件路径"));
         addField(
@@ -438,52 +427,28 @@ public class DashboardConfigService {
                 new FieldDefinition(
                         "security.tirithFailOpen", "boolean", "security", "Tirith 不可用时放行"));
         addField(
-                new FieldDefinition(
-                        "approvals.mode",
-                        "select",
-                        "security",
-                        "危险命令审批模式")
-                        .options("on", "off", "smart"));
+                new FieldDefinition("security.guardrailMode", "select", "security", "危险命令审批模式")
+                        .options("approval", "strict", "bypass", "smart"));
         addField(
                 new FieldDefinition(
-                        "approvals.cronMode",
-                        "select",
-                        "security",
-                        "Cron 危险命令策略")
-                        .options("deny", "approve"));
+                                "security.guardrailCronMode", "select", "security", "Cron 危险命令策略")
+                        .options("approval", "strict", "bypass", "approve"));
         addField(
                 new FieldDefinition(
-                        "approvals.timeoutSeconds",
-                        "number",
-                        "security",
-                        "本地审批超时秒数"));
+                                "security.guardrailCronScope", "select", "security", "Cron 审批记忆范围")
+                        .options("job", "session", "global"));
+        addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "本地审批超时秒数"));
         addField(
                 new FieldDefinition(
-                        "approvals.gatewayTimeoutSeconds",
-                        "number",
-                        "security",
-                        "渠道审批超时秒数"));
+                        "approvals.gatewayTimeoutSeconds", "number", "security", "渠道审批超时秒数"));
         addField(
                 new FieldDefinition(
-                        "approvals.mcpReloadConfirm",
-                        "boolean",
-                        "security",
-                        "MCP reload 需要确认"));
+                        "approvals.mcpReloadConfirm", "boolean", "security", "MCP reload 需要确认"));
+        addField(new FieldDefinition("terminal.credentialFiles", "list", "security", "终端凭据文件挂载清单"));
         addField(
                 new FieldDefinition(
-                        "terminal.credentialFiles",
-                        "list",
-                        "security",
-                        "终端凭据文件挂载清单"));
-        addField(
-                new FieldDefinition(
-                        "terminal.envPassthrough",
-                        "list",
-                        "security",
-                        "终端子进程环境变量放行清单"));
-        addField(
-                new FieldDefinition(
-                        "terminal.sudoPassword", "password", "security", "sudo 密码"));
+                        "terminal.envPassthrough", "list", "security", "终端子进程环境变量放行清单"));
+        addField(new FieldDefinition("terminal.sudoPassword", "password", "security", "sudo 密码"));
 
         addChannelFields("feishu");
         addField(
@@ -736,10 +701,10 @@ public class DashboardConfigService {
                         channelLabel(name) + "是否允许所有用户"));
         addField(
                 new FieldDefinition(
-                        "channels." + name + ".unauthorizedDmBehavior",
-                        "select",
-                        "messaging",
-                        channelLabel(name) + "未授权私聊行为")
+                                "channels." + name + ".unauthorizedDmBehavior",
+                                "select",
+                                "messaging",
+                                channelLabel(name) + "未授权私聊行为")
                         .options("pair", "ignore"));
     }
 
@@ -852,12 +817,15 @@ public class DashboardConfigService {
 
         Map<String, Object> fieldValues = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> entry : flattened.entrySet()) {
-            String key = entry.getKey();
+            String key = canonicalFieldKey(entry.getKey());
             if (key.startsWith("solonclaw.")) {
                 key = key.substring("solonclaw.".length());
             }
-            if (fields.containsKey(key) || isSupportedPassthroughKey(key)) {
-                fieldValues.put(key, entry.getValue());
+            String canonicalKey = canonicalFieldKey(key);
+            if (fields.containsKey(canonicalKey)) {
+                fieldValues.put(canonicalKey, entry.getValue());
+            } else if (isSupportedPassthroughKey(entry.getKey())) {
+                fieldValues.put(entry.getKey(), entry.getValue());
             }
         }
         return fieldValues;
@@ -888,7 +856,10 @@ public class DashboardConfigService {
 
         Map<String, Object> filtered = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> entry : output.entrySet()) {
-            if (fields.containsKey(entry.getKey()) || isSupportedPassthroughKey(entry.getKey())) {
+            String canonicalKey = canonicalFieldKey(entry.getKey());
+            if (fields.containsKey(canonicalKey)) {
+                filtered.put(canonicalKey, entry.getValue());
+            } else if (isSupportedPassthroughKey(entry.getKey())) {
                 filtered.put(entry.getKey(), entry.getValue());
             }
         }
@@ -934,11 +905,13 @@ public class DashboardConfigService {
 
     private void validateKeys(Iterable<String> keys) {
         for (String key : keys) {
-            if (key.startsWith("runtime.") || key.startsWith("solonclaw.runtime.")) {
+            String canonicalKey = canonicalFieldKey(key);
+            if (canonicalKey.startsWith("runtime.")
+                    || canonicalKey.startsWith("solonclaw.runtime.")) {
                 throw new IllegalStateException(
                         "solonclaw.runtime.* is not editable from the dashboard");
             }
-            if (!fields.containsKey(key) && !isSupportedPassthroughKey(key)) {
+            if (!fields.containsKey(canonicalKey) && !isSupportedPassthroughKey(key)) {
                 throw new IllegalStateException("Unsupported config key: " + key);
             }
         }
@@ -946,10 +919,9 @@ public class DashboardConfigService {
 
     private void validateValues(Map<String, Object> values) {
         validateCredentialFiles(values.get("terminal.credentialFiles"));
-        validateEnvPassthrough(values.get("terminal.envPassthrough"), "terminal.envPassthrough");
-        validateEnvPassthrough(values.get("terminal.env_passthrough"), "terminal.env_passthrough");
+        validateEnvPassthrough(
+                values.get("terminal.envPassthrough"), "solonclaw.terminal.envPassthrough");
         validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
-        validateWebsiteSharedFiles(values.get("security.website_blocklist.shared_files"));
     }
 
     private void validateEnvPassthrough(Object rawValue, String configKey) {
@@ -965,19 +937,19 @@ public class DashboardConfigService {
             String value = path.trim();
             if (containsControlCharacter(value)) {
                 throw new IllegalStateException(
-                        "terminal.credentialFiles contains an invalid control character");
+                        "solonclaw.terminal.credentialFiles contains an invalid control character");
             }
             if (startsWithHomePath(value)) {
                 throw new IllegalStateException(
-                        "terminal.credentialFiles must use runtime-relative paths");
+                        "solonclaw.terminal.credentialFiles must use runtime-relative paths");
             }
             if (isAbsolutePathText(value)) {
                 throw new IllegalStateException(
-                        "terminal.credentialFiles must use runtime-relative paths");
+                        "solonclaw.terminal.credentialFiles must use runtime-relative paths");
             }
             if (containsTraversal(value)) {
                 throw new IllegalStateException(
-                        "terminal.credentialFiles must not contain path traversal");
+                        "solonclaw.terminal.credentialFiles must not contain path traversal");
             }
         }
     }
@@ -1071,15 +1043,42 @@ public class DashboardConfigService {
     }
 
     private boolean isSupportedPassthroughKey(String key) {
-        if (PASSTHROUGH_KEYS.contains(key)) {
-            return true;
+        if (key == null) {
+            return false;
         }
-        for (String prefix : PASSTHROUGH_PREFIXES) {
-            if (key != null && key.startsWith(prefix)) {
+        for (String prefix : ROOT_PREFIXES) {
+            if (key.startsWith(prefix)) {
+                return true;
+            }
+        }
+        for (String prefix : SOLONCLAW_PASSTHROUGH_PREFIXES) {
+            if (key.startsWith(prefix)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean isRootPassthroughKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        for (String prefix : ROOT_PREFIXES) {
+            if (key.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String canonicalFieldKey(String key) {
+        if (key == null) {
+            return "";
+        }
+        if (key.startsWith("solonclaw.")) {
+            return key.substring("solonclaw.".length());
+        }
+        return key;
     }
 
     private void writeOverrideFile(Map<String, Object> fieldValues) {
@@ -1089,10 +1088,13 @@ public class DashboardConfigService {
             clearManagedFields(solonclaw);
             clearRootPassthroughFields(root);
             for (Map.Entry<String, Object> entry : fieldValues.entrySet()) {
-                if (isSupportedPassthroughKey(entry.getKey())) {
+                String key = entry.getKey();
+                if (isRootPassthroughKey(key)) {
                     setNestedValue(root, entry.getKey(), entry.getValue());
+                } else if (key.startsWith("solonclaw.")) {
+                    setNestedValue(root, key, entry.getValue());
                 } else {
-                    setNestedValue(solonclaw, entry.getKey(), entry.getValue());
+                    setNestedValue(solonclaw, canonicalFieldKey(key), entry.getValue());
                 }
             }
 
@@ -1166,20 +1168,14 @@ public class DashboardConfigService {
         for (String key : fields.keySet()) {
             removeNestedValue(jimuqu, key);
         }
-        for (String prefix : PASSTHROUGH_PREFIXES) {
-            removeNestedPrefix(jimuqu, prefix);
-        }
-        for (String key : PASSTHROUGH_KEYS) {
-            removeNestedValue(jimuqu, key);
+        for (String prefix : SOLONCLAW_PASSTHROUGH_PREFIXES) {
+            removeNestedPrefix(jimuqu, prefix.substring("solonclaw.".length()));
         }
     }
 
     private void clearRootPassthroughFields(Map<String, Object> root) {
-        for (String prefix : PASSTHROUGH_PREFIXES) {
+        for (String prefix : ROOT_PREFIXES) {
             removeNestedPrefix(root, prefix);
-        }
-        for (String key : PASSTHROUGH_KEYS) {
-            removeNestedValue(root, key);
         }
     }
 

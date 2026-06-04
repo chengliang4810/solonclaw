@@ -83,8 +83,7 @@ public class TerminalSessionBrowserTest {
         assertThat(browser.render("/session show 客户周报"))
                 .contains("session-alpha-0001")
                 .contains("已生成周报摘要");
-        assertThat(browser.render("/session show missing"))
-                .contains("没有找到匹配的会话");
+        assertThat(browser.render("/session show missing")).contains("没有找到匹配的会话");
     }
 
     private List<SessionRecord> sessions() {
@@ -141,7 +140,8 @@ public class TerminalSessionBrowserTest {
         public void bindSource(String sourceKey, String sessionId) {}
 
         @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+        public SessionRecord cloneSession(
+                String sourceKey, String sourceSessionId, String branchName) {
             return null;
         }
 

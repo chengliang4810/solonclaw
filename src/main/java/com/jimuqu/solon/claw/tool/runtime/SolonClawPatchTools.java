@@ -44,7 +44,8 @@ public class SolonClawPatchTools {
         this.rootPath = Paths.get(dir).toAbsolutePath().normalize();
         this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
-        this.fileStateTracker = fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
+        this.fileStateTracker =
+                fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
         try {
             Files.createDirectories(this.rootPath);
         } catch (IOException ignored) {
@@ -122,7 +123,8 @@ public class SolonClawPatchTools {
         return ONode.serialize(result);
     }
 
-    private PatchResult replace(String filePath, String oldString, String newString, boolean replaceAll)
+    private PatchResult replace(
+            String filePath, String oldString, String newString, boolean replaceAll)
             throws IOException {
         if (StrUtil.isBlank(filePath)) {
             return PatchResult.error("path required");
@@ -252,7 +254,8 @@ public class SolonClawPatchTools {
                 currentHunk = new Hunk(null);
             } else if (trimmed.startsWith("*** Delete File:")) {
                 finishOperation(operations, current, currentHunk);
-                operations.add(new PatchOperation("delete", afterMarker(trimmed, "*** Delete File:")));
+                operations.add(
+                        new PatchOperation("delete", afterMarker(trimmed, "*** Delete File:")));
                 current = null;
                 currentHunk = null;
             } else if (trimmed.startsWith("*** Move File:")) {
@@ -289,7 +292,8 @@ public class SolonClawPatchTools {
         return operations;
     }
 
-    private void finishOperation(List<PatchOperation> operations, PatchOperation current, Hunk hunk) {
+    private void finishOperation(
+            List<PatchOperation> operations, PatchOperation current, Hunk hunk) {
         if (current == null) {
             return;
         }
@@ -341,7 +345,9 @@ public class SolonClawPatchTools {
                 if (StrUtil.isNotBlank(operation.newPath)) {
                     Path destination = resolvePath(operation.newPath);
                     if (Files.exists(destination)) {
-                        errors.add(safePath(operation.newPath) + ": destination already exists - move would overwrite");
+                        errors.add(
+                                safePath(operation.newPath)
+                                        + ": destination already exists - move would overwrite");
                     }
                 }
             } else if ("delete".equals(operation.type)) {
@@ -356,12 +362,16 @@ public class SolonClawPatchTools {
                     errors.add(safePath(operation.filePath) + ": source file not found for move");
                 }
                 if (Files.exists(destination)) {
-                    errors.add(safePath(operation.newPath) + ": destination already exists - move would overwrite");
+                    errors.add(
+                            safePath(operation.newPath)
+                                    + ": destination already exists - move would overwrite");
                 }
             } else if ("add".equals(operation.type)) {
                 Path target = resolvePath(operation.filePath);
                 if (Files.exists(target)) {
-                    errors.add(safePath(operation.filePath) + ": file already exists - add would overwrite");
+                    errors.add(
+                            safePath(operation.filePath)
+                                    + ": file already exists - add would overwrite");
                 }
             }
         }
@@ -391,8 +401,7 @@ public class SolonClawPatchTools {
         if (securityPolicyService == null) {
             return null;
         }
-        SecurityPolicyService.FileVerdict verdict =
-                securityPolicyService.checkPath(filePath, true);
+        SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkPath(filePath, true);
         if (verdict.isAllowed()) {
             return null;
         }
@@ -499,7 +508,10 @@ public class SolonClawPatchTools {
             if (second >= 0) {
                 return ApplyResult.error("hunk " + hintLabel(hunk) + " is ambiguous");
             }
-            content = content.substring(0, first) + replacement + content.substring(first + search.length());
+            content =
+                    content.substring(0, first)
+                            + replacement
+                            + content.substring(first + search.length());
         }
         return ApplyResult.success(content);
     }
@@ -513,8 +525,7 @@ public class SolonClawPatchTools {
         }
         int occurrences = countOccurrences(content, hint);
         if (occurrences == 0) {
-            return ApplyResult.error(
-                    "addition-only hunk context hint '" + hint + "' not found");
+            return ApplyResult.error("addition-only hunk context hint '" + hint + "' not found");
         }
         if (occurrences > 1) {
             return ApplyResult.error(
@@ -530,7 +541,10 @@ public class SolonClawPatchTools {
             return ApplyResult.success(content + "\n" + insertText);
         }
         return ApplyResult.success(
-                content.substring(0, nextLine + 1) + insertText + "\n" + content.substring(nextLine + 1));
+                content.substring(0, nextLine + 1)
+                        + insertText
+                        + "\n"
+                        + content.substring(nextLine + 1));
     }
 
     private int countOccurrences(String content, String needle) {
@@ -765,7 +779,10 @@ public class SolonClawPatchTools {
     }
 
     private String safePath(String path) {
-        String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).replace('\\', '/').trim();
+        String value =
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
+                        .replace('\\', '/')
+                        .trim();
         if (value.length() == 0) {
             return "[unknown]";
         }
@@ -812,7 +829,8 @@ public class SolonClawPatchTools {
         public static PatchResult error(String error) {
             PatchResult result = new PatchResult();
             result.success = false;
-            result.error = SecretRedactor.redact(StrUtil.blankToDefault(error, "patch failed"), 1000);
+            result.error =
+                    SecretRedactor.redact(StrUtil.blankToDefault(error, "patch failed"), 1000);
             return result;
         }
 

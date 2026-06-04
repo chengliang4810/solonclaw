@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
 /** 模型能力元数据解析服务。 */
 public class ModelMetadataService {
     private static final Pattern OLLAMA_TAG_PATTERN =
-            Pattern.compile("^(\\d+\\.?\\d*b|latest|stable|q\\d|fp?\\d|instruct|chat|coder|vision|text)");
+            Pattern.compile(
+                    "^(\\d+\\.?\\d*b|latest|stable|q\\d|fp?\\d|instruct|chat|coder|vision|text)");
 
     private final AppConfig appConfig;
 
@@ -24,8 +25,10 @@ public class ModelMetadataService {
 
     public ModelMetadata resolve(String providerKey, AppConfig.ProviderConfig provider) {
         String dialect =
-                LlmProviderSupport.normalizeDialect(provider == null ? null : provider.getDialect());
-        String model = StrUtil.nullToEmpty(provider == null ? null : provider.getDefaultModel()).trim();
+                LlmProviderSupport.normalizeDialect(
+                        provider == null ? null : provider.getDialect());
+        String model =
+                StrUtil.nullToEmpty(provider == null ? null : provider.getDefaultModel()).trim();
         String normalizedModel = normalizedModelName(model);
         ModelMetadata metadata = new ModelMetadata();
         metadata.setProvider(StrUtil.nullToEmpty(providerKey).trim());
@@ -47,20 +50,24 @@ public class ModelMetadataService {
         metadata.setSupportsAudio(supportsAudio);
         metadata.setSupportsAttachment(supportsAttachment);
         metadata.setSupportsPdf(supportsPdf);
-        metadata.setSupportsMultimodal(supportsVision || supportsAudio || supportsPdf || supportsAttachment);
+        metadata.setSupportsMultimodal(
+                supportsVision || supportsAudio || supportsPdf || supportsAttachment);
         metadata.setInputModalities(
                 resolveInputModalities(
                         dialect, supportsVision, supportsAudio, supportsPdf, supportsAttachment));
-        metadata.setOutputModalities(resolveOutputModalities(dialect, normalizedModel, supportsAudio));
+        metadata.setOutputModalities(
+                resolveOutputModalities(dialect, normalizedModel, supportsAudio));
         metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
-        metadata.setSupportsStructuredOutput(resolveSupportsStructuredOutput(dialect, normalizedModel));
+        metadata.setSupportsStructuredOutput(
+                resolveSupportsStructuredOutput(dialect, normalizedModel));
         metadata.setSupportsOpenWeights(resolveSupportsOpenWeights(dialect, normalizedModel));
         metadata.setSupportsInterleaved(resolveSupportsInterleaved(dialect, normalizedModel));
         metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
         metadata.setSupportsStreaming(true);
         metadata.setSource(resolveSource(provider, normalizedModel));
         metadata.setProvenance(resolveProvenance(provider, normalizedModel));
-        metadata.setDefaultModel(StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
+        metadata.setDefaultModel(
+                StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         metadata.setSupported(LlmProviderSupport.isSupportedDialect(dialect));
         return metadata;
     }
@@ -72,7 +79,9 @@ public class ModelMetadataService {
             return value.substring(slash + 1).trim();
         }
         int colon = value.indexOf(':');
-        if (colon > 0 && colon + 1 < value.length() && isProviderPrefix(value.substring(0, colon))) {
+        if (colon > 0
+                && colon + 1 < value.length()
+                && isProviderPrefix(value.substring(0, colon))) {
             String suffix = value.substring(colon + 1).trim();
             if (looksLikeOllamaTag(suffix)) {
                 return value;
@@ -306,7 +315,8 @@ public class ModelMetadataService {
         return new ArrayList<String>(modalities);
     }
 
-    private List<String> resolveOutputModalities(String dialect, String model, boolean supportsAudio) {
+    private List<String> resolveOutputModalities(
+            String dialect, String model, boolean supportsAudio) {
         Set<String> modalities = new LinkedHashSet<String>();
         modalities.add("text");
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
@@ -326,7 +336,8 @@ public class ModelMetadataService {
         return LlmProviderSupport.buildApiUrl(provider.getBaseUrl(), dialect);
     }
 
-    private String resolveModelListUrl(String providerKey, AppConfig.ProviderConfig provider, String dialect) {
+    private String resolveModelListUrl(
+            String providerKey, AppConfig.ProviderConfig provider, String dialect) {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
             return "";
         }

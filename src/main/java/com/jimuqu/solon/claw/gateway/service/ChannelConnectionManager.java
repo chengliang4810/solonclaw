@@ -26,7 +26,8 @@ public class ChannelConnectionManager {
 
     private final Map<PlatformType, ChannelAdapter> adapters;
     private final Map<PlatformType, ReconnectState> reconnectStates =
-            Collections.synchronizedMap(new EnumMap<PlatformType, ReconnectState>(PlatformType.class));
+            Collections.synchronizedMap(
+                    new EnumMap<PlatformType, ReconnectState>(PlatformType.class));
     private final ScheduledExecutorService reconnectExecutor;
 
     public ChannelConnectionManager(Map<PlatformType, ChannelAdapter> adapters) {

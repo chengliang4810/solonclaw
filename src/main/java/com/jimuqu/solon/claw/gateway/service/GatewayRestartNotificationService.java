@@ -68,7 +68,8 @@ public class GatewayRestartNotificationService {
     private DeliveryRequest readRequest(File marker) {
         try {
             Map<?, ?> data =
-                    ONode.deserialize(FileUtil.readString(marker, StandardCharsets.UTF_8), Map.class);
+                    ONode.deserialize(
+                            FileUtil.readString(marker, StandardCharsets.UTF_8), Map.class);
             PlatformType platform = PlatformType.fromName(asText(data.get("platform")));
             String chatId = asText(data.get("chat_id"));
             if (platform == null || StrUtil.isBlank(chatId)) {
@@ -102,7 +103,6 @@ public class GatewayRestartNotificationService {
         }
         String message = error.getMessage();
         return SecretRedactor.redact(
-                StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message,
-                1000);
+                StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message, 1000);
     }
 }

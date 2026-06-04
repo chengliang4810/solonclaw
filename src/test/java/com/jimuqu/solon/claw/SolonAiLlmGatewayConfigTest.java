@@ -12,20 +12,20 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import java.io.File;
 import java.awt.image.BufferedImage;
-import java.nio.file.Files;
-import java.util.Arrays;
+import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Random;
-import javax.imageio.ImageIO;
-import org.noear.solon.ai.chat.content.ImageBlock;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Properties;
+import java.util.Random;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatModel;
+import org.noear.solon.ai.chat.content.ImageBlock;
 import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 
@@ -129,7 +129,8 @@ public class SolonAiLlmGatewayConfigTest {
 
     @Test
     void shouldRejectUserInfoInProviderApiUrl() {
-        AppConfig config = remoteProviderConfig("https://user:pass@example.com/v1/chat/completions");
+        AppConfig config =
+                remoteProviderConfig("https://user:pass@example.com/v1/chat/completions");
 
         assertThatThrownBy(() -> validateLlmConfig(config))
                 .isInstanceOf(IllegalStateException.class)
@@ -206,7 +207,8 @@ public class SolonAiLlmGatewayConfigTest {
     @Test
     void shouldUseRawResponseLoggingDialectForAllSupportedProviders() throws Exception {
         assertLoggingDialect("ollama", "http://localhost:11434/api/chat", "llama3");
-        assertLoggingDialect("gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-pro");
+        assertLoggingDialect(
+                "gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-pro");
         assertLoggingDialect("anthropic", "https://api.anthropic.com/v1/messages", "claude-sonnet");
     }
 
@@ -229,7 +231,8 @@ public class SolonAiLlmGatewayConfigTest {
         ChatConfig chatConfig =
                 (ChatConfig) buildChatConfig.invoke(gateway, config.getLlm(), session);
 
-        assertThat(chatConfig.getModelOptions().options()).containsEntry("service_tier", "priority");
+        assertThat(chatConfig.getModelOptions().options())
+                .containsEntry("service_tier", "priority");
     }
 
     @Test
@@ -262,7 +265,8 @@ public class SolonAiLlmGatewayConfigTest {
         config.getLlm().setDialect("openai");
         config.getLlm().setModel("gpt-4o");
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
-        AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        AgentRunContext runContext =
+                new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
         MessageAttachment attachment = new MessageAttachment();
         attachment.setKind("image");
         attachment.setOriginalName("shot.png");
@@ -271,10 +275,14 @@ public class SolonAiLlmGatewayConfigTest {
         runContext.setUserAttachments(Arrays.asList(attachment));
         Method userPrompt =
                 SolonAiLlmGateway.class.getDeclaredMethod(
-                        "userPrompt", String.class, AgentRunContext.class, AppConfig.LlmConfig.class);
+                        "userPrompt",
+                        String.class,
+                        AgentRunContext.class,
+                        AppConfig.LlmConfig.class);
         userPrompt.setAccessible(true);
 
-        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext, config.getLlm());
+        Prompt prompt =
+                (Prompt) userPrompt.invoke(gateway, "Describe it", runContext, config.getLlm());
 
         assertThat(prompt.getMessages()).hasSize(1);
         assertThat(prompt.getMessages().get(0)).isInstanceOf(UserMessage.class);
@@ -295,15 +303,21 @@ public class SolonAiLlmGatewayConfigTest {
         config.getLlm().setDialect("openai");
         config.getLlm().setModel("gpt-4o");
         AttachmentCacheService cacheService = new AttachmentCacheService(config);
-        File mediaDir = cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
+        File mediaDir =
+                cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
         Files.createDirectories(mediaDir.toPath());
         File localImage = new File(mediaDir, "safe.png");
-        Files.write(localImage.toPath(), new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
+        Files.write(
+                localImage.toPath(),
+                new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
         File outsideImage = new File("target/outside-image.png");
-        Files.write(outsideImage.toPath(), new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
+        Files.write(
+                outsideImage.toPath(),
+                new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
 
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
-        AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        AgentRunContext runContext =
+                new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
         runContext.setUserAttachments(
                 Arrays.asList(
                         imageWithData("image/png", "iVBORw0KGgo="),
@@ -312,21 +326,26 @@ public class SolonAiLlmGatewayConfigTest {
                         imageWithData("text/plain", "aGVsbG8="),
                         attachment("file", "image/png", "iVBORw0KGgo=", null, null),
                         imageWithData("image/svg+xml", "PHN2Zz48L3N2Zz4="),
-                        imageWithData("image/png", java.util.Base64.getEncoder().encodeToString(new byte[6 * 1024 * 1024])),
+                        imageWithData(
+                                "image/png",
+                                java.util.Base64.getEncoder()
+                                        .encodeToString(new byte[6 * 1024 * 1024])),
                         imageWithLocalPath("image/png", outsideImage.getAbsolutePath()),
                         imageWithData("image/png", "iVBORw0KGgo=")));
         Method userPrompt =
                 SolonAiLlmGateway.class.getDeclaredMethod(
-                        "userPrompt", String.class, AgentRunContext.class, AppConfig.LlmConfig.class);
+                        "userPrompt",
+                        String.class,
+                        AgentRunContext.class,
+                        AppConfig.LlmConfig.class);
         userPrompt.setAccessible(true);
 
-        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext, config.getLlm());
+        Prompt prompt =
+                (Prompt) userPrompt.invoke(gateway, "Describe it", runContext, config.getLlm());
 
         UserMessage message = (UserMessage) prompt.getMessages().get(0);
         assertThat(message.getBlocks()).hasSize(4);
-        assertThat(message.getBlocks())
-                .filteredOn(block -> block instanceof ImageBlock)
-                .hasSize(3);
+        assertThat(message.getBlocks()).filteredOn(block -> block instanceof ImageBlock).hasSize(3);
     }
 
     @Test
@@ -336,15 +355,21 @@ public class SolonAiLlmGatewayConfigTest {
         config.getLlm().setDialect("openai");
         config.getLlm().setModel("custom/unknown-small-model");
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
-        AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        AgentRunContext runContext =
+                new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
         runContext.setUserAttachments(Arrays.asList(imageWithData("image/png", "iVBORw0KGgo=")));
         Method userContentBlocks =
                 SolonAiLlmGateway.class.getDeclaredMethod(
-                        "userContentBlocks", String.class, AgentRunContext.class, AppConfig.LlmConfig.class);
+                        "userContentBlocks",
+                        String.class,
+                        AgentRunContext.class,
+                        AppConfig.LlmConfig.class);
         userContentBlocks.setAccessible(true);
 
         java.util.List<?> blocks =
-                (java.util.List<?>) userContentBlocks.invoke(gateway, "Describe it", runContext, config.getLlm());
+                (java.util.List<?>)
+                        userContentBlocks.invoke(
+                                gateway, "Describe it", runContext, config.getLlm());
 
         assertThat(blocks).isEmpty();
     }
@@ -355,20 +380,21 @@ public class SolonAiLlmGatewayConfigTest {
         config.getRuntime().setHome("target/test-runtime/image-shrink");
         config.getRuntime().setCacheDir("target/test-runtime/image-shrink/cache");
         AttachmentCacheService cacheService = new AttachmentCacheService(config);
-        File mediaDir = cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
+        File mediaDir =
+                cacheService.platformDir(com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY);
         Files.createDirectories(mediaDir.toPath());
         File largeImage = new File(mediaDir, "large.png");
         writeLargePng(largeImage, 2500, 2500);
         assertThat(largeImage.length()).isGreaterThan(IMAGE_EMBED_TARGET_BYTES);
 
-        MessageAttachment attachment = imageWithLocalPath("image/png", largeImage.getAbsolutePath());
+        MessageAttachment attachment =
+                imageWithLocalPath("image/png", largeImage.getAbsolutePath());
         MediaInputBoundaryService service = new MediaInputBoundaryService(config);
 
         ImageBlock image = service.toImageBlock(attachment);
 
         assertThat(image).isNotNull();
-        assertThat((long) image.getData().length())
-                .isLessThanOrEqualTo(IMAGE_EMBED_TARGET_BYTES);
+        assertThat((long) image.getData().length()).isLessThanOrEqualTo(IMAGE_EMBED_TARGET_BYTES);
     }
 
     @Test

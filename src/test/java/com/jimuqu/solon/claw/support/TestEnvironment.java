@@ -79,8 +79,8 @@ import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -304,7 +304,8 @@ public class TestEnvironment {
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
-                        java.util.Collections.<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
+                        java.util.Collections
+                                .<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
                         securityPolicyService);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(

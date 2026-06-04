@@ -161,14 +161,13 @@ public class ProcessRegistryTest {
                 .contains("token=***")
                 .doesNotContain("sk-test1234567890abcdef")
                 .doesNotContain("secret123");
-        assertThat(managed.getOutput())
-                .contains("sk-test1234567890abcdef")
-                .contains("secret123");
+        assertThat(managed.getOutput()).contains("sk-test1234567890abcdef").contains("secret123");
     }
 
     @Test
     void shouldRedactManagedProcessCwdInMapViewWithoutMutatingRawCwd() throws Exception {
-        File workDir = Files.createTempDirectory("process-cwd-token=ghp_processcwdmap12345").toFile();
+        File workDir =
+                Files.createTempDirectory("process-cwd-token=ghp_processcwdmap12345").toFile();
         ProcessRegistry registry = new ProcessRegistry();
         ProcessRegistry.ManagedProcess managed = registry.start("echo cwd-test", workDir);
         managed.waitFor(5000L);
@@ -211,7 +210,9 @@ public class ProcessRegistryTest {
                 .isEqualTo("(echo ready && npm run dev &)");
         assertThat(ProcessRegistry.rewriteCompoundBackground("echo ready | npm run dev &"))
                 .isEqualTo("echo ready | npm run dev &");
-        assertThat(ProcessRegistry.rewriteCompoundBackground("echo ready && npm run dev &> app.log"))
+        assertThat(
+                        ProcessRegistry.rewriteCompoundBackground(
+                                "echo ready && npm run dev &> app.log"))
                 .isEqualTo("echo ready && npm run dev &> app.log");
         assertThat(ProcessRegistry.rewriteCompoundBackground("echo ready && npm run dev 2>&1"))
                 .isEqualTo("echo ready && npm run dev 2>&1");
@@ -221,9 +222,7 @@ public class ProcessRegistryTest {
     void shouldPrependShellInitFilesForPosixBackgroundCommandsLikeJimuqu() {
         List<String> command =
                 ProcessRegistry.shellCommand(
-                        "npm run dev",
-                        Arrays.asList("/tmp/profile.sh", "/tmp/o'malley.sh"),
-                        false);
+                        "npm run dev", Arrays.asList("/tmp/profile.sh", "/tmp/o'malley.sh"), false);
 
         assertThat(command).containsExactly("/bin/sh", "-lc", command.get(2));
         assertThat(command.get(2)).startsWith("set +e\n");
@@ -237,9 +236,7 @@ public class ProcessRegistryTest {
     void shouldKeepWindowsBackgroundShellCommandUnwrapped() {
         List<String> command =
                 ProcessRegistry.shellCommand(
-                        "npm run dev",
-                        Collections.singletonList("/tmp/profile.sh"),
-                        true);
+                        "npm run dev", Collections.singletonList("/tmp/profile.sh"), true);
 
         assertThat(command).containsExactly("cmd", "/c", "npm run dev");
     }
@@ -277,9 +274,11 @@ public class ProcessRegistryTest {
     }
 
     @Test
-    void shouldNotPrependSensitiveConfiguredShellInitFilesAtRuntimeLikeJimuqu()
-            throws Exception {
-        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+    void shouldNotPrependSensitiveConfiguredShellInitFilesAtRuntimeLikeJimuqu() throws Exception {
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
         Path home = Files.createTempDirectory("jimuqu-shell-init-runtime");
         Path safe = home.resolve("safe.sh");
         Path envFile = home.resolve(".env");
@@ -290,11 +289,9 @@ public class ProcessRegistryTest {
         AppConfig config = new AppConfig();
         config.getTerminal()
                 .setShellInitFiles(
-                        Arrays.asList(
-                                safe.toString(), envFile.toString(), credentials.toString()));
+                        Arrays.asList(safe.toString(), envFile.toString(), credentials.toString()));
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(
-                        home.toString(), config, new SecurityPolicyService(config));
+                new SolonClawShellSkill(home.toString(), config, new SecurityPolicyService(config));
 
         String wrapped = skill.prependShellInit("echo hi");
 

@@ -19,7 +19,10 @@ final class TerminalExitCodeSemantics {
         register("ack", 1, "No matches found (not an error)");
         register("diff", 1, "Files differ (expected, not an error)");
         register("colordiff", 1, "Files differ (expected, not an error)");
-        register("find", 1, "Some directories were inaccessible (partial results may still be valid)");
+        register(
+                "find",
+                1,
+                "Some directories were inaccessible (partial results may still be valid)");
         register("test", 1, "Condition evaluated to false (expected, not an error)");
         register("[", 1, "Condition evaluated to false (expected, not an error)");
         register("curl", 6, "Could not resolve host");
@@ -43,8 +46,7 @@ final class TerminalExitCodeSemantics {
         if ("git".equalsIgnoreCase(baseCommand)) {
             return interpretGit(segment, exitCode);
         }
-        Map<Integer, String> commandSemantics =
-                SEMANTICS.get(baseCommand.toLowerCase(Locale.ROOT));
+        Map<Integer, String> commandSemantics = SEMANTICS.get(baseCommand.toLowerCase(Locale.ROOT));
         if (commandSemantics == null) {
             return null;
         }

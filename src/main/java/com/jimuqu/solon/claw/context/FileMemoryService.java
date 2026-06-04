@@ -196,7 +196,8 @@ public class FileMemoryService implements MemoryService {
             return true;
         }
         if (MemoryContextBoundary.containsFence(content)
-                || StrUtil.containsIgnoreCase(content, "System note: The following is recalled memory context")) {
+                || StrUtil.containsIgnoreCase(
+                        content, "System note: The following is recalled memory context")) {
             return true;
         }
         for (String pattern : TRANSIENT_PATTERNS) {

@@ -119,7 +119,8 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
-    private Request redirectRequest(Request request, String currentUrl, String nextUrl, int status) {
+    private Request redirectRequest(
+            Request request, String currentUrl, String nextUrl, int status) {
         boolean sameOrigin = sameOrigin(currentUrl, nextUrl);
         Request.Builder builder =
                 sameOrigin ? request.newBuilder().url(nextUrl) : new Request.Builder().url(nextUrl);
@@ -173,8 +174,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
             return URI.create(baseUrl).resolve(location.trim()).toString();
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Skills Hub HTTP redirect URL is invalid: "
-                            + SecretRedactor.maskUrl(location),
+                    "Skills Hub HTTP redirect URL is invalid: " + SecretRedactor.maskUrl(location),
                     e);
         }
     }
@@ -191,7 +191,8 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         if (securityPolicyService == null) {
             return;
         }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlBlockingPrivate(url);
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrlBlockingPrivate(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
                     "Skills Hub HTTP URL blocked by security policy: "

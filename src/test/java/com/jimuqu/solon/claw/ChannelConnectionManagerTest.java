@@ -19,7 +19,8 @@ public class ChannelConnectionManagerTest {
         FailingChannelAdapter adapter =
                 new FailingChannelAdapter(
                         PlatformType.FEISHU, "network failed token=ghp_channelretry12345");
-        Map<PlatformType, ChannelAdapter> adapters = new LinkedHashMap<PlatformType, ChannelAdapter>();
+        Map<PlatformType, ChannelAdapter> adapters =
+                new LinkedHashMap<PlatformType, ChannelAdapter>();
         adapters.put(adapter.platform(), adapter);
         ChannelConnectionManager manager = new ChannelConnectionManager(adapters);
 

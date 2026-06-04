@@ -37,7 +37,9 @@ public final class ToolCallArgumentSanitizer {
                 i++;
                 continue;
             }
-            messages.set(i, rebuildAssistantWithSanitizedToolCalls((AssistantMessage) message, corrupted));
+            messages.set(
+                    i,
+                    rebuildAssistantWithSanitizedToolCalls((AssistantMessage) message, corrupted));
             int insertAt = i + 1;
             for (CorruptedCall call : corrupted) {
                 repaired++;
@@ -154,9 +156,7 @@ public final class ToolCallArgumentSanitizer {
             return original;
         }
         String next =
-                StrUtil.isBlank(content)
-                        ? CORRUPTION_MARKER
-                        : CORRUPTION_MARKER + "\n" + content;
+                StrUtil.isBlank(content) ? CORRUPTION_MARKER : CORRUPTION_MARKER + "\n" + content;
         return ChatMessage.ofTool(next, original.getName(), original.getToolCallId());
     }
 

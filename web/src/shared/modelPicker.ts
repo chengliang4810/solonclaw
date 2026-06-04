@@ -1,4 +1,4 @@
-import type { AvailableModelGroup } from '@/api/jimuqu/system'
+import type { AvailableModelGroup } from '@/api/solonclaw/system'
 
 export interface ModelPickerItem {
   key: string

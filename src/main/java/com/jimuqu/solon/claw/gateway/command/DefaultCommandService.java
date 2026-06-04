@@ -11,17 +11,17 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
-import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
@@ -51,7 +51,6 @@ import com.jimuqu.solon.claw.skillhub.model.SkillBrowseResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.skillhub.model.TapRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
-import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -78,8 +77,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 默认 slash 命令实现，统一承接 Jimuqu 风格的会话控制命令。 */
 public class DefaultCommandService implements CommandService {
@@ -883,14 +882,18 @@ public class DefaultCommandService implements CommandService {
         this.dashboardMcpService = dashboardMcpService;
         this.goalService = goalService == null ? new GoalService(sessionRepository) : goalService;
         this.sessionArtifactService =
-                sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
+                sessionArtifactService == null
+                        ? new SessionArtifactService()
+                        : sessionArtifactService;
         this.slashConfirmService =
                 slashConfirmService == null
                         ? new SlashConfirmService(globalSettingRepository)
                         : slashConfirmService;
         this.cronScheduler = cronScheduler;
         this.gatewayRestartCoordinator =
-                gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;
+                gatewayRestartCoordinator == null
+                        ? new GatewayRestartCoordinator()
+                        : gatewayRestartCoordinator;
         this.dashboardCuratorService = dashboardCuratorService;
         this.dashboardSkillsService = dashboardSkillsService;
         this.browserRuntimeService = browserRuntimeService;
@@ -905,7 +908,8 @@ public class DefaultCommandService implements CommandService {
     @Override
     public boolean supports(String commandName) {
         return CommandRegistry.resolve(commandName) != null
-                || pluginCommands.containsKey(StrUtil.nullToEmpty(commandName).trim().toLowerCase());
+                || pluginCommands.containsKey(
+                        StrUtil.nullToEmpty(commandName).trim().toLowerCase());
     }
 
     /** 处理单条 slash 命令。 */
@@ -1027,7 +1031,9 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_RESUME.equals(command)) {
             if (StrUtil.isBlank(args)) {
                 return GatewayReply.error(
-                        "用法：" + GatewayCommandConstants.SLASH_RESUME + " <session-id|id-prefix|title|branch>");
+                        "用法："
+                                + GatewayCommandConstants.SLASH_RESUME
+                                + " <session-id|id-prefix|title|branch>");
             }
             ResumeLookup lookup = resolveResumeTarget(message.sourceKey(), args);
             SessionRecord session = lookup.getSession();
@@ -1243,7 +1249,6 @@ public class DefaultCommandService implements CommandService {
             return handleReloadMcp(message, args);
         }
 
-
         if (GatewayCommandConstants.COMMAND_SETHOME.equals(command)) {
             return gatewayAuthorizationService.setHome(message);
         }
@@ -1289,7 +1294,6 @@ public class DefaultCommandService implements CommandService {
             return handleCron(message, args);
         }
 
-
         if (isCompressionCommand(command)) {
             SessionRecord session = requireSession(message.sourceKey());
             if (agentRunControlService != null
@@ -1326,9 +1330,7 @@ public class DefaultCommandService implements CommandService {
             } else if (outcome.isCompressed()) {
                 reply =
                         GatewayReply.ok(
-                                StrUtil.isBlank(args)
-                                        ? "已完成当前会话的上下文压缩。"
-                                        : "已按关注主题完成当前会话的上下文压缩。");
+                                StrUtil.isBlank(args) ? "已完成当前会话的上下文压缩。" : "已按关注主题完成当前会话的上下文压缩。");
             } else {
                 reply = GatewayReply.ok("当前会话没有足够的可压缩历史，已跳过上下文压缩。");
             }
@@ -1486,8 +1488,7 @@ public class DefaultCommandService implements CommandService {
                 && agentRunControlService != null
                 && StrUtil.isNotBlank(message.getThreadId())
                 && gatewayAuthorizationService.isAuthorized(message)) {
-            stopResult =
-                    agentRunControlService.stopSiblingThreadRun(message, message.sourceKey());
+            stopResult = agentRunControlService.stopSiblingThreadRun(message, message.sourceKey());
         }
         int stoppedProcesses = processRegistry.stopAll();
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
@@ -1539,10 +1540,13 @@ public class DefaultCommandService implements CommandService {
 
         GatewayReply reply = GatewayReply.ok(buffer.toString());
         reply.getRuntimeMetadata().put("restart_requested", Boolean.TRUE);
-        reply.getRuntimeMetadata().put("restart_first_request", Boolean.valueOf(request.isFirstRequest()));
+        reply.getRuntimeMetadata()
+                .put("restart_first_request", Boolean.valueOf(request.isFirstRequest()));
         reply.getRuntimeMetadata().put("restart_active_runs", Integer.valueOf(activeRuns));
         reply.getRuntimeMetadata()
-                .put("restart_drain_timeout_seconds", Integer.valueOf(request.getDrainTimeoutSeconds()));
+                .put(
+                        "restart_drain_timeout_seconds",
+                        Integer.valueOf(request.getDrainTimeoutSeconds()));
         putRestartRequesterMetadata(reply, request.getRequesterRouting());
         if (session != null) {
             reply.setSessionId(session.getSessionId());
@@ -1557,7 +1561,8 @@ public class DefaultCommandService implements CommandService {
             return;
         }
         if (routing.getPlatform() != null) {
-            reply.getRuntimeMetadata().put("restart_requester_platform", routing.getPlatform().name());
+            reply.getRuntimeMetadata()
+                    .put("restart_requester_platform", routing.getPlatform().name());
         }
         if (StrUtil.isNotBlank(routing.getChatId())) {
             reply.getRuntimeMetadata().put("restart_requester_chat_id", routing.getChatId());
@@ -1617,9 +1622,7 @@ public class DefaultCommandService implements CommandService {
             GoalState state = goalService.pause(session, "user-paused");
             GatewayReply reply =
                     GatewayReply.ok(
-                            state == null
-                                    ? "No goal set."
-                                    : "⏸ Goal paused: " + state.getGoal());
+                            state == null ? "No goal set." : "⏸ Goal paused: " + state.getGoal());
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -1669,7 +1672,8 @@ public class DefaultCommandService implements CommandService {
     private GatewayReply handleRecap(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         GatewayReply reply =
-                GatewayReply.ok(sessionArtifactService.recapText(session, parsePositiveInt(args, 10)));
+                GatewayReply.ok(
+                        sessionArtifactService.recapText(session, parsePositiveInt(args, 10)));
         reply.setSessionId(session.getSessionId());
         reply.setBranchName(session.getBranchName());
         return reply;
@@ -1760,8 +1764,12 @@ public class DefaultCommandService implements CommandService {
         String role = admin ? "admin" : authorized ? "user" : "unauthorized";
         StringBuilder buffer = new StringBuilder();
         buffer.append("platform=").append(message.getPlatform()).append('\n');
-        buffer.append("user=").append(StrUtil.blankToDefault(message.getUserId(), "-")).append('\n');
-        buffer.append("chat=").append(StrUtil.blankToDefault(message.getChatId(), "-")).append('\n');
+        buffer.append("user=")
+                .append(StrUtil.blankToDefault(message.getUserId(), "-"))
+                .append('\n');
+        buffer.append("chat=")
+                .append(StrUtil.blankToDefault(message.getChatId(), "-"))
+                .append('\n');
         buffer.append("chat_type=")
                 .append(StrUtil.blankToDefault(message.getChatType(), "-"))
                 .append('\n');
@@ -1852,11 +1860,14 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
-    private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference) throws Exception {
+    private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference)
+            throws Exception {
         String reference = normalizeResumeReference(rawReference);
         if (StrUtil.isBlank(reference)) {
             return ResumeLookup.error(
-                    "用法：" + GatewayCommandConstants.SLASH_RESUME + " <session-id|id-prefix|title|branch>");
+                    "用法："
+                            + GatewayCommandConstants.SLASH_RESUME
+                            + " <session-id|id-prefix|title|branch>");
         }
         SessionRecord session = sessionRepository.findById(reference);
         if (session != null) {
@@ -1874,9 +1885,7 @@ public class DefaultCommandService implements CommandService {
             StringBuilder buffer = new StringBuilder();
             buffer.append("匹配到多个会话，请使用完整 session id：");
             for (SessionRecord candidate : candidates) {
-                buffer.append('\n')
-                        .append("- ")
-                        .append(candidate.getSessionId());
+                buffer.append('\n').append("- ").append(candidate.getSessionId());
                 if (StrUtil.isNotBlank(candidate.getTitle())) {
                     buffer.append(" \"").append(candidate.getTitle()).append("\"");
                 }
@@ -1958,7 +1967,8 @@ public class DefaultCommandService implements CommandService {
         String raw = StrUtil.nullToEmpty(args).trim();
         String action = firstToken(raw);
         if ("save".equalsIgnoreCase(action)) {
-            String tail = raw.length() <= action.length() ? "" : raw.substring(action.length()).trim();
+            String tail =
+                    raw.length() <= action.length() ? "" : raw.substring(action.length()).trim();
             boolean completed = !containsTrajectoryFailedFlag(tail);
             String userQuery = stripTrajectorySaveFlags(tail);
             Map<String, Object> saved =
@@ -2075,8 +2085,7 @@ public class DefaultCommandService implements CommandService {
         if (StrUtil.isBlank(raw)) {
             GatewayReply reply =
                     GatewayReply.ok(
-                            "当前会话标题："
-                                    + StrUtil.blankToDefault(session.getTitle(), "(未设置)"));
+                            "当前会话标题：" + StrUtil.blankToDefault(session.getTitle(), "(未设置)"));
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -2121,7 +2130,8 @@ public class DefaultCommandService implements CommandService {
         String action = firstToken(args);
         if (StrUtil.isBlank(action)) {
             if (!appConfig.getApprovals().isMcpReloadConfirm()
-                    || slashConfirmService.isAlwaysConfirmed(GatewayCommandConstants.COMMAND_RELOAD_MCP)) {
+                    || slashConfirmService.isAlwaysConfirmed(
+                            GatewayCommandConstants.COMMAND_RELOAD_MCP)) {
                 return executeReloadMcp(message, false);
             }
             SlashConfirmService.PendingConfirm confirm =
@@ -2144,7 +2154,8 @@ public class DefaultCommandService implements CommandService {
 
     private GatewayReply handleSlashConfirmChoice(
             GatewayMessage message, String args, String defaultChoice) throws Exception {
-        SlashConfirmService.PendingConfirm pending = slashConfirmService.getPending(message.sourceKey());
+        SlashConfirmService.PendingConfirm pending =
+                slashConfirmService.getPending(message.sourceKey());
         if (pending == null) {
             return GatewayReply.error("当前没有待确认的 slash 命令。");
         }
@@ -2157,14 +2168,17 @@ public class DefaultCommandService implements CommandService {
         } else if (tokens.length > 0 && isSlashConfirmIdToken(tokens[0])) {
             confirmId = tokens[0];
             choiceToken = tokens.length > 1 ? tokens[1] : defaultChoice;
-        } else if (tokens.length > 1 && StrUtil.equalsIgnoreCase(tokens[1], pending.getConfirmId())) {
+        } else if (tokens.length > 1
+                && StrUtil.equalsIgnoreCase(tokens[1], pending.getConfirmId())) {
             confirmId = tokens[1];
         } else if (tokens.length > 1 && isSlashConfirmIdToken(tokens[1])) {
             confirmId = tokens[1];
         }
-        String choice = normalizeSlashConfirmChoice(StrUtil.blankToDefault(choiceToken, defaultChoice));
+        String choice =
+                normalizeSlashConfirmChoice(StrUtil.blankToDefault(choiceToken, defaultChoice));
         if (choice == null) {
-            return GatewayReply.error("用法：/approve [确认编号]、/approve always [确认编号]、/always 或 /cancel");
+            return GatewayReply.error(
+                    "用法：/approve [确认编号]、/approve always [确认编号]、/always 或 /cancel");
         }
         if (SlashConfirmService.CHOICE_ALWAYS.equals(choice) && !pending.isAllowAlways()) {
             return GatewayReply.error("/" + pending.getCommand() + " 不支持永久确认，请使用 /approve 执行一次。");
@@ -2243,9 +2257,7 @@ public class DefaultCommandService implements CommandService {
 
     private String normalizeSlashConfirmChoice(String raw) {
         String value =
-                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw))
-                        .trim()
-                        .toLowerCase();
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw)).trim().toLowerCase();
         if (StrUtil.isBlank(value)
                 || "once".equals(value)
                 || "now".equals(value)
@@ -2285,7 +2297,8 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
-    private GatewayReply executeReloadMcp(GatewayMessage message, boolean savedAlways) throws Exception {
+    private GatewayReply executeReloadMcp(GatewayMessage message, boolean savedAlways)
+            throws Exception {
         if (dashboardMcpService == null) {
             return GatewayReply.error("MCP registry is not available in this runtime.");
         }
@@ -2450,12 +2463,15 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command_status", "handled");
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_BROWSER);
         reply.getRuntimeMetadata()
-                .put("browser_active_sessions", Integer.valueOf(browserRuntimeService.activeLeaseCount()));
+                .put(
+                        "browser_active_sessions",
+                        Integer.valueOf(browserRuntimeService.activeLeaseCount()));
         reply.getRuntimeMetadata().put("action", action);
         return reply;
     }
 
-    private GatewayReply browserReply(BrowserRuntimeService.BrowserResult result, String successMessage) {
+    private GatewayReply browserReply(
+            BrowserRuntimeService.BrowserResult result, String successMessage) {
         if (result == null) {
             return GatewayReply.error("浏览器运行时未返回结果。");
         }
@@ -2484,7 +2500,9 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String browserUsage() {
-        return "用法：" + GatewayCommandConstants.SLASH_BROWSER + " [status|connect|disconnect <session-id>]";
+        return "用法："
+                + GatewayCommandConstants.SLASH_BROWSER
+                + " [status|connect|disconnect <session-id>]";
     }
 
     private GatewayReply handleDebug() throws Exception {
@@ -2492,20 +2510,31 @@ public class DefaultCommandService implements CommandService {
         GatewayReply reply = GatewayReply.ok(formatDebugSummary(summary));
         reply.getRuntimeMetadata().put("command_status", "handled");
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_DEBUG);
-        reply.getRuntimeMetadata().put("debug_provider_count", Integer.valueOf(summary.providerCount));
-        reply.getRuntimeMetadata().put("debug_channel_count", Integer.valueOf(summary.channelCount));
+        reply.getRuntimeMetadata()
+                .put("debug_provider_count", Integer.valueOf(summary.providerCount));
+        reply.getRuntimeMetadata()
+                .put("debug_channel_count", Integer.valueOf(summary.channelCount));
         reply.getRuntimeMetadata().put("debug_tool_count", Integer.valueOf(summary.toolCount));
-        reply.getRuntimeMetadata().put("debug_session_count", Integer.valueOf(summary.sessionCount));
-        reply.getRuntimeMetadata().put("debug_connected_channel_count", Integer.valueOf(summary.connectedChannelCount));
+        reply.getRuntimeMetadata()
+                .put("debug_session_count", Integer.valueOf(summary.sessionCount));
+        reply.getRuntimeMetadata()
+                .put(
+                        "debug_connected_channel_count",
+                        Integer.valueOf(summary.connectedChannelCount));
         return reply;
     }
 
     private DebugSummary debugSummary() throws Exception {
         DebugSummary summary = new DebugSummary();
         summary.runtimeHome = "runtime://";
-        summary.providerCount = appConfig == null || appConfig.getProviders() == null ? 0 : appConfig.getProviders().size();
+        summary.providerCount =
+                appConfig == null || appConfig.getProviders() == null
+                        ? 0
+                        : appConfig.getProviders().size();
         List<ChannelStatus> statuses =
-                deliveryService == null ? Collections.<ChannelStatus>emptyList() : deliveryService.statuses();
+                deliveryService == null
+                        ? Collections.<ChannelStatus>emptyList()
+                        : deliveryService.statuses();
         summary.channelCount = statuses.size();
         for (ChannelStatus status : statuses) {
             if (status == null) {
@@ -2520,7 +2549,8 @@ public class DefaultCommandService implements CommandService {
         }
         summary.toolCount = toolRegistry == null ? 0 : toolRegistry.listToolNames().size();
         summary.sessionCount = sessionRepository == null ? 0 : sessionRepository.countAll();
-        summary.mcpStatus = appConfig != null && appConfig.getMcp().isEnabled() ? "enabled" : "disabled";
+        summary.mcpStatus =
+                appConfig != null && appConfig.getMcp().isEnabled() ? "enabled" : "disabled";
         summary.approvalsMode =
                 appConfig == null || appConfig.getApprovals() == null
                         ? ""
@@ -2709,13 +2739,11 @@ public class DefaultCommandService implements CommandService {
         } else if (GatewayCommandConstants.ACTION_PAUSE.equals(action)) {
             reply =
                     GatewayReply.ok(
-                            "技能后台维护已暂停。\n"
-                                    + formatCuratorStatus(dashboardCuratorService.pause()));
+                            "技能后台维护已暂停。\n" + formatCuratorStatus(dashboardCuratorService.pause()));
         } else if (GatewayCommandConstants.ACTION_RESUME.equals(action)) {
             reply =
                     GatewayReply.ok(
-                            "技能后台维护已恢复。\n"
-                                    + formatCuratorStatus(dashboardCuratorService.resume()));
+                            "技能后台维护已恢复。\n" + formatCuratorStatus(dashboardCuratorService.resume()));
         } else {
             return GatewayReply.error(curatorUsage());
         }
@@ -3016,7 +3044,8 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
-            List<CronJobRecord> jobs = cronJobService.listBySource(message.sourceKey(), options.all);
+            List<CronJobRecord> jobs =
+                    cronJobService.listBySource(message.sourceKey(), options.all);
             String listText = formatCronList(jobs);
             return GatewayReply.ok(overview ? cronOverview(listText) : listText);
         }
@@ -3050,7 +3079,9 @@ public class DefaultCommandService implements CommandService {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
                 return GatewayReply.error(
-                        "用法：" + GatewayCommandConstants.SLASH_CRON + " history <job-id> [--limit 20]");
+                        "用法："
+                                + GatewayCommandConstants.SLASH_CRON
+                                + " history <job-id> [--limit 20]");
             }
             int limit = options.limit == null ? 20 : options.limit.intValue();
             List<CronJobRunRecord> runs = cronJobService.history(options.positionals.get(0), limit);
@@ -3062,7 +3093,8 @@ public class DefaultCommandService implements CommandService {
                 || "detail".equals(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " inspect <job-id>");
+                return GatewayReply.error(
+                        "用法：" + GatewayCommandConstants.SLASH_CRON + " inspect <job-id>");
             }
             String jobId = options.positionals.get(0);
             CronJobRecord job = cronJobService.require(jobId);
@@ -3091,10 +3123,14 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_PAUSE.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " pause|disable|stop <job-id> [--reason 原因]");
+                return GatewayReply.error(
+                        "用法："
+                                + GatewayCommandConstants.SLASH_CRON
+                                + " pause|disable|stop <job-id> [--reason 原因]");
             }
             String jobId = options.positionals.get(0);
-            String reason = StrUtil.blankToDefault(options.reason, joinTail(options.positionals, 1));
+            String reason =
+                    StrUtil.blankToDefault(options.reason, joinTail(options.positionals, 1));
             cronJobService.pause(jobId, StrUtil.blankToDefault(reason, "paused by slash command"));
             return GatewayReply.ok("已暂停定时任务：" + jobId);
         }
@@ -3102,7 +3138,10 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_RESUME.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " resume|enable|start <job-id>");
+                return GatewayReply.error(
+                        "用法："
+                                + GatewayCommandConstants.SLASH_CRON
+                                + " resume|enable|start <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.resume(jobId);
@@ -3112,7 +3151,8 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " remove <job-id>");
+                return GatewayReply.error(
+                        "用法：" + GatewayCommandConstants.SLASH_CRON + " remove <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.remove(jobId);
@@ -3134,7 +3174,10 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run|trigger|retry|rerun <job-id>");
+                return GatewayReply.error(
+                        "用法："
+                                + GatewayCommandConstants.SLASH_CRON
+                                + " run|trigger|retry|rerun <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.require(jobId);
@@ -3154,7 +3197,10 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String cronRunTriggerType(CronFlagOptions options, String fallback) {
-        String value = options == null ? null : StrUtil.blankToDefault(options.triggerType, options.reason);
+        String value =
+                options == null
+                        ? null
+                        : StrUtil.blankToDefault(options.triggerType, options.reason);
         if (StrUtil.isBlank(value)) {
             return fallback;
         }
@@ -3272,18 +3318,26 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron upcoming [--all] [--limit 5] - next 的别名\n")
                 .append("/cron guide [--json] - 查看自动化能力、字段、别名、投递、技能绑定和安全策略\n")
                 .append("/cron status [--all] - 查看任务计数、到期任务、最近失败与下次运行\n")
-                .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
-                .append("/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
+                .append(
+                        "/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
+                .append(
+                        "/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
                 .append("/cron edit <job-id> --skill blogwatcher --skill maps - 替换绑定技能\n")
                 .append("/cron edit <job-id> --remove-skill blogwatcher - 移除绑定技能\n")
                 .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
                 .append("/cron edit <job-id> --clear-repeat - 清空重复次数上限，恢复无限重复\n")
-                .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
-                .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
-                .append("/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
-                .append("/cron edit <job-id> --clear-deliver-chat-id --clear-deliver-thread-id - 清空投递会话与线程\n")
-                .append("/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
-                .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
+                .append(
+                        "/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
+                .append(
+                        "/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
+                .append(
+                        "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
+                .append(
+                        "/cron edit <job-id> --clear-deliver-chat-id --clear-deliver-thread-id - 清空投递会话与线程\n")
+                .append(
+                        "/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
+                .append(
+                        "/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
                 .append("/cron pause|disable|stop <job-id> [--reason 原因] - 暂停定时任务\n")
                 .append("/cron resume|enable|start <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
@@ -3298,7 +3352,8 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String formatCronStatus(String sourceKey, boolean all) throws Exception {
-        List<CronJobRecord> jobs = all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
+        List<CronJobRecord> jobs =
+                all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
         long now = System.currentTimeMillis();
         int active = 0;
         int paused = 0;
@@ -3320,7 +3375,8 @@ public class DefaultCommandService implements CommandService {
                 if (job.getNextRunAt() > 0L && job.getNextRunAt() <= now) {
                     due++;
                 }
-                if (job.getNextRunAt() > 0L && (nextRunAt <= 0L || job.getNextRunAt() < nextRunAt)) {
+                if (job.getNextRunAt() > 0L
+                        && (nextRunAt <= 0L || job.getNextRunAt() < nextRunAt)) {
                     nextRunAt = job.getNextRunAt();
                     nextJob = job;
                 }
@@ -3374,7 +3430,8 @@ public class DefaultCommandService implements CommandService {
                     buffer.append(" error=").append(safeCronText(job.getLastError(), 120));
                 }
                 if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
-                    buffer.append(" delivery=").append(safeCronText(job.getLastDeliveryError(), 120));
+                    buffer.append(" delivery=")
+                            .append(safeCronText(job.getLastDeliveryError(), 120));
                 }
             }
         }
@@ -3383,7 +3440,8 @@ public class DefaultCommandService implements CommandService {
 
     private String formatCronNext(String sourceKey, boolean all, int limit) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
-        List<CronJobRecord> jobs = all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
+        List<CronJobRecord> jobs =
+                all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
         List<CronJobRecord> upcoming = new ArrayList<CronJobRecord>();
         for (CronJobRecord job : jobs) {
             String state = cronState(job);
@@ -3487,7 +3545,9 @@ public class DefaultCommandService implements CommandService {
                 buffer.append('\n').append("Error: ").append(safeCronText(run.getError(), 1000));
             }
             if (StrUtil.isNotBlank(run.getDeliveryError())) {
-                buffer.append('\n').append("Delivery error: ").append(safeCronText(run.getDeliveryError(), 1000));
+                buffer.append('\n')
+                        .append("Delivery error: ")
+                        .append(safeCronText(run.getDeliveryError(), 1000));
             }
             if (StrUtil.isNotBlank(run.getOutput())) {
                 buffer.append('\n').append("Output: ").append(safeCronText(run.getOutput(), 300));
@@ -3600,7 +3660,9 @@ public class DefaultCommandService implements CommandService {
                         .append(")");
             }
             if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
-                buffer.append('\n').append("Delivery failed: ").append(safeCronText(job.getLastDeliveryError(), 1000));
+                buffer.append('\n')
+                        .append("Delivery failed: ")
+                        .append(safeCronText(job.getLastDeliveryError(), 1000));
             }
         }
         return buffer.toString();
@@ -3771,13 +3833,19 @@ public class DefaultCommandService implements CommandService {
                 body.put("deliver_chat_id", field.substring("--deliver-chat-id ".length()).trim());
             } else if (field.startsWith("--deliver_chat_id ")) {
                 body.put("deliver_chat_id", field.substring("--deliver_chat_id ".length()).trim());
-            } else if ("--clear-deliver-chat-id".equals(field) || "--clear-deliver_chat_id".equals(field)) {
+            } else if ("--clear-deliver-chat-id".equals(field)
+                    || "--clear-deliver_chat_id".equals(field)) {
                 body.put("deliver_chat_id", null);
             } else if (field.startsWith("--deliver-thread-id ")) {
-                body.put("deliver_thread_id", field.substring("--deliver-thread-id ".length()).trim());
+                body.put(
+                        "deliver_thread_id",
+                        field.substring("--deliver-thread-id ".length()).trim());
             } else if (field.startsWith("--deliver_thread_id ")) {
-                body.put("deliver_thread_id", field.substring("--deliver_thread_id ".length()).trim());
-            } else if ("--clear-deliver-thread-id".equals(field) || "--clear-deliver_thread_id".equals(field)) {
+                body.put(
+                        "deliver_thread_id",
+                        field.substring("--deliver_thread_id ".length()).trim());
+            } else if ("--clear-deliver-thread-id".equals(field)
+                    || "--clear-deliver_thread_id".equals(field)) {
                 body.put("deliver_thread_id", null);
             } else if (field.startsWith("--repeat ")) {
                 body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
@@ -3802,8 +3870,10 @@ public class DefaultCommandService implements CommandService {
             } else if (field.startsWith("--toolsets ")) {
                 body.put("enabled_toolsets", field.substring("--toolsets ".length()).trim());
             } else if (field.startsWith("--enabled-toolsets ")) {
-                body.put("enabled_toolsets", field.substring("--enabled-toolsets ".length()).trim());
-            } else if ("--clear-toolsets".equals(field) || "--clear-enabled-toolsets".equals(field)) {
+                body.put(
+                        "enabled_toolsets", field.substring("--enabled-toolsets ".length()).trim());
+            } else if ("--clear-toolsets".equals(field)
+                    || "--clear-enabled-toolsets".equals(field)) {
                 body.put("enabled_toolsets", new ArrayList<String>());
             } else if (field.startsWith("--model ")) {
                 body.put("model", field.substring("--model ".length()).trim());
@@ -3921,12 +3991,14 @@ public class DefaultCommandService implements CommandService {
             } else if (("--deliver-chat-id".equals(token) || "--deliver_chat_id".equals(token))
                     && i + 1 < tokens.size()) {
                 options.deliverChatId = tokens.get(++i);
-            } else if ("--clear-deliver-chat-id".equals(token) || "--clear-deliver_chat_id".equals(token)) {
+            } else if ("--clear-deliver-chat-id".equals(token)
+                    || "--clear-deliver_chat_id".equals(token)) {
                 options.clearDeliverChatId = true;
             } else if (("--deliver-thread-id".equals(token) || "--deliver_thread_id".equals(token))
                     && i + 1 < tokens.size()) {
                 options.deliverThreadId = tokens.get(++i);
-            } else if ("--clear-deliver-thread-id".equals(token) || "--clear-deliver_thread_id".equals(token)) {
+            } else if ("--clear-deliver-thread-id".equals(token)
+                    || "--clear-deliver_thread_id".equals(token)) {
                 options.clearDeliverThreadId = true;
             } else if ("--repeat".equals(token) && i + 1 < tokens.size()) {
                 options.repeat = Integer.valueOf(tokens.get(++i));
@@ -3936,15 +4008,18 @@ public class DefaultCommandService implements CommandService {
                 options.limit = Integer.valueOf(tokens.get(++i));
             } else if ("--reason".equals(token) && i + 1 < tokens.size()) {
                 options.reason = tokens.get(++i);
-            } else if (("--trigger-type".equals(token) || "--trigger_type".equals(token)) && i + 1 < tokens.size()) {
+            } else if (("--trigger-type".equals(token) || "--trigger_type".equals(token))
+                    && i + 1 < tokens.size()) {
                 options.triggerType = tokens.get(++i);
             } else if (("--skill".equals(token) || "-s".equals(token)) && i + 1 < tokens.size()) {
                 options.skills.add(tokens.get(++i));
             } else if ("--skills".equals(token) && i + 1 < tokens.size()) {
                 options.skills.add(tokens.get(++i));
-            } else if (("--add-skill".equals(token) || "--add-skills".equals(token)) && i + 1 < tokens.size()) {
+            } else if (("--add-skill".equals(token) || "--add-skills".equals(token))
+                    && i + 1 < tokens.size()) {
                 options.addSkills.add(tokens.get(++i));
-            } else if (("--remove-skill".equals(token) || "--remove-skills".equals(token)) && i + 1 < tokens.size()) {
+            } else if (("--remove-skill".equals(token) || "--remove-skills".equals(token))
+                    && i + 1 < tokens.size()) {
                 options.removeSkills.add(tokens.get(++i));
             } else if ("--clear-skills".equals(token)) {
                 options.clearSkills = true;
@@ -3973,7 +4048,8 @@ public class DefaultCommandService implements CommandService {
             } else if (("--toolsets".equals(token) || "--enabled-toolsets".equals(token))
                     && i + 1 < tokens.size()) {
                 options.enabledToolsets = tokens.get(++i);
-            } else if ("--clear-toolsets".equals(token) || "--clear-enabled-toolsets".equals(token)) {
+            } else if ("--clear-toolsets".equals(token)
+                    || "--clear-enabled-toolsets".equals(token)) {
                 options.clearToolsets = true;
             } else if ("--model".equals(token) && i + 1 < tokens.size()) {
                 options.model = tokens.get(++i);
@@ -3983,7 +4059,8 @@ public class DefaultCommandService implements CommandService {
                 options.provider = tokens.get(++i);
             } else if ("--clear-provider".equals(token)) {
                 options.clearProvider = true;
-            } else if (("--base-url".equals(token) || "--base_url".equals(token)) && i + 1 < tokens.size()) {
+            } else if (("--base-url".equals(token) || "--base_url".equals(token))
+                    && i + 1 < tokens.size()) {
                 options.baseUrl = tokens.get(++i);
             } else if ("--clear-base-url".equals(token) || "--clear-base_url".equals(token)) {
                 options.clearBaseUrl = true;
@@ -4235,16 +4312,19 @@ public class DefaultCommandService implements CommandService {
                 dangerousCommandApprovalService.listPendingApprovals(agentSession);
         StringBuilder buffer = new StringBuilder();
         buffer.append("pending=")
-                .append(pendingApprovals.isEmpty() ? "none" : String.valueOf(pendingApprovals.size()))
+                .append(
+                        pendingApprovals.isEmpty()
+                                ? "none"
+                                : String.valueOf(pendingApprovals.size()))
                 .append('\n');
         for (int i = 0; i < pendingApprovals.size(); i++) {
             DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
             buffer.append('#')
                     .append(i + 1)
                     .append(' ')
-                    .append(safeApprovalPreview(
-                            DangerousCommandApprovalService.approvalSelector(pending),
-                            120))
+                    .append(
+                            safeApprovalPreview(
+                                    DangerousCommandApprovalService.approvalSelector(pending), 120))
                     .append(" tool=")
                     .append(safeApprovalPreview(pending.getToolName(), 120))
                     .append(" pattern=")
@@ -4355,8 +4435,7 @@ public class DefaultCommandService implements CommandService {
         }
         if ("all".equalsIgnoreCase(selector)) {
             int rejected =
-                    dangerousCommandApprovalService.rejectAll(
-                            agentSession, message.getUserName());
+                    dangerousCommandApprovalService.rejectAll(agentSession, message.getUserName());
             if (rejected <= 0) {
                 return GatewayReply.error("当前没有待审批的危险命令。");
             }
@@ -4368,7 +4447,8 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.error("当前没有待审批的危险命令。");
         }
 
-        if (!dangerousCommandApprovalService.reject(agentSession, selector, message.getUserName())) {
+        if (!dangerousCommandApprovalService.reject(
+                agentSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
         return conversationOrchestrator.resumePending(message.sourceKey());
@@ -4424,16 +4504,14 @@ public class DefaultCommandService implements CommandService {
             sessionRepository.setReasoningEffortOverride(session.getSessionId(), null);
             session.setReasoningEffortOverride(null);
             return GatewayReply.ok(
-                    "已清除当前会话 reasoning 覆盖。\nreasoning_effort="
-                            + effectiveReasoningEffort(session));
+                    "已清除当前会话 reasoning 覆盖。\nreasoning_effort=" + effectiveReasoningEffort(session));
         }
         if (isReasoningEffortLevel(normalized)) {
             String override = "none".equals(normalized) ? "none" : normalized;
             sessionRepository.setReasoningEffortOverride(session.getSessionId(), override);
             session.setReasoningEffortOverride(override);
             return GatewayReply.ok(
-                    "已设置当前会话 reasoning 强度。\nreasoning_effort="
-                            + effectiveReasoningEffort(session));
+                    "已设置当前会话 reasoning 强度。\nreasoning_effort=" + effectiveReasoningEffort(session));
         }
         return GatewayReply.error(
                 "用法：" + GatewayCommandConstants.SLASH_REASONING + " [level|reset|show|hide]");
@@ -4450,7 +4528,9 @@ public class DefaultCommandService implements CommandService {
 
     private String effectiveReasoningEffort(SessionRecord session) {
         String override =
-                session == null ? "" : StrUtil.nullToEmpty(session.getReasoningEffortOverride()).trim();
+                session == null
+                        ? ""
+                        : StrUtil.nullToEmpty(session.getReasoningEffortOverride()).trim();
         return StrUtil.blankToDefault(
                 StrUtil.isNotBlank(override) ? override : appConfig.getLlm().getReasoningEffort(),
                 "default");
@@ -4466,12 +4546,15 @@ public class DefaultCommandService implements CommandService {
             session.setServiceTierOverride("priority");
             return GatewayReply.ok("已开启当前会话快速模式。\n" + formatFastStatus(session));
         }
-        if ("normal".equals(normalized) || "off".equals(normalized) || "default".equals(normalized)) {
+        if ("normal".equals(normalized)
+                || "off".equals(normalized)
+                || "default".equals(normalized)) {
             sessionRepository.setServiceTierOverride(session.getSessionId(), null);
             session.setServiceTierOverride(null);
             return GatewayReply.ok("已恢复当前会话普通模式。\n" + formatFastStatus(session));
         }
-        return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]");
+        return GatewayReply.error(
+                "用法：" + GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]");
     }
 
     private String formatFastStatus(SessionRecord session) {
@@ -4494,8 +4577,9 @@ public class DefaultCommandService implements CommandService {
 
     private boolean isPriorityServiceTier(SessionRecord session) {
         return session != null
-                && "priority".equalsIgnoreCase(
-                        StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
+                && "priority"
+                        .equalsIgnoreCase(
+                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
     }
 
     private GatewayReply handleBusy(String args, String sourceKey) {
@@ -4509,10 +4593,7 @@ public class DefaultCommandService implements CommandService {
                 || "reject".equals(normalized)) {
             persistBusyPolicy(normalized);
             return GatewayReply.ok(
-                    "已切换运行中输入策略为 "
-                            + normalized
-                            + "。\n"
-                            + formatBusyPolicyDescription(normalized));
+                    "已切换运行中输入策略为 " + normalized + "。\n" + formatBusyPolicyDescription(normalized));
         }
         return GatewayReply.error(
                 "用法："
@@ -4530,8 +4611,7 @@ public class DefaultCommandService implements CommandService {
                 agentRunControlService.queueIncoming(
                         message.sourceKey(), session.getSessionId(), queuedMessage);
         GatewayReply reply =
-                GatewayReply.ok(
-                        StrUtil.blankToDefault(decision.getMessage(), "已加入下一轮队列。"));
+                GatewayReply.ok(StrUtil.blankToDefault(decision.getMessage(), "已加入下一轮队列。"));
         reply.setSessionId(session.getSessionId());
         reply.setBranchName(session.getBranchName());
         reply.getRuntimeMetadata().put("busy_policy", decision.getPolicy());
@@ -4596,11 +4676,15 @@ public class DefaultCommandService implements CommandService {
         String policy = StrUtil.blankToDefault(appConfig.getTask().getBusyPolicy(), "queue");
         SessionRecord session = findBoundSessionQuietly(sourceKey);
         Map<String, Object> activeRun =
-                agentRunControlService == null ? null : agentRunControlService.activeRunSummary(sourceKey);
+                agentRunControlService == null
+                        ? null
+                        : agentRunControlService.activeRunSummary(sourceKey);
         StringBuilder buffer = new StringBuilder();
         buffer.append("busy_policy=").append(policy).append('\n');
         buffer.append("source_running=")
-                .append(agentRunControlService != null && agentRunControlService.isRunning(sourceKey))
+                .append(
+                        agentRunControlService != null
+                                && agentRunControlService.isRunning(sourceKey))
                 .append('\n');
         buffer.append("any_running=")
                 .append(agentRunControlService != null && agentRunControlService.hasRunningRuns())
@@ -4636,7 +4720,9 @@ public class DefaultCommandService implements CommandService {
     }
 
     private int countQueuedMessagesQuietly(String sourceKey, SessionRecord session) {
-        if (agentRunRepository == null || session == null || StrUtil.isBlank(session.getSessionId())) {
+        if (agentRunRepository == null
+                || session == null
+                || StrUtil.isBlank(session.getSessionId())) {
             return 0;
         }
         try {
@@ -4966,8 +5052,7 @@ public class DefaultCommandService implements CommandService {
 
     /** 生成帮助文本。 */
     private GatewayReply registeredUnimplementedReply(CommandDescriptor descriptor) {
-        GatewayReply reply =
-                GatewayReply.error("命令已登记但当前运行时未启用或不支持：" + descriptor.slashName());
+        GatewayReply reply = GatewayReply.error("命令已登记但当前运行时未启用或不支持：" + descriptor.slashName());
         reply.getRuntimeMetadata().put("command_status", "registered_unimplemented");
         reply.getRuntimeMetadata().put("command", descriptor.getName());
         return reply;
@@ -4985,14 +5070,12 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_RESUME + " <session-or-branch>",
                                 "恢复指定会话或分支"),
-                        helpLine(
-                                GatewayCommandConstants.SLASH_SESSIONS + " [query]",
-                                "浏览并搜索历史会话"),
+                        helpLine(GatewayCommandConstants.SLASH_SESSIONS + " [query]", "浏览并搜索历史会话"),
                         helpLine(GatewayCommandConstants.SLASH_WHOAMI, "查看当前 slash 命令访问身份"),
-                        helpLine(GatewayCommandConstants.SLASH_COMMANDS + " [page]", "浏览全部 slash 命令"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_INSIGHTS,
-                                "查看使用洞察与运行摘要"),
+                                GatewayCommandConstants.SLASH_COMMANDS + " [page]",
+                                "浏览全部 slash 命令"),
+                        helpLine(GatewayCommandConstants.SLASH_INSIGHTS, "查看使用洞察与运行摘要"),
                         helpLine(GatewayCommandConstants.SLASH_DEBUG + " [status]", "查看脱敏调试诊断摘要"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
@@ -5007,11 +5090,16 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_BUSY
                                         + " [status|queue|steer|interrupt|reject]",
                                 "查看或切换运行中输入策略"),
-                        helpLine(GatewayCommandConstants.SLASH_QUEUE + " <prompt>", "将提示排到当前任务之后执行"),
-                        helpLine(GatewayCommandConstants.SLASH_STEER + " <prompt>", "向运行中任务注入修正；空闲时按普通提示执行"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_QUEUE + " <prompt>", "将提示排到当前任务之后执行"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_STEER + " <prompt>",
+                                "向运行中任务注入修正；空闲时按普通提示执行"),
                         helpLine(GatewayCommandConstants.SLASH_RESTART, "等待运行中任务 drain 后重启网关"),
                         helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"),
-                        helpLine(GatewayCommandConstants.SLASH_YOLO + " [status|on|off]", "查询或设置当前会话的危险命令自动批准模式"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_YOLO + " [status|on|off]",
+                                "查询或设置当前会话的危险命令自动批准模式"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_PERSONALITY + " [name|none]",
                                 "查看或切换人格"),
@@ -5048,9 +5136,7 @@ public class DefaultCommandService implements CommandService {
                                         + " [status|list|improvements|run|pause|resume]",
                                 "管理技能后台维护状态与运行"),
                         helpLine(GatewayCommandConstants.SLASH_PLUGINS, "查看插件加载状态"),
-                        helpLine(
-                                GatewayCommandConstants.SLASH_RELOAD_SKILLS,
-                                "重新扫描本地技能目录"),
+                        helpLine(GatewayCommandConstants.SLASH_RELOAD_SKILLS, "重新扫描本地技能目录"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
                                         + " [now|always]；确认：/approve [确认编号]|/always|/cancel",
@@ -5064,9 +5150,15 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_CRON
                                         + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]",
                                 "管理定时任务"),
-                        helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
-                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"),
-                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]",
+                                "导出会话 trajectory JSON"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_TRAJECTORY
+                                        + " save [--failed] [user-query]",
+                                "追加保存 trajectory JSONL 到 runtime/artifacts"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_COMPACT
                                         + " [focus]（兼容 "
@@ -5091,8 +5183,7 @@ public class DefaultCommandService implements CommandService {
                                         + " list|status|clear session|clear always|clear all",
                                 "查看或清理审批授权"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_DENY
-                                        + " [#序号|审批ID|all]",
+                                GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID|all]",
                                 "拒绝待审批危险命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_DENY + " list|status|all",
@@ -5255,7 +5346,8 @@ public class DefaultCommandService implements CommandService {
             value = value / 1024D;
             unitIndex++;
         }
-        return String.format(java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
+        return String.format(
+                java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
     }
 
     private long asLong(Object value) {

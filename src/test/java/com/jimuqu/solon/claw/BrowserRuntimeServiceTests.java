@@ -139,11 +139,15 @@ public class BrowserRuntimeServiceTests {
                 service.navigate(created.getSessionId(), "http://127.0.0.1:8766/#settings", 7);
 
         assertThat(navigated.isSuccess()).isTrue();
-        assertThat(provider.lastNavigatedUrl).isEqualTo("http://host.docker.internal:8766/#settings");
-        assertThat(navigated.getDetails().get("requestedUrl")).isEqualTo("http://127.0.0.1:8766/#settings");
-        assertThat(navigated.getDetails().get("url")).isEqualTo("http://host.docker.internal:8766/#settings");
+        assertThat(provider.lastNavigatedUrl)
+                .isEqualTo("http://host.docker.internal:8766/#settings");
+        assertThat(navigated.getDetails().get("requestedUrl"))
+                .isEqualTo("http://127.0.0.1:8766/#settings");
+        assertThat(navigated.getDetails().get("url"))
+                .isEqualTo("http://host.docker.internal:8766/#settings");
         assertThat(String.valueOf(navigated.getDetails().get("urlRewrite"))).contains("127.0.0.1");
-        assertThat(String.valueOf(navigated.getDetails().get("urlRewrite"))).contains("host.docker.internal");
+        assertThat(String.valueOf(navigated.getDetails().get("urlRewrite")))
+                .contains("host.docker.internal");
     }
 
     @Test
@@ -211,8 +215,7 @@ public class BrowserRuntimeServiceTests {
     void shouldRedactSessionOutput() {
         RecordingProvider provider =
                 new RecordingProvider(
-                        true,
-                        "ws://user:secret@example.com/devtools?token=sk-secretsecret");
+                        true, "ws://user:secret@example.com/devtools?token=sk-secretsecret");
         BrowserRuntimeService service =
                 new BrowserRuntimeService(
                         new AppConfig(),
@@ -272,8 +275,7 @@ public class BrowserRuntimeServiceTests {
         }
 
         @Override
-        public BrowserActionResult navigate(
-                String sessionId, String url, int timeoutSeconds) {
+        public BrowserActionResult navigate(String sessionId, String url, int timeoutSeconds) {
             navigateCount.incrementAndGet();
             lastNavigatedUrl = url;
             Map<String, Object> details = new LinkedHashMap<String, Object>();

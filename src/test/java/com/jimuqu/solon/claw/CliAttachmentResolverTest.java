@@ -64,9 +64,7 @@ public class CliAttachmentResolverTest {
     void shouldResolveFileUriIntoAttachment() throws Exception {
         AppConfig config = testConfig();
         File file = new File(config.getRuntime().getHome(), "diagram.png");
-        Files.write(
-                file.toPath(),
-                new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
+        Files.write(file.toPath(), new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
         CliAttachmentResolver resolver = resolver(config);
 
         CliAttachmentResolver.ResolvedInput resolved =
@@ -176,10 +174,13 @@ public class CliAttachmentResolverTest {
         Files.createDirectories(sshDir.toPath());
         File privateKey = new File(sshDir, "id_ed25519-token=ghp_previewsecret12345");
         Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
-        File missing = new File(config.getRuntime().getHome(), "missing-token=ghp_missingsecret12345.txt");
+        File missing =
+                new File(config.getRuntime().getHome(), "missing-token=ghp_missingsecret12345.txt");
         CliAttachmentResolver resolver = resolver(config);
 
-        String preview = resolver.renderPreview(privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
+        String preview =
+                resolver.renderPreview(
+                        privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
 
         assertThat(preview)
                 .contains("blocked")
@@ -241,8 +242,7 @@ public class CliAttachmentResolverTest {
 
         assertThat(summary.get("fileUriPercentDecoded")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("windowsPathPreviewCrossPlatform")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("windowsDrivePathNotDuplicatedAsPosix"))
-                .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("windowsDrivePathNotDuplicatedAsPosix")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("tildeHomeExpansion")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("canonicalPathResolvedBeforePolicy")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("duplicatePathDeduplicated")).isEqualTo(Boolean.TRUE);

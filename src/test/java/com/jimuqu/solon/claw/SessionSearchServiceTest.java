@@ -366,12 +366,10 @@ public class SessionSearchServiceTest {
     void shouldRedactSecretsFromSessionSearchToolErrors() throws Exception {
         SessionSearchTools tools =
                 new SessionSearchTools(
-                        new FailingSessionSearchService(),
-                        "MEMORY:search-room:user");
+                        new FailingSessionSearchService(), "MEMORY:search-room:user");
 
         ONode result =
-                ONode.ofJson(
-                        tools.sessionSearch("query-ghp_1234567890abcdef", Integer.valueOf(3)));
+                ONode.ofJson(tools.sessionSearch("query-ghp_1234567890abcdef", Integer.valueOf(3)));
 
         assertThat(result.get("success").getBoolean()).isFalse();
         assertThat(result.get("error").getString())
@@ -382,7 +380,8 @@ public class SessionSearchServiceTest {
     @Test
     void shouldRedactSecretsFromSessionSearchToolResults() throws Exception {
         SessionSearchTools tools =
-                new SessionSearchTools(new SecretBearingSessionSearchService(), "MEMORY:search-room:user");
+                new SessionSearchTools(
+                        new SecretBearingSessionSearchService(), "MEMORY:search-room:user");
 
         String response = tools.sessionSearch("token", Integer.valueOf(1));
 
@@ -409,9 +408,12 @@ public class SessionSearchServiceTest {
         session.setNdjson(
                 MessageSupport.toNdjson(
                         Arrays.asList(
-                                ChatMessage.ofUser("first message").addMetadata("platformMessageId", "pm-1"),
-                                ChatMessage.ofAssistant("second message").addMetadata("platformMessageId", "pm-2"),
-                                ChatMessage.ofUser("third message").addMetadata("platformMessageId", "pm-3"))));
+                                ChatMessage.ofUser("first message")
+                                        .addMetadata("platformMessageId", "pm-1"),
+                                ChatMessage.ofAssistant("second message")
+                                        .addMetadata("platformMessageId", "pm-2"),
+                                ChatMessage.ofUser("third message")
+                                        .addMetadata("platformMessageId", "pm-3"))));
         env.sessionRepository.save(session);
 
         SessionSearchQuery query = new SessionSearchQuery();
@@ -423,7 +425,9 @@ public class SessionSearchServiceTest {
 
         assertThat(entries).hasSize(3);
         assertThat(entries).extracting(SessionSearchEntry::getMode).containsOnly("scroll");
-        assertThat(entries).extracting(SessionSearchEntry::getMessageId).containsExactly("pm-1", "pm-2", "pm-3");
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getMessageId)
+                .containsExactly("pm-1", "pm-2", "pm-3");
         assertThat(entries.get(1).isAnchor()).isTrue();
         assertThat(entries.get(1).getMatchPreview()).contains("second message");
     }
@@ -448,7 +452,9 @@ public class SessionSearchServiceTest {
 
         assertThat(entries).hasSize(2);
         assertThat(entries).extracting(SessionSearchEntry::getMode).containsOnly("browse");
-        assertThat(entries).extracting(SessionSearchEntry::getTitle).contains("newer browse", "older browse");
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getTitle)
+                .contains("newer browse", "older browse");
     }
 
     @Test
@@ -484,12 +490,16 @@ public class SessionSearchServiceTest {
         session.setNdjson(
                 MessageSupport.toNdjson(
                         Arrays.asList(
-                                ChatMessage.ofUser("before").addMetadata("platformMessageId", "pm-before"),
-                                ChatMessage.ofAssistant("anchor").addMetadata("platformMessageId", "pm-anchor"))));
+                                ChatMessage.ofUser("before")
+                                        .addMetadata("platformMessageId", "pm-before"),
+                                ChatMessage.ofAssistant("anchor")
+                                        .addMetadata("platformMessageId", "pm-anchor"))));
         env.sessionRepository.save(session);
-        SessionSearchTools tools = new SessionSearchTools(env.sessionSearchService, "MEMORY:tool-scroll:user");
+        SessionSearchTools tools =
+                new SessionSearchTools(env.sessionSearchService, "MEMORY:tool-scroll:user");
 
-        String response = tools.sessionSearch(null, session.getSessionId(), "pm-anchor", Integer.valueOf(2));
+        String response =
+                tools.sessionSearch(null, session.getSessionId(), "pm-anchor", Integer.valueOf(2));
 
         assertThat(response).contains("\"mode\":\"scroll\"");
         assertThat(response).contains("pm-anchor");

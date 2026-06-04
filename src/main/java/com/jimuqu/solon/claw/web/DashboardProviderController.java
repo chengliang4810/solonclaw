@@ -23,12 +23,12 @@ public class DashboardProviderController {
         return providerService.listProviders();
     }
 
-    @Mapping(value = "/api/jimuqu/models", method = MethodType.GET)
+    @Mapping(value = "/api/models", method = MethodType.GET)
     public Map<String, Object> JimuquModels() {
         return DashboardResponse.ok(providerService.JimuquModels());
     }
 
-    @Mapping(value = "/api/jimuqu/models/health", method = MethodType.GET)
+    @Mapping(value = "/api/models/health", method = MethodType.GET)
     public Map<String, Object> JimuquModelHealth() {
         return DashboardResponse.ok(providerService.health());
     }
@@ -46,8 +46,7 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/models", method = MethodType.POST)
     public Map<String, Object> listModels(Context context) throws Exception {
         try {
-            return DashboardResponse.ok(
-                    providerService.listRemoteModels(body(context)));
+            return DashboardResponse.ok(providerService.listRemoteModels(body(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("PROVIDER_MODELS_BAD_REQUEST", e.getMessage());
@@ -129,7 +128,8 @@ public class DashboardProviderController {
             if (data instanceof Map) {
                 return new LinkedHashMap<String, Object>((Map<String, Object>) data);
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {

@@ -12,12 +12,12 @@ import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
-import java.util.Arrays;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -95,10 +95,7 @@ public class CliShellTipsTest {
         StringWriter buffer = new StringWriter();
 
         int exitCode =
-                sendOnce(
-                        shell,
-                        new PrintWriter(buffer),
-                        "/tips]11;rgb:ffff/ffff/ffff\u0007");
+                sendOnce(shell, new PrintWriter(buffer), "/tips]11;rgb:ffff/ffff/ffff\u0007");
 
         assertThat(exitCode).isEqualTo(0);
         assertThat(buffer.toString()).contains("终端提示");
@@ -337,7 +334,7 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security mcp-package"))
                 .contains("MCP 包安全策略摘要")
                 .contains("launchers=[npx, uvx, pipx]")
-                .contains("env=JIMUQU_OSV_ENDPOINT,OSV_ENDPOINT")
+                .contains("env=SOLONCLAW_OSV_ENDPOINT")
                 .contains("malwarePrefix=MAL-")
                 .contains("npxPackageOption=true")
                 .contains("pypiSourceOption=true")
@@ -350,9 +347,10 @@ public class CliShellTipsTest {
                 .contains("executesCommand=false")
                 .contains("writesFile=false")
                 .contains("secretRedaction=true");
-        assertThat(TerminalSecurityPolicyView.render(
-                        null,
-                        "/security status echo token=ghp_terminalstatus12345 http://127.0.0.1/?token=terminal-status-secret target/sk-terminal-status-secret.txt"))
+        assertThat(
+                        TerminalSecurityPolicyView.render(
+                                null,
+                                "/security status echo token=ghp_terminalstatus12345 http://127.0.0.1/?token=terminal-status-secret target/sk-terminal-status-secret.txt"))
                 .contains("安全策略状态摘要")
                 .contains("executesCommand=false")
                 .contains("statusAlias=true")
@@ -393,7 +391,7 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security subprocess-env"))
                 .contains("子进程环境安全策略摘要")
                 .contains("defaultDenyUnknown")
-                .contains("_JIMUQU_FORCE_");
+                .contains("_SOLONCLAW_FORCE_");
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-output"))
                 .contains("终端输出安全策略摘要")
                 .contains("maxInlineChars")
@@ -502,7 +500,8 @@ public class CliShellTipsTest {
                         String.class,
                         boolean.class);
         method.setAccessible(true);
-        return ((Integer) method.invoke(shell, null, writer, "cli-test", input, Boolean.TRUE)).intValue();
+        return ((Integer) method.invoke(shell, null, writer, "cli-test", input, Boolean.TRUE))
+                .intValue();
     }
 
     private static String renderEvents(CliShell shell) throws Exception {

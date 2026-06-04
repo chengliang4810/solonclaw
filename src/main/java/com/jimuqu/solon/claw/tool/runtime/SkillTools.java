@@ -104,7 +104,8 @@ public class SkillTools {
             @Param(name = "filePath", description = "可选支持文件相对路径", required = false) String filePath)
             throws Exception {
         try {
-            SkillView view = localSkillService.viewSkill(name, filePath, agentScope, currentSessionId());
+            SkillView view =
+                    localSkillService.viewSkill(name, filePath, agentScope, currentSessionId());
             registerSkillEnvironmentPassthrough(filePath, view);
             return safeResult(ONode.serialize(view), 20000);
         } catch (Exception e) {
@@ -148,20 +149,24 @@ public class SkillTools {
             }
             if (SkillConstants.ACTION_EDIT.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return safeResult(ONode.serialize(localSkillService.editSkill(name, content)), 20000);
+                return safeResult(
+                        ONode.serialize(localSkillService.editSkill(name, content)), 20000);
             }
             if (SkillConstants.ACTION_PATCH.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return safeResult(localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
+                return safeResult(
+                        localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
                 String result = localSkillService.deleteSkill(name);
-                return safeResult(result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
+                return safeResult(
+                        result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return safeResult(localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
+                return safeResult(
+                        localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
             }
             if (SkillConstants.ACTION_REMOVE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
@@ -183,7 +188,8 @@ public class SkillTools {
             String filePath,
             String fileContent)
             throws Exception {
-        return skillManage(action, name, category, content, oldText, newText, filePath, fileContent, null);
+        return skillManage(
+                action, name, category, content, oldText, newText, filePath, fileContent, null);
     }
 
     /** 收集技能目录中的全部文件，用于 checkpoint。 */
@@ -233,10 +239,7 @@ public class SkillTools {
 
     /** 统一工具错误返回。 */
     private String toolError(String message) {
-        return new ONode()
-                .set("success", false)
-                .set("error", safeError(message))
-                .toJson();
+        return new ONode().set("success", false).set("error", safeError(message)).toJson();
     }
 
     private String safeError(String message) {
@@ -313,7 +316,15 @@ public class SkillTools {
                         String absorbedInto)
                 throws Exception {
             return delegate.skillManage(
-                    action, name, category, content, oldText, newText, filePath, fileContent, absorbedInto);
+                    action,
+                    name,
+                    category,
+                    content,
+                    oldText,
+                    newText,
+                    filePath,
+                    fileContent,
+                    absorbedInto);
         }
     }
 

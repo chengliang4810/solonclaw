@@ -104,9 +104,7 @@ public class SkillsHubCommandTest {
                 .contains("runtime/skills-ghp_***/demo-skill")
                 .doesNotContain("ghp_hubinstall12345")
                 .doesNotContain("ghp_hubpath12345");
-        assertThat(taps)
-                .contains("skills-ghp_***")
-                .doesNotContain("ghp_hubtap12345");
+        assertThat(taps).contains("skills-ghp_***").doesNotContain("ghp_hubtap12345");
         assertThat(addedTap)
                 .contains("Added tap")
                 .contains("ghp_***")
@@ -216,8 +214,7 @@ public class SkillsHubCommandTest {
             if (includeSecrets) {
                 meta.setDescription("description token=ghp_hubsearch12345");
                 meta.setIdentifier("github/org/repo/skill-ghp_hubidentifier12345");
-                meta.getExtra()
-                        .put("authorization", "Bearer ghp_hubsearchextra12345");
+                meta.getExtra().put("authorization", "Bearer ghp_hubsearchextra12345");
             }
             SkillBrowseResult result = new SkillBrowseResult();
             result.setItems(Collections.singletonList(meta));

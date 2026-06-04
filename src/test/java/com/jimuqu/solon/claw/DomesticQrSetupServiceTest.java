@@ -88,11 +88,12 @@ public class DomesticQrSetupServiceTest {
         server.createContext(
                 "/oauth/v1/app/registration",
                 exchange -> {
-                    String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
                     if (body.contains("action=init")) {
-                        writeJson(
-                                exchange,
-                                "{\"supported_auth_methods\":[\"client_secret\"]}");
+                        writeJson(exchange, "{\"supported_auth_methods\":[\"client_secret\"]}");
                     } else if (body.contains("action=begin")) {
                         writeJson(
                                 exchange,
@@ -222,7 +223,8 @@ public class DomesticQrSetupServiceTest {
         long deadline = System.currentTimeMillis() + 10000L;
         while (System.currentTimeMillis() < deadline) {
             current = service.get(ticket);
-            if ("confirmed".equals(current.get("status")) || "failed".equals(current.get("status"))) {
+            if ("confirmed".equals(current.get("status"))
+                    || "failed".equals(current.get("status"))) {
                 return current;
             }
             Thread.sleep(200L);

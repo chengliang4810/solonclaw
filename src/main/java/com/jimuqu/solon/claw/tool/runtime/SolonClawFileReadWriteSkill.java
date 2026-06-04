@@ -21,8 +21,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
 import org.noear.solon.ai.annotation.ToolMapping;
-import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.file.FileReadWriteSkill;
+import org.noear.solon.annotation.Param;
 
 /** Solon AI file skill wrapped with Jimuqu path and credential guardrails. */
 public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
@@ -43,14 +43,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private int consecutiveReadCount;
     private int observedOtherToolCallEpoch;
 
-    public SolonClawFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
+    public SolonClawFileReadWriteSkill(
+            String workDir, SecurityPolicyService securityPolicyService) {
         this(workDir, securityPolicyService, 2000, 2000, new SolonClawFileStateTracker());
     }
 
     public SolonClawFileReadWriteSkill(
-            String workDir,
-            SecurityPolicyService securityPolicyService,
-            AppConfig appConfig) {
+            String workDir, SecurityPolicyService securityPolicyService, AppConfig appConfig) {
         this(workDir, securityPolicyService, appConfig, new SolonClawFileStateTracker());
     }
 
@@ -72,7 +71,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             SecurityPolicyService securityPolicyService,
             int maxLines,
             int maxLineLength) {
-        this(workDir, securityPolicyService, maxLines, maxLineLength, new SolonClawFileStateTracker());
+        this(
+                workDir,
+                securityPolicyService,
+                maxLines,
+                maxLineLength,
+                new SolonClawFileStateTracker());
     }
 
     public SolonClawFileReadWriteSkill(
@@ -102,7 +106,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         this.maxLinesSupplier = maxLinesSupplier == null ? fixedLimit(2000) : maxLinesSupplier;
         this.maxLineLengthSupplier =
                 maxLineLengthSupplier == null ? fixedLimit(2000) : maxLineLengthSupplier;
-        this.fileStateTracker = fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
+        this.fileStateTracker =
+                fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
     }
 
     @Override
@@ -133,11 +138,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         envelope.data("path", safeDisplayPath(fileName));
         if (success) {
             envelope.data("resolved_path", safeDisplayPath(resolvedPath))
-                    .data("files_modified", Collections.singletonList(safeDisplayPath(resolvedPath)));
+                    .data(
+                            "files_modified",
+                            Collections.singletonList(safeDisplayPath(resolvedPath)));
         }
         if (StrUtil.isNotBlank(staleWarning)) {
-            return envelope.data("_warning", safeDisplayPath(staleWarning))
-                    .toJson();
+            return envelope.data("_warning", safeDisplayPath(staleWarning)).toJson();
         }
         return envelope.toJson();
     }
@@ -149,7 +155,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     @ToolMapping(
             name = "file_read",
             description =
-                    "读取文本文件内容。返回带行号的 JSON 结果；offset 从 1 开始，limit 默认 500，并受 tool_output.max_lines 限制。")
+                    "读取文本文件内容。返回带行号的 JSON 结果；offset 从 1 开始，limit 默认 500，并受 solonclaw.task.toolOutputMaxLines 限制。")
     public String read(
             @Param("fileName") String fileName,
             @Param(
@@ -162,7 +168,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                             name = "limit",
                             required = false,
                             defaultValue = "500",
-                            description = "最多读取多少行，会按 tool_output.max_lines 截断。")
+                            description = "最多读取多少行，会按 solonclaw.task.toolOutputMaxLines 截断。")
                     Integer limit) {
         assertSafe(ToolNameConstants.FILE_READ, fileName);
         return readPaged(fileName, offset, limit);
@@ -234,7 +240,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             String displayPath = safeDisplayPath(fileName);
             ToolResultEnvelope envelope =
                     ToolResultEnvelope.error("文件不存在: " + displayPath)
-                    .data("path", displayPath)
+                            .data("path", displayPath)
                             .data("resolved_path", resolvedPath);
             List<String> similarFiles = similarFiles(fileName, target);
             if (!similarFiles.isEmpty()) {
@@ -244,8 +250,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
         if (targetFile.isDirectory()) {
             String displayPath = safeDisplayPath(fileName);
-            return ToolResultEnvelope.error(
-                            "读取失败：'" + displayPath + "' 是一个目录。请使用 file_list 查看其内容。")
+            return ToolResultEnvelope.error("读取失败：'" + displayPath + "' 是一个目录。请使用 file_list 查看其内容。")
                     .data("path", displayPath)
                     .data("resolved_path", resolvedPath)
                     .toJson();
@@ -495,7 +500,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             return Collections.emptyList();
         }
         Path fileNamePath = target.getFileName();
-        String requestedName = fileNamePath == null ? StrUtil.nullToEmpty(requestedPath) : fileNamePath.toString();
+        String requestedName =
+                fileNamePath == null ? StrUtil.nullToEmpty(requestedPath) : fileNamePath.toString();
         String lowerName = requestedName.toLowerCase(Locale.ROOT);
         String requestedBase = basename(lowerName);
         String requestedExt = extension(lowerName);
@@ -509,7 +515,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 if (!Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)) {
                     continue;
                 }
-                String candidateName = candidate.getFileName() == null ? "" : candidate.getFileName().toString();
+                String candidateName =
+                        candidate.getFileName() == null ? "" : candidate.getFileName().toString();
                 int score = similarityScore(lowerName, requestedBase, requestedExt, candidateName);
                 if (score <= 0 || !allowedSuggestion(candidate)) {
                     continue;
@@ -632,7 +639,9 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                                         + safeDisplayPath(fileName)
                                         + "。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
                         .data("path", safeDisplayPath(fileName))
-                        .data("resolved_path", safeDisplayPath(resolvedOutputPath(targetFile.toPath())))
+                        .data(
+                                "resolved_path",
+                                safeDisplayPath(resolvedOutputPath(targetFile.toPath())))
                         .data("already_read", Integer.valueOf(tracker.dedupHits + 1))
                         .toJson();
             }
@@ -694,9 +703,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             }
             if (consecutiveReadCount >= 3) {
                 return ReadStatus.warn(
-                        "你已经连续 "
-                                + consecutiveReadCount
-                                + " 次读取同一文件区域。内容未变化，请使用已有信息继续任务。",
+                        "你已经连续 " + consecutiveReadCount + " 次读取同一文件区域。内容未变化，请使用已有信息继续任务。",
                         consecutiveReadCount);
             }
             return ReadStatus.ok(consecutiveReadCount);

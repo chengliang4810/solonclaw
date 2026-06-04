@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useChatStore } from '@/stores/jimuqu/chat'
+import { useChatStore } from '@/stores/solonclaw/chat'
 import { useSessionSearch } from './useSessionSearch'
 
 export function useKeyboard() {
@@ -19,7 +19,7 @@ export function useKeyboard() {
 
     if (mod && e.key === 'j') {
       e.preventDefault()
-      router.push({ name: 'Jimuqu.jobs' })
+      router.push({ name: 'SolonClaw.jobs' })
       return
     }
 

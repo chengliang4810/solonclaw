@@ -582,7 +582,12 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         int result = -1;
         String[] headers =
                 new String[] {
-                    "Focus", "Goal", "Progress", "Decisions", "Files", "Remaining Work",
+                    "Focus",
+                    "Goal",
+                    "Progress",
+                    "Decisions",
+                    "Files",
+                    "Remaining Work",
                     "Next Steps"
                 };
         for (String header : headers) {

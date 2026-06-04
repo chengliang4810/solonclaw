@@ -106,7 +106,8 @@ public class AttachmentAwareConversationTest {
                 new SpeechService(
                         env.appConfig,
                         cacheService,
-                        java.util.Collections.<com.jimuqu.solon.claw.plugin.provider.SpeechProvider>emptyList(),
+                        java.util.Collections
+                                .<com.jimuqu.solon.claw.plugin.provider.SpeechProvider>emptyList(),
                         java.util.Collections.<TranscriptionProvider>singletonList(
                                 new FakeTranscriptionProvider("转写文本")));
         com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator orchestrator =
@@ -117,7 +118,8 @@ public class AttachmentAwareConversationTest {
                                 env.localSkillService,
                                 env.memoryManager,
                                 env.globalSettingRepository,
-                                new com.jimuqu.solon.claw.context.PersonaWorkspaceService(env.appConfig)),
+                                new com.jimuqu.solon.claw.context.PersonaWorkspaceService(
+                                        env.appConfig)),
                         env.contextCompressionService,
                         llmGateway,
                         env.toolRegistry,
@@ -134,7 +136,8 @@ public class AttachmentAwareConversationTest {
                                 new LlmProviderService(env.appConfig),
                                 null),
                         env.dangerousCommandApprovalService,
-                        (com.jimuqu.solon.claw.engine.AgentRunSupervisor) env.agentRunControlService,
+                        (com.jimuqu.solon.claw.engine.AgentRunSupervisor)
+                                env.agentRunControlService,
                         new com.jimuqu.solon.claw.support.RuntimeFooterService(env.appConfig),
                         env.agentRuntimeService,
                         env.memoryManager,
@@ -195,9 +198,7 @@ public class AttachmentAwareConversationTest {
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File missing =
-                new File(
-                        runtimeHome.getParentFile(),
-                        "private-token=ghp_missingsecret-report.pdf");
+                new File(runtimeHome.getParentFile(), "private-token=ghp_missingsecret-report.pdf");
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () ->
@@ -215,9 +216,7 @@ public class AttachmentAwareConversationTest {
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File outside =
-                new File(
-                        runtimeHome.getParentFile(),
-                        "outside-token=ghp_outsidesecret-report.pdf");
+                new File(runtimeHome.getParentFile(), "outside-token=ghp_outsidesecret-report.pdf");
         Files.write(outside.toPath(), "secret".getBytes("UTF-8"));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
@@ -425,7 +424,8 @@ public class AttachmentAwareConversationTest {
         }
 
         @Override
-        public TranscriptionResult transcribe(byte[] audio, String mimeType, Map<String, Object> options) {
+        public TranscriptionResult transcribe(
+                byte[] audio, String mimeType, Map<String, Object> options) {
             return TranscriptionResult.ok(transcript);
         }
     }
