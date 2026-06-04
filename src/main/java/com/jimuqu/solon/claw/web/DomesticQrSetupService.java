@@ -205,7 +205,7 @@ public class DomesticQrSetupService {
             state.qrUrl = appendFeishuQrSource(qrUrl);
             mark(state, "pending", "请使用飞书扫码授权");
 
-            long expireSeconds = Math.max(1L, begin.get("expire_in").getLong());
+            long expireSeconds = Math.max(1L, begin.get("expires_in").getLong());
             long deadline =
                     Math.min(state.expiresAt, System.currentTimeMillis() + expireSeconds * 1000L);
             long intervalMillis = Math.max(1L, begin.get("interval").getLong()) * 1000L;
@@ -254,12 +254,14 @@ public class DomesticQrSetupService {
                         DEFAULT_FEISHU_ACCOUNTS_BASE_URL));
     }
 
+    /** 持久化钉钉扫码授权结果，并把机器人编码默认写为客户端 ID 以兼容钉钉扫码返回字段。 */
     private void persistDingTalk(String clientId, String clientSecret) {
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
         updates.put("channels.dingtalk.enabled", Boolean.TRUE);
         configService.savePartialFlat(updates, false);
         configResolver.setFileValue("solonclaw.channels.dingtalk.clientId", clientId);
         configResolver.setFileValue("solonclaw.channels.dingtalk.clientSecret", clientSecret);
+        configResolver.setFileValue("solonclaw.channels.dingtalk.robotCode", clientId);
         gatewayRuntimeRefreshService.refreshNow();
     }
 
