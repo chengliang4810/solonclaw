@@ -205,7 +205,7 @@ public class DomesticQrSetupService {
             state.qrUrl = appendFeishuQrSource(qrUrl);
             mark(state, "pending", "请使用飞书扫码授权");
 
-            long expireSeconds = Math.max(1L, begin.get("expire_in").getLong());
+            long expireSeconds = Math.max(1L, begin.get("expires_in").getLong());
             long deadline =
                     Math.min(state.expiresAt, System.currentTimeMillis() + expireSeconds * 1000L);
             long intervalMillis = Math.max(1L, begin.get("interval").getLong()) * 1000L;

@@ -98,7 +98,7 @@ public class DomesticQrSetupServiceTest {
                     } else if (body.contains("action=begin")) {
                         writeJson(
                                 exchange,
-                                "{\"device_code\":\"feishu-device\",\"verification_uri_complete\":\"https://accounts.feishu.test/qr?code=1\",\"user_code\":\"ABCD\",\"interval\":1,\"expire_in\":60}");
+                                "{\"device_code\":\"feishu-device\",\"verification_uri_complete\":\"https://accounts.feishu.test/qr?code=1\",\"user_code\":\"ABCD\",\"interval\":1,\"expires_in\":60}");
                     } else if (pollCount.incrementAndGet() < 2) {
                         writeJson(
                                 exchange,
