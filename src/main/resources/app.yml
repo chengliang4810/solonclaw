@@ -98,8 +98,10 @@ security.tirithEnabled: true
 security.tirithPath: tirith
 security.tirithTimeoutSeconds: 5
 security.tirithFailOpen: true
-security.guardrailMode: approval
-security.guardrailCronMode: approval
+security.fileGuardrailMode: bypass
+security.urlGuardrailMode: bypass
+security.guardrailMode: bypass
+security.guardrailCronMode: bypass
 security.guardrailCronScope: job
 security.hardlineAllowlist:
   - hardline_shutdown

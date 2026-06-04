@@ -805,23 +805,28 @@ public class ProcessTools {
 
     private void assertBackgroundSafe(String command) {
         if (securityPolicyService != null) {
-            SecurityPolicyService.FileVerdict fileVerdict =
-                    securityPolicyService.checkCommandPaths(command);
-            if (!fileVerdict.isAllowed()) {
-                throw new IllegalArgumentException(
-                        "BLOCKED: 文件安全策略阻止访问："
-                                + fileVerdict.getMessage()
-                                + "\n路径："
-                                + SecretRedactor.redact(fileVerdict.getPath(), 400));
+            AppConfig appConfig = securityPolicyService.getAppConfig();
+            if (SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.FileVerdict fileVerdict =
+                        securityPolicyService.checkCommandPaths(command);
+                if (!fileVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(
+                            "BLOCKED: 文件安全策略阻止访问："
+                                    + fileVerdict.getMessage()
+                                    + "\n路径："
+                                    + SecretRedactor.redact(fileVerdict.getPath(), 400));
+                }
             }
-            SecurityPolicyService.UrlVerdict urlVerdict =
-                    securityPolicyService.checkCommandUrls(command);
-            if (!urlVerdict.isAllowed()) {
-                throw new IllegalArgumentException(
-                        "BLOCKED: URL 安全策略阻止访问："
-                                + urlVerdict.getMessage()
-                                + "\nURL: "
-                                + SecretRedactor.maskUrl(urlVerdict.getUrl()));
+            if (SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.UrlVerdict urlVerdict =
+                        securityPolicyService.checkCommandUrls(command);
+                if (!urlVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(
+                            "BLOCKED: URL 安全策略阻止访问："
+                                    + urlVerdict.getMessage()
+                                    + "\nURL: "
+                                    + SecretRedactor.maskUrl(urlVerdict.getUrl()));
+                }
             }
         }
 

@@ -1448,6 +1448,24 @@ public class AppConfig {
                         resolveBoolean(
                                 readBoolean(props, overrides, "security.tirithFailOpen", true)));
         config.getSecurity()
+                .setFileGuardrailMode(
+                        normalizeBinaryGuardrailMode(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "security.fileGuardrailMode",
+                                                "bypass"))));
+        config.getSecurity()
+                .setUrlGuardrailMode(
+                        normalizeBinaryGuardrailMode(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "security.urlGuardrailMode",
+                                                "bypass"))));
+        config.getSecurity()
                 .setGuardrailMode(
                         normalizeGuardrailMode(
                                 resolveConfigString(
@@ -1455,7 +1473,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "security.guardrailMode",
-                                                "approval"))));
+                                                "bypass"))));
         config.getSecurity()
                 .setGuardrailCronMode(
                         normalizeGuardrailCronMode(
@@ -1901,6 +1919,8 @@ public class AppConfig {
         this.security.setTirithPath(other.getTirithPath());
         this.security.setTirithTimeoutSeconds(other.getTirithTimeoutSeconds());
         this.security.setTirithFailOpen(other.isTirithFailOpen());
+        this.security.setFileGuardrailMode(other.getFileGuardrailMode());
+        this.security.setUrlGuardrailMode(other.getUrlGuardrailMode());
         this.security.setGuardrailMode(other.getGuardrailMode());
         this.security.setGuardrailCronMode(other.getGuardrailCronMode());
         this.security.setGuardrailCronScope(other.getGuardrailCronScope());
@@ -2199,7 +2219,7 @@ public class AppConfig {
     }
 
     private static String normalizeGuardrailMode(String raw) {
-        String value = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase();
+        String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
         if ("false".equals(value)
                 || "off".equals(value)
                 || "none".equals(value)
@@ -2224,7 +2244,7 @@ public class AppConfig {
     }
 
     private static String normalizeGuardrailCronMode(String raw) {
-        String value = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase();
+        String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
         if ("approve".equals(value) || "allow".equals(value) || "yes".equals(value)) {
             return "approve";
         }
@@ -2241,6 +2261,22 @@ public class AppConfig {
             return "session";
         }
         return "job";
+    }
+
+    /** 规范化只有严格和跳过两种结果的安全预检模式。 */
+    private static String normalizeBinaryGuardrailMode(String raw) {
+        String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
+        if ("false".equals(value)
+                || "off".equals(value)
+                || "none".equals(value)
+                || "skip".equals(value)
+                || "ignore".equals(value)
+                || "bypass".equals(value)
+                || "permissive".equals(value)
+                || "yolo".equals(value)) {
+            return "bypass";
+        }
+        return "strict";
     }
 
     private static String guardrailApprovalMode(String guardrailMode) {
@@ -3785,11 +3821,17 @@ public class AppConfig {
         /** Tirith 不可用或超时时是否放行。 */
         private boolean tirithFailOpen = true;
 
-        /** Agent 工具安全策略模式：approval / strict / bypass / smart。 */
-        private String guardrailMode = "approval";
+        /** 文件路径安全预检模式：strict / bypass。默认 bypass，避免可信联调任务被软策略打断。 */
+        private String fileGuardrailMode = "bypass";
 
-        /** Cron 工具安全策略模式：approval / strict / bypass / approve。 */
-        private String guardrailCronMode = "approval";
+        /** URL 安全预检模式：strict / bypass。默认 bypass，metadata 等 hardline 仍由硬策略兜底。 */
+        private String urlGuardrailMode = "bypass";
+
+        /** Agent 工具安全策略模式：approval / strict / bypass / smart。默认 bypass，用户可显式收紧。 */
+        private String guardrailMode = "bypass";
+
+        /** Cron 工具安全策略模式：approval / strict / bypass / approve。默认 bypass，避免无人值守任务卡住。 */
+        private String guardrailCronMode = "bypass";
 
         /** Cron 审批记忆范围：job / session / global。 */
         private String guardrailCronScope = "job";

@@ -336,11 +336,40 @@ public class DefaultCronSchedulerTest {
                 .hasMessageContaining("Cron job 'idle-job' idle")
                 .hasMessageContaining("last activity: model test-provider/test-model");
 
-        assertThat(controlService.stoppedSourceKey).isEqualTo("MEMORY:cron:user");
+        assertThat(controlService.stoppedSourceKey).isEqualTo("CRON:idle-job");
         assertThat(orchestrator.interrupted.get()).isTrue();
         assertThat(env.cronJobRepository.findById("idle-job").getLastStatus()).isEqualTo("error");
         assertThat(env.cronJobRepository.findById("idle-job").getLastError())
                 .contains("Cron job 'idle-job' idle");
+    }
+
+    @Test
+    void shouldUseCronJobSourceKeyForScheduledAgentHistory() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronSourceRecordingOrchestrator orchestrator = new CronSourceRecordingOrchestrator();
+        CronJobRecord first = job("history-job-a", "MEMORY:shared-room:shared-user");
+        CronJobRecord second = job("history-job-b", "MEMORY:shared-room:shared-user");
+        env.cronJobRepository.save(first);
+        env.cronJobRepository.save(second);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        orchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+
+        scheduler.runNow(first.getJobId());
+        scheduler.runNow(second.getJobId());
+
+        assertThat(orchestrator.sourceKeys)
+                .containsExactly("CRON:history-job-a", "CRON:history-job-b");
+        assertThat(orchestrator.messages.get(0).getPlatform()).isEqualTo(PlatformType.MEMORY);
+        assertThat(orchestrator.messages.get(0).getChatId()).isEqualTo("shared-room");
+        assertThat(orchestrator.messages.get(0).getUserId()).isEqualTo("shared-user");
     }
 
     @Test
@@ -4239,9 +4268,10 @@ public class DefaultCronSchedulerTest {
         assertThat(gateway.apiUrl).isEqualTo("https://api.pinned.example/v1/responses");
         assertThat(
                         env.sessionRepository
-                                .getBoundSession("MEMORY:cron-room:cron-user")
+                                .getBoundSession("CRON:" + job.getJobId())
                                 .getModelOverride())
                 .isNull();
+        assertThat(env.sessionRepository.getBoundSession("MEMORY:cron-room:cron-user")).isNull();
     }
 
     @Test
@@ -5234,6 +5264,28 @@ public class DefaultCronSchedulerTest {
         public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
             this.userMessage = syntheticMessage.getText();
             return GatewayReply.ok("agent saw script error");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class CronSourceRecordingOrchestrator implements ConversationOrchestrator {
+        private final List<String> sourceKeys = new java.util.ArrayList<String>();
+        private final List<GatewayMessage> messages = new java.util.ArrayList<GatewayMessage>();
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            messages.add(syntheticMessage);
+            sourceKeys.add(syntheticMessage.sourceKey());
+            return GatewayReply.ok("scheduled ok");
         }
 
         @Override
