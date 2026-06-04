@@ -40,10 +40,7 @@ public class PromptCachePolicy {
 
     public PromptCachePolicy(AppConfig.PromptCacheConfig config) {
         this.enabled = config != null && config.isEnabled();
-        this.layout =
-                config == null
-                        ? Layout.SYSTEM_AND_3
-                        : Layout.fromConfig(config.getLayout());
+        this.layout = config == null ? Layout.SYSTEM_AND_3 : Layout.fromConfig(config.getLayout());
     }
 
     /** 是否启用 prompt cache。 */

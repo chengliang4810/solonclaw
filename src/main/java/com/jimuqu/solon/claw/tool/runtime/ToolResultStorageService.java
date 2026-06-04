@@ -192,7 +192,9 @@ public class ToolResultStorageService {
         summary.put("fullOutputSavedRaw", Boolean.FALSE);
         summary.put("pathSegmentsSanitized", Boolean.TRUE);
         summary.put("canonicalChildPathCheck", Boolean.TRUE);
-        summary.put("workspaceRelativeRefsPreferred", Boolean.valueOf(StrUtil.isNotBlank(workspaceDir)));
+        summary.put(
+                "workspaceRelativeRefsPreferred",
+                Boolean.valueOf(StrUtil.isNotBlank(workspaceDir)));
         summary.put("storageBase", storageBaseLabel());
         summary.put("describePersistedObservation", Boolean.TRUE);
         summary.put("storageFailureFallsBackToPreviewOnly", Boolean.TRUE);
@@ -269,7 +271,8 @@ public class ToolResultStorageService {
         message.append(PERSISTED_OUTPUT_TAG).append('\n');
         message.append("This tool result was too large (")
                 .append(sizeBytes)
-                .append(" bytes).").append('\n');
+                .append(" bytes).")
+                .append('\n');
         if (StrUtil.isBlank(ref)) {
             message.append("Full output could not be saved; use the preview only.").append('\n');
         } else {
@@ -474,7 +477,10 @@ public class ToolResultStorageService {
             File cacheBase = new File(new File(cacheDir), TOOL_RESULTS_DIR).getCanonicalFile();
             if (isChild(cacheBase, canonicalFile)) {
                 String relative = cacheBase.toPath().relativize(canonicalFile.toPath()).toString();
-                return "runtime://" + TOOL_RESULTS_DIR + "/" + relative.replace(File.separatorChar, '/');
+                return "runtime://"
+                        + TOOL_RESULTS_DIR
+                        + "/"
+                        + relative.replace(File.separatorChar, '/');
             }
             return runtimeResultRef(canonicalFile);
         } catch (Exception ignored) {
@@ -520,7 +526,8 @@ public class ToolResultStorageService {
 
     private String safePreview(String content) {
         int effectivePreviewLength = previewLength();
-        return SecretRedactor.redact(preview(content, effectivePreviewLength), effectivePreviewLength);
+        return SecretRedactor.redact(
+                preview(content, effectivePreviewLength), effectivePreviewLength);
     }
 
     private String observationForTool(String toolName, String content) {
@@ -550,8 +557,7 @@ public class ToolResultStorageService {
 
     private static String safeUntrustedSource(String toolName) {
         String source = SecretRedactor.redact(StrUtil.blankToDefault(toolName, "unknown"), 200);
-        return source
-                .replace("&", "&amp;")
+        return source.replace("&", "&amp;")
                 .replace("\"", "&quot;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;");

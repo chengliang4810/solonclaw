@@ -4,8 +4,8 @@ set -e
 RUNTIME_HOME="/app/runtime"
 APP_USER="solonclaw"
 APP_GROUP="solonclaw"
-APP_UID="${SOLONCLAW_UID:-${PUID:-10000}}"
-APP_GID="${SOLONCLAW_GID:-${PGID:-10000}}"
+APP_UID="${SOLONCLAW_UID:-10000}"
+APP_GID="${SOLONCLAW_GID:-10000}"
 
 is_positive_int() {
     case "$1" in
@@ -19,7 +19,7 @@ is_positive_int() {
 
 configure_runtime_user() {
     if ! is_positive_int "$APP_UID" || ! is_positive_int "$APP_GID"; then
-        echo "Error: SOLONCLAW_UID/SOLONCLAW_GID or PUID/PGID must be positive numeric IDs."
+        echo "Error: SOLONCLAW_UID/SOLONCLAW_GID must be positive numeric IDs."
         exit 1
     fi
 
@@ -73,7 +73,7 @@ if [ "$(id -u)" = "0" ]; then
         echo "  sudo mkdir -p runtime"
         echo "  sudo chown -R $APP_UID:$APP_GID runtime"
         echo "  sudo chmod -R u+rwX runtime"
-        echo "Or set SOLONCLAW_UID/SOLONCLAW_GID, or PUID/PGID, to match the host directory owner before docker compose up."
+        echo "Or set SOLONCLAW_UID/SOLONCLAW_GID to match the host directory owner before docker compose up."
         echo "Container view of runtime directory:"
         ls -ldn "$RUNTIME_HOME" || true
         exit 1

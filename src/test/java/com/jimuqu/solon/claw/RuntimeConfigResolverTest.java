@@ -89,7 +89,8 @@ public class RuntimeConfigResolverTest {
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-5.4");
         config.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
 
         Map<String, Object> diagnostics = resolver.diagnostics(config);
         String text = String.valueOf(diagnostics);
@@ -104,9 +105,34 @@ public class RuntimeConfigResolverTest {
                 .contains("raw_value")
                 .contains("effective_value")
                 .doesNotContain("sk-configdriftdiagnostic12345");
-        assertThat(diagnostics).containsEntry("unknown_count", 1);
-        assertThat(diagnostics).containsEntry("legacy_count", 2);
+        assertThat(diagnostics).containsEntry("unknown_count", 3);
+        assertThat(diagnostics).doesNotContainKey("legacy_keys");
+        assertThat(diagnostics).doesNotContainKey("legacy_count");
         assertThat(diagnostics).containsEntry("effective_diff_count", 1);
+    }
+
+    @Test
+    void shouldRejectLegacyRuntimeConfigAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-legacy").toFile();
+        FileUtil.writeUtf8String(
+                "jimuqu:\n"
+                        + "  terminal:\n"
+                        + "    sudoPassword: legacy-pass\n"
+                        + "tool_output:\n"
+                        + "  max_bytes: 9\n"
+                        + "browser:\n"
+                        + "  allow_private_urls: false\n",
+                new File(runtimeHome, "config.yml"));
+
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+
+        assertThat(resolver.get("jimuqu.terminal.sudoPassword")).isNull();
+        assertThat(resolver.get("tool_output.max_bytes")).isNull();
+        assertThat(resolver.get("browser.allow_private_urls")).isNull();
+        assertThatThrownBy(() -> resolver.setFileValue("tool_output.max_bytes", "10"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported config key");
     }
 
     @Test
@@ -130,10 +156,7 @@ public class RuntimeConfigResolverTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("密钥配置");
 
-        assertThatThrownBy(
-                        () ->
-                                service.updateSecret(
-                                        "solonclaw.react.maxSteps", "10", false))
+        assertThatThrownBy(() -> service.updateSecret("solonclaw.react.maxSteps", "10", false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不是密钥配置");
 

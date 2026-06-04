@@ -82,9 +82,8 @@ public class McpPackageSecurityService {
         summary.put("supportedEcosystems", java.util.Arrays.asList("npm", "PyPI"));
         summary.put("endpointUrlSafetyChecked", Boolean.valueOf(securityPolicyService != null));
         summary.put("defaultEndpoint", DEFAULT_OSV_ENDPOINT);
-        summary.put("endpointOverrideEnvironment", "JIMUQU_OSV_ENDPOINT,OSV_ENDPOINT");
-        summary.put("projectEndpointOverrideEnvironment", "JIMUQU_OSV_ENDPOINT");
-        summary.put("legacyEndpointOverrideEnvironment", "OSV_ENDPOINT");
+        summary.put("endpointOverrideEnvironment", "SOLONCLAW_OSV_ENDPOINT");
+        summary.put("projectEndpointOverrideEnvironment", "SOLONCLAW_OSV_ENDPOINT");
         summary.put("malwareAdvisoryPrefix", "MAL-");
         summary.put("nonMalwareVulnerabilitiesIgnored", Boolean.TRUE);
         summary.put("malwareBlocksSaveAndCheck", Boolean.TRUE);
@@ -111,11 +110,7 @@ public class McpPackageSecurityService {
     }
 
     private static String endpointFromEnvironment() {
-        String projectValue = StrUtil.nullToEmpty(System.getenv("JIMUQU_OSV_ENDPOINT")).trim();
-        if (StrUtil.isNotBlank(projectValue)) {
-            return projectValue;
-        }
-        return System.getenv("OSV_ENDPOINT");
+        return System.getenv("SOLONCLAW_OSV_ENDPOINT");
     }
 
     private String inferEcosystem(String command) {
@@ -249,7 +244,8 @@ public class McpPackageSecurityService {
         if (token.startsWith("@")) {
             int at = token.indexOf('@', 1);
             if (at > 0) {
-                return new PackageRef(token.substring(0, at), versionOrNull(token.substring(at + 1)));
+                return new PackageRef(
+                        token.substring(0, at), versionOrNull(token.substring(at + 1)));
             }
             return new PackageRef(token, null);
         }
@@ -365,7 +361,9 @@ public class McpPackageSecurityService {
                     ids.append(", ");
                     summaries.append("; ");
                 }
-                String id = SecretRedactor.redact(StrUtil.nullToEmpty(String.valueOf(vuln.get("id"))), 200);
+                String id =
+                        SecretRedactor.redact(
+                                StrUtil.nullToEmpty(String.valueOf(vuln.get("id"))), 200);
                 ids.append(id);
                 summaries.append(
                         StrUtil.maxLength(

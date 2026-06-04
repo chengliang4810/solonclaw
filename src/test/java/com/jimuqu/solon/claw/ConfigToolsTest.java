@@ -61,23 +61,31 @@ public class ConfigToolsTest {
         assertThat(configSetTool).isNotNull();
         Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
         String allowedResponse =
-                (String) method.invoke(configSetTool, "terminal.env_passthrough", "TENOR_API_KEY");
+                (String)
+                        method.invoke(
+                                configSetTool,
+                                "solonclaw.terminal.envPassthrough",
+                                "TENOR_API_KEY");
         assertThat(ONode.ofJson(allowedResponse).get("success").getBoolean()).isTrue();
         assertThat(env.appConfig.getTerminal().getEnvPassthrough())
                 .containsExactly("TENOR_API_KEY");
 
         String rejectedResponse =
-                (String) method.invoke(configSetTool, "terminal.env_passthrough", "OPENAI_API_KEY");
+                (String)
+                        method.invoke(
+                                configSetTool,
+                                "solonclaw.terminal.envPassthrough",
+                                "OPENAI_API_KEY");
         assertThat(ONode.ofJson(rejectedResponse).get("success").getBoolean()).isFalse();
         assertThat(ONode.ofJson(rejectedResponse).get("error").getString())
-                .contains("terminal.envPassthrough")
+                .contains("solonclaw.terminal.envPassthrough")
                 .contains("OPENAI_API_KEY")
                 .contains("high-risk");
         String pathResponse =
-                (String) method.invoke(configSetTool, "terminal.envPassthrough", "PATH");
+                (String) method.invoke(configSetTool, "solonclaw.terminal.envPassthrough", "PATH");
         assertThat(ONode.ofJson(pathResponse).get("success").getBoolean()).isFalse();
         assertThat(ONode.ofJson(pathResponse).get("error").getString())
-                .contains("terminal.envPassthrough")
+                .contains("solonclaw.terminal.envPassthrough")
                 .contains("PATH")
                 .contains("high-risk");
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
@@ -109,9 +117,7 @@ public class ConfigToolsTest {
         String response =
                 (String)
                         method.invoke(
-                                configSetSecretTool,
-                                "providers.default.apiKey",
-                                "your-api-key");
+                                configSetSecretTool, "providers.default.apiKey", "your-api-key");
 
         assertThat(ONode.ofJson(response).get("success").getBoolean()).isFalse();
         assertThat(ONode.ofJson(response).get("error").getString()).contains("占位符密钥");
@@ -119,12 +125,9 @@ public class ConfigToolsTest {
         String channelSecretResponse =
                 (String)
                         method.invoke(
-                                configSetSecretTool,
-                                "solonclaw.channels.weixin.token",
-                                "dummy");
+                                configSetSecretTool, "solonclaw.channels.weixin.token", "dummy");
         assertThat(ONode.ofJson(channelSecretResponse).get("success").getBoolean()).isFalse();
-        assertThat(ONode.ofJson(channelSecretResponse).get("error").getString())
-                .contains("占位符密钥");
+        assertThat(ONode.ofJson(channelSecretResponse).get("error").getString()).contains("占位符密钥");
     }
 
     @Test
@@ -296,10 +299,10 @@ public class ConfigToolsTest {
         assertThat(readResponse.get("success").getBoolean()).isTrue();
         assertThat(readResponse.get("value").getString()).isEqualTo("***");
         assertThat(readResponse.get("redacted").getBoolean()).isTrue();
-        assertThat(readResponse.get("preview").getString()).isEqualTo("gateway.injectionSecret=***");
+        assertThat(readResponse.get("preview").getString())
+                .isEqualTo("gateway.injectionSecret=***");
         assertThat(readResponse.toString()).doesNotContain("sk-test-real-secret-12345");
     }
-
 
     @Test
     void shouldExposeConfigEnvProbeToolWithoutLeakingSecretLikeNames() throws Exception {
@@ -324,7 +327,7 @@ public class ConfigToolsTest {
                         (String)
                                 method.invoke(
                                         configGetTool,
-                                        "[\"PATH\",\"TENOR_API_KEY\",\"OPENAI_API_KEY\",\"_JIMUQU_FORCE_CUSTOM_TOKEN\",\"ghp_probe1234567890\"]"));
+                                        "[\"PATH\",\"TENOR_API_KEY\",\"OPENAI_API_KEY\",\"_SOLONCLAW_FORCE_CUSTOM_TOKEN\",\"ghp_probe1234567890\"]"));
 
         assertThat(response.get("success").getBoolean()).isTrue();
         assertThat(response.get("requestedCount").getInt()).isEqualTo(5);
@@ -341,6 +344,7 @@ public class ConfigToolsTest {
                 .contains("***")
                 .doesNotContain("ghp_probe1234567890");
     }
+
     @Test
     void shouldKeepRegularWritesSeparateFromSecretUpdates() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -370,16 +374,28 @@ public class ConfigToolsTest {
         assertThat(env.appConfig.getReact().getDelegateMaxSteps()).isEqualTo(25);
 
         ONode rejectedSecretWrite =
-                ONode.ofJson((String) write.invoke(configSetTool, "providers.default.apiKey", "sk-regular-write-secret-12345"));
+                ONode.ofJson(
+                        (String)
+                                write.invoke(
+                                        configSetTool,
+                                        "providers.default.apiKey",
+                                        "sk-regular-write-secret-12345"));
         assertThat(rejectedSecretWrite.get("success").getBoolean()).isFalse();
         assertThat(rejectedSecretWrite.get("error").getString())
                 .contains("config_set_secret")
                 .doesNotContain("sk-regular-write-secret-12345");
 
         Method writeSecret =
-                configSetSecretTool.getClass().getMethod("configSetSecret", String.class, String.class);
+                configSetSecretTool
+                        .getClass()
+                        .getMethod("configSetSecret", String.class, String.class);
         ONode rejectedNonSecret =
-                ONode.ofJson((String) writeSecret.invoke(configSetSecretTool, "providers.default.defaultModel", "gpt-5"));
+                ONode.ofJson(
+                        (String)
+                                writeSecret.invoke(
+                                        configSetSecretTool,
+                                        "providers.default.defaultModel",
+                                        "gpt-5"));
         assertThat(rejectedNonSecret.get("success").getBoolean()).isFalse();
         assertThat(rejectedNonSecret.get("error").getString()).contains("不是密钥配置");
 

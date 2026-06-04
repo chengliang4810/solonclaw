@@ -153,7 +153,8 @@ public class AppUpdateServiceTest {
         versionService.setCurrentTag("v0.0.1");
         FakeUpdateService parseService = new FakeUpdateService(new AppConfig(), versionService);
 
-        parseService.exposeParseReleaseInfo("{\"tag_name\":\"v0.0.2\",\"broken\":\"api_key=" + leakedToken);
+        parseService.exposeParseReleaseInfo(
+                "{\"tag_name\":\"v0.0.2\",\"broken\":\"api_key=" + leakedToken);
 
         assertThat(parseService.currentLastError()).doesNotContain(leakedToken);
 
@@ -167,14 +168,14 @@ public class AppUpdateServiceTest {
         FileUtil.touch(new File("target/fake-current.jar"));
         DownloadFailingUpdateService downloadService =
                 new DownloadFailingUpdateService(jarConfig, jarVersionService, downloadToken);
-        ((FakeUpdateService) downloadService).setReleaseBody(
-                "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solon-claw-0.0.2.jar\",\"browser_download_url\":\"https://github.com/chengliang4810/solon-claw/releases/download/v0.0.2/app.jar\"}]}");
+        ((FakeUpdateService) downloadService)
+                .setReleaseBody(
+                        "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solon-claw-0.0.2.jar\",\"browser_download_url\":\"https://github.com/chengliang4810/solon-claw/releases/download/v0.0.2/app.jar\"}]}");
 
         AppUpdateService.UpdateResult downloadResult = downloadService.startUpdate();
 
         assertThat(downloadResult.isError()).isTrue();
         assertThat(downloadResult.getMessage()).contains("***").doesNotContain(downloadToken);
-
     }
 
     @Test
@@ -217,7 +218,8 @@ public class AppUpdateServiceTest {
         String leakedToken = "ghp_updateresult12345";
 
         AppUpdateService.UpdateResult result =
-                AppUpdateService.UpdateResult.error("update failed Authorization: Bearer " + leakedToken);
+                AppUpdateService.UpdateResult.error(
+                        "update failed Authorization: Bearer " + leakedToken);
 
         assertThat(result.isError()).isTrue();
         assertThat(result.getMessage()).contains("Bearer ***").doesNotContain(leakedToken);
@@ -282,7 +284,8 @@ public class AppUpdateServiceTest {
 
         private String currentLastError() {
             try {
-                java.lang.reflect.Field field = AppUpdateService.class.getDeclaredField("lastErrorMessage");
+                java.lang.reflect.Field field =
+                        AppUpdateService.class.getDeclaredField("lastErrorMessage");
                 field.setAccessible(true);
                 return (String) field.get(this);
             } catch (Exception e) {

@@ -120,8 +120,7 @@ public class StorageRepositoryTest {
         SessionRecord clone =
                 env.sessionRepository.cloneSession(
                         "MEMORY:secure-branch:user", session.getSessionId(), "safe-review");
-        SqliteAgentSession clonedSession =
-                new SqliteAgentSession(clone, env.sessionRepository);
+        SqliteAgentSession clonedSession = new SqliteAgentSession(clone, env.sessionRepository);
 
         assertThat(clonedSession.getContext().get("ordinary_context")).isEqualTo("keep-me");
         assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(clonedSession))
@@ -145,10 +144,8 @@ public class StorageRepositoryTest {
 
         List<SessionRecord> byPrefix =
                 env.sessionRepository.findResumeCandidates(alpha.getSessionId().substring(0, 8), 3);
-        List<SessionRecord> byTitle =
-                env.sessionRepository.findResumeCandidates("客户日报", 3);
-        List<SessionRecord> partialTitle =
-                env.sessionRepository.findResumeCandidates("客户", 3);
+        List<SessionRecord> byTitle = env.sessionRepository.findResumeCandidates("客户日报", 3);
+        List<SessionRecord> partialTitle = env.sessionRepository.findResumeCandidates("客户", 3);
 
         assertThat(byPrefix).hasSize(1);
         assertThat(byPrefix.get(0).getSessionId()).isEqualTo(alpha.getSessionId());
@@ -167,8 +164,7 @@ public class StorageRepositoryTest {
         second.setTitle("共享标题");
         env.sessionRepository.save(second);
 
-        List<SessionRecord> candidates =
-                env.sessionRepository.findResumeCandidates("共享标题", 3);
+        List<SessionRecord> candidates = env.sessionRepository.findResumeCandidates("共享标题", 3);
 
         assertThat(candidates).hasSize(2);
         assertThat(candidates)
@@ -179,7 +175,8 @@ public class StorageRepositoryTest {
     @Test
     void shouldListSessionLineageFromRootAndResolveLatestDescendantPath() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord root = env.sessionRepository.bindNewSession("MEMORY:lineage-storage-root:user");
+        SessionRecord root =
+                env.sessionRepository.bindNewSession("MEMORY:lineage-storage-root:user");
         root.setTitle("root");
         root.setCreatedAt(100L);
         root.setUpdatedAt(100L);
@@ -214,11 +211,16 @@ public class StorageRepositoryTest {
 
         assertThat(lineage)
                 .extracting(SessionRecord::getSessionId)
-                .contains(root.getSessionId(), oldChild.getSessionId(), newChild.getSessionId(), grandchild.getSessionId());
+                .contains(
+                        root.getSessionId(),
+                        oldChild.getSessionId(),
+                        newChild.getSessionId(),
+                        grandchild.getSessionId());
         assertThat(env.sessionRepository.resolveRootSessionId(grandchild.getSessionId()))
                 .isEqualTo(root.getSessionId());
         assertThat(latestPath)
-                .containsExactly(root.getSessionId(), newChild.getSessionId(), grandchild.getSessionId());
+                .containsExactly(
+                        root.getSessionId(), newChild.getSessionId(), grandchild.getSessionId());
     }
 
     private void assertStoragePragmas(Connection connection) throws Exception {

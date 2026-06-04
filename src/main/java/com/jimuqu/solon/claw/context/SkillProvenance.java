@@ -5,9 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Skill provenance tracking.
- * Records how a skill was created (agent-created, hub-installed, bundled, manual)
- * and its trust level for curator lifecycle decisions.
+ * Skill provenance tracking. Records how a skill was created (agent-created, hub-installed,
+ * bundled, manual) and its trust level for curator lifecycle decisions.
  */
 public class SkillProvenance {
     public static final String SOURCE_AGENT_CREATED = "agent-created";
@@ -109,20 +108,67 @@ public class SkillProvenance {
         return TRUST_USER;
     }
 
-    public String getSkillName() { return skillName; }
-    public void setSkillName(String skillName) { this.skillName = skillName; }
-    public String getSource() { return source; }
-    public void setSource(String source) { this.source = source; }
-    public String getTrustLevel() { return trustLevel; }
-    public void setTrustLevel(String trustLevel) { this.trustLevel = trustLevel; }
-    public String getCreatedBy() { return createdBy; }
-    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
-    public long getCreatedAt() { return createdAt; }
-    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
-    public String getHubIdentifier() { return hubIdentifier; }
-    public void setHubIdentifier(String hubIdentifier) { this.hubIdentifier = hubIdentifier; }
-    public String getBundleName() { return bundleName; }
-    public void setBundleName(String bundleName) { this.bundleName = bundleName; }
-    public String getExternalDir() { return externalDir; }
-    public void setExternalDir(String externalDir) { this.externalDir = externalDir; }
+    public String getSkillName() {
+        return skillName;
+    }
+
+    public void setSkillName(String skillName) {
+        this.skillName = skillName;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getTrustLevel() {
+        return trustLevel;
+    }
+
+    public void setTrustLevel(String trustLevel) {
+        this.trustLevel = trustLevel;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public long getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(long createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getHubIdentifier() {
+        return hubIdentifier;
+    }
+
+    public void setHubIdentifier(String hubIdentifier) {
+        this.hubIdentifier = hubIdentifier;
+    }
+
+    public String getBundleName() {
+        return bundleName;
+    }
+
+    public void setBundleName(String bundleName) {
+        this.bundleName = bundleName;
+    }
+
+    public String getExternalDir() {
+        return externalDir;
+    }
+
+    public void setExternalDir(String externalDir) {
+        this.externalDir = externalDir;
+    }
 }

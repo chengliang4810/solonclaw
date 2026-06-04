@@ -39,8 +39,7 @@ public class SolonClawFileReadWriteSkillTest {
         Files.write(file, "before\n".getBytes(StandardCharsets.UTF_8));
         Object beforeKey = Files.getAttribute(file, "unix:ino");
 
-        SolonClawFileReadWriteSkill skill =
-                new SolonClawFileReadWriteSkill(dir.toString(), null);
+        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
         String result = skill.write("target.txt", "after\n");
 
         assertThat(result).contains("\"success\":true");
@@ -72,8 +71,7 @@ public class SolonClawFileReadWriteSkillTest {
                         java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
                         java.nio.file.attribute.PosixFilePermission.GROUP_READ));
 
-        SolonClawFileReadWriteSkill skill =
-                new SolonClawFileReadWriteSkill(dir.toString(), null);
+        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
         String result = skill.write("mode.txt", "after\n");
 
         assertThat(result).contains("\"success\":true");

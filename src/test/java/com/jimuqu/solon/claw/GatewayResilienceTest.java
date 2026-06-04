@@ -2,9 +2,9 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -61,7 +61,8 @@ public class GatewayResilienceTest {
     void shouldExtractGatewayReplyMediaTagsIntoDeliveryAttachments() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:media-room:user");
-        File attachment = new File(env.appConfig.getRuntime().getCacheDir(), "gateway-media/report.txt");
+        File attachment =
+                new File(env.appConfig.getRuntime().getCacheDir(), "gateway-media/report.txt");
         Files.createDirectories(attachment.getParentFile().toPath());
         Files.write(attachment.toPath(), "report body".getBytes("UTF-8"));
         DefaultGatewayService service =
@@ -91,7 +92,8 @@ public class GatewayResilienceTest {
     @Test
     void shouldExtractUnquotedGatewayMediaTagsWithSpaces() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:media-space-room:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:media-space-room:user");
         File attachment =
                 new File(
                         env.appConfig.getRuntime().getCacheDir(),
@@ -102,8 +104,7 @@ public class GatewayResilienceTest {
                 new DefaultGatewayService(
                         unsupportedCommandService(),
                         replyingOrchestrator(
-                                session,
-                                "网关报告\nMEDIA:" + attachment.getAbsolutePath() + "\n请查收"),
+                                session, "网关报告\nMEDIA:" + attachment.getAbsolutePath() + "\n请查收"),
                         env.deliveryService,
                         env.sessionRepository,
                         allowAllAuthorization(env),
@@ -123,8 +124,10 @@ public class GatewayResilienceTest {
     @Test
     void shouldNotExtractGatewayReplyMediaTagsInsideInlineCode() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:inline-media-room:user");
-        File attachment = new File(env.appConfig.getRuntime().getCacheDir(), "gateway-media/report.md");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:inline-media-room:user");
+        File attachment =
+                new File(env.appConfig.getRuntime().getCacheDir(), "gateway-media/report.md");
         Files.createDirectories(attachment.getParentFile().toPath());
         Files.write(attachment.toPath(), "report body".getBytes("UTF-8"));
         String content = "失败路径预览：`MEDIA:\"" + attachment.getAbsolutePath() + "\"`";
@@ -148,7 +151,8 @@ public class GatewayResilienceTest {
     @Test
     void shouldPreserveGatewayReplyTextWhenNoMediaTagResolves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:plain-media-room:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:plain-media-room:user");
         String content = "  第一行\n\n\n第二行  ";
         DefaultGatewayService service =
                 new DefaultGatewayService(
@@ -170,14 +174,14 @@ public class GatewayResilienceTest {
     @Test
     void shouldKeepGatewayReplyMediaTagVisibleWhenAttachmentIsMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:missing-media-room:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:missing-media-room:user");
         File missing = new File(env.appConfig.getRuntime().getCacheDir(), "missing-report.txt");
         DefaultGatewayService service =
                 new DefaultGatewayService(
                         unsupportedCommandService(),
                         replyingOrchestrator(
-                                session,
-                                "网关报告\nMEDIA:\"" + missing.getAbsolutePath() + "\"\n请查收"),
+                                session, "网关报告\nMEDIA:\"" + missing.getAbsolutePath() + "\"\n请查收"),
                         env.deliveryService,
                         env.sessionRepository,
                         allowAllAuthorization(env),
@@ -194,15 +198,15 @@ public class GatewayResilienceTest {
     @Test
     void shouldKeepGatewayReplyMediaTagVisibleWhenAttachmentIsBlocked() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:blocked-media-room:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:blocked-media-room:user");
         File config = new File(env.appConfig.getRuntime().getHome(), "config.yml");
         Files.write(config.toPath(), "secret: value".getBytes("UTF-8"));
         DefaultGatewayService service =
                 new DefaultGatewayService(
                         unsupportedCommandService(),
                         replyingOrchestrator(
-                                session,
-                                "网关报告\nMEDIA:\"" + config.getAbsolutePath() + "\"\n请查收"),
+                                session, "网关报告\nMEDIA:\"" + config.getAbsolutePath() + "\"\n请查收"),
                         env.deliveryService,
                         env.sessionRepository,
                         allowAllAuthorization(env),
@@ -276,10 +280,10 @@ public class GatewayResilienceTest {
         assertThat(llm.awaitFirst()).isTrue();
         SessionRecord session = env.sessionRepository.getBoundSession(sourceKey);
 
-        GatewayReply reply = env.gatewayService.handle(env.message("room", "user", "queued follow-up"));
+        GatewayReply reply =
+                env.gatewayService.handle(env.message("room", "user", "queued follow-up"));
         QueuedRunMessage queued =
-                env.agentRunRepository.findNextQueuedMessage(
-                        sourceKey, session.getSessionId());
+                env.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId());
 
         assertThat(reply.getContent()).contains("已排队");
         assertThat(reply.getRuntimeMetadata()).containsEntry("busy_policy", "queue");
@@ -347,8 +351,7 @@ public class GatewayResilienceTest {
 
         GatewayReply reply = env.gatewayService.handle(env.message("room", "user", "adjust plan"));
         String runId = String.valueOf(reply.getRuntimeMetadata().get("run_id"));
-        RunControlCommand command =
-                env.agentRunRepository.findLatestPendingCommand(runId, "steer");
+        RunControlCommand command = env.agentRunRepository.findLatestPendingCommand(runId, "steer");
 
         assertThat(reply.getContent()).contains("注入当前长任务");
         assertThat(reply.getRuntimeMetadata()).containsEntry("busy_policy", "steer");
@@ -374,12 +377,11 @@ public class GatewayResilienceTest {
 
         assertThat(reply.getContent()).contains("echo:replacement");
         assertThat(env.agentRunControlService.isRunning(sourceKey)).isFalse();
-        assertThat(env.agentRunRepository.searchRuns(
-                        sourceKey, session.getSessionId(), null, null, 0L, 0L, 10))
+        assertThat(
+                        env.agentRunRepository.searchRuns(
+                                sourceKey, session.getSessionId(), null, null, 0L, 0L, 10))
                 .anySatisfy(
-                        run ->
-                                assertThat(run.getExitReason())
-                                        .isIn("busy_interrupt", "cancelled"))
+                        run -> assertThat(run.getExitReason()).isIn("busy_interrupt", "cancelled"))
                 .anySatisfy(run -> assertThat(run.getBusyPolicy()).isEqualTo("interrupt"));
         llm.releaseFirst();
         first.join(5000L);
@@ -395,9 +397,10 @@ public class GatewayResilienceTest {
         Thread first = startAsync(env, "first");
         assertThat(llm.awaitFirst()).isTrue();
         SessionRecord session = env.sessionRepository.getBoundSession(sourceKey);
-        String runId = String.valueOf(env.agentRunControlService.activeRunSummary(sourceKey).get("run_id"));
-        long beforeHeartbeat =
-                env.agentRunRepository.findRun(runId).getHeartbeatAt();
+        String runId =
+                String.valueOf(
+                        env.agentRunControlService.activeRunSummary(sourceKey).get("run_id"));
+        long beforeHeartbeat = env.agentRunRepository.findRun(runId).getHeartbeatAt();
 
         Thread.sleep(5L);
         GatewayMessage heartbeat = env.message("room", "user", "heartbeat");
@@ -409,14 +412,11 @@ public class GatewayResilienceTest {
         assertThat(env.agentRunControlService.isRunning(sourceKey)).isTrue();
         assertThat(env.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId()))
                 .isNull();
-        assertThat(env.agentRunRepository.findLatestPendingCommand(runId, "interrupt"))
-                .isNull();
+        assertThat(env.agentRunRepository.findLatestPendingCommand(runId, "interrupt")).isNull();
         assertThat(env.agentRunRepository.findRun(runId).getHeartbeatAt())
                 .isGreaterThanOrEqualTo(beforeHeartbeat);
         assertThat(env.agentRunRepository.listEvents(runId))
-                .anySatisfy(
-                        event ->
-                                assertThat(event.getEventType()).isEqualTo("run.heartbeat"));
+                .anySatisfy(event -> assertThat(event.getEventType()).isEqualTo("run.heartbeat"));
         llm.releaseFirst();
         first.join(5000L);
     }

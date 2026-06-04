@@ -5,8 +5,8 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.io.Closeable;
 import java.sql.Connection;
@@ -120,14 +120,19 @@ public class McpRuntimeService implements Closeable {
                         ? new SecurityPolicyService(appConfig)
                         : securityPolicyService;
         this.providerFactory =
-                providerFactory == null ? new SolonAiMcpClientProviderFactory(this) : providerFactory;
+                providerFactory == null
+                        ? new SolonAiMcpClientProviderFactory(this)
+                        : providerFactory;
     }
 
     public static Map<String, Object> policySummary(AppConfig appConfig) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put(
                 "enabled",
-                Boolean.valueOf(appConfig != null && appConfig.getMcp() != null && appConfig.getMcp().isEnabled()));
+                Boolean.valueOf(
+                        appConfig != null
+                                && appConfig.getMcp() != null
+                                && appConfig.getMcp().isEnabled()));
         summary.put("supportedTransports", SUPPORTED_TRANSPORTS);
         summary.put("remoteEndpointUrlSafety", Boolean.TRUE);
         summary.put("remoteEndpointAllowsPrivateByPolicy", Boolean.TRUE);
@@ -208,31 +213,37 @@ public class McpRuntimeService implements Closeable {
     }
 
     public CompletableFuture<McpToolRefreshResult> connectAsync(String serverId) {
-        return submitDiscovery(serverId, new DiscoveryCallable() {
-            @Override
-            public McpToolRefreshResult call(String targetServerId) throws Exception {
-                return connect(targetServerId);
-            }
-        });
+        return submitDiscovery(
+                serverId,
+                new DiscoveryCallable() {
+                    @Override
+                    public McpToolRefreshResult call(String targetServerId) throws Exception {
+                        return connect(targetServerId);
+                    }
+                });
     }
 
     public CompletableFuture<McpToolRefreshResult> reloadAsync(String serverId) {
-        return submitDiscovery(serverId, new DiscoveryCallable() {
-            @Override
-            public McpToolRefreshResult call(String targetServerId) throws Exception {
-                return reload(targetServerId);
-            }
-        });
+        return submitDiscovery(
+                serverId,
+                new DiscoveryCallable() {
+                    @Override
+                    public McpToolRefreshResult call(String targetServerId) throws Exception {
+                        return reload(targetServerId);
+                    }
+                });
     }
 
     public CompletableFuture<McpToolRefreshResult> refreshLiveToolsAsync(
             String serverId, final boolean baselineInitial) {
-        return submitDiscovery(serverId, new DiscoveryCallable() {
-            @Override
-            public McpToolRefreshResult call(String targetServerId) throws Exception {
-                return refreshLiveTools(targetServerId, baselineInitial);
-            }
-        });
+        return submitDiscovery(
+                serverId,
+                new DiscoveryCallable() {
+                    @Override
+                    public McpToolRefreshResult call(String targetServerId) throws Exception {
+                        return refreshLiveTools(targetServerId, baselineInitial);
+                    }
+                });
     }
 
     public CompletableFuture<List<McpToolRefreshResult>> refreshAllEnabledLiveToolsAsync(
@@ -558,7 +569,8 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
-    private List<Map<String, Object>> toolsSnapshot(String serverId, Collection<FunctionTool> tools) {
+    private List<Map<String, Object>> toolsSnapshot(
+            String serverId, Collection<FunctionTool> tools) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         if (tools == null) {
             return result;
@@ -577,7 +589,8 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
-    private List<Map<String, Object>> mcpToolsSnapshot(McpServerConfig config, List<McpSchema.Tool> tools) {
+    private List<Map<String, Object>> mcpToolsSnapshot(
+            McpServerConfig config, List<McpSchema.Tool> tools) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         if (tools == null) {
             return result;
@@ -1285,7 +1298,8 @@ public class McpRuntimeService implements Closeable {
             Collection<FunctionTool> remoteTools = filteredTools(config, activeProvider.getTools());
             List<FunctionTool> result = new ArrayList<FunctionTool>();
             for (final FunctionTool remote : remoteTools) {
-                FunctionToolDesc desc = new FunctionToolDesc(prefixedName(config.getServerId(), remote.name()));
+                FunctionToolDesc desc =
+                        new FunctionToolDesc(prefixedName(config.getServerId(), remote.name()));
                 desc.title(remote.title());
                 desc.description(remote.description());
                 desc.returnDirect(remote.returnDirect());
@@ -1370,7 +1384,10 @@ public class McpRuntimeService implements Closeable {
             FunctionToolDesc desc =
                     new FunctionToolDesc(prefixedName(config.getServerId(), "list_resources"));
             desc.title("MCP List Resources");
-            desc.description("List resources and resource templates exposed by MCP server " + config.getName() + ".");
+            desc.description(
+                    "List resources and resource templates exposed by MCP server "
+                            + config.getName()
+                            + ".");
             desc.inputSchema(EMPTY_OBJECT_SCHEMA);
             desc.metaPut("mcp_server_id", config.getServerId());
             desc.metaPut("mcp_server_name", config.getName());
@@ -1428,9 +1445,11 @@ public class McpRuntimeService implements Closeable {
                     new RecoverableCall<String>() {
                         @Override
                         public String call(McpClientProvider activeProvider) {
-                            List<Map<String, Object>> resources = new ArrayList<Map<String, Object>>();
+                            List<Map<String, Object>> resources =
+                                    new ArrayList<Map<String, Object>>();
                             appendResourceMaps(resources, activeProvider.getResources(), false);
-                            appendResourceMaps(resources, activeProvider.getResourceTemplates(), true);
+                            appendResourceMaps(
+                                    resources, activeProvider.getResourceTemplates(), true);
                             Map<String, Object> result = new LinkedHashMap<String, Object>();
                             result.put("resources", resources);
                             return safeToolResultJson(result);
@@ -1472,7 +1491,8 @@ public class McpRuntimeService implements Closeable {
                         public String call(McpClientProvider activeProvider) throws Throwable {
                             ResourcePack pack = activeProvider.readResource(uri);
                             Map<String, Object> result = new LinkedHashMap<String, Object>();
-                            List<Map<String, Object>> resources = new ArrayList<Map<String, Object>>();
+                            List<Map<String, Object>> resources =
+                                    new ArrayList<Map<String, Object>>();
                             if (pack != null) {
                                 for (ResourceBlock block : pack.getResources()) {
                                     Map<String, Object> map = new LinkedHashMap<String, Object>();
@@ -1501,7 +1521,8 @@ public class McpRuntimeService implements Closeable {
                         @Override
                         public String call(McpClientProvider activeProvider) {
                             Collection<FunctionPrompt> prompts = activeProvider.getPrompts();
-                            List<Map<String, Object>> promptMaps = new ArrayList<Map<String, Object>>();
+                            List<Map<String, Object>> promptMaps =
+                                    new ArrayList<Map<String, Object>>();
                             if (prompts != null) {
                                 for (FunctionPrompt prompt : prompts) {
                                     Map<String, Object> map = new LinkedHashMap<String, Object>();
@@ -1533,13 +1554,19 @@ public class McpRuntimeService implements Closeable {
                         public String call(McpClientProvider activeProvider) throws Throwable {
                             Prompt prompt = activeProvider.getPrompt(name, args);
                             Map<String, Object> result = new LinkedHashMap<String, Object>();
-                            List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
+                            List<Map<String, Object>> messages =
+                                    new ArrayList<Map<String, Object>>();
                             if (prompt != null) {
                                 for (ChatMessage message : prompt.getMessages()) {
                                     Map<String, Object> map = new LinkedHashMap<String, Object>();
-                                    map.put("role", message.getRole() == null ? null : message.getRole().name());
+                                    map.put(
+                                            "role",
+                                            message.getRole() == null
+                                                    ? null
+                                                    : message.getRole().name());
                                     map.put("content", message.getContent());
-                                    if (message.getMetadata() != null && !message.getMetadata().isEmpty()) {
+                                    if (message.getMetadata() != null
+                                            && !message.getMetadata().isEmpty()) {
                                         map.put("metadata", message.getMetadata());
                                     }
                                     messages.add(map);
@@ -1554,7 +1581,8 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
-        private Object callRemoteToolWithRecovery(final String remoteToolName, final Map<String, Object> args) {
+        private Object callRemoteToolWithRecovery(
+                final String remoteToolName, final Map<String, Object> args) {
             return callWithRecovery(
                     remoteToolName,
                     new RecoverableCall<Object>() {
@@ -1570,7 +1598,8 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
-        private FunctionTool findRemoteTool(McpClientProvider activeProvider, String remoteToolName) {
+        private FunctionTool findRemoteTool(
+                McpClientProvider activeProvider, String remoteToolName) {
             Collection<FunctionTool> tools = filteredTools(config, activeProvider.getTools());
             if (tools == null) {
                 return null;
@@ -1584,7 +1613,8 @@ public class McpRuntimeService implements Closeable {
         }
 
         @SuppressWarnings("unchecked")
-        private Map<String, Object> coerceNumericArgs(Map<String, Object> args, String inputSchema) {
+        private Map<String, Object> coerceNumericArgs(
+                Map<String, Object> args, String inputSchema) {
             Map<String, Object> result =
                     args == null
                             ? new LinkedHashMap<String, Object>()
@@ -1751,8 +1781,7 @@ public class McpRuntimeService implements Closeable {
                 return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
                 future.cancel(true);
-                long elapsedMillis =
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
                 throw new IllegalStateException(
                         "MCP call timed out after "
                                 + formatSeconds(elapsedMillis)
@@ -1765,8 +1794,7 @@ public class McpRuntimeService implements Closeable {
                                 + ")");
             } catch (java.util.concurrent.ExecutionException e) {
                 Throwable cause = e.getCause();
-                if (cause instanceof McpToolCallException
-                        && cause.getCause() != null) {
+                if (cause instanceof McpToolCallException && cause.getCause() != null) {
                     throw cause.getCause();
                 }
                 throw cause == null ? e : cause;
@@ -1862,7 +1890,8 @@ public class McpRuntimeService implements Closeable {
         private void throwUnchecked(Throwable error) {
             if (error instanceof RuntimeException) {
                 if (StrUtil.isBlank(error.getMessage())) {
-                    throw new IllegalStateException("MCP call failed: " + diagnosticError(error), error);
+                    throw new IllegalStateException(
+                            "MCP call failed: " + diagnosticError(error), error);
                 }
                 throw (RuntimeException) error;
             }

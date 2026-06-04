@@ -6,15 +6,15 @@ import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * External skill directories support.
- * Loads skills from user-configured external directories (outside runtime home).
+ * External skill directories support. Loads skills from user-configured external directories
+ * (outside runtime home).
  */
 public class ExternalSkillDirectoryService {
     private final List<File> externalDirs;
@@ -112,12 +112,17 @@ public class ExternalSkillDirectoryService {
             File dir = summary.getDirectory();
             Map<String, Object> entry = new LinkedHashMap<String, Object>();
             entry.put("path", dir.getAbsolutePath());
-            entry.put("configuredPath", StrUtil.blankToDefault(summary.getConfiguredPath(), dir.getAbsolutePath()));
+            entry.put(
+                    "configuredPath",
+                    StrUtil.blankToDefault(summary.getConfiguredPath(), dir.getAbsolutePath()));
             entry.put("normalizedPath", summary.getNormalizedPath());
             entry.put("exists", Boolean.valueOf(dir.isDirectory()));
             entry.put("local", Boolean.valueOf(summary.isLocal()));
             entry.put("duplicate", Boolean.valueOf(summary.isDuplicate()));
-            entry.put("included", Boolean.valueOf(!summary.isLocal() && !summary.isDuplicate() && dir.isDirectory()));
+            entry.put(
+                    "included",
+                    Boolean.valueOf(
+                            !summary.isLocal() && !summary.isDuplicate() && dir.isDirectory()));
             if (dir.isDirectory()) {
                 File[] files = listDirectoryEntries(dir);
                 entry.put("skillCount", Integer.valueOf(files == null ? 0 : countSkills(files)));

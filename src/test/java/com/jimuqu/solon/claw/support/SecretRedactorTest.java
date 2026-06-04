@@ -103,8 +103,7 @@ class SecretRedactorTest {
                 .doesNotContain("opaqueWsToken123");
 
         String encoded =
-                SecretRedactor.maskUrl(
-                        "https://user%3Aencoded-password@example.com/path?ok=value");
+                SecretRedactor.maskUrl("https://user%3Aencoded-password@example.com/path?ok=value");
 
         assertThat(encoded)
                 .isEqualTo("https://user%3A***@example.com/path?ok=value")
@@ -118,8 +117,7 @@ class SecretRedactorTest {
                 .isEqualTo("https://user%253A***@example.com/path?ok=value")
                 .doesNotContain("encoded-password");
 
-        String schemeless =
-                SecretRedactor.maskUrl("alice:schemeless-password@example.com/private");
+        String schemeless = SecretRedactor.maskUrl("alice:schemeless-password@example.com/private");
 
         assertThat(schemeless)
                 .isEqualTo("alice:***@example.com/private")
@@ -216,8 +214,7 @@ class SecretRedactorTest {
     @Test
     void shouldMaskSensitiveUrlPathSegments() {
         String result =
-                SecretRedactor.maskUrl(
-                        "example.com/oauth/client_secret/schemeless-path-secret");
+                SecretRedactor.maskUrl("example.com/oauth/client_secret/schemeless-path-secret");
 
         assertThat(result)
                 .isEqualTo("example.com/oauth/[REDACTED_PATH]")
@@ -251,8 +248,7 @@ class SecretRedactorTest {
                         "https://example.com/callback?api.key=dot-secret&private-key=dash-secret&ok=value");
 
         assertThat(result)
-                .isEqualTo(
-                        "https://example.com/callback?api.key=***&private-key=***&ok=value")
+                .isEqualTo("https://example.com/callback?api.key=***&private-key=***&ok=value")
                 .doesNotContain("dot-secret")
                 .doesNotContain("dash-secret");
     }
@@ -304,8 +300,7 @@ class SecretRedactorTest {
                         "https://example.com/callback#token=plain-fragment-secret&access%255Ftoken=fragment-secret&ok=value");
 
         assertThat(result)
-                .isEqualTo(
-                        "https://example.com/callback#token=***&access%255Ftoken=***&ok=value")
+                .isEqualTo("https://example.com/callback#token=***&access%255Ftoken=***&ok=value")
                 .doesNotContain("plain-fragment-secret")
                 .doesNotContain("fragment-secret");
     }
@@ -401,8 +396,7 @@ class SecretRedactorTest {
                 SecretRedactor.redact(
                         "approve\u202Ecod.exe\u2069 OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012\rhidden");
         String maskedUrl =
-                SecretRedactor.maskUrl(
-                        "https://example.com/path?token=opaque\u202Etoken123456789");
+                SecretRedactor.maskUrl("https://example.com/path?token=opaque\u202Etoken123456789");
 
         assertThat(result)
                 .contains("approvecod.exe")

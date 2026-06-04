@@ -28,6 +28,25 @@ public class FileContextServiceTest {
                 .doesNotContain("sk-test-contextassembly12345");
     }
 
+    @Test
+    void shouldPlaceToolsBeforeIdentityAndUserWithoutHeartbeatInNormalPrompt() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileContextService service =
+                new FileContextService(
+                        env.appConfig,
+                        env.localSkillService,
+                        env.memoryManager,
+                        env.globalSettingRepository,
+                        new PersonaWorkspaceService(env.appConfig));
+
+        String prompt = service.buildSystemPrompt("MEMORY:chat:user");
+
+        assertThat(prompt).doesNotContain("[Heartbeat]");
+        assertThat(prompt.indexOf("[Tools]")).isGreaterThan(prompt.indexOf("[Soul]"));
+        assertThat(prompt.indexOf("[Tools]")).isLessThan(prompt.indexOf("[Identity]"));
+        assertThat(prompt.indexOf("[Tools]")).isLessThan(prompt.indexOf("[User]"));
+    }
+
     private static class FailingMemoryManager implements MemoryManager {
         @Override
         public String buildSystemPrompt(String sourceKey) throws Exception {

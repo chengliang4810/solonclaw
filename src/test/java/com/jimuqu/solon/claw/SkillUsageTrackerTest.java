@@ -68,7 +68,8 @@ public class SkillUsageTrackerTest {
 
         SkillUsageTracker tracker2 = new SkillUsageTracker(config);
         assertThat(tracker2.isPinned("persistent-skill")).isTrue();
-        assertThat(((Number) tracker2.getEntry("persistent-skill").get("invokeCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) tracker2.getEntry("persistent-skill").get("invokeCount")).intValue())
+                .isEqualTo(1);
     }
 
     @Test

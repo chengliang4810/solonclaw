@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
+import com.jimuqu.solon.claw.bootstrap.GatewayController;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
-import com.jimuqu.solon.claw.bootstrap.GatewayController;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -214,7 +214,11 @@ public class GatewayControllerHttpTest {
 
     private static Process newSleepProcess() throws Exception {
         return new ProcessBuilder(
-                        System.getProperty("java.home") + File.separator + "bin" + File.separator + "java",
+                        System.getProperty("java.home")
+                                + File.separator
+                                + "bin"
+                                + File.separator
+                                + "java",
                         "-cp",
                         System.getProperty("java.class.path"),
                         SleepProcess.class.getName())

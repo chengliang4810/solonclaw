@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
-import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 
 /** Dispatches parsed console modes. */
@@ -39,7 +39,9 @@ public class CliRunner {
         this.sessionBrowser =
                 sessionRepository == null ? null : new TerminalSessionBrowser(sessionRepository);
         this.historyViewer =
-                sessionRepository == null ? null : new TerminalHistoryViewer(sessionRepository, cliRuntime);
+                sessionRepository == null
+                        ? null
+                        : new TerminalHistoryViewer(sessionRepository, cliRuntime);
     }
 
     public int run(CliMode mode) throws Exception {

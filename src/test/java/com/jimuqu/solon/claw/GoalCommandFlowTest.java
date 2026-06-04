@@ -17,7 +17,10 @@ public class GoalCommandFlowTest {
 
         assertThat(reply.getContent()).contains("echo:完成 CLI 验证");
         assertThat(reply.getRuntimeMetadata().get("goal_verdict")).isEqualTo("continue");
-        assertThat(env.sessionRepository.getBoundSession("MEMORY:cli:goal-session").getGoalStateJson())
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:cli:goal-session")
+                                .getGoalStateJson())
                 .contains("完成 CLI 验证")
                 .contains("\"turns_used\":1");
     }
@@ -34,7 +37,10 @@ public class GoalCommandFlowTest {
 
         assertThat(resumed.getContent()).contains("echo:[Continuing toward your standing goal]");
         assertThat(resumed.getRuntimeMetadata().get("goal_verdict")).isEqualTo("continue");
-        assertThat(env.sessionRepository.getBoundSession("MEMORY:cli:goal-resume-session").getGoalStateJson())
+        assertThat(
+                        env.sessionRepository
+                                .getBoundSession("MEMORY:cli:goal-resume-session")
+                                .getGoalStateJson())
                 .contains("完成恢复验证")
                 .contains("\"turns_used\":1");
     }

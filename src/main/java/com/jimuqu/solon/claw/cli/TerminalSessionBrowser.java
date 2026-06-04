@@ -85,7 +85,8 @@ public class TerminalSessionBrowser {
                     .append(choice.totalTokens)
                     .append('\n');
         }
-        buffer.append("使用：/session show <编号> 查看详情，/session pick <编号> 恢复，或直接 /resume <session-id|title>");
+        buffer.append(
+                "使用：/session show <编号> 查看详情，/session pick <编号> 恢复，或直接 /resume <session-id|title>");
         return buffer.toString();
     }
 

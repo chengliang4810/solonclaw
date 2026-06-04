@@ -204,7 +204,8 @@ public class DefaultGatewayService {
                                     kickoffMessage.setChatName(message.getChatName());
                                     kickoffMessage.setUserName(message.getUserName());
                                     kickoffMessage.setSourceKeyOverride(message.sourceKey());
-                                    GatewayReply next = conversationOrchestrator.runScheduled(kickoffMessage);
+                                    GatewayReply next =
+                                            conversationOrchestrator.runScheduled(kickoffMessage);
                                     if (next != null) {
                                         safeDeliver(kickoffMessage, next);
                                         safeDeliverGoalNotice(kickoffMessage, next);
@@ -252,7 +253,8 @@ public class DefaultGatewayService {
                                     continuation.setChatName(message.getChatName());
                                     continuation.setUserName(message.getUserName());
                                     continuation.setSourceKeyOverride(message.sourceKey());
-                                    GatewayReply next = conversationOrchestrator.runScheduled(continuation);
+                                    GatewayReply next =
+                                            conversationOrchestrator.runScheduled(continuation);
                                     if (next != null) {
                                         safeDeliver(continuation, next);
                                         safeDeliverGoalNotice(continuation, next);
@@ -332,7 +334,8 @@ public class DefaultGatewayService {
             GatewayMediaDeliverySupport.DeliveryMedia media =
                     mediaDeliverySupport == null
                             ? null
-                            : mediaDeliverySupport.resolve(message.getPlatform(), reply.getContent());
+                            : mediaDeliverySupport.resolve(
+                                    message.getPlatform(), reply.getContent());
             request.setText(media == null ? reply.getContent() : media.getText());
             if (media != null) {
                 request.setAttachments(media.getAttachments());

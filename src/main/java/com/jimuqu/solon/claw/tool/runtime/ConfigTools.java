@@ -32,7 +32,9 @@ public class ConfigTools {
             return ToolResultEnvelope.ok("读取运行时配置：" + safeText(key, 400))
                     .data("key", safeText(key, 400))
                     .data("value", safeValue)
-                    .data("redacted", Boolean.valueOf(runtimeSettingsService.isSecretConfigKey(key)))
+                    .data(
+                            "redacted",
+                            Boolean.valueOf(runtimeSettingsService.isSecretConfigKey(key)))
                     .preview(preview)
                     .toJson();
         } catch (Exception e) {
@@ -70,10 +72,7 @@ public class ConfigTools {
             description =
                     "Validate runtime/config.yml first, then refresh runtime config. If validation fails, do not refresh.")
     public String configRefresh(
-            @Param(
-                            name = "reconnectChannels",
-                            description = "是否重连渠道连接；默认 false",
-                            required = false)
+            @Param(name = "reconnectChannels", description = "是否重连渠道连接；默认 false", required = false)
                     Boolean reconnectChannels) {
         try {
             GatewayRuntimeRefreshService.RefreshResult result =
@@ -84,8 +83,7 @@ public class ConfigTools {
                     result.isSuccess()
                             ? ToolResultEnvelope.ok(result.getMessage())
                             : ToolResultEnvelope.error(result.getMessage());
-            return envelope
-                    .data("refreshed", Boolean.valueOf(result.isRefreshed()))
+            return envelope.data("refreshed", Boolean.valueOf(result.isRefreshed()))
                     .data("reconnectedChannels", Boolean.valueOf(result.isReconnectedChannels()))
                     .data("configFile", safeText(result.getConfigFile(), 400))
                     .data("message", safeText(result.getMessage(), 1000))
@@ -101,10 +99,7 @@ public class ConfigTools {
             description =
                     "Explain how subprocess env names are allowed, blocked, or force-passed without exposing values.")
     public String configEnvProbe(
-            @Param(
-                            name = "names",
-                            description = "要探测的环境变量名列表；可传 JSON 数组或逗号/换行分隔文本")
-                    String names) {
+            @Param(name = "names", description = "要探测的环境变量名列表；可传 JSON 数组或逗号/换行分隔文本") String names) {
         try {
             List<String> requestedNames = parseProbeNames(names);
             List<Map<String, Object>> decisions =
@@ -115,7 +110,10 @@ public class ConfigTools {
                     .data("requestedNames", safeTextList(requestedNames, 120))
                     .data("decisionCategories", SubprocessEnvironmentSanitizer.decisionCategories())
                     .data("decisions", decisions)
-                    .preview("env probe: " + safeText(String.valueOf(requestedNames.size()), 32) + " items")
+                    .preview(
+                            "env probe: "
+                                    + safeText(String.valueOf(requestedNames.size()), 32)
+                                    + " items")
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -144,7 +142,9 @@ public class ConfigTools {
     private String error(Exception e) {
         return ToolResultEnvelope.error(
                         SecretRedactor.redact(
-                                e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                e.getMessage() == null
+                                        ? e.getClass().getSimpleName()
+                                        : e.getMessage(),
                                 1000))
                 .toJson();
     }
@@ -251,9 +251,7 @@ public class ConfigTools {
                 description =
                         "Explain how subprocess env names are allowed, blocked, or force-passed without exposing values.")
         public String configEnvProbe(
-                @Param(
-                                name = "names",
-                                description = "要探测的环境变量名列表；可传 JSON 数组或逗号/换行分隔文本")
+                @Param(name = "names", description = "要探测的环境变量名列表；可传 JSON 数组或逗号/换行分隔文本")
                         String names) {
             return delegate.configEnvProbe(names);
         }
@@ -302,7 +300,8 @@ public class ConfigTools {
 
         @ToolMapping(
                 name = "config_update_secret",
-                description = "Alias of config_set_secret. Update a whitelisted runtime secret key.")
+                description =
+                        "Alias of config_set_secret. Update a whitelisted runtime secret key.")
         public String configUpdateSecret(
                 @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
                 @Param(name = "value", description = "新的密钥值") String value) {

@@ -221,7 +221,18 @@ public class DashboardStatusServiceTest {
                 .containsExactly("openai", "openai-responses", "ollama", "gemini", "anthropic");
         assertThat((List<String>) capabilities.get("supported_channels"))
                 .containsExactly("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao");
-        assertThat(runtimeStatus).containsKeys("gateway", "runtime_config", "diagnostics", "cron", "skills", "memory", "tool_safety", "multimodal", "pricing", "model");
+        assertThat(runtimeStatus)
+                .containsKeys(
+                        "gateway",
+                        "runtime_config",
+                        "diagnostics",
+                        "cron",
+                        "skills",
+                        "memory",
+                        "tool_safety",
+                        "multimodal",
+                        "pricing",
+                        "model");
         assertThat(((Map<String, Object>) runtimeStatus.get("gateway")))
                 .containsEntry("state", "running")
                 .containsEntry("running", Boolean.TRUE);
@@ -280,7 +291,15 @@ public class DashboardStatusServiceTest {
                 .containsEntry("schema_version", Integer.valueOf(1))
                 .containsEntry("service", "solon-claw")
                 .containsEntry("dashboard_first", Boolean.TRUE)
-                .containsKeys("runtime_config", "diagnostics", "cron", "skills", "memory", "tool_safety", "multimodal", "pricing");
+                .containsKeys(
+                        "runtime_config",
+                        "diagnostics",
+                        "cron",
+                        "skills",
+                        "memory",
+                        "tool_safety",
+                        "multimodal",
+                        "pricing");
         assertThat((List<String>) capabilities.get("supported_model_protocols"))
                 .containsExactly("openai", "openai-responses", "ollama", "gemini", "anthropic");
         assertThat((List<String>) capabilities.get("supported_channels"))
@@ -296,24 +315,34 @@ public class DashboardStatusServiceTest {
         assertThat(pricingCapabilities)
                 .containsEntry("cost_calculation", Boolean.TRUE)
                 .containsEntry("configured_price_count", Integer.valueOf(1));
-        assertThat(((Number) pricingCapabilities.get("builtin_price_count")).intValue()).isGreaterThan(0);
+        assertThat(((Number) pricingCapabilities.get("builtin_price_count")).intValue())
+                .isGreaterThan(0);
         assertThat(((Number) pricingCapabilities.get("effective_price_count")).intValue())
                 .isGreaterThan(1);
         Map<String, Object> cronCapabilities = (Map<String, Object>) capabilities.get("cron");
         assertThat(cronCapabilities)
                 .containsEntry("approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
         Map<String, Object> toolSafetyCapabilities =
                 (Map<String, Object>) capabilities.get("tool_safety");
         assertThat(toolSafetyCapabilities)
                 .containsEntry("approval_mode", "bypass")
                 .containsEntry("cron_approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "on")
-                .containsEntry("legacy_cron_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
                 .containsEntry("service", "solon-claw")
-                .containsKeys("gateway", "runtime_config", "diagnostics", "cron", "skills", "memory", "tool_safety", "multimodal", "pricing", "model");
+                .containsKeys(
+                        "gateway",
+                        "runtime_config",
+                        "diagnostics",
+                        "cron",
+                        "skills",
+                        "memory",
+                        "tool_safety",
+                        "multimodal",
+                        "pricing",
+                        "model");
         assertThat((Map<String, Object>) runtimeStatus.get("runtime_config"))
                 .containsEntry("config_path", "runtime://config.yml")
                 .containsEntry("runtime_home", "runtime://");
@@ -327,14 +356,13 @@ public class DashboardStatusServiceTest {
         Map<String, Object> cronStatus = (Map<String, Object>) runtimeStatus.get("cron");
         assertThat(cronStatus)
                 .containsEntry("approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
         Map<String, Object> toolSafetyStatus =
                 (Map<String, Object>) runtimeStatus.get("tool_safety");
         assertThat(toolSafetyStatus)
                 .containsEntry("approval_mode", "bypass")
                 .containsEntry("cron_approval_mode", "approval")
-                .containsEntry("legacy_approval_mode", "on")
-                .containsEntry("legacy_cron_approval_mode", "approve");
+                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
 
         String json = ONode.serialize(status);
         assertThat(json)
@@ -472,8 +500,10 @@ public class DashboardStatusServiceTest {
             status.setCurrentVersion("0.0.0-test");
             status.setCurrentTag("v0.0.0-test");
             status.setDeploymentMode("dev");
-            status.setReleaseUrl("https://user:release-pass@example.com/releases?token=release-token");
-            status.setReleaseApiUrl("https://api.example.com/releases?access_token=release-api-token");
+            status.setReleaseUrl(
+                    "https://user:release-pass@example.com/releases?token=release-token");
+            status.setReleaseApiUrl(
+                    "https://api.example.com/releases?access_token=release-api-token");
             status.setUpdateErrorMessage("update token=ghp_updateerror123");
             status.setUpdateErrorAt(123L);
             return status;
@@ -507,7 +537,8 @@ public class DashboardStatusServiceTest {
         public void bindSource(String sourceKey, String sessionId) {}
 
         @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+        public SessionRecord cloneSession(
+                String sourceKey, String sourceSessionId, String branchName) {
             return null;
         }
 

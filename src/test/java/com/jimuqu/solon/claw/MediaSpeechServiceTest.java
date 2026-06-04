@@ -29,7 +29,8 @@ public class MediaSpeechServiceTest {
                 new ImageGenerationService(
                         config("image-unavailable"),
                         new AttachmentCacheService(config("image-unavailable")),
-                        Collections.<ImageGenProvider>singletonList(new FakeImageProvider(false, null)));
+                        Collections.<ImageGenProvider>singletonList(
+                                new FakeImageProvider(false, null)));
 
         ImageGenerationService.ImageGenerationOutcome outcome =
                 service.generate("画一张图", "1:1", Collections.<String, Object>emptyMap());
@@ -92,7 +93,9 @@ public class MediaSpeechServiceTest {
                     service.generate("画一张图", "1:1", Collections.<String, Object>emptyMap());
 
             assertThat(outcome.isSuccess()).isTrue();
-            assertThat(Files.readAllBytes(new File(outcome.getAttachment().getLocalPath()).toPath()))
+            assertThat(
+                            Files.readAllBytes(
+                                    new File(outcome.getAttachment().getLocalPath()).toPath()))
                     .containsExactly(imageBytes);
         } finally {
             server.stop(0);
@@ -220,7 +223,8 @@ public class MediaSpeechServiceTest {
         }
 
         @Override
-        public ImageGenResult generate(String prompt, String aspectRatio, Map<String, Object> options) {
+        public ImageGenResult generate(
+                String prompt, String aspectRatio, Map<String, Object> options) {
             return ImageGenResult.ok(url);
         }
     }

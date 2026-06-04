@@ -10,10 +10,9 @@ import java.util.Map;
 import org.noear.snack4.ONode;
 
 /**
- * Skill usage telemetry tracker.
- * Tracks per-skill usage metadata in a sidecar JSON file (skills/.usage.json).
- * Counters are bumped by skill tools (skill_view, skill_manage);
- * the curator reads derived activity timestamps for lifecycle transitions.
+ * Skill usage telemetry tracker. Tracks per-skill usage metadata in a sidecar JSON file
+ * (skills/.usage.json). Counters are bumped by skill tools (skill_view, skill_manage); the curator
+ * reads derived activity timestamps for lifecycle transitions.
  */
 public class SkillUsageTracker {
     public static final String STATE_ACTIVE = "active";
@@ -70,7 +69,9 @@ public class SkillUsageTracker {
         Map<String, Object> data = loadData();
         @SuppressWarnings("unchecked")
         Map<String, Object> entry = (Map<String, Object>) data.get(skillName);
-        return entry == null ? new LinkedHashMap<String, Object>() : new LinkedHashMap<String, Object>(entry);
+        return entry == null
+                ? new LinkedHashMap<String, Object>()
+                : new LinkedHashMap<String, Object>(entry);
     }
 
     public synchronized Map<String, Object> getAllEntries() {

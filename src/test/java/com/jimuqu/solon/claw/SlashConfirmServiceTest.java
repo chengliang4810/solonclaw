@@ -57,10 +57,8 @@ public class SlashConfirmServiceTest {
     @Test
     void shouldKeepSlashConfirmIsolatedBySource() {
         SlashConfirmService service = new SlashConfirmService(new MemorySettings());
-        SlashConfirmService.PendingConfirm a =
-                service.register("source-a", "reload-mcp", "A");
-        SlashConfirmService.PendingConfirm b =
-                service.register("source-b", "reload-mcp", "B");
+        SlashConfirmService.PendingConfirm a = service.register("source-a", "reload-mcp", "A");
+        SlashConfirmService.PendingConfirm b = service.register("source-b", "reload-mcp", "B");
 
         SlashConfirmService.PendingConfirm resolvedA =
                 service.resolve("source-a", a.getConfirmId());
@@ -204,9 +202,7 @@ public class SlashConfirmServiceTest {
                 "/reload-mcp https://example.test/callback?api%255Fkey=slash-always-secret");
 
         String stored = settings.get(AgentSettingConstants.SLASH_CONFIRM_ALWAYS_COMMANDS);
-        assertThat(stored)
-                .contains("api%255fkey=***")
-                .doesNotContain("slash-always-secret");
+        assertThat(stored).contains("api%255fkey=***").doesNotContain("slash-always-secret");
         assertThat(
                         service.isAlwaysConfirmed(
                                 "/reload-mcp https://example.test/callback?api%255Fkey=slash-always-secret"))

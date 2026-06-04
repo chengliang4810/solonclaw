@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.web.DashboardAuthService;
 import java.nio.file.Files;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.core.Props;
 
 public class DashboardAuthServiceTest {

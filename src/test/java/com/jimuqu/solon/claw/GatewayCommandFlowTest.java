@@ -61,8 +61,7 @@ public class GatewayCommandFlowTest {
         env.send("room-new-title", "user-new-title", "hello");
         env.send("room-new-title", "user-new-title", "/pairing claim-admin");
 
-        GatewayReply newReply =
-                env.send("room-new-title", "user-new-title", "/new  客户项目\r\n复盘  ");
+        GatewayReply newReply = env.send("room-new-title", "user-new-title", "/new  客户项目\r\n复盘  ");
         SessionRecord rebound =
                 env.sessionRepository.getBoundSession("MEMORY:room-new-title:user-new-title");
 
@@ -113,13 +112,15 @@ public class GatewayCommandFlowTest {
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "statusbar");
 
-        GatewayReply backgroundAliasReply = env.send("room-registry", "user-registry", "/bg nightly task");
+        GatewayReply backgroundAliasReply =
+                env.send("room-registry", "user-registry", "/bg nightly task");
         assertThat(backgroundAliasReply.isError()).isTrue();
         assertThat(backgroundAliasReply.getRuntimeMetadata())
                 .containsEntry("command_status", "registered_unimplemented")
                 .containsEntry("command", "background");
 
-        GatewayReply backgroundBtwReply = env.send("room-registry", "user-registry", "/btw nightly task");
+        GatewayReply backgroundBtwReply =
+                env.send("room-registry", "user-registry", "/btw nightly task");
         assertThat(backgroundBtwReply.isError()).isTrue();
         assertThat(backgroundBtwReply.getRuntimeMetadata())
                 .containsEntry("command_status", "registered_unimplemented")
@@ -282,10 +283,8 @@ public class GatewayCommandFlowTest {
                 env.sessionRepository.bindNewSession("MEMORY:room-resume-a:user-resume");
         SessionRecord sessionB =
                 env.sessionRepository.bindNewSession("MEMORY:room-resume-b:user-resume");
-        SqliteAgentSession agentSessionA =
-                new SqliteAgentSession(sessionA, env.sessionRepository);
-        SqliteAgentSession agentSessionB =
-                new SqliteAgentSession(sessionB, env.sessionRepository);
+        SqliteAgentSession agentSessionA = new SqliteAgentSession(sessionA, env.sessionRepository);
+        SqliteAgentSession agentSessionB = new SqliteAgentSession(sessionB, env.sessionRepository);
         env.dangerousCommandApprovalService.enableSessionYolo(agentSessionA);
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSessionA,
@@ -307,8 +306,7 @@ public class GatewayCommandFlowTest {
                 env.send("room-resume-a", "user-resume", "/resume " + sessionA.getSessionId());
         SessionRecord resumed =
                 env.sessionRepository.getBoundSession("MEMORY:room-resume-a:user-resume");
-        SqliteAgentSession resumedSession =
-                new SqliteAgentSession(resumed, env.sessionRepository);
+        SqliteAgentSession resumedSession = new SqliteAgentSession(resumed, env.sessionRepository);
         SqliteAgentSession untouchedSession =
                 new SqliteAgentSession(
                         env.sessionRepository.findById(sessionB.getSessionId()),
@@ -317,8 +315,7 @@ public class GatewayCommandFlowTest {
         assertThat(resumeReply.getSessionId()).isEqualTo(sessionA.getSessionId());
         assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(resumedSession))
                 .isFalse();
-        assertThat(env.dangerousCommandApprovalService.getPendingApproval(resumedSession))
-                .isNull();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(resumedSession)).isNull();
         assertThat(
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 resumedSession, "recursive_delete"))

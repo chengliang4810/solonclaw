@@ -32,8 +32,7 @@ public final class CliModeParser {
                 kind = CliMode.Kind.TUI;
                 continue;
             }
-            if ("completion".equalsIgnoreCase(arg)
-                    || "--completion".equalsIgnoreCase(arg)) {
+            if ("completion".equalsIgnoreCase(arg) || "--completion".equalsIgnoreCase(arg)) {
                 kind = CliMode.Kind.COMPLETION;
                 if (i + 1 < args.length) {
                     inputParts.add(args[++i]);

@@ -18,7 +18,8 @@ public final class TerminalClipboardSupport {
         if (writer == null || value.length() == 0) {
             return false;
         }
-        String clipped = value.length() > MAX_COPY_CHARS ? value.substring(0, MAX_COPY_CHARS) : value;
+        String clipped =
+                value.length() > MAX_COPY_CHARS ? value.substring(0, MAX_COPY_CHARS) : value;
         writer.print(osc52(clipped));
         writer.flush();
         return true;

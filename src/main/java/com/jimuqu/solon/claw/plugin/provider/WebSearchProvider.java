@@ -11,7 +11,9 @@ public interface WebSearchProvider {
 
     List<SearchResult> search(String query, int limit);
 
-    default String extract(String url) { return null; }
+    default String extract(String url) {
+        return null;
+    }
 
     class SearchResult {
         private final String title;
@@ -24,9 +26,17 @@ public interface WebSearchProvider {
             this.description = description;
         }
 
-        public String getTitle() { return title; }
-        public String getUrl() { return url; }
-        public String getDescription() { return description; }
+        public String getTitle() {
+            return title;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public String getDescription() {
+            return description;
+        }
 
         public Map<String, String> toMap() {
             return Map.of("title", title, "url", url, "description", description);

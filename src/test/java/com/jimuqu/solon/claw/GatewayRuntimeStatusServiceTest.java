@@ -50,8 +50,7 @@ public class GatewayRuntimeStatusServiceTest {
     }
 
     @Test
-    void shouldRejectJsonPidMetadataWhenCurrentJvmStartTimeDoesNotMatch(
-            @TempDir Path runtimeHome) {
+    void shouldRejectJsonPidMetadataWhenCurrentJvmStartTimeDoesNotMatch(@TempDir Path runtimeHome) {
         File pidFile = runtimeHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(
                 "{"
@@ -119,7 +118,8 @@ public class GatewayRuntimeStatusServiceTest {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> readMap(File file) {
-        Object parsed = ONode.deserialize(FileUtil.readString(file, StandardCharsets.UTF_8), Object.class);
+        Object parsed =
+                ONode.deserialize(FileUtil.readString(file, StandardCharsets.UTF_8), Object.class);
         assertThat(parsed).isInstanceOf(Map.class);
         return (Map<String, Object>) parsed;
     }

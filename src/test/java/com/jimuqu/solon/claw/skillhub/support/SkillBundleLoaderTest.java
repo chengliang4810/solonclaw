@@ -21,7 +21,9 @@ class SkillBundleLoaderTest {
         SkillBundleLoader loader = new SkillBundleLoader(config);
 
         writeBundle(new File(bundlesDir, "alpha.json"), "Alpha Bundle", "SKILL.md", "alpha");
-        assertThat(loader.listBundles()).extracting(SkillBundle::getName).containsExactly("Alpha Bundle");
+        assertThat(loader.listBundles())
+                .extracting(SkillBundle::getName)
+                .containsExactly("Alpha Bundle");
 
         writeBundle(new File(bundlesDir, "beta.json"), "Beta Bundle", "SKILL.md", "beta");
 
@@ -57,13 +59,15 @@ class SkillBundleLoaderTest {
         File bundleFile = new File(bundlesDir, "alpha.json");
 
         writeBundle(bundleFile, "Alpha Bundle", "SKILL.md", "alpha-v1");
-        assertThat(loader.getBundle("alpha-bundle").getFiles()).containsEntry("SKILL.md", "alpha-v1");
+        assertThat(loader.getBundle("alpha-bundle").getFiles())
+                .containsEntry("SKILL.md", "alpha-v1");
 
         long nextTouchedAt = bundleFile.lastModified() + 2000L;
         writeBundle(bundleFile, "Alpha Bundle", "SKILL.md", "alpha-v2");
         touch(bundleFile, nextTouchedAt);
 
-        assertThat(loader.getBundle("alpha_bundle").getFiles()).containsEntry("SKILL.md", "alpha-v2");
+        assertThat(loader.getBundle("alpha_bundle").getFiles())
+                .containsEntry("SKILL.md", "alpha-v2");
     }
 
     @Test
@@ -116,13 +120,7 @@ class SkillBundleLoaderTest {
 
     private void writeBundle(File file, String name, String path, String content) {
         FileUtil.writeString(
-                "{\"name\":\""
-                        + name
-                        + "\",\"files\":{\""
-                        + path
-                        + "\":\""
-                        + content
-                        + "\"}}",
+                "{\"name\":\"" + name + "\",\"files\":{\"" + path + "\":\"" + content + "\"}}",
                 file,
                 StandardCharsets.UTF_8);
     }

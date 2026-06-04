@@ -5,11 +5,11 @@ import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
-import com.jimuqu.solon.claw.goal.GoalState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -44,7 +44,9 @@ public class DashboardSessionService {
         this.sessionRepository = sessionRepository;
         this.checkpointService = checkpointService;
         this.sessionArtifactService =
-                sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
+                sessionArtifactService == null
+                        ? new SessionArtifactService()
+                        : sessionArtifactService;
     }
 
     public Map<String, Object> getSessions(int limit, int offset) throws Exception {

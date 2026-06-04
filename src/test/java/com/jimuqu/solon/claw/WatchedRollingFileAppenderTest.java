@@ -3,8 +3,8 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.classic.util.LogbackMDCAdapter;
@@ -84,9 +84,7 @@ public class WatchedRollingFileAppenderTest {
         }
     }
 
-    private void configure(
-            WatchedRollingFileAppender<ILoggingEvent> appender,
-            Path logPath) {
+    private void configure(WatchedRollingFileAppender<ILoggingEvent> appender, Path logPath) {
         LoggerContext context = new LoggerContext();
         context.setMDCAdapter(new LogbackMDCAdapter());
         loggerContext = context;
@@ -120,9 +118,7 @@ public class WatchedRollingFileAppenderTest {
         appender.start();
     }
 
-    private void append(
-            WatchedRollingFileAppender<ILoggingEvent> appender,
-            String message) {
+    private void append(WatchedRollingFileAppender<ILoggingEvent> appender, String message) {
         LoggingEvent event = new LoggingEvent();
         event.setLoggerName("com.jimuqu.solon.claw.gateway.test");
         event.setLoggerContext(loggerContext);

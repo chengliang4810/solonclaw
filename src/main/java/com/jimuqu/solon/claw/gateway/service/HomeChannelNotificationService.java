@@ -13,20 +13,22 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Home channel notification service.
- * Sends system notifications (process lifecycle, cron results, errors) to configured home channels.
+ * Home channel notification service. Sends system notifications (process lifecycle, cron results,
+ * errors) to configured home channels.
  */
 public class HomeChannelNotificationService {
     private final AppConfig appConfig;
     private final DeliveryService deliveryService;
-    private final List<HomeChannelRecord> homeChannels = new CopyOnWriteArrayList<HomeChannelRecord>();
+    private final List<HomeChannelRecord> homeChannels =
+            new CopyOnWriteArrayList<HomeChannelRecord>();
 
     public HomeChannelNotificationService(AppConfig appConfig, DeliveryService deliveryService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
     }
 
-    public void registerHomeChannel(PlatformType platform, String chatId, String threadId, String chatName) {
+    public void registerHomeChannel(
+            PlatformType platform, String chatId, String threadId, String chatName) {
         HomeChannelRecord record = new HomeChannelRecord();
         record.setPlatform(platform);
         record.setChatId(chatId);

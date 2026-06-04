@@ -9,20 +9,18 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
-import com.jimuqu.solon.claw.core.repository.CronJobRepository;
-import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
-import com.jimuqu.solon.claw.core.service.CommandService;
-import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.core.service.CommandService;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
-import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
+import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
-import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
@@ -54,7 +52,6 @@ import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
-import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
@@ -63,6 +60,7 @@ import com.jimuqu.solon.claw.web.DashboardSessionService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -119,7 +117,8 @@ public class DashboardConfiguration {
             AgentRunRepository agentRunRepository,
             AgentRunControlService agentRunControlService,
             com.jimuqu.solon.claw.core.service.DelegationService delegationService) {
-        return new DashboardRunService(agentRunRepository, agentRunControlService, delegationService);
+        return new DashboardRunService(
+                agentRunRepository, agentRunControlService, delegationService);
     }
 
     @Bean
@@ -239,6 +238,19 @@ public class DashboardConfiguration {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
         return new WeixinQrSetupService(
+                appConfig,
+                dashboardConfigService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public com.jimuqu.solon.claw.web.DomesticQrSetupService domesticQrSetupService(
+            AppConfig appConfig,
+            DashboardConfigService dashboardConfigService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
+        return new com.jimuqu.solon.claw.web.DomesticQrSetupService(
                 appConfig,
                 dashboardConfigService,
                 gatewayRuntimeRefreshService,

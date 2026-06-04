@@ -17,7 +17,7 @@ const options = [
 
 function handleChange(val: string) {
   locale.value = val
-  localStorage.setItem('jimuqu_locale', val)
+  localStorage.setItem('solonclaw_locale', val)
 }
 </script>
 

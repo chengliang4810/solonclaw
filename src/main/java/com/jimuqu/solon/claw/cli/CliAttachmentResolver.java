@@ -25,13 +25,10 @@ import java.util.regex.Pattern;
 public class CliAttachmentResolver {
     private static final long MAX_ATTACHMENT_BYTES = 32L * 1024L * 1024L;
     private static final int MAX_ATTACHMENT_PATHS = 8;
-    private static final Pattern QUOTED_TOKEN =
-            Pattern.compile("(['\"])([^'\"\\r\\n]{2,})\\1");
-    private static final Pattern FILE_URI_TOKEN =
-            Pattern.compile("(?i)(?<!\\S)file:/[^\\s'\"<>]+");
+    private static final Pattern QUOTED_TOKEN = Pattern.compile("(['\"])([^'\"\\r\\n]{2,})\\1");
+    private static final Pattern FILE_URI_TOKEN = Pattern.compile("(?i)(?<!\\S)file:/[^\\s'\"<>]+");
     private static final Pattern WINDOWS_PATH_TOKEN =
-            Pattern.compile(
-                    "(?<![\\p{L}\\p{N}_./\\\\-])(?:[A-Za-z]:[/\\\\][^\\s'\"<>|]+)");
+            Pattern.compile("(?<![\\p{L}\\p{N}_./\\\\-])(?:[A-Za-z]:[/\\\\][^\\s'\"<>|]+)");
     private static final Pattern POSIX_PATH_TOKEN =
             Pattern.compile(
                     "(?<![A-Za-z]:)(?<![\\p{L}\\p{N}_./\\\\-])(?:~?/[A-Za-z0-9._+@%=-][^\\s'\"<>|]*)");
@@ -41,7 +38,8 @@ public class CliAttachmentResolver {
     private final AttachmentCacheService attachmentCacheService;
     private final SecurityPolicyService securityPolicyService;
 
-    public CliAttachmentResolver(AppConfig appConfig, AttachmentCacheService attachmentCacheService) {
+    public CliAttachmentResolver(
+            AppConfig appConfig, AttachmentCacheService attachmentCacheService) {
         this(
                 attachmentCacheService == null
                         ? new AttachmentCacheService(appConfig)
@@ -77,7 +75,9 @@ public class CliAttachmentResolver {
         summary.put("rawPathHiddenInPrompt", Boolean.TRUE);
         summary.put("maxAttachmentPaths", Integer.valueOf(MAX_ATTACHMENT_PATHS));
         summary.put("maxAttachmentBytes", Long.valueOf(MAX_ATTACHMENT_BYTES));
-        summary.put("description", "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; resolved attachment labels, blocked previews, and missing previews are secret-redacted.");
+        summary.put(
+                "description",
+                "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; resolved attachment labels, blocked previews, and missing previews are secret-redacted.");
         return summary;
     }
 

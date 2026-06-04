@@ -24,7 +24,10 @@ public class MediaSpeechTools {
     @ToolMapping(name = "image_generate", description = "Generate an image and save it as media.")
     public String generateImage(
             @Param(name = "prompt", description = "Image prompt") String prompt,
-            @Param(name = "aspectRatio", required = false, description = "Aspect ratio, for example 1:1")
+            @Param(
+                            name = "aspectRatio",
+                            required = false,
+                            description = "Aspect ratio, for example 1:1")
                     String aspectRatio,
             @Param(name = "optionsJson", required = false, description = "Optional JSON options")
                     String optionsJson) {
@@ -64,7 +67,8 @@ public class MediaSpeechTools {
     public String transcribeSpeech(
             @Param(name = "mediaReference", description = "media:// reference")
                     String mediaReference,
-            @Param(name = "mimeType", required = false, description = "Audio MIME type") String mimeType,
+            @Param(name = "mimeType", required = false, description = "Audio MIME type")
+                    String mimeType,
             @Param(name = "optionsJson", required = false, description = "Optional JSON options")
                     String optionsJson) {
         if (!StrUtil.nullToEmpty(mediaReference).trim().startsWith("media://")) {

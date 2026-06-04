@@ -102,7 +102,8 @@ public class AppConfigPathNormalizationTest {
 
     @Test
     void shouldExposeSecurityPolicyAtEffectiveTemplateScope() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-runtime-security-example").toFile();
+        File runtimeHome =
+                Files.createTempDirectory("solon-claw-runtime-security-example").toFile();
         File runtimeExample = new File(runtimeHome, "config.example.yml");
 
         Props props = new Props();
@@ -136,7 +137,8 @@ public class AppConfigPathNormalizationTest {
                 .contains("accessToken: \"admin\"");
         assertThat(config.getDashboard().getAccessToken()).isEqualTo("admin");
         assertThat(config.getLlm().getDialect()).isEqualTo("openai");
-        assertThat(config.getLlm().getApiUrl()).isEqualTo("https://api.openai.com/v1/chat/completions");
+        assertThat(config.getLlm().getApiUrl())
+                .isEqualTo("https://api.openai.com/v1/chat/completions");
         assertThat(config.getLlm().getApiKey()).isEqualTo("");
         assertThat(config.getLlm().getModel()).isEqualTo("gpt-5.4");
     }

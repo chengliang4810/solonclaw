@@ -2,7 +2,7 @@ import { ref, watch } from 'vue'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-const STORAGE_KEY = 'jimuqu_theme'
+const STORAGE_KEY = 'solonclaw_theme'
 
 const mode = ref<ThemeMode>(
   (localStorage.getItem(STORAGE_KEY) as ThemeMode) || 'system',

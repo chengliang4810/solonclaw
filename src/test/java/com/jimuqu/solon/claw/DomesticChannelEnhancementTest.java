@@ -3,6 +3,9 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
+import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -20,11 +23,8 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.lark.oapi.core.request.EventReq;
 import com.sun.net.httpserver.HttpServer;
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -86,8 +86,7 @@ public class DomesticChannelEnhancementTest {
                                 + "}"
                                 + "}");
 
-        assertThat(message.getText())
-                .isEqualTo("[Quoted message]:\n原消息\n\n请看这个");
+        assertThat(message.getText()).isEqualTo("[Quoted message]:\n原消息\n\n请看这个");
         assertThat(message.getAttachments()).hasSize(1);
         assertThat(message.getAttachments().get(0).isFromQuote()).isTrue();
         assertThat(message.getAttachments().get(0).getOriginalName())
@@ -208,7 +207,8 @@ public class DomesticChannelEnhancementTest {
 
         assertThat(body.get("msg_type").getInt()).isEqualTo(2);
         assertThat(body.get("markdown").get("content").getString()).contains("命令执行审批");
-        assertThat(body.get("markdown").get("content").getString()).contains("rm -rf runtime/cache");
+        assertThat(body.get("markdown").get("content").getString())
+                .contains("rm -rf runtime/cache");
         assertThat(body.get("content").getString()).isNull();
         assertThat(body.get("msg_id").getString()).isEqualTo("m1");
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
@@ -217,8 +217,7 @@ public class DomesticChannelEnhancementTest {
                 .isEqualTo("approve:approval-123:allow-once");
         assertThat(buttons.get(1).get("action").get("data").getString())
                 .isEqualTo("approve:approval-123:allow-session");
-        assertThat(buttons.get(2).get("render_data").get("label").getString())
-                .isEqualTo("⭐ 始终允许");
+        assertThat(buttons.get(2).get("render_data").get("label").getString()).isEqualTo("⭐ 始终允许");
         assertThat(buttons.get(3).get("action").get("data").getString())
                 .isEqualTo("approve:approval-123:deny");
         assertThat(buttons.get(3).get("group_id").getString()).isEqualTo("approval");
@@ -242,12 +241,10 @@ public class DomesticChannelEnhancementTest {
 
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
         assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
-        assertThat(buttons.get(1).get("render_data").get("label").getString())
-                .isEqualTo("✅ 本会话允许");
+        assertThat(buttons.get(1).get("render_data").get("label").getString()).isEqualTo("✅ 本会话允许");
         assertThat(buttons.get(1).get("action").get("data").getString())
                 .isEqualTo("approve:approval-456:allow-session");
-        assertThat(buttons.get(2).get("render_data").get("label").getString())
-                .isEqualTo("❌ 拒绝");
+        assertThat(buttons.get(2).get("render_data").get("label").getString()).isEqualTo("❌ 拒绝");
         assertThat(buttons.get(2).get("action").get("data").getString())
                 .isEqualTo("approve:approval-456:deny");
     }
@@ -281,8 +278,7 @@ public class DomesticChannelEnhancementTest {
                 .isEqualTo("approve::allow-once");
         assertThat(buttons.get(1).get("action").get("data").getString())
                 .isEqualTo("approve::allow-session");
-        assertThat(buttons.get(2).get("action").get("data").getString())
-                .isEqualTo("approve::deny");
+        assertThat(buttons.get(2).get("action").get("data").getString()).isEqualTo("approve::deny");
     }
 
     @Test
@@ -305,10 +301,16 @@ public class DomesticChannelEnhancementTest {
         assertThat(body.get("msg_type").getInt()).isEqualTo(0);
         assertThat(body.get("content").getString()).isEqualTo("纯文本审批");
         assertThat(body.get("markdown").isNull()).isTrue();
-        assertThat(body.get("keyboard").get("content").get("rows").get(0).get("buttons").get(0)
-                        .get("action")
-                        .get("data")
-                        .getString())
+        assertThat(
+                        body.get("keyboard")
+                                .get("content")
+                                .get("rows")
+                                .get(0)
+                                .get("buttons")
+                                .get(0)
+                                .get("action")
+                                .get("data")
+                                .getString())
                 .isEqualTo("approve:approval-plain:allow-once");
     }
 
@@ -496,13 +498,15 @@ public class DomesticChannelEnhancementTest {
                 .doesNotContain("\u001b")
                 .doesNotContain("\u202E");
         assertThat(((List<?>) actions.toData()).size()).isEqualTo(3);
-        assertThat(actions.get(0).get("text").get("content").getString())
-                .isEqualTo("✅ 允许一次");
-        assertThat(actions.get(1).get("text").get("content").getString())
-                .isEqualTo("✅ 本会话允许");
+        assertThat(actions.get(0).get("text").get("content").getString()).isEqualTo("✅ 允许一次");
+        assertThat(actions.get(1).get("text").get("content").getString()).isEqualTo("✅ 本会话允许");
         assertThat(actions.get(2).get("text").get("content").getString()).isEqualTo("❌ 拒绝");
         assertThat(actions.get(0).get("value").get("approvalId").getString()).isEmpty();
-        assertThat(actions.get(2).get("value").get(DangerousCommandApprovalService.CARD_ACTION_KEY).getString())
+        assertThat(
+                        actions.get(2)
+                                .get("value")
+                                .get(DangerousCommandApprovalService.CARD_ACTION_KEY)
+                                .getString())
                 .isEqualTo(DangerousCommandApprovalService.CARD_ACTION_DENY);
     }
 
@@ -595,8 +599,7 @@ public class DomesticChannelEnhancementTest {
 
         adapter.exposeDetail("connect failed: token=sk-test1234567890abcdef");
         adapter.exposeLastError(
-                "feishu_connect_failed",
-                "Authorization: Bearer sk-test1234567890abcdef");
+                "feishu_connect_failed", "Authorization: Bearer sk-test1234567890abcdef");
 
         ChannelStatus status = adapter.statusSnapshot();
         assertThat(status.getDetail()).contains("token=***");
@@ -782,9 +785,7 @@ public class DomesticChannelEnhancementTest {
                         config.getChannels().getFeishu(), new AttachmentCacheService(config));
 
         assertWeakCredentialRejected(
-                feishu,
-                "feishu_weak_credentials",
-                "solonclaw.channels.feishu.appSecret");
+                feishu, "feishu_weak_credentials", "solonclaw.channels.feishu.appSecret");
 
         config.getChannels().getWecom().setEnabled(true);
         config.getChannels().getWecom().setBotId("real_bot");
@@ -794,9 +795,7 @@ public class DomesticChannelEnhancementTest {
                         config.getChannels().getWecom(), new AttachmentCacheService(config));
 
         assertWeakCredentialRejected(
-                wecom,
-                "wecom_weak_credentials",
-                "solonclaw.channels.wecom.secret");
+                wecom, "wecom_weak_credentials", "solonclaw.channels.wecom.secret");
     }
 
     @Test
@@ -852,8 +851,9 @@ public class DomesticChannelEnhancementTest {
         config.getChannels().getYuanbao().setEnabled(true);
         config.getChannels().getYuanbao().setAppId("yb_real");
         config.getChannels().getYuanbao().setAppSecret("real_secret");
-        config.getChannels().getYuanbao().setWebsocketUrl(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getYuanbao()
+                .setWebsocketUrl("http://169.254.169.254/latest/meta-data/?token=secret");
         YuanbaoChannelAdapter adapter =
                 new YuanbaoChannelAdapter(
                         config.getChannels().getYuanbao(), new SecurityPolicyService(config));
@@ -865,8 +865,9 @@ public class DomesticChannelEnhancementTest {
                 .contains("token=***");
 
         config.getChannels().getYuanbao().setWebsocketUrl(null);
-        config.getChannels().getYuanbao().setApiDomain(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getYuanbao()
+                .setApiDomain("http://169.254.169.254/latest/meta-data/?token=secret");
         Method postJson =
                 YuanbaoChannelAdapter.class.getDeclaredMethod(
                         "postJson", String.class, String.class);
@@ -885,15 +886,17 @@ public class DomesticChannelEnhancementTest {
         config.getChannels().getQqbot().setEnabled(true);
         config.getChannels().getQqbot().setAppId("qq_real");
         config.getChannels().getQqbot().setClientSecret("real_secret");
-        config.getChannels().getQqbot().setWebsocketUrl(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getQqbot()
+                .setWebsocketUrl("http://169.254.169.254/latest/meta-data/?token=secret");
         QQBotChannelAdapter adapter =
                 new QQBotChannelAdapter(
                         config.getChannels().getQqbot(),
                         new AttachmentCacheService(config),
                         new SecurityPolicyService(config));
         setField(adapter, "accessToken", "cached-token");
-        setField(adapter, "accessTokenExpireAt", Long.valueOf(System.currentTimeMillis() + 120000L));
+        setField(
+                adapter, "accessTokenExpireAt", Long.valueOf(System.currentTimeMillis() + 120000L));
 
         assertThat(adapter.connect()).isFalse();
         assertThat(adapter.statusSnapshot().getLastErrorMessage())
@@ -901,8 +904,9 @@ public class DomesticChannelEnhancementTest {
                 .contains("169.254.169.254")
                 .contains("token=***");
 
-        config.getChannels().getQqbot().setApiDomain(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getQqbot()
+                .setApiDomain("http://169.254.169.254/latest/meta-data/?token=secret");
         Method postJson =
                 QQBotChannelAdapter.class.getDeclaredMethod("postJson", String.class, String.class);
         postJson.setAccessible(true);
@@ -1035,8 +1039,9 @@ public class DomesticChannelEnhancementTest {
         config.getChannels().getWecom().setEnabled(true);
         config.getChannels().getWecom().setBotId("wecom_real");
         config.getChannels().getWecom().setSecret("real_secret");
-        config.getChannels().getWecom().setWebsocketUrl(
-                "http://169.254.169.254/latest/meta-data/?token=secret");
+        config.getChannels()
+                .getWecom()
+                .setWebsocketUrl("http://169.254.169.254/latest/meta-data/?token=secret");
         WeComChannelAdapter adapter =
                 new WeComChannelAdapter(
                         config.getChannels().getWecom(),
@@ -1135,7 +1140,8 @@ public class DomesticChannelEnhancementTest {
     }
 
     private String largeJsonBody(String secret) {
-        StringBuilder body = new StringBuilder("{\"token\":\"").append(secret).append("\",\"pad\":\"");
+        StringBuilder body =
+                new StringBuilder("{\"token\":\"").append(secret).append("\",\"pad\":\"");
         for (int i = 0; i < BoundedAttachmentIO.JSON_MAX_BYTES + 32; i++) {
             body.append('x');
         }

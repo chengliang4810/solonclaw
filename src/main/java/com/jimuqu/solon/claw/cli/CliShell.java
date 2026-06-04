@@ -16,7 +16,7 @@ import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
-/** Jimuqu line-oriented CLI. */
+/** Solon Claw line-oriented CLI. */
 public class CliShell {
     private static final String PROMPT = "\u001B[36mjimuqu>\u001B[0m ";
     private static final String[] COMMANDS = TerminalCommandCatalog.SLASH_COMMANDS;
@@ -64,7 +64,14 @@ public class CliShell {
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser,
             TerminalHistoryViewer historyViewer) {
-        this(cliRuntime, mode, attachmentResolver, null, modelPicker, sessionBrowser, historyViewer);
+        this(
+                cliRuntime,
+                mode,
+                attachmentResolver,
+                null,
+                modelPicker,
+                sessionBrowser,
+                historyViewer);
     }
 
     public CliShell(
@@ -96,12 +103,12 @@ public class CliShell {
         LineReader reader =
                 LineReaderBuilder.builder()
                         .terminal(terminal)
-                        .appName("jimuqu-agent")
+                        .appName("solon-claw")
                         .completer(new StringsCompleter(COMMANDS))
-                        .variable(LineReader.HISTORY_FILE, ".jimuqu-cli-history")
+                        .variable(LineReader.HISTORY_FILE, ".solonclaw-cli-history")
                         .build();
         TerminalShortcuts.install(reader);
-        writer.println("Jimuqu Agent CLI。输入 /help 查看命令，/exit 退出。");
+        writer.println("Solon Claw CLI。输入 /help 查看命令，/exit 退出。");
         writer.flush();
         LocalTerminalTaskRunner taskRunner = new LocalTerminalTaskRunner(writer);
         try {
@@ -235,7 +242,10 @@ public class CliShell {
             return 0;
         }
         if (TerminalSkin.isSkinCommand(trimmed)) {
-            String next = trimmed.length() <= "/skin".length() ? "" : trimmed.substring("/skin".length()).trim();
+            String next =
+                    trimmed.length() <= "/skin".length()
+                            ? ""
+                            : trimmed.substring("/skin".length()).trim();
             if (StrUtil.isNotBlank(next)) {
                 skin = TerminalSkin.resolve(next);
             }
@@ -354,12 +364,13 @@ public class CliShell {
     }
 
     private Terminal newTerminal() throws Exception {
-        Terminal terminal = TerminalBuilder.builder()
-                .system(true)
-                .jansi(true)
-                .dumb(true)
-                .encoding(StandardCharsets.UTF_8)
-                .build();
+        Terminal terminal =
+                TerminalBuilder.builder()
+                        .system(true)
+                        .jansi(true)
+                        .dumb(true)
+                        .encoding(StandardCharsets.UTF_8)
+                        .build();
         TerminalDimensionSupport.sanitize(terminal);
         return terminal;
     }
@@ -390,7 +401,8 @@ public class CliShell {
         return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
     }
 
-    private void renderShutdownSummary(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+    private void renderShutdownSummary(
+            PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(
                 TerminalLifecycleSummary.render(
                         sessionId,
@@ -412,7 +424,10 @@ public class CliShell {
             return "当前终端未启用附件解析。";
         }
         String value = StrUtil.nullToEmpty(input).trim();
-        String rest = value.length() <= "/attachments".length() ? "" : value.substring("/attachments".length()).trim();
+        String rest =
+                value.length() <= "/attachments".length()
+                        ? ""
+                        : value.substring("/attachments".length()).trim();
         return attachmentResolver.renderPreview(rest);
     }
 }

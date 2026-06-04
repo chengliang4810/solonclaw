@@ -25,7 +25,8 @@ public class GatewayMediaDeliverySupport {
         String value = StrUtil.nullToEmpty(content);
         List<MediaDirectiveSupport.MediaDirective> refs = MediaDirectiveSupport.parse(value);
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
-        List<MediaDirectiveSupport.MediaDirective> resolved = new ArrayList<MediaDirectiveSupport.MediaDirective>();
+        List<MediaDirectiveSupport.MediaDirective> resolved =
+                new ArrayList<MediaDirectiveSupport.MediaDirective>();
         if (attachmentCacheService != null) {
             for (MediaDirectiveSupport.MediaDirective ref : refs) {
                 File file = FileUtil.file(ref.getPath());

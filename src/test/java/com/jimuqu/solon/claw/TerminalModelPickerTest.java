@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 public class TerminalModelPickerTest {
     @Test
     void shouldRenderCurrentAndFallbackModels() {
-        TerminalModelPicker picker = new TerminalModelPicker(config(), new LlmProviderService(config()));
+        TerminalModelPicker picker =
+                new TerminalModelPicker(config(), new LlmProviderService(config()));
 
         String text = picker.render();
 
@@ -22,7 +23,8 @@ public class TerminalModelPickerTest {
 
     @Test
     void shouldResolvePickerNumberToModelCommand() {
-        TerminalModelPicker picker = new TerminalModelPicker(config(), new LlmProviderService(config()));
+        TerminalModelPicker picker =
+                new TerminalModelPicker(config(), new LlmProviderService(config()));
 
         assertThat(picker.isPickerCommand("/models")).isTrue();
         assertThat(picker.isPickerCommand("/model pick 2")).isTrue();
@@ -58,7 +60,8 @@ public class TerminalModelPickerTest {
         second.setModel("gpt-backup");
         config.getFallbackProviders().add(first);
         config.getFallbackProviders().add(second);
-        TerminalModelPicker picker = new TerminalModelPicker(config, new LlmProviderService(config));
+        TerminalModelPicker picker =
+                new TerminalModelPicker(config, new LlmProviderService(config));
 
         String text = picker.render();
 

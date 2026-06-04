@@ -72,7 +72,8 @@ public class DashboardRuntimeConfigController {
     public Map<String, Object> reveal(Context context) throws Exception {
         if (!authService.allowReveal()) {
             context.status(429);
-            return DashboardResponse.error("RUNTIME_CONFIG_RATE_LIMITED", "Reveal rate limit exceeded");
+            return DashboardResponse.error(
+                    "RUNTIME_CONFIG_RATE_LIMITED", "Reveal rate limit exceeded");
         }
         try {
             ONode body = body(context);
@@ -102,7 +103,8 @@ public class DashboardRuntimeConfigController {
             if (data instanceof Map) {
                 return node;
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {

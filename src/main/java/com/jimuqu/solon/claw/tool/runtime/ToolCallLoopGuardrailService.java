@@ -24,8 +24,7 @@ public class ToolCallLoopGuardrailService {
     private static final String STATE_KEY = "solonclaw.tool_loop_guardrail.state";
     public static final String HALT_DECISION_EXTRA_KEY =
             "solonclaw.tool_loop_guardrail.halt_decision";
-    private static final ThreadLocal<Integer> OTHER_TOOL_CALL_EPOCH =
-            new ThreadLocal<Integer>();
+    private static final ThreadLocal<Integer> OTHER_TOOL_CALL_EPOCH = new ThreadLocal<Integer>();
     private static final Set<String> IDEMPOTENT_TOOLS =
             Collections.unmodifiableSet(
                     new HashSet<String>(
@@ -143,7 +142,8 @@ public class ToolCallLoopGuardrailService {
         }
 
         @Override
-        public void onObservation(ReActTrace trace, String toolName, String result, long durationMs) {
+        public void onObservation(
+                ReActTrace trace, String toolName, String result, long durationMs) {
             if (trace == null || toolName == null) {
                 return;
             }
@@ -261,10 +261,7 @@ public class ToolCallLoopGuardrailService {
                             "same_tool_failure_halt",
                             toolName,
                             sameCount,
-                            toolName
-                                    + " 本轮已失败 "
-                                    + sameCount
-                                    + " 次。停止继续重试同一失败路径，改用其他方案。",
+                            toolName + " 本轮已失败 " + sameCount + " 次。停止继续重试同一失败路径，改用其他方案。",
                             signature);
                 }
                 if (config.warningsEnabled && exactCount >= config.exactFailureWarnAfter) {
@@ -283,10 +280,7 @@ public class ToolCallLoopGuardrailService {
                             "same_tool_failure_warning",
                             toolName,
                             sameCount,
-                            toolName
-                                    + " 本轮已失败 "
-                                    + sameCount
-                                    + " 次。这看起来像工具循环；再次调用前请改变方案。",
+                            toolName + " 本轮已失败 " + sameCount + " 次。这看起来像工具循环；再次调用前请改变方案。",
                             signature);
                 }
                 return Decision.allow(toolName, signature);
@@ -311,10 +305,7 @@ public class ToolCallLoopGuardrailService {
                         "idempotent_no_progress_warning",
                         toolName,
                         repeatCount,
-                        toolName
-                                + " 已连续 "
-                                + repeatCount
-                                + " 次返回相同结果。使用已有结果或更换查询条件，不要原样重复调用。",
+                        toolName + " 已连续 " + repeatCount + " 次返回相同结果。使用已有结果或更换查询条件，不要原样重复调用。",
                         signature);
             }
             return Decision.allow(toolName, signature);
@@ -369,7 +360,8 @@ public class ToolCallLoopGuardrailService {
                 return false;
             }
             Signature that = (Signature) other;
-            return StrUtil.equals(toolName, that.toolName) && StrUtil.equals(argsHash, that.argsHash);
+            return StrUtil.equals(toolName, that.toolName)
+                    && StrUtil.equals(argsHash, that.argsHash);
         }
 
         @Override
@@ -512,7 +504,8 @@ public class ToolCallLoopGuardrailService {
             if (success instanceof Boolean && !((Boolean) success).booleanValue()) {
                 return true;
             }
-            String status = parsed.get("status") == null ? null : String.valueOf(parsed.get("status"));
+            String status =
+                    parsed.get("status") == null ? null : String.valueOf(parsed.get("status"));
             if (StrUtil.equalsIgnoreCase(status, "error")
                     || StrUtil.equalsIgnoreCase(status, "failed")) {
                 return true;
@@ -570,9 +563,7 @@ public class ToolCallLoopGuardrailService {
     }
 
     private static String haltFinalAnswer(Decision decision) {
-        return "已停止重复工具调用。"
-                + decision.message
-                + "请基于已有信息继续说明，或等待用户提供新的输入。";
+        return "已停止重复工具调用。" + decision.message + "请基于已有信息继续说明，或等待用户提供新的输入。";
     }
 
     private static boolean isIdempotent(String toolName) {
@@ -597,7 +588,8 @@ public class ToolCallLoopGuardrailService {
     private static String sha256(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
+            byte[] bytes =
+                    digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder(bytes.length * 2);
             for (byte b : bytes) {
                 String hex = Integer.toHexString(b & 0xff);

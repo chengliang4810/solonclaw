@@ -526,7 +526,8 @@ public class SqliteDatabase {
             addColumn(statement, "agent_runs", "phase text");
             addColumn(statement, "agent_runs", "busy_policy text");
             addColumn(statement, "agent_runs", "backgrounded integer not null default 0");
-            addColumn(statement, "agent_runs", "context_estimate_tokens integer not null default 0");
+            addColumn(
+                    statement, "agent_runs", "context_estimate_tokens integer not null default 0");
             addColumn(statement, "agent_runs", "context_window_tokens integer not null default 0");
             addColumn(statement, "agent_runs", "compression_count integer not null default 0");
             addColumn(statement, "agent_runs", "fallback_count integer not null default 0");
@@ -718,8 +719,7 @@ public class SqliteDatabase {
                             + "heartbeat_at integer not null default 0"
                             + ")");
             addColumn(statement, "subagent_runs", "active integer not null default 0");
-            addColumn(
-                    statement, "subagent_runs", "interrupt_requested integer not null default 0");
+            addColumn(statement, "subagent_runs", "interrupt_requested integer not null default 0");
             statement.execute(
                     "create index if not exists idx_subagent_runs_parent on subagent_runs(parent_run_id, started_at asc)");
             statement.execute(
@@ -777,10 +777,7 @@ public class SqliteDatabase {
             addColumn(statement, "mcp_servers", "capabilities_json text");
             addColumn(statement, "mcp_servers", "last_tools_hash text");
             addColumn(statement, "mcp_servers", "last_tools_json text");
-            addColumn(
-                    statement,
-                    "mcp_servers",
-                    "last_tools_changed_at integer not null default 0");
+            addColumn(statement, "mcp_servers", "last_tools_changed_at integer not null default 0");
             statement.execute(
                     "create table if not exists curator_reports ("
                             + "report_id text primary key,"

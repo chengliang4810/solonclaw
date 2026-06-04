@@ -128,8 +128,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                             15);
             int ret = auth.get("ret").getInt(0);
             if (ret != 0) {
-                throw new IllegalStateException(
-                        "WeCom subscribe failed: " + safeJson(auth));
+                throw new IllegalStateException("WeCom subscribe failed: " + safeJson(auth));
             }
             setConnected(true);
             setSetupState("connected");

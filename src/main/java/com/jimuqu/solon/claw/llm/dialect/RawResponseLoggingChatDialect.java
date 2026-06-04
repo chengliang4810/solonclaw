@@ -62,10 +62,7 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
 
     @Override
     public String buildRequestJson(
-            ChatConfig config,
-            ChatOptions options,
-            List<ChatMessage> messages,
-            boolean isStream) {
+            ChatConfig config, ChatOptions options, List<ChatMessage> messages, boolean isStream) {
         return delegate.buildRequestJson(config, options, messages, isStream);
     }
 

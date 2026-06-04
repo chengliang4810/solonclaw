@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import java.io.File;
 import java.lang.reflect.Method;
@@ -30,16 +30,13 @@ public class SolonClawShellSkillTest {
     void shouldReturnCleanTerminalErrorForNullCommandLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         ONode result =
                 ONode.ofJson(
                         skill.terminal(
-                                null,
-                                Boolean.FALSE,
-                                Integer.valueOf(5),
-                                null,
-                                Boolean.FALSE));
+                                null, Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(result.get("status").getString()).isEqualTo("error");
@@ -53,16 +50,13 @@ public class SolonClawShellSkillTest {
     void shouldReturnCleanTerminalErrorForBlankCommandLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         ONode result =
                 ONode.ofJson(
                         skill.terminal(
-                                "  ",
-                                Boolean.FALSE,
-                                Integer.valueOf(5),
-                                null,
-                                Boolean.FALSE));
+                                "  ", Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(result.get("status").getString()).isEqualTo("error");
@@ -101,7 +95,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("secret");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand(null);
 
@@ -115,7 +110,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("secret");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.transformSudoCommand("grep -n sudo README.md").isChanged()).isFalse();
         assertThat(skill.transformSudoCommand("printf '%s\\n' sudo").isChanged()).isFalse();
@@ -129,7 +125,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand("sudo apt install -y ripgrep");
@@ -144,13 +141,14 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         Map<String, Object> summary = skill.sudoRewritePolicySummary();
 
         assertThat(summary.get("configured")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("envKey")).isEqualTo("SUDO_PASSWORD");
-        assertThat(summary.get("configKey")).isEqualTo("terminal.sudoPassword");
+        assertThat(summary.get("envKey")).isEqualTo("SOLONCLAW_SUDO_PASSWORD");
+        assertThat(summary.get("configKey")).isEqualTo("solonclaw.terminal.sudoPassword");
         assertThat(summary.get("rewritesRealSudoInvocations")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("stdinPasswordInjection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("passwordRedacted")).isEqualTo(Boolean.TRUE);
@@ -172,7 +170,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand("DEBUG=1 sudo whoami");
@@ -186,7 +185,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand(
@@ -205,7 +205,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand("sudo -S -p '' whoami");
@@ -218,7 +219,8 @@ public class SolonClawShellSkillTest {
     void shouldNotRewriteWhenPasswordIsUnset() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
 
@@ -230,7 +232,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
 
@@ -316,8 +319,7 @@ public class SolonClawShellSkillTest {
 
     @Test
     void shouldStripEightBitAnsiFromTerminalOutputLikeJimuqu() throws Exception {
-        assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m"))
-                .isEqualTo("red");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m")).isEqualTo("red");
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u009D52;c;clipboard\u009Cvisible"))
                 .isEqualTo("visible");
     }
@@ -340,10 +342,8 @@ public class SolonClawShellSkillTest {
                         TerminalAnsiSanitizer.stripAnsi(
                                 "\u001B]8;;https://example.com\u001B\\click\u001B]8;;\u001B\\"))
                 .isEqualTo("click");
-        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001BP+q\u001B\\done"))
-                .isEqualTo("done");
-        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B(Achars\u001B(B"))
-                .isEqualTo("chars");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001BP+q\u001B\\done")).isEqualTo("done");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B(Achars\u001B(B")).isEqualTo("chars");
         assertThat(TerminalAnsiSanitizer.stripAnsi("arr[0] = arr[31]"))
                 .isEqualTo("arr[0] = arr[31]");
     }
@@ -352,8 +352,7 @@ public class SolonClawShellSkillTest {
     void shouldStripDisplayControlCharactersFromTerminalOutputLikeJimuqu() {
         assertThat(TerminalAnsiSanitizer.stripAnsi("safe\u0007\u0008hidden\rnext\u007F"))
                 .isEqualTo("safehiddennext");
-        assertThat(TerminalAnsiSanitizer.stripAnsi("line1\n\tline2"))
-                .isEqualTo("line1\n\tline2");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("line1\n\tline2")).isEqualTo("line1\n\tline2");
         assertThat(TerminalAnsiSanitizer.stripAnsi("rm -rf safe\u202Ecod.exe\u2069"))
                 .isEqualTo("rm -rf safecod.exe");
     }
@@ -377,10 +376,7 @@ public class SolonClawShellSkillTest {
                         Collections.<String, String>emptyMap());
 
         assertThat(resolved)
-                .containsExactly(
-                        profile.toString(),
-                        bashProfile.toString(),
-                        bashrc.toString());
+                .containsExactly(profile.toString(), bashProfile.toString(), bashrc.toString());
     }
 
     @Test
@@ -446,9 +442,7 @@ public class SolonClawShellSkillTest {
     void shouldPrependGuardedShellInitSourceLinesLikeJimuqu() {
         String wrapped =
                 SolonClawShellSkill.prependShellInit(
-                        "echo hi",
-                        Arrays.asList("/tmp/a.sh", "/tmp/o'malley.sh"),
-                        false);
+                        "echo hi", Arrays.asList("/tmp/a.sh", "/tmp/o'malley.sh"), false);
 
         assertThat(wrapped).startsWith("set +e\n");
         assertThat(wrapped).contains("[ -r '/tmp/a.sh' ] && . '/tmp/a.sh' 2>/dev/null || true");
@@ -460,11 +454,7 @@ public class SolonClawShellSkillTest {
     void shouldRejectWorkdirWithShellMetacharactersLikeJimuquTerminalGuardrail() {
         AppConfig config = new AppConfig();
 
-        assertThatThrownBy(
-                        () ->
-                                new SolonClawShellSkill(
-                                        "C:\\workspace; rm -rf runtime",
-                                        config))
+        assertThatThrownBy(() -> new SolonClawShellSkill("C:\\workspace; rm -rf runtime", config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Blocked")
                 .hasMessageContaining("disallowed character");
@@ -612,7 +602,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setMaxForegroundTimeoutSeconds(1);
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute("echo should_not_run", 2000);
 
@@ -622,9 +613,9 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldExposeForegroundTimeoutCapInToolParameterDescriptionsLikeJimuqu()
-            throws Exception {
-        Method execute = SolonClawShellSkill.class.getMethod("execute", String.class, Integer.class);
+    void shouldExposeForegroundTimeoutCapInToolParameterDescriptionsLikeJimuqu() throws Exception {
+        Method execute =
+                SolonClawShellSkill.class.getMethod("execute", String.class, Integer.class);
         Method terminal =
                 SolonClawShellSkill.class.getMethod(
                         "terminal",
@@ -640,9 +631,7 @@ public class SolonClawShellSkillTest {
         String terminalTimeoutDescription = paramDescription(terminal, "timeout");
 
         assertThat(executeTimeoutDescription).contains("600000ms").contains("background=true");
-        assertThat(terminalTimeoutDescription)
-                .contains("600 seconds")
-                .contains("background=true");
+        assertThat(terminalTimeoutDescription).contains("600 seconds").contains("background=true");
     }
 
     @Test
@@ -670,11 +659,14 @@ public class SolonClawShellSkillTest {
     void shouldApplyJimuquCompoundBackgroundRewriteBeforeForegroundExecution() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.rewriteCompoundBackground("echo ready && python -m http.server 8000 &"))
                 .isEqualTo("echo ready && { python -m http.server 8000 & }");
-        assertThat(skill.rewriteCompoundBackground("echo ready && { python -m http.server 8000 & }"))
+        assertThat(
+                        skill.rewriteCompoundBackground(
+                                "echo ready && { python -m http.server 8000 & }"))
                 .isEqualTo("echo ready && { python -m http.server 8000 & }");
     }
 
@@ -682,16 +674,14 @@ public class SolonClawShellSkillTest {
     void shouldRewriteCompoundBackgroundShellPatterns() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.rewriteCompoundBackground("A && B &")).isEqualTo("A && { B & }");
         assertThat(skill.rewriteCompoundBackground("A || B &")).isEqualTo("A || { B & }");
-        assertThat(skill.rewriteCompoundBackground("A && B && C &"))
-                .isEqualTo("A && B && { C & }");
-        assertThat(skill.rewriteCompoundBackground("A || B || C &"))
-                .isEqualTo("A || B || { C & }");
-        assertThat(skill.rewriteCompoundBackground("A && B || C &"))
-                .isEqualTo("A && B || { C & }");
+        assertThat(skill.rewriteCompoundBackground("A && B && C &")).isEqualTo("A && B && { C & }");
+        assertThat(skill.rewriteCompoundBackground("A || B || C &")).isEqualTo("A || B || { C & }");
+        assertThat(skill.rewriteCompoundBackground("A && B || C &")).isEqualTo("A && B || { C & }");
         assertThat(skill.rewriteCompoundBackground("A && B &\nfalse || C &"))
                 .isEqualTo("A && { B & }\nfalse || { C & }");
         assertThat(
@@ -703,17 +693,16 @@ public class SolonClawShellSkillTest {
                         "cd /home/exedev && { python3 -m http.server 8000 &>/dev/null & }\n"
                                 + "sleep 1\n"
                                 + "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/");
-        assertThat(skill.rewriteCompoundBackground("   A && B &"))
-                .isEqualTo("   A && { B & }");
-        assertThat(skill.rewriteCompoundBackground("A\t&&\tB\t&"))
-                .isEqualTo("A\t&&\t{ B\t& }");
+        assertThat(skill.rewriteCompoundBackground("   A && B &")).isEqualTo("   A && { B & }");
+        assertThat(skill.rewriteCompoundBackground("A\t&&\tB\t&")).isEqualTo("A\t&&\t{ B\t& }");
     }
 
     @Test
     void shouldPreserveNonCompoundBackgroundShellPatterns() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.rewriteCompoundBackground("sleep 5 &")).isEqualTo("sleep 5 &");
         assertThat(skill.rewriteCompoundBackground("python3 -m http.server 0 &"))
@@ -733,7 +722,8 @@ public class SolonClawShellSkillTest {
     void shouldNotCrashOnMalformedCompoundBackgroundInput() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.rewriteCompoundBackground("A && &")).isNotNull();
     }
@@ -742,7 +732,8 @@ public class SolonClawShellSkillTest {
     void shouldNotMistakeRedirectsQuotesOrSubshellsForCompoundBackgrounds() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.rewriteCompoundBackground("echo hi &>/dev/null"))
                 .isEqualTo("echo hi &>/dev/null");
@@ -750,17 +741,14 @@ public class SolonClawShellSkillTest {
         assertThat(skill.rewriteCompoundBackground("cmd 2>&1 &")).isEqualTo("cmd 2>&1 &");
         assertThat(skill.rewriteCompoundBackground("A && B &>/dev/null &"))
                 .isEqualTo("A && { B &>/dev/null & }");
-        assertThat(skill.rewriteCompoundBackground("A && B 2>&1 &"))
-                .isEqualTo("A && { B 2>&1 & }");
-        assertThat(skill.rewriteCompoundBackground("echo 'A && B &'"))
-                .isEqualTo("echo 'A && B &'");
+        assertThat(skill.rewriteCompoundBackground("A && B 2>&1 &")).isEqualTo("A && { B 2>&1 & }");
+        assertThat(skill.rewriteCompoundBackground("echo 'A && B &'")).isEqualTo("echo 'A && B &'");
         assertThat(skill.rewriteCompoundBackground("echo \"A && B &\""))
                 .isEqualTo("echo \"A && B &\"");
         assertThat(skill.rewriteCompoundBackground("(A && B) &")).isEqualTo("(A && B) &");
         assertThat(skill.rewriteCompoundBackground("echo \"$(A && B)\" &"))
                 .isEqualTo("echo \"$(A && B)\" &");
-        assertThat(skill.rewriteCompoundBackground("echo A \\&\\& B"))
-                .isEqualTo("echo A \\&\\& B");
+        assertThat(skill.rewriteCompoundBackground("echo A \\&\\& B")).isEqualTo("echo A \\&\\& B");
         assertThat(skill.rewriteCompoundBackground("# A && B &\nC")).isEqualTo("# A && B &\nC");
     }
 
@@ -768,7 +756,8 @@ public class SolonClawShellSkillTest {
     void shouldKeepCompoundBackgroundRewriteIdempotent() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String once = skill.rewriteCompoundBackground("A && B &");
         assertThat(skill.rewriteCompoundBackground(once)).isEqualTo(once);
@@ -781,7 +770,8 @@ public class SolonClawShellSkillTest {
     void shouldDetectJimuquPipeStdinCommandsThatCannotUsePty() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(
                         skill.commandRequiresPipeStdin(
@@ -794,7 +784,8 @@ public class SolonClawShellSkillTest {
     void shouldReturnPtyDisabledNoteForJimuquPipeStdinBackgroundCommands() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(
                         skill.ptyDisabledNote(
@@ -814,7 +805,8 @@ public class SolonClawShellSkillTest {
     void shouldInterpretJimuquTerminalExitCodeSemantics() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.interpretExitCode("grep 'pattern' file.txt", Integer.valueOf(1)))
                 .isEqualTo("No matches found (not an error)");
@@ -842,7 +834,8 @@ public class SolonClawShellSkillTest {
         assertThat(skill.interpretExitCode("FOO=1 BAR=2 grep 'foo' bar", Integer.valueOf(1)))
                 .isEqualTo("No matches found (not an error)");
         assertThat(skill.interpretExitCode("find . -name '*.java'", Integer.valueOf(1)))
-                .isEqualTo("Some directories were inaccessible (partial results may still be valid)");
+                .isEqualTo(
+                        "Some directories were inaccessible (partial results may still be valid)");
         assertThat(skill.interpretExitCode("LANG=C test -f /nonexistent", Integer.valueOf(1)))
                 .isEqualTo("Condition evaluated to false (expected, not an error)");
         assertThat(skill.interpretExitCode("[ -f /nonexistent ]", Integer.valueOf(1)))
@@ -932,11 +925,7 @@ public class SolonClawShellSkillTest {
         ONode pwd =
                 ONode.ofJson(
                         skill.terminal(
-                                "pwd -P",
-                                Boolean.FALSE,
-                                Integer.valueOf(5),
-                                null,
-                                Boolean.FALSE));
+                                "pwd -P", Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE));
 
         assertThat(cd.get("exit_code").getInt()).isEqualTo(0);
         assertThat(lastOutputLine(pwd.get("output").getString()))
@@ -954,10 +943,7 @@ public class SolonClawShellSkillTest {
                 ONode.ofJson(
                         skill.terminal(
                                 "printf '%s\\n' '__SOLON_CLAW_CWD__=/not/internal'",
-                                Boolean.FALSE,
-                                Integer.valueOf(5),
-                                null,
-                                Boolean.FALSE));
+                                Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(0);
         assertThat(result.get("output").getString()).contains("__SOLON_CLAW_CWD__=/not/internal");
@@ -1028,19 +1014,11 @@ public class SolonClawShellSkillTest {
         ONode cd =
                 ONode.ofJson(
                         skill.terminal(
-                                "cd .ssh",
-                                Boolean.FALSE,
-                                Integer.valueOf(5),
-                                null,
-                                Boolean.FALSE));
+                                "cd .ssh", Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE));
         ONode pwd =
                 ONode.ofJson(
                         skill.terminal(
-                                "pwd -P",
-                                Boolean.FALSE,
-                                Integer.valueOf(5),
-                                null,
-                                Boolean.FALSE));
+                                "pwd -P", Boolean.FALSE, Integer.valueOf(5), null, Boolean.FALSE));
         ONode background =
                 ONode.ofJson(
                         skill.terminal(
@@ -1061,8 +1039,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldStoreJimuquWatchPatternsForManagedBackgroundTerminalProcesses()
-            throws Exception {
+    void shouldStoreJimuquWatchPatternsForManagedBackgroundTerminalProcesses() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -1094,8 +1071,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRedactSensitiveWatchPatternsInTerminalResponsesLikeJimuqu()
-            throws Exception {
+    void shouldRedactSensitiveWatchPatternsInTerminalResponsesLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -1177,8 +1153,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRedactSensitiveWatchPatternsInProcessSnapshotLikeJimuqu()
-            throws Exception {
+    void shouldRedactSensitiveWatchPatternsInProcessSnapshotLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -1544,11 +1519,11 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldApplyTerminalOutputTransformerToExecuteShellCompatibilityTool()
-            throws Exception {
+    void shouldApplyTerminalOutputTransformerToExecuteShellCompatibilityTool() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
         skill.addOutputTransformer(context -> "execute-shell-replacement");
 
         String result = skill.execute("echo plain-output", Integer.valueOf(10000));
@@ -1557,26 +1532,24 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldAppendExitCodeMeaningToExecuteShellCompatibilityOutput()
-            throws Exception {
-        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+    void shouldAppendExitCodeMeaningToExecuteShellCompatibilityOutput() throws Exception {
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result =
-                skill.execute(
-                        "test -f /definitely-not-a-jimuqu-file",
-                        Integer.valueOf(10000));
+                skill.execute("test -f /definitely-not-a-jimuqu-file", Integer.valueOf(10000));
 
-        assertThat(result)
-                .contains("退出码说明")
-                .contains("Condition evaluated to false");
+        assertThat(result).contains("退出码说明").contains("Condition evaluated to false");
     }
 
     @Test
-    void shouldRedactSecretsFromForegroundTerminalOutputAndBackgroundMetadata()
-            throws Exception {
+    void shouldRedactSecretsFromForegroundTerminalOutputAndBackgroundMetadata() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -1615,7 +1588,8 @@ public class SolonClawShellSkillTest {
     void shouldRedactSecretsFromExecuteShellTextOutput() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(echoSecretCommand(), Integer.valueOf(10000));
 
@@ -1628,7 +1602,10 @@ public class SolonClawShellSkillTest {
 
     @Test
     void shouldReturnExitCodeMeaningForForegroundTerminalCommands() throws Exception {
-        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
         SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
@@ -1652,7 +1629,8 @@ public class SolonClawShellSkillTest {
     void shouldRejectForegroundBackgroundWrappersOnDirectShellExecution() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThatThrownBy(() -> skill.execute("nohup npm run dev > app.log 2>&1", 1000))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -1664,7 +1642,8 @@ public class SolonClawShellSkillTest {
     void shouldRejectLongLivedServerCommandsOnForegroundTerminalLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         ONode result =
                 ONode.ofJson(
@@ -1678,17 +1657,15 @@ public class SolonClawShellSkillTest {
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("success").getBoolean()).isFalse();
-        assertThat(result.get("error").getString())
-                .contains("长驻服务")
-                .contains("受管的后台进程能力");
+        assertThat(result.get("error").getString()).contains("长驻服务").contains("受管的后台进程能力");
     }
 
     @Test
-    void shouldRejectShellLevelBackgroundWrappersOnForegroundTerminalLikeJimuqu()
-            throws Exception {
+    void shouldRejectShellLevelBackgroundWrappersOnForegroundTerminalLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         ONode result =
                 ONode.ofJson(
@@ -1700,17 +1677,15 @@ public class SolonClawShellSkillTest {
                                 Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
-        assertThat(result.get("error").getString())
-                .contains("nohup")
-                .contains("受管的后台进程能力");
+        assertThat(result.get("error").getString()).contains("nohup").contains("受管的后台进程能力");
     }
 
     @Test
-    void shouldRejectAmpersandBackgroundingOnForegroundTerminalLikeJimuqu()
-            throws Exception {
+    void shouldRejectAmpersandBackgroundingOnForegroundTerminalLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         ONode result =
                 ONode.ofJson(
@@ -1722,16 +1697,15 @@ public class SolonClawShellSkillTest {
                                 Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
-        assertThat(result.get("error").getString())
-                .contains("&")
-                .contains("受管的后台进程能力");
+        assertThat(result.get("error").getString()).contains("&").contains("受管的后台进程能力");
     }
 
     @Test
     void shouldAllowHelpVariantForLongLivedForegroundCommandLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         ONode result =
                 ONode.ofJson(
@@ -1770,8 +1744,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldApplySudoRewriteBeforeStartingManagedBackgroundProcessLikeJimuqu()
-            throws Exception {
+    void shouldApplySudoRewriteBeforeStartingManagedBackgroundProcessLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         ProcessRegistry registry = new ProcessRegistry();
@@ -1787,11 +1760,7 @@ public class SolonClawShellSkillTest {
         ONode result =
                 ONode.ofJson(
                         skill.terminal(
-                                command,
-                                Boolean.TRUE,
-                                Integer.valueOf(5),
-                                workdir,
-                                Boolean.FALSE));
+                                command, Boolean.TRUE, Integer.valueOf(5), workdir, Boolean.FALSE));
 
         String sessionId = result.get("session_id").getString();
         ProcessRegistry.ManagedProcess managed = registry.get(sessionId);
@@ -1810,7 +1779,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute("sudo ping 127.0.0.1", 10);
 
@@ -1821,7 +1791,8 @@ public class SolonClawShellSkillTest {
     void shouldPreservePartialForegroundOutputOnTimeoutLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(partialOutputThenSleepCommand(), Integer.valueOf(200));
 
@@ -1858,7 +1829,8 @@ public class SolonClawShellSkillTest {
             throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(waitForStdinEofCommand(), Integer.valueOf(10000));
 
@@ -1870,7 +1842,8 @@ public class SolonClawShellSkillTest {
         AppConfig config = new AppConfig();
         config.getTask().setToolOutputInlineLimit(300);
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(javaLongOutputCommand(), 10000);
 
@@ -1887,7 +1860,8 @@ public class SolonClawShellSkillTest {
     void shouldPreserveSafePathForForegroundTerminalEnvLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.terminal(printEnvCommand("PATH"), false, 5, null, false);
         ONode parsed = ONode.ofJson(result);
@@ -1900,7 +1874,8 @@ public class SolonClawShellSkillTest {
     void shouldAppendSudoFailureHintForExecuteLikeJimuquMessagingGuardrail() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
-                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(echoSudoFailureCommand(), Integer.valueOf(10000));
 

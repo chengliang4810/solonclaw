@@ -34,17 +34,14 @@ public class GatewayContextIsolationAndToolsetPolicyTest {
 
     @Test
     void sameContextShouldReturnTrueForSamePlatformChatUser() {
-        GatewayMessage a =
-                new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
-        GatewayMessage b =
-                new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg2");
+        GatewayMessage a = new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
+        GatewayMessage b = new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg2");
         assertThat(GatewayContextIsolation.sameContext(a, b)).isTrue();
     }
 
     @Test
     void sameContextShouldReturnFalseForDifferentPlatform() {
-        GatewayMessage a =
-                new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
+        GatewayMessage a = new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
         GatewayMessage b =
                 new GatewayMessage(PlatformType.DINGTALK, "chat-001", "user-abc", "msg2");
         assertThat(GatewayContextIsolation.sameContext(a, b)).isFalse();
@@ -52,19 +49,15 @@ public class GatewayContextIsolationAndToolsetPolicyTest {
 
     @Test
     void sameContextShouldReturnFalseForDifferentChat() {
-        GatewayMessage a =
-                new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
-        GatewayMessage b =
-                new GatewayMessage(PlatformType.FEISHU, "chat-002", "user-abc", "msg2");
+        GatewayMessage a = new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
+        GatewayMessage b = new GatewayMessage(PlatformType.FEISHU, "chat-002", "user-abc", "msg2");
         assertThat(GatewayContextIsolation.sameContext(a, b)).isFalse();
     }
 
     @Test
     void sameContextShouldReturnFalseForDifferentUser() {
-        GatewayMessage a =
-                new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
-        GatewayMessage b =
-                new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-xyz", "msg2");
+        GatewayMessage a = new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-abc", "msg1");
+        GatewayMessage b = new GatewayMessage(PlatformType.FEISHU, "chat-001", "user-xyz", "msg2");
         assertThat(GatewayContextIsolation.sameContext(a, b)).isFalse();
     }
 
@@ -139,8 +132,7 @@ public class GatewayContextIsolationAndToolsetPolicyTest {
         List<String> feishuResult =
                 PlatformToolsetPolicy.resolveToolsets(PlatformType.FEISHU, global, gatewayConfig);
         List<String> dingtalkResult =
-                PlatformToolsetPolicy.resolveToolsets(
-                        PlatformType.DINGTALK, global, gatewayConfig);
+                PlatformToolsetPolicy.resolveToolsets(PlatformType.DINGTALK, global, gatewayConfig);
 
         assertThat(feishuResult).containsExactlyInAnyOrder("web", "file");
         assertThat(feishuResult).doesNotContain("terminal");
@@ -171,8 +163,7 @@ public class GatewayContextIsolationAndToolsetPolicyTest {
 
     @Test
     void shouldLoadPlatformToolsetConfigFromYaml() throws Exception {
-        File runtimeHome =
-                Files.createTempDirectory("solon-claw-platform-toolset").toFile();
+        File runtimeHome = Files.createTempDirectory("solon-claw-platform-toolset").toFile();
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  gateway:\n"
@@ -207,8 +198,7 @@ public class GatewayContextIsolationAndToolsetPolicyTest {
 
     @Test
     void shouldReturnEmptyPlatformsWhenNotConfigured() throws Exception {
-        File runtimeHome =
-                Files.createTempDirectory("solon-claw-platform-empty").toFile();
+        File runtimeHome = Files.createTempDirectory("solon-claw-platform-empty").toFile();
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);

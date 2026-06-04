@@ -13,7 +13,8 @@ import java.util.regex.Pattern;
 /** 轻量级 cron 计算辅助类，覆盖 5 段 cron 与可选年份字段。 */
 public final class CronSupport {
     private static final Pattern RECURRING_INTERVAL_PATTERN =
-            Pattern.compile("^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
+            Pattern.compile(
+                    "^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
     private static final Pattern DURATION_PATTERN =
             Pattern.compile("^(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
 
@@ -98,7 +99,8 @@ public final class CronSupport {
         }
         String[] parts = cronParts(cronExpr);
         if (parts == null) {
-            throw new IllegalArgumentException("Cron expression must have 5 fields or 6 fields with year");
+            throw new IllegalArgumentException(
+                    "Cron expression must have 5 fields or 6 fields with year");
         }
         validate(parts);
     }

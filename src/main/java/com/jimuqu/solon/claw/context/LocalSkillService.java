@@ -185,9 +185,7 @@ public class LocalSkillService implements SkillCatalogService {
                 listSkillsFromRoot(
                         skillDirectoryResolver.localSkillsDir(), null, "local", "agent-created"));
         for (File externalDir : skillDirectoryResolver.externalSkillsDirs()) {
-            addUniqueSkills(
-                    skills,
-                    listSkillsFromRoot(externalDir, null, "external", "external"));
+            addUniqueSkills(skills, listSkillsFromRoot(externalDir, null, "external", "external"));
         }
         skills.sort(skillComparator());
         return filterCategory(skills, category);
@@ -348,10 +346,11 @@ public class LocalSkillService implements SkillCatalogService {
         int timeoutSeconds = Math.max(1, appConfig.getSkills().getInlineShellTimeoutSeconds());
         Process process = null;
         try {
-            process = new ProcessBuilder("bash", "-c", command)
-                    .directory(FileUtil.file(descriptor.getSkillDir()))
-                    .redirectErrorStream(false)
-                    .start();
+            process =
+                    new ProcessBuilder("bash", "-c", command)
+                            .directory(FileUtil.file(descriptor.getSkillDir()))
+                            .redirectErrorStream(false)
+                            .start();
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
@@ -393,7 +392,8 @@ public class LocalSkillService implements SkillCatalogService {
             return "";
         }
         byte[] bytes = IoUtil.readBytes(inputStream);
-        return StrUtil.nullToEmpty(new String(bytes, StandardCharsets.UTF_8)).replaceAll("\\r?\\n$", "");
+        return StrUtil.nullToEmpty(new String(bytes, StandardCharsets.UTF_8))
+                .replaceAll("\\r?\\n$", "");
     }
 
     private String canonicalSkillDir(SkillDescriptor descriptor) {
@@ -600,7 +600,8 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 递归扫描根目录与单层分类目录中的技能。 */
-    private void collectSkills(File root, List<SkillDescriptor> output, String source, String trustLevel) {
+    private void collectSkills(
+            File root, List<SkillDescriptor> output, String source, String trustLevel) {
         File[] children = root.listFiles();
         if (children == null) {
             return;
@@ -785,11 +786,6 @@ public class LocalSkillService implements SkillCatalogService {
                 pinned = pinned || asBoolean(((Map<String, Object>) curator).get("pinned"));
                 readOnly = readOnly || asBoolean(((Map<String, Object>) curator).get("readonly"));
             }
-            Object Jimuqu = metadata.get("Jimuqu");
-            if (Jimuqu instanceof Map) {
-                pinned = pinned || asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
-                readOnly = readOnly || asBoolean(((Map<String, Object>) Jimuqu).get("readonly"));
-            }
         }
         if (pinned || readOnly || !"agent-created".equals(descriptor.getTrustLevel())) {
             throw new IllegalStateException(
@@ -894,7 +890,8 @@ public class LocalSkillService implements SkillCatalogService {
                 value = descriptor.canonicalName();
             } else if (canonical.getAbsolutePath().startsWith(root)) {
                 String relative =
-                        canonical.getAbsolutePath()
+                        canonical
+                                .getAbsolutePath()
                                 .substring(root.length())
                                 .replace(File.separatorChar, '/');
                 value = descriptor.canonicalName() + "/" + relative;
@@ -985,30 +982,21 @@ public class LocalSkillService implements SkillCatalogService {
         if (SkillSetupState.UNSUPPORTED.name().equals(descriptor.getSetupState())) {
             return false;
         }
-        Map<String, Object> Jimuqu =
-                SkillFrontmatterSupport.getCompatibilityMetadata(descriptor.getMetadata());
         if (!checkRequiresTools(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_tools")),
+                SkillFrontmatterSupport.parseStringList(
+                        descriptor.getMetadata().get("requires_tools")),
                 agentScope)) {
             return false;
         }
         if (!checkRequiresToolsets(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_toolsets")),
+                SkillFrontmatterSupport.parseStringList(
+                        descriptor.getMetadata().get("requires_toolsets")),
                 agentScope)) {
             return false;
         }
-        if (!checkFallbackTools(
-                sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_tools")),
-                agentScope)) {
-            return false;
-        }
-        return checkFallbackToolsets(
-                sourceKey,
-                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_toolsets")),
-                agentScope);
+        return true;
     }
 
     private boolean checkRequiresTools(

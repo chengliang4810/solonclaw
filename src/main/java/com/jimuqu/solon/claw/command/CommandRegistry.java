@@ -13,7 +13,8 @@ public final class CommandRegistry {
     private static final String SCOPE_GATEWAY = "gateway";
     private static final String SCOPE_TUI = "tui";
 
-    private static final Map<String, CommandDescriptor> COMMANDS = new LinkedHashMap<String, CommandDescriptor>();
+    private static final Map<String, CommandDescriptor> COMMANDS =
+            new LinkedHashMap<String, CommandDescriptor>();
     private static final Map<String, String> ALIASES = new LinkedHashMap<String, String>();
 
     static {
@@ -109,7 +110,8 @@ public final class CommandRegistry {
         return Collections.unmodifiableList(commands);
     }
 
-    private static CommandDescriptor.Builder core(String name, String category, String description) {
+    private static CommandDescriptor.Builder core(
+            String name, String category, String description) {
         return CommandDescriptor.builder(name)
                 .category(category)
                 .description(description)

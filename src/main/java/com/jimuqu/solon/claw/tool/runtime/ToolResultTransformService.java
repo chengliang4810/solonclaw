@@ -167,7 +167,8 @@ public class ToolResultTransformService {
                 if (call == null || StrUtil.isBlank(call.getId())) {
                     continue;
                 }
-                trace.setExtra(EXTRA_TOOL_CALL_ID_PREFIX + key(call.getName(), base + i), call.getId());
+                trace.setExtra(
+                        EXTRA_TOOL_CALL_ID_PREFIX + key(call.getName(), base + i), call.getId());
             }
         }
 

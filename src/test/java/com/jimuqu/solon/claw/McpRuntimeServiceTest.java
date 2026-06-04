@@ -1,8 +1,8 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpClientProviderFactory;
@@ -214,9 +214,7 @@ public class McpRuntimeServiceTest {
         FunctionTool tool = toolByName(provider, "mcp_local-docs_schema_edge");
         ONode exposed = ONode.ofJson(tool.inputSchema());
         ONode persisted =
-                ONode.ofJson(readToolsJson(env.sqliteDatabase))
-                        .get(0)
-                        .get("input_schema");
+                ONode.ofJson(readToolsJson(env.sqliteDatabase)).get(0).get("input_schema");
 
         assertThat(refresh.getToolCount()).isEqualTo(1);
         assertThat(exposed.get("properties").get("payload").get("properties").isObject()).isTrue();
@@ -375,8 +373,9 @@ public class McpRuntimeServiceTest {
                 .hasMessageContaining("[REDACTED_PATH]")
                 .hasMessageNotContaining(".env");
 
-        env.appConfig.getTerminal().setWriteSafeRoot(
-                new File(env.appConfig.getRuntime().getHome()).getAbsolutePath());
+        env.appConfig
+                .getTerminal()
+                .setWriteSafeRoot(new File(env.appConfig.getRuntime().getHome()).getAbsolutePath());
         Map<String, Object> unsafeOutputFile = new LinkedHashMap<String, Object>();
         unsafeOutputFile.put("action", "save");
         unsafeOutputFile.put("output_file", "D:/outside/generated.txt");
@@ -429,7 +428,8 @@ public class McpRuntimeServiceTest {
         promptArgs.put("arguments", Collections.singletonMap("topic", "release"));
 
         String remote = String.valueOf(remoteTool.handle(Collections.<String, Object>emptyMap()));
-        String resources = String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
+        String resources =
+                String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
         String resource = String.valueOf(readResource.handle(resourceArgs));
         String prompts = String.valueOf(listPrompts.handle(Collections.<String, Object>emptyMap()));
         String prompt = String.valueOf(getPrompt.handle(promptArgs));
@@ -748,15 +748,13 @@ public class McpRuntimeServiceTest {
             ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
             FunctionTool docsFetch = toolByName(provider, "mcp_local-docs_docs_fetch");
 
-            Throwable thrown = catchThrowable(() -> docsFetch.handle(Collections.<String, Object>emptyMap()));
+            Throwable thrown =
+                    catchThrowable(() -> docsFetch.handle(Collections.<String, Object>emptyMap()));
 
             assertThat(thrown).as(mode).isInstanceOf(IllegalStateException.class);
             assertThat(thrown.getMessage())
                     .contains("MCP call failed")
-                    .contains(
-                            "blank-error".equals(mode)
-                                    ? "BlankMcpError"
-                                    : "WhitespaceMcpError")
+                    .contains("blank-error".equals(mode) ? "BlankMcpError" : "WhitespaceMcpError")
                     .doesNotEndWith(": ");
             mcpRuntimeService.shutdown();
         }
@@ -851,7 +849,8 @@ public class McpRuntimeServiceTest {
                         "{\"refresh_token\":\"ghp_mcpoauthrefresh12345\",\"client_secret\":\"sk-mcp-oauth-secret\"}");
         try {
             TestEnvironment env = TestEnvironment.withFakeLlm();
-            DashboardMcpService service = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+            DashboardMcpService service =
+                    new DashboardMcpService(env.appConfig, env.sqliteDatabase);
             Method exchangeCode =
                     DashboardMcpService.class.getDeclaredMethod(
                             "exchangeOAuthCode",
@@ -971,8 +970,7 @@ public class McpRuntimeServiceTest {
         config.setTransport("websocket");
         config.setEndpoint("https://example.com/mcp");
 
-        assertThatThrownBy(
-                        () -> new SolonAiMcpClientProviderFactory(null).create(config))
+        assertThatThrownBy(() -> new SolonAiMcpClientProviderFactory(null).create(config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不支持的 MCP transport");
     }
@@ -1039,8 +1037,7 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
-    void shouldNotDuplicateMcpBearerHeaderWhenConfiguredHeaderUsesDifferentCase()
-            throws Exception {
+    void shouldNotDuplicateMcpBearerHeaderWhenConfiguredHeaderUsesDifferentCase() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Map<String, Object> configuredHeaders = new LinkedHashMap<String, Object>();
         configuredHeaders.put("authorization", "Bearer configured-token-for-header-test");
@@ -1083,7 +1080,8 @@ public class McpRuntimeServiceTest {
         }
     }
 
-    private String readEventuallyToolsJson(SqliteDatabase database, String expected) throws Exception {
+    private String readEventuallyToolsJson(SqliteDatabase database, String expected)
+            throws Exception {
         long deadline = System.currentTimeMillis() + 2000L;
         String toolsJson = "";
         while (System.currentTimeMillis() < deadline) {
@@ -1258,13 +1256,15 @@ public class McpRuntimeServiceTest {
             FunctionToolDesc search = new FunctionToolDesc("docs_search");
             search.title("Docs Search");
             search.description("Search docs");
-            search.inputSchema("{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}");
+            search.inputSchema(
+                    "{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}");
             search.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
 
             FunctionToolDesc fetch = new FunctionToolDesc("docs_fetch");
             fetch.title("Docs Fetch");
             fetch.description("Fetch docs");
-            fetch.inputSchema("{\"type\":\"object\",\"properties\":{\"uri\":{\"type\":\"string\"}}}");
+            fetch.inputSchema(
+                    "{\"type\":\"object\",\"properties\":{\"uri\":{\"type\":\"string\"}}}");
             fetch.doHandle(
                     args -> {
                         remoteCallCount++;
@@ -1306,7 +1306,8 @@ public class McpRuntimeServiceTest {
             prompt.title("Summarize");
             prompt.description("Summarize docs");
             prompt.paramAdd("topic", true, "Topic to summarize");
-            prompt.doHandle(args -> Prompt.of(ChatMessage.ofUser("summarize " + args.get("topic"))));
+            prompt.doHandle(
+                    args -> Prompt.of(ChatMessage.ofUser("summarize " + args.get("topic"))));
             return Collections.<FunctionPrompt>singletonList(prompt);
         }
 
@@ -1378,7 +1379,8 @@ public class McpRuntimeServiceTest {
             prompt.description("Prompt bearer ghp_promptmeta12345");
             prompt.paramAdd("topic", true, "Topic token=secret-param-token");
             prompt.metaPut("client_secret", "secret-prompt-meta");
-            prompt.doHandle(args -> Prompt.of(ChatMessage.ofUser("summarize " + args.get("topic"))));
+            prompt.doHandle(
+                    args -> Prompt.of(ChatMessage.ofUser("summarize " + args.get("topic"))));
             return Collections.<FunctionPrompt>singletonList(prompt);
         }
 
@@ -1508,9 +1510,7 @@ public class McpRuntimeServiceTest {
                         if ("transport".equals(mode) && generation == 1) {
                             throw new IllegalStateException("Session terminated");
                         }
-                        if (mode != null
-                                && mode.startsWith("transport:")
-                                && generation == 1) {
+                        if (mode != null && mode.startsWith("transport:") && generation == 1) {
                             throw new IllegalStateException(mode.substring("transport:".length()));
                         }
                         if ("blank-error".equals(mode)) {
@@ -1684,8 +1684,7 @@ public class McpRuntimeServiceTest {
         @Override
         public Collection<FunctionTool> getTools() {
             if (factory.fail) {
-                throw new IllegalStateException(
-                        "discovery failed token=secret-failure-token");
+                throw new IllegalStateException("discovery failed token=secret-failure-token");
             }
             FunctionToolDesc recovered = new FunctionToolDesc("docs_recovered");
             recovered.title("Recovered Docs");

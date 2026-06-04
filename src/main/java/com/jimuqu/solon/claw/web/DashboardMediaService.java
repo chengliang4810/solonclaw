@@ -141,7 +141,9 @@ public class DashboardMediaService {
         Map<String, Object> detail = requireRawDetail(mediaId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("media_id", mediaId);
-        result.put("reference", mediaReference(FileUtil.file(String.valueOf(detail.get("local_path")))));
+        result.put(
+                "reference",
+                mediaReference(FileUtil.file(String.valueOf(detail.get("local_path")))));
         result.put("status", detail.get("status"));
         result.put("kind", detail.get("kind"));
         result.put("local_path", result.get("reference"));

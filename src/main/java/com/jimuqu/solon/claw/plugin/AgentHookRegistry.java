@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw.plugin;
 
 import com.jimuqu.solon.claw.plugin.hook.HookCallback;
 import com.jimuqu.solon.claw.plugin.hook.HookResult;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

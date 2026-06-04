@@ -11,8 +11,8 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
-import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
@@ -93,11 +93,8 @@ public class DashboardStatusService {
         result.put("update_available", versionStatus.isUpdateAvailable());
         if (detailed) {
             result.put("release_url", SecretRedactor.maskUrl(versionStatus.getReleaseUrl()));
-            result.put(
-                    "release_api_url", SecretRedactor.maskUrl(versionStatus.getReleaseApiUrl()));
-            result.put(
-                    "update_error_message",
-                    redact(versionStatus.getUpdateErrorMessage(), 1000));
+            result.put("release_api_url", SecretRedactor.maskUrl(versionStatus.getReleaseApiUrl()));
+            result.put("update_error_message", redact(versionStatus.getUpdateErrorMessage(), 1000));
         }
         result.put(
                 "update_error_at",
@@ -138,7 +135,6 @@ public class DashboardStatusService {
             result.put("fallbackProviders", safeFallbackProviders());
         }
         result.put("auto_context_length", appConfig.getLlm().getContextWindowTokens());
-        result.put("config_context_length", appConfig.getLlm().getContextWindowTokens());
         result.put("effective_context_length", appConfig.getLlm().getContextWindowTokens());
 
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
@@ -153,7 +149,8 @@ public class DashboardStatusService {
         capabilities.put(
                 "supports_structured_output",
                 Boolean.valueOf(metadata.isSupportsStructuredOutput()));
-        capabilities.put("supports_open_weights", Boolean.valueOf(metadata.isSupportsOpenWeights()));
+        capabilities.put(
+                "supports_open_weights", Boolean.valueOf(metadata.isSupportsOpenWeights()));
         capabilities.put("supports_interleaved", Boolean.valueOf(metadata.isSupportsInterleaved()));
         capabilities.put("source", metadata.getSource());
         capabilities.put("context_window", appConfig.getLlm().getContextWindowTokens());
@@ -215,8 +212,7 @@ public class DashboardStatusService {
                     "error_message",
                     detailed && fatal
                             ? redact(
-                                    StrUtil.blankToDefault(
-                                            status.getLastErrorMessage(), detail),
+                                    StrUtil.blankToDefault(status.getLastErrorMessage(), detail),
                                     1000)
                             : null);
             item.put(
@@ -327,11 +323,7 @@ public class DashboardStatusService {
         capabilities.put("persistent_jobs", Boolean.TRUE);
         capabilities.put("channel_delivery", Boolean.TRUE);
         capabilities.put("memory_delivery", Boolean.TRUE);
-        capabilities.put(
-                "approval_mode", safeText(cronApprovalMode(), 80));
-        capabilities.put(
-                "legacy_approval_mode",
-                safeText(appConfig.getScheduler().getCronApprovalMode(), 80));
+        capabilities.put("approval_mode", safeText(cronApprovalMode(), 80));
         return capabilities;
     }
 
@@ -350,8 +342,10 @@ public class DashboardStatusService {
         capabilities.put("context_files", Boolean.TRUE);
         capabilities.put("long_term_memory", Boolean.TRUE);
         capabilities.put("session_search", Boolean.TRUE);
-        capabilities.put("post_task_learning", Boolean.valueOf(appConfig.getLearning().isEnabled()));
-        capabilities.put("context_compression", Boolean.valueOf(appConfig.getCompression().isEnabled()));
+        capabilities.put(
+                "post_task_learning", Boolean.valueOf(appConfig.getLearning().isEnabled()));
+        capabilities.put(
+                "context_compression", Boolean.valueOf(appConfig.getCompression().isEnabled()));
         return capabilities;
     }
 
@@ -361,11 +355,6 @@ public class DashboardStatusService {
         capabilities.put("approval_mode", safeText(guardrailMode(), 80));
         capabilities.put("cron_approval_mode", safeText(cronApprovalMode(), 80));
         capabilities.put(
-                "legacy_approval_mode", safeText(appConfig.getApprovals().getMode(), 80));
-        capabilities.put(
-                "legacy_cron_approval_mode",
-                safeText(appConfig.getApprovals().getCronMode(), 80));
-        capabilities.put(
                 "subagent_auto_approve",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
         capabilities.put("url_private_access_policy", Boolean.TRUE);
@@ -373,7 +362,8 @@ public class DashboardStatusService {
                 "website_blocklist",
                 Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
         capabilities.put("tirith_scan", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
-        capabilities.put("checkpoint_rollback", Boolean.valueOf(appConfig.getRollback().isEnabled()));
+        capabilities.put(
+                "checkpoint_rollback", Boolean.valueOf(appConfig.getRollback().isEnabled()));
         return capabilities;
     }
 
@@ -393,7 +383,8 @@ public class DashboardStatusService {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("usage_events", Boolean.TRUE);
         capabilities.put("cost_calculation", Boolean.TRUE);
-        capabilities.put("builtin_price_count", Integer.valueOf(PriceCatalog.builtinDefaults().size()));
+        capabilities.put(
+                "builtin_price_count", Integer.valueOf(PriceCatalog.builtinDefaults().size()));
         capabilities.put("configured_price_count", Integer.valueOf(configuredPriceCount()));
         capabilities.put("effective_price_count", Integer.valueOf(effectivePriceCount()));
         capabilities.put("supports_cache_pricing", Boolean.TRUE);
@@ -452,27 +443,20 @@ public class DashboardStatusService {
                 "inactivity_timeout_seconds",
                 Integer.valueOf(appConfig.getScheduler().getInactivityTimeoutSeconds()));
         status.put("approval_mode", safeText(cronApprovalMode(), 80));
-        status.put(
-                "legacy_approval_mode",
-                safeText(appConfig.getScheduler().getCronApprovalMode(), 80));
         return status;
     }
 
     private String cronApprovalMode() {
-        if (appConfig.getSecurity() == null) {
-            return appConfig.getScheduler().getCronApprovalMode();
-        }
-        return StrUtil.blankToDefault(
-                appConfig.getSecurity().getGuardrailCronMode(),
-                appConfig.getScheduler().getCronApprovalMode());
+        return appConfig.getSecurity() == null
+                ? "approval"
+                : StrUtil.blankToDefault(
+                        appConfig.getSecurity().getGuardrailCronMode(), "approval");
     }
 
     private String guardrailMode() {
-        if (appConfig.getSecurity() == null) {
-            return appConfig.getApprovals().getMode();
-        }
-        return StrUtil.blankToDefault(
-                appConfig.getSecurity().getGuardrailMode(), appConfig.getApprovals().getMode());
+        return appConfig.getSecurity() == null
+                ? "approval"
+                : StrUtil.blankToDefault(appConfig.getSecurity().getGuardrailMode(), "approval");
     }
 
     private Map<String, Object> skillsStatus(boolean detailed) {
@@ -483,7 +467,9 @@ public class DashboardStatusService {
                 "inline_shell_timeout_seconds",
                 Integer.valueOf(appConfig.getSkills().getInlineShellTimeoutSeconds()));
         status.put("curator_enabled", Boolean.valueOf(appConfig.getCurator().isEnabled()));
-        status.put("external_dir_count", Integer.valueOf(appConfig.getSkills().getExternalDirs().size()));
+        status.put(
+                "external_dir_count",
+                Integer.valueOf(appConfig.getSkills().getExternalDirs().size()));
         if (detailed) {
             status.put("runtime_dir", runtimeReference(appConfig.getRuntime().getSkillsDir()));
         }
@@ -493,7 +479,9 @@ public class DashboardStatusService {
     private Map<String, Object> memoryStatus(boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("learning_enabled", Boolean.valueOf(appConfig.getLearning().isEnabled()));
-        status.put("context_compression_enabled", Boolean.valueOf(appConfig.getCompression().isEnabled()));
+        status.put(
+                "context_compression_enabled",
+                Boolean.valueOf(appConfig.getCompression().isEnabled()));
         status.put(
                 "compression_threshold_percent",
                 Double.valueOf(appConfig.getCompression().getThresholdPercent()));
@@ -510,10 +498,6 @@ public class DashboardStatusService {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("approval_mode", safeText(guardrailMode(), 80));
         status.put("cron_approval_mode", safeText(cronApprovalMode(), 80));
-        status.put("legacy_approval_mode", safeText(appConfig.getApprovals().getMode(), 80));
-        status.put(
-                "legacy_cron_approval_mode",
-                safeText(appConfig.getApprovals().getCronMode(), 80));
         status.put(
                 "subagent_auto_approve",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
@@ -524,12 +508,15 @@ public class DashboardStatusService {
                 "gateway_approval_timeout_seconds",
                 Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
         status.put(
-                "allow_private_urls", Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
+                "allow_private_urls",
+                Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
         status.put(
                 "website_blocklist_enabled",
                 Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
         status.put("tirith_enabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
-        status.put("checkpoint_rollback_enabled", Boolean.valueOf(appConfig.getRollback().isEnabled()));
+        status.put(
+                "checkpoint_rollback_enabled",
+                Boolean.valueOf(appConfig.getRollback().isEnabled()));
         return status;
     }
 
@@ -555,9 +542,12 @@ public class DashboardStatusService {
         Map<String, Object> input = new LinkedHashMap<String, Object>();
         input.put("vision", Boolean.valueOf(metadata != null && metadata.isSupportsVision()));
         input.put("audio", Boolean.valueOf(metadata != null && metadata.isSupportsAudio()));
-        input.put("attachments", Boolean.valueOf(metadata != null && metadata.isSupportsAttachment()));
+        input.put(
+                "attachments",
+                Boolean.valueOf(metadata != null && metadata.isSupportsAttachment()));
         input.put("pdf", Boolean.valueOf(metadata != null && metadata.isSupportsPdf()));
-        input.put("multimodal", Boolean.valueOf(metadata != null && metadata.isSupportsMultimodal()));
+        input.put(
+                "multimodal", Boolean.valueOf(metadata != null && metadata.isSupportsMultimodal()));
         return input;
     }
 
@@ -603,7 +593,8 @@ public class DashboardStatusService {
         if (resolved == null) {
             return null;
         }
-        return PriceCatalog.forConfig(appConfig).find(resolved.getProviderKey(), resolved.getModel());
+        return PriceCatalog.forConfig(appConfig)
+                .find(resolved.getProviderKey(), resolved.getModel());
     }
 
     private LlmProviderService.ResolvedProvider safeResolvedProvider() {
@@ -615,8 +606,7 @@ public class DashboardStatusService {
     }
 
     private ModelMetadata currentModelMetadata(LlmProviderService.ResolvedProvider resolved) {
-        AppConfig.ProviderConfig provider =
-                appConfig.getProviders().get(resolved.getProviderKey());
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(resolved.getProviderKey());
         AppConfig.ProviderConfig effective = new AppConfig.ProviderConfig();
         if (provider != null) {
             effective.setName(provider.getName());

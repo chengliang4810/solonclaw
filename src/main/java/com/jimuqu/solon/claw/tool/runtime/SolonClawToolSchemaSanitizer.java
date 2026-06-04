@@ -178,7 +178,9 @@ public final class SolonClawToolSchemaSanitizer {
                 Map<String, Object> nested = new LinkedHashMap<String, Object>();
                 for (Map.Entry<?, ?> nestedEntry : ((Map<?, ?>) value).entrySet()) {
                     nested.put(
-                            nestedEntry.getKey() == null ? "" : String.valueOf(nestedEntry.getKey()),
+                            nestedEntry.getKey() == null
+                                    ? ""
+                                    : String.valueOf(nestedEntry.getKey()),
                             sanitizeNode(nestedEntry.getValue()));
                 }
                 result.put(key, nested);

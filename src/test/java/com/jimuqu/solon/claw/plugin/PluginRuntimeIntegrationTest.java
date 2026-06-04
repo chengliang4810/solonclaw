@@ -9,14 +9,14 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
-import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
-import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -27,12 +27,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.noear.solon.core.Props;
 import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.core.Props;
 
 class PluginRuntimeIntegrationTest {
-    @TempDir
-    Path tempDir;
+    @TempDir Path tempDir;
 
     @Test
     void pluginToolIsExposedByToolRegistryWithoutOverridingBuiltinTool() throws Throwable {
@@ -74,11 +73,15 @@ class PluginRuntimeIntegrationTest {
                         plugins.pluginTools());
 
         assertThat(registry.listToolNames()).contains("plugin_echo");
-        assertThat(registry.listToolNames().stream().filter("websearch"::equals).count()).isEqualTo(1);
+        assertThat(registry.listToolNames().stream().filter("websearch"::equals).count())
+                .isEqualTo(1);
 
         Object pluginTool =
                 registry.resolveEnabledTools("MEMORY:room:user").stream()
-                        .filter(t -> t instanceof FunctionTool && "plugin_echo".equals(((FunctionTool) t).name()))
+                        .filter(
+                                t ->
+                                        t instanceof FunctionTool
+                                                && "plugin_echo".equals(((FunctionTool) t).name()))
                         .findFirst()
                         .orElseThrow(AssertionError::new);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -131,7 +134,8 @@ class PluginRuntimeIntegrationTest {
         plugins.onCommandRegistered("help", args -> "must-not-override", "Help override");
         DefaultCommandService commandService = pluginCommandService(env, plugins, null);
 
-        GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "room", "user", "/plugin_echo hello");
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "room", "user", "/plugin_echo hello");
         GatewayReply reply = commandService.handle(message, "/plugin_echo hello");
         GatewayReply help = commandService.handle(message, "/help");
 
@@ -168,7 +172,8 @@ class PluginRuntimeIntegrationTest {
         PluginConfiguration plugins = new PluginConfiguration();
         manager.discoverAndLoad(plugins);
         DefaultCommandService commandService = pluginCommandService(env, plugins, manager);
-        GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "room", "user", "/plugins");
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "room", "user", "/plugins");
 
         GatewayReply reply = commandService.handle(message, "/plugins");
 
@@ -223,7 +228,8 @@ class PluginRuntimeIntegrationTest {
         DashboardRuntimeConfigService dashboardRuntimeConfigService =
                 new DashboardRuntimeConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
         DashboardProviderService dashboardProviderService =
-                new DashboardProviderService(env.appConfig, env.gatewayRuntimeRefreshService, providerService);
+                new DashboardProviderService(
+                        env.appConfig, env.gatewayRuntimeRefreshService, providerService);
         RuntimeSettingsService runtimeSettingsService =
                 new RuntimeSettingsService(
                         env.appConfig,

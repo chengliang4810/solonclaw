@@ -63,7 +63,8 @@ public class TerminalClipboardSupportTest {
 
         assertThat(buffer.toString())
                 .contains("model=default/gpt-test")
-                .contains("tokens total=22 input=10 output=5 reasoning=2 cache_read=3 cache_write=4");
+                .contains(
+                        "tokens total=22 input=10 output=5 reasoning=2 cache_read=3 cache_write=4");
     }
 
     @Test
@@ -112,16 +113,8 @@ public class TerminalClipboardSupportTest {
         result.setProvider("provider?api_key=sk-1234567890abcdef");
         result.setModel("model");
 
-        sink.onFallback(
-                "run-1",
-                "primary",
-                "fallback",
-                "token=sk-1234567890abcdef");
-        sink.onAttemptCompleted(
-                "run-1",
-                1,
-                "failed",
-                "api_key=sk-1234567890abcdef");
+        sink.onFallback("run-1", "primary", "fallback", "token=sk-1234567890abcdef");
+        sink.onAttemptCompleted("run-1", 1, "failed", "api_key=sk-1234567890abcdef");
         sink.onRunFailed("session", new IllegalStateException("bearer sk-1234567890abcdef"));
         sink.onRunCompleted("session", "done", result);
 

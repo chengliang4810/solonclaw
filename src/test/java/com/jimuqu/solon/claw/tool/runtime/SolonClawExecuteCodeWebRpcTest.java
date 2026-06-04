@@ -142,8 +142,7 @@ public class SolonClawExecuteCodeWebRpcTest {
                         env.appConfig,
                         new FakeWebsearchTool(),
                         new SolonClawWebTools.SafeWebfetchTool(
-                                policy,
-                                new UnsafeReturnedContentWebfetchTool()));
+                                policy, new UnsafeReturnedContentWebfetchTool()));
 
         ONode result =
                 ONode.ofJson(
@@ -200,7 +199,8 @@ public class SolonClawExecuteCodeWebRpcTest {
     void shouldRedactExecuteCodeRpcSearchPathErrors() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        java.io.File runtimeHome = new java.io.File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        java.io.File runtimeHome =
+                new java.io.File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
@@ -378,4 +378,3 @@ public class SolonClawExecuteCodeWebRpcTest {
         }
     }
 }
-

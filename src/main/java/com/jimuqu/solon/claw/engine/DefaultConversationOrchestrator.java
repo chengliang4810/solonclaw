@@ -3,8 +3,8 @@ package com.jimuqu.solon.claw.engine;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
-import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.agent.AgentRuntimeService;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
@@ -29,6 +29,7 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.AgentHookName;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -37,12 +38,11 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
-import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.MessageDeliveryTracker;
 import java.io.File;
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -56,7 +56,8 @@ import org.slf4j.LoggerFactory;
 
 /** DefaultConversationOrchestrator 实现。 */
 public class DefaultConversationOrchestrator implements ConversationOrchestrator {
-    private static final Logger log = LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
 
     /** 当模型只完成工具调用却未生成最终文字答复时，补发的恢复提示。 */
     private static final String EMPTY_REPLY_RECOVERY_PROMPT =
@@ -270,7 +271,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 agentRunSupervisor.coordinateIncoming(sourceKey, session.getSessionId(), message);
         if (!decision.isShouldRunNow()) {
             GatewayReply reply =
-                    GatewayReply.ok(StrUtil.blankToDefault(decision.getMessage(), decision.getStatus()));
+                    GatewayReply.ok(
+                            StrUtil.blankToDefault(decision.getMessage(), decision.getStatus()));
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             reply.getRuntimeMetadata().put("busy_policy", decision.getPolicy());
@@ -319,8 +321,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     }
 
     public GatewayReply resumePending(
-            String sourceKey, String sessionId, ConversationEventSink eventSink)
-            throws Exception {
+            String sourceKey, String sessionId, ConversationEventSink eventSink) throws Exception {
         synchronized (lockFor(sourceKey)) {
             SessionRecord session = findPendingSession(sourceKey, sessionId);
             if (session == null) {
@@ -353,7 +354,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             true,
                             agentScope);
             String finalReply =
-                    sanitizeFinalReply(StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
+                    sanitizeFinalReply(
+                            StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
             finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
@@ -432,8 +434,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             return;
         }
         try {
-            SqliteAgentSession agentSession =
-                    new SqliteAgentSession(session, sessionRepository);
+            SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
             if (agentSession.isPending()) {
                 agentSession.pending(false, null);
                 agentSession.updateSnapshot();
@@ -547,8 +548,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             agentScope,
                             MessageAttachmentSupport.safeAttachments(message));
             shouldDrainQueue = true;
-            String finalReply = sanitizeFinalReply(StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
-            if (MessageDeliveryTracker.consumeDuplicateFinalReply(message.sourceKey(), finalReply)) {
+            String finalReply =
+                    sanitizeFinalReply(
+                            StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
+            if (MessageDeliveryTracker.consumeDuplicateFinalReply(
+                    message.sourceKey(), finalReply)) {
                 finalReply = "";
             } else {
                 finalReply = decorateFinalReply(finalReply, message.getPlatform(), outcome);
@@ -597,8 +601,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 continue;
             }
             SpeechService.TranscriptionOutcome outcome =
-                    speechService.transcribe(
-                            attachment, Collections.<String, Object>emptyMap());
+                    speechService.transcribe(attachment, Collections.<String, Object>emptyMap());
             if (outcome.isSuccess() && StrUtil.isNotBlank(outcome.getText())) {
                 attachment.setTranscribedText(outcome.getText());
             } else if (!outcome.isSuccess()) {
@@ -610,7 +613,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
-    private boolean isVoiceAttachment(com.jimuqu.solon.claw.core.model.MessageAttachment attachment) {
+    private boolean isVoiceAttachment(
+            com.jimuqu.solon.claw.core.model.MessageAttachment attachment) {
         String kind = StrUtil.nullToEmpty(attachment.getKind()).toLowerCase(Locale.ROOT);
         String mime = StrUtil.nullToEmpty(attachment.getMimeType()).toLowerCase(Locale.ROOT);
         return "voice".equals(kind) || mime.startsWith("audio/");
@@ -627,7 +631,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         int second = first < 0 ? -1 : override.indexOf(':', first + 1);
         if (first > 0) {
             provider = override.substring(0, first).trim();
-            model = second > first ? override.substring(first + 1, second).trim() : override.substring(first + 1).trim();
+            model =
+                    second > first
+                            ? override.substring(first + 1, second).trim()
+                            : override.substring(first + 1).trim();
             if (second > first) {
                 session.setTransientBaseUrlOverride(override.substring(second + 1).trim());
             }
@@ -637,12 +644,16 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     }
 
     private void applyWorkspaceOverride(AgentRuntimeScope agentScope, GatewayMessage message) {
-        if (agentScope == null || message == null || StrUtil.isBlank(message.getWorkspaceDirOverride())) {
+        if (agentScope == null
+                || message == null
+                || StrUtil.isBlank(message.getWorkspaceDirOverride())) {
             return;
         }
         File dir = new File(message.getWorkspaceDirOverride().trim());
         if (!dir.exists() || !dir.isDirectory()) {
-            log.warn("Ignoring missing scheduled workspace override: {}", message.getWorkspaceDirOverride());
+            log.warn(
+                    "Ignoring missing scheduled workspace override: {}",
+                    message.getWorkspaceDirOverride());
             return;
         }
         agentScope.setWorkspaceDir(dir.getAbsolutePath());
@@ -669,7 +680,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         if (hasDisabled) {
             allowed.removeAll(AgentRuntimePolicy.expandToolSelectors(disabled));
         }
-        agentScope.setAllowedToolsJson(org.noear.snack4.ONode.serialize(new ArrayList<String>(allowed)));
+        agentScope.setAllowedToolsJson(
+                org.noear.snack4.ONode.serialize(new ArrayList<String>(allowed)));
     }
 
     private String sanitizeFinalReply(String finalReply) {
@@ -730,9 +742,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             if (StrUtil.isNotBlank(decision.getMessage())) {
                 reply.getRuntimeMetadata().put("goal_message", decision.getMessage());
             }
-            if (decision.isShouldContinue() && StrUtil.isNotBlank(decision.getContinuationPrompt())) {
+            if (decision.isShouldContinue()
+                    && StrUtil.isNotBlank(decision.getContinuationPrompt())) {
                 reply.getRuntimeMetadata().put("goal_should_continue", Boolean.TRUE);
-                reply.getRuntimeMetadata().put("goal_continuation_prompt", decision.getContinuationPrompt());
+                reply.getRuntimeMetadata()
+                        .put("goal_continuation_prompt", decision.getContinuationPrompt());
             }
         } catch (Exception e) {
             log.warn(
@@ -875,7 +889,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 assistantMessage.getContentRaw() == null
                         ? ""
                         : assistantMessage.getContentRaw().getClass().getName(),
-                assistantMessage.getToolCalls() == null ? 0 : assistantMessage.getToolCalls().size());
+                assistantMessage.getToolCalls() == null
+                        ? 0
+                        : assistantMessage.getToolCalls().size());
         return "";
     }
 

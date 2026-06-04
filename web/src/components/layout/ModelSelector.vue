@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { NModal, NInput } from 'naive-ui'
-import { useAppStore } from '@/stores/jimuqu/app'
+import { useAppStore } from '@/stores/solonclaw/app'
 import { useI18n } from 'vue-i18n'
 import { nextPanelCursor, normalizePanelKey } from '@/shared/panelNavigation'
 import { visibleModelPickerItems } from '@/shared/modelPicker'

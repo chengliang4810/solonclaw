@@ -10,11 +10,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Process lifecycle event tracking.
- * Records start/complete/fail events for managed background processes.
+ * Process lifecycle event tracking. Records start/complete/fail events for managed background
+ * processes.
  */
 public class ProcessLifecycleTracker {
-    public enum EventType { STARTED, COMPLETED, FAILED, KILLED }
+    public enum EventType {
+        STARTED,
+        COMPLETED,
+        FAILED,
+        KILLED
+    }
 
     private final LinkedList<ProcessEvent> events = new LinkedList<ProcessEvent>();
     private final int maxEvents;
@@ -113,8 +118,13 @@ public class ProcessLifecycleTracker {
         private final String error;
         private final long timestamp;
 
-        public ProcessEvent(EventType type, String processId, String command,
-                String workDir, int exitCode, String error) {
+        public ProcessEvent(
+                EventType type,
+                String processId,
+                String command,
+                String workDir,
+                int exitCode,
+                String error) {
             this.type = type;
             this.processId = processId;
             this.command = safeText(command);
@@ -124,13 +134,33 @@ public class ProcessLifecycleTracker {
             this.timestamp = System.currentTimeMillis();
         }
 
-        public EventType getType() { return type; }
-        public String getProcessId() { return processId; }
-        public String getCommand() { return command; }
-        public String getWorkDir() { return workDir; }
-        public int getExitCode() { return exitCode; }
-        public String getError() { return error; }
-        public long getTimestamp() { return timestamp; }
+        public EventType getType() {
+            return type;
+        }
+
+        public String getProcessId() {
+            return processId;
+        }
+
+        public String getCommand() {
+            return command;
+        }
+
+        public String getWorkDir() {
+            return workDir;
+        }
+
+        public int getExitCode() {
+            return exitCode;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public long getTimestamp() {
+            return timestamp;
+        }
 
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();

@@ -444,7 +444,10 @@ public class ProcessRegistry {
         }
         Map<String, Object> event = baseEvent("completion", managed);
         event.put("exit_code", managed.getExitCode());
-        event.put("output", SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(tail(managed.getOutput(), 2000))));
+        event.put(
+                "output",
+                SecretRedactor.redact(
+                        TerminalAnsiSanitizer.stripAnsi(tail(managed.getOutput(), 2000))));
         enqueueEvent(event);
     }
 
@@ -601,7 +604,8 @@ public class ProcessRegistry {
             configured = appConfig.getTerminal().getShellInitFiles();
             autoSource = appConfig.getTerminal().isAutoSourceBashrc();
         }
-        String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
+        String home =
+                StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
         return SolonClawShellSkill.resolveShellInitFiles(
                 configured,
                 autoSource,

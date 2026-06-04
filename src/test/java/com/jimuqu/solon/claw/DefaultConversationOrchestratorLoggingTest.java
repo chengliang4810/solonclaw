@@ -2,11 +2,11 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.jimuqu.solon.claw.core.service.MemoryManager;
-import com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.jimuqu.solon.claw.core.service.MemoryManager;
+import com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;

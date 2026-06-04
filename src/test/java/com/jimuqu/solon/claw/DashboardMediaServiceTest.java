@@ -25,7 +25,8 @@ public class DashboardMediaServiceTest {
         config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
         config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime()
+                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
         SqliteDatabase database = new SqliteDatabase(config);
         DashboardMediaService service =
                 new DashboardMediaService(
@@ -84,13 +85,12 @@ public class DashboardMediaServiceTest {
         config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
         config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime()
+                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
         SqliteDatabase database = new SqliteDatabase(config);
         DashboardMediaService service =
                 new DashboardMediaService(
-                        database,
-                        new RuntimePathGuard(config),
-                        new AttachmentCacheService(config));
+                        database, new RuntimePathGuard(config), new AttachmentCacheService(config));
         File cached =
                 new File(
                         new File(config.getRuntime().getCacheDir(), "media/MEMORY"),
@@ -119,7 +119,8 @@ public class DashboardMediaServiceTest {
                 .doesNotContain("sk-media-remote-secret12345");
     }
 
-    private String readStoredMediaMetadata(SqliteDatabase database, String mediaId) throws Exception {
+    private String readStoredMediaMetadata(SqliteDatabase database, String mediaId)
+            throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -131,7 +132,9 @@ public class DashboardMediaServiceTest {
                 if (!resultSet.next()) {
                     return "";
                 }
-                return resultSet.getString("original_name") + "\n" + resultSet.getString("remote_id");
+                return resultSet.getString("original_name")
+                        + "\n"
+                        + resultSet.getString("remote_id");
             } finally {
                 resultSet.close();
                 statement.close();

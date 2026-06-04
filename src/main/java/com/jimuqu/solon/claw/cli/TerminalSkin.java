@@ -22,11 +22,12 @@ public final class TerminalSkin {
     }
 
     public static TerminalSkin fromEnvironment() {
-        return resolve(System.getenv("JIMUQU_TERMINAL_SKIN"));
+        return resolve(System.getenv("SOLONCLAW_TERMINAL_SKIN"));
     }
 
     public static TerminalSkin resolve(String value) {
-        String normalized = StrUtil.blankToDefault(value, "classic").trim().toLowerCase(Locale.ROOT);
+        String normalized =
+                StrUtil.blankToDefault(value, "classic").trim().toLowerCase(Locale.ROOT);
         if ("mono".equals(normalized) || "plain".equals(normalized)) {
             return new TerminalSkin(
                     "mono",

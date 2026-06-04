@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test;
 public class TerminalLifecycleSummaryTest {
     @Test
     void shouldRenderShutdownSummaryFromTerminalState() throws Exception {
-        LocalTerminalTaskRunner runner = new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
+        LocalTerminalTaskRunner runner =
+                new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
         runner.submit(
                         "done",
                         new Callable<Integer>() {
@@ -30,8 +31,7 @@ public class TerminalLifecycleSummaryTest {
         transcript.assistant("world");
         ConsoleEventSink.EventSnapshot events = eventSnapshot(4, 2, 1);
 
-        String summary =
-                TerminalLifecycleSummary.render("work", runner, transcript, events, true);
+        String summary = TerminalLifecycleSummary.render("work", runner, transcript, events, true);
 
         assertThat(summary)
                 .contains("终端会话结束")

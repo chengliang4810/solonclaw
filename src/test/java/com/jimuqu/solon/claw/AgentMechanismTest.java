@@ -271,7 +271,10 @@ public class AgentMechanismTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("tool-agent-room", "tool-agent-user", "hello");
 
-        String joined = env.toolRegistry.resolveEnabledTools("MEMORY:tool-agent-room:tool-agent-user").toString();
+        String joined =
+                env.toolRegistry
+                        .resolveEnabledTools("MEMORY:tool-agent-room:tool-agent-user")
+                        .toString();
 
         assertThat(env.toolRegistry.listToolNames()).contains("agent_manage");
         assertThat(joined).contains("AgentTools");
@@ -303,8 +306,7 @@ public class AgentMechanismTest {
                         env.sessionRepository,
                         "MEMORY:agent-success-room:agent-success-user");
 
-        tools.agentManage(
-                "create operator 角色 Authorization: Bearer ghp_agentrole12345");
+        tools.agentManage("create operator 角色 Authorization: Bearer ghp_agentrole12345");
         String response = tools.agentManage("show operator");
 
         assertThat(response)
@@ -332,8 +334,9 @@ public class AgentMechanismTest {
                         "MEMORY:allow-agent-room:allow-agent-user", scope);
 
         assertThat(names).containsExactly("agent_manage");
-        assertThat(env.toolRegistry.resolveEnabledTools(
-                        "MEMORY:allow-agent-room:allow-agent-user", scope))
+        assertThat(
+                        env.toolRegistry.resolveEnabledTools(
+                                "MEMORY:allow-agent-room:allow-agent-user", scope))
                 .hasOnlyElementsOfType(AgentTools.class);
     }
 

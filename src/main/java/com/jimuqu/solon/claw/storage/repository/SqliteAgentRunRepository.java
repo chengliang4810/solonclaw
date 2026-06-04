@@ -3,8 +3,8 @@ package com.jimuqu.solon.claw.storage.repository;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
-import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
+import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -272,7 +272,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                 args.add(pattern);
                 args.add(pattern);
             }
-            sql.append(" order by coalesce(nullif(r.last_activity_at, 0), r.started_at) desc limit ?");
+            sql.append(
+                    " order by coalesce(nullif(r.last_activity_at, 0), r.started_at) desc limit ?");
             args.add(Math.max(1, Math.min(limit <= 0 ? 20 : limit, 200)));
             PreparedStatement statement = connection.prepareStatement(sql.toString());
             bindArgs(statement, args);

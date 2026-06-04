@@ -70,11 +70,11 @@ public class GatewayRestartCoordinatorTest {
             assertThat(data.get("user_id")).isEqualTo("admin-user");
             assertThat(data.get("chat_type")).isEqualTo("group");
             assertThat(data.get("thread_id")).isEqualTo("topic-7");
-            assertThat(data.get("source_key"))
-                    .isEqualTo("MEMORY:admin-chat:topic-7:admin-user");
+            assertThat(data.get("source_key")).isEqualTo("MEMORY:admin-chat:topic-7:admin-user");
             assertThat(data.get("active_run_count")).isEqualTo(2);
             assertThat(data.get("drain_timeout_seconds")).isEqualTo(180);
-            assertThat((Number) data.get("requested_at")).satisfies(value -> assertThat(value.longValue()).isPositive());
+            assertThat((Number) data.get("requested_at"))
+                    .satisfies(value -> assertThat(value.longValue()).isPositive());
         } finally {
             coordinator.shutdown();
         }

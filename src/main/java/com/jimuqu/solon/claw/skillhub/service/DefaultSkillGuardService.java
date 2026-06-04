@@ -139,7 +139,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "runtime_env_access",
                             "critical",
                             "exfiltration",
-                            "\\$HOME/\\.jimuqu-agent/\\.env|~/\\.jimuqu-agent/\\.env|runtime/\\.env|runtime/auth\\.json|runtime/cache/bws_cache\\.json|runtime/mcp-tokens",
+                            "\\$HOME/\\.solon-claw/\\.env|~/\\.solon-claw/\\.env|runtime/\\.env|runtime/auth\\.json|runtime/cache/bws_cache\\.json|runtime/mcp-tokens",
                             "directly references local runtime secrets or token stores"),
                     new ThreatPattern(
                             "read_secrets_file",
@@ -583,7 +583,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "runtime_config_mod",
                             "critical",
                             "persistence",
-                            "\\.jimuqu-agent/config\\.yml|runtime/config\\.yml|runtime/config\\.example\\.yml",
+                            "\\.solon-claw/config\\.yml|runtime/config\\.yml|runtime/config\\.example\\.yml",
                             "references local runtime configuration files"),
                     new ThreatPattern(
                             "other_agent_config",
@@ -852,8 +852,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                 StrUtil.blankToDefault(result.getTrustLevel(), "community")
                         .toLowerCase(Locale.ROOT);
         String verdict =
-                StrUtil.blankToDefault(result.getVerdict(), "dangerous")
-                        .toLowerCase(Locale.ROOT);
+                StrUtil.blankToDefault(result.getVerdict(), "dangerous").toLowerCase(Locale.ROOT);
 
         if ("builtin".equals(trustLevel)) {
             decision.setAllowed(true);
@@ -869,7 +868,8 @@ public class DefaultSkillGuardService implements SkillGuardService {
 
         if ("trusted".equals(trustLevel) && "dangerous".equals(verdict)) {
             decision.setAllowed(false);
-            decision.setReason("Blocked trusted source with dangerous verdict; force does not override");
+            decision.setReason(
+                    "Blocked trusted source with dangerous verdict; force does not override");
             return decision;
         }
 
@@ -894,7 +894,8 @@ public class DefaultSkillGuardService implements SkillGuardService {
 
         if ("community".equals(trustLevel) && "dangerous".equals(verdict)) {
             decision.setAllowed(false);
-            decision.setReason("Blocked community source with dangerous verdict; force does not override");
+            decision.setReason(
+                    "Blocked community source with dangerous verdict; force does not override");
             return decision;
         }
 
@@ -1069,7 +1070,8 @@ public class DefaultSkillGuardService implements SkillGuardService {
         }
         String normalized = source.trim().replace('\\', '/');
         String lower = normalized.toLowerCase(Locale.ROOT);
-        for (String prefix : java.util.Arrays.asList("skills-sh/", "skills.sh/", "skils-sh/", "skils.sh/")) {
+        for (String prefix :
+                java.util.Arrays.asList("skills-sh/", "skills.sh/", "skils-sh/", "skils.sh/")) {
             if (lower.startsWith(prefix)) {
                 normalized = normalized.substring(prefix.length());
                 lower = normalized.toLowerCase(Locale.ROOT);

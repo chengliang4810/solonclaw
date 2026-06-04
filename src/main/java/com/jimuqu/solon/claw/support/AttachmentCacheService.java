@@ -10,8 +10,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.Locale;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -35,7 +35,9 @@ public class AttachmentCacheService {
             cacheDirValue = appConfig.getRuntime().getCacheDir();
         }
         this.runtimeHome =
-                FileUtil.file(StrUtil.blankToDefault(runtimeHomeValue, RuntimePathConstants.RUNTIME_HOME))
+                FileUtil.file(
+                                StrUtil.blankToDefault(
+                                        runtimeHomeValue, RuntimePathConstants.RUNTIME_HOME))
                         .getAbsoluteFile();
         File cacheDir =
                 FileUtil.file(
@@ -107,8 +109,7 @@ public class AttachmentCacheService {
             boolean fromQuote,
             String transcribedText) {
         if (file == null || !file.isFile()) {
-            throw new IllegalArgumentException(
-                    "Attachment file does not exist: " + safePath(file));
+            throw new IllegalArgumentException("Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
         FileUtil.file(platformDir(platform)).getAbsoluteFile();
@@ -136,8 +137,7 @@ public class AttachmentCacheService {
             boolean fromQuote,
             String transcribedText) {
         if (file == null || !file.isFile()) {
-            throw new IllegalArgumentException(
-                    "Attachment file does not exist: " + safePath(file));
+            throw new IllegalArgumentException("Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (!isUnderMediaRoot(canonical)) {
@@ -159,8 +159,7 @@ public class AttachmentCacheService {
             boolean fromQuote,
             String transcribedText) {
         if (file == null || !file.isFile()) {
-            throw new IllegalArgumentException(
-                    "Attachment file does not exist: " + safePath(file));
+            throw new IllegalArgumentException("Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (isUnderCacheRoot(canonical)) {
@@ -207,7 +206,8 @@ public class AttachmentCacheService {
         }
         try {
             String relative =
-                    cacheRoot.getCanonicalFile()
+                    cacheRoot
+                            .getCanonicalFile()
                             .toPath()
                             .relativize(canonical.getCanonicalFile().toPath())
                             .toString()
@@ -248,7 +248,8 @@ public class AttachmentCacheService {
         String mime = StrUtil.nullToEmpty(mimeType).toLowerCase(Locale.ROOT);
         String ext = extension(name);
         if (mime.startsWith("image/")
-                || matches(ext, ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic", ".heif")) {
+                || matches(
+                        ext, ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic", ".heif")) {
             return "image";
         }
         if (mime.startsWith("video/")
@@ -436,7 +437,10 @@ public class AttachmentCacheService {
     }
 
     private static boolean bytesEqual(byte[] data, int offset, byte[] expected) {
-        if (data == null || expected == null || offset < 0 || data.length < offset + expected.length) {
+        if (data == null
+                || expected == null
+                || offset < 0
+                || data.length < offset + expected.length) {
             return false;
         }
         for (int i = 0; i < expected.length; i++) {
@@ -475,8 +479,10 @@ public class AttachmentCacheService {
         if (value.length() == 0) {
             value = "attachment.bin";
         }
-        value = REDACTED_TOKEN_FILE_PART.matcher(SecretRedactor.redact(value, 120))
-                .replaceAll("redacted");
+        value =
+                REDACTED_TOKEN_FILE_PART
+                        .matcher(SecretRedactor.redact(value, 120))
+                        .replaceAll("redacted");
         value =
                 value.replace("\\", "_")
                         .replace("/", "_")
@@ -559,35 +565,9 @@ public class AttachmentCacheService {
         }
         String ext = extension(file.getName());
         return matches(
-                ext,
-                ".pdf",
-                ".docx",
-                ".xlsx",
-                ".pptx",
-                ".png",
-                ".jpg",
-                ".jpeg",
-                ".gif",
-                ".webp",
-                ".bmp",
-                ".heic",
-                ".heif",
-                ".mp4",
-                ".mov",
-                ".avi",
-                ".mkv",
-                ".webm",
-                ".3gp",
-                ".m4v",
-                ".silk",
-                ".ogg",
-                ".opus",
-                ".mp3",
-                ".wav",
-                ".m4a",
-                ".aac",
-                ".flac",
-                ".amr");
+                ext, ".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+                ".bmp", ".heic", ".heif", ".mp4", ".mov", ".avi", ".mkv", ".webm", ".3gp", ".m4v",
+                ".silk", ".ogg", ".opus", ".mp3", ".wav", ".m4a", ".aac", ".flac", ".amr");
     }
 
     private boolean isUnder(File file, File root) {

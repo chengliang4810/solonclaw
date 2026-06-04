@@ -17,8 +17,8 @@ import java.util.Map;
 import org.noear.snack4.ONode;
 
 /**
- * Gateway runtime status service.
- * Manages PID file and runtime state for detecting whether the gateway is running.
+ * Gateway runtime status service. Manages PID file and runtime state for detecting whether the
+ * gateway is running.
  */
 public class GatewayRuntimeStatusService {
     private static final String GATEWAY_KIND = "solon-claw-gateway";
@@ -48,7 +48,9 @@ public class GatewayRuntimeStatusService {
         try {
             if (pidFile.isFile()) {
                 Map<String, Object> record = readPidRecord();
-                if (record == null || matchesCurrentProcess(record, Boolean.TRUE.equals(record.get("legacy")))) {
+                if (record == null
+                        || matchesCurrentProcess(
+                                record, Boolean.TRUE.equals(record.get("legacy")))) {
                     pidFile.delete();
                 }
             }
@@ -214,7 +216,8 @@ public class GatewayRuntimeStatusService {
             return null;
         }
         try {
-            SimpleDateFormat format = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy", Locale.ENGLISH);
+            SimpleDateFormat format =
+                    new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy", Locale.ENGLISH);
             Date date = format.parse(output.trim().replaceAll("\\s+", " "));
             return date == null ? null : Long.valueOf(date.getTime());
         } catch (Exception ignored) {
@@ -237,7 +240,8 @@ public class GatewayRuntimeStatusService {
     }
 
     private boolean looksLikeGatewayCommand(String command) {
-        String normalized = StrUtil.nullToEmpty(command).replace('\\', '/').toLowerCase(Locale.ROOT);
+        String normalized =
+                StrUtil.nullToEmpty(command).replace('\\', '/').toLowerCase(Locale.ROOT);
         return normalized.contains("solon-claw")
                 || normalized.contains("com.jimuqu.solon.claw")
                 || normalized.contains("gateway");

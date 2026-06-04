@@ -9,8 +9,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 /**
- * Sends periodic pings to keep MCP server connections alive and triggers
- * reconnect when a ping fails.
+ * Sends periodic pings to keep MCP server connections alive and triggers reconnect when a ping
+ * fails.
  */
 public class McpKeepaliveService implements Closeable {
     private static final Logger LOG = Logger.getLogger(McpKeepaliveService.class.getName());
@@ -29,21 +29,21 @@ public class McpKeepaliveService implements Closeable {
     public McpKeepaliveService(McpRuntimeService runtimeService, long intervalSeconds) {
         this.runtimeService = runtimeService;
         this.intervalSeconds = intervalSeconds > 0 ? intervalSeconds : DEFAULT_INTERVAL_SECONDS;
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "mcp-keepalive");
-            t.setDaemon(true);
-            return t;
-        });
+        this.scheduler =
+                Executors.newSingleThreadScheduledExecutor(
+                        r -> {
+                            Thread t = new Thread(r, "mcp-keepalive");
+                            t.setDaemon(true);
+                            return t;
+                        });
     }
 
     /** Starts the keepalive loop. Safe to call multiple times; only starts once. */
     public synchronized void start() {
         if (running.compareAndSet(false, true)) {
-            task = scheduler.scheduleWithFixedDelay(
-                    this::ping,
-                    intervalSeconds,
-                    intervalSeconds,
-                    TimeUnit.SECONDS);
+            task =
+                    scheduler.scheduleWithFixedDelay(
+                            this::ping, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
         }
     }
 
@@ -100,8 +100,8 @@ public class McpKeepaliveService implements Closeable {
     }
 
     /**
-     * Attempts to reconnect a specific server without blocking the caller on discovery.
-     * Returns true when a reload task was accepted.
+     * Attempts to reconnect a specific server without blocking the caller on discovery. Returns
+     * true when a reload task was accepted.
      */
     public boolean reconnect(String serverId) {
         try {

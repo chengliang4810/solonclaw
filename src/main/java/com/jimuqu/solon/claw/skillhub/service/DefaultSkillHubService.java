@@ -14,11 +14,11 @@ import com.jimuqu.solon.claw.skillhub.model.TapRecord;
 import com.jimuqu.solon.claw.skillhub.source.ClaudeMarketplaceSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.ClawHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.GitHubSkillSource;
-import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.LobeHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.OfficialSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillsShSkillSource;
+import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.WellKnownSkillSource;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillBundlePathSupport;
@@ -194,7 +194,8 @@ public class DefaultSkillHubService implements SkillHubService {
         if (record == null) {
             throw new IllegalStateException("Hub-installed skill not found: " + name);
         }
-        File installDir = SkillBundlePathSupport.resolveUnderRoot(skillsDir, record.getInstallPath());
+        File installDir =
+                SkillBundlePathSupport.resolveUnderRoot(skillsDir, record.getInstallPath());
         stateStore.recordUninstall(name);
         try {
             if (installDir.exists()) {

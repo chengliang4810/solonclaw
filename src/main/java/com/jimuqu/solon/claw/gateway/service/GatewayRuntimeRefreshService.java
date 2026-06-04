@@ -64,10 +64,7 @@ public class GatewayRuntimeRefreshService {
 
         AppConfig latest;
         try {
-            Props props =
-                    Solon.cfg() == null
-                            ? new Props()
-                            : new Props(Solon.cfg());
+            Props props = Solon.cfg() == null ? new Props() : new Props(Solon.cfg());
             props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
             if (Solon.cfg() == null) {
                 latest = AppConfig.load(props);
@@ -80,20 +77,16 @@ public class GatewayRuntimeRefreshService {
                     e.getClass().getSimpleName(),
                     safeError(e));
             recordFailure(configFile, e.getClass().getSimpleName(), safeError(e), false);
-            return RefreshResult.failure(
-                    runtimeConfigReference(configFile),
-                    safeError(e));
+            return RefreshResult.failure(runtimeConfigReference(configFile), safeError(e));
         }
         appConfig.applyFrom(latest);
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         lastFailure = null;
         if (!reconnectChannels) {
-            return RefreshResult.success(
-                    runtimeConfigReference(configFile), false, "运行时配置已刷新。");
+            return RefreshResult.success(runtimeConfigReference(configFile), false, "运行时配置已刷新。");
         }
         channelConnectionManager.refreshAll();
-        return RefreshResult.success(
-                runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
+        return RefreshResult.success(runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
     }
 
     private long fileMtime(String path) {
@@ -110,7 +103,8 @@ public class GatewayRuntimeRefreshService {
             return new File(path);
         }
         return new File(
-                StrUtil.blankToDefault(appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME),
+                StrUtil.blankToDefault(
+                        appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME),
                 RuntimePathConstants.CONFIG_FILE_NAME);
     }
 
@@ -367,8 +361,7 @@ public class GatewayRuntimeRefreshService {
     @SuppressWarnings("unchecked")
     private void flatten(String prefix, Map<String, Object> input, Map<String, Object> output) {
         for (Map.Entry<String, Object> entry : input.entrySet()) {
-            String key =
-                    prefix.length() == 0 ? entry.getKey() : prefix + "." + entry.getKey();
+            String key = prefix.length() == 0 ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
             if (value instanceof Map) {
                 flatten(key, (Map<String, Object>) value, output);
@@ -578,12 +571,7 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.task.toolOutputTurnBudget",
                     "solonclaw.task.toolOutputMaxLines",
                     "solonclaw.task.toolOutputMaxLineLength",
-                    "tool_output.max_bytes",
-                    "tool_output.max_lines",
-                    "tool_output.max_line_length",
                     "solonclaw.task.mediaCacheTtlHours",
-                    "jimuqu.security.tirithTimeoutSeconds",
-                    "jimuqu.security.tirith_timeout",
                     "security.tirithTimeoutSeconds",
                     "security.tirith_timeout");
 
@@ -613,26 +601,14 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.browser.rewrite_loopback_urls",
                     "tool_loop_guardrails.warnings_enabled",
                     "tool_loop_guardrails.hard_stop_enabled",
-                    "jimuqu.security.allowPrivateUrls",
                     "security.allowPrivateUrls",
-                    "jimuqu.security.allow_private_urls",
                     "security.allow_private_urls",
-                    "jimuqu.browser.allow_private_urls",
-                    "browser.allow_private_urls",
-                    "jimuqu.security.tirithEnabled",
-                    "jimuqu.security.tirith_enabled",
                     "security.tirithEnabled",
                     "security.tirith_enabled",
-                    "jimuqu.security.tirithFailOpen",
-                    "jimuqu.security.tirith_fail_open",
                     "security.tirithFailOpen",
                     "security.tirith_fail_open",
-                    "jimuqu.approvals.mcpReloadConfirm",
-                    "jimuqu.approvals.mcp_reload_confirm",
                     "approvals.mcpReloadConfirm",
                     "approvals.mcp_reload_confirm",
-                    "jimuqu.security.websiteBlocklist.enabled",
-                    "jimuqu.security.website_blocklist.enabled",
                     "security.websiteBlocklist.enabled",
                     "security.website_blocklist.enabled",
                     "solonclaw.mcp.enabled");
@@ -641,22 +617,12 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "solonclaw.display.runtimeFooter.fields",
                     "solonclaw.gateway.allowedUsers",
-                    "jimuqu.security.websiteBlocklist.domains",
-                    "jimuqu.security.websiteBlocklist.sharedFiles",
-                    "jimuqu.security.website_blocklist.domains",
-                    "jimuqu.security.website_blocklist.shared_files",
                     "security.websiteBlocklist.domains",
                     "security.websiteBlocklist.sharedFiles",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
-                    "jimuqu.terminal.credentialFiles",
-                    "jimuqu.terminal.credential_files",
-                    "terminal.credentialFiles",
-                    "terminal.credential_files",
-                    "jimuqu.terminal.writeSafeRoot",
-                    "jimuqu.terminal.write_safe_root",
-                    "terminal.writeSafeRoot",
-                    "terminal.write_safe_root");
+                    "solonclaw.terminal.credentialFiles",
+                    "solonclaw.terminal.writeSafeRoot");
 
     private static final Set<String> INT_SUFFIXES =
             setOf(

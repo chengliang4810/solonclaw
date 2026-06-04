@@ -2,6 +2,9 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
@@ -23,15 +26,12 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
-import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -129,7 +129,8 @@ public class AgentRunSupervisorTest {
         subagent.setName("delegate");
         subagent.setStatus("failed");
         subagent.setGoalPreview("inspect token=ghp_subagentrecord12345");
-        subagent.setOutputTailJson("[{\"preview\":\"Authorization: Bearer ghp_subagenttail12345\"}]");
+        subagent.setOutputTailJson(
+                "[{\"preview\":\"Authorization: Bearer ghp_subagenttail12345\"}]");
         subagent.setError("password=subagent-error-secret");
         subagent.setStartedAt(System.currentTimeMillis());
         fixture.agentRunRepository.saveSubagentRun(subagent);
@@ -251,7 +252,11 @@ public class AgentRunSupervisorTest {
         Fixture fixture = fixture();
         String leakedToken = "sk-supervisor12345";
         AgentRunSupervisor supervisor =
-                supervisor(fixture, new ThrowingGateway(leakedToken), noCompressionBudget(), noCompressionService());
+                supervisor(
+                        fixture,
+                        new ThrowingGateway(leakedToken),
+                        noCompressionBudget(),
+                        noCompressionService());
         SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:room:user");
 
         try {
@@ -285,7 +290,8 @@ public class AgentRunSupervisorTest {
                 assertThat(event.getMetadataJson()).doesNotContain(leakedToken);
             }
             if ((event.getSummary() != null && event.getSummary().contains("***"))
-                    || (event.getMetadataJson() != null && event.getMetadataJson().contains("***"))) {
+                    || (event.getMetadataJson() != null
+                            && event.getMetadataJson().contains("***"))) {
                 sawRedactedEvent = true;
             }
         }

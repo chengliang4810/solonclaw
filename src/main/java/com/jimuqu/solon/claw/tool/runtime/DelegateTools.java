@@ -36,7 +36,10 @@ public class DelegateTools {
             @Param(name = "context", description = "委托补充上下文", required = false) String context,
             @Param(name = "allowedTools", description = "允许子代理使用的工具名 JSON 数组", required = false)
                     String allowedTools,
-            @Param(name = "toolsets", description = "允许子代理使用的工具集 JSON 数组或逗号列表，例如 web、terminal、file", required = false)
+            @Param(
+                            name = "toolsets",
+                            description = "允许子代理使用的工具集 JSON 数组或逗号列表，例如 web、terminal、file",
+                            required = false)
                     String toolsets,
             @Param(name = "expectedOutput", description = "期望输出格式", required = false)
                     String expectedOutput,

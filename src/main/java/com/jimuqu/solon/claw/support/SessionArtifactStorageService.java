@@ -52,8 +52,7 @@ public class SessionArtifactStorageService {
         Map<String, Object> entry = toTrajectoryEntry(trajectory, completed);
         File target =
                 new File(
-                        artifactsDir,
-                        completed ? TRAJECTORY_SUCCESS_FILE : TRAJECTORY_FAILED_FILE);
+                        artifactsDir, completed ? TRAJECTORY_SUCCESS_FILE : TRAJECTORY_FAILED_FILE);
         FileUtil.mkParentDirs(target);
         String line = ONode.serialize(entry) + "\n";
         try (Writer writer =
@@ -78,13 +77,9 @@ public class SessionArtifactStorageService {
     private Map<String, Object> toTrajectoryEntry(
             Map<String, Object> trajectory, boolean completed) {
         Map<String, Object> entry = new LinkedHashMap<String, Object>();
-        entry.put(
-                "conversations",
-                trajectory == null ? null : trajectory.get("conversations"));
+        entry.put("conversations", trajectory == null ? null : trajectory.get("conversations"));
         entry.put("timestamp", utcTimestamp());
-        entry.put(
-                "model",
-                trajectory == null ? null : trajectory.get("model"));
+        entry.put("model", trajectory == null ? null : trajectory.get("model"));
         entry.put("completed", Boolean.valueOf(completed));
         if (trajectory != null) {
             entry.put("session_id", trajectory.get("session_id"));

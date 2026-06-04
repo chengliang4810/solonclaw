@@ -56,8 +56,8 @@ public class DangerousCommandApprovalService {
     private static final String HOME_PATH_PREFIX =
             "(?:~|\\$home|\\$\\{home\\}|\\$env:home|\\$env:userprofile|%userprofile%|%homepath%)";
     private static final String AGENT_HOME_PATH_PREFIX =
-            "(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%|"
-                    + "\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%)";
+            "(?:\\$solonclaw_home|\\$\\{solonclaw_home\\}|\\$env:solonclaw_home|%solonclaw_home%|"
+                    + "\\$solonclaw_home|\\$\\{solonclaw_home\\}|\\$env:solonclaw_home|%solonclaw_home%)";
     private static final String SHELL_PROFILE_WRITE_TARGET =
             HOME_PATH_PREFIX
                     + PATH_SEPARATOR
@@ -84,7 +84,7 @@ public class DangerousCommandApprovalService {
                     + "(?:settings\\.xml|credentials|credentials\\.toml|credentials\\.tfrc\\.json|oauth_creds\\.json|nuget\\.config|pip\\.conf)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:jimuqu-agent|Jimuqu)"
+                    + "\\.(?:solon-claw|solonclaw)"
                     + PATH_SEPARATOR
                     + "\\.env\\b|"
                     + AGENT_HOME_PATH_PREFIX
@@ -130,8 +130,7 @@ public class DangerousCommandApprovalService {
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
     private static final String KUBECTL_OPTION_PREFIX =
             "(?:\\s+(?:--?[A-Za-z0-9-]+)(?:=\\S+|\\s+\\S+)?)*";
-    private static final Pattern SHELL_LEVEL_BACKGROUND =
-            pattern("\\b(?:nohup|disown|setsid)\\b");
+    private static final Pattern SHELL_LEVEL_BACKGROUND = pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern DETACHED_TERMINAL_SESSION =
             pattern(
                     "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\b(?![^\\n]*\\s/(?:wait|w)\\b)|(?:^|[;&|\\n])\\s*start(?:\\.exe)?\\s+(?![^\\n]*\\s/(?:wait|w)\\b))");
@@ -140,7 +139,8 @@ public class DangerousCommandApprovalService {
     private static final Pattern POWERSHELL_WAIT_TRUE_FLAG =
             pattern("\\s-wait(?:\\s|$|:(?:\\$?true|1)\\b|=(?:\\$?true|1)\\b)");
     private static final Pattern POWERSHELL_WAIT_FALSE_FLAG =
-            pattern("\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b|\\s+(?:\\$?false|0)\\b)");
+            pattern(
+                    "\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b|\\s+(?:\\$?false|0)\\b)");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
     private static final Pattern PYTHON_SHELL_EXEC_CALL =
@@ -161,7 +161,8 @@ public class DangerousCommandApprovalService {
     private static final List<Pattern> LONG_LIVED_FOREGROUND_PATTERNS =
             Collections.unmodifiableList(
                     Arrays.asList(
-                            pattern("\\b(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:dev|start|serve|watch)\\b"),
+                            pattern(
+                                    "\\b(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:dev|start|serve|watch)\\b"),
                             pattern("\\bdocker\\s+compose\\s+up\\b"),
                             pattern("\\bnext\\s+dev\\b"),
                             pattern("\\bvite(?:\\s|$)"),
@@ -370,12 +371,14 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "script_eval_flag",
                                     "script execution via -e/-c flag",
-                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+-[ec](?:\\s+|(?=['\"]))"),
+                                    pattern(
+                                            "\\b(python[23]?|perl|ruby|node)\\s+-[ec](?:\\s+|(?=['\"]))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "remote_script_process_substitution",
                                     "execute remote script via process substitution",
-                                    pattern("\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
+                                    pattern(
+                                            "\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "encoded_payload_execute",
@@ -400,7 +403,9 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "sensitive_redirection",
                                     "overwrite system file via redirection",
-                                    pattern("(?:&>>?|(?:\\d|\\*)?>>?)\\s*[\"']?" + SENSITIVE_WRITE_TARGET),
+                                    pattern(
+                                            "(?:&>>?|(?:\\d|\\*)?>>?)\\s*[\"']?"
+                                                    + SENSITIVE_WRITE_TARGET),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "project_sensitive_tee",
@@ -1385,12 +1390,13 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "gateway_stop_restart",
                                     "stop/restart gateway (kills running agents)",
-                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
+                                    pattern(
+                                            "\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(stop|restart)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "app_update_restart",
                                     "agent update (restarts gateway, kills running agents)",
-                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+update\\b"),
+                                    pattern("\\b(?:solon-claw|solonclaw)\\s+update\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gateway_run_detached",
@@ -1401,7 +1407,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "kill_agent_process",
                                     "kill agent/gateway process (self-termination)",
-                                    pattern("\\b(pkill|killall)\\b.*\\b(Jimuqu|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
+                                    pattern(
+                                            "\\b(pkill|killall)\\b.*\\b(solon-claw|solonclaw|gateway)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
@@ -1436,7 +1443,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "sed_inplace_etc",
                                     "in-place edit of system config",
-                                    pattern("\\bsed\\s+-[^\\s]*i.*\\s/etc/|\\bsed\\s+--in-place\\b.*\\s/etc/"),
+                                    pattern(
+                                            "\\bsed\\s+-[^\\s]*i.*\\s/etc/|\\bsed\\s+--in-place\\b.*\\s/etc/"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "script_heredoc",
@@ -1494,7 +1502,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "docker_container_lifecycle",
                                     "Docker container lifecycle command",
-                                    pattern("\\b(?:docker|podman|nerdctl)\\s+(?:restart|stop|kill)\\b"),
+                                    pattern(
+                                            "\\b(?:docker|podman|nerdctl)\\s+(?:restart|stop|kill)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "docker_privileged_or_host_mount",
@@ -1566,12 +1575,14 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "terraform_auto_approve_apply",
                                     "Terraform apply with auto approval",
-                                    pattern("\\b(?:terraform|tofu|terragrunt)\\s+apply\\b(?=[^\\n]*-auto-approve\\b)"),
+                                    pattern(
+                                            "\\b(?:terraform|tofu|terragrunt)\\s+apply\\b(?=[^\\n]*-auto-approve\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "terraform_state_sensitive_read",
                                     "Terraform state sensitive read",
-                                    pattern("\\b(?:terraform|tofu|terragrunt)\\s+state\\s+(?:pull|show)\\b"),
+                                    pattern(
+                                            "\\b(?:terraform|tofu|terragrunt)\\s+state\\s+(?:pull|show)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "aws_destructive_resource",
@@ -1644,7 +1655,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "git_clean_force",
                                     "git clean with force (deletes untracked files)",
-                                    pattern("\\bgit\\s+clean\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
+                                    pattern(
+                                            "\\bgit\\s+clean\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
@@ -1671,7 +1683,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "sql_update_no_where",
                                     "SQL UPDATE without WHERE",
-                                    pattern("\\bUPDATE\\s+[A-Za-z0-9_.`\"\\[\\]-]+\\s+SET\\b(?!.*\\bWHERE\\b)"),
+                                    pattern(
+                                            "\\bUPDATE\\s+[A-Za-z0-9_.`\"\\[\\]-]+\\s+SET\\b(?!.*\\bWHERE\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
@@ -1685,7 +1698,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "sql_drop_statement",
                                     "SQL DROP statement",
-                                    pattern("\\bDROP\\s+(?:DATABASE|SCHEMA|TABLE)\\s+(?:IF\\s+EXISTS\\s+)?[A-Za-z0-9_.`\"\\[\\]-]+"),
+                                    pattern(
+                                            "\\bDROP\\s+(?:DATABASE|SCHEMA|TABLE)\\s+(?:IF\\s+EXISTS\\s+)?[A-Za-z0-9_.`\"\\[\\]-]+"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
@@ -1736,12 +1750,14 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_del_force",
                                     "Windows force delete",
-                                    pattern("\\b(?:del|erase)\\b(?=.*(?:^|\\s)/s\\b)(?=.*(?:^|\\s)/[fq]\\b)"),
+                                    pattern(
+                                            "\\b(?:del|erase)\\b(?=.*(?:^|\\s)/s\\b)(?=.*(?:^|\\s)/[fq]\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_rmdir_force",
                                     "Windows recursive directory delete",
-                                    pattern("\\b(rmdir|rd)\\b(?=.*(?:^|\\s)/s\\b)(?=.*(?:^|\\s)/q\\b)"),
+                                    pattern(
+                                            "\\b(rmdir|rd)\\b(?=.*(?:^|\\s)/s\\b)(?=.*(?:^|\\s)/q\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_format",
@@ -2508,7 +2524,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "hardline_redirect_device",
                                     "redirect to raw block device",
-                                    pattern(">\\s*[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
+                                    pattern(
+                                            ">\\s*[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_shutdown",
@@ -2574,8 +2591,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:(?:^|[;&|\\n`])\\s*(?:cmd(?:\\.exe)?\\s+/c\\s+)?(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?)?(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer)\\b|\\bStart-Process\\b(?=[^\\n]*(?:powershell|pwsh|shutdown(?:\\.exe)?))(?=[^\\n]*(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer))[^\\n]*)"),
                                     ToolNameConstants.EXECUTE_SHELL)));
-    private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES =
-            buildApprovalKeyAliases();
+    private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES = buildApprovalKeyAliases();
 
     private final GlobalSettingRepository globalSettingRepository;
     private final AppConfig appConfig;
@@ -2642,18 +2658,11 @@ public class DangerousCommandApprovalService {
                         "shell",
                         (trace, args) ->
                                 evaluateAlias(
-                                        trace,
-                                        "shell",
-                                        ToolNameConstants.EXECUTE_SHELL,
-                                        args))
+                                        trace, "shell", ToolNameConstants.EXECUTE_SHELL, args))
                 .onTool(
                         "bash",
                         (trace, args) ->
-                                evaluateAlias(
-                                        trace,
-                                        "bash",
-                                        ToolNameConstants.EXECUTE_SHELL,
-                                        args))
+                                evaluateAlias(trace, "bash", ToolNameConstants.EXECUTE_SHELL, args))
                 .onTool(
                         "executeShell",
                         (trace, args) ->
@@ -2680,20 +2689,16 @@ public class DangerousCommandApprovalService {
                         ToolNameConstants.EXECUTE_CODE,
                         (trace, args) ->
                                 evaluateCodeCommand(
-                                        trace,
-                                        ToolNameConstants.EXECUTE_CODE,
-                                        codeArg(args)))
+                                        trace, ToolNameConstants.EXECUTE_CODE, codeArg(args)))
                 .onTool(
                         ToolNameConstants.TERMINAL,
                         (trace, args) -> evaluateTerminalTool(trace, args))
                 .onTool(
                         "run_terminal",
-                        (trace, args) ->
-                                evaluateTerminalAlias(trace, "run_terminal", args))
+                        (trace, args) -> evaluateTerminalAlias(trace, "run_terminal", args))
                 .onTool(
                         "terminal_run",
-                        (trace, args) ->
-                                evaluateTerminalAlias(trace, "terminal_run", args))
+                        (trace, args) -> evaluateTerminalAlias(trace, "terminal_run", args))
                 .onTool(
                         ToolNameConstants.PROCESS,
                         (trace, args) -> evaluateProcessTool(trace, args))
@@ -2703,19 +2708,20 @@ public class DangerousCommandApprovalService {
                         (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
                 .onTool(
                         ToolNameConstants.FILE_WRITE,
-                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
+                        (trace, args) ->
+                                evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
                 .onTool(
                         ToolNameConstants.FILE_LIST,
                         (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_LIST, args))
-                  .onTool(
-                          ToolNameConstants.FILE_DELETE,
-                          (trace, args) ->
-                                  evaluateFileTool(trace, ToolNameConstants.FILE_DELETE, args))
-                  .onTool(
-                          ToolNameConstants.PATCH,
-                          (trace, args) -> evaluateFileTool(trace, ToolNameConstants.PATCH, args))
-                  .onTool(
-                          ToolNameConstants.WEBFETCH,
+                .onTool(
+                        ToolNameConstants.FILE_DELETE,
+                        (trace, args) ->
+                                evaluateFileTool(trace, ToolNameConstants.FILE_DELETE, args))
+                .onTool(
+                        ToolNameConstants.PATCH,
+                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.PATCH, args))
+                .onTool(
+                        ToolNameConstants.WEBFETCH,
                         (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBFETCH, args))
                 .onTool(
                         ToolNameConstants.WEBSEARCH,
@@ -2775,7 +2781,8 @@ public class DangerousCommandApprovalService {
         return approve(session, null, scope, approver);
     }
 
-    public boolean approve(AgentSession session, String selector, ApprovalScope scope, String approver)
+    public boolean approve(
+            AgentSession session, String selector, ApprovalScope scope, String approver)
             throws Exception {
         PendingApproval pending = findPendingApproval(session, selector);
         if (pending == null) {
@@ -2810,7 +2817,8 @@ public class DangerousCommandApprovalService {
         HITL.approve(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
         session.updateSnapshot();
-        notifyApprovalResponse(session, pending, effectiveScope.name().toLowerCase(Locale.ROOT), approver);
+        notifyApprovalResponse(
+                session, pending, effectiveScope.name().toLowerCase(Locale.ROOT), approver);
         return true;
     }
 
@@ -2866,8 +2874,8 @@ public class DangerousCommandApprovalService {
         notifyApprovalRequest(session, toPendingApproval(pendingMap));
     }
 
-    public void addSessionApproval(
-            AgentSession session, String toolName, String patternKey) throws Exception {
+    public void addSessionApproval(AgentSession session, String toolName, String patternKey)
+            throws Exception {
         if (session == null || StrUtil.hasBlank(toolName, patternKey)) {
             return;
         }
@@ -2875,8 +2883,7 @@ public class DangerousCommandApprovalService {
         session.updateSnapshot();
     }
 
-    public void addAlwaysApproval(
-            String toolName, String patternKey) throws Exception {
+    public void addAlwaysApproval(String toolName, String patternKey) throws Exception {
         if (StrUtil.hasBlank(toolName, patternKey)) {
             return;
         }
@@ -2959,8 +2966,7 @@ public class DangerousCommandApprovalService {
         DetectionResult result = new DetectionResult();
         result.setPatternKey("credential_command_path_access");
         result.setPatternKeys(Collections.singletonList("credential_command_path_access"));
-        result.setDescription(
-                StrUtil.blankToDefault(verdict.getMessage(), "命令访问敏感凭据路径"));
+        result.setDescription(StrUtil.blankToDefault(verdict.getMessage(), "命令访问敏感凭据路径"));
         result.setNormalizedCode(normalized);
         return result;
     }
@@ -3062,8 +3068,7 @@ public class DangerousCommandApprovalService {
             return true;
         }
         for (String key : result.effectivePatternKeys()) {
-            if (StrUtil.isNotBlank(key)
-                    && allowed.contains(key.trim().toLowerCase(Locale.ROOT))) {
+            if (StrUtil.isNotBlank(key) && allowed.contains(key.trim().toLowerCase(Locale.ROOT))) {
                 return true;
             }
         }
@@ -3092,8 +3097,7 @@ public class DangerousCommandApprovalService {
                         foregroundBackgroundGuidance(
                                 ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
                 if (guidance != null) {
-                    return "BLOCKED: Node 脚本中的 child_process 调用需要改用受管后台进程能力。\n"
-                            + guidance;
+                    return "BLOCKED: Node 脚本中的 child_process 调用需要改用受管后台进程能力。\n" + guidance;
                 }
             }
             return null;
@@ -3205,7 +3209,9 @@ public class DangerousCommandApprovalService {
         summary.put("unsafeUrlApprovalBypassAllowed", Boolean.FALSE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
-        summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
+        summary.put(
+                "terminalGuardrailCount",
+                Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
         summary.put(
                 "terminalGuardrails",
                 Arrays.asList(
@@ -3224,7 +3230,9 @@ public class DangerousCommandApprovalService {
         summary.put("auditLogPolicy", approvalAuditPolicySummary());
         summary.put("mcpReloadPolicy", mcpReloadPolicySummary());
         summary.put("approvalLifecyclePolicy", approvalLifecyclePolicySummary());
-        summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
+        summary.put(
+                "description",
+                "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
         return summary;
     }
 
@@ -3305,7 +3313,9 @@ public class DangerousCommandApprovalService {
         summary.put("approvalCardFallback", Boolean.TRUE);
         summary.put("reasonStoredInBlockMessage", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("description", "Smart approval only evaluates commands that remain approvable after hardline, file, URL, and terminal guardrail checks; approvals become session-scoped while escalations fall back to human confirmation.");
+        summary.put(
+                "description",
+                "Smart approval only evaluates commands that remain approvable after hardline, file, URL, and terminal guardrail checks; approvals become session-scoped while escalations fall back to human confirmation.");
         return summary;
     }
 
@@ -3324,7 +3334,9 @@ public class DangerousCommandApprovalService {
         summary.put("smartApprovalCanDeny", Boolean.TRUE);
         summary.put("pendingMessageBlocksAlwaysScope", Boolean.TRUE);
         summary.put("descriptionRedacted", Boolean.TRUE);
-        summary.put("description", "Tirith findings are converted into tirith:* approval patterns, can be combined with local dangerous rules, and never create permanent approvals.");
+        summary.put(
+                "description",
+                "Tirith findings are converted into tirith:* approval patterns, can be combined with local dangerous rules, and never create permanent approvals.");
         return summary;
     }
 
@@ -3336,11 +3348,7 @@ public class DangerousCommandApprovalService {
         summary.put("defaultDecision", cronDefaultDecision(mode));
         summary.put(
                 "configKeys",
-                Arrays.asList(
-                        "security.guardrailCronMode",
-                        "security.guardrailCronScope",
-                        "approvals.cronMode",
-                        "scheduler.cronApprovalMode"));
+                Arrays.asList("security.guardrailCronMode", "security.guardrailCronScope"));
         summary.put("approveAliases", Arrays.asList("approve", "allow", "off", "yes"));
         summary.put("approvalAliases", Arrays.asList("approval", "ask", "prompt", "manual"));
         summary.put("strictAliases", Arrays.asList("strict", "deny", "block", "enforce", "false"));
@@ -3361,7 +3369,7 @@ public class DangerousCommandApprovalService {
         summary.put("scriptContentChecked", Boolean.TRUE);
         summary.put(
                 "description",
-                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve preserves the legacy auto-approve behavior; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
+                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve auto-approves approvable commands; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
         return summary;
     }
 
@@ -3400,7 +3408,9 @@ public class DangerousCommandApprovalService {
         summary.put("currentThreadApprovalWhenAutoApproved", Boolean.TRUE);
         summary.put("pendingApprovalCreatedWhenDenied", Boolean.FALSE);
         summary.put("denyMessageIncludesConfigHint", Boolean.TRUE);
-        summary.put("description", "Subagent runs do not wait for human approval: approvable dangerous commands are denied by default or approved once only when approvals.subagentAutoApprove is enabled.");
+        summary.put(
+                "description",
+                "Subagent runs do not wait for human approval: approvable dangerous commands are denied by default or approved once only when approvals.subagentAutoApprove is enabled.");
         return summary;
     }
 
@@ -3430,7 +3440,6 @@ public class DangerousCommandApprovalService {
                         "/deny all"));
         summary.put("pendingQueueSupported", Boolean.TRUE);
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
-        summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
         summary.put("approvalKeySelectorHidden", Boolean.TRUE);
         summary.put("pendingListUsesSafeSelector", Boolean.TRUE);
@@ -3438,7 +3447,9 @@ public class DangerousCommandApprovalService {
         summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
         summary.put("alwaysApprovalListShowsCountOnly", Boolean.TRUE);
         summary.put("approvalCardDeliveryMode", DELIVERY_MODE_APPROVAL_CARD);
-        summary.put("approvalCardPlatforms", Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
+        summary.put(
+                "approvalCardPlatforms",
+                Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
         summary.put("approvalCardActionKey", CARD_ACTION_KEY);
         summary.put("approvalCardApproveAction", CARD_ACTION_APPROVE);
         summary.put("approvalCardDenyAction", CARD_ACTION_DENY);
@@ -3448,8 +3459,7 @@ public class DangerousCommandApprovalService {
         summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
         summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put(
-                "selectorPrefixMinLength",
-                Integer.valueOf(APPROVAL_SELECTOR_PREFIX_MIN_LENGTH));
+                "selectorPrefixMinLength", Integer.valueOf(APPROVAL_SELECTOR_PREFIX_MIN_LENGTH));
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("approverRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
@@ -3458,14 +3468,18 @@ public class DangerousCommandApprovalService {
         summary.put("observerEventsRedacted", Boolean.TRUE);
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
-        summary.put("description", "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes, hidden approval keys in list output, and redacted approval metadata.");
+        summary.put(
+                "description",
+                "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes, hidden approval keys in list output, and redacted approval metadata.");
         return summary;
     }
 
     public Map<String, Object> approvalCardPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("deliveryMode", DELIVERY_MODE_APPROVAL_CARD);
-        summary.put("supportedPlatforms", Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
+        summary.put(
+                "supportedPlatforms",
+                Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
         summary.put("unsupportedPlatformsReturnEmptyExtras", Boolean.TRUE);
         summary.put("actionKey", CARD_ACTION_KEY);
         summary.put("approveAction", CARD_ACTION_APPROVE);
@@ -3498,7 +3512,9 @@ public class DangerousCommandApprovalService {
         summary.put("encodedUrlParameterRedactedInExtras", Boolean.TRUE);
         summary.put("semicolonUrlParameterRedacted", Boolean.TRUE);
         summary.put("fragmentUrlParameterRedacted", Boolean.TRUE);
-        summary.put("description", "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, map card actions back to /approve or /deny commands with redacted previews, and expose localized card labels plus session-scope channel actions.");
+        summary.put(
+                "description",
+                "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, map card actions back to /approve or /deny commands with redacted previews, and expose localized card labels plus session-scope channel actions.");
         return summary;
     }
 
@@ -3508,7 +3524,12 @@ public class DangerousCommandApprovalService {
         summary.put("requestEvents", Boolean.TRUE);
         summary.put("responseEvents", Boolean.TRUE);
         summary.put("eventTypes", Arrays.asList("request", "response"));
-        summary.put("responseOutcomes", Arrays.asList(ApprovalResponseEvent.OUTCOME_APPROVED, ApprovalResponseEvent.OUTCOME_DENIED, ApprovalResponseEvent.OUTCOME_TIMED_OUT));
+        summary.put(
+                "responseOutcomes",
+                Arrays.asList(
+                        ApprovalResponseEvent.OUTCOME_APPROVED,
+                        ApprovalResponseEvent.OUTCOME_DENIED,
+                        ApprovalResponseEvent.OUTCOME_TIMED_OUT));
         summary.put("responseStatusDistinct", Boolean.TRUE);
         summary.put("repositoryBackedWhenConfigured", Boolean.TRUE);
         summary.put("observerFailureIsolated", Boolean.TRUE);
@@ -3522,7 +3543,9 @@ public class DangerousCommandApprovalService {
         summary.put("timestampsStored", Boolean.TRUE);
         summary.put("recentDashboardViewSupported", Boolean.TRUE);
         summary.put("manualRevocationAudited", Boolean.TRUE);
-        summary.put("description", "Approval request and response events can be persisted with redacted command previews, approvers, descriptions, pattern keys, command hashes, and approval timestamps.");
+        summary.put(
+                "description",
+                "Approval request and response events can be persisted with redacted command previews, approvers, descriptions, pattern keys, command hashes, and approval timestamps.");
         return summary;
     }
 
@@ -3546,14 +3569,15 @@ public class DangerousCommandApprovalService {
         summary.put("oauthUrlSafetyCovered", Boolean.TRUE);
         summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
         summary.put("reloadHistoryNoticeRedacted", Boolean.TRUE);
-        summary.put("description", "MCP reload can require slash confirmation, supports now/always overrides, persists the confirmation flag, and records tool-change notices for the next model turn.");
+        summary.put(
+                "description",
+                "MCP reload can require slash confirmation, supports now/always overrides, persists the confirmation flag, and records tool-change notices for the next model turn.");
         return summary;
     }
 
     public Map<String, Object> approvalLifecyclePolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
-        summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListPrunedBeforeRead", Boolean.TRUE);
         summary.put("selectorSupported", Boolean.TRUE);
         summary.put("listSupported", Boolean.TRUE);
@@ -3568,7 +3592,8 @@ public class DangerousCommandApprovalService {
         summary.put("sessionScopeStoresContextKey", CONTEXT_SESSION_APPROVALS);
         summary.put("alwaysScopeUsesGlobalSettings", Boolean.TRUE);
         summary.put("tirithAlwaysScopeDowngradedToSession", Boolean.TRUE);
-        summary.put("currentThreadApprovalTtlMillis", Long.valueOf(CURRENT_THREAD_APPROVAL_TTL_MILLIS));
+        summary.put(
+                "currentThreadApprovalTtlMillis", Long.valueOf(CURRENT_THREAD_APPROVAL_TTL_MILLIS));
         summary.put("currentThreadApprovalEnabled", Boolean.TRUE);
         summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
@@ -3582,7 +3607,9 @@ public class DangerousCommandApprovalService {
         summary.put("approvalKeyRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
-        summary.put("description", "Approval lifecycle stores queued approvals in session context, supports once/session/always scopes, downgrades scanner findings to session scope, updates snapshots, and emits redacted request/response events.");
+        summary.put(
+                "description",
+                "Approval lifecycle stores queued approvals in session context, supports once/session/always scopes, downgrades scanner findings to session scope, updates snapshots, and emits redacted request/response events.");
         return summary;
     }
 
@@ -3591,7 +3618,8 @@ public class DangerousCommandApprovalService {
         summary.put("backgroundShellWrappersBlocked", Arrays.asList("nohup", "disown", "setsid"));
         summary.put(
                 "detachedSessionLaunchersBlocked",
-                Arrays.asList("tmux new-session -d", "screen -dmS", "systemd-run", "cmd /c start /B"));
+                Arrays.asList(
+                        "tmux new-session -d", "screen -dmS", "systemd-run", "cmd /c start /B"));
         summary.put(
                 "powershellBackgroundCommandsBlocked",
                 Arrays.asList("Start-Process", "Start-Job", "Start-ThreadJob"));
@@ -3601,14 +3629,12 @@ public class DangerousCommandApprovalService {
         summary.put("inlineAmpersandBlocked", Boolean.TRUE);
         summary.put("trailingAmpersandBlocked", Boolean.TRUE);
         summary.put("longLivedForegroundBlocked", Boolean.TRUE);
-        summary.put("longLivedForegroundPatternCount", Integer.valueOf(LONG_LIVED_FOREGROUND_PATTERNS.size()));
+        summary.put(
+                "longLivedForegroundPatternCount",
+                Integer.valueOf(LONG_LIVED_FOREGROUND_PATTERNS.size()));
         summary.put(
                 "longLivedForegroundSamples",
-                Arrays.asList(
-                        "npm run dev",
-                        "docker compose up",
-                        "vite",
-                        "python -m http.server"));
+                Arrays.asList("npm run dev", "docker compose up", "vite", "python -m http.server"));
         summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
         summary.put(
                 "codeToolShellSources",
@@ -3630,8 +3656,12 @@ public class DangerousCommandApprovalService {
         summary.put("sudoPasswordRedacted", Boolean.TRUE);
         summary.put("foregroundMaxTimeoutSeconds", Integer.valueOf(maxForegroundTimeoutSeconds()));
         summary.put("foregroundMaxRetries", Integer.valueOf(foregroundMaxRetries()));
-        summary.put("foregroundRetryBaseDelaySeconds", Integer.valueOf(foregroundRetryBaseDelaySeconds()));
-        summary.put("description", "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, system DNS/proxy changes, hosts/resolver writes, download output or network upload source credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
+        summary.put(
+                "foregroundRetryBaseDelaySeconds",
+                Integer.valueOf(foregroundRetryBaseDelaySeconds()));
+        summary.put(
+                "description",
+                "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, system DNS/proxy changes, hosts/resolver writes, download output or network upload source credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
         return summary;
     }
 
@@ -3814,7 +3844,10 @@ public class DangerousCommandApprovalService {
     }
 
     private String evaluateAlias(
-            ReActTrace trace, String actualToolName, String canonicalToolName, Map<String, Object> args) {
+            ReActTrace trace,
+            String actualToolName,
+            String canonicalToolName,
+            Map<String, Object> args) {
         return evaluateCommand(trace, actualToolName, canonicalToolName, codeArg(args));
     }
 
@@ -3828,7 +3861,8 @@ public class DangerousCommandApprovalService {
                 trace, ToolNameConstants.TERMINAL, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
-    private String evaluateTerminalAlias(ReActTrace trace, String actualToolName, Map<String, Object> args) {
+    private String evaluateTerminalAlias(
+            ReActTrace trace, String actualToolName, Map<String, Object> args) {
         String command = commandLikeArg(args);
         return evaluateCommand(trace, actualToolName, ToolNameConstants.EXECUTE_SHELL, command);
     }
@@ -3997,11 +4031,7 @@ public class DangerousCommandApprovalService {
                 || ToolNameConstants.EXECUTE_JS.equals(normalized)) {
             result = evaluate(trace, normalized, toolArgs);
         } else if (ToolNameConstants.EXECUTE_CODE.equals(normalized)) {
-            result =
-                    evaluateCodeCommand(
-                            trace,
-                            ToolNameConstants.EXECUTE_CODE,
-                            codeArg(toolArgs));
+            result = evaluateCodeCommand(trace, ToolNameConstants.EXECUTE_CODE, codeArg(toolArgs));
         } else if (ToolNameConstants.TERMINAL.equals(normalized)) {
             result = evaluateTerminalTool(trace, toolArgs);
         } else if (ToolNameConstants.PROCESS.equals(normalized)) {
@@ -4108,7 +4138,9 @@ public class DangerousCommandApprovalService {
                 || "browser_close".equals(lower)) {
             return ToolNameConstants.BROWSER;
         }
-        if ("read_file".equals(lower) || "file-read".equals(lower) || "file_read_file".equals(lower)) {
+        if ("read_file".equals(lower)
+                || "file-read".equals(lower)
+                || "file_read_file".equals(lower)) {
             return ToolNameConstants.FILE_READ;
         }
         if ("write_file".equals(lower)
@@ -4229,8 +4261,7 @@ public class DangerousCommandApprovalService {
         message.append("\n工具：").append(toolLabel(toolName));
         message.append("\n原因：").append(parsedArgs.getMessage());
         if (StrUtil.isNotBlank(parsedArgs.getRawText())) {
-            message.append("\n参数预览：")
-                    .append(SecretRedactor.redact(parsedArgs.getRawText(), 400));
+            message.append("\n参数预览：").append(SecretRedactor.redact(parsedArgs.getRawText(), 400));
         }
         message.append("\n请把 tool_args 改为 JSON 对象后再重试。");
         trace.setFinalAnswer(message.toString());
@@ -4427,7 +4458,8 @@ public class DangerousCommandApprovalService {
         String description =
                 detection == null
                         ? "dangerous command"
-                        : StrUtil.blankToDefault(detection.getDescription(), detection.getPatternKey());
+                        : StrUtil.blankToDefault(
+                                detection.getDescription(), detection.getPatternKey());
         StringBuilder buffer = new StringBuilder();
         buffer.append("BLOCKED by smart approval: ")
                 .append(redactApprovalDisplay(description, 1000))
@@ -4438,11 +4470,14 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
-    private String buildStrictDeniedMessage(String toolName, DetectionResult detection, String code) {
+    private String buildStrictDeniedMessage(
+            String toolName, DetectionResult detection, String code) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("BLOCKED (strict): ");
-        buffer.append(redactApprovalDisplay(
-                detection == null ? "dangerous command" : detection.getDescription(), 1000));
+        buffer.append(
+                redactApprovalDisplay(
+                        detection == null ? "dangerous command" : detection.getDescription(),
+                        1000));
         buffer.append("。当前安全策略为 strict，命中可审批危险策略时不会进入人工审批。");
         buffer.append("\n工具：").append(toolLabel(toolName)).append("\n\n");
         buffer.append("```").append(codeFence(toolName)).append('\n');
@@ -4529,7 +4564,10 @@ public class DangerousCommandApprovalService {
 
         DetectionResult combined = new DetectionResult();
         combined.setPatternKeys(unique(keys));
-        combined.setPatternKey(combined.getPatternKeys().isEmpty() ? "tirith:security_scan" : combined.getPatternKeys().get(0));
+        combined.setPatternKey(
+                combined.getPatternKeys().isEmpty()
+                        ? "tirith:security_scan"
+                        : combined.getPatternKeys().get(0));
         combined.setDescription(joinDescriptions(descriptions));
         combined.setNormalizedCode(normalize(code));
         return combined;
@@ -4761,22 +4799,10 @@ public class DangerousCommandApprovalService {
     }
 
     private String configuredGuardrailMode() {
-        String legacyMode =
-                appConfig == null || appConfig.getApprovals() == null
-                        ? ""
-                        : appConfig.getApprovals().getMode();
-        if (StrUtil.isNotBlank(legacyMode)
-                && !"on".equalsIgnoreCase(legacyMode.trim())
-                && !"true".equalsIgnoreCase(legacyMode.trim())) {
-            return legacyMode.trim().toLowerCase(Locale.ROOT);
-        }
         String mode =
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailMode();
-        if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getApprovals() != null) {
-            mode = appConfig.getApprovals().getMode();
-        }
         return StrUtil.blankToDefault(mode, "approval").trim().toLowerCase(Locale.ROOT);
     }
 
@@ -4810,12 +4836,12 @@ public class DangerousCommandApprovalService {
                 : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();
     }
 
-    protected String jimuquYoloModeEnv() {
-        return System.getenv("JIMUQU_YOLO_MODE");
+    protected String solonClawYoloModeEnv() {
+        return System.getenv("SOLONCLAW_YOLO_MODE");
     }
 
     private boolean isCompatibilityYoloModeEnabled() {
-        String value = StrUtil.nullToEmpty(jimuquYoloModeEnv()).trim();
+        String value = StrUtil.nullToEmpty(solonClawYoloModeEnv()).trim();
         return "true".equalsIgnoreCase(value)
                 || "1".equals(value)
                 || "yes".equalsIgnoreCase(value)
@@ -4886,21 +4912,10 @@ public class DangerousCommandApprovalService {
     }
 
     public String cronApprovalMode() {
-        String legacyMode =
-                appConfig == null || appConfig.getApprovals() == null
-                        ? ""
-                        : appConfig.getApprovals().getCronMode();
-        if (StrUtil.isNotBlank(legacyMode)
-                && !"approval".equalsIgnoreCase(legacyMode.trim())) {
-            return normalizeCronApprovalMode(legacyMode);
-        }
         String mode =
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailCronMode();
-        if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getScheduler() != null) {
-            mode = appConfig.getScheduler().getCronApprovalMode();
-        }
         return normalizeCronApprovalMode(mode);
     }
 
@@ -5163,16 +5178,6 @@ public class DangerousCommandApprovalService {
             queue = ((Map<?, ?>) vars).get(CONTEXT_PENDING_APPROVAL_QUEUE);
         }
         pending.addAll(toPendingApprovalList(queue));
-        if (pending.isEmpty()) {
-            Object legacy = contextValue(context, CONTEXT_PENDING_APPROVAL);
-            if (legacy == null && vars instanceof Map) {
-                legacy = ((Map<?, ?>) vars).get(CONTEXT_PENDING_APPROVAL);
-            }
-            PendingApproval legacyPending = toPendingApproval(legacy);
-            if (legacyPending != null) {
-                pending.add(legacyPending);
-            }
-        }
         return pending;
     }
 
@@ -5248,7 +5253,9 @@ public class DangerousCommandApprovalService {
         StringBuilder buffer = new StringBuilder();
         buffer.append("⚠️ 危险命令需要审批：\n");
         buffer.append("工具：").append(toolLabel(toolName)).append('\n');
-        buffer.append("原因：").append(redactApprovalDisplay(detection.getDescription(), 1000)).append("\n\n");
+        buffer.append("原因：")
+                .append(redactApprovalDisplay(detection.getDescription(), 1000))
+                .append("\n\n");
         buffer.append("```").append(codeFence(toolName)).append('\n');
         buffer.append(redactApprovalDisplay(trimPreview(code), 2000));
         buffer.append("\n```\n\n");
@@ -5421,7 +5428,8 @@ public class DangerousCommandApprovalService {
         if (approvals == null || StrUtil.isBlank(patternKey)) {
             return false;
         }
-        return containsApprovalForPattern(approvals, Collections.<String>emptySet(), "", patternKey);
+        return containsApprovalForPattern(
+                approvals, Collections.<String>emptySet(), "", patternKey);
     }
 
     private boolean containsApprovalForPattern(
@@ -5947,7 +5955,8 @@ public class DangerousCommandApprovalService {
         }
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+            boolean hex =
+                    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
             if (!hex) {
                 return false;
             }
@@ -5962,7 +5971,8 @@ public class DangerousCommandApprovalService {
     private static String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
+            byte[] hash =
+                    digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder();
             for (byte item : hash) {
                 String hex = Integer.toHexString(item & 0xff);
@@ -6340,8 +6350,7 @@ public class DangerousCommandApprovalService {
         private final PendingApproval redactedPendingApproval;
 
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
-            this.sessionId =
-                    SecretRedactor.redact(StrUtil.nullToEmpty(sessionId), 200);
+            this.sessionId = SecretRedactor.redact(StrUtil.nullToEmpty(sessionId), 200);
             this.pendingApproval = pendingApproval;
             this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
         }

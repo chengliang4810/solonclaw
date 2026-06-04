@@ -13,8 +13,7 @@ public class TerminalMarkdownRendererTest {
     void shouldRenderMarkdownLinesForTerminal() {
         TerminalMarkdownRenderer renderer = new TerminalMarkdownRenderer();
 
-        String rendered =
-                renderer.render("# 标题\n- 项目\n1. 步骤\n> 引用\n```java\nint x = 1;\n```\n");
+        String rendered = renderer.render("# 标题\n- 项目\n1. 步骤\n> 引用\n```java\nint x = 1;\n```\n");
 
         assertThat(rendered)
                 .contains("\u001B[1m\u001B[36m标题\u001B[0m")

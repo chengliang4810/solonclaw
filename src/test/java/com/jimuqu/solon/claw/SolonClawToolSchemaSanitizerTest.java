@@ -2,13 +2,13 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.tool.FunctionTool;
 
 public class SolonClawToolSchemaSanitizerTest {
     @Test
@@ -374,8 +374,7 @@ public class SolonClawToolSchemaSanitizerTest {
         SolonClawToolSchemaSanitizer.StripResult second =
                 SolonClawToolSchemaSanitizer.stripPatternAndFormat(first.getSchema());
         ONode stripped = ONode.ofJson(ONode.serialize(first.getSchema()));
-        ONode strippedVariant =
-                stripped.get("properties").get("value").get("anyOf").get(0);
+        ONode strippedVariant = stripped.get("properties").get("value").get("anyOf").get(0);
 
         assertThat(first.getStrippedCount()).isEqualTo(2);
         assertThat(second.getStrippedCount()).isZero();

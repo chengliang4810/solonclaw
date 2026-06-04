@@ -28,7 +28,9 @@ public final class MediaDirectiveSupport {
             }
             ParsedMediaPath parsed = parsePath(value, matcher.end());
             if (parsed != null && StrUtil.isNotBlank(parsed.path)) {
-                refs.add(new MediaDirective(value.substring(matcher.start(), parsed.tokenEnd), parsed.path));
+                refs.add(
+                        new MediaDirective(
+                                value.substring(matcher.start(), parsed.tokenEnd), parsed.path));
             }
         }
         return refs;
@@ -94,7 +96,8 @@ public final class MediaDirectiveSupport {
     }
 
     private static boolean isTrailingPathPunctuation(char c) {
-        return c == '"' || c == '\'' || c == ',' || c == ';' || c == ':' || c == ')' || c == '}' || c == ']';
+        return c == '"' || c == '\'' || c == ',' || c == ';' || c == ':' || c == ')' || c == '}'
+                || c == ']';
     }
 
     private static boolean insideMarkdownCode(String text, int index) {

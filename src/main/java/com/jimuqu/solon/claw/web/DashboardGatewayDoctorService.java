@@ -29,8 +29,7 @@ public class DashboardGatewayDoctorService {
     private static final Set<String> GENERIC_API_KEY_HEALTH_CHECK_DIALECTS =
             new HashSet<String>(
                     Arrays.asList(
-                            LlmConstants.PROVIDER_OPENAI,
-                            LlmConstants.PROVIDER_OPENAI_RESPONSES));
+                            LlmConstants.PROVIDER_OPENAI, LlmConstants.PROVIDER_OPENAI_RESPONSES));
     private static final Set<String> DEDICATED_HEALTH_CHECK_DIALECTS =
             new HashSet<String>(
                     Arrays.asList(LlmConstants.PROVIDER_GEMINI, LlmConstants.PROVIDER_ANTHROPIC));
@@ -153,14 +152,7 @@ public class DashboardGatewayDoctorService {
             }
             String code = safeObjectText(check.get("code"), 120);
             String message = safeObjectText(check.get("message"), 800);
-            addIssue(
-                    issues,
-                    "warning",
-                    "model",
-                    code,
-                    "model",
-                    message,
-                    modelNextAction(code));
+            addIssue(issues, "warning", "model", code, "model", message, modelNextAction(code));
         }
     }
 
@@ -229,8 +221,7 @@ public class DashboardGatewayDoctorService {
         }
     }
 
-    private void addShutdownIssues(
-            List<Map<String, Object>> issues, Map<String, Object> shutdown) {
+    private void addShutdownIssues(List<Map<String, Object>> issues, Map<String, Object> shutdown) {
         if (shutdown == null || !Boolean.TRUE.equals(shutdown.get("available"))) {
             return;
         }
@@ -315,7 +306,8 @@ public class DashboardGatewayDoctorService {
         return "修复模型 doctor 检查失败项：" + code + "。";
     }
 
-    private String platformMessage(String platformName, String lastError, String lastReconnectError) {
+    private String platformMessage(
+            String platformName, String lastError, String lastReconnectError) {
         String detail = StrUtil.isNotBlank(lastError) ? lastError : lastReconnectError;
         if (StrUtil.isBlank(detail)) {
             return platformName + " 渠道最近一次连接失败。";
@@ -438,7 +430,8 @@ public class DashboardGatewayDoctorService {
 
     private Map<String, Object> configDoctor() {
         Map<String, Object> config =
-                RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).diagnostics(appConfig);
+                RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome())
+                        .diagnostics(appConfig);
         if (gatewayRuntimeRefreshService != null) {
             config.put("last_refresh_failure", gatewayRuntimeRefreshService.lastFailureSnapshot());
         }
@@ -506,7 +499,9 @@ public class DashboardGatewayDoctorService {
         item.put("reconnect_attempt", Integer.valueOf(status.getReconnectAttempt()));
         item.put("last_reconnect_at", Long.valueOf(status.getLastReconnectAt()));
         item.put("next_reconnect_at", Long.valueOf(status.getNextReconnectAt()));
-        item.put("last_reconnect_error", SecretRedactor.redact(status.getLastReconnectError(), 1000));
+        item.put(
+                "last_reconnect_error",
+                SecretRedactor.redact(status.getLastReconnectError(), 1000));
         item.put("next_step", nextStep(status));
         return item;
     }
@@ -617,7 +612,8 @@ public class DashboardGatewayDoctorService {
 
     private Map<String, Object> healthCheckSummary(AppConfig.ProviderConfig provider) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        String dialect = provider == null ? "" : LlmProviderSupport.normalizeDialect(provider.getDialect());
+        String dialect =
+                provider == null ? "" : LlmProviderSupport.normalizeDialect(provider.getDialect());
         String mode = "unavailable";
         String reason = "provider is missing";
         boolean genericBearer = false;
@@ -631,7 +627,8 @@ public class DashboardGatewayDoctorService {
                 skipped = false;
             } else if (DEDICATED_HEALTH_CHECK_DIALECTS.contains(dialect)) {
                 mode = "dedicated";
-                reason = "dedicated provider protocol is used; skip generic Bearer model-list check";
+                reason =
+                        "dedicated provider protocol is used; skip generic Bearer model-list check";
                 dedicated = true;
             } else if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
                 mode = "local_runtime";
@@ -679,25 +676,16 @@ public class DashboardGatewayDoctorService {
                 continue;
             }
             if (!providers.containsKey(provider)) {
-                checks.add(
-                        checkItem(
-                                false,
-                                "fallback_missing",
-                                label + " 引用了不存在的 provider。"));
+                checks.add(checkItem(false, "fallback_missing", label + " 引用了不存在的 provider。"));
             }
             if (!seen.add(provider)) {
                 checks.add(
                         checkItem(
-                                false,
-                                "fallback_duplicate",
-                                label + " 与前序 fallback provider 重复。"));
+                                false, "fallback_duplicate", label + " 与前序 fallback provider 重复。"));
             }
             if (StrUtil.equals(provider, primaryKey)) {
                 checks.add(
-                        checkItem(
-                                false,
-                                "fallback_matches_primary",
-                                label + " 与当前主 provider 相同。"));
+                        checkItem(false, "fallback_matches_primary", label + " 与当前主 provider 相同。"));
             }
             if (providers.containsKey(provider)
                     && seen.contains(provider)
@@ -705,7 +693,8 @@ public class DashboardGatewayDoctorService {
                 String model =
                         StrUtil.isNotBlank(fallback.getModel())
                                 ? fallback.getModel().trim()
-                                : StrUtil.nullToEmpty(providers.get(provider).getDefaultModel()).trim();
+                                : StrUtil.nullToEmpty(providers.get(provider).getDefaultModel())
+                                        .trim();
                 if (StrUtil.isBlank(model)) {
                     model = StrUtil.nullToEmpty(appConfig.getModel().getDefault()).trim();
                 }

@@ -106,7 +106,8 @@ public class DashboardAgentController {
             if (node.toData() instanceof Map) {
                 return ONode.deserialize(node.toJson(), LinkedHashMap.class);
             }
-            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+            throw new IllegalArgumentException(
+                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {

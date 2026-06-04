@@ -84,7 +84,9 @@ public class PendingSessionRecoveryService {
             long pendingMarkedAt = agentSession.getPendingMarkedAt();
             GatewayReply reply =
                     conversationOrchestrator.resumePending(
-                            session.getSourceKey(), session.getSessionId(), ConversationEventSink.noop());
+                            session.getSourceKey(),
+                            session.getSessionId(),
+                            ConversationEventSink.noop());
             if (reply != null && !reply.isError()) {
                 log.info(
                         "auto-resumed pending session: sourceKey={}, sessionId={}, reason={}, markedAt={}",

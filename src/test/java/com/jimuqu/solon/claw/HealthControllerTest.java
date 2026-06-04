@@ -31,7 +31,13 @@ public class HealthControllerTest {
                 .containsEntry("ok", Boolean.TRUE)
                 .containsEntry("status", "ok")
                 .containsEntry("platform", "solon-claw")
-                .containsKeys("gateway_state", "platforms", "active_agents", "pid", "updated_at", "gateway");
+                .containsKeys(
+                        "gateway_state",
+                        "platforms",
+                        "active_agents",
+                        "pid",
+                        "updated_at",
+                        "gateway");
         assertThat(response.get("service")).isInstanceOf(Map.class);
         assertThat(response.get("runtime")).isInstanceOf(Map.class);
         assertThat(response.get("gateway_state")).isNull();
@@ -51,9 +57,7 @@ public class HealthControllerTest {
                 (Map<String, Object>) response.get("runtime_capabilities");
         Map<String, Object> runtimeStatus = (Map<String, Object>) response.get("runtime_status");
 
-        assertThat(service)
-                .containsEntry("name", "solon-claw")
-                .containsEntry("status", "up");
+        assertThat(service).containsEntry("name", "solon-claw").containsEntry("status", "up");
         assertThat(runtime)
                 .containsKeys("startedAtEpochMs", "currentTimeEpochMs", "uptimeMs", "uptimeSeconds")
                 .containsEntry("pid", response.get("pid"))

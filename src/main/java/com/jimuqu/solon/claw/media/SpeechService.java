@@ -34,9 +34,7 @@ public class SpeechService {
                         ? new AttachmentCacheService(appConfig)
                         : attachmentCacheService;
         this.speechProviders =
-                speechProviders == null
-                        ? Collections.<SpeechProvider>emptyList()
-                        : speechProviders;
+                speechProviders == null ? Collections.<SpeechProvider>emptyList() : speechProviders;
         this.transcriptionProviders =
                 transcriptionProviders == null
                         ? Collections.<TranscriptionProvider>emptyList()
@@ -81,7 +79,10 @@ public class SpeechService {
             Map<String, Object> usage = mergeUsage(result.getMediaUsage());
             usage.put("audioOutputBytes", Long.valueOf(audio.length));
             return SpeechOutcome.ok(
-                    attachment, attachmentCacheService.mediaReference(attachment), provider.name(), usage);
+                    attachment,
+                    attachmentCacheService.mediaReference(attachment),
+                    provider.name(),
+                    usage);
         } catch (Exception e) {
             return SpeechOutcome.fail(safeError(e.getMessage()));
         }
@@ -178,7 +179,8 @@ public class SpeechService {
     }
 
     private String safeError(String value) {
-        return SecretRedactor.redact(StrUtil.blankToDefault(value, "Speech operation failed"), 1000);
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(value, "Speech operation failed"), 1000);
     }
 
     public static class SpeechOutcome {

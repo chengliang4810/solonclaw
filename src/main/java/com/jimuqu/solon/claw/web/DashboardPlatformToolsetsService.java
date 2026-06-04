@@ -116,9 +116,7 @@ public class DashboardPlatformToolsetsService {
             return ((Boolean) raw).booleanValue();
         }
         String value = StrUtil.nullToEmpty(raw == null ? null : String.valueOf(raw)).trim();
-        return "true".equalsIgnoreCase(value)
-                || "1".equals(value)
-                || "yes".equalsIgnoreCase(value);
+        return "true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value);
     }
 
     private List<String> copyList(List<String> values) {

@@ -69,7 +69,11 @@ public class TerminalMarkdownRenderer {
         }
         int orderedPrefix = orderedListPrefixLength(trimmed);
         if (orderedPrefix > 0) {
-            return YELLOW + trimmed.substring(0, orderedPrefix) + RESET + trimmed.substring(orderedPrefix).trim() + newline;
+            return YELLOW
+                    + trimmed.substring(0, orderedPrefix)
+                    + RESET
+                    + trimmed.substring(orderedPrefix).trim()
+                    + newline;
         }
         return body + newline;
     }

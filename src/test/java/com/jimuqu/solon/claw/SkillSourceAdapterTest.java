@@ -7,9 +7,9 @@ import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.skillhub.source.ClaudeMarketplaceSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.ClawHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.GitHubSkillSource;
-import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.LobeHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillsShSkillSource;
+import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.WellKnownSkillSource;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
@@ -182,7 +182,7 @@ public class SkillSourceAdapterTest {
     }
 
     @Test
-    void shouldResolveLobeHubAndjimuquIndexFixtures() throws Exception {
+    void shouldResolveLobeHubAndSolonClawIndexFixtures() throws Exception {
         FixtureSkillHubHttpClient http =
                 new FixtureSkillHubHttpClient()
                         .onText(
@@ -192,7 +192,7 @@ public class SkillSourceAdapterTest {
                                 "https://chat-agents.lobehub.com/demo-agent.json",
                                 "{\"identifier\":\"demo-agent\",\"meta\":{\"title\":\"Demo Agent\",\"description\":\"agent desc\",\"tags\":[\"assist\"]},\"config\":{\"systemRole\":\"Help the user\"}}")
                         .onText(
-                                "https://jimuqu-agent.local/docs/api/skills-index.json",
+                                "https://solon-claw.local/docs/api/skills-index.json",
                                 "{\"skills\":[{\"name\":\"hub-skill\",\"description\":\"hub desc\",\"source\":\"github\",\"identifier\":\"github/openai/skills/skills/hub-skill\",\"trust_level\":\"trusted\",\"resolved_github_id\":\"openai/skills/skills/hub-skill\",\"tags\":[\"hub\"]}]}")
                         .onText(
                                 "https://api.github.com/repos/openai/skills/contents/skills/hub-skill/SKILL.md",
@@ -204,10 +204,10 @@ public class SkillSourceAdapterTest {
         SkillHubStateStore stateStore = newStateStore();
         GitHubSkillSource github = new GitHubSkillSource(new GitHubAuth(http), http, stateStore);
         LobeHubSkillSource lobeHub = new LobeHubSkillSource(http, stateStore);
-        SolonClawIndexSource jimuquIndex = new SolonClawIndexSource(http, stateStore, github);
+        SolonClawIndexSource solonClawIndex = new SolonClawIndexSource(http, stateStore, github);
 
         SkillBundle lobeBundle = lobeHub.fetch("lobehub/demo-agent");
-        SkillBundle indexBundle = jimuquIndex.fetch("github/openai/skills/skills/hub-skill");
+        SkillBundle indexBundle = solonClawIndex.fetch("github/openai/skills/skills/hub-skill");
 
         assertThat(lobeBundle.getFiles().get("SKILL.md"))
                 .contains("## Instructions")

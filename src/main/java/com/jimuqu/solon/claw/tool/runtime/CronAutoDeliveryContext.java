@@ -19,7 +19,8 @@ public final class CronAutoDeliveryContext {
             return;
         }
         CURRENT.set(
-                Collections.singletonList(new Target(platform, chatId.trim(), normalizeBlank(threadId))));
+                Collections.singletonList(
+                        new Target(platform, chatId.trim(), normalizeBlank(threadId))));
     }
 
     public static void setAll(List<Target> targets) {

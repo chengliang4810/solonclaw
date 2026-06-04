@@ -55,12 +55,12 @@ public final class MessageAttachmentSupport {
             buffer.append("\n- kind=").append(kind);
             buffer.append(", originalName=")
                     .append(safeAttachmentName(attachment.getOriginalName()));
-            buffer.append(", mimeType=")
-                    .append(safeInline(attachment.getMimeType()));
+            buffer.append(", mimeType=").append(safeInline(attachment.getMimeType()));
             buffer.append(", localPath=")
                     .append(safeAttachmentPath(attachment.getLocalPath(), true));
             buffer.append(", fromQuote=").append(attachment.isFromQuote());
-            buffer.append(", sizeBytes=").append(insight.sizeBytes < 0 ? "unknown" : String.valueOf(insight.sizeBytes));
+            buffer.append(", sizeBytes=")
+                    .append(insight.sizeBytes < 0 ? "unknown" : String.valueOf(insight.sizeBytes));
             buffer.append(", estimatedTokens=").append(insight.estimatedTokens);
             buffer.append(", availability=").append(insight.availability);
             buffer.append(", payloadMode=").append(insight.payloadMode);
@@ -99,7 +99,8 @@ public final class MessageAttachmentSupport {
         return inspect(attachment, 0).signal;
     }
 
-    public static boolean canSendAsVisionPayload(MessageAttachment attachment, boolean providerSupportsVision) {
+    public static boolean canSendAsVisionPayload(
+            MessageAttachment attachment, boolean providerSupportsVision) {
         AttachmentInsight insight = inspect(attachment, 0);
         return providerSupportsVision && insight.visionCandidate;
     }
@@ -158,9 +159,10 @@ public final class MessageAttachmentSupport {
 
     private static AttachmentInsight inspect(MessageAttachment attachment, int acceptedImageCount) {
         String kind = normalizedKind(attachment);
-        String mime = StrUtil.nullToEmpty(attachment == null ? null : attachment.getMimeType())
-                .trim()
-                .toLowerCase(Locale.ROOT);
+        String mime =
+                StrUtil.nullToEmpty(attachment == null ? null : attachment.getMimeType())
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
         long sizeBytes = attachmentSizeBytes(attachment);
         int estimatedTokens = estimateTokens(kind, sizeBytes, attachment);
         String availability = "metadata_only";
@@ -220,12 +222,20 @@ public final class MessageAttachmentSupport {
     }
 
     private static int estimateTokens(String kind, long sizeBytes, MessageAttachment attachment) {
-        long sizeTokens = sizeBytes <= 0 ? 0 : (sizeBytes + BYTES_PER_ESTIMATED_TOKEN - 1L) / BYTES_PER_ESTIMATED_TOKEN;
+        long sizeTokens =
+                sizeBytes <= 0
+                        ? 0
+                        : (sizeBytes + BYTES_PER_ESTIMATED_TOKEN - 1L) / BYTES_PER_ESTIMATED_TOKEN;
         int tokens;
         if ("image".equals(kind)) {
             tokens = IMAGE_ESTIMATED_TOKENS;
         } else if ("voice".equals(kind)) {
-            tokens = Math.max(VOICE_TRANSCRIPT_MIN_TOKENS, safeInline(attachment == null ? null : attachment.getTranscribedText()).length() / 2);
+            tokens =
+                    Math.max(
+                            VOICE_TRANSCRIPT_MIN_TOKENS,
+                            safeInline(attachment == null ? null : attachment.getTranscribedText())
+                                            .length()
+                                    / 2);
         } else if ("video".equals(kind)) {
             tokens = VIDEO_METADATA_MIN_TOKENS;
         } else {
@@ -266,9 +276,10 @@ public final class MessageAttachmentSupport {
     }
 
     private static String normalizedKind(MessageAttachment attachment) {
-        String kind = StrUtil.nullToEmpty(attachment == null ? null : attachment.getKind())
-                .trim()
-                .toLowerCase(Locale.ROOT);
+        String kind =
+                StrUtil.nullToEmpty(attachment == null ? null : attachment.getKind())
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
         return StrUtil.blankToDefault(kind, "file");
     }
 
@@ -375,7 +386,9 @@ public final class MessageAttachmentSupport {
         String lower = StrUtil.nullToEmpty(normalizedPath).toLowerCase(Locale.ROOT);
         // Match path segments that look like token=value or key=value
         for (String segment : lower.split("/")) {
-            if (segment.contains("token=") || segment.contains("key=") || segment.contains("secret=")) {
+            if (segment.contains("token=")
+                    || segment.contains("key=")
+                    || segment.contains("secret=")) {
                 return true;
             }
         }
