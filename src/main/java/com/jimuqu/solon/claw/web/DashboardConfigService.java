@@ -427,6 +427,12 @@ public class DashboardConfigService {
                 new FieldDefinition(
                         "security.tirithFailOpen", "boolean", "security", "Tirith 不可用时放行"));
         addField(
+                new FieldDefinition("security.fileGuardrailMode", "select", "security", "文件安全预检模式")
+                        .options("strict", "bypass"));
+        addField(
+                new FieldDefinition("security.urlGuardrailMode", "select", "security", "URL 安全预检模式")
+                        .options("strict", "bypass"));
+        addField(
                 new FieldDefinition("security.guardrailMode", "select", "security", "危险命令审批模式")
                         .options("approval", "strict", "bypass", "smart"));
         addField(

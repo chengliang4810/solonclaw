@@ -107,6 +107,8 @@ public class RuntimeSettingsService {
                     "security.tirithPath",
                     "security.tirithTimeoutSeconds",
                     "security.tirithFailOpen",
+                    "security.fileGuardrailMode",
+                    "security.urlGuardrailMode",
                     "security.websiteBlocklist.enabled",
                     "security.websiteBlocklist.domains",
                     "security.websiteBlocklist.sharedFiles",

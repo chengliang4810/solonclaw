@@ -4676,12 +4676,18 @@ public class DangerousCommandApprovalService {
         if (securityPolicyService == null) {
             return null;
         }
+        if (!SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
+            return null;
+        }
         SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkCommandPaths(code);
         return verdict.isAllowed() ? null : verdict;
     }
 
     private SecurityPolicyService.UrlVerdict detectUnsafeCommandUrl(String code) {
         if (securityPolicyService == null) {
+            return null;
+        }
+        if (!SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
             return null;
         }
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkCommandUrls(code);

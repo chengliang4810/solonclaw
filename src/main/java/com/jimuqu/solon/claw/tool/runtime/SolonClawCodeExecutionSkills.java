@@ -60,8 +60,10 @@ public class SolonClawCodeExecutionSkills {
         summary.put("executeJsSupported", Boolean.TRUE);
         summary.put("solonAiSysSkillsWrapped", Boolean.TRUE);
         summary.put("workdirTextValidated", Boolean.TRUE);
-        summary.put("scriptPreflightPathPolicy", Boolean.TRUE);
-        summary.put("scriptPreflightUrlPolicy", Boolean.TRUE);
+        summary.put("scriptPreflightPathPolicy", Boolean.valueOf(isFileGuardrailEnabled(appConfig)));
+        summary.put("scriptPreflightUrlPolicy", Boolean.valueOf(isUrlGuardrailEnabled(appConfig)));
+        summary.put("fileGuardrailMode", fileGuardrailMode(appConfig));
+        summary.put("urlGuardrailMode", urlGuardrailMode(appConfig));
         summary.put("dangerousCommandRulesApplied", Boolean.TRUE);
         summary.put("hardlineRulesApplied", Boolean.TRUE);
         summary.put("foregroundBackgroundGuardrail", Boolean.TRUE);
@@ -1082,16 +1084,21 @@ public class SolonClawCodeExecutionSkills {
             SecurityPolicyService securityPolicyService,
             boolean rejectForegroundPatterns) {
         if (securityPolicyService != null) {
-            SecurityPolicyService.FileVerdict fileVerdict =
-                    securityPolicyService.checkCommandPaths(code);
-            if (!fileVerdict.isAllowed()) {
-                throw new IllegalArgumentException(
-                        blockedFileMessage(approvalToolName, fileVerdict));
+            AppConfig appConfig = appConfigFrom(securityPolicyService);
+            if (isFileGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.FileVerdict fileVerdict =
+                        securityPolicyService.checkCommandPaths(code);
+                if (!fileVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(
+                            blockedFileMessage(approvalToolName, fileVerdict));
+                }
             }
-            SecurityPolicyService.UrlVerdict urlVerdict =
-                    securityPolicyService.checkCommandUrls(code);
-            if (!urlVerdict.isAllowed()) {
-                throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
+            if (isUrlGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.UrlVerdict urlVerdict =
+                        securityPolicyService.checkCommandUrls(code);
+                if (!urlVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
+                }
             }
         }
 
@@ -1110,6 +1117,9 @@ public class SolonClawCodeExecutionSkills {
                 throw new IllegalArgumentException(foregroundGuidance);
             }
         }
+        if (isSoftDangerousRuleBypassEnabled(approvalService)) {
+            return;
+        }
         DangerousCommandApprovalService.DetectionResult dangerous =
                 approvalService.detect(ruleToolName, code);
         if (dangerous != null) {
@@ -1126,16 +1136,21 @@ public class SolonClawCodeExecutionSkills {
             String code, SecurityPolicyService securityPolicyService) {
         String scriptForPreflight = stripManagedFileToolPathLiterals(code);
         if (securityPolicyService != null) {
-            SecurityPolicyService.FileVerdict fileVerdict =
-                    securityPolicyService.checkCommandPaths(scriptForPreflight);
-            if (!fileVerdict.isAllowed()) {
-                throw new IllegalArgumentException(
-                        blockedFileMessage(ToolNameConstants.EXECUTE_CODE, fileVerdict));
+            AppConfig appConfig = appConfigFrom(securityPolicyService);
+            if (isFileGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.FileVerdict fileVerdict =
+                        securityPolicyService.checkCommandPaths(scriptForPreflight);
+                if (!fileVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(
+                            blockedFileMessage(ToolNameConstants.EXECUTE_CODE, fileVerdict));
+                }
             }
-            SecurityPolicyService.UrlVerdict urlVerdict =
-                    securityPolicyService.checkCommandUrls(code);
-            if (!urlVerdict.isAllowed()) {
-                throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
+            if (isUrlGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.UrlVerdict urlVerdict =
+                        securityPolicyService.checkCommandUrls(code);
+                if (!urlVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
+                }
             }
         }
 
@@ -1153,6 +1168,9 @@ public class SolonClawCodeExecutionSkills {
                         ToolNameConstants.EXECUTE_PYTHON, code);
         if (foregroundGuidance != null) {
             throw new IllegalArgumentException(foregroundGuidance);
+        }
+        if (isSoftDangerousRuleBypassEnabled(approvalService)) {
+            return;
         }
         DangerousCommandApprovalService.DetectionResult dangerous =
                 approvalService.detect(ToolNameConstants.EXECUTE_PYTHON, code);
@@ -1216,6 +1234,12 @@ public class SolonClawCodeExecutionSkills {
                 + "。直接执行入口没有审批上下文，请改用可审批的 Agent 工具调用流程或拆成更安全的操作。";
     }
 
+    /** 判断全局工具安全策略是否允许跳过可审批危险规则；hardline 和前台保护仍在此前执行。 */
+    private static boolean isSoftDangerousRuleBypassEnabled(
+            DangerousCommandApprovalService approvalService) {
+        return approvalService != null && "off".equals(approvalService.approvalMode());
+    }
+
     private static String readProcessText(java.io.InputStream inputStream, int maxChars) {
         try {
             InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
@@ -1265,5 +1289,33 @@ public class SolonClawCodeExecutionSkills {
 
     private static AppConfig appConfigFrom(SecurityPolicyService securityPolicyService) {
         return securityPolicyService == null ? null : securityPolicyService.getAppConfig();
+    }
+
+    /** 判断文件路径预检是否启用；默认 strict，只有显式 bypass 才跳过。 */
+    static boolean isFileGuardrailEnabled(AppConfig appConfig) {
+        return !"bypass".equals(fileGuardrailMode(appConfig));
+    }
+
+    /** 判断 URL 预检是否启用；默认 strict，只有显式 bypass 才跳过。 */
+    static boolean isUrlGuardrailEnabled(AppConfig appConfig) {
+        return !"bypass".equals(urlGuardrailMode(appConfig));
+    }
+
+    /** 获取文件路径预检模式，避免空配置时改变默认安全行为。 */
+    private static String fileGuardrailMode(AppConfig appConfig) {
+        return appConfig == null || appConfig.getSecurity() == null
+                ? "strict"
+                : StrUtil.blankToDefault(appConfig.getSecurity().getFileGuardrailMode(), "strict")
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
+    }
+
+    /** 获取 URL 预检模式，避免空配置时改变默认安全行为。 */
+    private static String urlGuardrailMode(AppConfig appConfig) {
+        return appConfig == null || appConfig.getSecurity() == null
+                ? "strict"
+                : StrUtil.blankToDefault(appConfig.getSecurity().getUrlGuardrailMode(), "strict")
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
     }
 }

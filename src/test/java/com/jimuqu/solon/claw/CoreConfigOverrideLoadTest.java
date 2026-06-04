@@ -103,6 +103,8 @@ public class CoreConfigOverrideLoadTest {
                         + "  gatewayTimeoutSeconds: 120\n"
                         + "  mcpReloadConfirm: false\n"
                         + "security:\n"
+                        + "  fileGuardrailMode: bypass\n"
+                        + "  urlGuardrailMode: bypass\n"
                         + "  guardrailMode: bypass\n"
                         + "  guardrailCronMode: approve\n"
                         + "  guardrailCronScope: global\n"
@@ -171,6 +173,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
                 .containsExactly("shared-blocklist.txt");
         assertThat(config.getApprovals().isMcpReloadConfirm()).isFalse();
+        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approve");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("global");
@@ -253,7 +257,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().getBrowserLoopbackHostAlias())
                 .isEqualTo("host.docker.internal");
         assertThat(config.getWeb().getSearchBackend()).isEqualTo("solon-ai");
-        assertThat(config.getApprovals().getMode()).isEqualTo("on");
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
     }
 
     @Test
@@ -515,7 +519,24 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getApprovals().getMode()).isEqualTo("on");
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+    }
+
+    @Test
+    void shouldDefaultGuardrailModesToBypass() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-defaults").toFile();
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("bypass");
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
     }
 
     @Test
@@ -578,8 +599,8 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getApprovals().getMode()).isEqualTo("on");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
         assertThat(config.getApprovals().isSubagentAutoApprove()).isFalse();
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
@@ -606,8 +627,8 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getApprovals().getMode()).isEqualTo("on");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
         assertThat(config.getApprovals().isSubagentAutoApprove()).isFalse();
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);

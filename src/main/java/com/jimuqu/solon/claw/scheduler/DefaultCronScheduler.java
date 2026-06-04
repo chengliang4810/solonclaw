@@ -568,6 +568,7 @@ public class DefaultCronScheduler {
                         new GatewayMessage(
                                 PlatformType.fromName(parts[0]), parts[1], parts[2], prompt);
                 synthetic.setThreadId(parts[3]);
+                synthetic.setSourceKeyOverride(cronExecutionSourceKey(job));
                 String override = modelOverride(job);
                 if (StrUtil.isNotBlank(override)) {
                     synthetic.setModelOverride(override);
@@ -681,6 +682,19 @@ public class DefaultCronScheduler {
             return "scheduled";
         }
         return job.getPendingTriggerType();
+    }
+
+    /** 构建定时任务专用执行来源键，避免复用用户主会话历史导致旧工具结果污染。 */
+    private String cronExecutionSourceKey(CronJobRecord job) {
+        return "CRON:" + safeJobId(job);
+    }
+
+    /** 取出可用于内部来源键的任务 ID，异常记录缺失 ID 时给出稳定兜底值。 */
+    private String safeJobId(CronJobRecord job) {
+        if (job == null || StrUtil.isBlank(job.getJobId())) {
+            return "unknown";
+        }
+        return job.getJobId().trim();
     }
 
     private String silentCronOutput(CronJobRecord job, String reason) {

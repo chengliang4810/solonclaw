@@ -387,6 +387,8 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "solonclaw.agent.personalities.");
         addDynamicPrefix(prefixes, "solonclaw.channels.wecom.groups.");
         addDynamicPrefix(prefixes, "solonclaw.scheduler.enabledToolsets");
+        addDynamicPrefix(prefixes, "security.fileGuardrailMode");
+        addDynamicPrefix(prefixes, "security.urlGuardrailMode");
         addDynamicPrefix(prefixes, "security.guardrailMode");
         addDynamicPrefix(prefixes, "security.guardrailCronMode");
         addDynamicPrefix(prefixes, "security.guardrailCronScope");
@@ -781,6 +783,8 @@ public class RuntimeConfigResolver {
                 "security.tirithPath",
                 "security.tirithTimeoutSeconds",
                 "security.tirithFailOpen",
+                "security.fileGuardrailMode",
+                "security.urlGuardrailMode",
                 "security.guardrailMode",
                 "security.guardrailCronMode",
                 "security.guardrailCronScope",

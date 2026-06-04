@@ -72,16 +72,25 @@ security:
   tirithTimeoutSeconds: 5
   # Tirith 不可用、超时或返回未知退出码时是否放行。设为 false 会 fail-closed 阻断。
   tirithFailOpen: true
+  # 文件路径安全预检模式：
+  # bypass 默认值，跳过命令文本里的文件路径预检，适合完全可信的本机/线上联调环境。
+  # strict 会对 execute_code/终端/进程命令阻断敏感系统或凭据路径。
+  fileGuardrailMode: bypass
+  # URL 安全预检模式：
+  # bypass 默认值，跳过命令文本里的 URL 预检，适合完全可信的本机/线上联调环境。
+  # strict 会对 execute_code/终端/进程命令阻断 metadata、敏感 URL 参数等风险 URL。
+  urlGuardrailMode: bypass
   # Agent 工具安全策略模式：
-  # approval 默认值，可审批危险行为会生成待审批项，非白名单 hardline 仍直接阻断。
+  # bypass 最自由，跳过可审批危险行为检查；文件/URL 预检由 fileGuardrailMode/urlGuardrailMode 单独控制。
+  # approval 可审批危险行为会生成待审批项，非白名单 hardline 仍直接阻断。
   # strict 最严格，可审批危险行为也直接阻断。
-  # bypass 最自由，跳过可审批危险行为检查，非白名单 hardline 和 URL/凭据硬策略仍生效。
   # smart 先由辅助模型判定低风险行为，无法确认时回到人工审批。
-  guardrailMode: approval
+  guardrailMode: bypass
   # 定时任务安全策略模式：
-  # approval 默认值，可审批危险行为会暂停任务并请求会话审批。
-  # strict 直接阻断可审批危险行为；bypass 跳过软策略；approve 沿用旧的自动批准行为。
-  guardrailCronMode: approval
+  # bypass 默认值，跳过软策略，避免无人值守任务因可审批规则挂起。
+  # approval 可审批危险行为会暂停任务并请求会话审批。
+  # strict 直接阻断可审批危险行为；approve 沿用旧的自动批准行为。
+  guardrailCronMode: bypass
   # 定时任务审批记忆范围：job 同一任务相同行为审批一次；session 按会话；global 全局。
   guardrailCronScope: job
   # 允许跳过 hardline 硬阻断的类别；* 表示放行所有 hardline 类别。

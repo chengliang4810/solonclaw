@@ -440,16 +440,12 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldSyncSuccessfulTurnsIntoTodayMemory() throws Exception {
+    void shouldNotAutoSyncSuccessfulTurnsIntoTodayMemory() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.memoryManager.syncTurn("MEMORY:daily-room:daily-user", "记住今天的排查结论", "已经确认会写入今日记忆");
 
-        String today = env.memoryService.read("today");
-        assertThat(today).contains("# ");
-        assertThat(today).contains("MEMORY:daily-room:daily-user");
-        assertThat(today).contains("记住今天的排查结论");
-        assertThat(today).contains("已经确认会写入今日记忆");
+        assertThat(env.memoryService.read("today")).isBlank();
     }
 
     @Test
@@ -505,7 +501,7 @@ public class MemoryAndSkillsTest {
 
         manager.syncTurn(context);
 
-        assertThat(env.memoryService.read("today")).contains("MEMORY:plugin-room:plugin-user");
+        assertThat(env.memoryService.read("today")).isBlank();
         assertThat(provider.context).isNotNull();
         assertThat(provider.context.getSessionId()).isEqualTo("plugin-session");
         assertThat(provider.legacyCalls).isZero();
@@ -545,23 +541,21 @@ public class MemoryAndSkillsTest {
         assertThat(prompt).contains("第一个外部系统提示").doesNotContain("第二个外部系统提示");
         assertThat(prefetch).contains("第一个外部预取").doesNotContain("第二个外部预取");
         assertThat(firstExternal.context).isNotNull();
+        assertThat(firstExternal.context.getSourceKey())
+                .isEqualTo("MEMORY:single-provider-room:single-provider-user");
         assertThat(secondExternal.context).isNull();
-        assertThat(env.memoryService.read("today"))
-                .contains("MEMORY:single-provider-room:single-provider-user");
+        assertThat(env.memoryService.read("today")).isBlank();
     }
 
     @Test
-    void shouldUpdateTodayMemoryAfterGatewayReply() throws Exception {
+    void shouldNotUpdateTodayMemoryAfterGatewayReply() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.send("memory-chat", "memory-user", "hello");
         env.send("memory-chat", "memory-user", "/pairing claim-admin");
         env.send("memory-chat", "memory-user", "检查记忆文件自动维护");
 
-        String today = env.memoryService.read("today");
-        assertThat(today).contains("MEMORY:memory-chat:memory-user");
-        assertThat(today).contains("检查记忆文件自动维护");
-        assertThat(today).contains("echo:检查记忆文件自动维护");
+        assertThat(env.memoryService.read("today")).isBlank();
     }
 
     @Test
@@ -587,16 +581,13 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldUpdateTodayMemoryWhenOrchestratorIsCalledDirectly() throws Exception {
+    void shouldNotUpdateTodayMemoryWhenOrchestratorIsCalledDirectly() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.conversationOrchestrator.handleIncoming(
                 env.message("dashboard", "direct-session", "dashboard 直接调用也要维护记忆"));
 
-        String today = env.memoryService.read("today");
-        assertThat(today).contains("MEMORY:dashboard:direct-session");
-        assertThat(today).contains("dashboard 直接调用也要维护记忆");
-        assertThat(today).contains("echo:dashboard 直接调用也要维护记忆");
+        assertThat(env.memoryService.read("today")).isBlank();
     }
 
     private static class CapturingMemoryProvider implements MemoryProvider {
@@ -641,7 +632,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldUpdateTodayMemoryWhenPendingRunResumes() throws Exception {
+    void shouldNotUpdateTodayMemoryWhenPendingRunResumes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         SessionRecord session =
@@ -655,11 +646,8 @@ public class MemoryAndSkillsTest {
         GatewayReply reply =
                 env.conversationOrchestrator.resumePending("MEMORY:approval-room:approval-user");
 
-        String today = env.memoryService.read("today");
         assertThat(reply.getContent()).contains("echo:resume");
-        assertThat(today).contains("MEMORY:approval-room:approval-user");
-        assertThat(today).contains("执行需要审批的清理命令");
-        assertThat(today).contains("echo:resume");
+        assertThat(env.memoryService.read("today")).isBlank();
     }
 
     @Test

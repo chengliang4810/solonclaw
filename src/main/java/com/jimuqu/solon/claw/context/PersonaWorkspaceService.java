@@ -10,7 +10,6 @@ import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -60,6 +59,9 @@ public class PersonaWorkspaceService {
 
     /** 读取文件内容；不存在时返回模板默认内容。 */
     public String read(String key) {
+        if (isTodayMemoryKey(key)) {
+            return readExistingTodayMemory();
+        }
         File target = file(key);
         if (!target.exists()) {
             return loadTemplate(key);
@@ -158,6 +160,9 @@ public class PersonaWorkspaceService {
     /** 启动时补齐缺失的人格工作区文件。 */
     private void ensureSeeded() {
         for (String key : orderedKeys()) {
+            if (isTodayMemoryKey(key)) {
+                continue;
+            }
             File target = file(key);
             if (target.exists()) {
                 continue;
@@ -228,8 +233,8 @@ public class PersonaWorkspaceService {
         if (ContextFileConstants.KEY_MEMORY.equals(normalized)) {
             return "";
         }
-        if (ContextFileConstants.KEY_MEMORY_TODAY.equals(ContextFileConstants.normalizeKey(key))) {
-            return buildTodayMemoryTemplate(LocalDate.now());
+        if (ContextFileConstants.KEY_MEMORY_TODAY.equals(normalized)) {
+            return "";
         }
         String resource = TEMPLATE_ROOT + fileName(key);
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resource);
@@ -243,7 +248,31 @@ public class PersonaWorkspaceService {
         }
     }
 
-    private String buildTodayMemoryTemplate(LocalDate date) {
-        return "# " + date.toString() + "\n\n";
+    /** 判断 key 是否为当天记忆文件。 */
+    private boolean isTodayMemoryKey(String key) {
+        return ContextFileConstants.KEY_MEMORY_TODAY.equals(ContextFileConstants.normalizeKey(key));
+    }
+
+    /** 读取已存在的当天记忆文件；缺失时保持空内容，避免启动或读取时隐式生成流水账文件。 */
+    private String readExistingTodayMemory() {
+        File target = file(ContextFileConstants.KEY_MEMORY_TODAY);
+        if (!target.exists()) {
+            return "";
+        }
+        try {
+            return FileUtil.readUtf8String(target);
+        } catch (IORuntimeException e) {
+            log.warn(
+                    "Unable to read persona workspace file {}; falling back to empty today memory: {}",
+                    safePathRef(target),
+                    failureMessage(e));
+            return "";
+        } catch (SecurityException e) {
+            log.warn(
+                    "Unable to read persona workspace file {}; falling back to empty today memory: {}",
+                    safePathRef(target),
+                    failureMessage(e));
+            return "";
+        }
     }
 }

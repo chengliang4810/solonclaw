@@ -489,36 +489,40 @@ public class SecurityAuditTools {
         }
 
         if (securityPolicyService != null) {
-            SecurityPolicyService.FileVerdict fileVerdict =
-                    securityPolicyService.checkCommandPaths(command);
-            if (!fileVerdict.isAllowed()) {
-                result.addFinding(
-                        "file_policy",
-                        "blocked_path",
-                        "critical",
-                        filePolicyFindingMessage(fileVerdict),
-                        "block",
-                        true,
-                        false,
-                        "change_path");
-                result.escalate("block");
+            if (SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.FileVerdict fileVerdict =
+                        securityPolicyService.checkCommandPaths(command);
+                if (!fileVerdict.isAllowed()) {
+                    result.addFinding(
+                            "file_policy",
+                            "blocked_path",
+                            "critical",
+                            filePolicyFindingMessage(fileVerdict),
+                            "block",
+                            true,
+                            false,
+                            "change_path");
+                    result.escalate("block");
+                }
             }
 
-            SecurityPolicyService.UrlVerdict urlVerdict =
-                    securityPolicyService.checkCommandUrls(command);
-            if (!urlVerdict.isAllowed()) {
-                result.addFinding(
-                        "url_policy",
-                        "blocked_url",
-                        "critical",
-                        urlVerdict.getMessage()
-                                + ": "
-                                + SecretRedactor.maskUrl(urlVerdict.getUrl()),
-                        "block",
-                        true,
-                        false,
-                        "change_url_or_policy");
-                result.escalate("block");
+            if (SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.UrlVerdict urlVerdict =
+                        securityPolicyService.checkCommandUrls(command);
+                if (!urlVerdict.isAllowed()) {
+                    result.addFinding(
+                            "url_policy",
+                            "blocked_url",
+                            "critical",
+                            urlVerdict.getMessage()
+                                    + ": "
+                                    + SecretRedactor.maskUrl(urlVerdict.getUrl()),
+                            "block",
+                            true,
+                            false,
+                            "change_url_or_policy");
+                    result.escalate("block");
+                }
             }
         }
 

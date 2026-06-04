@@ -10,7 +10,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,10 +37,10 @@ class PersonaWorkspaceServiceTest {
                 .contains("# IDENTITY.md - 我是谁？");
         assertThat(service.read(ContextFileConstants.KEY_USER)).contains("# USER.md - 关于你的用户");
         assertThat(service.read(ContextFileConstants.KEY_TOOLS)).contains("# TOOLS.md - 本地笔记");
-        assertThat(service.read(ContextFileConstants.KEY_HEARTBEAT)).contains("跳过心跳轮询");
+        assertThat(service.read(ContextFileConstants.KEY_HEARTBEAT)).contains("# HEARTBEAT.md");
         assertThat(service.read(ContextFileConstants.KEY_MEMORY)).isEmpty();
-        assertThat(service.read(ContextFileConstants.KEY_MEMORY_TODAY))
-                .contains("# " + LocalDate.now().toString());
+        assertThat(service.exists(ContextFileConstants.KEY_MEMORY_TODAY)).isFalse();
+        assertThat(service.read(ContextFileConstants.KEY_MEMORY_TODAY)).isEmpty();
 
         service.write(ContextFileConstants.KEY_AGENTS, "# AGENTS\n");
 
@@ -49,6 +48,18 @@ class PersonaWorkspaceServiceTest {
         assertThat(service.read(ContextFileConstants.KEY_AGENTS)).isEqualTo("# AGENTS\n");
         assertThat(service.file(ContextFileConstants.KEY_AGENTS).getName())
                 .isEqualTo(ContextFileConstants.FILE_AGENTS);
+    }
+
+    @Test
+    void shouldOnlyCreateTodayMemoryWhenExplicitlyWritten() {
+        PersonaWorkspaceService service = new PersonaWorkspaceService(appConfig());
+
+        assertThat(service.exists(ContextFileConstants.KEY_MEMORY_TODAY)).isFalse();
+
+        service.write(ContextFileConstants.KEY_MEMORY_TODAY, "今天只记录显式写入\n");
+
+        assertThat(service.exists(ContextFileConstants.KEY_MEMORY_TODAY)).isTrue();
+        assertThat(service.read(ContextFileConstants.KEY_MEMORY_TODAY)).contains("今天只记录显式写入");
     }
 
     @Test

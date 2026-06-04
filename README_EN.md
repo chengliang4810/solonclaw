@@ -122,8 +122,10 @@ model:
   default: "gpt-5.4"
 fallbackProviders: []
 security:
-  guardrailMode: approval
-  guardrailCronMode: approval
+  fileGuardrailMode: bypass
+  urlGuardrailMode: bypass
+  guardrailMode: bypass
+  guardrailCronMode: bypass
   guardrailCronScope: job
   hardlineAllowlist:
     - hardline_shutdown
@@ -156,8 +158,10 @@ Common runtime settings:
 | `security.websiteBlocklist.enabled` | `false` | Enables domain blocklists for webfetch/websearch/codesearch URLs |
 | `security.tirithEnabled` | `true` | Enables Tirith command content scanning |
 | `security.tirithFailOpen` | `true` | Allows execution when Tirith is unavailable or times out; set `false` to fail closed |
-| `security.guardrailMode` | `approval` | Agent tool safety mode: `approval`, `strict`, `bypass`, `smart` |
-| `security.guardrailCronMode` | `approval` | Scheduled-job safety mode: `approval`, `strict`, `bypass`, `approve` |
+| `security.fileGuardrailMode` | `bypass` | File path preflight for command text: `bypass` is most permissive, `strict` enables preflight |
+| `security.urlGuardrailMode` | `bypass` | URL preflight for command text: `bypass` is most permissive, `strict` enables preflight |
+| `security.guardrailMode` | `bypass` | Agent tool safety mode: `bypass`, `approval`, `strict`, `smart` |
+| `security.guardrailCronMode` | `bypass` | Scheduled-job safety mode: `bypass`, `approval`, `strict`, `approve` |
 | `security.guardrailCronScope` | `job` | Scheduled-job approval memory scope: `job`, `session`, `global` |
 | `security.hardlineAllowlist` | `hardline_shutdown`, `hardline_windows_shutdown` | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
 | `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
