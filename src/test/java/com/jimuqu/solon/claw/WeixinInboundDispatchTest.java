@@ -37,8 +37,10 @@ public class WeixinInboundDispatchTest {
         List<String> chunks = (List<String>) split.invoke(adapter, repeat("a", 2001));
 
         assertThat(chunks).hasSize(2);
-        assertThat(chunks.get(0)).hasSize(2000);
-        assertThat(chunks.get(1)).hasSize(1);
+        assertThat(chunks.get(0)).hasSize(1992);
+        assertThat(chunks.get(0)).endsWith(" (1/2)");
+        assertThat(chunks.get(1)).isEqualTo(repeat("a", 15) + " (2/2)");
+        assertThat(chunks).allMatch(chunk -> codePointLength(chunk) <= 2000);
     }
 
     @Test
@@ -57,15 +59,231 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
-    void shouldNormalizeOutboundTextNewlinesToCrLfForWeixinClients() throws Exception {
+    void shouldPreserveOutboundTextNewlinesForWeixinPayload() throws Exception {
         Method normalize =
                 WeiXinChannelAdapter.class.getDeclaredMethod(
                         "normalizeOutboundTextForWeixin", String.class);
         normalize.setAccessible(true);
 
-        assertThat((String) normalize.invoke(null, "第一行\n第二行")).isEqualTo("第一行\r\n第二行");
-        assertThat((String) normalize.invoke(null, "第一行\r第二行")).isEqualTo("第一行\r\n第二行");
-        assertThat((String) normalize.invoke(null, "第一行\r\n第二行")).isEqualTo("第一行\r\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\n第二行")).isEqualTo("第一行\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r第二行")).isEqualTo("第一行\n第二行");
+        assertThat((String) normalize.invoke(null, "第一行\r\n第二行")).isEqualTo("第一行\n第二行");
+    }
+
+    @Test
+    void shouldPreserveWeixinMarkdownTablesAndCodeBlocks() throws Exception {
+        Method format =
+                WeiXinChannelAdapter.class.getDeclaredMethod("formatTextForDelivery", String.class);
+        format.setAccessible(true);
+        String table =
+                "| Setting | Value |\n"
+                        + "| --- | --- |\n"
+                        + "| Timeout | 30s |\n"
+                        + "| Retries | 3 |\n";
+        String code = "## Snippet\n\n```python\nprint('hi')\n```";
+
+        assertThat((String) format.invoke(null, "# Title\n\n## Plan\n\nUse **bold**."))
+                .isEqualTo("# Title\n\n## Plan\n\nUse **bold**.");
+        assertThat((String) format.invoke(null, table)).isEqualTo(table.trim());
+        assertThat((String) format.invoke(null, code)).isEqualTo(code);
+    }
+
+    @Test
+    void shouldFormatWeixinTextLikeReferenceBeforeSplitting() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method format =
+                WeiXinChannelAdapter.class.getDeclaredMethod("formatTextForDelivery", String.class);
+        format.setAccessible(true);
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+        String longLine =
+                "Here is a long issue template line with many copyable fields "
+                        + "field_0=value_0 field_1=value_1 field_2=value_2 field_3=value_3 "
+                        + "field_4=value_4 field_5=value_5 field_6=value_6 field_7=value_7 "
+                        + "field_8=value_8";
+
+        String blankText = (String) format.invoke(null, "a\n\n\nb");
+        String wrappedText = (String) format.invoke(null, longLine);
+        @SuppressWarnings("unchecked")
+        List<String> blankChunks = (List<String>) split.invoke(adapter, blankText);
+        @SuppressWarnings("unchecked")
+        List<String> wrappedChunks = (List<String>) split.invoke(adapter, wrappedText);
+
+        assertThat(blankText).isEqualTo("a\n\nb");
+        assertThat(blankChunks).containsExactly("a", "b");
+        assertThat(wrappedChunks).hasSize(1);
+        assertThat(wrappedChunks.get(0)).contains("\n");
+        assertThat(wrappedChunks.get(0).split("\\n"))
+                .allMatch(line -> codePointLength(line) <= 120);
+        assertThat(wrappedChunks.get(0).replace("\n", " "))
+                .isEqualTo(longLine.replaceAll("\\s+", " "));
+    }
+
+    @Test
+    void shouldPreserveWeixinWrapSpacingLikeReference() throws Exception {
+        Method format =
+                WeiXinChannelAdapter.class.getDeclaredMethod("formatTextForDelivery", String.class);
+        format.setAccessible(true);
+
+        String formatted =
+                (String)
+                        format.invoke(
+                                null,
+                                "hello    world    "
+                                        + repeat("x ", 80).trim());
+
+        assertThat(formatted).startsWith("hello    world    x");
+        assertThat(formatted.split("\\n")).allMatch(line -> codePointLength(line) <= 120);
+    }
+
+    @Test
+    void shouldNotWrapLongWeixinCodeBlockLines() throws Exception {
+        Method format =
+                WeiXinChannelAdapter.class.getDeclaredMethod("formatTextForDelivery", String.class);
+        format.setAccessible(true);
+        String command = "solonclaw " + repeat("--option=value ", 30).trim();
+        String content = "```bash\n" + command + "\n```";
+
+        assertThat((String) format.invoke(null, content)).isEqualTo(content);
+    }
+
+    @Test
+    void shouldSplitShortChattyWeixinRepliesByDefault() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks = (List<String>) split.invoke(adapter, "第一行\n第二行\n第三行");
+
+        assertThat(chunks).containsExactly("第一行", "第二行", "第三行");
+    }
+
+    @Test
+    void shouldKeepStructuredWeixinBlocksTogetherByDefault() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks =
+                (List<String>)
+                        split.invoke(
+                                adapter,
+                                "今天结论：\n"
+                                        + "- 留存下降 3%\n"
+                                        + "- 转化上涨 8%\n"
+                                        + "- 主要问题在首日激活");
+
+        assertThat(chunks)
+                .containsExactly(
+                        "今天结论：\n"
+                                + "- 留存下降 3%\n"
+                                + "- 转化上涨 8%\n"
+                                + "- 主要问题在首日激活");
+    }
+
+    @Test
+    void shouldKeepWeixinHeadingWithBodyTogetherByDefault() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks = (List<String>) split.invoke(adapter, "## 结论\n这是正文");
+
+        assertThat(chunks).containsExactly("## 结论\n这是正文");
+    }
+
+    @Test
+    void shouldReturnNoWeixinChunksForEmptyText() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+        AppConfig splitConfig = newConfig();
+        splitConfig.getChannels().getWeixin().setSplitMultilineMessages(true);
+        WeiXinChannelAdapter splitAdapter = newAdapter(splitConfig);
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks = (List<String>) split.invoke(adapter, "");
+        @SuppressWarnings("unchecked")
+        List<String> splitPerLineChunks = (List<String>) split.invoke(splitAdapter, "");
+
+        assertThat(chunks).isEmpty();
+        assertThat(splitPerLineChunks).isEmpty();
+    }
+
+    @Test
+    void shouldSafelySplitLongWeixinCodeBlocks() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+        StringBuilder lines = new StringBuilder();
+        for (int i = 0; i < 260; i++) {
+            if (lines.length() > 0) {
+                lines.append('\n');
+            }
+            lines.append("line_").append(i).append(" = ").append(i);
+        }
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks =
+                (List<String>) split.invoke(adapter, "```java\n" + lines + "\n```");
+
+        assertThat(chunks).hasSizeGreaterThan(1);
+        assertThat(chunks).allMatch(chunk -> codePointLength(chunk) <= 2000);
+        assertThat(chunks).allMatch(chunk -> chunk.startsWith("```java\n"));
+        assertThat(chunks.get(0)).contains("line_145 = 145");
+        assertThat(chunks.get(0)).doesNotContain("line_146 = 146");
+        assertThat(chunks.get(0)).endsWith("\n``` (1/2)");
+        assertThat(chunks.get(1)).startsWith("```java\nline_146 = 146");
+        assertThat(chunks.get(1)).endsWith("\n``` (2/2)");
+    }
+
+    @Test
+    void shouldSplitWeixinTextByUnicodeCodePoints() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks = (List<String>) split.invoke(adapter, repeat("😀", 2001));
+
+        assertThat(chunks).hasSize(2);
+        assertThat(codePointLength(chunks.get(0))).isEqualTo(1992);
+        assertThat(codePointLength(chunks.get(1))).isEqualTo(21);
+        assertThat(chunks.get(0)).endsWith(" (1/2)");
+        assertThat(chunks.get(1)).endsWith(" (2/2)");
+    }
+
+    @Test
+    void shouldSplitLongWeixinPlainTextAtNaturalBoundaries() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method split =
+                WeiXinChannelAdapter.class.getDeclaredMethod("splitTextForDelivery", String.class);
+        split.setAccessible(true);
+        StringBuilder words = new StringBuilder();
+        for (int i = 0; i < 420; i++) {
+            if (words.length() > 0) {
+                words.append(' ');
+            }
+            words.append("word").append(i);
+        }
+
+        @SuppressWarnings("unchecked")
+        List<String> chunks = (List<String>) split.invoke(adapter, words.toString());
+
+        assertThat(chunks).hasSize(2);
+        assertThat(chunks.get(0)).endsWith("word251 (1/2)");
+        assertThat(chunks.get(1)).startsWith("word252 ");
+        assertThat(chunks).allMatch(chunk -> codePointLength(chunk) <= 2000);
     }
 
     @Test
@@ -359,6 +577,10 @@ public class WeixinInboundDispatchTest {
             builder.append(text);
         }
         return builder.toString();
+    }
+
+    private int codePointLength(String text) {
+        return text.codePointCount(0, text.length());
     }
 
     private AppConfig newConfig() throws Exception {

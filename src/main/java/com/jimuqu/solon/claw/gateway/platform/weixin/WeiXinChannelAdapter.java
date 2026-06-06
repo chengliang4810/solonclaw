@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import org.noear.snack4.ONode;
@@ -71,7 +72,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final int TYPING_START = 1;
     private static final int TYPING_STOP = 2;
     private static final int MAX_TEXT_CHUNK_LENGTH = 2000;
+    private static final int WEIXIN_COPY_LINE_WIDTH = 120;
+    private static final int CHUNK_INDICATOR_RESERVE = 10;
     private static final int INBOUND_TEXT_SPLIT_THRESHOLD = 1800;
+    private static final String FENCE_CLOSE = "\n```";
+    private static final Pattern FENCE_PATTERN = Pattern.compile("^```([^\\n`]*)\\s*$");
+    private static final Pattern HEADER_PATTERN = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
+    private static final Pattern TABLE_RULE_PATTERN =
+            Pattern.compile("^\\s*\\|?(?:\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?\\s*$");
+    private static final Pattern BOLD_ONLY_PATTERN = Pattern.compile("^\\*\\*[^*]+\\*\\*$");
+    private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^\\d+\\.\\s.*");
 
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
@@ -237,84 +247,518 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 将出站文本统一为 LF 换行，保持与微信 iLink 文本字段参考行为一致。 */
     private static String normalizeOutboundTextForWeixin(String text) {
-        return StrUtil.nullToEmpty(text)
-                .replace("\r\n", "\n")
-                .replace('\r', '\n')
-                .replace("\n", "\r\n");
+        return StrUtil.nullToEmpty(text).replace("\r\n", "\n").replace('\r', '\n');
     }
 
+    /** 先执行微信展示友好的文本格式化，再按微信消息长度和结构拆分。 */
     private List<String> splitTextForDelivery(String text) {
+        String formatted = formatTextForDelivery(text);
+        boolean splitPerLine = config != null && config.isSplitMultilineMessages();
+        return splitFormattedTextForDelivery(formatted, MAX_TEXT_CHUNK_LENGTH, splitPerLine);
+    }
+
+    /** 对微信出站文本执行 Markdown 块清理和长行折行。 */
+    private static String formatTextForDelivery(String text) {
+        return wrapCopyFriendlyLinesForWeixin(normalizeMarkdownBlocks(text));
+    }
+
+    /** 压缩 Markdown 块之间的多余空行，同时保留代码块内部内容。 */
+    private static String normalizeMarkdownBlocks(String text) {
+        String[] lines = normalizeOutboundTextForWeixin(text).split("\n", -1);
+        ArrayList<String> result = new ArrayList<String>();
+        boolean inCodeBlock = false;
+        int blankRun = 0;
+        for (String rawLine : lines) {
+            String line = rstrip(rawLine);
+            if (FENCE_PATTERN.matcher(line.trim()).matches()) {
+                inCodeBlock = !inCodeBlock;
+                result.add(line);
+                blankRun = 0;
+                continue;
+            }
+
+            if (inCodeBlock) {
+                result.add(line);
+                continue;
+            }
+
+            if (line.trim().length() == 0) {
+                blankRun++;
+                if (blankRun <= 1) {
+                    result.add("");
+                }
+                continue;
+            }
+
+            blankRun = 0;
+            result.add(line);
+        }
+        return joinLines(result).trim();
+    }
+
+    /** 对普通长行做 120 字以内折行，避免微信客户端复制困难。 */
+    private static String wrapCopyFriendlyLinesForWeixin(String content) {
+        if (StrUtil.isBlank(content)) {
+            return StrUtil.nullToEmpty(content);
+        }
+        ArrayList<String> wrapped = new ArrayList<String>();
+        boolean inCodeBlock = false;
+        String[] lines = content.split("\n", -1);
+        for (String rawLine : lines) {
+            String line = rstrip(rawLine);
+            String stripped = line.trim();
+            if (FENCE_PATTERN.matcher(stripped).matches()) {
+                inCodeBlock = !inCodeBlock;
+                wrapped.add(line);
+                continue;
+            }
+            if (inCodeBlock
+                    || codePointLength(line) <= WEIXIN_COPY_LINE_WIDTH
+                    || stripped.length() == 0
+                    || stripped.startsWith("|")
+                    || TABLE_RULE_PATTERN.matcher(stripped).matches()) {
+                wrapped.add(line);
+                continue;
+            }
+            wrapped.addAll(wrapPlainLine(line, WEIXIN_COPY_LINE_WIDTH));
+        }
+        return joinLines(wrapped).trim();
+    }
+
+    /** 按空白折行普通文本，不拆分超长单词。 */
+    private static List<String> wrapPlainLine(String line, int width) {
+        ArrayList<String> wrapped = new ArrayList<String>();
+        String trimmed = line.trim();
+        if (trimmed.length() == 0) {
+            return wrapped;
+        }
+        StringBuilder current = new StringBuilder();
+        int index = 0;
+        while (index < trimmed.length()) {
+            int wordStart = index;
+            while (wordStart < trimmed.length()
+                    && Character.isWhitespace(trimmed.charAt(wordStart))) {
+                wordStart++;
+            }
+            int wordEnd = wordStart;
+            while (wordEnd < trimmed.length()
+                    && !Character.isWhitespace(trimmed.charAt(wordEnd))) {
+                wordEnd++;
+            }
+            String separator = trimmed.substring(index, wordStart);
+            String word = trimmed.substring(wordStart, wordEnd);
+            if (word.length() == 0) {
+                break;
+            }
+            String candidate =
+                    current.length() == 0 ? word : current.toString() + separator + word;
+            if (current.length() > 0 && codePointLength(candidate) > width) {
+                wrapped.add(rstrip(current.toString()));
+                current.setLength(0);
+                current.append(word);
+            } else {
+                current.setLength(0);
+                current.append(candidate);
+            }
+            index = wordEnd;
+        }
+        if (current.length() > 0) {
+            wrapped.add(rstrip(current.toString()));
+        }
+        if (wrapped.isEmpty()) {
+            wrapped.add(line);
+        }
+        return wrapped;
+    }
+
+    /** 按参考实现的紧凑模式或逐行模式拆分已格式化的微信文本。 */
+    private List<String> splitFormattedTextForDelivery(
+            String content, int maxLength, boolean splitPerLine) {
         ArrayList<String> chunks = new ArrayList<String>();
-        String normalized = StrUtil.nullToEmpty(text).trim();
+        String normalized = StrUtil.nullToEmpty(content);
         if (normalized.length() == 0) {
             return chunks;
         }
-        if (!config.isSplitMultilineMessages() && normalized.length() <= MAX_TEXT_CHUNK_LENGTH) {
+        if (splitPerLine) {
+            if (codePointLength(normalized) <= maxLength && normalized.indexOf('\n') < 0) {
+                chunks.add(normalized);
+                return chunks;
+            }
+            for (String unit : splitDeliveryUnitsForWeixin(normalized)) {
+                if (codePointLength(unit) <= maxLength) {
+                    chunks.add(unit);
+                } else {
+                    chunks.addAll(packMarkdownBlocksForWeixin(unit, maxLength));
+                }
+            }
+            return chunks.isEmpty() ? singleChunk(normalized) : chunks;
+        }
+
+        if (codePointLength(normalized) <= maxLength) {
+            if (shouldSplitShortChatBlockForWeixin(normalized)) {
+                chunks.addAll(splitDeliveryUnitsForWeixin(normalized));
+                return chunks;
+            }
             chunks.add(normalized);
             return chunks;
         }
-        if (config.isSplitMultilineMessages()
-                && normalized.indexOf('\n') >= 0
-                && normalized.length() <= MAX_TEXT_CHUNK_LENGTH) {
-            String[] lines = normalized.split("\\R");
-            for (String line : lines) {
-                String trimmed = line == null ? "" : line.trim();
-                if (trimmed.length() > 0) {
-                    chunks.add(trimmed);
+        chunks.addAll(packMarkdownBlocksForWeixin(normalized, maxLength));
+        return chunks.isEmpty() ? singleChunk(normalized) : chunks;
+    }
+
+    /** 将格式化文本切成 Markdown 顶层块，尽量保持代码块完整。 */
+    private static List<String> splitMarkdownBlocks(String content) {
+        ArrayList<String> blocks = new ArrayList<String>();
+        String[] lines = StrUtil.nullToEmpty(content).split("\n", -1);
+        ArrayList<String> current = new ArrayList<String>();
+        boolean inCodeBlock = false;
+        for (String rawLine : lines) {
+            String line = rstrip(rawLine);
+            if (FENCE_PATTERN.matcher(line.trim()).matches()) {
+                if (!inCodeBlock && !current.isEmpty()) {
+                    blocks.add(joinLines(current).trim());
+                    current.clear();
                 }
+                current.add(line);
+                inCodeBlock = !inCodeBlock;
+                if (!inCodeBlock) {
+                    blocks.add(joinLines(current).trim());
+                    current.clear();
+                }
+                continue;
             }
-            if (!chunks.isEmpty()) {
-                return chunks;
+            if (inCodeBlock) {
+                current.add(line);
+                continue;
             }
+            if (line.trim().length() == 0) {
+                if (!current.isEmpty()) {
+                    blocks.add(joinLines(current).trim());
+                    current.clear();
+                }
+                continue;
+            }
+            current.add(line);
+        }
+        if (!current.isEmpty()) {
+            blocks.add(joinLines(current).trim());
+        }
+        ArrayList<String> nonBlank = new ArrayList<String>();
+        for (String block : blocks) {
+            if (StrUtil.isNotBlank(block)) {
+                nonBlank.add(block);
+            }
+        }
+        return nonBlank;
+    }
+
+    /** 将顶层文本块拆成微信气泡友好的投递单元。 */
+    private static List<String> splitDeliveryUnitsForWeixin(String content) {
+        ArrayList<String> units = new ArrayList<String>();
+        for (String block : splitMarkdownBlocks(content)) {
+            String[] blockLines = block.split("\n", -1);
+            if (blockLines.length > 0 && FENCE_PATTERN.matcher(blockLines[0].trim()).matches()) {
+                units.add(block);
+                continue;
+            }
+            ArrayList<String> current = new ArrayList<String>();
+            for (String rawLine : blockLines) {
+                String line = rstrip(rawLine);
+                if (line.trim().length() == 0) {
+                    if (!current.isEmpty()) {
+                        units.add(joinLines(current).trim());
+                        current.clear();
+                    }
+                    continue;
+                }
+                boolean continuation =
+                        !current.isEmpty()
+                                && (rawLine.startsWith(" ") || rawLine.startsWith("\t"));
+                if (continuation) {
+                    current.add(line);
+                    continue;
+                }
+                if (!current.isEmpty()) {
+                    units.add(joinLines(current).trim());
+                }
+                current.clear();
+                current.add(line);
+            }
+            if (!current.isEmpty()) {
+                units.add(joinLines(current).trim());
+            }
+        }
+        ArrayList<String> nonBlank = new ArrayList<String>();
+        for (String unit : units) {
+            if (StrUtil.isNotBlank(unit)) {
+                nonBlank.add(unit);
+            }
+        }
+        return nonBlank;
+    }
+
+    /** 判断短多行文本是否更适合按聊天气泡拆分。 */
+    private static boolean shouldSplitShortChatBlockForWeixin(String block) {
+        ArrayList<String> lines = new ArrayList<String>();
+        for (String line : StrUtil.nullToEmpty(block).split("\n", -1)) {
+            if (StrUtil.isNotBlank(line)) {
+                lines.add(line);
+            }
+        }
+        if (lines.size() < 2 || lines.size() > 6) {
+            return false;
+        }
+        if (looksLikeHeadingLineForWeixin(lines.get(0))) {
+            return false;
+        }
+        for (String line : lines) {
+            if (!looksLikeChattyLineForWeixin(line)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 判断一行文本是否像独立的聊天短句。 */
+    private static boolean looksLikeChattyLineForWeixin(String line) {
+        String stripped = StrUtil.nullToEmpty(line).trim();
+        if (stripped.length() == 0 || codePointLength(stripped) > 48) {
+            return false;
+        }
+        if (line.startsWith(" ") || line.startsWith("\t")) {
+            return false;
+        }
+        if (stripped.startsWith(">")
+                || stripped.startsWith("-")
+                || stripped.startsWith("*")
+                || stripped.startsWith("【")
+                || stripped.startsWith("#")
+                || stripped.startsWith("|")) {
+            return false;
+        }
+        return !TABLE_RULE_PATTERN.matcher(stripped).matches()
+                && !BOLD_ONLY_PATTERN.matcher(stripped).matches()
+                && !NUMBERED_LINE_PATTERN.matcher(stripped).matches();
+    }
+
+    /** 判断一行文本是否像标题，标题后续内容不拆成多个气泡。 */
+    private static boolean looksLikeHeadingLineForWeixin(String line) {
+        String stripped = StrUtil.nullToEmpty(line).trim();
+        if (stripped.length() == 0) {
+            return false;
+        }
+        return HEADER_PATTERN.matcher(stripped).matches()
+                || (codePointLength(stripped) <= 24
+                        && (stripped.endsWith(":") || stripped.endsWith("：")));
+    }
+
+    /** 按 Markdown 块打包超长文本，尽量不打断完整结构。 */
+    private static List<String> packMarkdownBlocksForWeixin(String content, int maxLength) {
+        ArrayList<String> packed = new ArrayList<String>();
+        if (codePointLength(content) <= maxLength) {
+            packed.add(content);
+            return packed;
         }
 
-        String[] paragraphs = normalized.split("\\n\\s*\\n");
-        StringBuilder current = new StringBuilder();
-        for (String paragraph : paragraphs) {
-            String trimmed = paragraph == null ? "" : paragraph.trim();
-            if (trimmed.length() == 0) {
+        String current = "";
+        for (String block : splitMarkdownBlocks(content)) {
+            String candidate = current.length() == 0 ? block : current + "\n\n" + block;
+            if (codePointLength(candidate) <= maxLength) {
+                current = candidate;
                 continue;
             }
-            if (trimmed.length() > MAX_TEXT_CHUNK_LENGTH) {
-                appendChunk(chunks, current);
-                splitHard(trimmed, chunks);
-                continue;
+            if (current.length() > 0) {
+                packed.add(current);
+                current = "";
             }
-            String candidate =
-                    current.length() == 0 ? trimmed : current.toString() + "\n\n" + trimmed;
-            if (candidate.length() > MAX_TEXT_CHUNK_LENGTH) {
-                appendChunk(chunks, current);
-                current.append(trimmed);
+            if (codePointLength(block) <= maxLength) {
+                current = block;
             } else {
-                if (current.length() > 0) {
-                    current.append("\n\n");
-                }
-                current.append(trimmed);
+                packed.addAll(truncateMessageForWeixin(block, maxLength));
             }
         }
-        appendChunk(chunks, current);
-        if (chunks.isEmpty()) {
-            splitHard(normalized, chunks);
+        if (current.length() > 0) {
+            packed.add(current);
+        }
+        return packed;
+    }
+
+    /** 按参考平台基类规则拆分超长块，保留代码围栏并追加分片序号。 */
+    private static List<String> truncateMessageForWeixin(String content, int maxLength) {
+        if (codePointLength(content) <= maxLength) {
+            return singleChunk(content);
+        }
+        ArrayList<String> chunks = new ArrayList<String>();
+        String remaining = content;
+        String carryLanguage = null;
+        while (remaining.length() > 0) {
+            String prefix = carryLanguage == null ? "" : "```" + carryLanguage + "\n";
+            int headroom =
+                    maxLength
+                            - CHUNK_INDICATOR_RESERVE
+                            - codePointLength(prefix)
+                            - codePointLength(FENCE_CLOSE);
+            if (headroom < 1) {
+                headroom = Math.max(1, maxLength / 2);
+            }
+            if (codePointLength(prefix) + codePointLength(remaining)
+                    <= maxLength - CHUNK_INDICATOR_RESERVE) {
+                chunks.add(prefix + remaining);
+                break;
+            }
+
+            String region = leftCodePoints(remaining, headroom);
+            int halfIndex = charIndexForCodePointOffset(region, Math.max(0, headroom / 2));
+            int splitAt = region.lastIndexOf('\n');
+            if (splitAt < halfIndex) {
+                splitAt = region.lastIndexOf(' ');
+            }
+            if (splitAt < 1) {
+                splitAt = region.length();
+            }
+
+            String candidate = remaining.substring(0, splitAt);
+            int backtickCount = countOccurrences(candidate, "`") - countOccurrences(candidate, "\\`");
+            if (backtickCount % 2 == 1) {
+                int lastBacktick = candidate.lastIndexOf('`');
+                while (lastBacktick > 0 && candidate.charAt(lastBacktick - 1) == '\\') {
+                    lastBacktick = candidate.lastIndexOf('`', lastBacktick - 1);
+                }
+                if (lastBacktick > 0) {
+                    int safeSplit = candidate.lastIndexOf(' ', lastBacktick);
+                    int newlineSplit = candidate.lastIndexOf('\n', lastBacktick);
+                    safeSplit = Math.max(safeSplit, newlineSplit);
+                    if (safeSplit > halfIndex) {
+                        splitAt = safeSplit;
+                    }
+                }
+            }
+
+            String chunkBody = remaining.substring(0, splitAt);
+            remaining = lstrip(remaining.substring(splitAt));
+            String fullChunk = prefix + chunkBody;
+
+            boolean inCode = carryLanguage != null;
+            String language = carryLanguage == null ? "" : carryLanguage;
+            String[] lines = chunkBody.split("\n", -1);
+            for (String line : lines) {
+                String stripped = line.trim();
+                if (stripped.startsWith("```")) {
+                    if (inCode) {
+                        inCode = false;
+                        language = "";
+                    } else {
+                        inCode = true;
+                        String tag = stripped.substring(3).trim();
+                        language = firstToken(tag);
+                    }
+                }
+            }
+            if (inCode) {
+                fullChunk += FENCE_CLOSE;
+                carryLanguage = language;
+            } else {
+                carryLanguage = null;
+            }
+            chunks.add(fullChunk);
+        }
+
+        if (chunks.size() > 1) {
+            int total = chunks.size();
+            for (int i = 0; i < total; i++) {
+                chunks.set(i, chunks.get(i) + " (" + (i + 1) + "/" + total + ")");
+            }
         }
         return chunks;
     }
 
-    private void appendChunk(List<String> chunks, StringBuilder current) {
-        if (current.length() == 0) {
-            return;
-        }
-        chunks.add(current.toString());
-        current.setLength(0);
+    /** 返回字符串的 Unicode code point 数，匹配参考实现的 Python len 行为。 */
+    private static int codePointLength(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        return value.codePointCount(0, value.length());
     }
 
-    private void splitHard(String text, List<String> chunks) {
-        int start = 0;
-        while (start < text.length()) {
-            int end = Math.min(start + MAX_TEXT_CHUNK_LENGTH, text.length());
-            chunks.add(text.substring(start, end));
-            start = end;
+    /** 按 code point 数截取左侧内容，避免把代理对字符切开。 */
+    private static String leftCodePoints(String text, int count) {
+        String value = StrUtil.nullToEmpty(text);
+        int safeCount = Math.max(0, Math.min(count, codePointLength(value)));
+        return value.substring(0, value.offsetByCodePoints(0, safeCount));
+    }
+
+    /** 将 code point 偏移转换为 Java 字符下标。 */
+    private static int charIndexForCodePointOffset(String text, int count) {
+        String value = StrUtil.nullToEmpty(text);
+        int safeCount = Math.max(0, Math.min(count, codePointLength(value)));
+        return value.offsetByCodePoints(0, safeCount);
+    }
+
+    /** 统计固定子串出现次数，按参考实现用于反引号保护的简单计数规则处理。 */
+    private static int countOccurrences(String text, String needle) {
+        if (StrUtil.isEmpty(needle)) {
+            return 0;
         }
+        int count = 0;
+        int start = 0;
+        while (start <= text.length()) {
+            int index = text.indexOf(needle, start);
+            if (index < 0) {
+                break;
+            }
+            count++;
+            start = index + needle.length();
+        }
+        return count;
+    }
+
+    /** 去掉左侧空白，模拟参考拆分后 remaining.lstrip() 的行为。 */
+    private static String lstrip(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        int start = 0;
+        while (start < value.length() && Character.isWhitespace(value.charAt(start))) {
+            start++;
+        }
+        return value.substring(start);
+    }
+
+    /** 提取代码围栏语言标签的首个 token。 */
+    private static String firstToken(String text) {
+        String value = StrUtil.nullToEmpty(text).trim();
+        if (value.length() == 0) {
+            return "";
+        }
+        String[] tokens = value.split("\\s+", 2);
+        return tokens[0];
+    }
+
+    /** 生成只有一个元素的列表，作为空拆分结果的兜底。 */
+    private static List<String> singleChunk(String text) {
+        ArrayList<String> chunks = new ArrayList<String>();
+        chunks.add(text);
+        return chunks;
+    }
+
+    /** 拼接行集合为 LF 文本。 */
+    private static String joinLines(List<String> lines) {
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) {
+                buffer.append('\n');
+            }
+            buffer.append(lines.get(i));
+        }
+        return buffer.toString();
+    }
+
+    /** 去掉右侧空白，保留左侧缩进用于列表续行判断。 */
+    private static String rstrip(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        int end = value.length();
+        while (end > 0 && Character.isWhitespace(value.charAt(end - 1))) {
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     private String safeMessage(Exception e) {
