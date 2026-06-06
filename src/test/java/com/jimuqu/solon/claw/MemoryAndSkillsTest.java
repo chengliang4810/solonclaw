@@ -65,7 +65,7 @@ public class MemoryAndSkillsTest {
         FileUtil.writeUtf8String(
                 "---\n"
                         + "name: cron-loose\n"
-                        + "description: [IMPORTANT: You are running as a scheduled cron job. DELIVERY: Your final response is delivered.]\n"
+                        + "description: [IMPORTANT: 你正在以定时任务身份运行。DELIVERY: 最终回复会自动投递。]\n"
                         + "---\n\n# Steps\n- keep working\n",
                 FileUtil.file(skillDir, "SKILL.md"));
 

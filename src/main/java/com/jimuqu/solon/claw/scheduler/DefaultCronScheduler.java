@@ -67,43 +67,101 @@ import org.slf4j.LoggerFactory;
 
 /** DefaultCronScheduler 实现。 */
 public class DefaultCronScheduler {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(DefaultCronScheduler.class);
+
+    /** SILENTMARKER的统一常量值。 */
     private static final String SILENT_MARKER = "[SILENT]";
+
+    /** EMPTYAgent响应错误的统一常量值。 */
     private static final String EMPTY_AGENT_RESPONSE_ERROR =
-            "Agent completed but produced empty response (model error, timeout, or misconfiguration)";
-    private static final String EMPTY_AGENT_RESPONSE_OUTPUT = "(No response generated)";
+            "Agent 已完成但未生成回复（可能是模型错误、超时或配置错误）";
+
+    /** EMPTYAgent响应输出的统一常量值。 */
+    private static final String EMPTY_AGENT_RESPONSE_OUTPUT = "（未生成回复）";
+
+    /** 最大上下文FROMCHARS的统一常量值。 */
     private static final int MAX_CONTEXT_FROM_CHARS = 8000;
+
+    /** 定时任务DISABLEDTOOLSETS的统一常量值。 */
     private static final List<String> CRON_DISABLED_TOOLSETS =
             CronJobService.PROTECTED_CRON_DISABLED_TOOLSETS;
+
+    /** 默认AgentINACTIVITY超时时间秒数的统一常量值。 */
     private static final int DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS = 600;
+
+    /** AgentTIMEOUTPOLLMILLIS的统一常量值。 */
     private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
+
+    /** MCPWARMUP执行器的统一常量值。 */
     private static final ExecutorService MCP_WARMUP_EXECUTOR =
             BoundedExecutorFactory.fixed("cron-mcp-warmup", 1, 16);
+
+    /** 安全上下文任务标识的统一常量值。 */
     private static final Pattern SAFE_CONTEXT_JOB_ID =
             Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
-    private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: Cron assembled prompt";
-    private static final String CRON_RUNTIME_HINT =
-            "[IMPORTANT: You are running as a scheduled cron job. "
-                    + "DELIVERY: Your final response will be automatically delivered to the user; "
-                    + "do not call send_message or try to deliver the output yourself. "
-                    + "Produce the report or output as your final response and the scheduler handles delivery. "
-                    + "SILENT: If there is genuinely nothing new to report, respond with exactly \"[SILENT]\" "
-                    + "and nothing else to suppress delivery. Never combine [SILENT] with content.]\n\n";
 
+    /** 定时任务提示词阻断PREFIX的统一常量值。 */
+    private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: 定时任务组装提示词";
+
+    /** 定时任务运行时H整型的统一常量值。 */
+    private static final String CRON_RUNTIME_HINT =
+            "[IMPORTANT: 你正在以定时任务身份运行。"
+                    + "DELIVERY: 你的最终回复会自动投递给用户；"
+                    + "不要调用 send_message，也不要尝试自行投递输出。"
+                    + "请把报告或结果作为最终回复输出，由调度器负责投递。"
+                    + "SILENT: 如果确实没有任何新内容需要报告，请只回复 \"[SILENT]\"，"
+                    + "不要附加其他内容以便抑制投递。不要把 [SILENT] 和正文混在一起。]\n\n";
+
+    /** 注入应用配置，用于默认定时任务调度器。 */
     private final AppConfig appConfig;
+
+    /** 保存定时任务任务仓储依赖，用于访问持久化数据。 */
     private final CronJobRepository cronJobRepository;
+
+    /** 注入定时任务任务服务，用于调用对应业务能力。 */
     private final CronJobService cronJobService;
+
+    /** 记录默认定时任务调度器中的对话编排器。 */
     private final ConversationOrchestrator conversationOrchestrator;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 保存消息网关策略仓储依赖，用于访问持久化数据。 */
     private final GatewayPolicyRepository gatewayPolicyRepository;
+
+    /** 注入dangerous命令审批服务，用于调用对应业务能力。 */
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入本地技能服务，用于调用对应业务能力。 */
     private final LocalSkillService localSkillService;
+
+    /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 注入MCP运行时服务，用于调用对应业务能力。 */
     private final McpRuntimeService mcpRuntimeService;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 保存执行器服务执行组件，负责调度异步或定时任务。 */
     private ScheduledExecutorService executorService;
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -124,6 +182,17 @@ public class DefaultCronScheduler {
                 null);
     }
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -145,6 +214,18 @@ public class DefaultCronScheduler {
                 null);
     }
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -167,6 +248,19 @@ public class DefaultCronScheduler {
                 null);
     }
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -190,6 +284,20 @@ public class DefaultCronScheduler {
                 null);
     }
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -215,6 +323,21 @@ public class DefaultCronScheduler {
                 null);
     }
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -242,6 +365,22 @@ public class DefaultCronScheduler {
                 null);
     }
 
+    /**
+     * 创建默认定时任务调度器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     */
     public DefaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
@@ -269,6 +408,7 @@ public class DefaultCronScheduler {
         this.sessionRepository = sessionRepository;
     }
 
+    /** 启动当前组件并准备运行资源。 */
     public void start() {
         if (!appConfig.getScheduler().isEnabled()) {
             return;
@@ -278,16 +418,19 @@ public class DefaultCronScheduler {
                 this::tickSafe, 5, appConfig.getScheduler().getTickSeconds(), TimeUnit.SECONDS);
     }
 
+    /** 停止当前组件并释放运行状态。 */
     public void stop() {
         if (executorService != null) {
             executorService.shutdownNow();
         }
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
         stop();
     }
 
+    /** 执行tick安全相关逻辑。 */
     public void tickSafe() {
         try {
             tick();
@@ -296,6 +439,7 @@ public class DefaultCronScheduler {
         }
     }
 
+    /** 执行tick相关逻辑。 */
     public void tick() throws Exception {
         File lockFile = new File(appConfig.getRuntime().getHome(), "jobs/cron.tick.lock");
         FileUtil.mkParentDirs(lockFile);
@@ -316,6 +460,7 @@ public class DefaultCronScheduler {
         }
     }
 
+    /** 执行tickLocked相关逻辑。 */
     private void tickLocked() throws Exception {
         long now = System.currentTimeMillis();
         List<CronJobRecord> jobs = prepareDueJobs(cronJobRepository.listDue(now), now);
@@ -338,6 +483,11 @@ public class DefaultCronScheduler {
         runParallelBySource(parallelJobs);
     }
 
+    /**
+     * 运行Parallel根据来源。
+     *
+     * @param jobs jobs 参数。
+     */
     private void runParallelBySource(List<CronJobRecord> jobs) throws Exception {
         Map<String, List<CronJobRecord>> grouped = groupBySource(jobs);
         if (grouped.isEmpty()) {
@@ -349,6 +499,7 @@ public class DefaultCronScheduler {
             futures.add(
                     executor.submit(
                             new Runnable() {
+                                /** 执行异步任务主体。 */
                                 @Override
                                 public void run() {
                                     for (CronJobRecord job : sourceJobs) {
@@ -363,6 +514,11 @@ public class DefaultCronScheduler {
         executor.shutdown();
     }
 
+    /**
+     * 执行Best Effort。
+     *
+     * @param job job 参数。
+     */
     private void executeBestEffort(CronJobRecord job) {
         try {
             execute(job, System.currentTimeMillis());
@@ -375,10 +531,23 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 判断是否存在Workdir。
+     *
+     * @param job job 参数。
+     * @return 如果Workdir满足条件则返回 true，否则返回 false。
+     */
     private boolean hasWorkdir(CronJobRecord job) {
         return job != null && StrUtil.isNotBlank(job.getWorkdir());
     }
 
+    /**
+     * 执行prepareDueJobs相关逻辑。
+     *
+     * @param dueJobs dueJobs 参数。
+     * @param now 当前时间戳。
+     * @return 返回prepare Due Jobs结果。
+     */
     private List<CronJobRecord> prepareDueJobs(List<CronJobRecord> dueJobs, long now)
             throws Exception {
         List<CronJobRecord> result = new ArrayList<CronJobRecord>();
@@ -413,6 +582,13 @@ public class DefaultCronScheduler {
         return result;
     }
 
+    /**
+     * 恢复MissingNext运行。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     * @return 返回recover Missing Next运行结果。
+     */
     private boolean recoverMissingNextRun(CronJobRecord job, long now) throws Exception {
         if (job.getNextRunAt() > 0L) {
             return true;
@@ -443,10 +619,24 @@ public class DefaultCronScheduler {
         return true;
     }
 
+    /**
+     * 执行recurring恢复基础相关逻辑。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     * @return 返回recurring Recovery Base结果。
+     */
     private long recurringRecoveryBase(CronJobRecord job, long now) {
         return job.getLastRunAt() > 0L ? job.getLastRunAt() : now;
     }
 
+    /**
+     * 执行recoverableOneShot运行时间相关逻辑。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     * @return 返回recoverable One Shot运行时间结果。
+     */
     private Long recoverableOneShotRunAt(CronJobRecord job, long now) {
         if (job.getLastRunAt() > 0L) {
             return null;
@@ -459,11 +649,24 @@ public class DefaultCronScheduler {
         return runAt >= now - 120000L ? Long.valueOf(runAt) : null;
     }
 
+    /**
+     * 执行oneShotDurationMillis相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @return 返回one Shot Duration Millis结果。
+     */
     private long oneShotDurationMillis(String schedule) {
         Integer minutes = CronSupport.intervalMinutes(schedule);
         return Math.max(60000L, minutes == null ? 60000L : minutes.intValue() * 60000L);
     }
 
+    /**
+     * 判断是否需要Fast Forward Missed运行。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     * @return 如果Fast Forward Missed运行满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldFastForwardMissedRun(CronJobRecord job, long now) {
         if (!isRecurring(job)) {
             return false;
@@ -475,6 +678,12 @@ public class DefaultCronScheduler {
         return now - nextRunAt > missedRunGraceMillis(job.getCronExpr(), now);
     }
 
+    /**
+     * 执行advanceRecurringBefore运行相关逻辑。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     */
     private void advanceRecurringBeforeRun(CronJobRecord job, long now) {
         if (!isRecurring(job)) {
             return;
@@ -493,20 +702,44 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 判断是否Recurring。
+     *
+     * @param job job 参数。
+     * @return 如果Recurring满足条件则返回 true，否则返回 false。
+     */
     private boolean isRecurring(CronJobRecord job) {
         return job != null && !CronSupport.isOneShot(job.getCronExpr());
     }
 
+    /**
+     * 执行missed运行GraceMillis相关逻辑。
+     *
+     * @param cronExpr 定时任务Expr参数。
+     * @param now 当前时间戳。
+     * @return 返回missed运行Grace Millis结果。
+     */
     private long missedRunGraceMillis(String cronExpr, long now) {
         long period = CronSupport.periodMillis(cronExpr, now);
         long grace = period <= 0L ? 120000L : period / 2L;
         return Math.max(120000L, Math.min(grace, 7200000L));
     }
 
+    /**
+     * 运行Now。
+     *
+     * @param jobId job标识。
+     */
     public void runNow(String jobId) throws Exception {
         runNow(jobId, "manual");
     }
 
+    /**
+     * 运行Now。
+     *
+     * @param jobId job标识。
+     * @param triggerType trigger类型参数。
+     */
     public void runNow(String jobId, String triggerType) throws Exception {
         CronJobRecord job = cronJobRepository.findById(jobId);
         if (job != null) {
@@ -514,10 +747,23 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行当前回调或工具调用。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     */
     private void execute(CronJobRecord job, long now) throws Exception {
         execute(job, now, queuedTriggerType(job));
     }
 
+    /**
+     * 执行当前回调或工具调用。
+     *
+     * @param job job 参数。
+     * @param now 当前时间戳。
+     * @param triggerType trigger类型参数。
+     */
     private void execute(CronJobRecord job, long now, String triggerType) throws Exception {
         triggerType = StrUtil.blankToDefault(triggerType, "scheduled");
         job.setPendingTriggerType(null);
@@ -677,6 +923,12 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行排队Trigger类型相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回queued Trigger类型结果。
+     */
     private String queuedTriggerType(CronJobRecord job) {
         if (job == null || StrUtil.isBlank(job.getPendingTriggerType())) {
             return "scheduled";
@@ -697,6 +949,13 @@ public class DefaultCronScheduler {
         return job.getJobId().trim();
     }
 
+    /**
+     * 执行silent定时任务输出相关逻辑。
+     *
+     * @param job job 参数。
+     * @param reason 原因参数。
+     * @return 返回silent定时任务输出结果。
+     */
     private String silentCronOutput(CronJobRecord job, String reason) {
         return "Cron Job: "
                 + StrUtil.blankToDefault(job.getName(), job.getJobId())
@@ -709,21 +968,45 @@ public class DefaultCronScheduler {
                 + SILENT_MARKER;
     }
 
+    /**
+     * 判断是否定时任务Script安全块。
+     *
+     * @param error 错误参数。
+     * @return 如果定时任务Script安全块满足条件则返回 true，否则返回 false。
+     */
     private boolean isCronScriptSecurityBlock(Exception error) {
         String message = error == null ? null : error.getMessage();
         return StrUtil.isNotBlank(message) && message.startsWith("BLOCKED");
     }
 
+    /**
+     * 判断是否定时任务Script路径块。
+     *
+     * @param error 错误参数。
+     * @return 如果定时任务Script路径块满足条件则返回 true，否则返回 false。
+     */
     private boolean isCronScriptPathBlock(Exception error) {
         String message = error == null ? null : error.getMessage();
         return StrUtil.isNotBlank(message)
-                && message.startsWith("Cron script not found under runtime/scripts");
+                && (message.startsWith("Cron script not found under runtime/scripts")
+                        || message.startsWith("定时任务脚本不在 runtime/scripts 下"));
     }
 
+    /**
+     * 判断是否定时任务提示词安全块。
+     *
+     * @param error 错误参数。
+     * @return 如果定时任务提示词安全块满足条件则返回 true，否则返回 false。
+     */
     private boolean isCronPromptSecurityBlock(String error) {
         return StrUtil.isNotBlank(error) && error.startsWith(CRON_PROMPT_BLOCK_PREFIX);
     }
 
+    /**
+     * 执行warmupMCP工具相关逻辑。
+     *
+     * @param job job 参数。
+     */
     private void warmupMcpTools(CronJobRecord job) {
         if (mcpRuntimeService == null) {
             return;
@@ -731,6 +1014,7 @@ public class DefaultCronScheduler {
         try {
             MCP_WARMUP_EXECUTOR.submit(
                     new Runnable() {
+                        /** 执行异步任务主体。 */
                         @Override
                         public void run() {
                             warmupMcpToolsNow(job);
@@ -746,6 +1030,11 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行warmupMCP工具Now相关逻辑。
+     *
+     * @param job job 参数。
+     */
     private void warmupMcpToolsNow(CronJobRecord job) {
         try {
             int count = 0;
@@ -773,24 +1062,45 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行withScript输出相关逻辑。
+     *
+     * @param prompt 提示词参数。
+     * @param output 命令执行输出文本。
+     * @return 返回with Script输出结果。
+     */
     private String withScriptOutput(String prompt, String output) {
-        return "## Script Output\n"
-                + "The following data was collected by a pre-run script. Use it as context for your analysis.\n\n"
+        return "## 脚本输出\n"
+                + "以下数据由预运行脚本采集，请将其作为分析上下文。\n\n"
                 + "```\n"
                 + StrUtil.nullToEmpty(output)
                 + "\n```\n\n"
                 + StrUtil.nullToEmpty(prompt);
     }
 
+    /**
+     * 执行withScript错误相关逻辑。
+     *
+     * @param prompt 提示词参数。
+     * @param error 错误参数。
+     * @return 返回with Script Error结果。
+     */
     private String withScriptError(String prompt, String error) {
-        return "## Script Error\n"
-                + "The data-collection script failed. Report this to the user.\n\n"
+        return "## 脚本错误\n"
+                + "数据采集脚本执行失败，请在回复中告知用户。\n\n"
                 + "```\n"
-                + StrUtil.blankToDefault(error, "unknown error")
+                + StrUtil.blankToDefault(error, "未知错误")
                 + "\n```\n\n"
                 + StrUtil.nullToEmpty(prompt);
     }
 
+    /**
+     * 运行Scheduled With Inactivity Timeout。
+     *
+     * @param job job 参数。
+     * @param synthetic synthetic 参数。
+     * @return 返回Scheduled With Inactivity Timeout结果。
+     */
     private GatewayReply runScheduledWithInactivityTimeout(
             CronJobRecord job, GatewayMessage synthetic) throws Exception {
         int timeoutSeconds = agentInactivityTimeoutSeconds();
@@ -800,6 +1110,12 @@ public class DefaultCronScheduler {
         ExecutorService executor =
                 Executors.newSingleThreadExecutor(
                         new ThreadFactory() {
+                            /**
+                             * 创建Thread。
+                             *
+                             * @param runnable runnable 参数。
+                             * @return 返回创建好的Thread。
+                             */
                             @Override
                             public Thread newThread(Runnable runnable) {
                                 Thread thread =
@@ -811,6 +1127,11 @@ public class DefaultCronScheduler {
         Future<GatewayReply> future =
                 executor.submit(
                         new java.util.concurrent.Callable<GatewayReply>() {
+                            /**
+                             * 执行回调调用并返回结果。
+                             *
+                             * @return 返回call结果。
+                             */
                             @Override
                             public GatewayReply call() throws Exception {
                                 return conversationOrchestrator.runScheduled(synthetic);
@@ -864,21 +1185,28 @@ public class DefaultCronScheduler {
         String lastDesc =
                 StrUtil.blankToDefault(
                         stringValue(activity == null ? null : activity.get("last_activity_desc")),
-                        "unknown");
+                        "未知");
         String jobName = StrUtil.blankToDefault(job.getName(), job.getJobId());
         String message =
-                "Cron job '"
+                "定时任务 '"
                         + jobName
-                        + "' idle for "
+                        + "' 已空闲 "
                         + idleSeconds
-                        + "s (limit "
+                        + " 秒（限制 "
                         + timeoutSeconds
-                        + "s) - last activity: "
+                        + " 秒），最后活动："
                         + lastDesc;
         log.error("{}", message);
         throw new TimeoutException(message);
     }
 
+    /**
+     * 运行Scheduled With Auto投递上下文。
+     *
+     * @param job job 参数。
+     * @param synthetic synthetic 参数。
+     * @return 返回Scheduled With Auto投递上下文结果。
+     */
     private GatewayReply runScheduledWithAutoDeliveryContext(
             CronJobRecord job, GatewayMessage synthetic) throws Exception {
         List<CronDeliveryTarget> targets = resolveDeliveryTargets(job);
@@ -900,6 +1228,11 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行AgentInactivityTimeoutSeconds相关逻辑。
+     *
+     * @return 返回Agent Inactivity Timeout Seconds结果。
+     */
     private int agentInactivityTimeoutSeconds() {
         String envValue = StrUtil.trim(System.getenv("SOLONCLAW_CRON_TIMEOUT"));
         if (StrUtil.isNotBlank(envValue)) {
@@ -921,6 +1254,13 @@ public class DefaultCronScheduler {
         return value >= 0 ? value : DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS;
     }
 
+    /**
+     * 将输入对象转换为长整型数值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回long Value结果。
+     */
     private long longValue(Object value, long defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -935,10 +1275,23 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 投递Best Effort。
+     *
+     * @param job job 参数。
+     * @param reply 回复参数。
+     * @return 返回Best Effort结果。
+     */
     private CronDeliveryReport deliverBestEffort(CronJobRecord job, GatewayReply reply) {
         try {
             return deliver(job, reply);
@@ -950,6 +1303,13 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行deliver相关逻辑。
+     *
+     * @param job job 参数。
+     * @param reply 回复参数。
+     * @return 返回deliver结果。
+     */
     private CronDeliveryReport deliver(CronJobRecord job, GatewayReply reply) throws Exception {
         if (reply == null || StrUtil.isBlank(reply.getContent())) {
             return CronDeliveryReport.skipped("empty");
@@ -1005,6 +1365,12 @@ public class DefaultCronScheduler {
         return report;
     }
 
+    /**
+     * 解析投递Payload。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的投递Payload。
+     */
     private CronDeliveryPayload parseDeliveryPayload(String content) {
         String value = StrUtil.nullToEmpty(content);
         boolean voice = value.contains("[[audio_as_voice]]");
@@ -1017,6 +1383,13 @@ public class DefaultCronScheduler {
         return new CronDeliveryPayload(text, media);
     }
 
+    /**
+     * 解析媒体附件。
+     *
+     * @param platform 平台参数。
+     * @param mediaRefs 媒体Refs参数。
+     * @return 返回解析后的媒体附件。
+     */
     private CronResolvedMedia resolveMediaAttachments(
             PlatformType platform, List<CronMediaRef> mediaRefs) {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
@@ -1041,6 +1414,13 @@ public class DefaultCronScheduler {
         return new CronResolvedMedia(attachments, resolved);
     }
 
+    /**
+     * 移除Resolved媒体Tags。
+     *
+     * @param text 待处理文本。
+     * @param resolved resolved 参数。
+     * @return 返回Resolved媒体Tags结果。
+     */
     private String removeResolvedMediaTags(String text, List<CronMediaRef> resolved) {
         String cleaned = StrUtil.nullToEmpty(text);
         if (resolved != null) {
@@ -1053,11 +1433,23 @@ public class DefaultCronScheduler {
         return cleaned.replaceAll("\\n{3,}", "\n\n").trim();
     }
 
+    /**
+     * 判断是否Silent。
+     *
+     * @param content 待处理内容。
+     * @return 如果Silent满足条件则返回 true，否则返回 false。
+     */
     private boolean isSilent(String content) {
         return StrUtil.isNotBlank(content)
                 && content.trim().toUpperCase(java.util.Locale.ROOT).startsWith(SILENT_MARKER);
     }
 
+    /**
+     * 解析投递Targets。
+     *
+     * @param job job 参数。
+     * @return 返回解析后的投递Targets。
+     */
     private List<CronDeliveryTarget> resolveDeliveryTargets(CronJobRecord job) {
         String deliver =
                 Utils.isNotEmpty(job.getDeliverPlatform()) ? job.getDeliverPlatform() : "local";
@@ -1082,6 +1474,13 @@ public class DefaultCronScheduler {
         return targets;
     }
 
+    /**
+     * 解析Single投递Target。
+     *
+     * @param job job 参数。
+     * @param rawTarget 原始Target参数。
+     * @return 返回解析后的Single投递Target。
+     */
     private CronDeliveryTarget resolveSingleDeliveryTarget(CronJobRecord job, String rawTarget) {
         String target = StrUtil.blankToDefault(rawTarget, "local").trim();
         if ("local".equalsIgnoreCase(target)) {
@@ -1135,6 +1534,12 @@ public class DefaultCronScheduler {
         return homeTarget(platform);
     }
 
+    /**
+     * 执行originTarget相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回origin Target结果。
+     */
     private CronDeliveryTarget originTarget(CronJobRecord job) {
         CronDeliveryTarget explicit = targetFromOriginJson(job.getOriginJson());
         if (explicit != null) {
@@ -1158,6 +1563,12 @@ public class DefaultCronScheduler {
                 normalizeBlank(StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
     }
 
+    /**
+     * 执行targetFromOriginJSON相关逻辑。
+     *
+     * @param originJson originJSON参数。
+     * @return 返回target From Origin JSON结果。
+     */
     private CronDeliveryTarget targetFromOriginJson(String originJson) {
         if (StrUtil.isBlank(originJson)) {
             return null;
@@ -1187,6 +1598,13 @@ public class DefaultCronScheduler {
         return new CronDeliveryTarget(platform, chatId.trim(), normalizeBlank(threadId));
     }
 
+    /**
+     * 执行first字符串相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first String结果。
+     */
     private String firstString(Map<?, ?> map, String... keys) {
         for (int i = 0; i < keys.length; i++) {
             Object value = map.get(keys[i]);
@@ -1197,6 +1615,12 @@ public class DefaultCronScheduler {
         return null;
     }
 
+    /**
+     * 执行主渠道Target相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @return 返回主渠道Target结果。
+     */
     private CronDeliveryTarget homeTarget(PlatformType platform) {
         if (platform == null) {
             return null;
@@ -1218,6 +1642,12 @@ public class DefaultCronScheduler {
                 platform, home.getChatId(), normalizeBlank(home.getThreadId()));
     }
 
+    /**
+     * 执行origin兜底主渠道Target相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回origin兜底主渠道Target结果。
+     */
     private CronDeliveryTarget originFallbackHomeTarget(CronJobRecord job) {
         PlatformType source = sourcePlatform(job);
         CronDeliveryTarget target = homeTarget(source);
@@ -1240,11 +1670,23 @@ public class DefaultCronScheduler {
         return null;
     }
 
+    /**
+     * 执行来源平台相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回来源平台结果。
+     */
     private PlatformType sourcePlatform(CronJobRecord job) {
         String[] parts = SourceKeySupport.split(job.getSourceKey());
         return PlatformType.fromName(parts[0]);
     }
 
+    /**
+     * 投递平台。
+     *
+     * @param job job 参数。
+     * @return 返回平台结果。
+     */
     private PlatformType deliverPlatform(CronJobRecord job) {
         PlatformType platform = PlatformType.fromName(job.getDeliverPlatform());
         if (platform != null) {
@@ -1253,6 +1695,12 @@ public class DefaultCronScheduler {
         return sourcePlatform(job);
     }
 
+    /**
+     * 规范化Blank。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Blank结果。
+     */
     private String normalizeBlank(String value) {
         if (value == null) {
             return null;
@@ -1261,6 +1709,12 @@ public class DefaultCronScheduler {
         return text.length() == 0 ? null : text;
     }
 
+    /**
+     * 构建提示词。
+     *
+     * @param job job 参数。
+     * @return 返回创建好的提示词。
+     */
     private String buildPrompt(CronJobRecord job) throws Exception {
         StringBuilder prompt = new StringBuilder(CRON_RUNTIME_HINT);
         Map<String, Object> view = cronJobService.toView(job);
@@ -1292,6 +1746,13 @@ public class DefaultCronScheduler {
         return scanAssembledPrompt(prompt.toString(), job);
     }
 
+    /**
+     * 执行scanAssembled提示词相关逻辑。
+     *
+     * @param prompt 提示词参数。
+     * @param job job 参数。
+     * @return 返回scan Assembled提示词结果。
+     */
     private String scanAssembledPrompt(String prompt, CronJobRecord job) {
         if (cronJobService == null || StrUtil.isBlank(prompt)) {
             return prompt;
@@ -1309,11 +1770,16 @@ public class DefaultCronScheduler {
                             StrUtil.blankToDefault(
                                     e.getMessage(), "cron prompt injection scanner"));
             log.warn("Cron job '{}' blocked by assembled prompt scanner: {}", jobLabel, reason);
-            throw new IllegalStateException(
-                    CRON_PROMPT_BLOCK_PREFIX + " matched scanner: " + reason);
+            throw new IllegalStateException(CRON_PROMPT_BLOCK_PREFIX + "命中扫描器：" + reason);
         }
     }
 
+    /**
+     * 生成安全展示用的上下文任务标识。
+     *
+     * @param ref ref 参数。
+     * @return 返回safe上下文任务标识。
+     */
     private String safeContextJobId(Object ref) {
         if (ref == null) {
             return null;
@@ -1325,6 +1791,13 @@ public class DefaultCronScheduler {
         return value;
     }
 
+    /**
+     * 加载技能提示词Parts。
+     *
+     * @param job job 参数。
+     * @param skills 技能参数。
+     * @return 返回技能提示词Parts结果。
+     */
     private String loadSkillPromptParts(CronJobRecord job, List<String> skills) {
         if (localSkillService == null) {
             return "请先加载并遵循这些技能：" + skills + "\n\n";
@@ -1367,6 +1840,11 @@ public class DefaultCronScheduler {
         return parts.append("\n\n").toString();
     }
 
+    /**
+     * 执行bump技能Load相关逻辑。
+     *
+     * @param skill 技能参数。
+     */
     private void bumpSkillLoad(String skill) {
         try {
             localSkillService.bumpUsage(skill, "load");
@@ -1378,6 +1856,12 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行joinNames相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回join Names结果。
+     */
     private String joinNames(List<String> values) {
         StringBuilder builder = new StringBuilder();
         for (String value : values) {
@@ -1392,6 +1876,12 @@ public class DefaultCronScheduler {
         return builder.toString();
     }
 
+    /**
+     * 执行truncate上下文From输出相关逻辑。
+     *
+     * @param output 命令执行输出文本。
+     * @return 返回truncate上下文From输出结果。
+     */
     private String truncateContextFromOutput(String output) {
         if (output == null || output.length() <= MAX_CONTEXT_FROM_CHARS) {
             return output;
@@ -1399,6 +1889,12 @@ public class DefaultCronScheduler {
         return output.substring(0, MAX_CONTEXT_FROM_CHARS) + "\n\n[... output truncated ...]";
     }
 
+    /**
+     * 执行模型Override相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回模型Override结果。
+     */
     private String modelOverride(CronJobRecord job) {
         if (job == null || StrUtil.isBlank(job.getModel())) {
             return null;
@@ -1414,6 +1910,12 @@ public class DefaultCronScheduler {
         return override.toString();
     }
 
+    /**
+     * 执行启用状态Toolsets相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回enabled Toolsets结果。
+     */
     private List<String> enabledToolsets(CronJobRecord job) {
         List<String> result = new ArrayList<String>();
         if (job == null || StrUtil.isBlank(job.getEnabledToolsetsJson())) {
@@ -1438,6 +1940,12 @@ public class DefaultCronScheduler {
         return result;
     }
 
+    /**
+     * 解析定时任务启用 Toolsets。
+     *
+     * @param job job 参数。
+     * @return 返回解析后的定时任务启用 Toolsets。
+     */
     private List<String> resolveCronEnabledToolsets(CronJobRecord job) {
         List<String> perJob = enabledToolsets(job);
         if (!perJob.isEmpty()) {
@@ -1453,10 +1961,22 @@ public class DefaultCronScheduler {
         return CronJobService.filterProtectedCronToolsets(fallback);
     }
 
+    /**
+     * 运行Script。
+     *
+     * @param job job 参数。
+     * @return 返回Script结果。
+     */
     private String runScript(CronJobRecord job) throws Exception {
         return runScriptResult(job).output;
     }
 
+    /**
+     * 运行Script结果。
+     *
+     * @param job job 参数。
+     * @return 返回Script结果。
+     */
     private CronScriptResult runScriptResult(CronJobRecord job) throws Exception {
         File scriptsDir =
                 FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
@@ -1466,7 +1986,7 @@ public class DefaultCronScheduler {
                         .getCanonicalFile();
         if (!isUnderDirectory(scriptsDir, script) || !script.exists() || !script.isFile()) {
             throw new IllegalStateException(
-                    "Cron script not found under runtime/scripts: " + job.getScript());
+                    "定时任务脚本不在 runtime/scripts 下或文件不存在：" + job.getScript());
         }
         String name = script.getName().toLowerCase();
         String scriptContent = FileUtil.readString(script, StandardCharsets.UTF_8);
@@ -1490,16 +2010,26 @@ public class DefaultCronScheduler {
         boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
-            throw new IllegalStateException("Cron script timed out after " + timeoutSeconds + "s");
+            throw new IllegalStateException("定时任务脚本执行超时：" + timeoutSeconds + " 秒");
         }
         String output = new String(data, StandardCharsets.UTF_8).trim();
         if (process.exitValue() != 0) {
             throw new IllegalStateException(
-                    "Cron script exited " + process.exitValue() + ": " + output);
+                    "定时任务脚本退出码 "
+                            + process.exitValue()
+                            + "，输出："
+                            + output);
         }
         return new CronScriptResult(output, parseWakeAgent(output));
     }
 
+    /**
+     * 判断是否Under Directory。
+     *
+     * @param root root 参数。
+     * @param target target 参数。
+     * @return 如果Under Directory满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderDirectory(File root, File target) throws Exception {
         java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
         java.nio.file.Path targetPath =
@@ -1510,6 +2040,11 @@ public class DefaultCronScheduler {
         return targetPath.startsWith(rootPath);
     }
 
+    /**
+     * 执行scriptTimeoutSeconds相关逻辑。
+     *
+     * @return 返回script Timeout Seconds结果。
+     */
     private int scriptTimeoutSeconds() {
         String envValue = StrUtil.trim(System.getenv("SOLONCLAW_CRON_SCRIPT_TIMEOUT"));
         if (StrUtil.isNotBlank(envValue)) {
@@ -1530,6 +2065,12 @@ public class DefaultCronScheduler {
         return value > 0 ? value : 120;
     }
 
+    /**
+     * 解析Wake Agent。
+     *
+     * @param output 命令执行输出文本。
+     * @return 返回解析后的Wake Agent。
+     */
     private boolean parseWakeAgent(String output) {
         if (StrUtil.isBlank(output)) {
             return true;
@@ -1556,6 +2097,13 @@ public class DefaultCronScheduler {
         return true;
     }
 
+    /**
+     * 投递Error Best Effort。
+     *
+     * @param job job 参数。
+     * @param error 错误参数。
+     * @return 返回Error Best Effort结果。
+     */
     private CronDeliveryReport deliverErrorBestEffort(CronJobRecord job, String error) {
         if (!job.isNoAgent()) {
             if (!isCronPromptSecurityBlock(error)) {
@@ -1578,46 +2126,80 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行阻断提示词Failure消息相关逻辑。
+     *
+     * @param job job 参数。
+     * @param error 错误参数。
+     * @return 返回blocked提示词Failure消息结果。
+     */
     private String blockedPromptFailureMessage(CronJobRecord job, String error) {
         String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-        return "# Cron Job: "
-                + taskName
+        return "# 定时任务："
+                + safeText(taskName)
                 + "\n\n"
-                + "**Job ID:** "
+                + "**任务 ID：** "
                 + job.getJobId()
                 + "\n"
-                + "**Run Time:** "
+                + "**运行时间：** "
                 + time
                 + "\n"
-                + "**Status:** BLOCKED\n\n"
-                + "The assembled prompt, including loaded skill content and script context, matched the cron injection scanner and the agent was not run.\n\n"
-                + "**Scanner result:** "
-                + safeText(StrUtil.blankToDefault(error, "unknown scanner result"))
+                + "**状态：** BLOCKED\n\n"
+                + "组装后的提示词（包含已加载的技能内容和脚本上下文）命中了定时任务注入扫描器，因此本次未运行 Agent。\n\n"
+                + "**扫描结果：** "
+                + safeText(StrUtil.blankToDefault(error, "未知扫描结果"))
                 + "\n\n"
-                + "Audit the skill(s) or script output attached to this job before resuming it.";
+                + "恢复任务前，请先审查此任务关联的技能内容或脚本输出。";
     }
 
+    /**
+     * 执行noAgentScriptFailure消息相关逻辑。
+     *
+     * @param job job 参数。
+     * @param error 错误参数。
+     * @return 返回no Agent Script Failure消息结果。
+     */
     private String noAgentScriptFailureMessage(CronJobRecord job, String error) {
         String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
-        String message = safeText(StrUtil.blankToDefault(error, "unknown error"));
+        String message = safeText(StrUtil.blankToDefault(error, "未知错误"));
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-        return "⚠ Cron watchdog '"
-                + taskName
-                + "' script failed\n\n"
+        return "⚠ 定时任务监控 '"
+                + safeText(taskName)
+                + "' 脚本执行失败\n\n"
                 + message
-                + "\n\nTime: "
+                + "\n\n时间："
                 + time;
     }
 
+    /**
+     * 执行定时任务Failure消息相关逻辑。
+     *
+     * @param job job 参数。
+     * @param error 错误参数。
+     * @return 返回定时任务Failure消息结果。
+     */
     private String cronFailureMessage(CronJobRecord job, String error) {
         String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
-        return "⚠ Cron job '"
-                + taskName
-                + "' failed:\n"
-                + safeText(StrUtil.blankToDefault(error, "unknown error"));
+        return "⚠ 定时任务 '"
+                + safeText(taskName)
+                + "' 执行失败：\n"
+                + safeText(StrUtil.blankToDefault(error, "未知错误"));
     }
 
+    /**
+     * 记录运行。
+     *
+     * @param job job 参数。
+     * @param startedAt startedAt 参数。
+     * @param status 状态参数。
+     * @param error 错误参数。
+     * @param output 命令执行输出文本。
+     * @param deliveryError 投递错误参数。
+     * @param deliveryResultJson 投递结果JSON响应或执行结果。
+     * @param attempt attempt 参数。
+     * @param triggerType trigger类型参数。
+     */
     private void recordRun(
             CronJobRecord job,
             long startedAt,
@@ -1652,6 +2234,15 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行摘要相关逻辑。
+     *
+     * @param status 状态参数。
+     * @param error 错误参数。
+     * @param output 命令执行输出文本。
+     * @param deliveryError 投递错误参数。
+     * @return 返回summary结果。
+     */
     private String summary(String status, String error, String output, String deliveryError) {
         if (StrUtil.isNotBlank(error)) {
             return status + ": " + AgentRunPreview.safe(error);
@@ -1665,6 +2256,12 @@ public class DefaultCronScheduler {
         return status + ": " + AgentRunPreview.safe(output);
     }
 
+    /**
+     * 标记投递Error Best Effort。
+     *
+     * @param jobId job标识。
+     * @param error 错误参数。
+     */
     private void markDeliveryErrorBestEffort(String jobId, String error) {
         try {
             cronJobRepository.markDeliveryError(jobId, safeText(error));
@@ -1672,6 +2269,12 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         if (e == null) {
             return "Exception";
@@ -1680,14 +2283,32 @@ public class DefaultCronScheduler {
         return safeText(message);
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String value) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
     }
 
+    /**
+     * 生成安全展示用的Target。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Target结果。
+     */
     private String safeTarget(String value) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 160);
     }
 
+    /**
+     * 读取全部。
+     *
+     * @param inputStream 输入流参数。
+     * @return 返回读取到的全部。
+     */
     private byte[] readAll(java.io.InputStream inputStream) throws Exception {
         java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
@@ -1698,12 +2319,23 @@ public class DefaultCronScheduler {
         return output.toByteArray();
     }
 
+    /**
+     * 执行默认Python命令相关逻辑。
+     *
+     * @return 返回默认Python命令结果。
+     */
     private String defaultPythonCommand() {
         return System.getProperty("os.name", "").toLowerCase().contains("win")
                 ? "python"
                 : "python3";
     }
 
+    /**
+     * 执行保护定时任务Script相关逻辑。
+     *
+     * @param job job 参数。
+     * @param scriptContent scriptContent 参数。
+     */
     private void guardCronScript(CronJobRecord job, String scriptContent) {
         if (dangerousCommandApprovalService == null || StrUtil.isBlank(scriptContent)) {
             return;
@@ -1713,11 +2345,11 @@ public class DefaultCronScheduler {
                         ToolNameConstants.EXECUTE_SHELL, scriptContent);
         if (hardline != null) {
             throw new IllegalStateException(
-                    "BLOCKED (hardline): Cron script "
+                    "BLOCKED (hardline)：定时任务脚本 "
                             + job.getScript()
-                            + " matched "
+                            + " 命中 "
                             + hardline.getDescription()
-                            + ". Non-allowlisted hardline commands cannot run from cron.");
+                            + "。未进入允许名单的硬阻断命令不能从定时任务运行。");
         }
 
         DangerousCommandApprovalService.DetectionResult dangerous =
@@ -1728,11 +2360,11 @@ public class DefaultCronScheduler {
         }
         if (isCronLifecycleBlocked(dangerous)) {
             throw new IllegalStateException(
-                    "BLOCKED (lifecycle): Cron script "
+                    "BLOCKED (lifecycle)：定时任务脚本 "
                             + job.getScript()
-                            + " matched "
+                            + " 命中 "
                             + dangerous.getDescription()
-                            + ". Gateway lifecycle commands cannot run from cron.");
+                            + "。网关生命周期命令不能从定时任务运行。");
         }
         String mode = dangerousCommandApprovalService.cronApprovalMode();
         if ("approve".equals(mode) || "bypass".equals(mode)) {
@@ -1743,29 +2375,37 @@ public class DefaultCronScheduler {
         }
         if ("approval".equals(mode)) {
             throw new CronApprovalPendingException(
-                    "BLOCKED: Cron script "
+                    "BLOCKED：定时任务脚本 "
                             + job.getScript()
-                            + " matched dangerous command pattern ("
+                            + " 命中危险命令模式（"
                             + dangerous.getDescription()
-                            + ") and is waiting for user approval.",
+                            + "），正在等待用户审批。",
                     dangerous.getDescription());
         }
         if ("strict".equals(mode)) {
             throw new IllegalStateException(
-                    "BLOCKED: Cron script "
+                    "BLOCKED：定时任务脚本 "
                             + job.getScript()
-                            + " matched dangerous command pattern ("
+                            + " 命中危险命令模式（"
                             + dangerous.getDescription()
-                            + ") under strict cron guardrail mode.");
+                            + "），当前为 strict cron guardrail 模式。");
         }
         throw new IllegalStateException(
-                "BLOCKED: Cron script "
+                "BLOCKED：定时任务脚本 "
                         + job.getScript()
-                        + " matched dangerous command pattern ("
+                        + " 命中危险命令模式（"
                         + dangerous.getDescription()
-                        + ") but cron guardrail mode does not allow it.");
+                        + "），当前 cron guardrail 模式不允许继续运行。");
     }
 
+    /**
+     * 执行approveOr请求定时任务Script相关逻辑。
+     *
+     * @param job job 参数。
+     * @param scriptContent scriptContent 参数。
+     * @param dangerous dangerous 参数。
+     * @return 返回approve Or请求定时任务Script结果。
+     */
     private boolean approveOrRequestCronScript(
             CronJobRecord job,
             String scriptContent,
@@ -1815,6 +2455,11 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 执行定时任务防护范围相关逻辑。
+     *
+     * @return 返回定时任务防护范围结果。
+     */
     private String cronGuardrailScope() {
         if (appConfig == null || appConfig.getSecurity() == null) {
             return "job";
@@ -1829,6 +2474,12 @@ public class DefaultCronScheduler {
         return "job";
     }
 
+    /**
+     * 解析定时任务审批会话。
+     *
+     * @param job job 参数。
+     * @return 返回解析后的定时任务审批会话。
+     */
     private SqliteAgentSession resolveCronApprovalSession(CronJobRecord job) throws Exception {
         if (sessionRepository == null || job == null || StrUtil.isBlank(job.getSourceKey())) {
             return null;
@@ -1840,6 +2491,15 @@ public class DefaultCronScheduler {
         return new SqliteAgentSession(record, sessionRepository);
     }
 
+    /**
+     * 执行定时任务审批PatternKeys相关逻辑。
+     *
+     * @param job job 参数。
+     * @param scriptContent scriptContent 参数。
+     * @param dangerous dangerous 参数。
+     * @param scope scope 参数。
+     * @return 返回定时任务审批Pattern Keys结果。
+     */
     private List<String> cronApprovalPatternKeys(
             CronJobRecord job,
             String scriptContent,
@@ -1865,25 +2525,46 @@ public class DefaultCronScheduler {
         return result;
     }
 
+    /**
+     * 执行定时任务审批Description相关逻辑。
+     *
+     * @param job job 参数。
+     * @param dangerous dangerous 参数。
+     * @param scope scope 参数。
+     * @return 返回定时任务审批Description结果。
+     */
     private String cronApprovalDescription(
             CronJobRecord job,
             DangerousCommandApprovalService.DetectionResult dangerous,
             String scope) {
-        return "Cron job "
+        return "定时任务 "
                 + StrUtil.blankToDefault(job.getName(), job.getJobId())
-                + " script requires approval (scope="
+                + " 的脚本需要审批（scope="
                 + scope
-                + "): "
+                + "）："
                 + StrUtil.blankToDefault(dangerous.getDescription(), dangerous.getPatternKey());
     }
 
+    /**
+     * 执行定时任务审批命令预览相关逻辑。
+     *
+     * @param job job 参数。
+     * @param scriptContent scriptContent 参数。
+     * @return 返回定时任务审批命令Preview结果。
+     */
     private String cronApprovalCommandPreview(CronJobRecord job, String scriptContent) {
-        return "Cron script "
+        return "定时任务脚本 "
                 + StrUtil.blankToDefault(job.getScript(), "<inline>")
                 + "\n\n"
                 + StrUtil.nullToEmpty(scriptContent);
     }
 
+    /**
+     * 生成安全展示用的定时任务审批token。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe定时任务审批token结果。
+     */
     private String safeCronApprovalToken(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         StringBuilder buffer = new StringBuilder();
@@ -1900,10 +2581,22 @@ public class DefaultCronScheduler {
         return buffer.length() == 0 ? "unknown" : buffer.toString();
     }
 
+    /**
+     * 执行scriptFingerprint相关逻辑。
+     *
+     * @param scriptContent scriptContent 参数。
+     * @return 返回script Fingerprint结果。
+     */
     private String scriptFingerprint(String scriptContent) {
         return sha256Hex(StrUtil.nullToEmpty(scriptContent)).substring(0, 16);
     }
 
+    /**
+     * 执行sha256Hex相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回sha256 Hex结果。
+     */
     private String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -1923,6 +2616,12 @@ public class DefaultCronScheduler {
         }
     }
 
+    /**
+     * 判断是否定时任务生命周期块ed。
+     *
+     * @param dangerous dangerous 参数。
+     * @return 如果定时任务生命周期块ed满足条件则返回 true，否则返回 false。
+     */
     private boolean isCronLifecycleBlocked(
             DangerousCommandApprovalService.DetectionResult dangerous) {
         if (dangerous == null) {
@@ -1936,22 +2635,58 @@ public class DefaultCronScheduler {
                 || "kill_pgrep_expansion".equals(key);
     }
 
+    /**
+     * 格式化投递。
+     *
+     * @param job job 参数。
+     * @param content 待处理内容。
+     * @return 返回投递结果。
+     */
     private String formatDelivery(CronJobRecord job, String content) {
         if (!job.isWrapResponse()) {
             return content;
         }
-        String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
-        return "Cronjob Response: "
+        String taskName = safeText(StrUtil.blankToDefault(job.getName(), job.getJobId()));
+        String commandTaskName = safeCommandArgument(taskName);
+        return "定时任务响应："
                 + taskName
                 + "\n(job_id: "
                 + job.getJobId()
                 + ")\n-------------\n\n"
                 + content
-                + "\n\nTo stop or manage this job, send me a new message (e.g. \"stop reminder "
-                + taskName
-                + "\").";
+                + "\n\n如需停止或管理此任务，请直接发送新的消息（例如：\"stop reminder "
+                + commandTaskName
+                + "\"）。";
     }
 
+    /**
+     * 生成可放入用户可见命令示例的安全参数，避免任务名中的换行或引号破坏提示格式。
+     *
+     * @param value 待展示在命令示例中的原始参数。
+     * @return 返回命令示例参数。
+     */
+    private String safeCommandArgument(String value) {
+        String text = safeTarget(StrUtil.blankToDefault(value, "unknown"));
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isISOControl(c)) {
+                buffer.append(' ');
+            } else if (c == '"') {
+                buffer.append('\'');
+            } else {
+                buffer.append(c);
+            }
+        }
+        return StrUtil.blankToDefault(buffer.toString().trim(), "unknown");
+    }
+
+    /**
+     * 执行群组根据来源相关逻辑。
+     *
+     * @param jobs jobs 参数。
+     * @return 返回群组根据来源结果。
+     */
     private Map<String, List<CronJobRecord>> groupBySource(List<CronJobRecord> jobs) {
         Map<String, List<CronJobRecord>> grouped = new LinkedHashMap<String, List<CronJobRecord>>();
         for (CronJobRecord job : jobs) {
@@ -1966,11 +2701,24 @@ public class DefaultCronScheduler {
         return grouped;
     }
 
+    /** 承载定时任务投递Target相关状态和辅助逻辑。 */
     private static class CronDeliveryTarget {
+        /** 记录定时任务投递Target中的平台。 */
         private final PlatformType platform;
+
+        /** 记录定时任务投递Target中的聊天标识。 */
         private final String chatId;
+
+        /** 记录定时任务投递Target中的thread标识。 */
         private final String threadId;
 
+        /**
+         * 创建定时任务投递Target实例，并注入运行所需依赖。
+         *
+         * @param platform 平台参数。
+         * @param chatId 聊天标识。
+         * @param threadId thread标识。
+         */
         private CronDeliveryTarget(PlatformType platform, String chatId, String threadId) {
             this.platform = platform;
             this.chatId = chatId;
@@ -1978,11 +2726,24 @@ public class DefaultCronScheduler {
         }
     }
 
+    /** 承载定时任务媒体Ref相关状态和辅助逻辑。 */
     private static class CronMediaRef {
+        /** 记录定时任务媒体Ref中的token。 */
         private final String token;
+
+        /** 记录定时任务媒体Ref中的路径。 */
         private final String path;
+
+        /** 是否启用语音。 */
         private final boolean voice;
 
+        /**
+         * 创建定时任务媒体Ref实例，并注入运行所需依赖。
+         *
+         * @param token token 参数。
+         * @param path 文件或目录路径。
+         * @param voice 语音参数。
+         */
         private CronMediaRef(String token, String path, boolean voice) {
             this.token = token;
             this.path = path;
@@ -1990,10 +2751,20 @@ public class DefaultCronScheduler {
         }
     }
 
+    /** 承载定时任务Resolved媒体相关状态和辅助逻辑。 */
     private static class CronResolvedMedia {
+        /** 保存附件集合，维持调用顺序或去重语义。 */
         private final List<MessageAttachment> attachments;
+
+        /** 保存resolved集合，维持调用顺序或去重语义。 */
         private final List<CronMediaRef> resolved;
 
+        /**
+         * 创建定时任务Resolved媒体实例，并注入运行所需依赖。
+         *
+         * @param attachments attachments 参数。
+         * @param resolved resolved 参数。
+         */
         private CronResolvedMedia(
                 List<MessageAttachment> attachments, List<CronMediaRef> resolved) {
             this.attachments = attachments;
@@ -2001,20 +2772,44 @@ public class DefaultCronScheduler {
         }
     }
 
+    /** 承载定时任务投递Report相关状态和辅助逻辑。 */
     private static class CronDeliveryReport {
+        /** 记录定时任务投递Report中的delivered。 */
         private int delivered;
+
+        /** 记录定时任务投递Report中的failed。 */
         private int failed;
+
+        /** 记录定时任务投递Report中的total。 */
         private int total;
+
+        /** 记录定时任务投递Report中的skipped。 */
         private String skipped;
+
+        /** 记录定时任务投递Report中的错误。 */
         private String error;
+
+        /** 保存targets映射，便于按键快速查询。 */
         private final List<Map<String, Object>> targets = new ArrayList<Map<String, Object>>();
 
+        /**
+         * 执行skipped相关逻辑。
+         *
+         * @param reason 原因参数。
+         * @return 返回skipped结果。
+         */
         private static CronDeliveryReport skipped(String reason) {
             CronDeliveryReport report = new CronDeliveryReport();
             report.skipped = reason;
             return report;
         }
 
+        /**
+         * 执行failed相关逻辑。
+         *
+         * @param error 错误参数。
+         * @return 返回failed结果。
+         */
         private static CronDeliveryReport failed(String error) {
             CronDeliveryReport report = new CronDeliveryReport();
             report.error = SecretRedactor.redact(StrUtil.nullToEmpty(error), 1000);
@@ -2023,12 +2818,25 @@ public class DefaultCronScheduler {
             return report;
         }
 
+        /**
+         * 追加Ok。
+         *
+         * @param target target 参数。
+         * @param attachmentCount 附件Count参数。
+         */
         private void addOk(CronDeliveryTarget target, int attachmentCount) {
             delivered++;
             total++;
             targets.add(targetMap(target, "ok", null, attachmentCount));
         }
 
+        /**
+         * 追加错误。
+         *
+         * @param target target 参数。
+         * @param attachmentCount 附件Count参数。
+         * @param error 错误参数。
+         */
         private void addError(CronDeliveryTarget target, int attachmentCount, String error) {
             failed++;
             total++;
@@ -2040,10 +2848,20 @@ public class DefaultCronScheduler {
                             attachmentCount));
         }
 
+        /**
+         * 判断是否存在Errors。
+         *
+         * @return 如果Errors满足条件则返回 true，否则返回 false。
+         */
         private boolean hasErrors() {
             return failed > 0 || StrUtil.isNotBlank(error);
         }
 
+        /**
+         * 执行错误摘要相关逻辑。
+         *
+         * @return 返回error Summary结果。
+         */
         private String errorSummary() {
             if (StrUtil.isNotBlank(error)) {
                 return error;
@@ -2052,7 +2870,7 @@ public class DefaultCronScheduler {
                 return null;
             }
             StringBuilder buffer = new StringBuilder();
-            buffer.append(failed).append('/').append(total).append(" delivery target(s) failed");
+            buffer.append(failed).append('/').append(total).append(" 个投递目标失败");
             for (Map<String, Object> target : targets) {
                 if (!"error".equals(target.get("status"))) {
                     continue;
@@ -2070,6 +2888,11 @@ public class DefaultCronScheduler {
             return buffer.toString();
         }
 
+        /**
+         * 转换为JSON。
+         *
+         * @return 返回转换后的JSON。
+         */
         private String toJson() {
             if (total <= 0 && StrUtil.isBlank(skipped) && StrUtil.isBlank(error)) {
                 return null;
@@ -2088,6 +2911,15 @@ public class DefaultCronScheduler {
             return ONode.serialize(data);
         }
 
+        /**
+         * 执行target映射相关逻辑。
+         *
+         * @param target target 参数。
+         * @param status 状态参数。
+         * @param error 错误参数。
+         * @param attachmentCount 附件Count参数。
+         * @return 返回target Map结果。
+         */
         private Map<String, Object> targetMap(
                 CronDeliveryTarget target, String status, String error, int attachmentCount) {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
@@ -2103,40 +2935,80 @@ public class DefaultCronScheduler {
         }
     }
 
+    /** 承载定时任务投递载荷相关状态和辅助逻辑。 */
     private static class CronDeliveryPayload {
+        /** 记录定时任务投递载荷中的文本。 */
         private final String text;
+
+        /** 保存媒体集合，维持调用顺序或去重语义。 */
         private final List<CronMediaRef> media;
 
+        /**
+         * 创建定时任务投递Payload实例，并注入运行所需依赖。
+         *
+         * @param text 待处理文本。
+         * @param media 媒体参数。
+         */
         private CronDeliveryPayload(String text, List<CronMediaRef> media) {
             this.text = text;
             this.media = media;
         }
     }
 
+    /** 表示定时任务Script结果，携带调用方后续判断所需信息。 */
     private static class CronScriptResult {
+        /** 记录定时任务Script中的输出。 */
         private final String output;
+
+        /** 是否启用wakeAgent。 */
         private final boolean wakeAgent;
 
+        /**
+         * 创建定时任务Script结果实例，并注入运行所需依赖。
+         *
+         * @param output 命令执行输出文本。
+         * @param wakeAgent wakeAgent 参数。
+         */
         private CronScriptResult(String output, boolean wakeAgent) {
             this.output = output;
             this.wakeAgent = wakeAgent;
         }
     }
 
+    /** 表示定时任务审批Pending异常，用于向上层传递可识别的失败原因。 */
     private static class CronApprovalPendingException extends RuntimeException {
+        /** 记录定时任务审批待恢复中的detection描述。 */
         private final String detectionDescription;
 
+        /**
+         * 创建定时任务审批Pending Exception实例，并注入运行所需依赖。
+         *
+         * @param message 平台消息或错误消息。
+         * @param detectionDescription detectionDescription 参数。
+         */
         private CronApprovalPendingException(String message, String detectionDescription) {
             super(message);
             this.detectionDescription = detectionDescription;
         }
 
+        /**
+         * 读取Detection Description。
+         *
+         * @return 返回读取到的Detection Description。
+         */
         private String getDetectionDescription() {
             return detectionDescription;
         }
     }
 
+    /** 承载Agent运行预览相关状态和辅助逻辑。 */
     private static class AgentRunPreview {
+        /**
+         * 执行安全相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回safe结果。
+         */
         private static String safe(String value) {
             if (value == null) {
                 return null;

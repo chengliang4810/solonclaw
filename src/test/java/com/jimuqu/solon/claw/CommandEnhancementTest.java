@@ -101,6 +101,13 @@ public class CommandEnhancementTest {
                 .contains("session=session-ghp_***")
                 .doesNotContain("ghp_commandrollbacksecret");
 
+        GatewayReply explicitListReply = env.send("admin-chat", "admin-user", "/rollback list");
+        assertThat(explicitListReply.isError()).isFalse();
+        assertThat(explicitListReply.getContent())
+                .contains("1.")
+                .contains("created=")
+                .doesNotContain("ghp_commandrollbacksecret");
+
         GatewayReply statusReply = env.send("admin-chat", "admin-user", "/rollback status");
         assertThat(statusReply.getContent()).contains("checkpoint_count=1").contains("total_size=");
 
@@ -1217,6 +1224,13 @@ public class CommandEnhancementTest {
         assertThat(data.get("skill_binding").get("dependency_flags").toJson())
                 .contains("--depends-on job-id");
         assertThat(data.get("security").get("script_validation").getString()).contains("script");
+
+        GatewayReply policy = env.send("admin-chat", "admin-user", "/cron policy");
+        assertThat(policy.getContent())
+                .contains("Cron 自动化指南")
+                .contains("安全策略：")
+                .contains("投递策略：")
+                .doesNotContain("用法：/cron");
     }
 
     @Test
@@ -1344,7 +1358,7 @@ public class CommandEnhancementTest {
                 .contains("Cron 执行历史：" + jobId)
                 .contains("Status: ok")
                 .contains("trigger=scheduled")
-                .contains("Output: echo:[IMPORTANT: You are running as a scheduled cron job.");
+                .contains("Output: echo:[IMPORTANT: 你正在以定时任务身份运行。");
     }
 
     @Test
