@@ -57,6 +57,14 @@ public class ChannelStatus {
     /** 最近一次重连错误。 */
     private String lastReconnectError;
 
+    /**
+     * 创建渠道状态实例，并注入运行所需依赖。
+     *
+     * @param platform 平台参数。
+     * @param enabled 启用状态开关值。
+     * @param connected connected 参数。
+     * @param detail 详情参数。
+     */
     public ChannelStatus(PlatformType platform, boolean enabled, boolean connected, String detail) {
         this.platform = platform;
         this.enabled = enabled;

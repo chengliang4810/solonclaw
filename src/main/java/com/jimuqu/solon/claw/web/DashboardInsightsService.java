@@ -7,12 +7,24 @@ import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Dashboard insights service for usage analytics. */
+/** 提供控制台洞察相关业务能力，封装调用方不需要感知的运行细节。 */
 public class DashboardInsightsService {
+    /** 注入应用配置，用于控制台洞察。 */
     private final AppConfig appConfig;
+
+    /** 记录控制台洞察中的技能用量Tracker。 */
     private final SkillUsageTracker skillUsageTracker;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SqliteSessionRepository sessionRepository;
 
+    /**
+     * 创建控制台洞察服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param skillUsageTracker 技能用量Tracker参数。
+     * @param sessionRepository 会话仓储依赖。
+     */
     public DashboardInsightsService(
             AppConfig appConfig,
             SkillUsageTracker skillUsageTracker,
@@ -22,6 +34,11 @@ public class DashboardInsightsService {
         this.sessionRepository = sessionRepository;
     }
 
+    /**
+     * 执行overview相关逻辑。
+     *
+     * @return 返回overview结果。
+     */
     public Map<String, Object> overview() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("sessions", sessionStats());
@@ -30,6 +47,11 @@ public class DashboardInsightsService {
         return result;
     }
 
+    /**
+     * 执行技能用量相关逻辑。
+     *
+     * @return 返回技能用量结果。
+     */
     public Map<String, Object> skillUsage() {
         if (skillUsageTracker == null) {
             return new LinkedHashMap<String, Object>();
@@ -37,6 +59,11 @@ public class DashboardInsightsService {
         return skillUsageTracker.getAllEntries();
     }
 
+    /**
+     * 执行会话Stats相关逻辑。
+     *
+     * @return 返回会话Stats结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> sessionStats() {
         Map<String, Object> stats = new LinkedHashMap<String, Object>();
@@ -50,6 +77,11 @@ public class DashboardInsightsService {
         return stats;
     }
 
+    /**
+     * 执行技能Stats相关逻辑。
+     *
+     * @return 返回技能Stats结果。
+     */
     private Map<String, Object> skillStats() {
         Map<String, Object> stats = new LinkedHashMap<String, Object>();
         if (skillUsageTracker == null) {
@@ -86,6 +118,11 @@ public class DashboardInsightsService {
         return stats;
     }
 
+    /**
+     * 执行运行时Stats相关逻辑。
+     *
+     * @return 返回运行时Stats结果。
+     */
     private Map<String, Object> runtimeStats() {
         Map<String, Object> stats = new LinkedHashMap<String, Object>();
         Runtime runtime = Runtime.getRuntime();

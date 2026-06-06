@@ -18,26 +18,53 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.noear.snack4.ONode;
 
-/** ClawHub source adapter。 */
+/** 承载项目中心技能来源相关状态和辅助逻辑。 */
 public class ClawHubSkillSource implements SkillSource {
+    /** 公开基础URL的统一常量值。 */
     public static final String PUBLIC_BASE_URL = "https://clawhub.ai/api/v1";
+
+    /** CN搜索URL的统一常量值。 */
     public static final String CN_SEARCH_URL = "https://lightmake.site/api/v1/search";
+
+    /** CNPRIMARYDOWNLOADURL的统一常量值。 */
     public static final String CN_PRIMARY_DOWNLOAD_URL =
             "https://lightmake.site/api/v1/download?slug=%s";
+
+    /** CN索引URL的统一常量值。 */
     public static final String CN_INDEX_URL =
             "https://skillhub-1388575217.cos.ap-guangzhou.myqcloud.com/skills.json";
+
+    /** CN静态资源DOWNLOADURL的统一常量值。 */
     public static final String CN_STATIC_DOWNLOAD_URL =
             "https://skillhub-1388575217.cos.ap-guangzhou.myqcloud.com/skills/%s.zip";
+
+    /** 索引缓存键的统一常量值。 */
     private static final String INDEX_CACHE_KEY = "clawhub_cn_index";
 
+    /** 记录项目中心技能来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
+
+    /** 记录项目中心技能来源中的状态Store。 */
     private final SkillHubStateStore stateStore;
 
+    /**
+     * 创建项目中心技能来源实例，并注入运行所需依赖。
+     *
+     * @param httpClient HTTPClient参数。
+     * @param stateStore 状态Store参数。
+     */
     public ClawHubSkillSource(SkillHubHttpClient httpClient, SkillHubStateStore stateStore) {
         this.httpClient = httpClient;
         this.stateStore = stateStore;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) throws Exception {
         String cacheKey = "clawhub_search_" + Integer.toHexString((query + "|" + limit).hashCode());
@@ -59,6 +86,12 @@ public class ClawHubSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) throws Exception {
         String slug =
@@ -86,6 +119,12 @@ public class ClawHubSkillSource implements SkillSource {
         return bundle;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         String slug =
@@ -108,16 +147,34 @@ public class ClawHubSkillSource implements SkillSource {
         return toSkillMeta(payload, slug);
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "clawhub";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         return "community";
     }
 
+    /**
+     * 提取Files。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     * @param httpClient HTTPClient参数。
+     * @return 返回Files结果。
+     */
     public static Map<String, String> extractFiles(ONode payload, SkillHubHttpClient httpClient)
             throws Exception {
         Map<String, String> files = new LinkedHashMap<String, String>();
@@ -167,6 +224,13 @@ public class ClawHubSkillSource implements SkillSource {
         return files;
     }
 
+    /**
+     * 搜索国内。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回国内结果。
+     */
     private List<SkillMeta> searchDomestic(String query, int limit) throws Exception {
         if (StrUtil.isBlank(query)) {
             return Collections.emptyList();
@@ -184,6 +248,12 @@ public class ClawHubSkillSource implements SkillSource {
         return limitResults(mapSkillMetas(payload.get("results"), null), limit);
     }
 
+    /**
+     * 加载国内Index。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回国内Index结果。
+     */
     private List<SkillMeta> loadDomesticIndex(int limit) throws Exception {
         String cached = stateStore.readCachedIndex(INDEX_CACHE_KEY);
         if (StrUtil.isNotBlank(cached)) {
@@ -198,6 +268,13 @@ public class ClawHubSkillSource implements SkillSource {
         return limitResults(results, limit);
     }
 
+    /**
+     * 搜索公开。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回公开结果。
+     */
     private List<SkillMeta> searchPublic(String query, int limit) throws Exception {
         ONode payload =
                 tryGetJson(
@@ -213,6 +290,12 @@ public class ClawHubSkillSource implements SkillSource {
         return limitResults(mapSkillMetas(items, null), limit);
     }
 
+    /**
+     * 拉取From公开注册表。
+     *
+     * @param slug slug 参数。
+     * @return 返回fetch From公开注册表结果。
+     */
     private Map<String, String> fetchFromPublicRegistry(String slug) throws Exception {
         Map<String, String> files = new LinkedHashMap<String, String>();
         ONode rootPayload = tryGetJson(PUBLIC_BASE_URL + "/skills/" + slug);
@@ -244,6 +327,12 @@ public class ClawHubSkillSource implements SkillSource {
         return files;
     }
 
+    /**
+     * 执行coerce技能载荷相关逻辑。
+     *
+     * @param node 节点参数。
+     * @return 返回coerce技能Payload结果。
+     */
     private ONode coerceSkillPayload(ONode node) {
         if (node == null || node.isNull()) {
             return null;
@@ -257,6 +346,14 @@ public class ClawHubSkillSource implements SkillSource {
         return node;
     }
 
+    /**
+     * 解析Latest版本。
+     *
+     * @param slug slug 参数。
+     * @param rootPayload root载荷请求载荷。
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回解析后的Latest版本。
+     */
     private String resolveLatestVersion(String slug, ONode rootPayload, ONode payload)
             throws Exception {
         String latestVersion = payload.get("latestVersion").get("version").getString();
@@ -278,6 +375,12 @@ public class ClawHubSkillSource implements SkillSource {
         return null;
     }
 
+    /**
+     * 执行tryDownloadZip相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回try Download Zip结果。
+     */
     private Map<String, String> tryDownloadZip(String url) throws Exception {
         Map<String, String> files = new LinkedHashMap<String, String>();
         byte[] bytes;
@@ -304,7 +407,7 @@ public class ClawHubSkillSource implements SkillSource {
                 try {
                     files.put(safeName, new String(raw, "UTF-8"));
                 } catch (Exception ignored) {
-                    // skip non-text
+                    // 保留此处实现约束，避免后续维护时破坏既有行为。
                 }
             }
         } finally {
@@ -313,6 +416,12 @@ public class ClawHubSkillSource implements SkillSource {
         return files;
     }
 
+    /**
+     * 执行tryGetJSON相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回try Get JSON结果。
+     */
     private ONode tryGetJson(String url) throws Exception {
         try {
             return ONode.ofJson(httpClient.getText(url, null));
@@ -321,6 +430,12 @@ public class ClawHubSkillSource implements SkillSource {
         }
     }
 
+    /**
+     * 读取Zip Entry。
+     *
+     * @param zip zip 参数。
+     * @return 返回读取到的Zip Entry。
+     */
     private byte[] readZipEntry(ZipInputStream zip) throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
@@ -334,6 +449,12 @@ public class ClawHubSkillSource implements SkillSource {
         return output.toByteArray();
     }
 
+    /**
+     * 执行deserialize列表相关逻辑。
+     *
+     * @param json JSON参数。
+     * @return 返回deserialize List结果。
+     */
     private List<SkillMeta> deserializeList(String json) {
         SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
         List<SkillMeta> results = new ArrayList<SkillMeta>();
@@ -343,6 +464,12 @@ public class ClawHubSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 规范化Tags。
+     *
+     * @param tagsNode tags节点参数。
+     * @return 返回Tags结果。
+     */
     private List<String> normalizeTags(ONode tagsNode) {
         List<String> tags = new ArrayList<String>();
         if (tagsNode.isArray()) {
@@ -365,6 +492,13 @@ public class ClawHubSkillSource implements SkillSource {
         return tags;
     }
 
+    /**
+     * 执行map技能Metas相关逻辑。
+     *
+     * @param items items 参数。
+     * @param fallbackSlug 兜底Slug参数。
+     * @return 返回map技能Metas结果。
+     */
     private List<SkillMeta> mapSkillMetas(ONode items, String fallbackSlug) {
         List<SkillMeta> results = new ArrayList<SkillMeta>();
         if (items == null || !items.isArray()) {
@@ -379,6 +513,13 @@ public class ClawHubSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 转换为技能Meta。
+     *
+     * @param item item 参数。
+     * @param fallbackSlug 兜底Slug参数。
+     * @return 返回转换后的技能Meta。
+     */
     private SkillMeta toSkillMeta(ONode item, String fallbackSlug) {
         if (item == null || item.isNull()) {
             return null;
@@ -413,6 +554,13 @@ public class ClawHubSkillSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 根据Slug查找对应数据。
+     *
+     * @param metas metas 参数。
+     * @param slug slug 参数。
+     * @return 返回按Slug查找得到的结果。
+     */
     private SkillMeta findExactBySlug(List<SkillMeta> metas, String slug) {
         for (SkillMeta meta : metas) {
             if (slug.equals(meta.getIdentifier())) {
@@ -422,6 +570,13 @@ public class ClawHubSkillSource implements SkillSource {
         return null;
     }
 
+    /**
+     * 执行限制Results相关逻辑。
+     *
+     * @param metas metas 参数。
+     * @param limit 最大返回数量。
+     * @return 返回限制Results结果。
+     */
     private List<SkillMeta> limitResults(List<SkillMeta> metas, int limit) {
         if (metas == null || metas.isEmpty()) {
             return Collections.emptyList();
@@ -432,16 +587,36 @@ public class ClawHubSkillSource implements SkillSource {
         return new ArrayList<SkillMeta>(metas.subList(0, limit));
     }
 
+    /**
+     * 写入If Not Blank。
+     *
+     * @param meta meta 参数。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void putIfNotBlank(SkillMeta meta, String key, String value) {
         if (StrUtil.isNotBlank(value)) {
             meta.getExtra().put(key, value);
         }
     }
 
+    /**
+     * 执行URLWithSlug相关逻辑。
+     *
+     * @param template template 参数。
+     * @param slug slug 参数。
+     * @return 返回URL With Slug结果。
+     */
     private String urlWithSlug(String template, String slug) throws Exception {
         return String.format(template, URLEncoder.encode(slug, "UTF-8"));
     }
 
+    /**
+     * 执行firstNon空白值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank结果。
+     */
     private static String firstNonBlank(String... values) {
         if (values == null) {
             return null;

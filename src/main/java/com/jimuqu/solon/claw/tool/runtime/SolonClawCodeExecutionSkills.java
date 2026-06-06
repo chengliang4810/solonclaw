@@ -31,11 +31,18 @@ import org.noear.solon.ai.skills.sys.NodejsSkill;
 import org.noear.solon.ai.skills.sys.PythonSkill;
 import org.noear.solon.annotation.Param;
 
-/** Solon AI code execution skills wrapped with local safety checks. */
+/** 承载Solon项目CodeExecution技能相关状态和辅助逻辑。 */
 public class SolonClawCodeExecutionSkills {
+    /** 默认执行CODE超时时间秒数的统一常量值。 */
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
+
+    /** 默认最大STDOUTCHARS的统一常量值。 */
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
+
+    /** 最大STDERRCHARS的统一常量值。 */
     private static final int MAX_STDERR_CHARS = 10000;
+
+    /** 执行CODERPC工具的统一常量值。 */
     private static final List<String> EXECUTE_CODE_RPC_TOOLS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -46,13 +53,22 @@ public class SolonClawCodeExecutionSkills {
                             "search_files",
                             "patch",
                             "terminal"));
+
+    /** MANAGED文件工具CALL的统一常量值。 */
     private static final Pattern MANAGED_FILE_TOOL_CALL =
             Pattern.compile(
                     "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file)\\s*\\(\\s*(['\"])(.*?)\\1",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
+    /** 创建Solon项目Code Execution技能实例。 */
     private SolonClawCodeExecutionSkills() {}
 
+    /**
+     * 执行codeExecution策略摘要相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回code Execution策略Summary结果。
+     */
     public static Map<String, Object> codeExecutionPolicySummary(AppConfig appConfig) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("executeCodeSupported", Boolean.TRUE);
@@ -60,7 +76,8 @@ public class SolonClawCodeExecutionSkills {
         summary.put("executeJsSupported", Boolean.TRUE);
         summary.put("solonAiSysSkillsWrapped", Boolean.TRUE);
         summary.put("workdirTextValidated", Boolean.TRUE);
-        summary.put("scriptPreflightPathPolicy", Boolean.valueOf(isFileGuardrailEnabled(appConfig)));
+        summary.put(
+                "scriptPreflightPathPolicy", Boolean.valueOf(isFileGuardrailEnabled(appConfig)));
         summary.put("scriptPreflightUrlPolicy", Boolean.valueOf(isUrlGuardrailEnabled(appConfig)));
         summary.put("fileGuardrailMode", fileGuardrailMode(appConfig));
         summary.put("urlGuardrailMode", urlGuardrailMode(appConfig));
@@ -95,18 +112,46 @@ public class SolonClawCodeExecutionSkills {
         return summary;
     }
 
+    /** 提供Safe执行Code工具能力，供 Agent 运行时按安全策略调用。 */
     public static class SafeExecuteCodeTool {
+        /** 记录安全执行Code中的work目录。 */
         private final String workDir;
+
+        /** 记录安全执行Code中的python命令。 */
         private final String pythonCommand;
+
+        /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
+
+        /** 注入应用配置，用于安全执行Code。 */
         private final AppConfig appConfig;
+
+        /** 记录安全执行Code中的文件状态Tracker。 */
         private final SolonClawFileStateTracker fileStateTracker;
+
+        /** 记录安全执行Code中的文件技能。 */
         private final SolonClawFileReadWriteSkill fileSkill;
+
+        /** 记录安全执行Code中的补丁工具。 */
         private final SolonClawPatchTools patchTools;
+
+        /** 记录安全执行Code中的终端技能。 */
         private final SolonClawShellSkill shellSkill;
+
+        /** 记录安全执行Code中的websearch工具。 */
         private final SolonClawWebTools.SafeWebsearchTool websearchTool;
+
+        /** 记录安全执行Code中的webfetch工具。 */
         private final SolonClawWebTools.SafeWebfetchTool webfetchTool;
 
+        /**
+         * 创建Safe执行Code工具实例，并注入运行所需依赖。
+         *
+         * @param workDir 命令执行工作目录。
+         * @param pythonCommand python命令参数。
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param appConfig 应用运行配置。
+         */
         public SafeExecuteCodeTool(
                 String workDir,
                 String pythonCommand,
@@ -115,6 +160,16 @@ public class SolonClawCodeExecutionSkills {
             this(workDir, pythonCommand, securityPolicyService, appConfig, null, null);
         }
 
+        /**
+         * 创建Safe执行Code工具实例，并注入运行所需依赖。
+         *
+         * @param workDir 命令执行工作目录。
+         * @param pythonCommand python命令参数。
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param appConfig 应用运行配置。
+         * @param websearchTool websearch工具参数。
+         * @param webfetchTool webfetch工具参数。
+         */
         SafeExecuteCodeTool(
                 String workDir,
                 String pythonCommand,
@@ -148,6 +203,13 @@ public class SolonClawCodeExecutionSkills {
                             : webfetchTool;
         }
 
+        /**
+         * 执行Code。
+         *
+         * @param code code 参数。
+         * @param timeoutSeconds 超时时间，单位为秒。
+         * @return 返回Code结果。
+         */
         @ToolMapping(
                 name = "execute_code",
                 description =
@@ -256,6 +318,15 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 执行基础执行Code结果相关逻辑。
+         *
+         * @param status 状态参数。
+         * @param output 命令执行输出文本。
+         * @param toolCallsMade 工具CallsMade参数。
+         * @param started started 参数。
+         * @return 返回base执行Code结果。
+         */
         private Map<String, Object> baseExecuteCodeResult(
                 String status, String output, int toolCallsMade, long started) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -266,6 +337,14 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 执行Code Error。
+         *
+         * @param error 错误参数。
+         * @param toolCallsMade 工具CallsMade参数。
+         * @param started started 参数。
+         * @return 返回Code Error结果。
+         */
         private String executeCodeError(String error, int toolCallsMade, long started) {
             Map<String, Object> result = baseExecuteCodeResult("error", "", toolCallsMade, started);
             result.put(
@@ -274,6 +353,12 @@ public class SolonClawCodeExecutionSkills {
             return ONode.serialize(result);
         }
 
+        /**
+         * 执行configureSandboxEnvironment相关逻辑。
+         *
+         * @param env 环境变量参数。
+         * @param staging staging 参数。
+         */
         private void configureSandboxEnvironment(Map<String, String> env, Path staging) {
             SubprocessEnvironmentSanitizer.sanitize(env, appConfig);
             String existingPythonPath = env.get("PYTHONPATH");
@@ -286,6 +371,12 @@ public class SolonClawCodeExecutionSkills {
             env.put("PYTHONDONTWRITEBYTECODE", "1");
         }
 
+        /**
+         * 规范化Timeout。
+         *
+         * @param timeoutSeconds 超时时间，单位为秒。
+         * @return 返回Timeout结果。
+         */
         private int normalizeTimeout(Integer timeoutSeconds) {
             int requested =
                     timeoutSeconds == null
@@ -304,6 +395,11 @@ public class SolonClawCodeExecutionSkills {
             return Math.min(requested, Math.max(1, maxSeconds));
         }
 
+        /**
+         * 执行maxStdoutChars相关逻辑。
+         *
+         * @return 返回max Stdout Chars结果。
+         */
         private int maxStdoutChars() {
             int value = DEFAULT_MAX_STDOUT_CHARS;
             if (appConfig != null && appConfig.getTask() != null) {
@@ -312,6 +408,13 @@ public class SolonClawCodeExecutionSkills {
             return Math.max(256, value);
         }
 
+        /**
+         * 清理输出。
+         *
+         * @param text 待处理文本。
+         * @param maxChars maxChars 参数。
+         * @return 返回clean输出结果。
+         */
         private String cleanOutput(String text, int maxChars) {
             String value = StrUtil.nullToEmpty(text);
             if (value.length() > maxChars) {
@@ -330,11 +433,22 @@ public class SolonClawCodeExecutionSkills {
             return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(value));
         }
 
+        /**
+         * 执行durationSeconds相关逻辑。
+         *
+         * @param started started 参数。
+         * @return 返回duration Seconds结果。
+         */
         private double durationSeconds(long started) {
             double value = (System.nanoTime() - started) / 1000000000.0d;
             return Math.round(value * 100.0d) / 100.0d;
         }
 
+        /**
+         * 写入Solon项目工具Stub。
+         *
+         * @param target target 参数。
+         */
         private void writeSolonClawToolsStub(Path target) throws Exception {
             String source =
                     "import json, os, shlex, time\n"
@@ -397,6 +511,13 @@ public class SolonClawCodeExecutionSkills {
             Files.write(target, source.getBytes(StandardCharsets.UTF_8));
         }
 
+        /**
+         * 运行Rpc循环。
+         *
+         * @param rpcDir 文件或目录路径参数。
+         * @param toolCallsMade 工具CallsMade参数。
+         * @param accepting accepting 参数。
+         */
         private void runRpcLoop(Path rpcDir, AtomicInteger toolCallsMade, AtomicBoolean accepting) {
             while (accepting.get() || hasPendingRequests(rpcDir)) {
                 try {
@@ -422,6 +543,13 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 执行Rpc请求相关逻辑。
+         *
+         * @param rpcDir 文件或目录路径参数。
+         * @param request 当前请求对象。
+         * @param toolCallsMade 工具CallsMade参数。
+         */
         private void handleRpcRequest(Path rpcDir, Path request, AtomicInteger toolCallsMade) {
             String response;
             int seq = 0;
@@ -459,6 +587,13 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 分发Rpc工具。
+         *
+         * @param toolName 工具名称。
+         * @param args 工具或命令参数。
+         * @return 返回Rpc工具结果。
+         */
         private String dispatchRpcTool(String toolName, Map<String, Object> args) {
             try {
                 ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool(toolName);
@@ -512,6 +647,12 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 规范化工具结果。
+         *
+         * @param result 结果响应或执行结果。
+         * @return 返回工具结果。
+         */
         private String normalizeToolResult(String result) {
             String value = StrUtil.nullToEmpty(result);
             try {
@@ -534,11 +675,23 @@ public class SolonClawCodeExecutionSkills {
             return rpcJson(wrapped);
         }
 
+        /**
+         * 执行rpcJSON相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回rpc JSON结果。
+         */
         @SuppressWarnings("unchecked")
         private String rpcJson(Object value) {
             return ONode.serialize(sanitizeRpcValue(value));
         }
 
+        /**
+         * 清理Rpc Value。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回Rpc Value结果。
+         */
         @SuppressWarnings("unchecked")
         private Object sanitizeRpcValue(Object value) {
             if (value instanceof String) {
@@ -564,6 +717,12 @@ public class SolonClawCodeExecutionSkills {
             return value;
         }
 
+        /**
+         * 搜索Files。
+         *
+         * @param args 工具或命令参数。
+         * @return 返回Files结果。
+         */
         private Map<String, Object> searchFiles(Map<String, Object> args) throws Exception {
             String pattern = getString(args, "pattern", "");
             String target = getString(args, "target", "content");
@@ -633,6 +792,12 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 执行Web搜索相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @return 返回Web搜索结果。
+         */
         private Map<String, Object> webSearch(Map<String, Object> args) throws Exception {
             String query = getString(args, "query", "");
             int limit = Math.max(1, Math.min(getInt(args, "limit", 5), 20));
@@ -652,6 +817,12 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 执行WebExtract相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @return 返回Web Extract结果。
+         */
         private Map<String, Object> webExtract(Map<String, Object> args) throws Exception {
             Object rawUrls = args == null ? null : args.get("urls");
             List<String> urls = stringList(rawUrls);
@@ -683,6 +854,14 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 规范化Web搜索Document。
+         *
+         * @param doc doc 参数。
+         * @param query 查询参数。
+         * @param limit 最大返回数量。
+         * @return 返回Web搜索Document结果。
+         */
         private Map<String, Object> normalizeWebSearchDocument(
                 Document doc, String query, int limit) {
             String content = doc == null ? "" : StrUtil.nullToEmpty(doc.getContent());
@@ -710,6 +889,12 @@ public class SolonClawCodeExecutionSkills {
             return webSearchResult(web);
         }
 
+        /**
+         * 执行Web搜索结果相关逻辑。
+         *
+         * @param web Web参数。
+         * @return 返回Web搜索结果。
+         */
         private Map<String, Object> webSearchResult(List<Map<String, Object>> web) {
             Map<String, Object> data = new LinkedHashMap<String, Object>();
             data.put("web", web);
@@ -718,6 +903,13 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 提取Web Results。
+         *
+         * @param parsed parsed 参数。
+         * @param limit 最大返回数量。
+         * @return 返回Web Results结果。
+         */
         @SuppressWarnings("unchecked")
         private List<Map<String, Object>> extractWebResults(Map<String, Object> parsed, int limit) {
             Object raw = null;
@@ -753,6 +945,11 @@ public class SolonClawCodeExecutionSkills {
             return web;
         }
 
+        /**
+         * 执行assert搜索路径安全相关逻辑。
+         *
+         * @param path 文件或目录路径。
+         */
         private void assertSearchPathSafe(String path) {
             if (securityPolicyService == null) {
                 return;
@@ -768,6 +965,12 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 解析Contained路径。
+         *
+         * @param path 文件或目录路径。
+         * @return 返回解析后的Contained路径。
+         */
         private Path resolveContainedPath(String path) throws Exception {
             Path root = Paths.get(workDir).toAbsolutePath().normalize();
             Path resolved = root.resolve(StrUtil.blankToDefault(path, ".")).normalize();
@@ -782,6 +985,12 @@ public class SolonClawCodeExecutionSkills {
             return resolved;
         }
 
+        /**
+         * 生成安全展示用的路径。
+         *
+         * @param path 文件或目录路径。
+         * @return 返回safe路径。
+         */
         private String safePath(String path) {
             String value =
                     SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
@@ -798,6 +1007,12 @@ public class SolonClawCodeExecutionSkills {
             return SecretRedactor.redact(name, 400);
         }
 
+        /**
+         * 列出Files。
+         *
+         * @param base 基础参数。
+         * @return 返回Files列表。
+         */
         private List<Path> listFiles(Path base) throws Exception {
             if (Files.isRegularFile(base)) {
                 return Collections.singletonList(base);
@@ -807,6 +1022,14 @@ public class SolonClawCodeExecutionSkills {
             return files;
         }
 
+        /**
+         * 执行match映射相关逻辑。
+         *
+         * @param path 文件或目录路径。
+         * @param line 行参数。
+         * @param preview 预览参数。
+         * @return 返回match Map结果。
+         */
         private Map<String, Object> matchMap(String path, Integer line, String preview) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("path", path);
@@ -819,6 +1042,13 @@ public class SolonClawCodeExecutionSkills {
             return item;
         }
 
+        /**
+         * 执行行Number相关逻辑。
+         *
+         * @param content 待处理内容。
+         * @param index 索引参数。
+         * @return 返回line Number结果。
+         */
         private int lineNumber(String content, int index) {
             int line = 1;
             for (int i = 0; i < index && i < content.length(); i++) {
@@ -829,6 +1059,13 @@ public class SolonClawCodeExecutionSkills {
             return line;
         }
 
+        /**
+         * 执行预览行相关逻辑。
+         *
+         * @param content 待处理内容。
+         * @param index 索引参数。
+         * @return 返回preview Line结果。
+         */
         private String previewLine(String content, int index) {
             int start = content.lastIndexOf('\n', Math.max(0, index));
             int end = content.indexOf('\n', index);
@@ -843,15 +1080,32 @@ public class SolonClawCodeExecutionSkills {
             return content.substring(start, Math.min(end, start + 500)).trim();
         }
 
+        /**
+         * 判断是否存在Pending Requests。
+         *
+         * @param rpcDir 文件或目录路径参数。
+         * @return 如果Pending Requests满足条件则返回 true，否则返回 false。
+         */
         private boolean hasPendingRequests(Path rpcDir) {
             return !listRequestFiles(rpcDir).isEmpty();
         }
 
+        /**
+         * 判断是否执行Code Staging路径。
+         *
+         * @param relativePath 文件或目录路径参数。
+         * @return 如果执行Code Staging路径满足条件则返回 true，否则返回 false。
+         */
         private boolean isExecuteCodeStagingPath(String relativePath) {
             String path = StrUtil.nullToEmpty(relativePath).replace('\\', '/');
             return path.startsWith("execute_code_") || path.contains("/execute_code_");
         }
 
+        /**
+         * 确保状态Field。
+         *
+         * @param map 待读取的映射对象。
+         */
         private void ensureStatusField(Map<String, Object> map) {
             if (map == null || map.containsKey("status")) {
                 return;
@@ -872,6 +1126,12 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 列出请求Files。
+         *
+         * @param rpcDir 文件或目录路径参数。
+         * @return 返回请求Files列表。
+         */
         private List<Path> listRequestFiles(Path rpcDir) {
             try {
                 List<Path> files = new ArrayList<Path>();
@@ -883,6 +1143,12 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 执行cast映射相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回cast Map结果。
+         */
         @SuppressWarnings("unchecked")
         private Map<String, Object> castMap(Object value) {
             if (value instanceof Map) {
@@ -891,6 +1157,12 @@ public class SolonClawCodeExecutionSkills {
             return new LinkedHashMap<String, Object>();
         }
 
+        /**
+         * 提取Seq。
+         *
+         * @param request 当前请求对象。
+         * @return 返回Seq结果。
+         */
         private int extractSeq(Path request) {
             String name = request.getFileName().toString();
             try {
@@ -900,6 +1172,12 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 执行错误映射相关逻辑。
+         *
+         * @param error 错误参数。
+         * @return 返回error Map结果。
+         */
         private Map<String, Object> errorMap(String error) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("error", safeText(StrUtil.blankToDefault(error, "Tool execution failed")));
@@ -908,6 +1186,12 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 生成安全展示用的错误文本。
+         *
+         * @param e 捕获到的异常。
+         * @return 返回safe Error Text结果。
+         */
         private String safeErrorText(Exception e) {
             if (e == null) {
                 return "Tool execution failed";
@@ -915,15 +1199,37 @@ public class SolonClawCodeExecutionSkills {
             return safeText(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
 
+        /**
+         * 生成安全展示用的文本。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回safe Text结果。
+         */
         private String safeText(String value) {
             return SecretRedactor.redact(value, 1000);
         }
 
+        /**
+         * 读取String。
+         *
+         * @param map 待读取的映射对象。
+         * @param key 配置键或映射键。
+         * @param defaultValue 默认值参数。
+         * @return 返回读取到的String。
+         */
         private String getString(Map<String, Object> map, String key, String defaultValue) {
             Object value = map == null ? null : map.get(key);
             return value == null ? defaultValue : String.valueOf(value);
         }
 
+        /**
+         * 读取Int。
+         *
+         * @param map 待读取的映射对象。
+         * @param key 配置键或映射键。
+         * @param defaultValue 默认值参数。
+         * @return 返回读取到的Int。
+         */
         private int getInt(Map<String, Object> map, String key, int defaultValue) {
             Object value = map == null ? null : map.get(key);
             if (value instanceof Number) {
@@ -936,6 +1242,14 @@ public class SolonClawCodeExecutionSkills {
             }
         }
 
+        /**
+         * 读取Boolean。
+         *
+         * @param map 待读取的映射对象。
+         * @param key 配置键或映射键。
+         * @param defaultValue 默认值参数。
+         * @return 返回读取到的Boolean。
+         */
         private boolean getBoolean(Map<String, Object> map, String key, boolean defaultValue) {
             Object value = map == null ? null : map.get(key);
             if (value instanceof Boolean) {
@@ -947,6 +1261,12 @@ public class SolonClawCodeExecutionSkills {
             return Boolean.parseBoolean(String.valueOf(value));
         }
 
+        /**
+         * 执行string列表相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回string List结果。
+         */
         @SuppressWarnings("unchecked")
         private List<String> stringList(Object value) {
             List<String> result = new ArrayList<String>();
@@ -964,11 +1284,29 @@ public class SolonClawCodeExecutionSkills {
             return result;
         }
 
+        /**
+         * 执行first字符串相关逻辑。
+         *
+         * @param map 待读取的映射对象。
+         * @param key1 key1 参数。
+         * @param key2 key2 参数。
+         * @return 返回first String结果。
+         */
         private String firstString(Map<String, Object> map, String key1, String key2) {
             String value = getString(map, key1, null);
             return StrUtil.isBlank(value) ? getString(map, key2, "") : value;
         }
 
+        /**
+         * 执行first字符串相关逻辑。
+         *
+         * @param map 待读取的映射对象。
+         * @param key1 key1 参数。
+         * @param key2 key2 参数。
+         * @param key3 key3 参数。
+         * @param key4 key4 参数。
+         * @return 返回first String结果。
+         */
         private String firstString(
                 Map<String, Object> map, String key1, String key2, String key3, String key4) {
             String value = getString(map, key1, null);
@@ -986,6 +1324,11 @@ public class SolonClawCodeExecutionSkills {
             return getString(map, key4, "");
         }
 
+        /**
+         * 删除Quietly。
+         *
+         * @param path 文件或目录路径。
+         */
         private void deleteQuietly(Path path) {
             if (path == null || !Files.exists(path)) {
                 return;
@@ -1004,15 +1347,31 @@ public class SolonClawCodeExecutionSkills {
         }
     }
 
+    /** 承载安全Python技能相关状态和辅助逻辑。 */
     public static class SafePythonSkill extends PythonSkill {
+        /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
 
+        /**
+         * 创建Safe Python技能实例，并注入运行所需依赖。
+         *
+         * @param workDir 命令执行工作目录。
+         * @param pythonCommand python命令参数。
+         * @param securityPolicyService 安全策略服务依赖。
+         */
         public SafePythonSkill(
                 String workDir, String pythonCommand, SecurityPolicyService securityPolicyService) {
             super(workDir, pythonCommand);
             this.securityPolicyService = securityPolicyService;
         }
 
+        /**
+         * 执行当前回调或工具调用。
+         *
+         * @param code code 参数。
+         * @param timeout 超时时间或等待上限。
+         * @return 返回执行结果。
+         */
         @Override
         @ToolMapping(name = "execute_python", description = "执行 Python 代码，并返回标准输出。")
         public String execute(
@@ -1028,14 +1387,29 @@ public class SolonClawCodeExecutionSkills {
         }
     }
 
+    /** 承载安全Nodejs技能相关状态和辅助逻辑。 */
     public static class SafeNodejsSkill extends NodejsSkill {
+        /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
 
+        /**
+         * 创建Safe Nodejs技能实例，并注入运行所需依赖。
+         *
+         * @param workDir 命令执行工作目录。
+         * @param securityPolicyService 安全策略服务依赖。
+         */
         public SafeNodejsSkill(String workDir, SecurityPolicyService securityPolicyService) {
             super(workDir);
             this.securityPolicyService = securityPolicyService;
         }
 
+        /**
+         * 执行当前回调或工具调用。
+         *
+         * @param code code 参数。
+         * @param timeout 超时时间或等待上限。
+         * @return 返回执行结果。
+         */
         @Override
         @ToolMapping(name = "execute_js", description = "执行 Node.js JavaScript 代码，并返回标准输出。")
         public String execute(
@@ -1051,16 +1425,38 @@ public class SolonClawCodeExecutionSkills {
         }
     }
 
+    /**
+     * 执行assert安全相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     static void assertSafe(
             String toolName, String code, SecurityPolicyService securityPolicyService) {
         assertSafe(toolName, toolName, code, securityPolicyService, true);
     }
 
+    /**
+     * 执行assert安全ForManagedBackground相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     static void assertSafeForManagedBackground(
             String toolName, String code, SecurityPolicyService securityPolicyService) {
         assertSafe(toolName, toolName, code, securityPolicyService, false);
     }
 
+    /**
+     * 执行assert安全With审批工具相关逻辑。
+     *
+     * @param approvalToolName 审批工具名称参数。
+     * @param ruleToolName rule工具名称参数。
+     * @param code code 参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     static void assertSafeWithApprovalTool(
             String approvalToolName,
             String ruleToolName,
@@ -1069,6 +1465,14 @@ public class SolonClawCodeExecutionSkills {
         assertSafe(approvalToolName, ruleToolName, code, securityPolicyService, true);
     }
 
+    /**
+     * 执行assert安全ForManagedBackgroundWith审批工具相关逻辑。
+     *
+     * @param approvalToolName 审批工具名称参数。
+     * @param ruleToolName rule工具名称参数。
+     * @param code code 参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     static void assertSafeForManagedBackgroundWithApprovalTool(
             String approvalToolName,
             String ruleToolName,
@@ -1077,6 +1481,15 @@ public class SolonClawCodeExecutionSkills {
         assertSafe(approvalToolName, ruleToolName, code, securityPolicyService, false);
     }
 
+    /**
+     * 执行assert安全相关逻辑。
+     *
+     * @param approvalToolName 审批工具名称参数。
+     * @param ruleToolName rule工具名称参数。
+     * @param code code 参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param rejectForegroundPatterns reject前台进程Patterns参数。
+     */
     private static void assertSafe(
             String approvalToolName,
             String ruleToolName,
@@ -1132,6 +1545,12 @@ public class SolonClawCodeExecutionSkills {
         }
     }
 
+    /**
+     * 执行assert安全执行CodeScript相关逻辑。
+     *
+     * @param code code 参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     static void assertSafeExecuteCodeScript(
             String code, SecurityPolicyService securityPolicyService) {
         String scriptForPreflight = stripManagedFileToolPathLiterals(code);
@@ -1184,6 +1603,12 @@ public class SolonClawCodeExecutionSkills {
         }
     }
 
+    /**
+     * 剥离Managed文件工具路径Literals。
+     *
+     * @param code code 参数。
+     * @return 返回strip Managed文件工具路径Literals结果。
+     */
     private static String stripManagedFileToolPathLiterals(String code) {
         String value = StrUtil.nullToEmpty(code);
         Matcher matcher = MANAGED_FILE_TOOL_CALL.matcher(value);
@@ -1197,6 +1622,13 @@ public class SolonClawCodeExecutionSkills {
         return buffer.toString();
     }
 
+    /**
+     * 执行阻断文件消息相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param verdict 判定参数。
+     * @return 返回blocked文件消息结果。
+     */
     private static String blockedFileMessage(
             String toolName, SecurityPolicyService.FileVerdict verdict) {
         return "BLOCKED: 文件安全策略阻止访问："
@@ -1208,6 +1640,12 @@ public class SolonClawCodeExecutionSkills {
                 + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
     }
 
+    /**
+     * 执行阻断URL消息相关逻辑。
+     *
+     * @param verdict 判定参数。
+     * @return 返回blocked URL消息结果。
+     */
     private static String blockedUrlMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
                 + verdict.getMessage()
@@ -1216,6 +1654,13 @@ public class SolonClawCodeExecutionSkills {
                 + "\n请换用公开、可信且符合网站访问策略的地址。";
     }
 
+    /**
+     * 执行阻断Hardline消息相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @return 返回blocked Hardline消息结果。
+     */
     private static String blockedHardlineMessage(
             String toolName, DangerousCommandApprovalService.DetectionResult detection) {
         return "BLOCKED: 该 "
@@ -1225,6 +1670,13 @@ public class SolonClawCodeExecutionSkills {
                 + "。请改用更小、更可审计的安全操作。";
     }
 
+    /**
+     * 执行阻断Dangerous消息相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @return 返回blocked Dangerous消息结果。
+     */
     private static String blockedDangerousMessage(
             String toolName, DangerousCommandApprovalService.DetectionResult detection) {
         return "BLOCKED: 该 "
@@ -1240,6 +1692,13 @@ public class SolonClawCodeExecutionSkills {
         return approvalService != null && "off".equals(approvalService.approvalMode());
     }
 
+    /**
+     * 读取进程Text。
+     *
+     * @param inputStream 输入流参数。
+     * @param maxChars maxChars 参数。
+     * @return 返回读取到的进程Text。
+     */
     private static String readProcessText(java.io.InputStream inputStream, int maxChars) {
         try {
             InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
@@ -1262,6 +1721,12 @@ public class SolonClawCodeExecutionSkills {
         }
     }
 
+    /**
+     * 执行checked工作目录相关逻辑。
+     *
+     * @param workDir 命令执行工作目录。
+     * @return 返回checked Work Dir结果。
+     */
     private static String checkedWorkDir(String workDir) {
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
         if (!verdict.isAllowed()) {
@@ -1273,12 +1738,23 @@ public class SolonClawCodeExecutionSkills {
         return workDir;
     }
 
-    private static String defaultPythonCommand() {
+    /**
+     * 返回代码执行工具默认使用的 Python 命令，供诊断探针和工具注册复用同一运行时选择。
+     *
+     * @return Windows 使用 python，其他平台优先使用 python3。
+     */
+    public static String defaultPythonCommand() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
                 ? "python"
                 : "python3";
     }
 
+    /**
+     * 执行默认MaxStdoutChars相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回默认Max Stdout Chars结果。
+     */
     private static int defaultMaxStdoutChars(AppConfig appConfig) {
         int value = DEFAULT_MAX_STDOUT_CHARS;
         if (appConfig != null && appConfig.getTask() != null) {
@@ -1287,6 +1763,12 @@ public class SolonClawCodeExecutionSkills {
         return Math.max(256, value);
     }
 
+    /**
+     * 执行应用配置From相关逻辑。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回app配置From结果。
+     */
     private static AppConfig appConfigFrom(SecurityPolicyService securityPolicyService) {
         return securityPolicyService == null ? null : securityPolicyService.getAppConfig();
     }

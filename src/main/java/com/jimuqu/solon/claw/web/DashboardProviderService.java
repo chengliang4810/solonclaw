@@ -31,23 +31,50 @@ import org.yaml.snakeyaml.Yaml;
 
 /** Dashboard provider 配置管理服务。 */
 public class DashboardProviderService {
+    /** 模型列表缓存TTLMILLIS的统一常量值。 */
     private static final long MODEL_LIST_CACHE_TTL_MILLIS = 60L * 60L * 1000L;
+
+    /** 模型列表缓存最大ENTRIES的统一常量值。 */
     private static final int MODEL_LIST_CACHE_MAX_ENTRIES = 64;
 
+    /** 注入应用配置，用于控制台提供方。 */
     private final AppConfig appConfig;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
+
+    /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
+
+    /** 注入模型元数据服务，用于调用对应业务能力。 */
     private final ModelMetadataService modelMetadataService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 保存模型列表缓存映射，便于按键快速查询。 */
     private final Map<String, ModelListCacheEntry> modelListCache =
             new LinkedHashMap<String, ModelListCacheEntry>(16, 0.75f, true) {
+                /**
+                 * 移除Eldest Entry。
+                 *
+                 * @param eldest eldest 参数。
+                 * @return 返回Eldest Entry结果。
+                 */
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, ModelListCacheEntry> eldest) {
                     return size() > MODEL_LIST_CACHE_MAX_ENTRIES;
                 }
             };
 
+    /**
+     * 创建控制台提供方服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     */
     public DashboardProviderService(
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
@@ -56,6 +83,14 @@ public class DashboardProviderService {
         this(appConfig, gatewayRuntimeRefreshService, llmProviderService, null);
     }
 
+    /**
+     * 创建控制台提供方服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public DashboardProviderService(
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
@@ -72,6 +107,11 @@ public class DashboardProviderService {
                         : securityPolicyService;
     }
 
+    /**
+     * 列出Providers。
+     *
+     * @return 返回Providers列表。
+     */
     public Map<String, Object> listProviders() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
@@ -86,6 +126,11 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 执行项目Models相关逻辑。
+     *
+     * @return 返回项目Models结果。
+     */
     public Map<String, Object> JimuquModels() {
         Map<String, Object> result = listProviders();
         List<Map<String, Object>> models = new ArrayList<Map<String, Object>>();
@@ -137,6 +182,11 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 执行健康检查相关逻辑。
+     *
+     * @return 返回健康检查结果。
+     */
     public Map<String, Object> health() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> providers = new ArrayList<Map<String, Object>>();
@@ -152,6 +202,12 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 执行提供方状态相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @return 返回提供方状态。
+     */
     private String providerStatus(AppConfig.ProviderConfig provider) {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
             return "unreachable";
@@ -163,6 +219,12 @@ public class DashboardProviderService {
         return "configured";
     }
 
+    /**
+     * 执行元数据映射相关逻辑。
+     *
+     * @param metadata 元数据参数。
+     * @return 返回元数据Map结果。
+     */
     private Map<String, Object> metadataMap(ModelMetadata metadata) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("provider", metadata.getProvider());
@@ -190,6 +252,12 @@ public class DashboardProviderService {
         return map;
     }
 
+    /**
+     * 追加价格元数据。
+     *
+     * @param model 模型名称。
+     * @param price 价格参数。
+     */
     private void appendPricingMetadata(Map<String, Object> model, ModelPrice price) {
         if (model == null || price == null) {
             return;
@@ -229,6 +297,14 @@ public class DashboardProviderService {
         model.put("pricing", pricing);
     }
 
+    /**
+     * 写入价格Field。
+     *
+     * @param pricing 价格参数。
+     * @param key 配置键或映射键。
+     * @param microsPerToken microsPertoken参数。
+     * @param currency currency 参数。
+     */
     private void putPriceField(
             Map<String, Object> pricing, String key, BigDecimal microsPerToken, String currency) {
         if (microsPerToken != null && microsPerToken.signum() > 0) {
@@ -236,6 +312,13 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 格式化Per Million价格。
+     *
+     * @param microsPerToken microsPertoken参数。
+     * @param currency currency 参数。
+     * @return 返回Per Million价格结果。
+     */
     private String formatPerMillionPrice(BigDecimal microsPerToken, String currency) {
         String amount = microsPerToken.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
         if ("USD".equals(currency)) {
@@ -244,10 +327,22 @@ public class DashboardProviderService {
         return currency + " " + amount;
     }
 
+    /**
+     * 规范化Currency。
+     *
+     * @param currency currency 参数。
+     * @return 返回Currency结果。
+     */
     private String normalizeCurrency(String currency) {
         return StrUtil.blankToDefault(currency, "USD").trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 判断是否Free。
+     *
+     * @param price 价格参数。
+     * @return 如果Free满足条件则返回 true，否则返回 false。
+     */
     private boolean isFree(ModelPrice price) {
         return price.inputMicrosPerTokenExact().signum() == 0
                 && price.outputMicrosPerTokenExact().signum() == 0
@@ -256,6 +351,12 @@ public class DashboardProviderService {
                 && price.reasoningMicrosPerTokenExact().signum() == 0;
     }
 
+    /**
+     * 创建提供方。
+     *
+     * @param data 数据参数。
+     * @return 返回创建好的提供方。
+     */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createProvider(Map<String, Object> data) {
         String providerKey = readString(data, "providerKey");
@@ -276,6 +377,13 @@ public class DashboardProviderService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 更新提供方。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param data 数据参数。
+     * @return 返回提供方结果。
+     */
     @SuppressWarnings("unchecked")
     public Map<String, Object> updateProvider(String providerKey, Map<String, Object> data) {
         ensureProviderKey(providerKey);
@@ -290,6 +398,12 @@ public class DashboardProviderService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 删除提供方。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @return 返回提供方结果。
+     */
     public Map<String, Object> deleteProvider(String providerKey) {
         ensureProviderKey(providerKey);
         if (StrUtil.equals(providerKey, appConfig.getModel().getProviderKey())) {
@@ -308,6 +422,13 @@ public class DashboardProviderService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 更新默认模型。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param model 模型名称。
+     * @return 返回默认模型结果。
+     */
     public Map<String, Object> updateDefaultModel(String providerKey, String model) {
         String nextProviderKey =
                 StrUtil.isNotBlank(providerKey)
@@ -325,6 +446,12 @@ public class DashboardProviderService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 更新兜底Providers。
+     *
+     * @param items items 参数。
+     * @return 返回兜底Providers结果。
+     */
     public Map<String, Object> updateFallbackProviders(List<Map<String, Object>> items) {
         List<Object> next = new ArrayList<Object>();
         if (items != null) {
@@ -353,6 +480,12 @@ public class DashboardProviderService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 列出Remote Models。
+     *
+     * @param data 数据参数。
+     * @return 返回Remote Models列表。
+     */
     public Map<String, Object> listRemoteModels(Map<String, Object> data) {
         ProviderProbe probe = resolveProviderProbe(data);
         String providerKey = probe.providerKey;
@@ -396,6 +529,12 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 校验提供方。
+     *
+     * @param data 数据参数。
+     * @return 返回提供方结果。
+     */
     public Map<String, Object> validateProvider(Map<String, Object> data) {
         ProviderProbe probe = resolveProviderProbe(data);
         String url =
@@ -439,6 +578,12 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 解析提供方Probe。
+     *
+     * @param data 数据参数。
+     * @return 返回解析后的提供方Probe。
+     */
     private ProviderProbe resolveProviderProbe(Map<String, Object> data) {
         String providerKey = readString(data, "providerKey");
         String baseUrl = readString(data, "baseUrl");
@@ -463,6 +608,16 @@ public class DashboardProviderService {
         return new ProviderProbe(providerKey, baseUrl, apiKey, dialect);
     }
 
+    /**
+     * 执行提供方Validation结果相关逻辑。
+     *
+     * @param ok ok 参数。
+     * @param reachable reachable 参数。
+     * @param status 状态参数。
+     * @param message 平台消息或错误消息。
+     * @param url 待校验或访问的 URL。
+     * @return 返回提供方Validation结果。
+     */
     private Map<String, Object> providerValidationResult(
             boolean ok, boolean reachable, String status, String message, String url) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -474,6 +629,12 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 执行validation运行时消息相关逻辑。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回validation运行时消息结果。
+     */
     private String validationRuntimeMessage(RuntimeException e) {
         String message = e.getMessage();
         if (StrUtil.isBlank(message) && e.getCause() != null) {
@@ -483,26 +644,54 @@ public class DashboardProviderService {
                 StrUtil.blankToDefault(message, e.getClass().getSimpleName()), 1000);
     }
 
+    /**
+     * 执行当前时间Millis相关逻辑。
+     *
+     * @return 返回当前时间Millis结果。
+     */
     protected long currentTimeMillis() {
         return System.currentTimeMillis();
     }
 
+    /**
+     * 执行模型列表缓存TtlMillis相关逻辑。
+     *
+     * @return 返回模型List缓存Ttl Millis结果。
+     */
     protected long modelListCacheTtlMillis() {
         return MODEL_LIST_CACHE_TTL_MILLIS;
     }
 
+    /**
+     * 执行cached模型列表相关逻辑。
+     *
+     * @param cacheKey 缓存键标识或键值。
+     * @return 返回cached模型List结果。
+     */
     private ModelListCacheEntry cachedModelList(String cacheKey) {
         synchronized (modelListCache) {
             return modelListCache.get(cacheKey);
         }
     }
 
+    /**
+     * 执行缓存模型列表相关逻辑。
+     *
+     * @param cacheKey 缓存键标识或键值。
+     * @param entry entry 参数。
+     */
     private void cacheModelList(String cacheKey, ModelListCacheEntry entry) {
         synchronized (modelListCache) {
             modelListCache.put(cacheKey, entry);
         }
     }
 
+    /**
+     * 判断是否Fresh。
+     *
+     * @param entry entry 参数。
+     * @return 如果Fresh满足条件则返回 true，否则返回 false。
+     */
     private boolean isFresh(ModelListCacheEntry entry) {
         if (entry == null) {
             return false;
@@ -511,6 +700,15 @@ public class DashboardProviderService {
         return ttl > 0L && currentTimeMillis() - entry.cachedAt <= ttl;
     }
 
+    /**
+     * 执行模型列表缓存键相关逻辑。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param url 待校验或访问的 URL。
+     * @param dialect dialect 参数。
+     * @param apiKey api键标识或键值。
+     * @return 返回模型List缓存键结果。
+     */
     private String modelListCacheKey(
             String providerKey, String url, String dialect, String apiKey) {
         return StrUtil.nullToEmpty(providerKey)
@@ -522,6 +720,13 @@ public class DashboardProviderService {
                 + Integer.toHexString(StrUtil.nullToEmpty(apiKey).hashCode());
     }
 
+    /**
+     * 执行模型列表结果相关逻辑。
+     *
+     * @param entry entry 参数。
+     * @param cacheStatus 缓存状态参数。
+     * @return 返回模型List结果。
+     */
     private Map<String, Object> modelListResult(ModelListCacheEntry entry, String cacheStatus) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("url", entry.url);
@@ -530,11 +735,30 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 执行模型List请求。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param apiKey api键标识或键值。
+     * @param dialect dialect 参数。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回模型List请求结果。
+     */
     protected HttpResponse executeModelListRequest(
             String url, String apiKey, String dialect, int redirectCount) {
         return executeModelListRequest(url, url, apiKey, dialect, redirectCount);
     }
 
+    /**
+     * 执行模型List请求。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @param apiKey api键标识或键值。
+     * @param dialect dialect 参数。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回模型List请求结果。
+     */
     private HttpResponse executeModelListRequest(
             String initialUrl, String url, String apiKey, String dialect, int redirectCount) {
         assertSafeProviderUrl(url);
@@ -573,6 +797,11 @@ public class DashboardProviderService {
         return response;
     }
 
+    /**
+     * 执行assert安全提供方URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     */
     private void assertSafeProviderUrl(String url) {
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
         if (!verdict.isAllowed()) {
@@ -585,6 +814,13 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 判断是否需要Forward Credentials。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @return 如果Forward Credentials满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldForwardCredentials(String initialUrl, String url) {
         try {
             URI initial = URI.create(initialUrl);
@@ -597,6 +833,12 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 执行生效端口相关逻辑。
+     *
+     * @param uri 待校验或访问的地址参数。
+     * @return 返回生效Port结果。
+     */
     private int effectivePort(URI uri) {
         if (uri.getPort() >= 0) {
             return uri.getPort();
@@ -610,10 +852,23 @@ public class DashboardProviderService {
         return -1;
     }
 
+    /**
+     * 判断是否Redirect。
+     *
+     * @param status 状态参数。
+     * @return 如果Redirect满足条件则返回 true，否则返回 false。
+     */
     private boolean isRedirect(int status) {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
+    /**
+     * 解析Redirect URL。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param location location 参数。
+     * @return 返回解析后的Redirect URL。
+     */
     private String resolveRedirectUrl(String baseUrl, String location) {
         try {
             return URI.create(baseUrl).resolve(location.trim()).toString();
@@ -622,6 +877,13 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 转换为提供方Map。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param provider 模型或能力提供方。
+     * @return 返回转换后的提供方Map。
+     */
     private Map<String, Object> toProviderMap(
             String providerKey, AppConfig.ProviderConfig provider) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -637,6 +899,12 @@ public class DashboardProviderService {
         return item;
     }
 
+    /**
+     * 追加提供方展示。
+     *
+     * @param item item 参数。
+     * @param display 展示参数。
+     */
     private void appendProviderDisplay(
             Map<String, Object> item, ProviderDisplayGrouping.ProviderDisplay display) {
         if (item == null || display == null) {
@@ -656,6 +924,12 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 执行模型Groups相关逻辑。
+     *
+     * @param items items 参数。
+     * @return 返回模型Groups结果。
+     */
     private List<Map<String, Object>> modelGroups(List<ProviderDisplayGrouping.Item> items) {
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
         for (ProviderDisplayGrouping.Row row : ProviderDisplayGrouping.group(items)) {
@@ -678,6 +952,12 @@ public class DashboardProviderService {
         return rows;
     }
 
+    /**
+     * 转换为提供方Node。
+     *
+     * @param provider 模型或能力提供方。
+     * @return 返回转换后的提供方Node。
+     */
     private Map<String, Object> toProviderNode(AppConfig.ProviderConfig provider) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("name", StrUtil.nullToEmpty(provider.getName()).trim());
@@ -695,6 +975,12 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 克隆兜底Providers。
+     *
+     * @param source 来源参数。
+     * @return 返回clone兜底Providers结果。
+     */
     private List<Map<String, Object>> cloneFallbackProviders(
             List<AppConfig.FallbackProviderConfig> source) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -713,12 +999,24 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 确保提供方键。
+     *
+     * @param providerKey 提供方键标识或键值。
+     */
     private void ensureProviderKey(String providerKey) {
         if (StrUtil.isBlank(providerKey)) {
             throw new IllegalArgumentException("providerKey 不能为空。");
         }
     }
 
+    /**
+     * 转换为提供方Node。
+     *
+     * @param source 来源参数。
+     * @param base 基础参数。
+     * @return 返回转换后的提供方Node。
+     */
     private Map<String, Object> toProviderNode(
             Map<String, Object> source, Map<String, Object> base) {
         String name = readString(source, "name");
@@ -766,12 +1064,28 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 写入If Not Blank。
+     *
+     * @param result 结果响应或执行结果。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void putIfNotBlank(Map<String, Object> result, String key, String value) {
         if (StrUtil.isNotBlank(value)) {
             result.put(key, value.trim());
         }
     }
 
+    /**
+     * 读取Boolean Value。
+     *
+     * @param source 来源参数。
+     * @param sourceKey 渠道来源键。
+     * @param base 基础参数。
+     * @param baseKey 基础键标识或键值。
+     * @return 返回读取到的Boolean Value。
+     */
     private Boolean readBooleanValue(
             Map<String, Object> source,
             String sourceKey,
@@ -786,6 +1100,12 @@ public class DashboardProviderService {
         return null;
     }
 
+    /**
+     * 转换为Optional Boolean。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回转换后的Optional Boolean。
+     */
     private Boolean toOptionalBoolean(Object value) {
         if (value == null) {
             return null;
@@ -798,6 +1118,11 @@ public class DashboardProviderService {
                 "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text));
     }
 
+    /**
+     * 执行assert安全提供方基础URL相关逻辑。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     */
     private void assertSafeProviderBaseUrl(String baseUrl) {
         try {
             LlmProviderSupport.validateBaseUrl(baseUrl);
@@ -820,6 +1145,11 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 加载根用户For变更。
+     *
+     * @return 返回根用户For变更结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> loadRootForMutation() {
         File configFile = new File(appConfig.getRuntime().getConfigFile());
@@ -854,6 +1184,11 @@ public class DashboardProviderService {
         return root;
     }
 
+    /**
+     * 执行写入相关逻辑。
+     *
+     * @param root root 参数。
+     */
     private void write(Map<String, Object> root) {
         DumperOptions options = new DumperOptions();
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
@@ -867,6 +1202,13 @@ public class DashboardProviderService {
         gatewayRuntimeRefreshService.refreshConfigOnly();
     }
 
+    /**
+     * 读取Or Create Map。
+     *
+     * @param root root 参数。
+     * @param key 配置键或映射键。
+     * @return 返回读取到的Or Create Map。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> getOrCreateMap(Map<String, Object> root, String key) {
         Object current = root.get(key);
@@ -878,6 +1220,13 @@ public class DashboardProviderService {
         return created;
     }
 
+    /**
+     * 读取String。
+     *
+     * @param source 来源参数。
+     * @param key 配置键或映射键。
+     * @return 返回读取到的String。
+     */
     private String readString(Map<String, Object> source, String key) {
         if (source == null || key == null) {
             return "";
@@ -886,6 +1235,13 @@ public class DashboardProviderService {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 解析Models。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param dialect dialect 参数。
+     * @return 返回解析后的Models。
+     */
     @SuppressWarnings("unchecked")
     private List<String> parseModels(String body, String dialect) {
         List<String> models = new ArrayList<String>();
@@ -934,6 +1290,12 @@ public class DashboardProviderService {
         return models;
     }
 
+    /**
+     * 追加模型。
+     *
+     * @param models models 参数。
+     * @param model 模型名称。
+     */
     private void addModel(List<String> models, Object model) {
         String normalized = model == null ? "" : String.valueOf(model).trim();
         if (StrUtil.isNotBlank(normalized) && !models.contains(normalized)) {
@@ -941,6 +1303,12 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 执行trimFor错误相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回trim For Error结果。
+     */
     private String trimForError(String body) {
         String text =
                 SecretRedactor.redact(StrUtil.nullToEmpty(body), 1000)
@@ -950,6 +1318,12 @@ public class DashboardProviderService {
         return text.length() > 240 ? text.substring(0, 240) + "..." : text;
     }
 
+    /**
+     * 清理Map。
+     *
+     * @param raw 原始输入值。
+     * @return 返回Map结果。
+     */
     private Map<String, Object> sanitizeMap(Map<?, ?> raw) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         for (Map.Entry<?, ?> entry : raw.entrySet()) {
@@ -969,6 +1343,12 @@ public class DashboardProviderService {
         return result;
     }
 
+    /**
+     * 清理List。
+     *
+     * @param raw 原始输入值。
+     * @return 返回List结果。
+     */
     private List<Object> sanitizeList(List<?> raw) {
         List<Object> result = new ArrayList<Object>();
         for (Object item : raw) {
@@ -983,11 +1363,24 @@ public class DashboardProviderService {
         return result;
     }
 
+    /** 承载模型列表缓存Entry相关状态和辅助逻辑。 */
     private static class ModelListCacheEntry {
+        /** 记录模型列表缓存Entry中的URL。 */
         private final String url;
+
+        /** 保存models集合，维持调用顺序或去重语义。 */
         private final List<String> models;
+
+        /** 记录模型列表缓存Entry中的cached时间。 */
         private final long cachedAt;
 
+        /**
+         * 创建模型List缓存Entry实例，并注入运行所需依赖。
+         *
+         * @param url 待校验或访问的 URL。
+         * @param models models 参数。
+         * @param cachedAt cachedAt 参数。
+         */
         private ModelListCacheEntry(String url, List<String> models, long cachedAt) {
             this.url = url;
             this.models =
@@ -998,12 +1391,28 @@ public class DashboardProviderService {
         }
     }
 
+    /** 承载提供方Probe相关状态和辅助逻辑。 */
     private static class ProviderProbe {
+        /** 记录提供方Probe中的提供方键。 */
         private final String providerKey;
+
+        /** 记录提供方Probe中的基础URL。 */
         private final String baseUrl;
+
+        /** 记录提供方Probe中的api键。 */
         private final String apiKey;
+
+        /** 记录提供方Probe中的协议方言。 */
         private final String dialect;
 
+        /**
+         * 创建提供方Probe实例，并注入运行所需依赖。
+         *
+         * @param providerKey 提供方键标识或键值。
+         * @param baseUrl 待校验或访问的地址参数。
+         * @param apiKey api键标识或键值。
+         * @param dialect dialect 参数。
+         */
         private ProviderProbe(String providerKey, String baseUrl, String apiKey, String dialect) {
             this.providerKey = providerKey;
             this.baseUrl = baseUrl;

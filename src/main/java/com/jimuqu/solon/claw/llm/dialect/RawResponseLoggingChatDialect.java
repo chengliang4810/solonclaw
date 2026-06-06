@@ -19,14 +19,27 @@ import org.noear.solon.net.http.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Wraps any Solon AI chat dialect and logs the raw model response when parsing fails. */
+/** 承载原始响应日志聊天协议方言相关状态和辅助逻辑。 */
 public class RawResponseLoggingChatDialect implements ChatDialect {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(RawResponseLoggingChatDialect.class);
 
+    /** 记录原始响应日志聊天协议方言中的委托。 */
     private final ChatDialect delegate;
+
+    /** 记录原始响应日志聊天协议方言中的协议方言名称。 */
     private final String dialectName;
+
+    /** 是否启用解析Responses推理。 */
     private final boolean parseResponsesReasoning;
 
+    /**
+     * 创建原始响应日志Chat协议方言实例，并注入运行所需依赖。
+     *
+     * @param delegate 委派参数。
+     * @param dialectName dialect名称参数。
+     * @param parseResponsesReasoning 解析Responses推理响应或执行结果。
+     */
     public RawResponseLoggingChatDialect(
             ChatDialect delegate, String dialectName, boolean parseResponsesReasoning) {
         this.delegate = delegate;
@@ -34,50 +47,110 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
         this.parseResponsesReasoning = parseResponsesReasoning;
     }
 
+    /**
+     * 判断是否默认。
+     *
+     * @return 如果默认满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean isDefault() {
         return delegate.isDefault();
     }
 
+    /**
+     * 执行matched相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @return 返回matched结果。
+     */
     @Override
     public boolean matched(ChatConfig config) {
         return delegate.matched(config);
     }
 
+    /**
+     * 创建HTTP Utils。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param isStream is流参数。
+     * @return 返回创建好的HTTP Utils。
+     */
     @Override
     public HttpUtils createHttpUtils(ChatConfig config, boolean isStream) {
         return delegate.createHttpUtils(config, isStream);
     }
 
+    /**
+     * 执行prepare输出结构指令相关逻辑。
+     *
+     * @param outputSchema 输出Schema参数。
+     * @param instructionBuilder 指令构建器参数。
+     */
     @Override
     public void prepareOutputSchemaInstruction(
             String outputSchema, StringBuilder instructionBuilder) {
         delegate.prepareOutputSchemaInstruction(outputSchema, instructionBuilder);
     }
 
+    /**
+     * 执行prepare输出格式Options相关逻辑。
+     *
+     * @param options options 参数。
+     */
     @Override
     public void prepareOutputFormatOptions(ChatOptions options) {
         delegate.prepareOutputFormatOptions(options);
     }
 
+    /**
+     * 构建请求JSON。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param options options 参数。
+     * @param messages messages 参数。
+     * @param isStream is流参数。
+     * @return 返回创建好的请求JSON。
+     */
     @Override
     public String buildRequestJson(
             ChatConfig config, ChatOptions options, List<ChatMessage> messages, boolean isStream) {
         return delegate.buildRequestJson(config, options, messages, isStream);
     }
 
+    /**
+     * 构建Assistant工具Call消息Node。
+     *
+     * @param resp resp 参数。
+     * @param toolCallBuilders 工具CallBuilders参数。
+     * @return 返回创建好的Assistant工具Call消息Node。
+     */
     @Override
     public ONode buildAssistantToolCallMessageNode(
             ChatResponseDefault resp, Map<String, ToolCallBuilder> toolCallBuilders) {
         return delegate.buildAssistantToolCallMessageNode(resp, toolCallBuilders);
     }
 
+    /**
+     * 构建Assistant消息根据工具Messages。
+     *
+     * @param toolCallMessage 工具Call消息参数。
+     * @param toolMessages 工具Messages参数。
+     * @return 返回创建好的Assistant消息根据工具Messages。
+     */
     @Override
     public AssistantMessage buildAssistantMessageByToolMessages(
             AssistantMessage toolCallMessage, List<ToolMessage> toolMessages) {
         return delegate.buildAssistantMessageByToolMessages(toolCallMessage, toolMessages);
     }
 
+    /**
+     * 解析响应JSON。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param resp resp 参数。
+     * @param respJson respJSON参数。
+     * @return 返回解析后的响应JSON。
+     */
     @Override
     public boolean parseResponseJson(ChatConfig config, ChatResponseDefault resp, String respJson) {
         try {
@@ -102,11 +175,24 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
         }
     }
 
+    /**
+     * 解析Assistant消息。
+     *
+     * @param resp resp 参数。
+     * @param oMessage o消息参数。
+     * @return 返回解析后的Assistant消息。
+     */
     @Override
     public List<AssistantMessage> parseAssistantMessage(ChatResponseDefault resp, ONode oMessage) {
         return delegate.parseAssistantMessage(resp, oMessage);
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";
@@ -116,14 +202,31 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
         return SecretRedactor.redact(value, 1000);
     }
 
+    /**
+     * 读取委托。
+     *
+     * @return 返回读取到的委托。
+     */
     public ChatDialect getDelegate() {
         return delegate;
     }
 
+    /**
+     * 读取协议方言名称。
+     *
+     * @return 返回读取到的协议方言名称。
+     */
     public String getDialectName() {
         return dialectName;
     }
 
+    /**
+     * 解析Reasoning Stream Delta。
+     *
+     * @param resp resp 参数。
+     * @param json JSON参数。
+     * @return 返回解析后的Reasoning Stream Delta。
+     */
     private boolean parseReasoningStreamDelta(ChatResponseDefault resp, String json) {
         if (resp == null || !resp.isStream() || StrUtil.isBlank(json)) {
             return false;
@@ -169,12 +272,18 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
                         new ChatChoice(0, new Date(), null, new AssistantMessage(delta, true)));
                 parsed = true;
             } catch (Exception ignored) {
-                // Let the wrapped dialect handle the event or report malformed JSON.
+                // 交由被包装的协议方言处理事件，或报告 JSON 格式异常。
             }
         }
         return parsed;
     }
 
+    /**
+     * 执行first文本相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Text结果。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return "";

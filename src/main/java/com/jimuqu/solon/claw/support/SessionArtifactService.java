@@ -16,28 +16,54 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
-/** 生成 Jimuqu 会话 recap 与 trajectory 派生产物。 */
+/** 提供会话Artifact相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SessionArtifactService {
+    /** 默认RECAPEXCHANGES的统一常量值。 */
     private static final int DEFAULT_RECAP_EXCHANGES = 10;
+
+    /** 最大用户LEN的统一常量值。 */
     private static final int MAX_USER_LEN = 300;
+
+    /** 最大ASSISTANTLEN的统一常量值。 */
     private static final int MAX_ASSISTANT_LEN = 200;
+
+    /** 最大ASSISTANTLINES的统一常量值。 */
     private static final int MAX_ASSISTANT_LINES = 3;
 
+    /** 注入storage服务，用于调用对应业务能力。 */
     private final SessionArtifactStorageService storageService;
 
+    /** 创建会话Artifact服务实例。 */
     public SessionArtifactService() {
         this(new SessionArtifactStorageService());
     }
 
+    /**
+     * 创建会话Artifact服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public SessionArtifactService(AppConfig appConfig) {
         this(new SessionArtifactStorageService(appConfig));
     }
 
+    /**
+     * 创建会话Artifact服务实例，并注入运行所需依赖。
+     *
+     * @param storageService storage服务依赖。
+     */
     public SessionArtifactService(SessionArtifactStorageService storageService) {
         this.storageService =
                 storageService == null ? new SessionArtifactStorageService() : storageService;
     }
 
+    /**
+     * 执行recap相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param maxExchanges maxExchanges 参数。
+     * @return 返回recap结果。
+     */
     public Map<String, Object> recap(SessionRecord session, int maxExchanges) throws Exception {
         List<ChatMessage> messages =
                 MessageSupport.loadMessages(session == null ? null : session.getNdjson());
@@ -54,10 +80,25 @@ public class SessionArtifactService {
         return result;
     }
 
+    /**
+     * 执行recap文本相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param maxExchanges maxExchanges 参数。
+     * @return 返回recap Text结果。
+     */
     public String recapText(SessionRecord session, int maxExchanges) throws Exception {
         return String.valueOf(recap(session, maxExchanges).get("text"));
     }
 
+    /**
+     * 执行trajectory相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param userQuery 用户查询参数。
+     * @param completed completed 参数。
+     * @return 返回trajectory结果。
+     */
     public Map<String, Object> trajectory(
             SessionRecord session, String userQuery, boolean completed) throws Exception {
         List<ChatMessage> messages =
@@ -75,17 +116,40 @@ public class SessionArtifactService {
         return result;
     }
 
+    /**
+     * 执行trajectoryJSON相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param userQuery 用户查询参数。
+     * @param completed completed 参数。
+     * @return 返回trajectory JSON结果。
+     */
     public String trajectoryJson(SessionRecord session, String userQuery, boolean completed)
             throws Exception {
         return ONode.serialize(trajectory(session, userQuery, completed));
     }
 
+    /**
+     * 保存Trajectory。
+     *
+     * @param session 会话参数。
+     * @param userQuery 用户查询参数。
+     * @param completed completed 参数。
+     * @return 返回Trajectory结果。
+     */
     public Map<String, Object> saveTrajectory(
             SessionRecord session, String userQuery, boolean completed) throws Exception {
         return storageService.appendTrajectory(
                 trajectory(session, userQuery, completed), completed);
     }
 
+    /**
+     * 执行recapEntries相关逻辑。
+     *
+     * @param messages messages 参数。
+     * @param maxExchanges maxExchanges 参数。
+     * @return 返回recap Entries结果。
+     */
     private List<Map<String, Object>> recapEntries(List<ChatMessage> messages, int maxExchanges) {
         List<Map<String, Object>> displayable = new ArrayList<Map<String, Object>>();
         for (ChatMessage message : messages) {
@@ -114,6 +178,12 @@ public class SessionArtifactService {
                 displayable.subList(displayable.size() - maxItems, displayable.size()));
     }
 
+    /**
+     * 执行assistantRecap相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回assistant Recap结果。
+     */
     private String assistantRecap(AssistantMessage message) {
         String content =
                 message == null
@@ -137,6 +207,13 @@ public class SessionArtifactService {
         return truncate(limitLines(content, MAX_ASSISTANT_LINES), MAX_ASSISTANT_LEN);
     }
 
+    /**
+     * 格式化Recap Text。
+     *
+     * @param entries entries 参数。
+     * @param totalMessages totalMessages 参数。
+     * @return 返回Recap Text结果。
+     */
     private String formatRecapText(List<Map<String, Object>> entries, int totalMessages) {
         if (entries.isEmpty()) {
             return "当前会话没有可展示的历史消息。";
@@ -154,6 +231,14 @@ public class SessionArtifactService {
         return buffer.toString().trim();
     }
 
+    /**
+     * 转换为Trajectory Conversations。
+     *
+     * @param messages messages 参数。
+     * @param userQuery 用户查询参数。
+     * @param completed completed 参数。
+     * @return 返回转换后的Trajectory Conversations。
+     */
     private List<Map<String, Object>> toTrajectoryConversations(
             List<ChatMessage> messages, String userQuery, boolean completed) {
         List<Map<String, Object>> trajectory = new ArrayList<Map<String, Object>>();
@@ -198,6 +283,13 @@ public class SessionArtifactService {
         return trajectory;
     }
 
+    /**
+     * 执行trajectoryEntry相关逻辑。
+     *
+     * @param from from 参数。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回trajectory Entry结果。
+     */
     private Map<String, Object> trajectoryEntry(String from, String value) {
         Map<String, Object> entry = new LinkedHashMap<String, Object>();
         entry.put("from", from);
@@ -205,6 +297,11 @@ public class SessionArtifactService {
         return entry;
     }
 
+    /**
+     * 执行trajectory系统提示词相关逻辑。
+     *
+     * @return 返回trajectory System提示词结果。
+     */
     private String trajectorySystemPrompt() {
         return "You are a function calling AI model. You are provided with function signatures within <tools> </tools> XML tags. "
                 + "You may call one or more functions to assist with the user query. If available tools are not relevant, respond in natural language.\n"
@@ -212,6 +309,12 @@ public class SessionArtifactService {
                 + "Each function call should be enclosed within <tool_call> </tool_call> XML tags.";
     }
 
+    /**
+     * 执行assistantContent相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回assistant Content结果。
+     */
     private String assistantContent(AssistantMessage message) {
         String content = StrUtil.blankToDefault(message.getResultContent(), message.getContent());
         String reasoning = message.getReasoning();
@@ -226,6 +329,12 @@ public class SessionArtifactService {
         return buffer.toString().trim();
     }
 
+    /**
+     * 执行assistant工具CallContent相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回assistant工具Call Content结果。
+     */
     private String assistantToolCallContent(AssistantMessage message) {
         StringBuilder buffer = new StringBuilder();
         String reasoning = message.getReasoning();
@@ -245,6 +354,12 @@ public class SessionArtifactService {
         return buffer.toString().trim();
     }
 
+    /**
+     * 执行工具参数相关逻辑。
+     *
+     * @param call call 参数。
+     * @return 返回工具参数结果。
+     */
     private Object toolArguments(ToolCall call) {
         if (call == null) {
             return new LinkedHashMap<String, Object>();
@@ -265,6 +380,14 @@ public class SessionArtifactService {
         }
     }
 
+    /**
+     * 收集工具Responses。
+     *
+     * @param messages messages 参数。
+     * @param startIndex start索引参数。
+     * @param calls calls 参数。
+     * @return 返回工具Responses结果。
+     */
     private ToolResponses collectToolResponses(
             List<ChatMessage> messages, int startIndex, List<ToolCall> calls) {
         StringBuilder buffer = new StringBuilder();
@@ -286,6 +409,13 @@ public class SessionArtifactService {
         return new ToolResponses(buffer.toString(), index);
     }
 
+    /**
+     * 执行工具响应Xml相关逻辑。
+     *
+     * @param tool 工具参数。
+     * @param name 名称参数。
+     * @return 返回工具响应Xml结果。
+     */
     private String toolResponseXml(ToolMessage tool, String name) {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         String content = tool == null ? "" : tool.getContent();
@@ -306,6 +436,12 @@ public class SessionArtifactService {
         return "<tool_response>\n" + ONode.serialize(body) + "\n</tool_response>";
     }
 
+    /**
+     * 解析JSON Like。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的JSON Like。
+     */
     private Object parseJsonLike(String content) {
         String value = StrUtil.nullToEmpty(content).trim();
         if (!value.startsWith("{") && !value.startsWith("[")) {
@@ -318,6 +454,12 @@ public class SessionArtifactService {
         }
     }
 
+    /**
+     * 查找First用户。
+     *
+     * @param messages messages 参数。
+     * @return 返回First用户结果。
+     */
     private int findFirstUser(List<ChatMessage> messages) {
         for (int i = 0; i < messages.size(); i++) {
             ChatMessage message = messages.get(i);
@@ -328,15 +470,34 @@ public class SessionArtifactService {
         return -1;
     }
 
+    /**
+     * 移除Compaction Prefix。
+     *
+     * @param content 待处理内容。
+     * @return 返回Compaction Prefix结果。
+     */
     private String removeCompactionPrefix(String content) {
         String value = StrUtil.nullToEmpty(content);
         return CompressionConstants.stripSummaryPrefix(value);
     }
 
+    /**
+     * 执行one行相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回one Line结果。
+     */
     private String oneLine(String value) {
         return StrUtil.nullToEmpty(value).replace('\r', ' ').replace('\n', ' ').trim();
     }
 
+    /**
+     * 执行限制Lines相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLines maxLines 参数。
+     * @return 返回限制Lines结果。
+     */
     private String limitLines(String value, int maxLines) {
         String normalized = StrUtil.nullToEmpty(value).replace("\r\n", "\n").replace('\r', '\n');
         String[] lines = normalized.split("\n");
@@ -353,6 +514,13 @@ public class SessionArtifactService {
         return buffer.append("\n...").toString().trim();
     }
 
+    /**
+     * 执行truncate相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回truncate结果。
+     */
     private String truncate(String value, int maxLength) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (text.length() <= maxLength) {
@@ -361,10 +529,20 @@ public class SessionArtifactService {
         return text.substring(0, maxLength) + "...";
     }
 
+    /** 承载工具Responses相关状态和辅助逻辑。 */
     private static class ToolResponses {
+        /** 记录工具Responses中的值。 */
         private final String value;
+
+        /** 记录工具Responses中的next索引。 */
         private final int nextIndex;
 
+        /**
+         * 创建工具Responses实例，并注入运行所需依赖。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @param nextIndex next索引参数。
+         */
         private ToolResponses(String value, int nextIndex) {
             this.value = value;
             this.nextIndex = nextIndex;

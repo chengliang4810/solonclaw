@@ -9,11 +9,18 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
-/** SQLite usage event repository. */
+/** 负责SQLite用量事件数据的持久化读写，隔离底层存储实现。 */
 @RequiredArgsConstructor
 public class SqliteUsageEventRepository implements UsageEventRepository {
+    /** 记录SQLite用量事件中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 写入IfAbsent。
+     *
+     * @param record 记录参数。
+     * @return 返回insert If Absent结果。
+     */
     @Override
     public boolean insertIfAbsent(UsageEventRecord record) throws Exception {
         Connection connection = database.openConnection();
@@ -30,6 +37,12 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         }
     }
 
+    /**
+     * 根据事件标识查找对应数据。
+     *
+     * @param eventId 事件标识。
+     * @return 返回按事件标识查找得到的结果。
+     */
     @Override
     public UsageEventRecord findByEventId(String eventId) throws Exception {
         Connection connection = database.openConnection();
@@ -49,23 +62,53 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         }
     }
 
+    /**
+     * 列出Recent。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回Recent列表。
+     */
     @Override
     public List<UsageEventRecord> listRecent(int limit) throws Exception {
         return listBetween(0L, Long.MAX_VALUE, limit);
     }
 
+    /**
+     * 列出Between。
+     *
+     * @param fromInclusive fromInclusive 参数。
+     * @param toInclusive toInclusive 参数。
+     * @param limit 最大返回数量。
+     * @return 返回Between列表。
+     */
     @Override
     public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit)
             throws Exception {
         return listBetweenInternal(fromInclusive, toInclusive, true, limit);
     }
 
+    /**
+     * 列出Between。
+     *
+     * @param fromInclusive fromInclusive 参数。
+     * @param toInclusive toInclusive 参数。
+     * @return 返回Between列表。
+     */
     @Override
     public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive)
             throws Exception {
         return listBetweenInternal(fromInclusive, toInclusive, false, 0);
     }
 
+    /**
+     * 列出Between Internal。
+     *
+     * @param fromInclusive fromInclusive 参数。
+     * @param toInclusive toInclusive 参数。
+     * @param limited limited 参数。
+     * @param limit 最大返回数量。
+     * @return 返回Between Internal列表。
+     */
     private List<UsageEventRecord> listBetweenInternal(
             long fromInclusive, long toInclusive, boolean limited, int limit) throws Exception {
         List<UsageEventRecord> records = new ArrayList<UsageEventRecord>();
@@ -96,6 +139,12 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         return records;
     }
 
+    /**
+     * 执行bind相关逻辑。
+     *
+     * @param statement statement 参数。
+     * @param record 记录参数。
+     */
     private void bind(PreparedStatement statement, UsageEventRecord record) throws Exception {
         statement.setString(1, record.getEventId());
         statement.setString(2, record.getSessionId());
@@ -128,6 +177,12 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
         statement.setInt(29, record.isBackfillApproximate() ? 1 : 0);
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param rs rs 参数。
+     * @return 返回map结果。
+     */
     private UsageEventRecord map(ResultSet rs) throws Exception {
         UsageEventRecord record = new UsageEventRecord();
         record.setEventId(rs.getString("event_id"));

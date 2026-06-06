@@ -8,10 +8,13 @@ import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** Tool JSON-schema sanitizer for MCP and dynamic tool schemas. */
+/** 承载Solon项目工具结构清理器相关状态和辅助逻辑。 */
 public final class SolonClawToolSchemaSanitizer {
+    /** TOP级别FORBIDDENCOMBINATORS的统一常量值。 */
     private static final String[] TOP_LEVEL_FORBIDDEN_COMBINATORS =
             new String[] {"allOf", "anyOf", "oneOf", "enum", "not"};
+
+    /** UNSUPPORTED结构KEYWORDS的统一常量值。 */
     private static final String[] UNSUPPORTED_SCHEMA_KEYWORDS =
             new String[] {
                 "$schema",
@@ -40,8 +43,14 @@ public final class SolonClawToolSchemaSanitizer {
                 "prefixItems"
             };
 
+    /** 创建Solon项目工具结构清理器实例。 */
     private SolonClawToolSchemaSanitizer() {}
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @return 返回策略Summary结果。
+     */
     public static Map<String, Object> policySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("enabled", Boolean.TRUE);
@@ -71,6 +80,12 @@ public final class SolonClawToolSchemaSanitizer {
         return summary;
     }
 
+    /**
+     * 清理结构JSON。
+     *
+     * @param schemaJson schemaJSON参数。
+     * @return 返回结构JSON结果。
+     */
     public static String sanitizeSchemaJson(String schemaJson) {
         Object data = parseJsonObject(schemaJson);
         if (!(data instanceof Map)) {
@@ -95,6 +110,12 @@ public final class SolonClawToolSchemaSanitizer {
         return ONode.serialize(compatible instanceof Map ? compatible : defaultObjectSchema());
     }
 
+    /**
+     * 清理结构Object。
+     *
+     * @param schema schema 参数。
+     * @return 返回结构Object结果。
+     */
     public static Object sanitizeSchemaObject(Object schema) {
         Object sanitized = sanitizeNode(schema);
         if (!(sanitized instanceof Map)) {
@@ -115,6 +136,12 @@ public final class SolonClawToolSchemaSanitizer {
         return compatible instanceof Map ? compatible : defaultObjectSchema();
     }
 
+    /**
+     * 剥离PatternAnd格式。
+     *
+     * @param schema schema 参数。
+     * @return 返回strip Pattern And Format结果。
+     */
     public static StripResult stripPatternAndFormat(Object schema) {
         Counter counter = new Counter();
         Object copy = deepCopy(schema);
@@ -122,6 +149,12 @@ public final class SolonClawToolSchemaSanitizer {
         return new StripResult(copy, counter.count);
     }
 
+    /**
+     * 解析JSON Object。
+     *
+     * @param schemaJson schemaJSON参数。
+     * @return 返回解析后的JSON Object。
+     */
     private static Object parseJsonObject(String schemaJson) {
         String raw = StrUtil.nullToEmpty(schemaJson).trim();
         if (raw.length() == 0) {
@@ -134,6 +167,12 @@ public final class SolonClawToolSchemaSanitizer {
         }
     }
 
+    /**
+     * 清理Node。
+     *
+     * @param node 节点参数。
+     * @return 返回Node结果。
+     */
     @SuppressWarnings("unchecked")
     private static Object sanitizeNode(Object node) {
         if (node instanceof String) {
@@ -207,6 +246,13 @@ public final class SolonClawToolSchemaSanitizer {
         return result;
     }
 
+    /**
+     * 剥离NullableUnions。
+     *
+     * @param schema schema 参数。
+     * @param keepNullableHint keepNullableHint 参数。
+     * @return 返回strip Nullable Unions结果。
+     */
     @SuppressWarnings("unchecked")
     private static Object stripNullableUnions(Object schema, boolean keepNullableHint) {
         if (schema instanceof List) {
@@ -256,6 +302,12 @@ public final class SolonClawToolSchemaSanitizer {
         return result;
     }
 
+    /**
+     * 剥离Top级别ForbiddenCombinators。
+     *
+     * @param schema schema 参数。
+     * @return 返回strip Top级别Forbidden Combinators结果。
+     */
     @SuppressWarnings("unchecked")
     private static Object stripTopLevelForbiddenCombinators(Object schema) {
         if (!(schema instanceof Map)) {
@@ -269,6 +321,12 @@ public final class SolonClawToolSchemaSanitizer {
         return result;
     }
 
+    /**
+     * 剥离Unsupported结构Keywords。
+     *
+     * @param schema schema 参数。
+     * @return 返回strip Unsupported结构Keywords结果。
+     */
     @SuppressWarnings("unchecked")
     private static Object stripUnsupportedSchemaKeywords(Object schema) {
         Object copy = deepCopy(schema);
@@ -276,6 +334,11 @@ public final class SolonClawToolSchemaSanitizer {
         return copy;
     }
 
+    /**
+     * 剥离Unsupported结构KeywordsInPlace。
+     *
+     * @param node 节点参数。
+     */
     @SuppressWarnings("unchecked")
     private static void stripUnsupportedSchemaKeywordsInPlace(Object node) {
         if (node instanceof Map) {
@@ -304,6 +367,12 @@ public final class SolonClawToolSchemaSanitizer {
         }
     }
 
+    /**
+     * 剥离PatternAnd格式InPlace。
+     *
+     * @param node 节点参数。
+     * @param counter counter 参数。
+     */
     @SuppressWarnings("unchecked")
     private static void stripPatternAndFormatInPlace(Object node, Counter counter) {
         if (node instanceof Map) {
@@ -328,6 +397,12 @@ public final class SolonClawToolSchemaSanitizer {
         }
     }
 
+    /**
+     * 判断是否结构Map键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果结构Map键满足条件则返回 true，否则返回 false。
+     */
     private static boolean isSchemaMapKey(String key) {
         return "properties".equals(key)
                 || "patternProperties".equals(key)
@@ -335,10 +410,22 @@ public final class SolonClawToolSchemaSanitizer {
                 || "definitions".equals(key);
     }
 
+    /**
+     * 判断是否Union键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Union键满足条件则返回 true，否则返回 false。
+     */
     private static boolean isUnionKey(String key) {
         return "anyOf".equals(key) || "oneOf".equals(key) || "allOf".equals(key);
     }
 
+    /**
+     * 判断是否Unsupported结构Keyword。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Unsupported结构Keyword满足条件则返回 true，否则返回 false。
+     */
     private static boolean isUnsupportedSchemaKeyword(String key) {
         for (String unsupported : UNSUPPORTED_SCHEMA_KEYWORDS) {
             if (unsupported.equals(key)) {
@@ -348,6 +435,12 @@ public final class SolonClawToolSchemaSanitizer {
         return false;
     }
 
+    /**
+     * 执行firstNon空值类型相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Null类型结果。
+     */
     private static String firstNonNullType(List<?> values) {
         for (Object item : values) {
             if (item instanceof String && !"null".equals(item)) {
@@ -357,6 +450,13 @@ public final class SolonClawToolSchemaSanitizer {
         return null;
     }
 
+    /**
+     * 判断是否包含类型。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param type 类型参数。
+     * @return 返回contains类型结果。
+     */
     private static boolean containsType(List<?> values, String type) {
         for (Object item : values) {
             if (type.equals(item)) {
@@ -366,11 +466,22 @@ public final class SolonClawToolSchemaSanitizer {
         return false;
     }
 
+    /**
+     * 判断是否Null结构。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Null结构满足条件则返回 true，否则返回 false。
+     */
     @SuppressWarnings("unchecked")
     private static boolean isNullSchema(Object value) {
         return value instanceof Map && "null".equals(((Map<String, Object>) value).get("type"));
     }
 
+    /**
+     * 执行pruneRequired相关逻辑。
+     *
+     * @param schema schema 参数。
+     */
     @SuppressWarnings("unchecked")
     private static void pruneRequired(Map<String, Object> schema) {
         if (!"object".equals(schema.get("type"))
@@ -393,6 +504,12 @@ public final class SolonClawToolSchemaSanitizer {
         }
     }
 
+    /**
+     * 执行cast字符串映射相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回cast String Map结果。
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> castStringMap(Object value) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -406,6 +523,12 @@ public final class SolonClawToolSchemaSanitizer {
         return result;
     }
 
+    /**
+     * 执行deepCopy相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回deep Copy结果。
+     */
     @SuppressWarnings("unchecked")
     private static Object deepCopy(Object value) {
         if (value instanceof Map) {
@@ -427,6 +550,11 @@ public final class SolonClawToolSchemaSanitizer {
         return value;
     }
 
+    /**
+     * 执行默认Object结构相关逻辑。
+     *
+     * @return 返回默认Object结构结果。
+     */
     private static Map<String, Object> defaultObjectSchema() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("type", "object");
@@ -434,23 +562,45 @@ public final class SolonClawToolSchemaSanitizer {
         return result;
     }
 
+    /** 承载Counter相关状态和辅助逻辑。 */
     private static class Counter {
+        /** 记录Counter中的次数。 */
         private int count;
     }
 
+    /** 表示Strip结果，携带调用方后续判断所需信息。 */
     public static class StripResult {
+        /** 记录Strip中的结构。 */
         private final Object schema;
+
+        /** 记录Strip中的stripped次数。 */
         private final int strippedCount;
 
+        /**
+         * 创建Strip结果实例，并注入运行所需依赖。
+         *
+         * @param schema schema 参数。
+         * @param strippedCount strippedCount 参数。
+         */
         private StripResult(Object schema, int strippedCount) {
             this.schema = schema;
             this.strippedCount = strippedCount;
         }
 
+        /**
+         * 读取结构。
+         *
+         * @return 返回读取到的结构。
+         */
         public Object getSchema() {
             return schema;
         }
 
+        /**
+         * 读取Stripped次数。
+         *
+         * @return 返回读取到的Stripped次数。
+         */
         public int getStrippedCount() {
             return strippedCount;
         }

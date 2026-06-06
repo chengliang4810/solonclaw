@@ -8,9 +8,18 @@ import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 
 /** 聊天窗口中间态显示设置服务。 */
 public class DisplaySettingsService {
+    /** 注入应用配置，用于展示设置。 */
     private final AppConfig appConfig;
+
+    /** 保存global设置仓储集合，维持调用顺序或去重语义。 */
     private final GlobalSettingRepository globalSettingRepository;
 
+    /**
+     * 创建展示设置服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     */
     public DisplaySettingsService(
             AppConfig appConfig, GlobalSettingRepository globalSettingRepository) {
         this.appConfig = appConfig;
@@ -38,7 +47,7 @@ public class DisplaySettingsService {
                     return parseBoolean(stored, false);
                 }
             } catch (Exception ignored) {
-                // best effort
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
         return appConfig.getDisplay().isShowReasoning();
@@ -75,6 +84,12 @@ public class DisplaySettingsService {
         return config == null ? "" : StrUtil.nullToEmpty(config.getProgressCardTemplateId()).trim();
     }
 
+    /**
+     * 执行渠道配置相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @return 返回渠道配置。
+     */
     private AppConfig.ChannelConfig channelConfig(PlatformType platform) {
         if (platform == null) {
             return null;
@@ -94,6 +109,12 @@ public class DisplaySettingsService {
         return null;
     }
 
+    /**
+     * 规范化工具Progress。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回工具Progress结果。
+     */
     private String normalizeToolProgress(String value) {
         String normalized = StrUtil.nullToEmpty(value).trim().toLowerCase();
         if ("new".equals(normalized) || "all".equals(normalized) || "verbose".equals(normalized)) {
@@ -102,6 +123,13 @@ public class DisplaySettingsService {
         return "off";
     }
 
+    /**
+     * 解析Boolean。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallback 兜底参数。
+     * @return 返回解析后的Boolean。
+     */
     private boolean parseBoolean(String value, boolean fallback) {
         if (StrUtil.isBlank(value)) {
             return fallback;

@@ -17,16 +17,32 @@ import org.noear.snack4.ONode;
 
 /** GitHub API 鉴权辅助。 */
 public class GitHubAuth {
+    /** 记录Git中心认证中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
 
+    /** 记录Git中心认证中的cachedtoken。 */
     private String cachedToken;
+
+    /** 记录Git中心认证中的cachedMethod。 */
     private String cachedMethod;
+
+    /** 记录Git中心认证中的应用tokenExpiry时间。 */
     private long appTokenExpiryAt;
 
+    /**
+     * 创建Git中心认证实例，并注入运行所需依赖。
+     *
+     * @param httpClient HTTPClient参数。
+     */
     public GitHubAuth(SkillHubHttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
+    /**
+     * 读取Headers。
+     *
+     * @return 返回读取到的Headers。
+     */
     public Map<String, String> getHeaders() {
         Map<String, String> headers = new LinkedHashMap<String, String>();
         headers.put("Accept", "application/vnd.github.v3+json");
@@ -37,15 +53,30 @@ public class GitHubAuth {
         return headers;
     }
 
+    /**
+     * 判断是否Authenticated。
+     *
+     * @return 如果Authenticated满足条件则返回 true，否则返回 false。
+     */
     public boolean isAuthenticated() {
         return StrUtil.isNotBlank(resolveToken());
     }
 
+    /**
+     * 执行认证Method相关逻辑。
+     *
+     * @return 返回认证Method结果。
+     */
     public String authMethod() {
         resolveToken();
         return StrUtil.blankToDefault(cachedMethod, "anonymous");
     }
 
+    /**
+     * 解析token。
+     *
+     * @return 返回解析后的token。
+     */
     private String resolveToken() {
         long now = System.currentTimeMillis();
         if (StrUtil.isNotBlank(cachedToken)
@@ -82,6 +113,11 @@ public class GitHubAuth {
         return null;
     }
 
+    /**
+     * 执行tryGhCLI相关逻辑。
+     *
+     * @return 返回try Gh Cli结果。
+     */
     private String tryGhCli() {
         try {
             Process process =
@@ -93,11 +129,16 @@ public class GitHubAuth {
                 return StrUtil.blankToDefault(token, null);
             }
         } catch (Exception ignored) {
-            // ignore
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         return null;
     }
 
+    /**
+     * 执行tryGit中心应用相关逻辑。
+     *
+     * @return 返回try Git中心App结果。
+     */
     private String tryGitHubApp() {
         String appId = RuntimeConfigResolver.getValue("solonclaw.integrations.github.appId");
         String keyPath =
@@ -131,6 +172,13 @@ public class GitHubAuth {
         }
     }
 
+    /**
+     * 构建Jwt。
+     *
+     * @param privateKeyPem private键Pem参数。
+     * @param appId 应用标识。
+     * @return 返回创建好的Jwt。
+     */
     private String buildJwt(String privateKeyPem, String appId) throws Exception {
         long now = System.currentTimeMillis() / 1000L;
         String headerJson = "{\"alg\":\"RS256\",\"typ\":\"JWT\"}";
@@ -153,6 +201,12 @@ public class GitHubAuth {
         return message + "." + encodedSignature;
     }
 
+    /**
+     * 加载私聊键。
+     *
+     * @param pem pem 参数。
+     * @return 返回私聊键结果。
+     */
     private PrivateKey loadPrivateKey(String pem) throws Exception {
         String normalized =
                 pem.replace("-----BEGIN PRIVATE KEY-----", "")

@@ -6,17 +6,32 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-/** Shell completion script generator for the Java CLI entrypoint. */
+/** 承载终端补全文本Generator相关状态和辅助逻辑。 */
 public class ShellCompletionGenerator {
+    /** TOP级别的统一常量值。 */
     private static final List<String> TOP_LEVEL =
             Collections.unmodifiableList(Arrays.asList("cli", "tui", "completion"));
+
+    /** 补全文本SHELLS的统一常量值。 */
     private static final List<String> COMPLETION_SHELLS =
             Collections.unmodifiableList(Arrays.asList("bash", "zsh", "fish"));
+
+    /** 选项列表的统一常量值。 */
     private static final List<String> OPTIONS =
             Collections.unmodifiableList(
                     Arrays.asList("--cli", "--tui", "--session", "--ask", "-p"));
+
+    /** 本地斜杠命令COMMANDS的统一常量值。 */
     private static final List<String> LOCAL_SLASH_COMMANDS = TerminalCommandCatalog.slashCommands();
 
+    /**
+     * 执行写入相关逻辑。
+     *
+     * @param shell 终端参数。
+     * @param out out 参数。
+     * @param err err 参数。
+     * @return 返回write结果。
+     */
     public int write(String shell, PrintStream out, PrintStream err) {
         String normalized = StrUtil.blankToDefault(shell, "bash").trim().toLowerCase();
         if ("bash".equals(normalized)) {
@@ -36,6 +51,11 @@ public class ShellCompletionGenerator {
         return 1;
     }
 
+    /**
+     * 执行bash相关逻辑。
+     *
+     * @return 返回bash结果。
+     */
     String bash() {
         return "# Solon Claw bash completion\n"
                 + "# Add to ~/.bashrc:\n"
@@ -75,6 +95,11 @@ public class ShellCompletionGenerator {
                 + "complete -F _solon_claw_completion solon-claw\n";
     }
 
+    /**
+     * 执行zsh相关逻辑。
+     *
+     * @return 返回zsh结果。
+     */
     String zsh() {
         return "#compdef solon-claw\n"
                 + "# Solon Claw zsh completion\n"
@@ -116,6 +141,11 @@ public class ShellCompletionGenerator {
                 + "_solon_claw \"$@\"\n";
     }
 
+    /**
+     * 执行fish相关逻辑。
+     *
+     * @return 返回fish结果。
+     */
     String fish() {
         return "# Solon Claw fish completion\n"
                 + "# Add to your config:\n"
@@ -138,6 +168,12 @@ public class ShellCompletionGenerator {
                 + "'\n";
     }
 
+    /**
+     * 执行words相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回words结果。
+     */
     private String words(List<String> values) {
         StringBuilder builder = new StringBuilder();
         for (String value : values) {

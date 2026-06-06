@@ -8,17 +8,33 @@ import org.noear.snack4.ONode;
 
 /** 将危险命令审批 request/response 写入审计仓储。 */
 public class ApprovalAuditObserver implements DangerousCommandApprovalService.ApprovalObserver {
+    /** 保存仓储依赖，用于访问持久化数据。 */
     private final ApprovalAuditRepository repository;
 
+    /**
+     * 创建审批审计Observer实例，并注入运行所需依赖。
+     *
+     * @param repository repository依赖组件。
+     */
     public ApprovalAuditObserver(ApprovalAuditRepository repository) {
         this.repository = repository;
     }
 
+    /**
+     * 响应审批请求事件。
+     *
+     * @param event 事件参数。
+     */
     @Override
     public void onApprovalRequest(DangerousCommandApprovalService.ApprovalRequestEvent event) {
         append(event, "request", "", "", "", false, "");
     }
 
+    /**
+     * 响应审批响应事件。
+     *
+     * @param event 事件参数。
+     */
     @Override
     public void onApprovalResponse(DangerousCommandApprovalService.ApprovalResponseEvent event) {
         append(
@@ -31,6 +47,17 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
                 event.getApprover());
     }
 
+    /**
+     * 执行append相关逻辑。
+     *
+     * @param event 事件参数。
+     * @param eventType 事件类型参数。
+     * @param choice choice 参数。
+     * @param outcome outcome 参数。
+     * @param status 状态参数。
+     * @param approved approved 参数。
+     * @param approver approver 参数。
+     */
     private void append(
             DangerousCommandApprovalService.ApprovalRequestEvent event,
             String eventType,
@@ -65,7 +92,7 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
         try {
             repository.append(audit);
         } catch (Exception ignored) {
-            // Audit persistence must not affect safety-critical approval handling.
+            // 审计持久化失败不能影响安全关键的审批处理。
         }
     }
 }

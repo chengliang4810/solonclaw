@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.command.CommandDescriptor;
+import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -16,47 +18,112 @@ import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
-/** Solon Claw line-oriented CLI. */
+/** 呈现Cli交互视图，封装终端侧输入输出细节。 */
 public class CliShell {
+    /** 提示词的统一常量值。 */
     private static final String PROMPT = "\u001B[36mjimuqu>\u001B[0m ";
+
+    /** COMMANDS的统一常量值。 */
     private static final String[] COMMANDS = TerminalCommandCatalog.SLASH_COMMANDS;
 
+    /** 记录CLI中的CLI运行时。 */
     private final CliRuntime cliRuntime;
+
+    /** 记录CLI中的模式。 */
     private final CliMode mode;
+
+    /** 记录CLI中的附件Resolver。 */
     private final CliAttachmentResolver attachmentResolver;
+
+    /** 注入应用配置，用于CLI。 */
     private final AppConfig appConfig;
+
+    /** 记录CLI中的模型Picker。 */
     private final TerminalModelPicker modelPicker;
+
+    /** 记录CLI中的 setup/config 本地命令服务。 */
+    private final TerminalSetupCommands setupCommands;
+
+    /** 记录CLI中的会话浏览器。 */
     private final TerminalSessionBrowser sessionBrowser;
+
+    /** 记录CLI中的历史Viewer。 */
     private final TerminalHistoryViewer historyViewer;
+
+    /** 记录CLI中的记录文本。 */
     private final LocalTerminalTranscript transcript = new LocalTerminalTranscript();
+
+    /** 记录CLI中的最近一次事件快照。 */
     private ConsoleEventSink.EventSnapshot lastEventSnapshot;
+
+    /** 记录CLI中的skin。 */
     private TerminalSkin skin = TerminalSkin.fromEnvironment();
 
+    /**
+     * 创建Cli Shell实例，并注入运行所需依赖。
+     *
+     * @param cliRuntime CLI运行时参数。
+     * @param mode 模式参数。
+     */
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
         this(cliRuntime, mode, null, null, null);
     }
 
+    /**
+     * 创建Cli Shell实例，并注入运行所需依赖。
+     *
+     * @param cliRuntime CLI运行时参数。
+     * @param mode 模式参数。
+     * @param attachmentResolver 附件解析器参数。
+     */
     public CliShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
         this(cliRuntime, mode, attachmentResolver, null, null);
     }
 
+    /**
+     * 创建Cli Shell实例，并注入运行所需依赖。
+     *
+     * @param cliRuntime CLI运行时参数。
+     * @param mode 模式参数。
+     * @param attachmentResolver 附件解析器参数。
+     * @param modelPicker 模型选择器参数。
+     */
     public CliShell(
             CliRuntime cliRuntime,
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             TerminalModelPicker modelPicker) {
-        this(cliRuntime, mode, attachmentResolver, null, modelPicker, null, null);
+        this(cliRuntime, mode, attachmentResolver, null, modelPicker, null, null, null);
     }
 
+    /**
+     * 创建Cli Shell实例，并注入运行所需依赖。
+     *
+     * @param cliRuntime CLI运行时参数。
+     * @param mode 模式参数。
+     * @param attachmentResolver 附件解析器参数。
+     * @param modelPicker 模型选择器参数。
+     * @param sessionBrowser 会话浏览器参数。
+     */
     public CliShell(
             CliRuntime cliRuntime,
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser) {
-        this(cliRuntime, mode, attachmentResolver, null, modelPicker, sessionBrowser, null);
+        this(cliRuntime, mode, attachmentResolver, null, modelPicker, null, sessionBrowser, null);
     }
 
+    /**
+     * 创建Cli Shell实例，并注入运行所需依赖。
+     *
+     * @param cliRuntime CLI运行时参数。
+     * @param mode 模式参数。
+     * @param attachmentResolver 附件解析器参数。
+     * @param modelPicker 模型选择器参数。
+     * @param sessionBrowser 会话浏览器参数。
+     * @param historyViewer 历史查看器参数。
+     */
     public CliShell(
             CliRuntime cliRuntime,
             CliMode mode,
@@ -70,16 +137,30 @@ public class CliShell {
                 attachmentResolver,
                 null,
                 modelPicker,
+                null,
                 sessionBrowser,
                 historyViewer);
     }
 
+    /**
+     * 创建Cli Shell实例，并注入运行所需依赖。
+     *
+     * @param cliRuntime CLI运行时参数。
+     * @param mode 模式参数。
+     * @param attachmentResolver 附件解析器参数。
+     * @param appConfig 应用运行配置。
+     * @param modelPicker 模型选择器参数。
+     * @param setupCommands setup/config 本地命令服务。
+     * @param sessionBrowser 会话浏览器参数。
+     * @param historyViewer 历史查看器参数。
+     */
     public CliShell(
             CliRuntime cliRuntime,
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             AppConfig appConfig,
             TerminalModelPicker modelPicker,
+            TerminalSetupCommands setupCommands,
             TerminalSessionBrowser sessionBrowser,
             TerminalHistoryViewer historyViewer) {
         this.cliRuntime = cliRuntime;
@@ -87,10 +168,16 @@ public class CliShell {
         this.attachmentResolver = attachmentResolver;
         this.appConfig = appConfig;
         this.modelPicker = modelPicker;
+        this.setupCommands = setupCommands;
         this.sessionBrowser = sessionBrowser;
         this.historyViewer = historyViewer;
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @return 返回运行结果。
+     */
     public int run() throws Exception {
         configureWindowsUtf8();
         Terminal terminal = newTerminal();
@@ -141,6 +228,7 @@ public class CliShell {
             renderShutdownSummary(writer, sessionId, taskRunner);
             taskRunner.cancelAndClose(
                     new Runnable() {
+                        /** 执行异步任务主体。 */
                         @Override
                         public void run() {
                             cliRuntime.stop(sessionId);
@@ -150,6 +238,14 @@ public class CliShell {
         return 0;
     }
 
+    /**
+     * 分发Interactive。
+     *
+     * @param taskRunner 任务Runner参数。
+     * @param writer writer 参数。
+     * @param sessionId 当前会话标识。
+     * @param line 行参数。
+     */
     private void dispatchInteractive(
             LocalTerminalTaskRunner taskRunner,
             final PrintWriter writer,
@@ -163,6 +259,11 @@ public class CliShell {
         taskRunner.submit(
                 line,
                 new Callable<Integer>() {
+                    /**
+                     * 执行回调调用并返回结果。
+                     *
+                     * @return 返回call结果。
+                     */
                     @Override
                     public Integer call() throws Exception {
                         return Integer.valueOf(sendOnce(taskRunner, writer, sessionId, line, true));
@@ -170,14 +271,22 @@ public class CliShell {
                 });
     }
 
+    /**
+     * 判断是否需要Handle Inline。
+     *
+     * @param input 输入参数。
+     * @return 如果Handle Inline满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldHandleInline(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
                 || "/events".equalsIgnoreCase(value)
+                || isTerminalOnlyLocalCommand(value, null)
                 || TerminalTips.isTipsCommand(value)
                 || TerminalSkin.isSkinCommand(value)
                 || TerminalSecurityPolicyView.isSecurityCommand(value)
+                || (setupCommands != null && setupCommands.isSetupCommand(value))
                 || "/tasks".equalsIgnoreCase(value)
                 || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
@@ -189,6 +298,16 @@ public class CliShell {
                 && !value.toLowerCase(java.util.Locale.ROOT).startsWith("/retry ");
     }
 
+    /**
+     * 发送Once。
+     *
+     * @param taskRunner 任务Runner参数。
+     * @param writer writer 参数。
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @param verbose verbose 参数。
+     * @return 返回Once结果。
+     */
     private int sendOnce(
             LocalTerminalTaskRunner taskRunner,
             PrintWriter writer,
@@ -200,6 +319,11 @@ public class CliShell {
         String trimmed = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(trimmed)) {
             writer.println(LocalTerminalHelp.text());
+            writer.flush();
+            return 0;
+        }
+        if (setupCommands != null && setupCommands.isSetupCommand(trimmed)) {
+            writer.println(setupCommands.render(trimmed));
             writer.flush();
             return 0;
         }
@@ -233,6 +357,11 @@ public class CliShell {
         }
         if ("/events".equalsIgnoreCase(trimmed)) {
             writer.println(renderEvents());
+            writer.flush();
+            return 0;
+        }
+        if (isTerminalOnlyLocalCommand(trimmed, taskRunner)) {
+            writer.println(renderTerminalOnlyCommandGuidance(trimmed));
             writer.flush();
             return 0;
         }
@@ -319,8 +448,85 @@ public class CliShell {
         return reply != null && reply.isError() ? 1 : 0;
     }
 
+    /** 记录CLI中的最近一次回复。 */
     private String lastReply;
 
+    /**
+     * 判断当前命令是否只能由交互式 TUI/终端状态直接处理。
+     *
+     * @param input 用户输入。
+     * @param taskRunner 终端后台任务状态；为空表示 one-shot 或路由判断阶段。
+     * @return 需要本地提示时返回 true。
+     */
+    private boolean isTerminalOnlyLocalCommand(String input, LocalTerminalTaskRunner taskRunner) {
+        CommandDescriptor descriptor = CommandRegistry.resolve(firstToken(input));
+        if (descriptor == null) {
+            return false;
+        }
+        String name = descriptor.getName();
+        if ("steer".equals(name)) {
+            return taskRunner == null || !taskRunner.hasRunning();
+        }
+        if (!"terminal".equals(descriptor.getCategory())) {
+            return false;
+        }
+        if ("tasks".equals(name)
+                || "skin".equals(name)
+                || "copy".equals(name)
+                || "history".equals(name)
+                || "quit".equals(name)) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 渲染 TUI 专属交互命令在 CLI one-shot 下的本地说明，避免误触发模型调用。
+     *
+     * @param input 用户输入。
+     * @return 面向终端用户的说明文本。
+     */
+    private String renderTerminalOnlyCommandGuidance(String input) {
+        CommandDescriptor descriptor = CommandRegistry.resolve(firstToken(input));
+        String command = descriptor == null ? firstToken(input) : descriptor.slashName();
+        String description = descriptor == null ? "" : descriptor.getDescription();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("此命令是 TUI 交互命令：")
+                .append(command)
+                .append(StrUtil.isBlank(description) ? "" : " - " + description)
+                .append('\n');
+        if ("/steer".equals(command)) {
+            buffer.append("当前没有运行中的终端任务可注入；请在 solonclaw 交互界面里先发起任务，或直接发送普通提示。");
+        } else if ("/background".equals(command)) {
+            buffer.append("后台提示需要 TUI 会话的任务队列；请启动 solonclaw 后在界面内使用该命令。");
+        } else if ("/paste".equals(command) || "/image".equals(command)) {
+            buffer.append("剪贴板和图片附加依赖 TUI 输入框状态；请启动 solonclaw 后在界面内操作。");
+        } else {
+            buffer.append("请启动 solonclaw 进入 TUI 后使用该命令。");
+        }
+        buffer.append('\n').append("可用替代：solonclaw --cli -p /help 或 solonclaw --tui -p /help 查看终端命令。");
+        return buffer.toString();
+    }
+
+    /**
+     * 读取输入首个 token。
+     *
+     * @param input 用户输入。
+     * @return 首个 token。
+     */
+    private String firstToken(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        return value.split("\\s+", 2)[0];
+    }
+
+    /**
+     * 渲染Events。
+     *
+     * @return 返回render Events结果。
+     */
     private String renderEvents() {
         if (lastEventSnapshot == null || lastEventSnapshot.getEventCount() <= 0) {
             return "暂无终端事件。";
@@ -343,11 +549,17 @@ public class CliShell {
         return buffer.toString();
     }
 
+    /**
+     * 复制Last Reply。
+     *
+     * @param writer writer 参数。
+     * @return 返回Last Reply结果。
+     */
     private int copyLastReply(PrintWriter writer) {
         if (StrUtil.isBlank(lastReply)) {
             writer.println("没有可复制的上一条回复。");
             writer.flush();
-            return 1;
+            return 0;
         }
         TerminalClipboardSupport.copy(writer, lastReply);
         writer.println("已复制上一条回复到终端剪贴板。");
@@ -355,6 +567,12 @@ public class CliShell {
         return 0;
     }
 
+    /**
+     * 解析附件。
+     *
+     * @param input 输入参数。
+     * @return 返回解析后的附件。
+     */
     private CliAttachmentResolver.ResolvedInput resolveAttachments(String input) {
         if (attachmentResolver == null) {
             return new CliAttachmentResolver.ResolvedInput(
@@ -363,6 +581,11 @@ public class CliShell {
         return attachmentResolver.resolve(input);
     }
 
+    /**
+     * 创建终端。
+     *
+     * @return 返回创建好的终端。
+     */
     private Terminal newTerminal() throws Exception {
         Terminal terminal =
                 TerminalBuilder.builder()
@@ -375,6 +598,7 @@ public class CliShell {
         return terminal;
     }
 
+    /** 执行configureWindowsUtf8相关逻辑。 */
     private void configureWindowsUtf8() {
         String os = StrUtil.nullToEmpty(System.getProperty("os.name")).toLowerCase();
         if (!os.contains("win")) {
@@ -384,10 +608,16 @@ public class CliShell {
             Process process = new ProcessBuilder("cmd", "/c", "chcp", "65001").start();
             process.waitFor();
         } catch (Exception ignored) {
-            // best effort only
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
     }
 
+    /**
+     * 判断是否Exit命令。
+     *
+     * @param input 输入参数。
+     * @return 如果Exit命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isExitCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         return "/exit".equalsIgnoreCase(value)
@@ -396,11 +626,24 @@ public class CliShell {
                 || "/quit!".equalsIgnoreCase(value);
     }
 
+    /**
+     * 判断是否Force Exit命令。
+     *
+     * @param input 输入参数。
+     * @return 如果Force Exit命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isForceExitCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
     }
 
+    /**
+     * 渲染关闭摘要。
+     *
+     * @param writer writer 参数。
+     * @param sessionId 当前会话标识。
+     * @param taskRunner 任务Runner参数。
+     */
     private void renderShutdownSummary(
             PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(
@@ -413,12 +656,24 @@ public class CliShell {
         writer.flush();
     }
 
+    /**
+     * 判断是否附件Preview命令。
+     *
+     * @param input 输入参数。
+     * @return 如果附件Preview命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isAttachmentPreviewCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         return "/attachments".equalsIgnoreCase(value)
                 || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ");
     }
 
+    /**
+     * 渲染附件预览。
+     *
+     * @param input 输入参数。
+     * @return 返回render附件Preview结果。
+     */
     private String renderAttachmentPreview(String input) {
         if (attachmentResolver == null) {
             return "当前终端未启用附件解析。";

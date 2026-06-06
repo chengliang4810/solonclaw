@@ -28,6 +28,14 @@ public class DefaultCheckpointService implements CheckpointService {
     /** 数据库访问对象。 */
     private final SqliteDatabase database;
 
+    /**
+     * 创建检查点。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param files 文件或目录路径参数。
+     * @return 返回创建好的检查点。
+     */
     @Override
     public CheckpointRecord createCheckpoint(String sourceKey, String sessionId, List<File> files)
             throws Exception {
@@ -96,6 +104,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return record;
     }
 
+    /**
+     * 执行回滚Latest相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回回滚Latest结果。
+     */
     @Override
     public CheckpointRecord rollbackLatest(String sourceKey) throws Exception {
         CheckpointRecord latest = findLatest(sourceKey);
@@ -105,6 +119,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return rollback(latest.getCheckpointId());
     }
 
+    /**
+     * 执行回滚相关逻辑。
+     *
+     * @param checkpointId checkpoint标识。
+     * @return 返回回滚结果。
+     */
     @Override
     public CheckpointRecord rollback(String checkpointId) throws Exception {
         CheckpointRecord record = findById(checkpointId);
@@ -136,6 +156,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return record;
     }
 
+    /**
+     * 要求Safe回滚Target。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回Safe回滚Target结果。
+     */
     private File requireSafeRollbackTarget(String path) throws Exception {
         File target = FileUtil.file(path).getCanonicalFile();
         File project = new File(System.getProperty("user.dir")).getCanonicalFile();
@@ -147,6 +173,13 @@ public class DefaultCheckpointService implements CheckpointService {
                 "Checkpoint target is outside allowed roots: " + safePath(path));
     }
 
+    /**
+     * 要求Safe Snapshot。
+     *
+     * @param record 记录参数。
+     * @param path 文件或目录路径。
+     * @return 返回Safe Snapshot结果。
+     */
     private File requireSafeSnapshot(CheckpointRecord record, String path) throws Exception {
         File snapshot = FileUtil.file(path).getCanonicalFile();
         File checkpointDir = FileUtil.file(record.getCheckpointDir()).getCanonicalFile();
@@ -157,6 +190,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return snapshot;
     }
 
+    /**
+     * 生成安全展示用的路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe路径。
+     */
     private String safePath(String path) {
         String value = path == null ? "" : SecretRedactor.stripDisplayControls(path).trim();
         if (value.length() == 0) {
@@ -170,12 +209,26 @@ public class DefaultCheckpointService implements CheckpointService {
         return SecretRedactor.redact(name, 400);
     }
 
+    /**
+     * 判断是否Under。
+     *
+     * @param file 文件或目录路径参数。
+     * @param root root 参数。
+     * @return 如果Under满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnder(File file, File root) {
         String filePath = file.getAbsolutePath();
         String rootPath = root.getAbsolutePath();
         return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
     }
 
+    /**
+     * 判断是否存在Recent检查点。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sinceEpochMillis sinceEpochMillis 参数。
+     * @return 如果Recent检查点满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean hasRecentCheckpoint(String sourceKey, long sinceEpochMillis) throws Exception {
         Connection connection = database.openConnection();
@@ -197,6 +250,13 @@ public class DefaultCheckpointService implements CheckpointService {
         }
     }
 
+    /**
+     * 列出Recent。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param limit 最大返回数量。
+     * @return 返回Recent列表。
+     */
     @Override
     public List<CheckpointRecord> listRecent(String sourceKey, int limit) throws Exception {
         List<CheckpointRecord> results = new ArrayList<CheckpointRecord>();
@@ -222,6 +282,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return results;
     }
 
+    /**
+     * 执行预览相关逻辑。
+     *
+     * @param checkpointId checkpoint标识。
+     * @return 返回preview结果。
+     */
     @Override
     public Map<String, Object> preview(String checkpointId) throws Exception {
         CheckpointRecord record = findById(checkpointId);
@@ -267,14 +333,33 @@ public class DefaultCheckpointService implements CheckpointService {
         return result;
     }
 
+    /**
+     * 执行文件引用相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回文件Reference结果。
+     */
     private String fileReference(String path) {
         return "file://" + safePath(path);
     }
 
+    /**
+     * 生成安全展示用的Identifier。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Identifier结果。
+     */
     private String safeIdentifier(String value) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 400);
     }
 
+    /**
+     * 执行snapshot引用相关逻辑。
+     *
+     * @param record 记录参数。
+     * @param path 文件或目录路径。
+     * @return 返回snapshot Reference结果。
+     */
     private String snapshotReference(CheckpointRecord record, String path) {
         if (path == null || path.trim().length() == 0) {
             return "";
@@ -285,6 +370,12 @@ public class DefaultCheckpointService implements CheckpointService {
                 + safePath(path);
     }
 
+    /**
+     * 执行状态相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回状态。
+     */
     @Override
     public Map<String, Object> status(String sourceKey) throws Exception {
         List<CheckpointRecord> all = listAll(sourceKey);
@@ -315,6 +406,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return result;
     }
 
+    /**
+     * 执行prune相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回prune结果。
+     */
     @Override
     public Map<String, Object> prune(String sourceKey) throws Exception {
         List<CheckpointRecord> all = listAll(sourceKey);
@@ -348,6 +445,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return result;
     }
 
+    /**
+     * 执行clear相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回clear结果。
+     */
     @Override
     public Map<String, Object> clear(String sourceKey) throws Exception {
         List<CheckpointRecord> all = listAll(sourceKey);
@@ -366,6 +469,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return result;
     }
 
+    /**
+     * 执行skip原因相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回skip Reason结果。
+     */
     private String skipReason(File file) throws Exception {
         String matchedPattern = matchedExcludePattern(file);
         if (matchedPattern != null) {
@@ -381,6 +490,12 @@ public class DefaultCheckpointService implements CheckpointService {
         return null;
     }
 
+    /**
+     * 执行matchedExcludePattern相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回matched Exclude Pattern结果。
+     */
     private String matchedExcludePattern(File file) throws Exception {
         List<String> patterns = appConfig.getRollback().getExcludePatterns();
         if (patterns == null || patterns.isEmpty()) {
@@ -409,6 +524,13 @@ public class DefaultCheckpointService implements CheckpointService {
         return null;
     }
 
+    /**
+     * 判断是否匹配路径Pattern。
+     *
+     * @param pattern pattern 参数。
+     * @param path 文件或目录路径。
+     * @return 返回matches路径Pattern结果。
+     */
     private boolean matchesPathPattern(String pattern, String path) {
         if (path == null || path.length() == 0) {
             return false;
@@ -423,11 +545,24 @@ public class DefaultCheckpointService implements CheckpointService {
         return path.endsWith("/" + pattern);
     }
 
+    /**
+     * 判断是否匹配Pattern。
+     *
+     * @param pattern pattern 参数。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回matches Pattern结果。
+     */
     private boolean matchesPattern(String pattern, String value) {
         String regex = globToRegex(pattern);
         return value.toLowerCase(Locale.ROOT).matches(regex);
     }
 
+    /**
+     * 执行globToRegex相关逻辑。
+     *
+     * @param pattern pattern 参数。
+     * @return 返回glob To Regex结果。
+     */
     private String globToRegex(String pattern) {
         StringBuilder regex = new StringBuilder();
         regex.append("(?i)^");
@@ -447,10 +582,23 @@ public class DefaultCheckpointService implements CheckpointService {
         return regex.toString();
     }
 
+    /**
+     * 规范化路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回路径。
+     */
     private String normalizePath(String path) {
         return path == null ? "" : path.replace('\\', '/');
     }
 
+    /**
+     * 执行relativize相关逻辑。
+     *
+     * @param root root 参数。
+     * @param path 文件或目录路径。
+     * @return 返回relativize结果。
+     */
     private String relativize(String root, String path) {
         if (root == null || root.length() == 0 || path == null || path.length() == 0) {
             return null;
@@ -553,6 +701,12 @@ public class DefaultCheckpointService implements CheckpointService {
         }
     }
 
+    /**
+     * 列出全部。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回全部列表。
+     */
     private List<CheckpointRecord> listAll(String sourceKey) throws Exception {
         List<CheckpointRecord> results = new ArrayList<CheckpointRecord>();
         Connection connection = database.openConnection();

@@ -3,24 +3,47 @@ package com.jimuqu.solon.claw.cli;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import org.noear.snack4.ONode;
 
-/** Local terminal session browser built on top of the normal /resume command. */
+/** 承载终端会话浏览器相关状态和辅助逻辑。 */
 public class TerminalSessionBrowser {
+    /** 默认限制的统一常量值。 */
     private static final int DEFAULT_LIMIT = 10;
+
+    /** 预览限制的统一常量值。 */
     private static final int PREVIEW_LIMIT = 160;
 
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 保存lastChoices集合，维持调用顺序或去重语义。 */
     private List<SessionChoice> lastChoices = new ArrayList<SessionChoice>();
 
+    /**
+     * 创建终端会话浏览器实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     */
     public TerminalSessionBrowser(SessionRepository sessionRepository) {
         this.sessionRepository = sessionRepository;
     }
 
+    /**
+     * 判断是否浏览器命令。
+     *
+     * @param input 输入参数。
+     * @return 如果浏览器命令满足条件则返回 true，否则返回 false。
+     */
     public boolean isBrowserCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim().toLowerCase(Locale.ROOT);
         return "/sessions".equals(value)
@@ -33,6 +56,12 @@ public class TerminalSessionBrowser {
                 || value.startsWith("/session inspect ");
     }
 
+    /**
+     * 解析命令。
+     *
+     * @param input 输入参数。
+     * @return 返回解析后的命令。
+     */
     public String resolveCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         String lower = value.toLowerCase(Locale.ROOT);
@@ -52,9 +81,18 @@ public class TerminalSessionBrowser {
         return "/resume " + lastChoices.get(index - 1).sessionId;
     }
 
+    /**
+     * 执行render相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回render结果。
+     */
     public String render(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         String lower = value.toLowerCase(Locale.ROOT);
+        if (isSessionsManagementCommand(lower)) {
+            return renderSessionsManagement(value);
+        }
         if (lower.equals("/session show")
                 || lower.startsWith("/session show ")
                 || lower.equals("/session inspect")
@@ -90,6 +128,220 @@ public class TerminalSessionBrowser {
         return buffer.toString();
     }
 
+    /**
+     * 判断是否为会话管理子命令，避免将 stats/delete/export 等命令误当作搜索词。
+     *
+     * @param lower 已小写的终端输入。
+     * @return 属于会话管理命令返回 true。
+     */
+    private boolean isSessionsManagementCommand(String lower) {
+        return lower.equals("/sessions stats")
+                || lower.startsWith("/sessions stats ")
+                || lower.equals("/sessions export")
+                || lower.startsWith("/sessions export ")
+                || lower.equals("/sessions delete")
+                || lower.startsWith("/sessions delete ")
+                || lower.equals("/sessions prune")
+                || lower.startsWith("/sessions prune ")
+                || lower.equals("/sessions rename")
+                || lower.startsWith("/sessions rename ");
+    }
+
+    /**
+     * 渲染 sessions 管理命令，覆盖统计、导出、删除、裁剪和重命名。
+     *
+     * @param input 用户输入的完整命令。
+     * @return 管理命令输出。
+     */
+    private String renderSessionsManagement(String input) {
+        List<String> tokens = shellTokens(input);
+        if (tokens.size() < 2) {
+            return sessionsManagementUsage();
+        }
+        String action = tokens.get(1).toLowerCase(Locale.ROOT);
+        if ("stats".equals(action)) {
+            return renderStats();
+        }
+        if ("export".equals(action)) {
+            return renderExport(tokens);
+        }
+        if ("delete".equals(action)) {
+            return renderDelete(tokens);
+        }
+        if ("prune".equals(action)) {
+            return renderPrune(tokens);
+        }
+        if ("rename".equals(action)) {
+            return renderRename(tokens);
+        }
+        return sessionsManagementUsage();
+    }
+
+    /** 渲染会话管理命令用法。 */
+    private String sessionsManagementUsage() {
+        return "用法：/sessions stats | /sessions export <path|-> [--session-id <id>] | "
+                + "/sessions delete <id> --yes | /sessions prune --older-than <days> --yes | "
+                + "/sessions rename <id> <title>";
+    }
+
+    /** 渲染会话统计信息。 */
+    private String renderStats() {
+        List<SessionRecord> records = allSessions();
+        long tokens = 0L;
+        int messages = 0;
+        Map<String, Integer> sources = new LinkedHashMap<String, Integer>();
+        for (SessionRecord record : records) {
+            tokens += record.getCumulativeTotalTokens();
+            messages += countMessages(record.getNdjson());
+            String source = StrUtil.blankToDefault(record.getSourceKey(), "unknown");
+            Integer count = sources.get(source);
+            sources.put(source, Integer.valueOf(count == null ? 1 : count.intValue() + 1));
+        }
+        StringBuilder buffer = new StringBuilder("会话统计\n");
+        buffer.append("total=").append(records.size()).append('\n');
+        buffer.append("messages=").append(messages).append('\n');
+        buffer.append("tokens=").append(tokens);
+        for (Map.Entry<String, Integer> entry : sources.entrySet()) {
+            buffer.append('\n')
+                    .append("source.")
+                    .append(entry.getKey())
+                    .append('=')
+                    .append(entry.getValue().intValue());
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * 渲染会话导出命令，`-` 表示直接输出 JSONL。
+     *
+     * @param tokens 命令 token。
+     * @return 导出结果或 JSONL 内容。
+     */
+    private String renderExport(List<String> tokens) {
+        if (tokens.size() < 3) {
+            return "用法：/sessions export <path|-> [--session-id <id>]";
+        }
+        String output = tokens.get(2);
+        String sessionId = optionValue(tokens, "--session-id", "");
+        List<SessionRecord> records = new ArrayList<SessionRecord>();
+        if (StrUtil.isNotBlank(sessionId)) {
+            SessionRecord record = resolveDetailRecord(sessionId);
+            if (record == null) {
+                return "没有找到匹配的会话：" + sessionId;
+            }
+            records.add(record);
+        } else {
+            records.addAll(allSessions());
+        }
+        String jsonl = exportJsonl(records);
+        if ("-".equals(output)) {
+            return jsonl;
+        }
+        try {
+            Files.write(Paths.get(output), jsonl.getBytes(StandardCharsets.UTF_8));
+            return "会话已导出\npath=" + output + "\ncount=" + records.size();
+        } catch (Exception e) {
+            return "会话导出失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 渲染单会话删除命令；删除类操作必须显式确认。
+     *
+     * @param tokens 命令 token。
+     * @return 删除结果。
+     */
+    private String renderDelete(List<String> tokens) {
+        if (tokens.size() < 3) {
+            return "用法：/sessions delete <session-id> --yes";
+        }
+        if (!hasYes(tokens)) {
+            return "需要确认：删除会话会移除该会话记录。请追加 --yes 或 -y。";
+        }
+        String reference = tokens.get(2);
+        SessionRecord record = resolveDetailRecord(reference);
+        if (record == null) {
+            return "没有找到匹配的会话：" + reference;
+        }
+        try {
+            sessionRepository.delete(record.getSessionId());
+            return "会话已删除\nsession_id=" + record.getSessionId();
+        } catch (Exception e) {
+            return "会话删除失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 渲染旧会话裁剪命令；批量删除必须显式确认。
+     *
+     * @param tokens 命令 token。
+     * @return 裁剪结果。
+     */
+    private String renderPrune(List<String> tokens) {
+        int days = intOption(tokens, "--older-than", 90);
+        String source = optionValue(tokens, "--source", "");
+        if (!hasYes(tokens)) {
+            return "需要确认：将删除更新时间早于 "
+                    + days
+                    + " 天的会话。请追加 --yes 或 -y。";
+        }
+        long cutoff = System.currentTimeMillis() - days * 24L * 60L * 60L * 1000L;
+        int removed = 0;
+        for (SessionRecord record : allSessions()) {
+            if (record == null || StrUtil.isBlank(record.getSessionId())) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(source) && !source.equals(record.getSourceKey())) {
+                continue;
+            }
+            if (record.getUpdatedAt() <= 0L || record.getUpdatedAt() >= cutoff) {
+                continue;
+            }
+            try {
+                sessionRepository.delete(record.getSessionId());
+                removed++;
+            } catch (Exception ignored) {
+                // 单条删除失败不影响其他候选会话，最终结果以成功删除数量为准。
+            }
+        }
+        return "会话已裁剪\nolder_than_days=" + days + "\nremoved=" + removed;
+    }
+
+    /**
+     * 渲染会话重命名命令。
+     *
+     * @param tokens 命令 token。
+     * @return 重命名结果。
+     */
+    private String renderRename(List<String> tokens) {
+        if (tokens.size() < 4) {
+            return "用法：/sessions rename <session-id> <title>";
+        }
+        String reference = tokens.get(2);
+        SessionRecord record = resolveDetailRecord(reference);
+        if (record == null) {
+            return "没有找到匹配的会话：" + reference;
+        }
+        String title = StrUtil.join(" ", tokens.subList(3, tokens.size())).trim();
+        if (StrUtil.isBlank(title)) {
+            return "用法：/sessions rename <session-id> <title>";
+        }
+        record.setTitle(title);
+        record.setUpdatedAt(System.currentTimeMillis());
+        try {
+            sessionRepository.save(record);
+            return "会话已重命名\nsession_id=" + record.getSessionId() + "\ntitle=" + title;
+        } catch (Exception e) {
+            return "会话重命名失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 渲染详情。
+     *
+     * @param input 输入参数。
+     * @return 返回render Detail结果。
+     */
     private String renderDetail(String input) {
         SessionRecord record = resolveDetailRecord(detailReference(input));
         if (record == null || StrUtil.isBlank(record.getSessionId())) {
@@ -127,6 +379,12 @@ public class TerminalSessionBrowser {
         return buffer.toString();
     }
 
+    /**
+     * 执行choices相关逻辑。
+     *
+     * @param query 查询参数。
+     * @return 返回choices结果。
+     */
     private List<SessionChoice> choices(String query) {
         List<SessionChoice> result = new ArrayList<SessionChoice>();
         if (sessionRepository == null) {
@@ -153,6 +411,168 @@ public class TerminalSessionBrowser {
         return result;
     }
 
+    /** 读取所有可管理会话，优先使用仓储分页能力避免固定 10 条浏览限制。 */
+    private List<SessionRecord> allSessions() {
+        List<SessionRecord> records = new ArrayList<SessionRecord>();
+        if (sessionRepository == null) {
+            return records;
+        }
+        try {
+            int count = Math.max(sessionRepository.countAll(), DEFAULT_LIMIT);
+            List<SessionRecord> recent = sessionRepository.listRecent(Math.max(count, DEFAULT_LIMIT), 0);
+            if (recent != null) {
+                records.addAll(recent);
+            }
+        } catch (Exception e) {
+            try {
+                List<SessionRecord> recent = sessionRepository.listRecent(DEFAULT_LIMIT);
+                if (recent != null) {
+                    records.addAll(recent);
+                }
+            } catch (Exception ignored) {
+                // 管理命令以空结果退化，避免终端浏览流程被仓储异常打断。
+            }
+        }
+        return records;
+    }
+
+    /**
+     * 将会话记录导出为 JSONL 文本。
+     *
+     * @param records 会话记录。
+     * @return JSONL 文本。
+     */
+    private String exportJsonl(List<SessionRecord> records) {
+        StringBuilder buffer = new StringBuilder();
+        for (SessionRecord record : records) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("session_id", record.getSessionId());
+            item.put("title", record.getTitle());
+            item.put("source", record.getSourceKey());
+            item.put("branch", record.getBranchName());
+            item.put("parent_session_id", record.getParentSessionId());
+            item.put("model_provider", record.getLastResolvedProvider());
+            item.put("model", record.getLastResolvedModel());
+            item.put("created_at", Long.valueOf(record.getCreatedAt()));
+            item.put("updated_at", Long.valueOf(record.getUpdatedAt()));
+            item.put("messages", Integer.valueOf(countMessages(record.getNdjson())));
+            item.put("total_tokens", Long.valueOf(record.getCumulativeTotalTokens()));
+            item.put("ndjson", record.getNdjson());
+            buffer.append(ONode.serialize(item)).append('\n');
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * 从 token 列表读取字符串参数。
+     *
+     * @param tokens 命令 token。
+     * @param name 参数名。
+     * @param defaultValue 默认值。
+     * @return 参数值。
+     */
+    private String optionValue(List<String> tokens, String name, String defaultValue) {
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            if (name.equals(token) && i + 1 < tokens.size()) {
+                return tokens.get(i + 1);
+            }
+            if (token != null && token.startsWith(name + "=")) {
+                return token.substring((name + "=").length());
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * 从 token 列表读取整数参数。
+     *
+     * @param tokens 命令 token。
+     * @param name 参数名。
+     * @param defaultValue 默认值。
+     * @return 参数值。
+     */
+    private int intOption(List<String> tokens, String name, int defaultValue) {
+        String value = optionValue(tokens, name, "");
+        if (StrUtil.isBlank(value)) {
+            return defaultValue;
+        }
+        try {
+            return Math.max(Integer.parseInt(value), 0);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 判断用户是否显式确认危险会话操作。
+     *
+     * @param tokens 命令 token。
+     * @return 包含 --yes 或 -y 返回 true。
+     */
+    private boolean hasYes(List<String> tokens) {
+        return tokens.contains("--yes") || tokens.contains("-y");
+    }
+
+    /**
+     * 解析终端命令 token，支持简单引号包裹的标题或路径。
+     *
+     * @param input 原始输入。
+     * @return token 列表。
+     */
+    private List<String> shellTokens(String input) {
+        List<String> tokens = new ArrayList<String>();
+        String value = StrUtil.nullToEmpty(input).trim();
+        StringBuilder current = new StringBuilder();
+        char quote = 0;
+        boolean escaping = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (escaping) {
+                current.append(ch);
+                escaping = false;
+                continue;
+            }
+            if (ch == '\\') {
+                escaping = true;
+                continue;
+            }
+            if (quote != 0) {
+                if (ch == quote) {
+                    quote = 0;
+                } else {
+                    current.append(ch);
+                }
+                continue;
+            }
+            if (ch == '\'' || ch == '"') {
+                quote = ch;
+                continue;
+            }
+            if (Character.isWhitespace(ch)) {
+                if (current.length() > 0) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            current.append(ch);
+        }
+        if (escaping) {
+            current.append('\\');
+        }
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+        return tokens;
+    }
+
+    /**
+     * 执行查询相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回query结果。
+     */
     private String query(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         if (value.length() <= "/sessions".length()) {
@@ -161,6 +581,12 @@ public class TerminalSessionBrowser {
         return value.substring("/sessions".length()).trim();
     }
 
+    /**
+     * 执行详情引用相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回detail Reference结果。
+     */
     private String detailReference(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         String lower = value.toLowerCase(Locale.ROOT);
@@ -177,6 +603,12 @@ public class TerminalSessionBrowser {
         return "";
     }
 
+    /**
+     * 解析Detail记录。
+     *
+     * @param reference 引用参数。
+     * @return 返回解析后的Detail记录。
+     */
     private SessionRecord resolveDetailRecord(String reference) {
         if (sessionRepository == null) {
             return null;
@@ -195,7 +627,7 @@ public class TerminalSessionBrowser {
                 return byId;
             }
         } catch (Exception ignored) {
-            // Fall through to resume-style lookup.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         try {
             List<SessionRecord> candidates = sessionRepository.findResumeCandidates(value, 1);
@@ -203,11 +635,17 @@ public class TerminalSessionBrowser {
                 return candidates.get(0);
             }
         } catch (Exception ignored) {
-            // A terminal browser should stay read-only and best-effort.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         return null;
     }
 
+    /**
+     * 解析From Index。
+     *
+     * @param reference 引用参数。
+     * @return 返回解析后的From Index。
+     */
     private SessionRecord resolveFromIndex(String reference) {
         int index;
         try {
@@ -226,11 +664,23 @@ public class TerminalSessionBrowser {
         }
     }
 
+    /**
+     * 执行短标识相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回short标识。
+     */
     private String shortId(String sessionId) {
         String value = StrUtil.nullToEmpty(sessionId).trim();
         return value.length() <= 12 ? value : value.substring(0, 12);
     }
 
+    /**
+     * 格式化时间。
+     *
+     * @param millis millis 参数。
+     * @return 返回时间结果。
+     */
     private String formatTime(long millis) {
         if (millis <= 0L) {
             return "-";
@@ -238,10 +688,23 @@ public class TerminalSessionBrowser {
         return new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date(millis));
     }
 
+    /**
+     * 追加Line。
+     *
+     * @param buffer buffer 参数。
+     * @param label label 参数。
+     * @param value 待规范化或校验的原始值。
+     */
     private void appendLine(StringBuilder buffer, String label, String value) {
         buffer.append(label).append(": ").append(StrUtil.blankToDefault(value, "-")).append('\n');
     }
 
+    /**
+     * 执行模型行相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回模型Line结果。
+     */
     private String modelLine(SessionRecord record) {
         String provider = StrUtil.nullToEmpty(record.getLastResolvedProvider()).trim();
         String model = StrUtil.nullToEmpty(record.getLastResolvedModel()).trim();
@@ -255,6 +718,12 @@ public class TerminalSessionBrowser {
         return buffer.toString();
     }
 
+    /**
+     * 执行次数Messages相关逻辑。
+     *
+     * @param ndjson ndjson 参数。
+     * @return 返回次数Messages结果。
+     */
     private int countMessages(String ndjson) {
         String value = StrUtil.nullToEmpty(ndjson);
         if (StrUtil.isBlank(value)) {
@@ -270,6 +739,12 @@ public class TerminalSessionBrowser {
         return count;
     }
 
+    /**
+     * 执行预览相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @return 返回preview结果。
+     */
     private String preview(String text) {
         String value = StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
         if (value.length() <= PREVIEW_LIMIT) {
@@ -278,14 +753,31 @@ public class TerminalSessionBrowser {
         return value.substring(0, PREVIEW_LIMIT) + "...";
     }
 
+    /** 承载会话Choice相关状态和辅助逻辑。 */
     private static class SessionChoice {
+        /** 记录会话Choice中的会话标识。 */
         private final String sessionId;
+
+        /** 记录会话Choice中的来源键。 */
         private final String sourceKey;
+
+        /** 记录会话Choice中的branch名称。 */
         private final String branchName;
+
+        /** 记录会话Choice中的标题。 */
         private final String title;
+
+        /** 记录会话Choice中的更新时间。 */
         private final long updatedAt;
+
+        /** 记录会话Choice中的totaltoken。 */
         private final long totalTokens;
 
+        /**
+         * 创建会话Choice实例，并注入运行所需依赖。
+         *
+         * @param record 记录参数。
+         */
         private SessionChoice(SessionRecord record) {
             this.sessionId = StrUtil.nullToEmpty(record.getSessionId()).trim();
             this.sourceKey = StrUtil.nullToEmpty(record.getSourceKey()).trim();

@@ -24,20 +24,40 @@ import org.yaml.snakeyaml.Yaml;
 
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
+    /** 根用户前缀列表的统一常量值。 */
     private static final List<String> ROOT_PREFIXES = Arrays.asList("approvals.", "security.");
+
+    /** SOLONCLAWPASSTHROUGH前缀列表的统一常量值。 */
     private static final List<String> SOLONCLAW_PASSTHROUGH_PREFIXES =
             Arrays.asList("solonclaw.channels.wecom.groups.", "solonclaw.terminal.");
+
+    /** WindowsDRIVE路径的统一常量值。 */
     private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
+
+    /** 写入LOCK的统一常量值。 */
     private static final Object WRITE_LOCK = new Object();
 
+    /** 注入应用配置，用于控制台配置。 */
     private final AppConfig appConfig;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
+
+    /** 保存fields映射，便于按键快速查询。 */
     private final Map<String, FieldDefinition> fields =
             new LinkedHashMap<String, FieldDefinition>();
+
+    /** 保存categoryOrder集合，维持调用顺序或去重语义。 */
     private final List<String> categoryOrder =
             Arrays.asList("general", "agent", "compression", "security", "messaging");
 
+    /**
+     * 创建控制台配置服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     */
     public DashboardConfigService(
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
@@ -47,14 +67,29 @@ public class DashboardConfigService {
         registerFields();
     }
 
+    /**
+     * 读取配置。
+     *
+     * @return 返回读取到的配置。
+     */
     public Map<String, Object> getConfig() {
         return toNestedFieldMap(resolveCurrentValues());
     }
 
+    /**
+     * 读取Defaults。
+     *
+     * @return 返回读取到的Defaults。
+     */
     public Map<String, Object> getDefaults() {
         return toNestedFieldMap(resolveDefaultValues());
     }
 
+    /**
+     * 读取结构。
+     *
+     * @return 返回读取到的结构。
+     */
     public Map<String, Object> getSchema() {
         Map<String, Object> response = new LinkedHashMap<String, Object>();
         Map<String, Object> fieldMaps = new LinkedHashMap<String, Object>();
@@ -66,15 +101,31 @@ public class DashboardConfigService {
         return response;
     }
 
+    /**
+     * 读取原始。
+     *
+     * @return 返回读取到的原始。
+     */
     public Map<String, Object> getRaw() {
         return Collections.<String, Object>singletonMap("yaml", dumpYaml(resolveCurrentValues()));
     }
 
+    /**
+     * 执行诊断相关逻辑。
+     *
+     * @return 返回诊断结果。
+     */
     public Map<String, Object> diagnostics() {
         return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome())
                 .diagnostics(appConfig);
     }
 
+    /**
+     * 保存配置。
+     *
+     * @param nestedConfig nested配置对象。
+     * @return 返回配置。
+     */
     public Map<String, Object> saveConfig(Map<String, Object> nestedConfig) {
         Map<String, Object> flat = flattenFieldMap(nestedConfig);
         validateKeys(flat.keySet());
@@ -84,6 +135,12 @@ public class DashboardConfigService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 保存原始。
+     *
+     * @param yamlText YAML文本参数。
+     * @return 返回原始结果。
+     */
     public Map<String, Object> saveRaw(String yamlText) {
         Map<String, Object> flat = loadFieldMap(yamlText);
         validateKeys(flat.keySet());
@@ -93,10 +150,23 @@ public class DashboardConfigService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 保存Partial Flat。
+     *
+     * @param flatUpdates flatUpdates 参数。
+     * @return 返回Partial Flat结果。
+     */
     public Map<String, Object> savePartialFlat(Map<String, Object> flatUpdates) {
         return savePartialFlat(flatUpdates, true);
     }
 
+    /**
+     * 保存Partial Flat。
+     *
+     * @param flatUpdates flatUpdates 参数。
+     * @param reconnectChannels reconnectChannels 参数。
+     * @return 返回Partial Flat结果。
+     */
     public Map<String, Object> savePartialFlat(
             Map<String, Object> flatUpdates, boolean reconnectChannels) {
         Map<String, Object> normalizedUpdates = normalizeFlatUpdates(flatUpdates);
@@ -113,6 +183,12 @@ public class DashboardConfigService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 规范化Flat Updates。
+     *
+     * @param flatUpdates flatUpdates 参数。
+     * @return 返回Flat Updates结果。
+     */
     private Map<String, Object> normalizeFlatUpdates(Map<String, Object> flatUpdates) {
         Assert.notNull(flatUpdates, "config updates are required");
         Map<String, Object> normalized = new LinkedHashMap<String, Object>();
@@ -127,6 +203,7 @@ public class DashboardConfigService {
         return normalized;
     }
 
+    /** 注册Fields。 */
     private void registerFields() {
         addField(
                 new FieldDefinition("llm.provider", "select", "general", "模型协议提供方")
@@ -685,6 +762,11 @@ public class DashboardConfigService {
                         "腾讯元宝群聊 allowlist"));
     }
 
+    /**
+     * 追加渠道Fields。
+     *
+     * @param name 名称参数。
+     */
     private void addChannelFields(String name) {
         FieldDefinition enabledField =
                 new FieldDefinition(
@@ -714,6 +796,7 @@ public class DashboardConfigService {
                         .options("pair", "ignore"));
     }
 
+    /** 追加平台工具集Fields。 */
     private void addPlatformToolsetFields() {
         for (String name :
                 Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao")) {
@@ -738,6 +821,12 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 执行渠道Label相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回渠道Label结果。
+     */
     private String channelLabel(String name) {
         if ("feishu".equals(name)) {
             return "飞书";
@@ -760,10 +849,20 @@ public class DashboardConfigService {
         return name;
     }
 
+    /**
+     * 追加Field。
+     *
+     * @param definition definition 参数。
+     */
     private void addField(FieldDefinition definition) {
         fields.put(definition.key, definition);
     }
 
+    /**
+     * 解析当前Values。
+     *
+     * @return 返回解析后的当前Values。
+     */
     private Map<String, Object> resolveCurrentValues() {
         Map<String, Object> defaults = resolveDefaultValues();
         Map<String, Object> overrides = loadOverrideFields();
@@ -783,6 +882,11 @@ public class DashboardConfigService {
         return current;
     }
 
+    /**
+     * 解析默认Values。
+     *
+     * @return 返回解析后的默认Values。
+     */
     private Map<String, Object> resolveDefaultValues() {
         Map<String, Object> raw = loadFieldMap(loadClasspathAppYaml());
         Map<String, Object> defaults = new LinkedHashMap<String, Object>();
@@ -792,6 +896,11 @@ public class DashboardConfigService {
         return defaults;
     }
 
+    /**
+     * 加载Classpath App YAML。
+     *
+     * @return 返回Classpath App YAML结果。
+     */
     private String loadClasspathAppYaml() {
         InputStream stream = getClass().getClassLoader().getResourceAsStream("app.yml");
         if (stream == null) {
@@ -800,6 +909,11 @@ public class DashboardConfigService {
         return IoUtil.read(stream, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 加载Override Fields。
+     *
+     * @return 返回Override Fields结果。
+     */
     private Map<String, Object> loadOverrideFields() {
         File configFile = new File(appConfig.getRuntime().getConfigFile());
         if (!configFile.exists()) {
@@ -808,6 +922,12 @@ public class DashboardConfigService {
         return loadFieldMap(FileUtil.readUtf8String(configFile));
     }
 
+    /**
+     * 加载Field Map。
+     *
+     * @param yamlText YAML文本参数。
+     * @return 返回Field Map结果。
+     */
     private Map<String, Object> loadFieldMap(String yamlText) {
         if (StrUtil.isBlank(yamlText)) {
             return Collections.emptyMap();
@@ -837,6 +957,13 @@ public class DashboardConfigService {
         return fieldValues;
     }
 
+    /**
+     * 执行flatten相关逻辑。
+     *
+     * @param prefix prefix 参数。
+     * @param input 输入参数。
+     * @param output 命令执行输出文本。
+     */
     private void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
         for (Map.Entry<?, ?> entry : input.entrySet()) {
             if (entry.getKey() == null) {
@@ -855,6 +982,12 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 执行flattenField映射相关逻辑。
+     *
+     * @param nested nested 参数。
+     * @return 返回flatten Field Map结果。
+     */
     private Map<String, Object> flattenFieldMap(Map<String, Object> nested) {
         Assert.notNull(nested, "config body is required");
         Map<String, Object> output = new LinkedHashMap<String, Object>();
@@ -872,6 +1005,13 @@ public class DashboardConfigService {
         return filtered;
     }
 
+    /**
+     * 执行flattenNested相关逻辑。
+     *
+     * @param prefix prefix 参数。
+     * @param input 输入参数。
+     * @param output 命令执行输出文本。
+     */
     @SuppressWarnings("unchecked")
     private void flattenNested(
             String prefix, Map<String, Object> input, Map<String, Object> output) {
@@ -886,6 +1026,12 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 转换为Nested Field Map。
+     *
+     * @param flat flat 参数。
+     * @return 返回转换后的Nested Field Map。
+     */
     private Map<String, Object> toNestedFieldMap(Map<String, Object> flat) {
         Map<String, Object> root = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> entry : flat.entrySet()) {
@@ -894,6 +1040,13 @@ public class DashboardConfigService {
         return root;
     }
 
+    /**
+     * 写入Nested Value。
+     *
+     * @param root root 参数。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     @SuppressWarnings("unchecked")
     private void setNestedValue(Map<String, Object> root, String key, Object value) {
         String[] parts = key.split("\\.");
@@ -909,6 +1062,11 @@ public class DashboardConfigService {
         cursor.put(parts[parts.length - 1], value);
     }
 
+    /**
+     * 校验Keys。
+     *
+     * @param keys 候选键列表。
+     */
     private void validateKeys(Iterable<String> keys) {
         for (String key : keys) {
             String canonicalKey = canonicalFieldKey(key);
@@ -923,6 +1081,11 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 校验Values。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     */
     private void validateValues(Map<String, Object> values) {
         validateCredentialFiles(values.get("terminal.credentialFiles"));
         validateEnvPassthrough(
@@ -930,11 +1093,22 @@ public class DashboardConfigService {
         validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
     }
 
+    /**
+     * 校验Env Passthrough。
+     *
+     * @param rawValue 原始值参数。
+     * @param configKey 配置键标识或键值。
+     */
     private void validateEnvPassthrough(Object rawValue, String configKey) {
         SubprocessEnvironmentSanitizer.validateConfiguredEnvPassthrough(
                 normalizeStringList(rawValue, configKey), configKey);
     }
 
+    /**
+     * 校验凭据Files。
+     *
+     * @param rawValue 原始值参数。
+     */
     private void validateCredentialFiles(Object rawValue) {
         for (String path : normalizePathList(rawValue)) {
             if (StrUtil.isBlank(path)) {
@@ -960,6 +1134,11 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 校验Website Shared Files。
+     *
+     * @param rawValue 原始值参数。
+     */
     private void validateWebsiteSharedFiles(Object rawValue) {
         for (String path : normalizePathList(rawValue)) {
             if (StrUtil.isBlank(path)) {
@@ -981,10 +1160,23 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 规范化路径List。
+     *
+     * @param rawValue 原始值参数。
+     * @return 返回路径List结果。
+     */
     private List<String> normalizePathList(Object rawValue) {
         return normalizeStringList(rawValue, "Path list config");
     }
 
+    /**
+     * 规范化String List。
+     *
+     * @param rawValue 原始值参数。
+     * @param configKey 配置键标识或键值。
+     * @return 返回String List结果。
+     */
     @SuppressWarnings("unchecked")
     private List<String> normalizeStringList(Object rawValue, String configKey) {
         if (rawValue == null) {
@@ -1012,6 +1204,12 @@ public class DashboardConfigService {
         throw new IllegalStateException(configKey + " must be a list or comma-separated string");
     }
 
+    /**
+     * 判断是否包含控制Character。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回contains Control Character结果。
+     */
     private boolean containsControlCharacter(String value) {
         if (value == null) {
             return false;
@@ -1024,10 +1222,22 @@ public class DashboardConfigService {
         return false;
     }
 
+    /**
+     * 判断是否以主渠道路径开头。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回starts With主渠道路径。
+     */
     private boolean startsWithHomePath(String value) {
         return value.startsWith("~/") || value.startsWith("~\\");
     }
 
+    /**
+     * 判断是否Absolute路径Text。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Absolute路径Text满足条件则返回 true，否则返回 false。
+     */
     private boolean isAbsolutePathText(String value) {
         String path = StrUtil.nullToEmpty(value).trim();
         return new File(path).isAbsolute()
@@ -1036,6 +1246,12 @@ public class DashboardConfigService {
                 || WINDOWS_DRIVE_PATH.matcher(path).matches();
     }
 
+    /**
+     * 判断是否包含Traversal。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回contains Traversal结果。
+     */
     private boolean containsTraversal(String value) {
         String normalized = StrUtil.nullToEmpty(value).replace('\\', '/');
         return normalized.equals("..")
@@ -1044,10 +1260,21 @@ public class DashboardConfigService {
                 || normalized.contains("/../");
     }
 
+    /**
+     * 合并Base Values。
+     *
+     * @return 返回Base Values结果。
+     */
     private Map<String, Object> mergeBaseValues() {
         return new LinkedHashMap<String, Object>(loadOverrideFields());
     }
 
+    /**
+     * 判断是否Supported Passthrough键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Supported Passthrough键满足条件则返回 true，否则返回 false。
+     */
     private boolean isSupportedPassthroughKey(String key) {
         if (key == null) {
             return false;
@@ -1065,6 +1292,12 @@ public class DashboardConfigService {
         return false;
     }
 
+    /**
+     * 判断是否根用户Passthrough键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果根用户Passthrough键满足条件则返回 true，否则返回 false。
+     */
     private boolean isRootPassthroughKey(String key) {
         if (key == null) {
             return false;
@@ -1077,6 +1310,12 @@ public class DashboardConfigService {
         return false;
     }
 
+    /**
+     * 执行规范Field键相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回规范Field键结果。
+     */
     private String canonicalFieldKey(String key) {
         if (key == null) {
             return "";
@@ -1087,6 +1326,11 @@ public class DashboardConfigService {
         return key;
     }
 
+    /**
+     * 写入Override文件。
+     *
+     * @param fieldValues field值s参数。
+     */
     private void writeOverrideFile(Map<String, Object> fieldValues) {
         synchronized (WRITE_LOCK) {
             Map<String, Object> root = loadRawConfigRoot();
@@ -1127,6 +1371,12 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 执行dumpYAML相关逻辑。
+     *
+     * @param fieldValues field值s参数。
+     * @return 返回dump YAML结果。
+     */
     private String dumpYaml(Map<String, Object> fieldValues) {
         Map<String, Object> root = new LinkedHashMap<String, Object>();
         Map<String, Object> solonclaw = new LinkedHashMap<String, Object>();
@@ -1137,6 +1387,12 @@ public class DashboardConfigService {
         return dump(root);
     }
 
+    /**
+     * 执行dump相关逻辑。
+     *
+     * @param root root 参数。
+     * @return 返回dump结果。
+     */
     private String dump(Map<String, Object> root) {
         DumperOptions options = new DumperOptions();
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
@@ -1146,6 +1402,11 @@ public class DashboardConfigService {
         return new Yaml(options).dump(root);
     }
 
+    /**
+     * 加载原始配置根用户。
+     *
+     * @return 返回原始配置根用户结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> loadRawConfigRoot() {
         File configFile = new File(appConfig.getRuntime().getConfigFile());
@@ -1159,6 +1420,12 @@ public class DashboardConfigService {
         return sanitizeMap((Map<?, ?>) parsed);
     }
 
+    /**
+     * 确保Solon项目根用户。
+     *
+     * @param root root 参数。
+     * @return 返回Solon项目根用户结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> ensureSolonClawRoot(Map<String, Object> root) {
         Object current = root.get("solonclaw");
@@ -1170,6 +1437,11 @@ public class DashboardConfigService {
         return solonclaw;
     }
 
+    /**
+     * 清理Managed Fields，服务于控制台配置主流程。
+     *
+     * @param jimuqu jimuqu 参数。
+     */
     private void clearManagedFields(Map<String, Object> jimuqu) {
         for (String key : fields.keySet()) {
             removeNestedValue(jimuqu, key);
@@ -1179,12 +1451,24 @@ public class DashboardConfigService {
         }
     }
 
+    /**
+     * 清理根用户Passthrough Fields。
+     *
+     * @param root root 参数。
+     */
     private void clearRootPassthroughFields(Map<String, Object> root) {
         for (String prefix : ROOT_PREFIXES) {
             removeNestedPrefix(root, prefix);
         }
     }
 
+    /**
+     * 解析Typed Value。
+     *
+     * @param type 类型参数。
+     * @param raw 原始输入值。
+     * @return 返回解析后的Typed Value。
+     */
     private Object parseTypedValue(String type, String raw) {
         if ("boolean".equals(type)) {
             return "true".equalsIgnoreCase(raw) || "1".equals(raw) || "yes".equalsIgnoreCase(raw);
@@ -1208,6 +1492,12 @@ public class DashboardConfigService {
         return raw;
     }
 
+    /**
+     * 清理Map。
+     *
+     * @param input 输入参数。
+     * @return 返回Map结果。
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> sanitizeMap(Map<?, ?> input) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -1226,6 +1516,12 @@ public class DashboardConfigService {
         return result;
     }
 
+    /**
+     * 清理List。
+     *
+     * @param input 输入参数。
+     * @return 返回List结果。
+     */
     @SuppressWarnings("unchecked")
     private static List<Object> sanitizeList(List<?> input) {
         List<Object> result = new ArrayList<Object>();
@@ -1241,6 +1537,13 @@ public class DashboardConfigService {
         return result;
     }
 
+    /**
+     * 移除Nested Value。
+     *
+     * @param root root 参数。
+     * @param key 配置键或映射键。
+     * @return 返回Nested Value结果。
+     */
     @SuppressWarnings("unchecked")
     private boolean removeNestedValue(Map<String, Object> root, String key) {
         String[] parts = key.split("\\.");
@@ -1271,6 +1574,12 @@ public class DashboardConfigService {
         return true;
     }
 
+    /**
+     * 移除Nested Prefix。
+     *
+     * @param root root 参数。
+     * @param prefix prefix 参数。
+     */
     @SuppressWarnings("unchecked")
     private void removeNestedPrefix(Map<String, Object> root, String prefix) {
         String normalized = prefix;
@@ -1292,13 +1601,31 @@ public class DashboardConfigService {
         cursor.remove(parts[parts.length - 1]);
     }
 
+    /** 承载FieldDefinition相关状态和辅助逻辑。 */
     private static class FieldDefinition {
+        /** 记录FieldDefinition中的键。 */
         private final String key;
+
+        /** 记录FieldDefinition中的类型。 */
         private final String type;
+
+        /** 记录FieldDefinition中的category。 */
         private final String category;
+
+        /** 记录FieldDefinition中的描述。 */
         private final String description;
+
+        /** 保存options集合，维持调用顺序或去重语义。 */
         private List<String> options = Collections.emptyList();
 
+        /**
+         * 创建Field Definition实例，并注入运行所需依赖。
+         *
+         * @param key 配置键或映射键。
+         * @param type 类型参数。
+         * @param category 分类参数。
+         * @param description 描述参数。
+         */
         private FieldDefinition(String key, String type, String category, String description) {
             this.key = key;
             this.type = type;
@@ -1306,11 +1633,22 @@ public class DashboardConfigService {
             this.description = description;
         }
 
+        /**
+         * 执行options相关逻辑。
+         *
+         * @param values 待规范化或校验的原始值集合。
+         * @return 返回options结果。
+         */
         private FieldDefinition options(String... values) {
             this.options = Arrays.asList(values);
             return this;
         }
 
+        /**
+         * 转换为结构Map。
+         *
+         * @return 返回转换后的结构Map。
+         */
         private Map<String, Object> toSchemaMap() {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("type", type);

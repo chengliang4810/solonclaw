@@ -6,18 +6,37 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-/** Formats Hutool HTTP failures with bounded, redacted response previews. */
+/** 承载HutoolHTTP错误Formatter相关状态和辅助逻辑。 */
 public final class HutoolHttpErrorFormatter {
+    /** 错误预览最大字节的统一常量值。 */
     private static final int ERROR_PREVIEW_MAX_BYTES = 4096;
+
+    /** 错误预览最大CHARS的统一常量值。 */
     private static final int ERROR_PREVIEW_MAX_CHARS = 1000;
 
+    /** 创建Hutool HTTP Error Formatter实例。 */
     private HutoolHttpErrorFormatter() {}
 
+    /**
+     * 执行failure相关逻辑。
+     *
+     * @param purpose purpose 参数。
+     * @param response 当前响应对象。
+     * @return 返回failure结果。
+     */
     public static String failure(String purpose, HttpResponse response) {
         int status = response == null ? -1 : response.getStatus();
         return failure(purpose, status, response == null ? null : response.bodyStream());
     }
 
+    /**
+     * 执行failure相关逻辑。
+     *
+     * @param purpose purpose 参数。
+     * @param status 状态参数。
+     * @param bodyStream 正文流参数。
+     * @return 返回failure结果。
+     */
     public static String failure(String purpose, int status, InputStream bodyStream) {
         String base = StrUtil.blankToDefault(purpose, "HTTP request") + " failed: HTTP " + status;
         String preview = readPreview(bodyStream);
@@ -32,6 +51,12 @@ public final class HutoolHttpErrorFormatter {
         return base + ", response preview: " + safe;
     }
 
+    /**
+     * 读取Preview。
+     *
+     * @param stream 流参数。
+     * @return 返回读取到的Preview。
+     */
     private static String readPreview(InputStream stream) {
         if (stream == null) {
             return "";

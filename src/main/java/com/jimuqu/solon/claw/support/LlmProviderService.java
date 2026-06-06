@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import java.util.ArrayList;
@@ -11,19 +12,42 @@ import java.util.Map;
 
 /** LLM provider 解析服务。 */
 public class LlmProviderService {
+    /** 注入应用配置，用于大模型提供方。 */
     private final AppConfig appConfig;
 
+    /**
+     * 创建大模型提供方服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public LlmProviderService(AppConfig appConfig) {
         this.appConfig = appConfig;
     }
 
+    /**
+     * 解析生效提供方。
+     *
+     * @param session 会话参数。
+     * @return 返回解析后的生效提供方。
+     */
     public ResolvedProvider resolveEffectiveProvider(SessionRecord session) {
         return resolveEffectiveProvider(session, null);
     }
 
+    /**
+     * 解析生效提供方。
+     *
+     * @param session 会话参数。
+     * @param agentDefaultModel Agent默认模型参数。
+     * @return 返回解析后的生效提供方。
+     */
     public ResolvedProvider resolveEffectiveProvider(
             SessionRecord session, String agentDefaultModel) {
-        String providerKey = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
+        RuntimeConfigResolver resolver = configResolver();
+        String providerKey =
+                StrUtil.blankToDefault(
+                        resolver.get("model.providerKey"),
+                        StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim());
         String model = "";
         String transientProvider =
                 session == null
@@ -55,6 +79,8 @@ public class LlmProviderService {
             }
         } else if (StrUtil.isBlank(model) && StrUtil.isNotBlank(agentDefaultModel)) {
             model = agentDefaultModel.trim();
+        } else if (StrUtil.isBlank(model)) {
+            model = StrUtil.nullToEmpty(resolver.get("model.default")).trim();
         }
         ResolvedProvider resolved = resolveProvider(providerKey, model);
         if (StrUtil.isNotBlank(transientBaseUrl)) {
@@ -65,16 +91,27 @@ public class LlmProviderService {
         return resolved;
     }
 
+    /**
+     * 解析提供方。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param explicitModel explicit模型参数。
+     * @return 返回解析后的提供方。
+     */
     public ResolvedProvider resolveProvider(String providerKey, String explicitModel) {
         String key = StrUtil.nullToEmpty(providerKey).trim();
         AppConfig.ProviderConfig provider = appConfig.getProviders().get(key);
         if (provider == null) {
             throw new IllegalStateException("未找到 provider：" + key);
         }
+        RuntimeProvider runtimeProvider = runtimeProvider(key, provider);
 
         String model = StrUtil.nullToEmpty(explicitModel).trim();
         if (StrUtil.isBlank(model)) {
-            model = StrUtil.nullToEmpty(provider.getDefaultModel()).trim();
+            model = StrUtil.nullToEmpty(runtimeProvider.defaultModel).trim();
+        }
+        if (StrUtil.isBlank(model)) {
+            model = StrUtil.nullToEmpty(configResolver().get("model.default")).trim();
         }
         if (StrUtil.isBlank(model)) {
             model = StrUtil.nullToEmpty(appConfig.getModel().getDefault()).trim();
@@ -82,16 +119,21 @@ public class LlmProviderService {
 
         ResolvedProvider resolved = new ResolvedProvider();
         resolved.setProviderKey(key);
-        resolved.setLabel(StrUtil.blankToDefault(provider.getName(), key));
-        resolved.setDialect(LlmProviderSupport.normalizeDialect(provider.getDialect()));
-        resolved.setBaseUrl(StrUtil.nullToEmpty(provider.getBaseUrl()).trim());
+        resolved.setLabel(StrUtil.blankToDefault(runtimeProvider.name, key));
+        resolved.setDialect(LlmProviderSupport.normalizeDialect(runtimeProvider.dialect));
+        resolved.setBaseUrl(StrUtil.nullToEmpty(runtimeProvider.baseUrl).trim());
         resolved.setApiUrl(
-                LlmProviderSupport.buildApiUrl(provider.getBaseUrl(), provider.getDialect()));
-        resolved.setApiKey(StrUtil.nullToEmpty(provider.getApiKey()).trim());
+                LlmProviderSupport.buildApiUrl(runtimeProvider.baseUrl, runtimeProvider.dialect));
+        resolved.setApiKey(StrUtil.nullToEmpty(runtimeProvider.apiKey).trim());
         resolved.setModel(model);
         return resolved;
     }
 
+    /**
+     * 解析兜底Providers。
+     *
+     * @return 返回解析后的兜底Providers。
+     */
     public List<ResolvedProvider> resolveFallbackProviders() {
         if (appConfig.getFallbackProviders() == null
                 || appConfig.getFallbackProviders().isEmpty()) {
@@ -108,75 +150,229 @@ public class LlmProviderService {
         return result;
     }
 
+    /**
+     * 判断是否存在提供方。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @return 如果提供方满足条件则返回 true，否则返回 false。
+     */
     public boolean hasProvider(String providerKey) {
         return appConfig.getProviders().containsKey(StrUtil.nullToEmpty(providerKey).trim());
     }
 
+    /**
+     * 执行providers相关逻辑。
+     *
+     * @return 返回providers结果。
+     */
     public Map<String, AppConfig.ProviderConfig> providers() {
         return appConfig.getProviders();
     }
 
-    public static class ResolvedProvider {
-        private String providerKey;
-        private String label;
-        private String dialect;
+    /** 返回当前 runtime/config.yml 解析器，保证模型请求能读取 TUI 和配置命令的即时写入。 */
+    private RuntimeConfigResolver configResolver() {
+        String home = appConfig == null || appConfig.getRuntime() == null
+                ? ""
+                : appConfig.getRuntime().getHome();
+        return RuntimeConfigResolver.initialize(home);
+    }
+
+    /**
+     * 合并启动配置与运行时配置中的 provider 字段。
+     *
+     * @param providerKey provider 键。
+     * @param provider 启动时 provider 配置。
+     * @return 返回模型请求最终使用的 provider 字段。
+     */
+    private RuntimeProvider runtimeProvider(String providerKey, AppConfig.ProviderConfig provider) {
+        RuntimeConfigResolver resolver = configResolver();
+        RuntimeProvider result = new RuntimeProvider();
+        String prefix = "providers." + providerKey + ".";
+        result.name = runtimeValue(resolver, prefix + "name", provider.getName());
+        result.baseUrl = runtimeValue(resolver, prefix + "baseUrl", provider.getBaseUrl());
+        result.apiKey = runtimeValue(resolver, prefix + "apiKey", provider.getApiKey());
+        result.defaultModel =
+                runtimeValue(resolver, prefix + "defaultModel", provider.getDefaultModel());
+        result.dialect = runtimeValue(resolver, prefix + "dialect", provider.getDialect());
+        return result;
+    }
+
+    /**
+     * 读取 runtime/config.yml 覆盖值；空白值视为未覆盖，避免清空启动时的必填配置。
+     *
+     * @param resolver 运行时配置解析器。
+     * @param key 配置键。
+     * @param fallback 启动配置中的回退值。
+     * @return 返回合并后的字符串值。
+     */
+    private String runtimeValue(RuntimeConfigResolver resolver, String key, String fallback) {
+        String value = resolver.get(key);
+        return StrUtil.isNotBlank(value) ? value.trim() : StrUtil.nullToEmpty(fallback).trim();
+    }
+
+    /** provider 字段运行时快照，避免把可变配置散落在请求链路中。 */
+    private static class RuntimeProvider {
+        /** provider 展示名称。 */
+        private String name;
+
+        /** provider 基础地址。 */
         private String baseUrl;
-        private String apiUrl;
+
+        /** provider API 密钥。 */
         private String apiKey;
+
+        /** provider 默认模型。 */
+        private String defaultModel;
+
+        /** provider 协议方言。 */
+        private String dialect;
+    }
+
+    /** 提供Resolved能力的扩展入口，屏蔽具体实现差异。 */
+    public static class ResolvedProvider {
+        /** 记录Resolved中的提供方键。 */
+        private String providerKey;
+
+        /** 记录Resolved中的label。 */
+        private String label;
+
+        /** 记录Resolved中的协议方言。 */
+        private String dialect;
+
+        /** 记录Resolved中的基础URL。 */
+        private String baseUrl;
+
+        /** 记录Resolved中的apiURL。 */
+        private String apiUrl;
+
+        /** 记录Resolved中的api键。 */
+        private String apiKey;
+
+        /** 记录Resolved中的模型。 */
         private String model;
 
+        /**
+         * 读取提供方键。
+         *
+         * @return 返回读取到的提供方键。
+         */
         public String getProviderKey() {
             return providerKey;
         }
 
+        /**
+         * 写入提供方键。
+         *
+         * @param providerKey 提供方键标识或键值。
+         */
         public void setProviderKey(String providerKey) {
             this.providerKey = providerKey;
         }
 
+        /**
+         * 读取Label。
+         *
+         * @return 返回读取到的Label。
+         */
         public String getLabel() {
             return label;
         }
 
+        /**
+         * 写入Label。
+         *
+         * @param label label 参数。
+         */
         public void setLabel(String label) {
             this.label = label;
         }
 
+        /**
+         * 读取协议方言。
+         *
+         * @return 返回读取到的协议方言。
+         */
         public String getDialect() {
             return dialect;
         }
 
+        /**
+         * 写入协议方言。
+         *
+         * @param dialect dialect 参数。
+         */
         public void setDialect(String dialect) {
             this.dialect = dialect;
         }
 
+        /**
+         * 读取Base URL。
+         *
+         * @return 返回读取到的Base URL。
+         */
         public String getBaseUrl() {
             return baseUrl;
         }
 
+        /**
+         * 写入Base URL。
+         *
+         * @param baseUrl 待校验或访问的地址参数。
+         */
         public void setBaseUrl(String baseUrl) {
             this.baseUrl = baseUrl;
         }
 
+        /**
+         * 读取Api URL。
+         *
+         * @return 返回读取到的Api URL。
+         */
         public String getApiUrl() {
             return apiUrl;
         }
 
+        /**
+         * 写入Api URL。
+         *
+         * @param apiUrl 待校验或访问的地址参数。
+         */
         public void setApiUrl(String apiUrl) {
             this.apiUrl = apiUrl;
         }
 
+        /**
+         * 读取Api键。
+         *
+         * @return 返回读取到的Api键。
+         */
         public String getApiKey() {
             return apiKey;
         }
 
+        /**
+         * 写入Api键。
+         *
+         * @param apiKey api键标识或键值。
+         */
         public void setApiKey(String apiKey) {
             this.apiKey = apiKey;
         }
 
+        /**
+         * 读取模型。
+         *
+         * @return 返回读取到的模型。
+         */
         public String getModel() {
             return model;
         }
 
+        /**
+         * 写入模型。
+         *
+         * @param model 模型名称。
+         */
         public void setModel(String model) {
             this.model = model;
         }

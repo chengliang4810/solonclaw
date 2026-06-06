@@ -14,16 +14,31 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /** SqliteDatabase 实现。 */
 public class SqliteDatabase {
+    /** 记录SQLite数据库中的jdbcURL。 */
     private final String jdbcUrl;
+
+    /** 记录SQLite数据库中的连接Lock。 */
     private final ReentrantLock connectionLock = new ReentrantLock(true);
+
+    /** 记录SQLite数据库中的shared连接。 */
     private Connection sharedConnection;
 
+    /**
+     * 创建SQLite数据库实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public SqliteDatabase(AppConfig appConfig) throws SQLException {
         FileUtil.mkParentDirs(appConfig.getRuntime().getStateDb());
         this.jdbcUrl = "jdbc:sqlite:" + appConfig.getRuntime().getStateDb();
         initSchema();
     }
 
+    /**
+     * 打开Connection。
+     *
+     * @return 返回Connection结果。
+     */
     public Connection openConnection() throws SQLException {
         connectionLock.lock();
         try {
@@ -37,6 +52,7 @@ public class SqliteDatabase {
         }
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
         connectionLock.lock();
         try {
@@ -47,6 +63,11 @@ public class SqliteDatabase {
         }
     }
 
+    /**
+     * 执行shared连接相关逻辑。
+     *
+     * @return 返回shared Connection结果。
+     */
     private Connection sharedConnection() throws SQLException {
         if (sharedConnection == null || sharedConnection.isClosed()) {
             try {
@@ -70,11 +91,26 @@ public class SqliteDatabase {
         return sharedConnection;
     }
 
+    /**
+     * 执行lockReleasing连接相关逻辑。
+     *
+     * @param delegate 委派参数。
+     * @return 返回lock Releasing Connection结果。
+     */
     private Connection lockReleasingConnection(final Connection delegate) {
         InvocationHandler handler =
                 new InvocationHandler() {
+                    /** 是否启用closed。 */
                     private boolean closed;
 
+                    /**
+                     * 执行invoke相关逻辑。
+                     *
+                     * @param proxy 代理参数。
+                     * @param method method 参数。
+                     * @param args 工具或命令参数。
+                     * @return 返回invoke结果。
+                     */
                     @Override
                     public Object invoke(Object proxy, Method method, Object[] args)
                             throws Throwable {
@@ -105,6 +141,11 @@ public class SqliteDatabase {
                         Connection.class.getClassLoader(), new Class[] {Connection.class}, handler);
     }
 
+    /**
+     * 关闭Quietly。
+     *
+     * @param connection 连接参数。
+     */
     private void closeQuietly(Connection connection) {
         if (connection == null) {
             return;
@@ -115,6 +156,7 @@ public class SqliteDatabase {
         }
     }
 
+    /** 初始化结构。 */
     private void initSchema() throws SQLException {
         Connection connection = openConnection();
         try {
@@ -887,7 +929,13 @@ public class SqliteDatabase {
         }
     }
 
+    /** 封装结果Set Meta辅助逻辑，降低主流程中的重复实现。 */
     private static class ResultSetMetaSupport {
+        /**
+         * 关闭当前组件持有的运行资源。
+         *
+         * @param resultSet 结果Set响应或执行结果。
+         */
         private static void close(java.sql.ResultSet resultSet) {
             if (resultSet == null) {
                 return;
@@ -899,6 +947,11 @@ public class SqliteDatabase {
         }
     }
 
+    /**
+     * 初始化会话搜索Index。
+     *
+     * @param statement statement 参数。
+     */
     private void initSessionSearchIndex(Statement statement) {
         try {
             ResultSetMetaSupport.close(
@@ -917,19 +970,31 @@ public class SqliteDatabase {
                             + "select s.session_id, s.title, s.compressed_summary, s.ndjson, '', '' from sessions s "
                             + "where not exists (select 1 from sessions_fts f where f.session_id = s.session_id)");
         } catch (Exception ignored) {
-            // SQLite FTS5 can be absent in constrained runtimes; LIKE fallback remains available.
+            // 这里保留兜底路径，避免兼容输入导致主流程中断。
         }
     }
 
+    /**
+     * 初始化Agent运行事件搜索Index。
+     *
+     * @param statement statement 参数。
+     */
     private void initAgentRunEventSearchIndex(Statement statement) {
         try {
             statement.execute(
                     "create virtual table if not exists agent_run_events_fts using fts5(run_id, session_id, source_key, event_type, summary, metadata_json)");
         } catch (Exception ignored) {
-            // Event search continues through ordinary tables when FTS5 is unavailable.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
     }
 
+    /**
+     * 追加Column。
+     *
+     * @param statement statement 参数。
+     * @param tableName table名称参数。
+     * @param columnDefinition columnDefinition 参数。
+     */
     private void addColumn(Statement statement, String tableName, String columnDefinition) {
         try {
             statement.execute("alter table " + tableName + " add column " + columnDefinition);

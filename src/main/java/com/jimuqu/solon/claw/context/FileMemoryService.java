@@ -31,6 +31,11 @@ public class FileMemoryService implements MemoryService {
         FileUtil.mkdir(memoryDir());
     }
 
+    /**
+     * 加载Snapshot。
+     *
+     * @return 返回Snapshot结果。
+     */
     @Override
     public MemorySnapshot loadSnapshot() throws Exception {
         MemorySnapshot snapshot = new MemorySnapshot();
@@ -40,6 +45,12 @@ public class FileMemoryService implements MemoryService {
         return snapshot;
     }
 
+    /**
+     * 执行read相关逻辑。
+     *
+     * @param target target 参数。
+     * @return 返回read结果。
+     */
     @Override
     public String read(String target) throws Exception {
         File file = fileForTarget(target);
@@ -49,6 +60,13 @@ public class FileMemoryService implements MemoryService {
         return FileUtil.readUtf8String(file).trim();
     }
 
+    /**
+     * 执行add相关逻辑。
+     *
+     * @param target target 参数。
+     * @param content 待处理内容。
+     * @return 返回add结果。
+     */
     @Override
     public synchronized String add(String target, String content) throws Exception {
         if (StrUtil.isBlank(content)) {
@@ -72,6 +90,14 @@ public class FileMemoryService implements MemoryService {
         return "已写入 " + normalizeTarget(target) + "。";
     }
 
+    /**
+     * 执行replace相关逻辑。
+     *
+     * @param target target 参数。
+     * @param oldText old文本参数。
+     * @param newContent newContent 参数。
+     * @return 返回replace结果。
+     */
     @Override
     public synchronized String replace(String target, String oldText, String newContent)
             throws Exception {
@@ -102,6 +128,13 @@ public class FileMemoryService implements MemoryService {
         return "已更新 " + normalizeTarget(target) + "。";
     }
 
+    /**
+     * 执行remove相关逻辑。
+     *
+     * @param target target 参数。
+     * @param matchText match文本参数。
+     * @return 返回remove结果。
+     */
     @Override
     public synchronized String remove(String target, String matchText) throws Exception {
         if (StrUtil.isBlank(matchText)) {
@@ -218,6 +251,11 @@ public class FileMemoryService implements MemoryService {
         return false;
     }
 
+    /**
+     * 读取Today记忆。
+     *
+     * @return 返回读取到的Today记忆。
+     */
     private String readTodayMemory() {
         File file = todayMemoryFile();
         if (!file.exists()) {
@@ -226,6 +264,12 @@ public class FileMemoryService implements MemoryService {
         return FileUtil.readUtf8String(file).trim();
     }
 
+    /**
+     * 追加Today Entry。
+     *
+     * @param content 待处理内容。
+     * @return 返回Today Entry结果。
+     */
     private String appendTodayEntry(String content) {
         String normalized = normalizeDailyEntry(content);
         if (StrUtil.isBlank(normalized)) {
@@ -256,6 +300,12 @@ public class FileMemoryService implements MemoryService {
         return "已写入 " + MemoryConstants.TARGET_TODAY + "。";
     }
 
+    /**
+     * 规范化Daily Entry。
+     *
+     * @param content 待处理内容。
+     * @return 返回Daily Entry结果。
+     */
     private String normalizeDailyEntry(String content) {
         String normalized = normalizeEntry(content);
         if (normalized.length() > 500) {
@@ -264,11 +314,21 @@ public class FileMemoryService implements MemoryService {
         return normalized;
     }
 
+    /**
+     * 执行记忆目录相关逻辑。
+     *
+     * @return 返回记忆Dir结果。
+     */
     private File memoryDir() {
         return FileUtil.file(
                 appConfig.getRuntime().getHome(), MemoryConstants.DAILY_MEMORY_DIR_NAME);
     }
 
+    /**
+     * 执行today记忆文件相关逻辑。
+     *
+     * @return 返回today记忆文件结果。
+     */
     private File todayMemoryFile() {
         return FileUtil.file(
                 memoryDir(), LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE) + ".md");

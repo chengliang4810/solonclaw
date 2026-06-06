@@ -11,7 +11,10 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -131,6 +134,40 @@ public class RuntimeConfigResolverTest {
         assertThat(resolver.get("tool_output.max_bytes")).isNull();
         assertThat(resolver.get("browser.allow_private_urls")).isNull();
         assertThatThrownBy(() -> resolver.setFileValue("tool_output.max_bytes", "10"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported config key");
+    }
+
+    @Test
+    void shouldWriteFallbackProvidersAsYamlList() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-fallback-list").toFile();
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        List<Map<String, String>> chain = new ArrayList<Map<String, String>>();
+        Map<String, String> fallback = new LinkedHashMap<String, String>();
+        fallback.put("provider", "backup");
+        fallback.put("model", "backup-model");
+        chain.add(fallback);
+
+        resolver.setFileList("fallbackProviders", chain);
+
+        Object raw = resolver.getRaw("fallbackProviders");
+        String file = FileUtil.readUtf8String(new File(runtimeHome, "config.yml"));
+        assertThat(raw).isInstanceOf(List.class);
+        assertThat(file)
+                .contains("fallbackProviders:")
+                .contains("provider: backup")
+                .contains("model: backup-model")
+                .doesNotContain("0:");
+    }
+
+    @Test
+    void shouldRejectFallbackProviderIndexedScalarWrites() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-fallback-indexed").toFile();
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+
+        assertThatThrownBy(() -> resolver.setFileValue("fallbackProviders.0.provider", "backup"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsupported config key");
     }

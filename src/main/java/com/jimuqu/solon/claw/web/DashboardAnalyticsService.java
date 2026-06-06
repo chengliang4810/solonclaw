@@ -18,19 +18,39 @@ import java.util.Set;
 
 /** Dashboard 分析服务。 */
 public class DashboardAnalyticsService {
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 保存用量事件仓储依赖，用于访问持久化数据。 */
     private final UsageEventRepository usageEventRepository;
 
+    /**
+     * 创建控制台分析服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     */
     public DashboardAnalyticsService(SessionRepository sessionRepository) {
         this(sessionRepository, null);
     }
 
+    /**
+     * 创建控制台分析服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param usageEventRepository 用量事件仓储依赖。
+     */
     public DashboardAnalyticsService(
             SessionRepository sessionRepository, UsageEventRepository usageEventRepository) {
         this.sessionRepository = sessionRepository;
         this.usageEventRepository = usageEventRepository;
     }
 
+    /**
+     * 读取用量。
+     *
+     * @param days days 参数。
+     * @return 返回读取到的用量。
+     */
     public Map<String, Object> getUsage(int days) throws Exception {
         int safeDays = days <= 0 ? 30 : Math.min(days, 365);
         List<Map<String, Object>> daily = new ArrayList<Map<String, Object>>();
@@ -195,6 +215,15 @@ public class DashboardAnalyticsService {
         return buildResponse(daily, byModel, totals);
     }
 
+    /**
+     * 执行用量事件用量相关逻辑。
+     *
+     * @param start start 参数。
+     * @param end end 参数。
+     * @param zoneId zone标识。
+     * @param safeDays 安全Days参数。
+     * @return 返回用量事件用量结果。
+     */
     private Map<String, Object> usageEventUsage(
             LocalDate start, LocalDate end, ZoneId zoneId, int safeDays) throws Exception {
         long from = start.atStartOfDay(zoneId).toInstant().toEpochMilli();
@@ -392,6 +421,14 @@ public class DashboardAnalyticsService {
         return buildResponse(daily, byModel, totals);
     }
 
+    /**
+     * 构建响应。
+     *
+     * @param daily daily 参数。
+     * @param byModel by模型参数。
+     * @param totals totals 参数。
+     * @return 返回创建好的响应。
+     */
     private Map<String, Object> buildResponse(
             List<Map<String, Object>> daily,
             List<Map<String, Object>> byModel,
@@ -403,10 +440,27 @@ public class DashboardAnalyticsService {
         return result;
     }
 
+    /**
+     * 创建Totals。
+     *
+     * @param totalSessions totalSessions 参数。
+     * @return 返回创建好的Totals。
+     */
     private Map<String, Object> createTotals(int totalSessions) {
         return createTotals(totalSessions, 0L, 0L, 0L, 0L, 0L);
     }
 
+    /**
+     * 创建Totals。
+     *
+     * @param totalSessions totalSessions 参数。
+     * @param totalInput total输入参数。
+     * @param totalOutput total输出参数。
+     * @param totalCacheRead total缓存Read参数。
+     * @param totalCacheWrite total缓存写入参数。
+     * @param totalReasoning total推理参数。
+     * @return 返回创建好的Totals。
+     */
     private Map<String, Object> createTotals(
             int totalSessions,
             long totalInput,
@@ -432,6 +486,26 @@ public class DashboardAnalyticsService {
                 false);
     }
 
+    /**
+     * 创建Totals。
+     *
+     * @param totalSessions totalSessions 参数。
+     * @param totalInput total输入参数。
+     * @param totalOutput total输出参数。
+     * @param totalCacheRead total缓存Read参数。
+     * @param totalCacheWrite total缓存写入参数。
+     * @param totalReasoning total推理参数。
+     * @param totalCostMicros total成本Micros参数。
+     * @param currency currency 参数。
+     * @param pricingAvailable 价格Available参数。
+     * @param unpricedInput unpriced输入参数。
+     * @param unpricedOutput unpriced输出参数。
+     * @param unpricedCacheRead unpriced缓存Read参数。
+     * @param unpricedCacheWrite unpriced缓存写入参数。
+     * @param unpricedReasoning unpriced推理参数。
+     * @param backfillApproximate backfillApproximate 参数。
+     * @return 返回创建好的Totals。
+     */
     private Map<String, Object> createTotals(
             int totalSessions,
             long totalInput,
@@ -469,15 +543,48 @@ public class DashboardAnalyticsService {
         return totals;
     }
 
+    /**
+     * 规范化模型Label。
+     *
+     * @param model 模型名称。
+     * @return 返回模型Label结果。
+     */
     private String normalizeModelLabel(String model) {
         String value = StrUtil.blankToDefault(model, "default").trim();
         return value.toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 追加长整型。
+     *
+     * @param target target 参数。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void addLong(Map<String, Long> target, String key, long value) {
         target.put(key, target.containsKey(key) ? target.get(key) + value : value);
     }
 
+    /**
+     * 追加用量事件。
+     *
+     * @param inputTokens 输入 token 数。
+     * @param outputTokens 输出 token 数。
+     * @param reasoningTokens 推理 token 数。
+     * @param cacheReadTokens 缓存读取 token 数。
+     * @param cacheWriteTokens 缓存写入 token 数。
+     * @param costMicros 成本Micros参数。
+     * @param unpricedInput unpriced输入参数。
+     * @param unpricedOutput unpriced输出参数。
+     * @param unpricedCacheRead unpriced缓存Read参数。
+     * @param unpricedCacheWrite unpriced缓存写入参数。
+     * @param unpricedReasoning unpriced推理参数。
+     * @param priced priced 参数。
+     * @param approximate approximate 参数。
+     * @param currency currency 参数。
+     * @param key 配置键或映射键。
+     * @param event 事件参数。
+     */
     private void addUsageEvent(
             Map<String, Long> inputTokens,
             Map<String, Long> outputTokens,
@@ -513,6 +620,13 @@ public class DashboardAnalyticsService {
         currency.put(key, mergeCurrency(stringValue(currency, key), event.getCurrency()));
     }
 
+    /**
+     * 追加会话。
+     *
+     * @param sessions sessions 参数。
+     * @param key 配置键或映射键。
+     * @param sessionId 当前会话标识。
+     */
     private void addSession(Map<String, Set<String>> sessions, String key, String sessionId) {
         if (StrUtil.isBlank(sessionId)) {
             return;
@@ -525,6 +639,20 @@ public class DashboardAnalyticsService {
         values.add(sessionId);
     }
 
+    /**
+     * 写入成本Fields。
+     *
+     * @param target target 参数。
+     * @param costMicros 成本Micros参数。
+     * @param currency currency 参数。
+     * @param pricingAvailable 价格Available参数。
+     * @param unpricedInput unpriced输入参数。
+     * @param unpricedOutput unpriced输出参数。
+     * @param unpricedCacheRead unpriced缓存Read参数。
+     * @param unpricedCacheWrite unpriced缓存写入参数。
+     * @param unpricedReasoning unpriced推理参数。
+     * @param backfillApproximate backfillApproximate 参数。
+     */
     private void putCostFields(
             Map<String, Object> target,
             long costMicros,
@@ -556,25 +684,60 @@ public class DashboardAnalyticsService {
         target.put("backfill_approximate", Boolean.valueOf(backfillApproximate));
     }
 
+    /**
+     * 将输入对象转换为长整型数值。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param key 配置键或映射键。
+     * @return 返回long Value结果。
+     */
     private long longValue(Map<String, Long> values, String key) {
         Long value = values.get(key);
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 执行boolean值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param key 配置键或映射键。
+     * @return 返回boolean Value结果。
+     */
     private boolean booleanValue(Map<String, Boolean> values, String key) {
         Boolean value = values.get(key);
         return value != null && value.booleanValue();
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param key 配置键或映射键。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Map<String, String> values, String key) {
         return StrUtil.blankToDefault(values.get(key), "");
     }
 
+    /**
+     * 执行会话次数相关逻辑。
+     *
+     * @param sessions sessions 参数。
+     * @param key 配置键或映射键。
+     * @return 返回会话次数结果。
+     */
     private int sessionCount(Map<String, Set<String>> sessions, String key) {
         Set<String> values = sessions.get(key);
         return values == null ? 0 : values.size();
     }
 
+    /**
+     * 合并Currency。
+     *
+     * @param current current 参数。
+     * @param incoming 入站消息参数。
+     * @return 返回Currency结果。
+     */
     private String mergeCurrency(String current, String incoming) {
         String normalizedIncoming =
                 StrUtil.blankToDefault(incoming, "").trim().toUpperCase(Locale.ROOT);

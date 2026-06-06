@@ -17,21 +17,44 @@ import java.util.TimeZone;
 
 /** Dashboard 定时任务管理服务。 */
 public class DashboardCronService {
+    /** API最大名称LENGTH的统一常量值。 */
     private static final int API_MAX_NAME_LENGTH = 200;
+
+    /** API最大提示词LENGTH的统一常量值。 */
     private static final int API_MAX_PROMPT_LENGTH = 5000;
 
+    /** 注入定时任务任务服务，用于调用对应业务能力。 */
     private final CronJobService cronJobService;
+
+    /** 保存定时任务调度器执行组件，负责调度异步或定时任务。 */
     private final DefaultCronScheduler cronScheduler;
 
+    /**
+     * 创建控制台定时任务服务实例，并注入运行所需依赖。
+     *
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     */
     public DashboardCronService(CronJobService cronJobService, DefaultCronScheduler cronScheduler) {
         this.cronJobService = cronJobService;
         this.cronScheduler = cronScheduler;
     }
 
+    /**
+     * 列出Jobs。
+     *
+     * @return 返回Jobs列表。
+     */
     public List<Map<String, Object>> listJobs() throws Exception {
         return listJobs(true);
     }
 
+    /**
+     * 列出Jobs。
+     *
+     * @param includeDisabled includeDisabled 参数。
+     * @return 返回Jobs列表。
+     */
     public List<Map<String, Object>> listJobs(boolean includeDisabled) throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRecord record : cronJobService.listAll(includeDisabled)) {
@@ -40,10 +63,23 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 获取当前注册项或配置项。
+     *
+     * @param id 标识。
+     * @return 返回get结果。
+     */
     public Map<String, Object> get(String id) throws Exception {
         return toDashboardView(cronJobService.require(id));
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param id 标识。
+     * @param limit 最大返回数量。
+     * @return 返回inspect结果。
+     */
     public Map<String, Object> inspect(String id, int limit) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -55,18 +91,41 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 执行guide相关逻辑。
+     *
+     * @return 返回guide结果。
+     */
     public Map<String, Object> guide() {
         return cronJobService.guide();
     }
 
+    /**
+     * 执行策略相关逻辑。
+     *
+     * @return 返回策略结果。
+     */
     public Map<String, Object> policy() {
         return cronJobService.policy();
     }
 
+    /**
+     * 执行nextJobs相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回next Jobs结果。
+     */
     public List<Map<String, Object>> nextJobs(int limit) throws Exception {
         return nextJobs(limit, true);
     }
 
+    /**
+     * 执行nextJobs相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @param includeDisabled includeDisabled 参数。
+     * @return 返回next Jobs结果。
+     */
     public List<Map<String, Object>> nextJobs(int limit, boolean includeDisabled) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
         List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
@@ -83,6 +142,13 @@ public class DashboardCronService {
         Collections.sort(
                 jobs,
                 new Comparator<CronJobRecord>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(CronJobRecord left, CronJobRecord right) {
                         long delta = left.getNextRunAt() - right.getNextRunAt();
@@ -105,6 +171,13 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 执行状态相关逻辑。
+     *
+     * @param includeDisabled includeDisabled 参数。
+     * @param limit 最大返回数量。
+     * @return 返回状态。
+     */
     public Map<String, Object> status(boolean includeDisabled, int limit) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
         long now = System.currentTimeMillis();
@@ -143,6 +216,13 @@ public class DashboardCronService {
         Collections.sort(
                 next,
                 new Comparator<CronJobRecord>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(CronJobRecord left, CronJobRecord right) {
                         long delta = left.getNextRunAt() - right.getNextRunAt();
@@ -169,19 +249,45 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 执行create，服务于控制台定时任务主流程相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回create结果。
+     */
     public Map<String, Object> create(Map<String, Object> body) throws Exception {
         return toDashboardView(cronJobService.create("MEMORY:dashboard:cron", body));
     }
 
+    /**
+     * 执行apiCreate相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回api Create结果。
+     */
     public Map<String, Object> apiCreate(Map<String, Object> body) throws Exception {
         validateApiCreate(body);
         return create(body);
     }
 
+    /**
+     * 执行更新相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回更新结果。
+     */
     public Map<String, Object> update(String id, Map<String, Object> body) throws Exception {
         return toDashboardView(cronJobService.update(id, body));
     }
 
+    /**
+     * 执行api补丁相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回api Patch结果。
+     */
     public Map<String, Object> apiPatch(String id, Map<String, Object> body) throws Exception {
         Map<String, Object> updates = sanitizeApiPatch(body);
         if (updates.isEmpty()) {
@@ -191,56 +297,133 @@ public class DashboardCronService {
         return update(id, updates);
     }
 
+    /**
+     * 执行pause相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回pause结果。
+     */
     public Map<String, Object> pause(String id) throws Exception {
         return pause(id, Collections.<String, Object>emptyMap());
     }
 
+    /**
+     * 执行pause相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回pause结果。
+     */
     public Map<String, Object> pause(String id, Map<String, Object> body) throws Exception {
         return toDashboardView(cronJobService.pause(id, pauseReason(body)));
     }
 
+    /**
+     * 执行resume相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回resume结果。
+     */
     public Map<String, Object> resume(String id) throws Exception {
         return toDashboardView(cronJobService.resume(id));
     }
 
+    /**
+     * 执行trigger相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回trigger结果。
+     */
     public Map<String, Object> trigger(String id) throws Exception {
         runOrTrigger(id, "manual");
         return get(id);
     }
 
+    /**
+     * 执行trigger相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回trigger结果。
+     */
     public Map<String, Object> trigger(String id, Map<String, Object> body) throws Exception {
         runOrTrigger(id, manualTriggerType(body));
         return get(id);
     }
 
+    /**
+     * 执行重试相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回retry结果。
+     */
     public Map<String, Object> retry(String id) throws Exception {
         runOrTrigger(id, "retry");
         return get(id);
     }
 
+    /**
+     * 执行重试相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回retry结果。
+     */
     public Map<String, Object> retry(String id, Map<String, Object> body) throws Exception {
         runOrTrigger(id, retryTriggerType(body));
         return get(id);
     }
 
+    /**
+     * 执行api运行相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回api运行结果。
+     */
     public Map<String, Object> apiRun(String id) throws Exception {
         return apiRun(id, Collections.<String, Object>emptyMap());
     }
 
+    /**
+     * 执行api运行相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回api运行结果。
+     */
     public Map<String, Object> apiRun(String id, Map<String, Object> body) throws Exception {
         runOrTrigger(id, manualTriggerType(body));
         return get(id);
     }
 
+    /**
+     * 执行api重试相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回api Retry结果。
+     */
     public Map<String, Object> apiRetry(String id) throws Exception {
         return apiRetry(id, Collections.<String, Object>emptyMap());
     }
 
+    /**
+     * 执行api重试相关逻辑。
+     *
+     * @param id 标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回api Retry结果。
+     */
     public Map<String, Object> apiRetry(String id, Map<String, Object> body) throws Exception {
         runOrTrigger(id, retryTriggerType(body));
         return get(id);
     }
 
+    /**
+     * 运行Or Trigger。
+     *
+     * @param id 标识。
+     * @param triggerType trigger类型参数。
+     */
     private void runOrTrigger(String id, String triggerType) throws Exception {
         if (cronScheduler == null) {
             cronJobService.trigger(id, triggerType);
@@ -249,14 +432,33 @@ public class DashboardCronService {
         cronScheduler.runNow(id, triggerType);
     }
 
+    /**
+     * 执行manualTrigger类型相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回manual Trigger类型结果。
+     */
     private String manualTriggerType(Map<String, Object> body) {
         return customTriggerType(body, "manual");
     }
 
+    /**
+     * 重试Trigger类型。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回retry Trigger类型结果。
+     */
     private String retryTriggerType(Map<String, Object> body) {
         return customTriggerType(body, "retry");
     }
 
+    /**
+     * 执行customTrigger类型相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param fallback 兜底参数。
+     * @return 返回custom Trigger类型结果。
+     */
     private String customTriggerType(Map<String, Object> body, String fallback) {
         if (body == null || body.isEmpty()) {
             return fallback;
@@ -280,11 +482,24 @@ public class DashboardCronService {
         return normalized;
     }
 
+    /**
+     * 执行delete，服务于控制台定时任务主流程相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回delete结果。
+     */
     public Map<String, Object> delete(String id) throws Exception {
         cronJobService.remove(id);
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 执行历史相关逻辑。
+     *
+     * @param id 标识。
+     * @param limit 最大返回数量。
+     * @return 返回历史结果。
+     */
     public List<Map<String, Object>> history(String id, int limit) throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRunRecord record : cronJobService.history(id, limit)) {
@@ -297,6 +512,12 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 转换为控制台视图。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的控制台视图。
+     */
     private Map<String, Object> toDashboardView(CronJobRecord record) {
         Map<String, Object> view = new LinkedHashMap<String, Object>(cronJobService.toView(record));
         convertTime(view, "created_at");
@@ -306,6 +527,12 @@ public class DashboardCronService {
         return view;
     }
 
+    /**
+     * 转换时间。
+     *
+     * @param view view 参数。
+     * @param key 配置键或映射键。
+     */
     private void convertTime(Map<String, Object> view, String key) {
         Object value = view.get(key);
         if (value instanceof Number) {
@@ -314,12 +541,24 @@ public class DashboardCronService {
         }
     }
 
+    /**
+     * 执行iso相关逻辑。
+     *
+     * @param epochMillis epochMillis 参数。
+     * @return 返回iso结果。
+     */
     private String iso(long epochMillis) {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         format.setTimeZone(TimeZone.getDefault());
         return format.format(new Date(epochMillis));
     }
 
+    /**
+     * 判断是否Failed。
+     *
+     * @param record 记录参数。
+     * @return 如果Failed满足条件则返回 true，否则返回 false。
+     */
     private boolean isFailed(CronJobRecord record) {
         String lastStatus = record.getLastStatus() == null ? "" : record.getLastStatus();
         return "error".equalsIgnoreCase(lastStatus)
@@ -328,6 +567,12 @@ public class DashboardCronService {
                         && record.getLastDeliveryError().trim().length() > 0);
     }
 
+    /**
+     * 执行failure视图相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回failure视图。
+     */
     private Map<String, Object> failureView(CronJobRecord record) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", record.getJobId());
@@ -340,10 +585,23 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String value) {
         return SecretRedactor.redact(value);
     }
 
+    /**
+     * 执行limitedViews相关逻辑。
+     *
+     * @param records records 参数。
+     * @param limit 最大返回数量。
+     * @return 返回limited Views结果。
+     */
     private List<Map<String, Object>> limitedViews(List<CronJobRecord> records, int limit) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         int count = Math.min(limit, records.size());
@@ -353,6 +611,13 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 执行limited映射s相关逻辑。
+     *
+     * @param records records 参数。
+     * @param limit 最大返回数量。
+     * @return 返回limited Maps结果。
+     */
     private List<Map<String, Object>> limitedMaps(List<Map<String, Object>> records, int limit) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         int count = Math.min(limit, records.size());
@@ -362,10 +627,21 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 生成安全展示用的标识。
+     *
+     * @param record 记录参数。
+     * @return 返回safe标识。
+     */
     private String safeId(CronJobRecord record) {
         return record.getJobId() == null ? "" : record.getJobId();
     }
 
+    /**
+     * 校验Api Create。
+     *
+     * @param body 请求体或消息正文内容。
+     */
     private void validateApiCreate(Map<String, Object> body) {
         if (body == null) {
             throw new IllegalArgumentException("request body is required");
@@ -383,6 +659,12 @@ public class DashboardCronService {
         validateApiRepeat(body.get("repeat"), true);
     }
 
+    /**
+     * 执行pause原因相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回pause Reason结果。
+     */
     private String pauseReason(Map<String, Object> body) {
         if (body == null) {
             return "paused from dashboard";
@@ -392,6 +674,11 @@ public class DashboardCronService {
         return reason.length() == 0 ? "paused from dashboard" : reason;
     }
 
+    /**
+     * 校验Api Patch。
+     *
+     * @param updates updates 参数。
+     */
     private void validateApiPatch(Map<String, Object> updates) {
         if (updates.containsKey("name")
                 && updates.get("name") != null
@@ -402,12 +689,23 @@ public class DashboardCronService {
         validateApiRepeat(updates.get("repeat"), true);
     }
 
+    /**
+     * 校验提示词Length。
+     *
+     * @param prompt 提示词参数。
+     */
     private void validatePromptLength(Object prompt) {
         if (prompt != null && String.valueOf(prompt).length() > API_MAX_PROMPT_LENGTH) {
             throw new IllegalArgumentException("prompt must be at most 5000 characters");
         }
     }
 
+    /**
+     * 校验Api Repeat。
+     *
+     * @param repeat repeat 参数。
+     * @param allowZero allowZero开关值。
+     */
     private void validateApiRepeat(Object repeat, boolean allowZero) {
         if (repeat == null) {
             return;
@@ -426,6 +724,12 @@ public class DashboardCronService {
         }
     }
 
+    /**
+     * 清理Api Patch。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回Api Patch结果。
+     */
     private Map<String, Object> sanitizeApiPatch(Map<String, Object> body) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (body == null) {
@@ -478,6 +782,13 @@ public class DashboardCronService {
         return result;
     }
 
+    /**
+     * 复制If Present。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     * @param key 配置键或映射键。
+     */
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));

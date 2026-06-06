@@ -14,37 +14,73 @@ import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** Curator dashboard report facade. */
+/** 提供控制台技能维护相关业务能力，封装调用方不需要感知的运行细节。 */
 public class DashboardCuratorService {
+    /** 注入技能技能维护服务，用于调用对应业务能力。 */
     private final SkillCuratorService skillCuratorService;
+
+    /** 记录控制台技能维护中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 创建控制台技能维护服务实例，并注入运行所需依赖。
+     *
+     * @param skillCuratorService 技能Curator服务依赖。
+     * @param database database 参数。
+     */
     public DashboardCuratorService(
             SkillCuratorService skillCuratorService, SqliteDatabase database) {
         this.skillCuratorService = skillCuratorService;
         this.database = database;
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @param force force 参数。
+     * @return 返回运行结果。
+     */
     public Map<String, Object> run(boolean force) throws Exception {
         Map<String, Object> report = skillCuratorService.runOnce(force);
         saveReport(report);
         return sanitizeReport(report);
     }
 
+    /**
+     * 执行状态相关逻辑。
+     *
+     * @return 返回状态。
+     */
     public Map<String, Object> status() {
         return sanitizeReport(skillCuratorService.status());
     }
 
+    /**
+     * 执行pause相关逻辑。
+     *
+     * @return 返回pause结果。
+     */
     public Map<String, Object> pause() {
         skillCuratorService.pause();
         return status();
     }
 
+    /**
+     * 执行resume相关逻辑。
+     *
+     * @return 返回resume结果。
+     */
     public Map<String, Object> resume() {
         skillCuratorService.resume();
         return status();
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回list结果。
+     */
     public Map<String, Object> list(int limit) throws Exception {
         List<Map<String, Object>> reports = new ArrayList<Map<String, Object>>();
         Connection connection = database.openConnection();
@@ -70,6 +106,12 @@ public class DashboardCuratorService {
         return result;
     }
 
+    /**
+     * 执行详情相关逻辑。
+     *
+     * @param reportId report标识。
+     * @return 返回detail结果。
+     */
     public Map<String, Object> detail(String reportId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -91,14 +133,34 @@ public class DashboardCuratorService {
         }
     }
 
+    /**
+     * 执行apply相关逻辑。
+     *
+     * @param skillName 技能名称参数。
+     * @param suggestion suggestion 参数。
+     * @return 返回apply结果。
+     */
     public Map<String, Object> apply(String skillName, String suggestion) {
         return skillCuratorService.applySuggestion(skillName, suggestion);
     }
 
+    /**
+     * 执行忽略相关逻辑。
+     *
+     * @param skillName 技能名称参数。
+     * @param suggestion suggestion 参数。
+     * @return 返回忽略结果。
+     */
     public Map<String, Object> ignore(String skillName, String suggestion) {
         return skillCuratorService.ignoreSuggestion(skillName, suggestion);
     }
 
+    /**
+     * 执行improvements相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回improvements结果。
+     */
     public Map<String, Object> improvements(int limit) throws Exception {
         List<Map<String, Object>> improvements = new ArrayList<Map<String, Object>>();
         Connection connection = database.openConnection();
@@ -139,6 +201,11 @@ public class DashboardCuratorService {
         return result;
     }
 
+    /**
+     * 保存Report。
+     *
+     * @param report report 参数。
+     */
     private void saveReport(Map<String, Object> report) throws Exception {
         long startedAt = asLong(report.get("startedAt"));
         long finishedAt = asLong(report.get("finishedAt"));
@@ -165,6 +232,13 @@ public class DashboardCuratorService {
         }
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @param includeJson includeJSON参数。
+     * @return 返回map结果。
+     */
     private Map<String, Object> map(ResultSet resultSet, boolean includeJson) throws Exception {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("report_id", resultSet.getString("report_id"));
@@ -184,6 +258,12 @@ public class DashboardCuratorService {
         return map;
     }
 
+    /**
+     * 清理Report。
+     *
+     * @param report report 参数。
+     * @return 返回Report结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> sanitizeReport(Map<String, Object> report) {
         Map<String, Object> sanitized = new LinkedHashMap<String, Object>();
@@ -219,6 +299,12 @@ public class DashboardCuratorService {
         return sanitized;
     }
 
+    /**
+     * 清理Object。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Object结果。
+     */
     @SuppressWarnings("unchecked")
     private Object sanitizeObject(Object value) {
         if (value instanceof Map) {
@@ -241,18 +327,43 @@ public class DashboardCuratorService {
         return value;
     }
 
+    /**
+     * 执行技能维护引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回技能维护Reference结果。
+     */
     private String curatorReference(String value) {
         return "curator://report";
     }
 
+    /**
+     * 执行技能引用相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回技能Reference结果。
+     */
     private String skillReference(String name) {
         return "skill://" + safe(StrUtil.blankToDefault(name, "unknown"), 400);
     }
 
+    /**
+     * 执行安全相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
@@ -264,6 +375,12 @@ public class DashboardCuratorService {
         }
     }
 
+    /**
+     * 解析JSON。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的JSON。
+     */
     private Object parseJson(String json) {
         if (StrUtil.isBlank(json)) {
             return null;

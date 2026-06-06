@@ -17,6 +17,7 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 会话消息 NDJSON 辅助工具。 */
 public final class MessageSupport {
+    /** 创建消息辅助实例。 */
     private MessageSupport() {}
 
     /** 将 NDJSON 反序列化为消息列表。 */
@@ -81,6 +82,12 @@ public final class MessageSupport {
         return toNdjson(messages);
     }
 
+    /**
+     * 执行dropStray工具Messages相关逻辑。
+     *
+     * @param messages messages 参数。
+     * @return 返回drop Stray工具Messages结果。
+     */
     private static int dropStrayToolMessages(List<ChatMessage> messages) {
         int repairs = 0;
         Set<String> knownToolCallIds = new HashSet<String>();
@@ -127,6 +134,12 @@ public final class MessageSupport {
         return repairs;
     }
 
+    /**
+     * 执行dropUnansweredAssistant工具Calls相关逻辑。
+     *
+     * @param messages messages 参数。
+     * @return 返回drop Unanswered Assistant工具Calls结果。
+     */
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static int dropUnansweredAssistantToolCalls(List<ChatMessage> messages) {
         int repairs = 0;
@@ -159,6 +172,13 @@ public final class MessageSupport {
         return repairs;
     }
 
+    /**
+     * 执行following工具结果标识相关逻辑。
+     *
+     * @param messages messages 参数。
+     * @param assistantIndex assistant索引参数。
+     * @return 返回following工具结果标识。
+     */
     private static Set<String> followingToolResultIds(
             List<ChatMessage> messages, int assistantIndex) {
         Set<String> answered = new HashSet<String>();
@@ -179,6 +199,13 @@ public final class MessageSupport {
         return answered;
     }
 
+    /**
+     * 执行过滤器原始工具Calls相关逻辑。
+     *
+     * @param rawCalls 原始Calls参数。
+     * @param answered answered 参数。
+     * @return 返回filter原始工具Calls结果。
+     */
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static List<Map> filterRawToolCalls(List<Map> rawCalls, Set<String> answered) {
         if (rawCalls == null || rawCalls.isEmpty()) {
@@ -194,6 +221,12 @@ public final class MessageSupport {
         return kept.isEmpty() ? null : kept;
     }
 
+    /**
+     * 执行原始工具Call标识相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @return 返回原始工具Call标识。
+     */
     private static String rawToolCallId(Map raw) {
         if (raw == null) {
             return null;
@@ -202,6 +235,14 @@ public final class MessageSupport {
         return id == null ? null : String.valueOf(id);
     }
 
+    /**
+     * 执行rebuildAssistantAfter工具Prune相关逻辑。
+     *
+     * @param assistant assistant 参数。
+     * @param keptCalls keptCalls 参数。
+     * @param keptRawCalls kept原始Calls参数。
+     * @return 返回rebuild Assistant After工具Prune结果。
+     */
     private static AssistantMessage rebuildAssistantAfterToolPrune(
             AssistantMessage assistant, List<ToolCall> keptCalls, List<Map> keptRawCalls) {
         boolean demoteThinking = hasThinkingSignature(assistant.getContentRaw());
@@ -217,6 +258,12 @@ public final class MessageSupport {
                 assistant.getSearchResultsRaw());
     }
 
+    /**
+     * 判断是否存在Thinking签名。
+     *
+     * @param contentRaw content原始参数。
+     * @return 如果Thinking签名满足条件则返回 true，否则返回 false。
+     */
     private static boolean hasThinkingSignature(Object contentRaw) {
         if (!(contentRaw instanceof Map)) {
             return false;
@@ -225,6 +272,12 @@ public final class MessageSupport {
         return signature instanceof String && StrUtil.isNotBlank((String) signature);
     }
 
+    /**
+     * 执行demoted思考Content相关逻辑。
+     *
+     * @param assistant assistant 参数。
+     * @return 返回demoted Thinking Content结果。
+     */
     private static String demotedThinkingContent(AssistantMessage assistant) {
         String content = StrUtil.nullToEmpty(assistant.getContent());
         String reasoning = StrUtil.nullToEmpty(assistant.getReasoning()).trim();
@@ -238,6 +291,12 @@ public final class MessageSupport {
         return reasoning + "\n\n" + visible;
     }
 
+    /**
+     * 合并Consecutive Text Users。
+     *
+     * @param messages messages 参数。
+     * @return 返回Consecutive Text Users结果。
+     */
     private static int mergeConsecutiveTextUsers(List<ChatMessage> messages) {
         int repairs = 0;
         List<ChatMessage> merged = new ArrayList<ChatMessage>(messages.size());
@@ -262,6 +321,12 @@ public final class MessageSupport {
         return repairs;
     }
 
+    /**
+     * 判断是否可以Merge用户。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 如果Merge用户满足条件则返回 true，否则返回 false。
+     */
     private static boolean canMergeUser(UserMessage message) {
         if (message == null
                 || (message.getMetadata() != null && !message.getMetadata().isEmpty())) {
@@ -271,6 +336,13 @@ public final class MessageSupport {
         return blocks == null || blocks.size() <= 1;
     }
 
+    /**
+     * 合并Text。
+     *
+     * @param previous previous 参数。
+     * @param current current 参数。
+     * @return 返回Text结果。
+     */
     private static String mergeText(String previous, String current) {
         String left = StrUtil.nullToEmpty(previous);
         String right = StrUtil.nullToEmpty(current);

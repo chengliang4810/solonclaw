@@ -19,11 +19,26 @@ import org.noear.snack4.ONode;
 
 /** Dashboard Agent 管理服务。 */
 public class DashboardAgentService {
+    /** 注入Agent角色配置服务，用于调用对应业务能力。 */
     private final AgentProfileService agentProfileService;
+
+    /** 注入Agent运行时服务，用于调用对应业务能力。 */
     private final AgentRuntimeService agentRuntimeService;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
 
+    /**
+     * 创建控制台Agent服务实例，并注入运行所需依赖。
+     *
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
     public DashboardAgentService(
             AgentProfileService agentProfileService,
             AgentRuntimeService agentRuntimeService,
@@ -35,6 +50,12 @@ public class DashboardAgentService {
         this.agentRunRepository = agentRunRepository;
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回list结果。
+     */
     public Map<String, Object> list(String sessionId) throws Exception {
         List<Map<String, Object>> agents = new ArrayList<Map<String, Object>>();
         SessionRecord session =
@@ -51,6 +72,13 @@ public class DashboardAgentService {
         return result;
     }
 
+    /**
+     * 获取当前注册项或配置项。
+     *
+     * @param name 名称参数。
+     * @param sessionId 当前会话标识。
+     * @return 返回get结果。
+     */
     public Map<String, Object> get(String name, String sessionId) throws Exception {
         String normalized = agentRuntimeService.normalizeName(name);
         SessionRecord session =
@@ -68,6 +96,12 @@ public class DashboardAgentService {
         return toDetail(profile, active);
     }
 
+    /**
+     * 执行create，服务于控制台Agent主流程相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回create结果。
+     */
     public Map<String, Object> create(Map<String, Object> body) throws Exception {
         String name = string(body, "name");
         String role = string(body, "role_prompt");
@@ -80,6 +114,13 @@ public class DashboardAgentService {
         return toDetail(profile, "");
     }
 
+    /**
+     * 执行更新相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param body 请求体或消息正文内容。
+     * @return 返回更新结果。
+     */
     public Map<String, Object> update(String name, Map<String, Object> body) throws Exception {
         agentRuntimeService.rejectDefault(name);
         AgentProfile profile = agentProfileService.findByName(name);
@@ -91,6 +132,12 @@ public class DashboardAgentService {
         return toDetail(profile, "");
     }
 
+    /**
+     * 执行delete，服务于控制台Agent主流程相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回delete结果。
+     */
     public Map<String, Object> delete(String name) throws Exception {
         agentRuntimeService.rejectDefault(name);
         String normalized = agentRuntimeService.normalizeName(name);
@@ -99,6 +146,13 @@ public class DashboardAgentService {
         return Collections.singletonMap("ok", Boolean.TRUE);
     }
 
+    /**
+     * 执行activate相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param body 请求体或消息正文内容。
+     * @return 返回activate结果。
+     */
     public Map<String, Object> activate(String name, Map<String, Object> body) throws Exception {
         String sessionId = string(body, "session_id");
         if (StrUtil.isBlank(sessionId)) {
@@ -135,6 +189,12 @@ public class DashboardAgentService {
         return result;
     }
 
+    /**
+     * 执行默认Agent相关逻辑。
+     *
+     * @param active active 参数。
+     * @return 返回默认Agent结果。
+     */
     private Map<String, Object> defaultAgent(String active) {
         AgentRuntimeScope scope = agentRuntimeService.defaultScope();
         Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -156,6 +216,13 @@ public class DashboardAgentService {
         return item;
     }
 
+    /**
+     * 转换为Summary。
+     *
+     * @param profile 文件或目录路径参数。
+     * @param active active 参数。
+     * @return 返回转换后的Summary。
+     */
     private Map<String, Object> toSummary(AgentProfile profile, String active) {
         Map<String, Object> item = baseProfile(profile, active);
         item.put("role_prompt", profile.getRolePrompt());
@@ -163,6 +230,13 @@ public class DashboardAgentService {
         return item;
     }
 
+    /**
+     * 转换为Detail。
+     *
+     * @param profile 文件或目录路径参数。
+     * @param active active 参数。
+     * @return 返回转换后的Detail。
+     */
     private Map<String, Object> toDetail(AgentProfile profile, String active) throws Exception {
         Map<String, Object> item = baseProfile(profile, active);
         item.put("role_prompt", profile.getRolePrompt());
@@ -175,6 +249,13 @@ public class DashboardAgentService {
         return item;
     }
 
+    /**
+     * 执行基础角色配置相关逻辑。
+     *
+     * @param profile 文件或目录路径参数。
+     * @param active active 参数。
+     * @return 返回base角色配置。
+     */
     private Map<String, Object> baseProfile(AgentProfile profile, String active) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("name", profile.getAgentName());
@@ -193,6 +274,12 @@ public class DashboardAgentService {
         return item;
     }
 
+    /**
+     * 写入路径References。
+     *
+     * @param item item 参数。
+     * @param agentName Agent名称参数。
+     */
     private void putPathReferences(Map<String, Object> item, String agentName) {
         String base = "agent://" + agentRuntimeService.normalizeName(agentName);
         item.put("workspace_path", base + "/workspace");
@@ -200,6 +287,12 @@ public class DashboardAgentService {
         item.put("cache_path", base + "/cache");
     }
 
+    /**
+     * 执行recent运行相关逻辑。
+     *
+     * @param agentName Agent名称参数。
+     * @return 返回recent运行结果。
+     */
     private List<Map<String, Object>> recentRuns(String agentName) throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         int total = Math.max(sessionRepository.countAll(), 1);
@@ -227,6 +320,12 @@ public class DashboardAgentService {
         return result;
     }
 
+    /**
+     * 执行次数Running相关逻辑。
+     *
+     * @param runs runs 参数。
+     * @return 返回次数Running结果。
+     */
     private int countRunning(List<Map<String, Object>> runs) {
         int count = 0;
         for (Map<String, Object> run : runs) {
@@ -237,6 +336,12 @@ public class DashboardAgentService {
         return count;
     }
 
+    /**
+     * 应用MutableFields。
+     *
+     * @param profile 文件或目录路径参数。
+     * @param body 请求体或消息正文内容。
+     */
     private void applyMutableFields(AgentProfile profile, Map<String, Object> body) {
         if (body == null) {
             return;
@@ -257,6 +362,12 @@ public class DashboardAgentService {
                             || "true".equalsIgnoreCase(String.valueOf(body.get("enabled"))));
     }
 
+    /**
+     * 执行JSON字符串相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回JSON String结果。
+     */
     private String jsonString(Object value) {
         if (value == null) {
             return "[]";
@@ -267,11 +378,25 @@ public class DashboardAgentService {
         return ONode.serialize(value);
     }
 
+    /**
+     * 执行string相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @return 返回string结果。
+     */
     private String string(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行安全相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }

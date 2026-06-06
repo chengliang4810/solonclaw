@@ -17,17 +17,34 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-/** Bounded attachment/update IO helpers. */
+/** 承载受限附件IO相关状态和辅助逻辑。 */
 public final class BoundedAttachmentIO {
+    /** 默认最大字节的统一常量值。 */
     public static final long DEFAULT_MAX_BYTES = 32L * 1024L * 1024L;
+
+    /** 更新JAR最大字节的统一常量值。 */
     public static final long UPDATE_JAR_MAX_BYTES = 200L * 1024L * 1024L;
+
+    /** JSON最大字节的统一常量值。 */
     public static final long JSON_MAX_BYTES = 1024L * 1024L;
+
+    /** 最大受控REDIRECTS的统一常量值。 */
     private static final int MAX_GUARDED_REDIRECTS = 5;
+
+    /** 错误预览最大字节的统一常量值。 */
     private static final int ERROR_PREVIEW_MAX_BYTES = 4096;
+
+    /** 错误预览最大CHARS的统一常量值。 */
     private static final int ERROR_PREVIEW_MAX_CHARS = 1000;
 
+    /** 创建受限附件IO实例。 */
     private BoundedAttachmentIO() {}
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @return 返回策略Summary结果。
+     */
     public static Map<String, Object> policySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("hutoolDownloadGuarded", Boolean.TRUE);
@@ -50,6 +67,14 @@ public final class BoundedAttachmentIO {
         return summary;
     }
 
+    /**
+     * 执行downloadHutool相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @return 返回download Hutool结果。
+     */
     public static byte[] downloadHutool(String url, int timeoutMillis, long maxBytes) {
         HttpResponse response = HttpRequest.get(url).timeout(timeoutMillis).executeAsync();
         try {
@@ -63,6 +88,15 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 执行downloadHutool相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回download Hutool结果。
+     */
     public static byte[] downloadHutool(
             String url,
             int timeoutMillis,
@@ -71,6 +105,15 @@ public final class BoundedAttachmentIO {
         return downloadHutoolResult(url, timeoutMillis, maxBytes, securityPolicyService).getData();
     }
 
+    /**
+     * 执行downloadHutool结果相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回download Hutool结果。
+     */
     public static HutoolDownloadResult downloadHutoolResult(
             String url,
             int timeoutMillis,
@@ -79,6 +122,16 @@ public final class BoundedAttachmentIO {
         return downloadHutoolResult(url, timeoutMillis, maxBytes, securityPolicyService, null);
     }
 
+    /**
+     * 执行downloadHutool结果相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param headers headers 参数。
+     * @return 返回download Hutool结果。
+     */
     public static HutoolDownloadResult downloadHutoolResult(
             String url,
             int timeoutMillis,
@@ -104,6 +157,14 @@ public final class BoundedAttachmentIO {
                 url, url, timeoutMillis, maxBytes, securityPolicyService, headers, 0);
     }
 
+    /**
+     * 执行downloadHutoolTo文件相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param target target 参数。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     */
     public static void downloadHutoolToFile(
             String url, File target, int timeoutMillis, long maxBytes) {
         byte[] data = downloadHutool(url, timeoutMillis, maxBytes);
@@ -111,6 +172,15 @@ public final class BoundedAttachmentIO {
         FileUtil.writeBytes(data, target);
     }
 
+    /**
+     * 执行downloadHutoolTo文件相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param target target 参数。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public static void downloadHutoolToFile(
             String url,
             File target,
@@ -122,6 +192,12 @@ public final class BoundedAttachmentIO {
         FileUtil.writeBytes(data, target);
     }
 
+    /**
+     * 执行assert安全DownloadURL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public static void assertSafeDownloadUrl(
             String url, SecurityPolicyService securityPolicyService) {
         if (securityPolicyService == null) {
@@ -139,6 +215,17 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 执行downloadHutoolWithRedirect保护相关逻辑。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回download Hutool With Redirect保护结果。
+     */
     private static byte[] downloadHutoolWithRedirectGuard(
             String initialUrl,
             String url,
@@ -157,6 +244,18 @@ public final class BoundedAttachmentIO {
                 .getData();
     }
 
+    /**
+     * 执行downloadHutoolWithRedirect保护相关逻辑。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @param timeoutMillis timeoutMillis 参数。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param headers headers 参数。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回download Hutool With Redirect保护结果。
+     */
     private static HutoolDownloadResult downloadHutoolWithRedirectGuard(
             String initialUrl,
             String url,
@@ -204,10 +303,23 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 判断是否Redirect。
+     *
+     * @param status 状态参数。
+     * @return 如果Redirect满足条件则返回 true，否则返回 false。
+     */
     private static boolean isRedirect(int status) {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
+    /**
+     * 解析Redirect URL。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param location location 参数。
+     * @return 返回解析后的Redirect URL。
+     */
     private static String resolveRedirectUrl(String baseUrl, String location) {
         try {
             return URI.create(baseUrl).resolve(location.trim()).toString();
@@ -217,6 +329,13 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 应用Headers。
+     *
+     * @param request 当前请求对象。
+     * @param headers headers 参数。
+     * @return 返回apply Headers结果。
+     */
     private static HttpRequest applyHeaders(HttpRequest request, Map<String, String> headers) {
         if (headers == null || headers.isEmpty()) {
             return request;
@@ -230,6 +349,13 @@ public final class BoundedAttachmentIO {
         return request;
     }
 
+    /**
+     * 判断是否需要Forward Headers。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @return 如果Forward Headers满足条件则返回 true，否则返回 false。
+     */
     private static boolean shouldForwardHeaders(String initialUrl, String url) {
         try {
             URI initial = URI.create(initialUrl);
@@ -242,6 +368,12 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 执行生效端口相关逻辑。
+     *
+     * @param uri 待校验或访问的地址参数。
+     * @return 返回生效Port结果。
+     */
     private static int effectivePort(URI uri) {
         if (uri.getPort() >= 0) {
             return uri.getPort();
@@ -255,10 +387,24 @@ public final class BoundedAttachmentIO {
         return -1;
     }
 
+    /**
+     * 读取Hutool Text。
+     *
+     * @param response 当前响应对象。
+     * @param maxBytes max字节参数。
+     * @return 返回读取到的Hutool Text。
+     */
     public static String readHutoolText(HttpResponse response, long maxBytes) {
         return new String(readHutoolResponse(response, maxBytes), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 读取Hutool响应。
+     *
+     * @param response 当前响应对象。
+     * @param maxBytes max字节参数。
+     * @return 返回读取到的Hutool响应。
+     */
     public static byte[] readHutoolResponse(HttpResponse response, long maxBytes) {
         String lengthHeader = response.header("Content-Length");
         checkContentLength(lengthHeader, maxBytes);
@@ -269,6 +415,13 @@ public final class BoundedAttachmentIO {
         return readLimited(stream, maxBytes);
     }
 
+    /**
+     * 读取Ok HTTP响应。
+     *
+     * @param response 当前响应对象。
+     * @param maxBytes max字节参数。
+     * @return 返回读取到的Ok HTTP响应。
+     */
     public static byte[] readOkHttpResponse(Response response, long maxBytes) throws Exception {
         ResponseBody body = response.body();
         if (body == null) {
@@ -281,10 +434,26 @@ public final class BoundedAttachmentIO {
         return readLimited(body.byteStream(), maxBytes);
     }
 
+    /**
+     * 读取Ok HTTP Text。
+     *
+     * @param response 当前响应对象。
+     * @param maxBytes max字节参数。
+     * @return 返回读取到的Ok HTTP Text。
+     */
     public static String readOkHttpText(Response response, long maxBytes) throws Exception {
         return new String(readOkHttpResponse(response, maxBytes), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 执行downloadOkHTTP相关逻辑。
+     *
+     * @param client client 参数。
+     * @param url 待校验或访问的 URL。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回download Ok HTTP结果。
+     */
     public static byte[] downloadOkHttp(
             OkHttpClient client,
             String url,
@@ -294,6 +463,15 @@ public final class BoundedAttachmentIO {
         return downloadOkHttpResult(client, url, maxBytes, securityPolicyService).getData();
     }
 
+    /**
+     * 执行downloadOkHTTP结果相关逻辑。
+     *
+     * @param client client 参数。
+     * @param url 待校验或访问的 URL。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回download Ok HTTP结果。
+     */
     public static OkHttpDownloadResult downloadOkHttpResult(
             OkHttpClient client,
             String url,
@@ -316,6 +494,16 @@ public final class BoundedAttachmentIO {
         return downloadOkHttpWithRedirectGuard(client, url, maxBytes, securityPolicyService, 0);
     }
 
+    /**
+     * 执行downloadOkHTTPWithRedirect保护相关逻辑。
+     *
+     * @param client client 参数。
+     * @param url 待校验或访问的 URL。
+     * @param maxBytes max字节参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回download Ok HTTP With Redirect保护结果。
+     */
     private static OkHttpDownloadResult downloadOkHttpWithRedirectGuard(
             OkHttpClient client,
             String url,
@@ -353,42 +541,88 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /** 表示OkHTTPDownload结果，携带调用方后续判断所需信息。 */
     public static final class OkHttpDownloadResult {
+        /** 记录OkHTTPDownload中的数据。 */
         private final byte[] data;
+
+        /** 记录OkHTTPDownload中的content类型。 */
         private final String contentType;
 
+        /**
+         * 创建Ok HTTP Download结果实例，并注入运行所需依赖。
+         *
+         * @param data 数据参数。
+         * @param contentType content类型参数。
+         */
         private OkHttpDownloadResult(byte[] data, String contentType) {
             this.data = data;
             this.contentType = contentType;
         }
 
+        /**
+         * 读取Data。
+         *
+         * @return 返回读取到的Data。
+         */
         public byte[] getData() {
             return data;
         }
 
+        /**
+         * 读取Content类型。
+         *
+         * @return 返回读取到的Content类型。
+         */
         public String getContentType() {
             return contentType;
         }
     }
 
+    /** 表示HutoolDownload结果，携带调用方后续判断所需信息。 */
     public static final class HutoolDownloadResult {
+        /** 记录HutoolDownload中的数据。 */
         private final byte[] data;
+
+        /** 记录HutoolDownload中的content类型。 */
         private final String contentType;
 
+        /**
+         * 创建Hutool Download结果实例，并注入运行所需依赖。
+         *
+         * @param data 数据参数。
+         * @param contentType content类型参数。
+         */
         private HutoolDownloadResult(byte[] data, String contentType) {
             this.data = data;
             this.contentType = contentType;
         }
 
+        /**
+         * 读取Data。
+         *
+         * @return 返回读取到的Data。
+         */
         public byte[] getData() {
             return data;
         }
 
+        /**
+         * 读取Content类型。
+         *
+         * @return 返回读取到的Content类型。
+         */
         public String getContentType() {
             return contentType;
         }
     }
 
+    /**
+     * 检查Content Length。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxBytes max字节参数。
+     */
     private static void checkContentLength(String value, long maxBytes) {
         if (StrUtil.isBlank(value)) {
             return;
@@ -402,6 +636,13 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 生成安全展示用的HutoolHTTP错误。
+     *
+     * @param response 当前响应对象。
+     * @param status 状态参数。
+     * @return 返回safe Hutool HTTP Error结果。
+     */
     private static String safeHutoolHttpError(HttpResponse response, int status) {
         if (response == null) {
             return "Download failed, HTTP " + status;
@@ -409,6 +650,13 @@ public final class BoundedAttachmentIO {
         return safeHttpError(status, readErrorPreview(response.bodyStream()));
     }
 
+    /**
+     * 生成安全展示用的OkHTTP错误。
+     *
+     * @param response 当前响应对象。
+     * @param status 状态参数。
+     * @return 返回safe Ok HTTP Error结果。
+     */
     private static String safeOkHttpError(Response response, int status) {
         if (response == null || response.body() == null) {
             return "Download failed, HTTP " + status;
@@ -416,6 +664,13 @@ public final class BoundedAttachmentIO {
         return safeHttpError(status, readErrorPreview(response.body().byteStream()));
     }
 
+    /**
+     * 生成安全展示用的HTTP错误。
+     *
+     * @param status 状态参数。
+     * @param preview 预览参数。
+     * @return 返回safe HTTP Error结果。
+     */
     private static String safeHttpError(int status, String preview) {
         String message = "Download failed, HTTP " + status;
         if (StrUtil.isBlank(preview)) {
@@ -429,6 +684,12 @@ public final class BoundedAttachmentIO {
         return message + ", response preview: " + safe;
     }
 
+    /**
+     * 读取Error Preview。
+     *
+     * @param stream 流参数。
+     * @return 返回读取到的Error Preview。
+     */
     private static String readErrorPreview(InputStream stream) {
         if (stream == null) {
             return "";
@@ -449,6 +710,13 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    /**
+     * 读取Limited。
+     *
+     * @param stream 流参数。
+     * @param maxBytes max字节参数。
+     * @return 返回读取到的Limited。
+     */
     private static byte[] readLimited(InputStream stream, long maxBytes) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();

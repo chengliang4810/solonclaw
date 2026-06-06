@@ -18,12 +18,23 @@ import org.slf4j.LoggerFactory;
 
 /** runtime/ 根目录下人格工作区文件的统一访问服务。 */
 public class PersonaWorkspaceService {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(PersonaWorkspaceService.class);
+
+    /** TEMPLATE根用户的统一常量值。 */
     private static final String TEMPLATE_ROOT = "persona-templates/";
 
+    /** 记录Persona工作区中的工作区目录。 */
     private final File workspaceDir;
+
+    /** 记录Persona工作区中的记忆目录。 */
     private final File memoryDir;
 
+    /**
+     * 创建Persona工作区服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public PersonaWorkspaceService(AppConfig appConfig) {
         this.workspaceDir = FileUtil.file(appConfig.getRuntime().getHome());
         this.memoryDir = FileUtil.file(this.workspaceDir, ContextFileConstants.MEMORY_DIR);
@@ -121,6 +132,12 @@ public class PersonaWorkspaceService {
         return result;
     }
 
+    /**
+     * 读取Diary。
+     *
+     * @param relativePath 文件或目录路径参数。
+     * @return 返回读取到的Diary。
+     */
     public String readDiary(String relativePath) {
         File target = diaryFile(relativePath);
         if (!target.exists()) {
@@ -129,10 +146,22 @@ public class PersonaWorkspaceService {
         return FileUtil.readUtf8String(target);
     }
 
+    /**
+     * 执行absoluteDiary路径相关逻辑。
+     *
+     * @param relativePath 文件或目录路径参数。
+     * @return 返回absolute Diary路径。
+     */
     public String absoluteDiaryPath(String relativePath) {
         return diaryFile(relativePath).getAbsolutePath();
     }
 
+    /**
+     * 执行diary文件相关逻辑。
+     *
+     * @param relativePath 文件或目录路径参数。
+     * @return 返回diary文件结果。
+     */
     private File diaryFile(String relativePath) {
         if (StrUtil.isBlank(relativePath) || relativePath.indexOf('\\') >= 0) {
             throw new IllegalArgumentException("Invalid diary path");
@@ -183,6 +212,12 @@ public class PersonaWorkspaceService {
         }
     }
 
+    /**
+     * 执行mkdirIfPossible相关逻辑。
+     *
+     * @param dir 文件或目录路径参数。
+     * @param label label 参数。
+     */
     private void mkdirIfPossible(File dir, String label) {
         try {
             FileUtil.mkdir(dir);
@@ -201,6 +236,12 @@ public class PersonaWorkspaceService {
         }
     }
 
+    /**
+     * 写入Content。
+     *
+     * @param target target 参数。
+     * @param content 待处理内容。
+     */
     private void writeContent(File target, String content) {
         File parent = target.getParentFile();
         if (parent != null) {
@@ -209,6 +250,12 @@ public class PersonaWorkspaceService {
         FileUtil.writeUtf8String(StrUtil.nullToEmpty(content), target);
     }
 
+    /**
+     * 执行failure消息相关逻辑。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回failure消息结果。
+     */
     private static String failureMessage(Throwable e) {
         if (e.getMessage() == null) {
             return e.getClass().getSimpleName();
@@ -216,6 +263,12 @@ public class PersonaWorkspaceService {
         return e.getClass().getSimpleName() + ": " + SecretRedactor.redact(e.getMessage(), 1000);
     }
 
+    /**
+     * 生成安全展示用的路径Ref。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回safe路径Ref结果。
+     */
     private static String safePathRef(File file) {
         if (file == null) {
             return "path://unknown";

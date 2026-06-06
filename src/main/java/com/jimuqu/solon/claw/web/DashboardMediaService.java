@@ -17,12 +17,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Dashboard media cache index. */
+/** 提供控制台媒体相关业务能力，封装调用方不需要感知的运行细节。 */
 public class DashboardMediaService {
+    /** 记录控制台媒体中的数据库。 */
     private final SqliteDatabase database;
+
+    /** 记录控制台媒体中的路径保护。 */
     private final RuntimePathGuard pathGuard;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
 
+    /**
+     * 创建控制台媒体服务实例，并注入运行所需依赖。
+     *
+     * @param database database 参数。
+     * @param pathGuard 文件或目录路径参数。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public DashboardMediaService(
             SqliteDatabase database,
             RuntimePathGuard pathGuard,
@@ -32,6 +44,13 @@ public class DashboardMediaService {
         this.attachmentCacheService = attachmentCacheService;
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @param limit 最大返回数量。
+     * @return 返回list结果。
+     */
     public Map<String, Object> list(String platform, int limit) throws Exception {
         List<Map<String, Object>> media = new ArrayList<Map<String, Object>>();
         Connection connection = database.openConnection();
@@ -64,6 +83,12 @@ public class DashboardMediaService {
         return Collections.singletonMap("media", media);
     }
 
+    /**
+     * 执行索引本地相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回index本地结果。
+     */
     public Map<String, Object> indexLocal(Map<String, Object> body) throws Exception {
         String localPath = read(body, "localPath");
         File file = pathGuard.requireUnderMedia(FileUtil.file(localPath));
@@ -102,6 +127,12 @@ public class DashboardMediaService {
         return Collections.singletonMap("media_id", mediaId);
     }
 
+    /**
+     * 执行详情相关逻辑。
+     *
+     * @param mediaId 媒体标识。
+     * @return 返回detail结果。
+     */
     public Map<String, Object> detail(String mediaId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -120,10 +151,22 @@ public class DashboardMediaService {
         }
     }
 
+    /**
+     * 执行刷新相关逻辑。
+     *
+     * @param mediaId 媒体标识。
+     * @return 返回刷新结果。
+     */
     public Map<String, Object> refresh(String mediaId) throws Exception {
         return updateStatus(mediaId, "refresh_requested", null);
     }
 
+    /**
+     * 执行download相关逻辑。
+     *
+     * @param mediaId 媒体标识。
+     * @return 返回download结果。
+     */
     public Map<String, Object> download(String mediaId) throws Exception {
         Map<String, Object> detail = requireRawDetail(mediaId);
         File file = FileUtil.file(String.valueOf(detail.get("local_path")));
@@ -137,6 +180,12 @@ public class DashboardMediaService {
         return result;
     }
 
+    /**
+     * 执行引用相关逻辑。
+     *
+     * @param mediaId 媒体标识。
+     * @return 返回reference结果。
+     */
     public Map<String, Object> reference(String mediaId) throws Exception {
         Map<String, Object> detail = requireRawDetail(mediaId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -150,6 +199,14 @@ public class DashboardMediaService {
         return result;
     }
 
+    /**
+     * 更新状态。
+     *
+     * @param mediaId 媒体标识。
+     * @param status 状态参数。
+     * @param error 错误参数。
+     * @return 返回状态。
+     */
     private Map<String, Object> updateStatus(String mediaId, String status, String error)
             throws Exception {
         long now = System.currentTimeMillis();
@@ -174,6 +231,12 @@ public class DashboardMediaService {
         return result;
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map结果。
+     */
     private Map<String, Object> map(ResultSet resultSet) throws Exception {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("media_id", resultSet.getString("media_id"));
@@ -195,6 +258,12 @@ public class DashboardMediaService {
         return map;
     }
 
+    /**
+     * 执行原始详情相关逻辑。
+     *
+     * @param mediaId 媒体标识。
+     * @return 返回原始Detail结果。
+     */
     private Map<String, Object> rawDetail(String mediaId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -221,6 +290,12 @@ public class DashboardMediaService {
         }
     }
 
+    /**
+     * 要求原始Detail。
+     *
+     * @param mediaId 媒体标识。
+     * @return 返回原始Detail结果。
+     */
     private Map<String, Object> requireRawDetail(String mediaId) throws Exception {
         Map<String, Object> detail = rawDetail(mediaId);
         if (detail.isEmpty()) {
@@ -229,6 +304,12 @@ public class DashboardMediaService {
         return detail;
     }
 
+    /**
+     * 执行媒体引用相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回媒体Reference结果。
+     */
     private String mediaReference(File file) {
         try {
             return attachmentCacheService.mediaReference(file);
@@ -241,11 +322,24 @@ public class DashboardMediaService {
         }
     }
 
+    /**
+     * 执行read相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @return 返回read结果。
+     */
     private String read(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();

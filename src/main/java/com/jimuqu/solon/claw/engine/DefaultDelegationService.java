@@ -116,18 +116,29 @@ public class DefaultDelegationService implements DelegationService {
     /** Agent run 轨迹仓储。 */
     private final AgentRunRepository agentRunRepository;
 
+    /** 注入应用配置，用于默认委托。 */
     private final AppConfig appConfig;
 
+    /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
 
+    /** 保存active注册表映射，便于按键快速查询。 */
     private final ConcurrentMap<String, SubagentRunRecord> activeRegistry =
             new ConcurrentHashMap<String, SubagentRunRecord>();
 
+    /** 记录默认委托中的concurrencyLimiter。 */
     private final Semaphore concurrencyLimiter;
 
-    /** Jimuqu 风格暂停新子代理 spawn。 */
+    /** 是否启用spawnPaused。 */
     private volatile boolean spawnPaused;
 
+    /**
+     * 创建默认委托服务实例，并注入运行所需依赖。
+     *
+     * @param conversationHolder conversationHolder 参数。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     */
     public DefaultDelegationService(
             ConversationOrchestratorHolder conversationHolder,
             SqlitePreferenceStore preferenceStore,
@@ -135,6 +146,14 @@ public class DefaultDelegationService implements DelegationService {
         this(conversationHolder, preferenceStore, sessionRepository, null, null, null);
     }
 
+    /**
+     * 创建默认委托服务实例，并注入运行所需依赖。
+     *
+     * @param conversationHolder conversationHolder 参数。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
     public DefaultDelegationService(
             ConversationOrchestratorHolder conversationHolder,
             SqlitePreferenceStore preferenceStore,
@@ -149,6 +168,15 @@ public class DefaultDelegationService implements DelegationService {
                 null);
     }
 
+    /**
+     * 创建默认委托服务实例，并注入运行所需依赖。
+     *
+     * @param conversationHolder conversationHolder 参数。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param appConfig 应用运行配置。
+     */
     public DefaultDelegationService(
             ConversationOrchestratorHolder conversationHolder,
             SqlitePreferenceStore preferenceStore,
@@ -164,6 +192,16 @@ public class DefaultDelegationService implements DelegationService {
                 null);
     }
 
+    /**
+     * 创建默认委托服务实例，并注入运行所需依赖。
+     *
+     * @param conversationHolder conversationHolder 参数。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param appConfig 应用运行配置。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     */
     public DefaultDelegationService(
             ConversationOrchestratorHolder conversationHolder,
             SqlitePreferenceStore preferenceStore,
@@ -184,6 +222,14 @@ public class DefaultDelegationService implements DelegationService {
         this.concurrencyLimiter = new Semaphore(maxConcurrency, true);
     }
 
+    /**
+     * 执行委托Single相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param prompt 提示词参数。
+     * @param context 当前请求或运行上下文。
+     * @return 返回委托Single结果。
+     */
     @Override
     public DelegationResult delegateSingle(String sourceKey, String prompt, String context)
             throws Exception {
@@ -194,6 +240,13 @@ public class DefaultDelegationService implements DelegationService {
         return delegateSingle(sourceKey, task);
     }
 
+    /**
+     * 执行委托Single相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param task 任务参数。
+     * @return 返回委托Single结果。
+     */
     @Override
     public DelegationResult delegateSingle(String sourceKey, DelegationTask task) throws Exception {
         String prompt = task == null ? null : task.getPrompt();
@@ -274,16 +327,32 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
+    /**
+     * 写入Spawn Paused。
+     *
+     * @param paused paused 参数。
+     */
     @Override
     public void setSpawnPaused(boolean paused) {
         this.spawnPaused = paused;
     }
 
+    /**
+     * 判断是否Spawn Paused。
+     *
+     * @return 如果Spawn Paused满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean isSpawnPaused() {
         return spawnPaused;
     }
 
+    /**
+     * 中断子Agent。
+     *
+     * @param subagentId 子Agent标识。
+     * @return 返回interrupt Subagent结果。
+     */
     @Override
     public boolean interruptSubagent(String subagentId) {
         SubagentRunRecord record = activeRegistry.get(subagentId);
@@ -300,6 +369,11 @@ public class DefaultDelegationService implements DelegationService {
         return true;
     }
 
+    /**
+     * 执行activeSubagents相关逻辑。
+     *
+     * @return 返回active Subagents结果。
+     */
     @Override
     public List<Map<String, Object>> activeSubagents() {
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
@@ -318,6 +392,13 @@ public class DefaultDelegationService implements DelegationService {
         return list;
     }
 
+    /**
+     * 执行委托Batch相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param tasks tasks 参数。
+     * @return 返回委托Batch结果。
+     */
     @Override
     public List<DelegationResult> delegateBatch(final String sourceKey, List<DelegationTask> tasks)
             throws Exception {
@@ -340,6 +421,11 @@ public class DefaultDelegationService implements DelegationService {
                 futures.add(
                         executorService.submit(
                                 new Callable<DelegationResult>() {
+                                    /**
+                                     * 执行回调调用并返回结果。
+                                     *
+                                     * @return 返回call结果。
+                                     */
                                     @Override
                                     public DelegationResult call() throws Exception {
                                         DelegationResult result = delegateSingle(sourceKey, task);
@@ -383,6 +469,14 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
+    /**
+     * 应用Allowed工具。
+     *
+     * @param parentSourceKey parent来源键标识或键值。
+     * @param childSourceKey child来源键标识或键值。
+     * @param allowedTools allowedTools开关值。
+     * @param toolsets toolsets 参数。
+     */
     private void applyAllowedTools(
             String parentSourceKey,
             String childSourceKey,
@@ -459,6 +553,12 @@ public class DefaultDelegationService implements DelegationService {
         return result;
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";
@@ -467,6 +567,17 @@ public class DefaultDelegationService implements DelegationService {
                 StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()), 1000);
     }
 
+    /**
+     * 启动Subagent。
+     *
+     * @param subagentId 子Agent标识。
+     * @param parentSourceKey parent来源键标识或键值。
+     * @param childSourceKey child来源键标识或键值。
+     * @param task 任务参数。
+     * @param parentContext parent上下文上下文。
+     * @param depth depth 参数。
+     * @return 返回Subagent结果。
+     */
     private SubagentRunRecord startSubagent(
             String subagentId,
             String parentSourceKey,
@@ -498,6 +609,12 @@ public class DefaultDelegationService implements DelegationService {
         return record;
     }
 
+    /**
+     * 执行finish子Agent相关逻辑。
+     *
+     * @param record 记录参数。
+     * @param reply 回复参数。
+     */
     private void finishSubagent(SubagentRunRecord record, GatewayReply reply) {
         if (record == null) {
             return;
@@ -514,6 +631,12 @@ public class DefaultDelegationService implements DelegationService {
         activeRegistry.remove(record.getSubagentId());
     }
 
+    /**
+     * 执行finishInterrupted相关逻辑。
+     *
+     * @param record 记录参数。
+     * @param message 平台消息或错误消息。
+     */
     private void finishInterrupted(SubagentRunRecord record, String message) {
         if (record == null) {
             return;
@@ -528,11 +651,23 @@ public class DefaultDelegationService implements DelegationService {
         activeRegistry.remove(record.getSubagentId());
     }
 
+    /**
+     * 判断是否Interrupted。
+     *
+     * @param subagentId 子Agent标识。
+     * @return 如果Interrupted满足条件则返回 true，否则返回 false。
+     */
     private boolean isInterrupted(String subagentId) {
         SubagentRunRecord record = activeRegistry.get(subagentId);
         return record != null && record.isInterruptRequested();
     }
 
+    /**
+     * 解析Depth。
+     *
+     * @param parentContext parent上下文上下文。
+     * @return 返回解析后的Depth。
+     */
     private int resolveDepth(AgentRunContext parentContext) {
         if (parentContext == null || StrUtil.isBlank(parentContext.getRunId())) {
             return 1;
@@ -550,6 +685,11 @@ public class DefaultDelegationService implements DelegationService {
         return 1;
     }
 
+    /**
+     * 执行incrementSubtask次数相关逻辑。
+     *
+     * @param parentRunId parent运行标识。
+     */
     private void incrementSubtaskCount(String parentRunId) {
         if (agentRunRepository == null || StrUtil.isBlank(parentRunId)) {
             return;
@@ -565,6 +705,13 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
+    /**
+     * 解析Latest运行标识。
+     *
+     * @param childSourceKey child来源键标识或键值。
+     * @param sessionId 当前会话标识。
+     * @return 返回解析后的Latest运行标识。
+     */
     private String resolveLatestRunId(String childSourceKey, String sessionId) {
         if (agentRunRepository == null || StrUtil.isBlank(childSourceKey)) {
             return null;
@@ -585,6 +732,11 @@ public class DefaultDelegationService implements DelegationService {
         return null;
     }
 
+    /**
+     * 保存Subagent。
+     *
+     * @param record 记录参数。
+     */
     private void saveSubagent(SubagentRunRecord record) {
         if (agentRunRepository == null) {
             return;
@@ -595,6 +747,12 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
+    /**
+     * 构建Tail JSON。
+     *
+     * @param content 待处理内容。
+     * @return 返回创建好的Tail JSON。
+     */
     private String buildTailJson(String content) {
         ONode array = new ONode().asArray();
         ONode item = new ONode().asObject();

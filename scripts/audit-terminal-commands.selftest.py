@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+"""audit-terminal-commands.py 的轻量自检。"""
+
+from __future__ import annotations
+
+import importlib.util
+import unittest
+from pathlib import Path
+
+
+SCRIPT = Path(__file__).with_name("audit-terminal-commands.py")
+
+
+def load_module():
+    spec = importlib.util.spec_from_file_location("audit_terminal_commands", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+class AuditTerminalCommandsSelfTest(unittest.TestCase):
+    def test_top_level_command_uses_shell_quoting(self) -> None:
+        mod = load_module()
+
+        args = mod.command_to_java_args(
+            'model set --provider local --model "hello world" --api-key "Sk Test"'
+        )
+
+        self.assertEqual(
+            args,
+            [
+                "model",
+                "set",
+                "--provider",
+                "local",
+                "--model",
+                "hello world",
+                "--api-key",
+                "Sk Test",
+            ],
+        )
+
+    def test_slash_command_preserves_full_prompt(self) -> None:
+        mod = load_module()
+
+        args = mod.command_to_java_args('/cron add "every 2h" "检查 状态"')
+
+        self.assertEqual(args, ["--cli", "-p", '/cron add "every 2h" "检查 状态"'])
+
+    def test_extracts_cron_job_id_from_terminal_output(self) -> None:
+        mod = load_module()
+
+        job_id = mod.extract_cron_job_id(
+            "\u001b[36mAssistant\u001b[0m\n已创建定时任务：31da8f5716124a88a51fe221695732af\n"
+        )
+
+        self.assertEqual(job_id, "31da8f5716124a88a51fe221695732af")
+
+    def test_can_build_explicit_command_list_without_defaults(self) -> None:
+        mod = load_module()
+
+        commands = mod.build_command_list(
+            no_defaults=True,
+            include_write_commands=False,
+            explicit_commands=["/cron list"],
+        )
+
+        self.assertEqual(commands, ["/cron list"])
+
+    def test_process_output_text_normalizes_timeout_bytes(self) -> None:
+        mod = load_module()
+
+        self.assertEqual(mod.process_output_text(b"\xe4\xbd\xa0\xe5\xa5\xbd"), "你好")
+        self.assertEqual(mod.process_output_text("hello"), "hello")
+        self.assertEqual(mod.process_output_text(None), "")
+
+    def test_expected_empty_state_exit_is_not_suspect(self) -> None:
+        mod = load_module()
+
+        self.assertFalse(
+            mod.is_suspect_command_result(
+                "/retry",
+                1,
+                False,
+                "运行失败：没有可重试的上一条用户消息。",
+            )
+        )
+        self.assertFalse(
+            mod.is_suspect_command_result(
+                "/sethome",
+                1,
+                False,
+                "运行失败：只有平台管理员可以执行 /sethome。",
+            )
+        )
+
+    def test_unexpected_nonzero_exit_remains_suspect(self) -> None:
+        mod = load_module()
+
+        self.assertTrue(mod.is_suspect_command_result("/retry", 1, False, "模型服务异常"))
+
+    def test_tui_script_enters_commands_like_a_user(self) -> None:
+        mod = load_module()
+
+        script = mod.build_tui_script(["/setup", "/new"])
+
+        self.assertEqual(script, "/setup\r/new\r/exit\r")
+
+    def test_tui_transcript_requires_visible_slash_commands(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_tui_transcript(
+            "Solon Claw TUI\r\n你 > setup\r\n你 > new\r\n终端会话已结束。", ["/setup", "/new"]
+        )
+
+        self.assertIn("missing_prompt_echo:/setup", issues)
+        self.assertIn("missing_prompt_echo:/new", issues)
+
+    def test_tui_transcript_accepts_real_user_echo_and_filters_ansi(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_tui_transcript(
+            "\u001b[1mSolon Claw TUI\u001b[0m\r\n你 > /setup\r\n你 > /new\r\n终端会话已结束。",
+            ["/setup", "/new"],
+        )
+
+        self.assertEqual(issues, [])
+
+    def test_tui_transcript_ignores_bulk_stdin_echo_before_prompt(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_tui_transcript(
+            "/setup\r\n/new\r\nSolon Claw TUI\r\n你 > setup\r\n你 > new\r\n终端会话已结束。",
+            ["/setup", "/new"],
+        )
+
+        self.assertIn("missing_prompt_echo:/setup", issues)
+        self.assertIn("missing_prompt_echo:/new", issues)
+
+    def test_keypress_schedule_types_each_character_and_after_key(self) -> None:
+        mod = load_module()
+
+        schedule = mod.build_keypress_schedule(
+            [{"type": "command", "value": "/setup", "after": "q"}], start_delay=1.0
+        )
+
+        self.assertEqual("".join(ch for _, ch in schedule), "/setup\rq")
+
+    def test_node_tui_transcript_requires_expected_overlay_text(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_node_tui_transcript(
+            "ready\n/setup\n/config path\nruntime/config.yml\n",
+            [
+                {"type": "command", "value": "/setup", "expect": "Select provider"},
+                {"type": "command", "value": "/config path", "expect": "runtime/config.yml"},
+            ],
+            0,
+        )
+
+        self.assertIn("missing_expected_text:Select provider", issues)
+
+    def test_node_tui_transcript_fails_on_timeout_exit(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_node_tui_transcript(
+            "ready\n/setup\nSelect provider\n",
+            [{"type": "command", "value": "/setup", "expect": "Select provider"}],
+            124,
+        )
+
+        self.assertIn("exit_code:124", issues)
+
+    def test_node_tui_transcript_tolerates_ink_frame_spacing(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_node_tui_transcript(
+            "·/setupgateway\n║Channel setup║\n",
+            [{"type": "command", "value": "/setup gateway", "expect": "Channel setup"}],
+            0,
+        )
+
+        self.assertEqual(issues, [])
+
+    def test_wait_for_new_text_ignores_historical_output(self) -> None:
+        mod = load_module()
+
+        output = bytearray("ready\nSelect provider\n".encode("utf-8"))
+
+        self.assertFalse(mod.contains_new_terminal_text(output, "ready", len(output)))
+
+    def test_wait_child_exit_reading_is_available_for_exit_diagnostics(self) -> None:
+        mod = load_module()
+
+        self.assertTrue(callable(mod.wait_child_exit_reading))
+
+    def test_node_tui_exit_code_preserves_clean_zero_exit(self) -> None:
+        mod = load_module()
+
+        self.assertEqual(mod.normalize_node_tui_exit_code(0), 0)
+        self.assertEqual(mod.normalize_node_tui_exit_code(None), 124)
+
+    def test_terminal_query_responses_are_generated_once(self) -> None:
+        mod = load_module()
+
+        output = bytearray(b"\x1b[>0q\x1b[c\x1b[?u")
+        state = mod.TerminalResponseState()
+
+        self.assertEqual(
+            mod.terminal_query_responses(output, state),
+            b"\x1bP>|xterm.js(5.5.0)\x1b\\\x1b[?1;2c\x1b[?0u",
+        )
+        self.assertEqual(mod.terminal_query_responses(output, state), b"")
+
+    def test_build_node_tui_actions_marks_exit_command(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/doctor", "/exit"])
+
+        self.assertEqual(
+            actions[0],
+            {
+                "type": "command",
+                "value": "/doctor",
+                "expect": "model.provider",
+                "after": "q",
+                "close_expect": "ready",
+            },
+        )
+        self.assertEqual(actions[1], {"type": "command", "value": "/exit", "exit": True})
+
+    def test_build_node_tui_actions_reuses_known_overlay_close_steps(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/setup", "/setup model", "/setup gateway", "/model --refresh"])
+
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "type": "command",
+                    "value": "/setup",
+                    "expect": "Model, channel, and runtime checks",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/setup model",
+                    "expect": "Select provider",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/setup gateway",
+                    "expect": "Channel setup",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/model --refresh",
+                    "expect": "providers:",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+            ],
+        )
+
+    def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions([
+            "/setup:enter-model",
+            "/setup:enter-channels",
+            "/setup:enter-doctor",
+        ])
+
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "type": "panel",
+                    "value": "/setup",
+                    "expect": "Model, channel, and runtime checks",
+                    "keys": "\r",
+                    "post_expect": "Select provider",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "panel",
+                    "value": "/setup",
+                    "expect": "Model, channel, and runtime checks",
+                    "keys": "\x1b[B\r",
+                    "post_expect": "Channel setup",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "panel",
+                    "value": "/setup",
+                    "expect": "Model, channel, and runtime checks",
+                    "keys": "\x1b[B\x1b[B\r",
+                    "post_expect": "model.provider",
+                    "after": "q",
+                    "close_expect": "ready",
+                },
+            ],
+        )
+
+    def test_node_tui_env_uses_runtime_home_for_frontend_state(self) -> None:
+        mod = load_module()
+
+        env = mod.build_node_tui_env(Path("/tmp/solonclaw-audit-home"), 18123)
+
+        self.assertEqual(env["SOLONCLAW_HOME"], "/tmp/solonclaw-audit-home")
+        self.assertEqual(env["SOLONCLAW_SERVER_URL"], "http://127.0.0.1:18123")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -36,20 +36,45 @@ import org.noear.snack4.ONode;
 
 /** 腾讯元宝 Bot 渠道适配器。协议层保留 JSON/REST 可测边界，媒体只做传输与附件感知。 */
 public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 默认WSURL的统一常量值。 */
     private static final String DEFAULT_WS_URL = "wss://bot-wss.yuanbao.tencent.com/wss/connection";
+
+    /** 默认APIDOMAIN的统一常量值。 */
     private static final String DEFAULT_API_DOMAIN = "https://bot.yuanbao.tencent.com";
+
+    /** JSON的统一常量值。 */
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
+    /** 记录元宝渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录元宝渠道中的client。 */
     private final OkHttpClient client;
+
+    /** 记录元宝渠道中的Web套接字。 */
     private volatile WebSocket webSocket;
+
+    /** 保存callback执行器执行组件，负责调度异步或定时任务。 */
     private ExecutorService callbackExecutor;
 
+    /**
+     * 创建元宝渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     */
     public YuanbaoChannelAdapter(AppConfig.ChannelConfig config) {
         this(config, null);
     }
 
+    /**
+     * 创建元宝渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public YuanbaoChannelAdapter(
             AppConfig.ChannelConfig config, SecurityPolicyService securityPolicyService) {
         super(PlatformType.YUANBAO, config);
@@ -66,6 +91,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @return 返回connect结果。
+     */
     @Override
     public boolean connect() {
         if (!isEnabled()) {
@@ -116,6 +146,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
         if (webSocket != null) {
@@ -130,6 +161,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         setDetail("disconnected");
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param request 当前请求对象。
+     */
     @Override
     public void send(DeliveryRequest request) throws Exception {
         if (StrUtil.isBlank(request.getChatId())) {
@@ -151,6 +187,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送附件。
+     *
+     * @param request 当前请求对象。
+     * @param attachment 附件参数。
+     */
     private void sendAttachment(DeliveryRequest request, MessageAttachment attachment)
             throws Exception {
         File file = new File(attachment.getLocalPath());
@@ -180,6 +222,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         sendPayload(body);
     }
 
+    /**
+     * 执行基础Send正文相关逻辑。
+     *
+     * @param request 当前请求对象。
+     * @return 返回base Send Body结果。
+     */
     private ONode baseSendBody(DeliveryRequest request) {
         return new ONode()
                 .set("request_id", UUID.randomUUID().toString())
@@ -192,6 +240,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                 .set("reply_to", request.getThreadId());
     }
 
+    /**
+     * 发送Payload。
+     *
+     * @param body 请求体或消息正文内容。
+     */
     private void sendPayload(ONode body) throws Exception {
         String payload = body.toJson();
         if (webSocket != null && isConnected()) {
@@ -203,6 +256,13 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         postJson("/openapi/bot/messages", payload);
     }
 
+    /**
+     * 执行postJSON相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @param body 请求体或消息正文内容。
+     * @return 返回post JSON结果。
+     */
     private ONode postJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
         assertSafeUrl(url, "Yuanbao API URL");
@@ -229,6 +289,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 生成安全展示用的正文。
+     *
+     * @param response 当前响应对象。
+     * @return 返回safe Body结果。
+     */
     private String safeBody(Response response) throws Exception {
         if (response.body() == null) {
             return "";
@@ -236,6 +302,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
+    /**
+     * 执行apiDomain相关逻辑。
+     *
+     * @return 返回api Domain结果。
+     */
     private String apiDomain() {
         String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
         while (value.endsWith("/")) {
@@ -244,6 +315,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return value;
     }
 
+    /**
+     * 执行assert安全URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param purpose purpose 参数。
+     */
     private void assertSafeUrl(String url, String purpose) {
         if (securityPolicyService == null) {
             return;
@@ -259,6 +336,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行sign相关逻辑。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回sign结果。
+     */
     private String sign(String payload) {
         HMac hmac =
                 new HMac(
@@ -268,7 +351,14 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return hmac.digestHex(StrUtil.nullToEmpty(payload));
     }
 
+    /** 承载列表ener相关状态和辅助逻辑。 */
     private class Listener extends WebSocketListener {
+        /**
+         * 响应Open事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param response 当前响应对象。
+         */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
             setConnected(true);
@@ -276,16 +366,35 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("websocket connected");
         }
 
+        /**
+         * 响应消息事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param text 待处理文本。
+         */
         @Override
         public void onMessage(WebSocket webSocket, String text) {
             dispatchInbound(text);
         }
 
+        /**
+         * 响应消息事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param bytes 字节参数。
+         */
         @Override
         public void onMessage(WebSocket webSocket, ByteString bytes) {
             dispatchInbound(bytes.utf8());
         }
 
+        /**
+         * 响应Failure事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param t t 参数。
+         * @param response 当前响应对象。
+         */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             YuanbaoChannelAdapter.this.webSocket = null;
@@ -295,6 +404,13 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("websocket disconnected");
         }
 
+        /**
+         * 响应Closed事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param code code 参数。
+         * @param reason 原因参数。
+         */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
             YuanbaoChannelAdapter.this.webSocket = null;
@@ -304,12 +420,18 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 分发入站。
+     *
+     * @param raw 原始输入值。
+     */
     protected void dispatchInbound(final String raw) {
         if (callbackExecutor == null || inboundMessageHandler() == null || StrUtil.isBlank(raw)) {
             return;
         }
         callbackExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         GatewayMessage message = toGatewayMessage(raw);
@@ -328,6 +450,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 转换为消息网关消息。
+     *
+     * @param raw 原始输入值。
+     * @return 返回转换后的消息网关消息。
+     */
     protected GatewayMessage toGatewayMessage(String raw) {
         ONode node = ONode.ofJson(raw);
         ONode body = node.get("body");
@@ -368,6 +496,14 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 判断是否允许入站。
+     *
+     * @param chatType 聊天类型参数。
+     * @param chatId 聊天标识。
+     * @param userId 用户标识。
+     * @return 如果入站满足条件则返回 true，否则返回 false。
+     */
     private boolean allowInbound(String chatType, String chatId, String userId) {
         if (config.isAllowAllUsers()) {
             return true;
@@ -395,6 +531,13 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                 || contains(config.getAllowedUsers(), userId);
     }
 
+    /**
+     * 执行contains相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param target target 参数。
+     * @return 返回contains结果。
+     */
     private boolean contains(List<String> values, String target) {
         if (values == null || target == null) {
             return false;
@@ -408,6 +551,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 执行firstNon空白值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank结果。
+     */
     private String firstNonBlank(String... values) {
         if (values == null) {
             return "";

@@ -14,6 +14,7 @@ import org.noear.solon.annotation.Param;
 /** 长期记忆工具。 */
 @RequiredArgsConstructor
 public class MemoryTools {
+    /** 记忆THREATS的统一常量值。 */
     private static final MemoryThreat[] MEMORY_THREATS =
             new MemoryThreat[] {
                 threat(
@@ -95,6 +96,12 @@ public class MemoryTools {
                 .toJson();
     }
 
+    /**
+     * 判断是否Success。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 如果Success满足条件则返回 true，否则返回 false。
+     */
     private boolean isSuccess(String message) {
         String normalized = StrUtil.nullToEmpty(message).trim();
         if (normalized.length() == 0) {
@@ -106,6 +113,12 @@ public class MemoryTools {
                 && !normalized.startsWith("未");
     }
 
+    /**
+     * 执行scan记忆Content相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @return 返回scan记忆Content结果。
+     */
     private String scanMemoryContent(String content) {
         if (StrUtil.isBlank(content)) {
             return null;
@@ -128,6 +141,14 @@ public class MemoryTools {
         return null;
     }
 
+    /**
+     * 执行阻断响应相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param target target 参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回blocked响应结果。
+     */
     private String blockedResponse(String action, String target, String message) {
         return new ONode()
                 .set("success", false)
@@ -137,10 +158,23 @@ public class MemoryTools {
                 .toJson();
     }
 
+    /**
+     * 执行安全相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 判断是否Invisible Injection Char。
+     *
+     * @param ch ch 参数。
+     * @return 如果Invisible Injection Char满足条件则返回 true，否则返回 false。
+     */
     private static boolean isInvisibleInjectionChar(char ch) {
         return ch == '\u200b'
                 || ch == '\u200c'
@@ -154,14 +188,31 @@ public class MemoryTools {
                 || ch == '\u202e';
     }
 
+    /**
+     * 执行threat相关逻辑。
+     *
+     * @param id 标识。
+     * @param regex regex 参数。
+     * @return 返回threat结果。
+     */
     private static MemoryThreat threat(String id, String regex) {
         return new MemoryThreat(id, Pattern.compile(regex, Pattern.CASE_INSENSITIVE));
     }
 
+    /** 承载记忆Threat相关状态和辅助逻辑。 */
     private static class MemoryThreat {
+        /** 记录记忆Threat中的标识。 */
         private final String id;
+
+        /** 记录记忆Threat中的pattern。 */
         private final Pattern pattern;
 
+        /**
+         * 创建记忆Threat实例，并注入运行所需依赖。
+         *
+         * @param id 标识。
+         * @param pattern pattern 参数。
+         */
         private MemoryThreat(String id, Pattern pattern) {
             this.id = id;
             this.pattern = pattern;

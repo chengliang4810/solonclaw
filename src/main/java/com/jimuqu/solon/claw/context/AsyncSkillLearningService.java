@@ -36,18 +36,45 @@ import org.noear.solon.ai.chat.message.AssistantMessage;
 /** 主回复后的异步学习闭环服务。 */
 @RequiredArgsConstructor
 public class AsyncSkillLearningService implements SkillLearningService {
+    /** 注入应用配置，用于异步技能Learning。 */
     private final AppConfig appConfig;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 注入记忆服务，用于调用对应业务能力。 */
     private final MemoryService memoryService;
+
+    /** 注入本地技能服务，用于调用对应业务能力。 */
     private final LocalSkillService localSkillService;
+
+    /** 注入检查点服务，用于调用对应业务能力。 */
     private final CheckpointService checkpointService;
+
+    /** 记录异步技能Learning中的大模型消息网关。 */
     private final LlmGateway llmGateway;
+
+    /** 记录异步技能Learning中的数据库。 */
     private final SqliteDatabase database;
+
+    /** 保存执行器服务执行组件，负责调度异步或定时任务。 */
     private final ExecutorService executorService =
             BoundedExecutorFactory.fixed("async-skill-learning", 1, 64);
+
+    /** 保存auxiliary执行器服务执行组件，负责调度异步或定时任务。 */
     private final ExecutorService auxiliaryExecutorService =
             BoundedExecutorFactory.fixed("async-skill-auxiliary", 2, 16);
 
+    /**
+     * 创建Async技能Learning服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param llmGateway LLM网关参数。
+     */
     public AsyncSkillLearningService(
             AppConfig appConfig,
             SessionRepository sessionRepository,
@@ -65,11 +92,19 @@ public class AsyncSkillLearningService implements SkillLearningService {
                 null);
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
         executorService.shutdownNow();
         auxiliaryExecutorService.shutdownNow();
     }
 
+    /**
+     * 执行调度Post回复Learning相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param reply 回复参数。
+     */
     @Override
     public void schedulePostReplyLearning(
             final SessionRecord session, final GatewayMessage message, final GatewayReply reply)
@@ -83,6 +118,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
 
         executorService.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
@@ -106,6 +142,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
                 });
     }
 
+    /**
+     * 运行Learning。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param toolMessages 工具Messages参数。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     */
     private void runLearning(
             SessionRecord session,
             GatewayMessage message,
@@ -123,6 +167,13 @@ public class AsyncSkillLearningService implements SkillLearningService {
         sessionRepository.setLastLearningAt(session.getSessionId(), learnedAt);
     }
 
+    /**
+     * 执行learn技能相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     */
     private void learnSkill(
             SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint)
             throws Exception {
@@ -165,6 +216,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 执行classifyImprovement相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     * @return 返回classify Improvement结果。
+     */
     private String classifyImprovement(
             SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint) {
         if (llmGateway == null) {
@@ -212,6 +271,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return hasRecentCheckpoint ? "update_existing_skill" : "new_skill";
     }
 
+    /**
+     * 执行次数工具Messages相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回次数工具Messages结果。
+     */
     private int countToolMessages(SessionRecord session) throws Exception {
         int count = 0;
         try {
@@ -227,6 +292,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return count;
     }
 
+    /**
+     * 查找技能。
+     *
+     * @param skillName 技能名称参数。
+     * @return 返回技能结果。
+     */
     private SkillDescriptor findSkill(String skillName) throws Exception {
         List<SkillDescriptor> skills = localSkillService.listSkills(null);
         for (SkillDescriptor descriptor : skills) {
@@ -237,6 +308,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return null;
     }
 
+    /**
+     * 执行infer技能名称相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回infer技能名称结果。
+     */
     private String inferSkillName(SessionRecord session) {
         String base = StrUtil.blankToDefault(session.getTitle(), "learned-workflow").toLowerCase();
         base = base.replaceAll("[^a-z0-9._-]+", "-").replaceAll("-{2,}", "-");
@@ -244,6 +321,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return StrUtil.blankToDefault(base, "learned-workflow");
     }
 
+    /**
+     * 构建技能Content。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     * @return 返回创建好的技能Content。
+     */
     private String buildSkillContent(
             SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint) {
         String modelContent = summarizeSkillWithModel(session, message, hasRecentCheckpoint, null);
@@ -253,6 +338,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return buildFallbackSkillContent(session, message, hasRecentCheckpoint);
     }
 
+    /**
+     * 构建兜底技能Content。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     * @return 返回创建好的兜底技能Content。
+     */
     private String buildFallbackSkillContent(
             SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint) {
         String name = inferSkillName(session);
@@ -286,6 +379,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return buffer.toString();
     }
 
+    /**
+     * 执行补丁Existing技能相关逻辑。
+     *
+     * @param skillName 技能名称参数。
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     */
     private void patchExistingSkill(
             String skillName,
             SessionRecord session,
@@ -344,6 +445,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 执行补丁OrAppend相关逻辑。
+     *
+     * @param skillName 技能名称参数。
+     * @param header header 参数。
+     * @param replacement replacement 参数。
+     * @return 返回patch Or Append结果。
+     */
     private boolean patchOrAppend(String skillName, String header, String replacement) {
         try {
             localSkillService.patchSkill(skillName, header, replacement, null);
@@ -353,6 +462,15 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 追加Missing Sections。
+     *
+     * @param content 待处理内容。
+     * @param progressBullet progressBullet 参数。
+     * @param pitfallBullet pitfallBullet 参数。
+     * @param verificationBullet verificationBullet 参数。
+     * @return 返回Missing Sections结果。
+     */
     private String appendMissingSections(
             String content,
             String progressBullet,
@@ -371,6 +489,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return updated;
     }
 
+    /**
+     * 追加Section。
+     *
+     * @param content 待处理内容。
+     * @param header header 参数。
+     * @param bullet bullet 参数。
+     * @return 返回Section结果。
+     */
     private String appendSection(String content, String header, String bullet) {
         if (content.contains(header)) {
             return content.replace(header, header + "\n" + bullet);
@@ -383,6 +509,15 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return hasRecentCheckpoint && session != null && StrUtil.isNotBlank(session.getTitle());
     }
 
+    /**
+     * 汇总技能With模型。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     * @param existingContent existingContent 参数。
+     * @return 返回summarize技能With模型结果。
+     */
     private String summarizeSkillWithModel(
             SessionRecord session,
             GatewayMessage message,
@@ -420,12 +555,25 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 调用Auxiliary聊天。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @return 返回call Auxiliary Chat结果。
+     */
     private LlmResult callAuxiliaryChat(
             final SessionRecord session, final String systemPrompt, final String userMessage)
             throws Exception {
         Future<LlmResult> future =
                 auxiliaryExecutorService.submit(
                         new Callable<LlmResult>() {
+                            /**
+                             * 执行回调调用并返回结果。
+                             *
+                             * @return 返回call结果。
+                             */
                             @Override
                             public LlmResult call() throws Exception {
                                 return llmGateway.chat(
@@ -443,11 +591,27 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 执行auxiliaryTimeoutSeconds相关逻辑。
+     *
+     * @return 返回auxiliary Timeout Seconds结果。
+     */
     private int auxiliaryTimeoutSeconds() {
         int configured = appConfig.getLearning().getAuxiliaryTimeoutSeconds();
         return configured > 0 ? configured : 60;
     }
 
+    /**
+     * 构建Learning提示词。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     * @param existingContent existingContent 参数。
+     * @param skillName 技能名称参数。
+     * @param description 描述参数。
+     * @return 返回创建好的Learning提示词。
+     */
     private String buildLearningPrompt(
             SessionRecord session,
             GatewayMessage message,
@@ -484,6 +648,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return prompt.toString();
     }
 
+    /**
+     * 规范化模型技能Content。
+     *
+     * @param raw 原始输入值。
+     * @param skillName 技能名称参数。
+     * @param description 描述参数。
+     * @return 返回模型技能Content结果。
+     */
     private String normalizeModelSkillContent(String raw, String skillName, String description) {
         String content = stripMarkdownFence(StrUtil.nullToEmpty(raw).trim());
         if (StrUtil.isBlank(content)) {
@@ -519,6 +691,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return SecretRedactor.redact(normalized.toString(), 20000);
     }
 
+    /**
+     * 判断是否Structured技能Body。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 如果Structured技能Body满足条件则返回 true，否则返回 false。
+     */
     private boolean isStructuredSkillBody(String body) {
         String normalized = "\n" + StrUtil.nullToEmpty(body).replace("\r\n", "\n").trim() + "\n";
         return normalized.contains("\n# 触发条件\n")
@@ -528,6 +706,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
                 && normalized.contains("\n# Verification\n");
     }
 
+    /**
+     * 剥离MarkdownFence。
+     *
+     * @param content 待处理内容。
+     * @return 返回strip Markdown Fence结果。
+     */
     private String stripMarkdownFence(String content) {
         String value = StrUtil.nullToEmpty(content).trim();
         if (!value.startsWith("```")) {
@@ -541,6 +725,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return value;
     }
 
+    /**
+     * 提取Assistant Text。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回Assistant Text结果。
+     */
     private String extractAssistantText(LlmResult result) {
         if (result == null) {
             return "";
@@ -558,10 +748,23 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return StrUtil.nullToEmpty(result.getRawResponse());
     }
 
+    /**
+     * 执行回复安全Excerpt相关逻辑。
+     *
+     * @param ndjson ndjson 参数。
+     * @return 返回reply Safe Excerpt结果。
+     */
     private String replySafeExcerpt(String ndjson) {
         return replySafeExcerpt(ndjson, 400);
     }
 
+    /**
+     * 执行回复安全Excerpt相关逻辑。
+     *
+     * @param ndjson ndjson 参数。
+     * @param limit 最大返回数量。
+     * @return 返回reply Safe Excerpt结果。
+     */
     private String replySafeExcerpt(String ndjson, int limit) {
         String normalized = StrUtil.nullToEmpty(ndjson).replace('\n', ' ').trim();
         if (normalized.length() <= limit) {
@@ -570,6 +773,16 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return SecretRedactor.redact(normalized.substring(0, limit) + "...", limit);
     }
 
+    /**
+     * 写入Improvement Report。
+     *
+     * @param session 会话参数。
+     * @param skillName 技能名称参数。
+     * @param action 操作参数。
+     * @param summary 摘要参数。
+     * @param changedFiles 文件或目录路径参数。
+     * @param needsReview needsReview 参数。
+     */
     private void writeImprovementReport(
             SessionRecord session,
             String skillName,
@@ -604,6 +817,11 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 保存Improvement。
+     *
+     * @param report report 参数。
+     */
     private void saveImprovement(Map<String, Object> report) {
         if (database == null || report == null) {
             return;
@@ -639,10 +857,22 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
     }
 
+    /**
+     * 执行as字符串相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as String结果。
+     */
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();

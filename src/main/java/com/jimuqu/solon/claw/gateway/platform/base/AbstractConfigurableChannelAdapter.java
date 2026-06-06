@@ -114,6 +114,11 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         log.info("[{}:{}] {}", request.getPlatform(), request.getChatId(), request.getText());
     }
 
+    /**
+     * 执行状态Snapshot相关逻辑。
+     *
+     * @return 返回状态Snapshot结果。
+     */
     @Override
     public ChannelStatus statusSnapshot() {
         ChannelStatus status = new ChannelStatus(platformType, isEnabled(), connected, detail);
@@ -208,10 +213,22 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         this.lastErrorMessage = safeStatusText(message);
     }
 
+    /**
+     * 生成安全展示用的状态文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe状态Text结果。
+     */
     private String safeStatusText(String value) {
         return value == null ? null : SecretRedactor.redact(value, 1000);
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param throwable 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     protected String safeError(Throwable throwable) {
         if (throwable == null) {
             return "unknown";
@@ -223,6 +240,12 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         return safeStatusText(message);
     }
 
+    /**
+     * 执行错误类型相关逻辑。
+     *
+     * @param throwable 捕获到的异常。
+     * @return 返回error类型结果。
+     */
     protected String errorType(Throwable throwable) {
         return throwable == null ? "Throwable" : throwable.getClass().getSimpleName();
     }
@@ -256,18 +279,41 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         return true;
     }
 
+    /**
+     * 执行凭据Field相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回凭据Field结果。
+     */
     protected CredentialField credentialField(String path, String value) {
         return new CredentialField(path, value);
     }
 
+    /**
+     * 判断是否Weak凭据Placeholder。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Weak凭据Placeholder满足条件则返回 true，否则返回 false。
+     */
     protected static boolean isWeakCredentialPlaceholder(String value) {
         return SecretValueGuard.isPlaceholderSecret(value);
     }
 
+    /** 承载凭据Field相关状态和辅助逻辑。 */
     protected static class CredentialField {
+        /** 记录凭据Field中的路径。 */
         private final String path;
+
+        /** 记录凭据Field中的值。 */
         private final String value;
 
+        /**
+         * 创建凭据Field实例，并注入运行所需依赖。
+         *
+         * @param path 文件或目录路径。
+         * @param value 待规范化或校验的原始值。
+         */
         private CredentialField(String path, String value) {
             this.path = path == null ? "" : path.trim();
             this.value = value;

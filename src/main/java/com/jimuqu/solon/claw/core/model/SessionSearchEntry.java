@@ -27,9 +27,16 @@ public class SessionSearchEntry {
     /** 聚焦总结。 */
     private String summary;
 
+    /** 记录会话搜索Entry中的运行标识。 */
     private String runId;
+
+    /** 记录会话搜索Entry中的工具名称。 */
     private String toolName;
+
+    /** 记录会话搜索Entry中的渠道。 */
     private String channel;
+
+    /** 记录会话搜索Entry中的score。 */
     private long score;
 
     /** 搜索模式：discovery / scroll / browse。 */

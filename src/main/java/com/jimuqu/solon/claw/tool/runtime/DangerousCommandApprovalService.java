@@ -34,34 +34,69 @@ import org.noear.solon.flow.FlowContext;
 
 /** 危险命令审批服务。 */
 public class DangerousCommandApprovalService {
+    /** 投递模式审批卡片的统一常量值。 */
     public static final String DELIVERY_MODE_APPROVAL_CARD = "dangerous_command_approval_card";
+
+    /** 卡片ACTION键的统一常量值。 */
     public static final String CARD_ACTION_KEY = "solonclaw_action";
+
+    /** 卡片范围键的统一常量值。 */
     public static final String CARD_SCOPE_KEY = "scope";
+
+    /** 卡片审批标识键的统一常量值。 */
     public static final String CARD_APPROVAL_ID_KEY = "approvalId";
+
+    /** 卡片ACTIONAPPROVE的统一常量值。 */
     public static final String CARD_ACTION_APPROVE = "dangerous_approve";
+
+    /** 卡片ACTIONDENY的统一常量值。 */
     public static final String CARD_ACTION_DENY = "dangerous_deny";
 
+    /** 上下文待恢复审批的统一常量值。 */
     private static final String CONTEXT_PENDING_APPROVAL = "_dangerous_command_pending_";
+
+    /** 上下文待恢复审批队列的统一常量值。 */
     private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
             "_dangerous_command_pending_queue_";
+
+    /** 上下文会话APPROVALS的统一常量值。 */
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
+
+    /** 上下文会话YOLO的统一常量值。 */
     private static final String CONTEXT_SESSION_YOLO = "_dangerous_command_session_yolo_";
+
+    /** 上下文ONCEAPPROVALS的统一常量值。 */
     private static final String CONTEXT_ONCE_APPROVALS = "_dangerous_command_once_approvals_";
+
+    /** 当前THREAD审批TTLMILLIS的统一常量值。 */
     private static final long CURRENT_THREAD_APPROVAL_TTL_MILLIS = 30000L;
+
+    /** 当前THREADAPPROVEDCOMMANDS的统一常量值。 */
     private static final ThreadLocal<Map<String, Long>> CURRENT_THREAD_APPROVED_COMMANDS =
             new ThreadLocal<Map<String, Long>>();
+
+    /** 审批选择器PREFIX最小LENGTH的统一常量值。 */
     private static final int APPROVAL_SELECTOR_PREFIX_MIN_LENGTH = 8;
 
+    /** 路径SEPARATOR的统一常量值。 */
     private static final String PATH_SEPARATOR = "[\\\\/]";
+
+    /** 主渠道路径PREFIX的统一常量值。 */
     private static final String HOME_PATH_PREFIX =
             "(?:~|\\$home|\\$\\{home\\}|\\$env:home|\\$env:userprofile|%userprofile%|%homepath%)";
+
+    /** Agent主渠道路径PREFIX的统一常量值。 */
     private static final String AGENT_HOME_PATH_PREFIX =
             "(?:\\$solonclaw_home|\\$\\{solonclaw_home\\}|\\$env:solonclaw_home|%solonclaw_home%|"
                     + "\\$solonclaw_home|\\$\\{solonclaw_home\\}|\\$env:solonclaw_home|%solonclaw_home%)";
+
+    /** 终端角色配置写入TARGET的统一常量值。 */
     private static final String SHELL_PROFILE_WRITE_TARGET =
             HOME_PATH_PREFIX
                     + PATH_SEPARATOR
                     + "\\.(?:bashrc|zshrc|profile|bash_profile|zprofile)\\b";
+
+    /** SENSITIVE写入TARGET的统一常量值。 */
     private static final String SENSITIVE_WRITE_TARGET =
             "(?:/etc/|/dev/sd|"
                     + HOME_PATH_PREFIX
@@ -90,63 +125,119 @@ public class DangerousCommandApprovalService {
                     + AGENT_HOME_PATH_PREFIX
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
+
+    /** PROJECTSENSITIVE写入TARGET的统一常量值。 */
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
             "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|config\\.ya?ml|credentials(?:\\.(?:json|toml|tfrc\\.json))?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|oauth_creds\\.json|token\\.json|pip\\.conf|settings\\.xml|nuget\\.config))";
+
+    /** PowerShellSENSITIVE写入TARGET的统一常量值。 */
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
+
+    /** 凭据PERMISSIONTARGET的统一常量值。 */
     private static final String CREDENTIAL_PERMISSION_TARGET =
             "(?:(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?))";
+
+    /** REMOTE凭据文件TARGET的统一常量值。 */
     private static final String REMOTE_CREDENTIAL_FILE_TARGET =
             "(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|\\.credentials\\.json|\\.anthropic_oauth\\.json|oauth_creds\\.json|client_secrets?\\.json|token\\.json|application_default_credentials\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[A-Za-z0-9_.-]*\\.json|authorized_keys|kubeconfig|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))[\"']?(?:\\s|$|:))";
+
+    /** EXPLICIT凭据文件TARGET的统一常量值。 */
     private static final String EXPLICIT_CREDENTIAL_FILE_TARGET =
             "(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|\\.credentials\\.json|\\.anthropic_oauth\\.json|oauth_creds\\.json|client_secrets?\\.json|token\\.json|application_default_credentials\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[A-Za-z0-9_.-]*\\.json|authorized_keys|kubeconfig|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))[\"']?(?:\\s|$|:))";
+
+    /** 网络凭据文件TARGET的统一常量值。 */
     private static final String NETWORK_CREDENTIAL_FILE_TARGET =
             "(?:\\.env|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|credential|secret|token(?:\\.json)?|auth\\.json|\\.credentials\\.json|\\.anthropic_oauth\\.json|oauth|oauth_creds\\.json|client_secrets?(?:\\.json)?|application_default_credentials\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[A-Za-z0-9_.-]*\\.json|api-?key|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx)|id_(?:rsa|ed25519|ecdsa|dsa))";
+
+    /** PowerShell凭据文件BYTEREAD的统一常量值。 */
     private static final String POWERSHELL_CREDENTIAL_FILE_BYTE_READ =
             "\\[(?:IO|System\\.IO)\\.File\\]::ReadAllBytes\\s*\\(\\s*[\"']?\\S*"
                     + NETWORK_CREDENTIAL_FILE_TARGET
                     + "\\S*[\"']?\\s*\\)";
+
+    /** PowerShell凭据文件文本READ的统一常量值。 */
     private static final String POWERSHELL_CREDENTIAL_FILE_TEXT_READ =
             "\\[(?:IO|System\\.IO)\\.File\\]::ReadAll(?:Text|Lines)\\s*\\(\\s*[\"']?\\S*"
                     + NETWORK_CREDENTIAL_FILE_TARGET
                     + "\\S*[\"']?\\s*\\)";
+
+    /** PowerShell凭据文件ENCODE的统一常量值。 */
     private static final String POWERSHELL_CREDENTIAL_FILE_ENCODE =
             "\\[Convert\\]::ToBase64String\\s*\\(\\s*"
                     + POWERSHELL_CREDENTIAL_FILE_BYTE_READ
                     + "\\s*\\)";
+
+    /** DEBUGARTIFACT输出TARGET的统一常量值。 */
     private static final String DEBUG_ARTIFACT_OUTPUT_TARGET =
             "[\"']?(?:[^\\s\"'`|;&]*[/\\\\])?(?:debug|trace|junit|test-results|test_result|coverage|diagnostic|diagnostics|artifact|artifacts)[A-Za-z0-9_.-]*\\.(?:log|txt|xml|json|ndjson|out)[\"']?";
+
+    /** SENSITIVE环境变量名称的统一常量值。 */
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
+
+    /** SENSITIVEHTTPHEADER名称的统一常量值。 */
     private static final String SENSITIVE_HTTP_HEADER_NAME =
             "(?:authorization|proxy[_.-]?authorization|proxyAuthorization|cookie|(?:x[_.-]?)?api[_.-]?(?:key|token)|x?(?:ApiKey|ApiToken)|apikey|(?:x[_.-]?)?access[_.-]?(?:key|token)|x?(?:AccessKey|AccessToken)|x[_.-]?auth[_.-]?token|x?AuthToken|(?:x[_.-]?)?bearer[_.-]?token|x?BearerToken|(?:x[_.-]?)?secret[_.-]?key|x?SecretKey)";
+
+    /** SENSITIVE请求FIELD名称的统一常量值。 */
     private static final String SENSITIVE_REQUEST_FIELD_NAME =
             "(?:access[_.\\s-]?(?:key|token)|access(?:Key|Token)|refresh[_.\\s-]?token|refreshToken|id[_.\\s-]?token|idToken|auth[_.\\s-]?token|authToken|bearer[_.\\s-]?token|bearerToken|session[_.\\s-]?token|sessionToken|api[_.\\s-]?(?:key|token)|api(?:Key|Token)|token|secret|secret[_.\\s-]?key|secretKey|client[_.\\s-]?secret|clientSecret|private[_.\\s-]?key|privateKey|password|passwd|credential|authorization)";
+
+    /** 命令TAIL的统一常量值。 */
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
+
+    /** BROAD列表ENADDRESS的统一常量值。 */
     private static final String BROAD_LISTEN_ADDRESS = "(?:0\\.0\\.0\\.0|\\[?::\\]?|\\*)";
+
+    /** HARDLINE命令POSITION的统一常量值。 */
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+
+    /** 终端命令START的统一常量值。 */
     private static final String SHELL_COMMAND_START =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
+
+    /** KUBECTL选项PREFIX的统一常量值。 */
     private static final String KUBECTL_OPTION_PREFIX =
             "(?:\\s+(?:--?[A-Za-z0-9-]+)(?:=\\S+|\\s+\\S+)?)*";
+
+    /** 终端级别BACKGROUND的统一常量值。 */
     private static final Pattern SHELL_LEVEL_BACKGROUND = pattern("\\b(?:nohup|disown|setsid)\\b");
+
+    /** DETACHED终端会话的统一常量值。 */
     private static final Pattern DETACHED_TERMINAL_SESSION =
             pattern(
                     "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\b(?![^\\n]*\\s/(?:wait|w)\\b)|(?:^|[;&|\\n])\\s*start(?:\\.exe)?\\s+(?![^\\n]*\\s/(?:wait|w)\\b))");
+
+    /** PowerShellBACKGROUND任务的统一常量值。 */
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
             pattern("\\b(?:start-process|start-job|start-threadjob)\\b");
+
+    /** PowerShellWAITTRUEFLAG的统一常量值。 */
     private static final Pattern POWERSHELL_WAIT_TRUE_FLAG =
             pattern("\\s-wait(?:\\s|$|:(?:\\$?true|1)\\b|=(?:\\$?true|1)\\b)");
+
+    /** PowerShellWAITFALSEFLAG的统一常量值。 */
     private static final Pattern POWERSHELL_WAIT_FALSE_FLAG =
             pattern(
                     "\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b|\\s+(?:\\$?false|0)\\b)");
+
+    /** 内联BACKGROUNDAMP的统一常量值。 */
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
+
+    /** TRAILINGBACKGROUNDAMP的统一常量值。 */
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
+
+    /** PYTHON终端EXECCALL的统一常量值。 */
     private static final Pattern PYTHON_SHELL_EXEC_CALL =
             pattern(
                     "\\b(?:os\\.system|subprocess\\.(?:run|Popen|call|check_call|check_output))\\s*\\(");
+
+    /** 审批选择器token的统一常量值。 */
     private static final Pattern APPROVAL_SELECTOR_TOKEN = Pattern.compile("[A-Za-z0-9_.-]{1,128}");
+
+    /** 命令参数KEYS的统一常量值。 */
     private static final Set<String> COMMAND_ARGUMENT_KEYS =
             Collections.unmodifiableSet(
                     new LinkedHashSet<String>(
@@ -158,6 +249,8 @@ public class DangerousCommandApprovalService {
                                     "script",
                                     "shell",
                                     "shell_command")));
+
+    /** LONGLIVED前台进程正则S的统一常量值。 */
     private static final List<Pattern> LONG_LIVED_FOREGROUND_PATTERNS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -171,6 +264,7 @@ public class DangerousCommandApprovalService {
                             pattern("\\bgunicorn\\b"),
                             pattern("\\bpython(?:3)?\\s+-m\\s+http\\.server\\b")));
 
+    /** RULES的统一常量值。 */
     private static final List<DangerRule> RULES =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -2479,6 +2573,7 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bfs\\.(rm|rmSync|unlink|unlinkSync)\\s*\\("),
                                     ToolNameConstants.EXECUTE_JS)));
 
+    /** HARDLINERULES的统一常量值。 */
     private static final List<DangerRule> HARDLINE_RULES =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -2591,26 +2686,57 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:(?:^|[;&|\\n`])\\s*(?:cmd(?:\\.exe)?\\s+/c\\s+)?(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?)?(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer)\\b|\\bStart-Process\\b(?=[^\\n]*(?:powershell|pwsh|shutdown(?:\\.exe)?))(?=[^\\n]*(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer))[^\\n]*)"),
                                     ToolNameConstants.EXECUTE_SHELL)));
+
+    /** 审批键ALIASES的统一常量值。 */
     private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES = buildApprovalKeyAliases();
 
+    /** 保存global设置仓储集合，维持调用顺序或去重语义。 */
     private final GlobalSettingRepository globalSettingRepository;
+
+    /** 注入应用配置，用于Dangerous命令审批。 */
     private final AppConfig appConfig;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 注入tirith安全服务，用于调用对应业务能力。 */
     private final TirithSecurityService tirithSecurityService;
+
+    /** 保存审批Observers集合，维持调用顺序或去重语义。 */
     private final List<ApprovalObserver> approvalObservers =
             new CopyOnWriteArrayList<ApprovalObserver>();
+
+    /** 记录Dangerous命令审批中的smart审批Judge。 */
     private SmartApprovalJudge smartApprovalJudge;
 
+    /**
+     * 创建Dangerous命令审批服务实例，并注入运行所需依赖。
+     *
+     * @param globalSettingRepository globalSetting仓储依赖。
+     */
     public DangerousCommandApprovalService(GlobalSettingRepository globalSettingRepository) {
         this(globalSettingRepository, null, null, null);
     }
 
+    /**
+     * 创建Dangerous命令审批服务实例，并注入运行所需依赖。
+     *
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public DangerousCommandApprovalService(
             GlobalSettingRepository globalSettingRepository,
             SecurityPolicyService securityPolicyService) {
         this(globalSettingRepository, null, securityPolicyService, null);
     }
 
+    /**
+     * 创建Dangerous命令审批服务实例，并注入运行所需依赖。
+     *
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param appConfig 应用运行配置。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public DangerousCommandApprovalService(
             GlobalSettingRepository globalSettingRepository,
             AppConfig appConfig,
@@ -2618,6 +2744,14 @@ public class DangerousCommandApprovalService {
         this(globalSettingRepository, appConfig, securityPolicyService, null);
     }
 
+    /**
+     * 创建Dangerous命令审批服务实例，并注入运行所需依赖。
+     *
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param appConfig 应用运行配置。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     */
     public DangerousCommandApprovalService(
             GlobalSettingRepository globalSettingRepository,
             AppConfig appConfig,
@@ -2629,26 +2763,51 @@ public class DangerousCommandApprovalService {
         this.tirithSecurityService = tirithSecurityService;
     }
 
+    /**
+     * 写入Smart审批Judge。
+     *
+     * @param smartApprovalJudge smart审批Judge参数。
+     */
     public void setSmartApprovalJudge(SmartApprovalJudge smartApprovalJudge) {
         this.smartApprovalJudge = smartApprovalJudge;
     }
 
+    /**
+     * 判断是否存在Smart审批Judge。
+     *
+     * @return 如果Smart审批Judge满足条件则返回 true，否则返回 false。
+     */
     public boolean hasSmartApprovalJudge() {
         return smartApprovalJudge != null;
     }
 
+    /**
+     * 追加审批Observer。
+     *
+     * @param observer observer 参数。
+     */
     public void addApprovalObserver(ApprovalObserver observer) {
         if (observer != null && !approvalObservers.contains(observer)) {
             approvalObservers.add(observer);
         }
     }
 
+    /**
+     * 移除审批Observer。
+     *
+     * @param observer observer 参数。
+     */
     public void removeApprovalObserver(ApprovalObserver observer) {
         if (observer != null) {
             approvalObservers.remove(observer);
         }
     }
 
+    /**
+     * 构建Interceptor。
+     *
+     * @return 返回创建好的Interceptor。
+     */
     public HITLInterceptor buildInterceptor() {
         return new HITLInterceptor()
                 .onTool(
@@ -2732,11 +2891,23 @@ public class DangerousCommandApprovalService {
                                 evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args));
     }
 
+    /**
+     * 读取Pending审批。
+     *
+     * @param session 会话参数。
+     * @return 返回读取到的Pending审批。
+     */
     public PendingApproval getPendingApproval(AgentSession session) {
         List<PendingApproval> pendingApprovals = listPendingApprovals(session);
         return pendingApprovals.isEmpty() ? null : pendingApprovals.get(0);
     }
 
+    /**
+     * 列出Pending Approvals。
+     *
+     * @param session 会话参数。
+     * @return 返回Pending Approvals列表。
+     */
     public List<PendingApproval> listPendingApprovals(AgentSession session) {
         if (session == null) {
             return new ArrayList<PendingApproval>();
@@ -2748,16 +2919,35 @@ public class DangerousCommandApprovalService {
         return pending;
     }
 
+    /**
+     * 执行select待恢复审批相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param selector 浏览器元素选择器。
+     * @return 返回select Pending审批结果。
+     */
     public PendingApproval selectPendingApproval(AgentSession session, String selector) {
         return findPendingApproval(session, selector);
     }
 
+    /**
+     * 读取Pending审批。
+     *
+     * @param sessionRecord 会话记录参数。
+     * @return 返回读取到的Pending审批。
+     */
     public PendingApproval getPendingApproval(
             com.jimuqu.solon.claw.core.model.SessionRecord sessionRecord) {
         List<PendingApproval> pendingApprovals = listPendingApprovals(sessionRecord);
         return pendingApprovals.isEmpty() ? null : pendingApprovals.get(0);
     }
 
+    /**
+     * 列出Pending Approvals。
+     *
+     * @param sessionRecord 会话记录参数。
+     * @return 返回Pending Approvals列表。
+     */
     public List<PendingApproval> listPendingApprovals(
             com.jimuqu.solon.claw.core.model.SessionRecord sessionRecord) {
         if (sessionRecord == null || StrUtil.isBlank(sessionRecord.getAgentSnapshotJson())) {
@@ -2776,11 +2966,28 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 创建审批通过决策。
+     *
+     * @param session 会话参数。
+     * @param scope scope 参数。
+     * @param approver approver 参数。
+     * @return 返回approve结果。
+     */
     public boolean approve(AgentSession session, ApprovalScope scope, String approver)
             throws Exception {
         return approve(session, null, scope, approver);
     }
 
+    /**
+     * 创建审批通过决策。
+     *
+     * @param session 会话参数。
+     * @param selector 浏览器元素选择器。
+     * @param scope scope 参数。
+     * @param approver approver 参数。
+     * @return 返回approve结果。
+     */
     public boolean approve(
             AgentSession session, String selector, ApprovalScope scope, String approver)
             throws Exception {
@@ -2822,6 +3029,14 @@ public class DangerousCommandApprovalService {
         return true;
     }
 
+    /**
+     * 执行approve全部相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param scope scope 参数。
+     * @param approver approver 参数。
+     * @return 返回approve全部结果。
+     */
     public int approveAll(AgentSession session, ApprovalScope scope, String approver)
             throws Exception {
         ApprovalScope effectiveScope = scope == null ? ApprovalScope.ONCE : scope;
@@ -2836,6 +3051,15 @@ public class DangerousCommandApprovalService {
         return approved;
     }
 
+    /**
+     * 存储待恢复审批。
+     *
+     * @param session 会话参数。
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @param description 描述参数。
+     * @param command 待执行或解析的命令文本。
+     */
     public void storePendingApproval(
             AgentSession session,
             String toolName,
@@ -2851,6 +3075,16 @@ public class DangerousCommandApprovalService {
                 command);
     }
 
+    /**
+     * 存储待恢复审批。
+     *
+     * @param session 会话参数。
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @param patternKeys patternKeys 参数。
+     * @param description 描述参数。
+     * @param command 待执行或解析的命令文本。
+     */
     public void storePendingApproval(
             AgentSession session,
             String toolName,
@@ -2874,6 +3108,13 @@ public class DangerousCommandApprovalService {
         notifyApprovalRequest(session, toPendingApproval(pendingMap));
     }
 
+    /**
+     * 追加会话审批。
+     *
+     * @param session 会话参数。
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     */
     public void addSessionApproval(AgentSession session, String toolName, String patternKey)
             throws Exception {
         if (session == null || StrUtil.hasBlank(toolName, patternKey)) {
@@ -2883,6 +3124,12 @@ public class DangerousCommandApprovalService {
         session.updateSnapshot();
     }
 
+    /**
+     * 追加Always审批。
+     *
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     */
     public void addAlwaysApproval(String toolName, String patternKey) throws Exception {
         if (StrUtil.hasBlank(toolName, patternKey)) {
             return;
@@ -2890,10 +3137,25 @@ public class DangerousCommandApprovalService {
         addAlwaysApproval(approvalPattern(toolName, patternKey));
     }
 
+    /**
+     * 执行reject相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param approver approver 参数。
+     * @return 返回reject结果。
+     */
     public boolean reject(AgentSession session, String approver) {
         return reject(session, null, approver);
     }
 
+    /**
+     * 执行reject相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param selector 浏览器元素选择器。
+     * @param approver approver 参数。
+     * @return 返回reject结果。
+     */
     public boolean reject(AgentSession session, String selector, String approver) {
         PendingApproval pending = findPendingApproval(session, selector);
         if (pending == null) {
@@ -2912,6 +3174,13 @@ public class DangerousCommandApprovalService {
         return true;
     }
 
+    /**
+     * 执行reject全部相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param approver approver 参数。
+     * @return 返回reject全部结果。
+     */
     public int rejectAll(AgentSession session, String approver) {
         List<PendingApproval> pendingApprovals = listPendingApprovals(session);
         int rejected = 0;
@@ -2924,6 +3193,13 @@ public class DangerousCommandApprovalService {
         return rejected;
     }
 
+    /**
+     * 执行detect相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @return 返回detect结果。
+     */
     public DetectionResult detect(String toolName, String code) {
         String normalized = normalize(code);
         if (StrUtil.isBlank(normalized)) {
@@ -2951,6 +3227,13 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行detect命令路径For审批相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param normalized normalized 参数。
+     * @return 返回detect命令路径For审批结果。
+     */
     private DetectionResult detectCommandPathForApproval(String toolName, String normalized) {
         if (!isCommandSecurityTool(toolName)) {
             return null;
@@ -2971,6 +3254,12 @@ public class DangerousCommandApprovalService {
         return result;
     }
 
+    /**
+     * 判断是否命令安全工具。
+     *
+     * @param toolName 工具名称。
+     * @return 如果命令安全工具满足条件则返回 true，否则返回 false。
+     */
     private boolean isCommandSecurityTool(String toolName) {
         return ToolNameConstants.EXECUTE_SHELL.equals(toolName)
                 || ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
@@ -2978,6 +3267,13 @@ public class DangerousCommandApprovalService {
                 || ToolNameConstants.EXECUTE_CODE.equals(toolName);
     }
 
+    /**
+     * 执行detectHardline相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @return 返回detect Hardline结果。
+     */
     public DetectionResult detectHardline(String toolName, String code) {
         String normalized = normalize(code);
         if (StrUtil.isBlank(normalized)) {
@@ -3024,6 +3320,13 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行detectHardline命令URL相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param normalized normalized 参数。
+     * @return 返回detect Hardline命令URL结果。
+     */
     private DetectionResult detectHardlineCommandUrl(String toolName, String normalized) {
         if (securityPolicyService == null
                 || (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)
@@ -3049,6 +3352,12 @@ public class DangerousCommandApprovalService {
         return result;
     }
 
+    /**
+     * 判断是否Hardline Allowlisted。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 如果Hardline Allowlisted满足条件则返回 true，否则返回 false。
+     */
     private boolean isHardlineAllowlisted(DetectionResult result) {
         if (result == null || appConfig == null || appConfig.getSecurity() == null) {
             return false;
@@ -3075,6 +3384,13 @@ public class DangerousCommandApprovalService {
         return false;
     }
 
+    /**
+     * 执行前台进程BackgroundGuidance相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @return 返回foreground Background Guidance结果。
+     */
     public String foregroundBackgroundGuidance(String toolName, String code) {
         String normalized = normalize(code);
         if (StrUtil.isBlank(normalized) || looksLikeHelpOrVersionCommand(normalized)) {
@@ -3127,6 +3443,12 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 判断是否Power Shell Background Launch。
+     *
+     * @param normalized normalized 参数。
+     * @return 如果Power Shell Background Launch满足条件则返回 true，否则返回 false。
+     */
     private boolean isPowerShellBackgroundLaunch(String normalized) {
         if (!POWERSHELL_BACKGROUND_JOB.matcher(normalized).find()) {
             return false;
@@ -3138,6 +3460,11 @@ public class DangerousCommandApprovalService {
                 || !POWERSHELL_WAIT_TRUE_FLAG.matcher(normalized).find();
     }
 
+    /**
+     * 执行审批策略摘要相关逻辑。
+     *
+     * @return 返回审批策略Summary结果。
+     */
     public Map<String, Object> approvalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("mode", approvalMode());
@@ -3236,6 +3563,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行hardline策略摘要相关逻辑。
+     *
+     * @return 返回hardline策略Summary结果。
+     */
     public Map<String, Object> hardlinePolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("ruleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
@@ -3279,6 +3611,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行hardlineAllowlist摘要相关逻辑。
+     *
+     * @return 返回hardline Allowlist Summary结果。
+     */
     private List<String> hardlineAllowlistSummary() {
         if (appConfig == null || appConfig.getSecurity() == null) {
             return Collections.emptyList();
@@ -3290,6 +3627,11 @@ public class DangerousCommandApprovalService {
         return new ArrayList<String>(configured);
     }
 
+    /**
+     * 执行smart审批策略摘要相关逻辑。
+     *
+     * @return 返回smart审批策略Summary结果。
+     */
     public Map<String, Object> smartApprovalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         boolean smartMode = "smart".equals(approvalMode());
@@ -3319,6 +3661,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行tirith审批策略摘要相关逻辑。
+     *
+     * @return 返回tirith审批策略Summary结果。
+     */
     public Map<String, Object> tirithApprovalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("scannerConfigured", Boolean.valueOf(tirithSecurityService != null));
@@ -3340,6 +3687,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行定时任务审批策略摘要相关逻辑。
+     *
+     * @return 返回定时任务审批策略Summary结果。
+     */
     public Map<String, Object> cronApprovalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         String mode = cronApprovalMode();
@@ -3373,6 +3725,12 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行定时任务默认决策相关逻辑。
+     *
+     * @param mode 模式参数。
+     * @return 返回定时任务默认Decision结果。
+     */
     private String cronDefaultDecision(String mode) {
         if ("approve".equals(mode) || "bypass".equals(mode)) {
             return mode;
@@ -3383,6 +3741,11 @@ public class DangerousCommandApprovalService {
         return "deny";
     }
 
+    /**
+     * 执行定时任务审批范围相关逻辑。
+     *
+     * @return 返回定时任务审批范围结果。
+     */
     private String cronApprovalScope() {
         String scope =
                 appConfig == null || appConfig.getSecurity() == null
@@ -3392,6 +3755,11 @@ public class DangerousCommandApprovalService {
         return "global".equals(scope) || "session".equals(scope) ? scope : "job";
     }
 
+    /**
+     * 执行子Agent审批策略摘要相关逻辑。
+     *
+     * @return 返回subagent审批策略Summary结果。
+     */
     public Map<String, Object> subagentApprovalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         boolean autoApprove = isSubagentAutoApproveEnabled();
@@ -3414,6 +3782,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行斜杠命令Confirm策略摘要相关逻辑。
+     *
+     * @return 返回slash Confirm策略Summary结果。
+     */
     public Map<String, Object> slashConfirmPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("commands", Arrays.asList("/approve", "/deny"));
@@ -3474,6 +3847,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行审批卡片策略摘要相关逻辑。
+     *
+     * @return 返回审批Card策略Summary结果。
+     */
     public Map<String, Object> approvalCardPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("deliveryMode", DELIVERY_MODE_APPROVAL_CARD);
@@ -3518,6 +3896,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行审批审计策略摘要相关逻辑。
+     *
+     * @return 返回审批审计策略Summary结果。
+     */
     public Map<String, Object> approvalAuditPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("observerCount", Integer.valueOf(approvalObservers.size()));
@@ -3549,6 +3932,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行MCPReload策略摘要相关逻辑。
+     *
+     * @return 返回MCP Reload策略Summary结果。
+     */
     public Map<String, Object> mcpReloadPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         boolean confirmRequired =
@@ -3575,6 +3963,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行审批生命周期策略摘要相关逻辑。
+     *
+     * @return 返回审批生命周期策略Summary结果。
+     */
     public Map<String, Object> approvalLifecyclePolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
@@ -3613,6 +4006,11 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 执行终端防护策略摘要相关逻辑。
+     *
+     * @return 返回终端防护策略Summary结果。
+     */
     public Map<String, Object> terminalGuardrailPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("backgroundShellWrappersBlocked", Arrays.asList("nohup", "disown", "setsid"));
@@ -3665,6 +4063,13 @@ public class DangerousCommandApprovalService {
         return summary;
     }
 
+    /**
+     * 构建投递Extras。
+     *
+     * @param platform 平台参数。
+     * @param pending 待恢复参数。
+     * @return 返回创建好的投递Extras。
+     */
     public Map<String, Object> buildDeliveryExtras(PlatformType platform, PendingApproval pending) {
         if ((platform != PlatformType.FEISHU && platform != PlatformType.QQBOT)
                 || pending == null) {
@@ -3681,6 +4086,13 @@ public class DangerousCommandApprovalService {
         return extras;
     }
 
+    /**
+     * 判断是否会话Approved。
+     *
+     * @param session 会话参数。
+     * @param patternKey pattern键标识或键值。
+     * @return 如果会话Approved满足条件则返回 true，否则返回 false。
+     */
     public boolean isSessionApproved(AgentSession session, String patternKey) {
         if (session == null || StrUtil.isBlank(patternKey)) {
             return false;
@@ -3688,6 +4100,15 @@ public class DangerousCommandApprovalService {
         return containsPattern(loadSessionApprovals(session.getContext()), patternKey);
     }
 
+    /**
+     * 判断是否会话Approved。
+     *
+     * @param session 会话参数。
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @param command 待执行或解析的命令文本。
+     * @return 如果会话Approved满足条件则返回 true，否则返回 false。
+     */
     public boolean isSessionApproved(
             AgentSession session, String toolName, String patternKey, String command) {
         if (session == null || StrUtil.hasBlank(toolName, patternKey)) {
@@ -3698,6 +4119,12 @@ public class DangerousCommandApprovalService {
                 || approvals.contains(approvalKey(toolName, patternKey, normalize(command)));
     }
 
+    /**
+     * 判断是否Always Approved。
+     *
+     * @param patternKey pattern键标识或键值。
+     * @return 如果Always Approved满足条件则返回 true，否则返回 false。
+     */
     public boolean isAlwaysApproved(String patternKey) {
         if (StrUtil.isBlank(patternKey)) {
             return false;
@@ -3705,6 +4132,14 @@ public class DangerousCommandApprovalService {
         return containsPattern(loadAlwaysApprovedPatterns(), patternKey);
     }
 
+    /**
+     * 判断是否Always Approved。
+     *
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @param command 待执行或解析的命令文本。
+     * @return 如果Always Approved满足条件则返回 true，否则返回 false。
+     */
     public boolean isAlwaysApproved(String toolName, String patternKey, String command) {
         if (StrUtil.hasBlank(toolName, patternKey)) {
             return false;
@@ -3714,6 +4149,13 @@ public class DangerousCommandApprovalService {
                 || approvals.contains(approvalKey(toolName, patternKey, normalize(command)));
     }
 
+    /**
+     * 消费当前Thread审批。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回consume当前Thread审批结果。
+     */
     public static boolean consumeCurrentThreadApproval(String toolName, String command) {
         Map<String, Long> approvals = CURRENT_THREAD_APPROVED_COMMANDS.get();
         if (approvals == null || approvals.isEmpty()) {
@@ -3728,6 +4170,12 @@ public class DangerousCommandApprovalService {
         return expiresAt != null && expiresAt.longValue() >= System.currentTimeMillis();
     }
 
+    /**
+     * 列出会话Approvals。
+     *
+     * @param session 会话参数。
+     * @return 返回会话Approvals列表。
+     */
     public List<String> listSessionApprovals(AgentSession session) {
         if (session == null) {
             return new ArrayList<String>();
@@ -3735,10 +4183,21 @@ public class DangerousCommandApprovalService {
         return new ArrayList<String>(loadSessionApprovals(session.getContext()));
     }
 
+    /**
+     * 列出Always Approvals。
+     *
+     * @return 返回Always Approvals列表。
+     */
     public List<String> listAlwaysApprovals() {
         return new ArrayList<String>(loadAlwaysApprovedPatterns());
     }
 
+    /**
+     * 执行revokeAlways审批相关逻辑。
+     *
+     * @param approvalPattern 审批Pattern参数。
+     * @return 返回revoke Always审批结果。
+     */
     public boolean revokeAlwaysApproval(String approvalPattern) throws Exception {
         String normalized = cleanApprovalValue(approvalPattern);
         if (StrUtil.isBlank(normalized)) {
@@ -3757,6 +4216,11 @@ public class DangerousCommandApprovalService {
         return true;
     }
 
+    /**
+     * 清理会话Approvals。
+     *
+     * @param session 会话参数。
+     */
     public void clearSessionApprovals(AgentSession session) throws Exception {
         if (session == null) {
             return;
@@ -3769,22 +4233,47 @@ public class DangerousCommandApprovalService {
         session.updateSnapshot();
     }
 
+    /**
+     * 启用会话Yolo。
+     *
+     * @param session 会话参数。
+     * @return 返回会话Yolo结果。
+     */
     public boolean enableSessionYolo(AgentSession session) throws Exception {
         return setSessionYolo(session, true);
     }
 
+    /**
+     * 禁用会话Yolo。
+     *
+     * @param session 会话参数。
+     * @return 返回会话Yolo结果。
+     */
     public boolean disableSessionYolo(AgentSession session) throws Exception {
         return setSessionYolo(session, false);
     }
 
+    /**
+     * 执行toggle会话Yolo相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回toggle会话Yolo结果。
+     */
     public boolean toggleSessionYolo(AgentSession session) throws Exception {
         return setSessionYolo(session, !isSessionYoloEnabled(session));
     }
 
+    /**
+     * 判断是否会话Yolo 启用。
+     *
+     * @param session 会话参数。
+     * @return 如果会话Yolo 启用满足条件则返回 true，否则返回 false。
+     */
     public boolean isSessionYoloEnabled(AgentSession session) {
         return session != null && truthy(session.getContext().get(CONTEXT_SESSION_YOLO));
     }
 
+    /** 清理Always Approvals。 */
     public void clearAlwaysApprovals() throws Exception {
         if (globalSettingRepository != null) {
             globalSettingRepository.set(
@@ -3793,6 +4282,12 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 执行命令From卡片Action载荷相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @return 返回命令From Card Action Payload结果。
+     */
     public static String commandFromCardActionPayload(Object raw) {
         Map<?, ?> map = raw instanceof Map ? (Map<?, ?>) raw : parseStaticMap(raw);
         if (map == null) {
@@ -3822,12 +4317,24 @@ public class DangerousCommandApprovalService {
         return StrUtil.isBlank(approvalId) ? "/approve" : "/approve " + approvalId;
     }
 
+    /**
+     * 生成安全展示用的卡片token。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Card token结果。
+     */
     private static String safeCardToken(Object value) {
         return SecretRedactor.stripDisplayControls(
                         TerminalAnsiSanitizer.stripAnsi(stringValueStatic(value)))
                 .trim();
     }
 
+    /**
+     * 生成安全展示用的审批选择器token。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe审批Selector token结果。
+     */
     public static String safeApprovalSelectorToken(Object value) {
         String token = safeCardToken(value);
         if (StrUtil.isBlank(token)) {
@@ -3839,10 +4346,27 @@ public class DangerousCommandApprovalService {
         return token.equals(SecretRedactor.redact(token, token.length() + 128)) ? token : null;
     }
 
+    /**
+     * 执行evaluate相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate结果。
+     */
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
         return evaluateCommand(trace, toolName, toolName, codeArg(args));
     }
 
+    /**
+     * 执行evaluateAlias相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param actualToolName actual工具名称参数。
+     * @param canonicalToolName canonical工具名称参数。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate Alias结果。
+     */
     private String evaluateAlias(
             ReActTrace trace,
             String actualToolName,
@@ -3851,22 +4375,50 @@ public class DangerousCommandApprovalService {
         return evaluateCommand(trace, actualToolName, canonicalToolName, codeArg(args));
     }
 
+    /**
+     * 执行codeArg相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回code Arg结果。
+     */
     private String codeArg(Map<String, Object> args) {
         return commandLikeArg(args);
     }
 
+    /**
+     * 执行evaluate终端工具相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate终端工具结果。
+     */
     private String evaluateTerminalTool(ReActTrace trace, Map<String, Object> args) {
         String command = commandLikeArg(args);
         return evaluateCommand(
                 trace, ToolNameConstants.TERMINAL, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
+    /**
+     * 执行evaluate终端Alias相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param actualToolName actual工具名称参数。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate终端Alias结果。
+     */
     private String evaluateTerminalAlias(
             ReActTrace trace, String actualToolName, Map<String, Object> args) {
         String command = commandLikeArg(args);
         return evaluateCommand(trace, actualToolName, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
+    /**
+     * 执行evaluate进程工具相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate进程工具结果。
+     */
     private String evaluateProcessTool(ReActTrace trace, Map<String, Object> args) {
         if (args == null) {
             return null;
@@ -3885,10 +4437,23 @@ public class DangerousCommandApprovalService {
                 trace, ToolNameConstants.PROCESS, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
+    /**
+     * 执行命令LikeArg相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回命令Like Arg结果。
+     */
     private String commandLikeArg(Map<String, Object> args) {
         return commandLikeArg(args, 0);
     }
 
+    /**
+     * 执行命令LikeArg相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @param depth depth 参数。
+     * @return 返回命令Like Arg结果。
+     */
     private String commandLikeArg(Object raw, int depth) {
         if (raw == null || depth > 6) {
             return null;
@@ -3944,6 +4509,13 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行命令值To字符串相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @param depth depth 参数。
+     * @return 返回命令Value To String结果。
+     */
     private String commandValueToString(Object raw, int depth) {
         if (raw == null) {
             return null;
@@ -4009,6 +4581,13 @@ public class DangerousCommandApprovalService {
         return commandLikeArg(raw, depth + 1);
     }
 
+    /**
+     * 执行evaluate消息网关Call工具相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate消息网关Call工具结果。
+     */
     private String evaluateGatewayCallTool(ReActTrace trace, Map<String, Object> args) {
         String toolName = gatewayToolName(args);
         if (StrUtil.isBlank(toolName)) {
@@ -4049,6 +4628,12 @@ public class DangerousCommandApprovalService {
         return result;
     }
 
+    /**
+     * 执行规范消息网关工具名称相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @return 返回规范消息网关工具名称结果。
+     */
     private String canonicalGatewayToolName(String toolName) {
         String normalized = StrUtil.nullToEmpty(toolName).trim();
         String lower = normalized.toLowerCase(Locale.ROOT);
@@ -4187,6 +4772,12 @@ public class DangerousCommandApprovalService {
         return lower;
     }
 
+    /**
+     * 执行消息网关工具名称相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回消息网关工具名称结果。
+     */
     private String gatewayToolName(Map<String, Object> args) {
         if (args == null) {
             return "";
@@ -4201,6 +4792,12 @@ public class DangerousCommandApprovalService {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行消息网关工具参数相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回消息网关工具参数结果。
+     */
     @SuppressWarnings("unchecked")
     private GatewayToolArgsResult gatewayToolArgs(Map<String, Object> args) {
         if (args == null) {
@@ -4240,6 +4837,12 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 判断是否消息网关安全工具。
+     *
+     * @param toolName 工具名称。
+     * @return 如果消息网关安全工具满足条件则返回 true，否则返回 false。
+     */
     private boolean isGatewaySecurityTool(String toolName) {
         return ToolNameConstants.EXECUTE_SHELL.equals(toolName)
                 || ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
@@ -4251,6 +4854,13 @@ public class DangerousCommandApprovalService {
                 || isUrlSecurityTool(toolName);
     }
 
+    /**
+     * 执行阻断Malformed消息网关工具参数相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @param parsedArgs parsedArgs 参数。
+     */
     private void blockMalformedGatewayToolArgs(
             ReActTrace trace, String toolName, GatewayToolArgsResult parsedArgs) {
         if (trace == null) {
@@ -4269,6 +4879,12 @@ public class DangerousCommandApprovalService {
         persistTraceSnapshot(trace);
     }
 
+    /**
+     * 判断是否文件安全工具。
+     *
+     * @param toolName 工具名称。
+     * @return 如果文件安全工具满足条件则返回 true，否则返回 false。
+     */
     private boolean isFileSecurityTool(String toolName) {
         return ToolNameConstants.FILE_READ.equals(toolName)
                 || ToolNameConstants.FILE_WRITE.equals(toolName)
@@ -4277,6 +4893,12 @@ public class DangerousCommandApprovalService {
                 || ToolNameConstants.PATCH.equals(toolName);
     }
 
+    /**
+     * 判断是否URL安全工具。
+     *
+     * @param toolName 工具名称。
+     * @return 如果URL安全工具满足条件则返回 true，否则返回 false。
+     */
     private boolean isUrlSecurityTool(String toolName) {
         return ToolNameConstants.WEBFETCH.equals(toolName)
                 || ToolNameConstants.WEBSEARCH.equals(toolName)
@@ -4284,6 +4906,13 @@ public class DangerousCommandApprovalService {
                 || ToolNameConstants.BROWSER.equals(toolName);
     }
 
+    /**
+     * 清理消息网关Inner Decision After审批。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @param result 结果响应或执行结果。
+     */
     private void clearGatewayInnerDecisionAfterApproval(
             ReActTrace trace, String toolName, String result) {
         if (trace == null
@@ -4297,6 +4926,15 @@ public class DangerousCommandApprovalService {
         trace.getContext().remove(HITL.LAST_INTERVENED);
     }
 
+    /**
+     * 执行evaluate命令相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param approvalToolName 审批工具名称参数。
+     * @param ruleToolName rule工具名称参数。
+     * @param code code 参数。
+     * @return 返回evaluate命令结果。
+     */
     private String evaluateCommand(
             ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
         DetectionResult hardline = detectHardline(ruleToolName, code);
@@ -4309,6 +4947,14 @@ public class DangerousCommandApprovalService {
         return evaluateCommandWithoutHardline(trace, approvalToolName, ruleToolName, code);
     }
 
+    /**
+     * 执行evaluateCode命令相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param approvalToolName 审批工具名称参数。
+     * @param code code 参数。
+     * @return 返回evaluate Code命令结果。
+     */
     private String evaluateCodeCommand(ReActTrace trace, String approvalToolName, String code) {
         DetectionResult hardline = detectHardline(ToolNameConstants.EXECUTE_PYTHON, code);
         if (hardline != null) {
@@ -4321,6 +4967,15 @@ public class DangerousCommandApprovalService {
                 trace, approvalToolName, ToolNameConstants.EXECUTE_PYTHON, code);
     }
 
+    /**
+     * 执行evaluate命令WithoutHardline相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param approvalToolName 审批工具名称参数。
+     * @param ruleToolName rule工具名称参数。
+     * @param code code 参数。
+     * @return 返回evaluate命令Without Hardline结果。
+     */
     private String evaluateCommandWithoutHardline(
             ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
         String approvalMode = approvalMode();
@@ -4433,6 +5088,15 @@ public class DangerousCommandApprovalService {
         return buildPendingMessage(approvalToolName, detection, code);
     }
 
+    /**
+     * 执行smartApprove相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @param detection detection 参数。
+     * @param context 当前请求或运行上下文。
+     * @return 返回smart Approve结果。
+     */
     private SmartApprovalDecision smartApprove(
             String toolName, String code, DetectionResult detection, FlowContext context) {
         if (smartApprovalJudge == null || detection == null) {
@@ -4453,6 +5117,13 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 构建Smart Denied消息。
+     *
+     * @param detection detection 参数。
+     * @param decision 决策参数。
+     * @return 返回创建好的Smart Denied消息。
+     */
     private String buildSmartDeniedMessage(
             DetectionResult detection, SmartApprovalDecision decision) {
         String description =
@@ -4470,6 +5141,14 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    /**
+     * 构建Strict Denied消息。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @param code code 参数。
+     * @return 返回创建好的Strict Denied消息。
+     */
     private String buildStrictDeniedMessage(
             String toolName, DetectionResult detection, String code) {
         StringBuilder buffer = new StringBuilder();
@@ -4486,6 +5165,12 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    /**
+     * 追加Once审批。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param approvalKey 审批键标识或键值。
+     */
     private void addOnceApproval(FlowContext context, String approvalKey) {
         if (context == null || StrUtil.isBlank(approvalKey)) {
             return;
@@ -4495,6 +5180,13 @@ public class DangerousCommandApprovalService {
         context.put(CONTEXT_ONCE_APPROVALS, new ArrayList<String>(approvals));
     }
 
+    /**
+     * 消费Once审批。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param approvalKey 审批键标识或键值。
+     * @return 返回consume Once审批结果。
+     */
     private boolean consumeOnceApproval(FlowContext context, String approvalKey) {
         if (context == null || StrUtil.isBlank(approvalKey)) {
             return false;
@@ -4511,6 +5203,12 @@ public class DangerousCommandApprovalService {
         return consumed;
     }
 
+    /**
+     * 加载Once Approvals。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回Once Approvals结果。
+     */
     @SuppressWarnings("unchecked")
     private Set<String> loadOnceApprovals(FlowContext context) {
         Set<String> approvals = new LinkedHashSet<String>();
@@ -4546,6 +5244,13 @@ public class DangerousCommandApprovalService {
         return approvals;
     }
 
+    /**
+     * 执行detectCombined相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @return 返回detect Combined结果。
+     */
     private DetectionResult detectCombined(String toolName, String code) {
         DetectionResult local = detect(toolName, code);
         TirithSecurityService.ScanResult scan = scanWithTirith(toolName, code);
@@ -4573,6 +5278,13 @@ public class DangerousCommandApprovalService {
         return combined;
     }
 
+    /**
+     * 执行scanWithTirith相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param code code 参数。
+     * @return 返回scan With Tirith结果。
+     */
     private TirithSecurityService.ScanResult scanWithTirith(String toolName, String code) {
         if (tirithSecurityService == null) {
             return null;
@@ -4580,6 +5292,12 @@ public class DangerousCommandApprovalService {
         return tirithSecurityService.checkCommandSecurityForTool(toolName, code);
     }
 
+    /**
+     * 执行tirithPatternKeys相关逻辑。
+     *
+     * @param scan scan 参数。
+     * @return 返回tirith Pattern Keys结果。
+     */
     private List<String> tirithPatternKeys(TirithSecurityService.ScanResult scan) {
         List<String> keys = new ArrayList<String>();
         if (scan != null) {
@@ -4595,6 +5313,12 @@ public class DangerousCommandApprovalService {
         return keys;
     }
 
+    /**
+     * 执行tirithDescription相关逻辑。
+     *
+     * @param scan scan 参数。
+     * @return 返回tirith Description结果。
+     */
     private String tirithDescription(TirithSecurityService.ScanResult scan) {
         StringBuilder buffer = new StringBuilder("Security scan");
         if (scan != null && StrUtil.isNotBlank(scan.getAction())) {
@@ -4625,6 +5349,12 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    /**
+     * 执行tirithFindingLabel相关逻辑。
+     *
+     * @param finding finding 参数。
+     * @return 返回tirith Finding Label结果。
+     */
     private String tirithFindingLabel(TirithSecurityService.Finding finding) {
         if (finding == null) {
             return "";
@@ -4639,6 +5369,12 @@ public class DangerousCommandApprovalService {
         return StrUtil.nullToEmpty(label).trim();
     }
 
+    /**
+     * 执行unique相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回unique结果。
+     */
     private List<String> unique(Collection<String> values) {
         List<String> result = new ArrayList<String>();
         if (values == null) {
@@ -4656,6 +5392,12 @@ public class DangerousCommandApprovalService {
         return result;
     }
 
+    /**
+     * 执行joinDescriptions相关逻辑。
+     *
+     * @param descriptions descriptions 参数。
+     * @return 返回join Descriptions结果。
+     */
     private String joinDescriptions(Collection<String> descriptions) {
         StringBuilder buffer = new StringBuilder();
         if (descriptions != null) {
@@ -4672,6 +5414,12 @@ public class DangerousCommandApprovalService {
         return buffer.length() == 0 ? "Security scan warning" : buffer.toString();
     }
 
+    /**
+     * 执行detectUn安全命令路径相关逻辑。
+     *
+     * @param code code 参数。
+     * @return 返回detect Unsafe命令路径。
+     */
     private SecurityPolicyService.FileVerdict detectUnsafeCommandPath(String code) {
         if (securityPolicyService == null) {
             return null;
@@ -4683,6 +5431,12 @@ public class DangerousCommandApprovalService {
         return verdict.isAllowed() ? null : verdict;
     }
 
+    /**
+     * 执行detectUn安全命令URL相关逻辑。
+     *
+     * @param code code 参数。
+     * @return 返回detect Unsafe命令URL结果。
+     */
     private SecurityPolicyService.UrlVerdict detectUnsafeCommandUrl(String code) {
         if (securityPolicyService == null) {
             return null;
@@ -4694,6 +5448,14 @@ public class DangerousCommandApprovalService {
         return verdict.isAllowed() ? null : verdict;
     }
 
+    /**
+     * 执行evaluate文件工具相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate文件工具结果。
+     */
     private String evaluateFileTool(ReActTrace trace, String toolName, Map<String, Object> args) {
         if (securityPolicyService == null || "off".equals(approvalMode())) {
             return null;
@@ -4709,6 +5471,14 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行evaluateURL工具相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     * @return 返回evaluate URL工具结果。
+     */
     private String evaluateUrlTool(ReActTrace trace, String toolName, Map<String, Object> args) {
         if (securityPolicyService == null || "off".equals(approvalMode())) {
             return null;
@@ -4724,12 +5494,23 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行persistTraceSnapshot相关逻辑。
+     *
+     * @param trace trace 参数。
+     */
     private void persistTraceSnapshot(ReActTrace trace) {
         if (trace != null && trace.getSession() != null) {
             trace.getSession().updateSnapshot();
         }
     }
 
+    /**
+     * 执行notify审批请求相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param pending 待恢复参数。
+     */
     private void notifyApprovalRequest(AgentSession session, PendingApproval pending) {
         if (pending == null || approvalObservers.isEmpty()) {
             return;
@@ -4739,11 +5520,19 @@ public class DangerousCommandApprovalService {
             try {
                 observer.onApprovalRequest(event);
             } catch (Exception ignored) {
-                // Observer hooks must never affect the safety-critical approval flow.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
     }
 
+    /**
+     * 执行notify审批响应相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param pending 待恢复参数。
+     * @param choice choice 参数。
+     * @param approver approver 参数。
+     */
     private void notifyApprovalResponse(
             AgentSession session, PendingApproval pending, String choice, String approver) {
         if (pending == null || approvalObservers.isEmpty()) {
@@ -4756,11 +5545,17 @@ public class DangerousCommandApprovalService {
             try {
                 observer.onApprovalResponse(event);
             } catch (Exception ignored) {
-                // Observer hooks must never affect the safety-critical approval flow.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
     }
 
+    /**
+     * 执行会话标识相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回会话标识。
+     */
     private String sessionId(AgentSession session) {
         if (session == null) {
             return "";
@@ -4768,6 +5563,11 @@ public class DangerousCommandApprovalService {
         return StrUtil.nullToEmpty(session.getSessionId());
     }
 
+    /**
+     * 执行审批模式相关逻辑。
+     *
+     * @return 返回审批模式结果。
+     */
     public String approvalMode() {
         String mode = configuredGuardrailMode();
         if ("false".equals(mode)) {
@@ -4804,6 +5604,11 @@ public class DangerousCommandApprovalService {
         return "on";
     }
 
+    /**
+     * 执行已配置防护模式相关逻辑。
+     *
+     * @return 返回configured防护模式结果。
+     */
     private String configuredGuardrailMode() {
         String mode =
                 appConfig == null || appConfig.getSecurity() == null
@@ -4812,40 +5617,75 @@ public class DangerousCommandApprovalService {
         return StrUtil.blankToDefault(mode, "approval").trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 判断是否Subagent Auto Approve 启用。
+     *
+     * @return 如果Subagent Auto Approve 启用满足条件则返回 true，否则返回 false。
+     */
     public boolean isSubagentAutoApproveEnabled() {
         return appConfig != null
                 && appConfig.getApprovals() != null
                 && appConfig.getApprovals().isSubagentAutoApprove();
     }
 
+    /**
+     * 判断是否Sudo密码Configured。
+     *
+     * @return 如果Sudo密码Configured满足条件则返回 true，否则返回 false。
+     */
     private boolean isSudoPasswordConfigured() {
         return appConfig != null
                 && appConfig.getTerminal() != null
                 && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
     }
 
+    /**
+     * 执行max前台进程TimeoutSeconds相关逻辑。
+     *
+     * @return 返回max Foreground Timeout Seconds结果。
+     */
     private int maxForegroundTimeoutSeconds() {
         return appConfig == null || appConfig.getTerminal() == null
                 ? 0
                 : appConfig.getTerminal().getMaxForegroundTimeoutSeconds();
     }
 
+    /**
+     * 执行前台进程MaxRetries相关逻辑。
+     *
+     * @return 返回foreground Max Retries结果。
+     */
     private int foregroundMaxRetries() {
         return appConfig == null || appConfig.getTerminal() == null
                 ? 0
                 : appConfig.getTerminal().getForegroundMaxRetries();
     }
 
+    /**
+     * 执行前台进程重试基础DelaySeconds相关逻辑。
+     *
+     * @return 返回foreground Retry Base Delay Seconds结果。
+     */
     private int foregroundRetryBaseDelaySeconds() {
         return appConfig == null || appConfig.getTerminal() == null
                 ? 0
                 : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();
     }
 
+    /**
+     * 执行Solon项目Yolo模式环境变量相关逻辑。
+     *
+     * @return 返回Solon项目Yolo模式Env结果。
+     */
     protected String solonClawYoloModeEnv() {
         return System.getenv("SOLONCLAW_YOLO_MODE");
     }
 
+    /**
+     * 判断是否Compatibility Yolo模式启用。
+     *
+     * @return 如果Compatibility Yolo模式启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isCompatibilityYoloModeEnabled() {
         String value = StrUtil.nullToEmpty(solonClawYoloModeEnv()).trim();
         return "true".equalsIgnoreCase(value)
@@ -4854,10 +5694,22 @@ public class DangerousCommandApprovalService {
                 || "on".equalsIgnoreCase(value);
     }
 
+    /**
+     * 标记当前Thread审批。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     */
     private void markCurrentThreadApproval(String toolName, String command) {
         grantCurrentThreadApproval(toolName, command);
     }
 
+    /**
+     * 执行grant当前Thread审批相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     */
     public static void grantCurrentThreadApproval(String toolName, String command) {
         if (StrUtil.hasBlank(toolName, command)) {
             return;
@@ -4872,10 +5724,22 @@ public class DangerousCommandApprovalService {
                 Long.valueOf(System.currentTimeMillis() + CURRENT_THREAD_APPROVAL_TTL_MILLIS));
     }
 
+    /**
+     * 执行当前Thread审批键相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回当前Thread审批键结果。
+     */
     private static String currentThreadApprovalKey(String toolName, String command) {
         return StrUtil.nullToEmpty(toolName).trim() + ":" + normalizeCommand(command);
     }
 
+    /**
+     * 移除Expired当前Thread Approvals。
+     *
+     * @param approvals approvals 参数。
+     */
     private static void removeExpiredCurrentThreadApprovals(Map<String, Long> approvals) {
         long now = System.currentTimeMillis();
         List<String> expired = new ArrayList<String>();
@@ -4890,6 +5754,13 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 写入会话Yolo。
+     *
+     * @param session 会话参数。
+     * @param enabled 启用状态开关值。
+     * @return 返回会话Yolo结果。
+     */
     private boolean setSessionYolo(AgentSession session, boolean enabled) throws Exception {
         if (session == null) {
             return false;
@@ -4903,6 +5774,12 @@ public class DangerousCommandApprovalService {
         return enabled;
     }
 
+    /**
+     * 执行truthy相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @return 返回truthy结果。
+     */
     private boolean truthy(Object raw) {
         if (raw == null) {
             return false;
@@ -4917,6 +5794,11 @@ public class DangerousCommandApprovalService {
                 || "on".equalsIgnoreCase(value);
     }
 
+    /**
+     * 执行定时任务审批模式相关逻辑。
+     *
+     * @return 返回定时任务审批模式结果。
+     */
     public String cronApprovalMode() {
         String mode =
                 appConfig == null || appConfig.getSecurity() == null
@@ -4925,6 +5807,12 @@ public class DangerousCommandApprovalService {
         return normalizeCronApprovalMode(mode);
     }
 
+    /**
+     * 规范化定时任务审批模式。
+     *
+     * @param raw 原始输入值。
+     * @return 返回定时任务审批模式结果。
+     */
     private String normalizeCronApprovalMode(String raw) {
         String mode = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase(Locale.ROOT);
         if ("approve".equals(mode) || "allow".equals(mode) || "yes".equals(mode)) {
@@ -4964,12 +5852,23 @@ public class DangerousCommandApprovalService {
         return "strict";
     }
 
+    /**
+     * 判断是否Subagent运行。
+     *
+     * @return 如果Subagent运行满足条件则返回 true，否则返回 false。
+     */
     private boolean isSubagentRun() {
         AgentRunContext current = AgentRunContext.current();
         return current != null
                 && "subagent".equalsIgnoreCase(StrUtil.nullToEmpty(current.getRunKind()));
     }
 
+    /**
+     * 构建Subagent Denied消息。
+     *
+     * @param detection detection 参数。
+     * @return 返回创建好的Subagent Denied消息。
+     */
     private String buildSubagentDeniedMessage(DetectionResult detection) {
         String description =
                 detection == null
@@ -4981,6 +5880,11 @@ public class DangerousCommandApprovalService {
                 + "。如确实需要在可信批处理里允许，请设置 approvals.subagentAutoApprove=true。";
     }
 
+    /**
+     * 执行审批TimeoutSeconds相关逻辑。
+     *
+     * @return 返回审批Timeout Seconds结果。
+     */
     public int approvalTimeoutSeconds() {
         int value =
                 appConfig == null || appConfig.getApprovals() == null
@@ -4989,6 +5893,11 @@ public class DangerousCommandApprovalService {
         return value > 0 ? value : 60;
     }
 
+    /**
+     * 执行审批消息网关TimeoutSeconds相关逻辑。
+     *
+     * @return 返回审批消息网关Timeout Seconds结果。
+     */
     public int approvalGatewayTimeoutSeconds() {
         int value =
                 appConfig == null || appConfig.getApprovals() == null
@@ -4997,10 +5906,23 @@ public class DangerousCommandApprovalService {
         return value > 0 ? value : Math.max(approvalTimeoutSeconds(), 300);
     }
 
+    /**
+     * 执行审批消息网关TimeoutMillis相关逻辑。
+     *
+     * @return 返回审批消息网关Timeout Millis结果。
+     */
     private long approvalGatewayTimeoutMillis() {
         return approvalGatewayTimeoutSeconds() * 1000L;
     }
 
+    /**
+     * 创建Pending Map。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @param code code 参数。
+     * @return 返回创建好的Pending Map。
+     */
     private Map<String, Object> createPendingMap(
             String toolName, DetectionResult detection, String code) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
@@ -5017,6 +5939,12 @@ public class DangerousCommandApprovalService {
         return payload;
     }
 
+    /**
+     * 存储待恢复映射。
+     *
+     * @param session 会话参数。
+     * @param pendingMap 待恢复映射参数。
+     */
     private void storePendingMap(AgentSession session, Map<String, Object> pendingMap) {
         if (session == null || pendingMap == null) {
             return;
@@ -5039,6 +5967,13 @@ public class DangerousCommandApprovalService {
         session.getContext().put(CONTEXT_PENDING_APPROVAL, queue.isEmpty() ? null : queue.get(0));
     }
 
+    /**
+     * 执行prune待恢复Approvals相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param pending 待恢复参数。
+     * @return 返回prune Pending Approvals结果。
+     */
     private boolean prunePendingApprovals(AgentSession session, List<PendingApproval> pending) {
         if (session == null) {
             return false;
@@ -5057,6 +5992,12 @@ public class DangerousCommandApprovalService {
         return true;
     }
 
+    /**
+     * 执行过滤器Active待恢复Approvals相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回filter Active Pending Approvals结果。
+     */
     private List<PendingApproval> filterActivePendingApprovals(List<PendingApproval> pending) {
         List<PendingApproval> active = new ArrayList<PendingApproval>();
         for (PendingApproval item : pending) {
@@ -5067,6 +6008,12 @@ public class DangerousCommandApprovalService {
         return active;
     }
 
+    /**
+     * 移除Pending审批。
+     *
+     * @param session 会话参数。
+     * @param target target 参数。
+     */
     private void removePendingApproval(AgentSession session, PendingApproval target) {
         if (session == null || target == null) {
             return;
@@ -5080,6 +6027,12 @@ public class DangerousCommandApprovalService {
         writePendingApprovals(session, retained);
     }
 
+    /**
+     * 写入Pending Approvals。
+     *
+     * @param session 会话参数。
+     * @param pending 待恢复参数。
+     */
     private void writePendingApprovals(AgentSession session, List<PendingApproval> pending) {
         List<Map<String, Object>> queue = new ArrayList<Map<String, Object>>();
         for (PendingApproval item : pending) {
@@ -5096,6 +6049,13 @@ public class DangerousCommandApprovalService {
         session.getContext().put(CONTEXT_PENDING_APPROVAL, queue.get(0));
     }
 
+    /**
+     * 查找Pending审批。
+     *
+     * @param session 会话参数。
+     * @param selector 浏览器元素选择器。
+     * @return 返回Pending审批结果。
+     */
     private PendingApproval findPendingApproval(AgentSession session, String selector) {
         List<PendingApproval> pending = listPendingApprovals(session);
         if (pending.isEmpty()) {
@@ -5114,7 +6074,7 @@ public class DangerousCommandApprovalService {
                 return pending.get(index - 1);
             }
         } catch (Exception ignored) {
-            // fall through to id/key matching
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         for (PendingApproval item : pending) {
             if (selectorMatches(item, normalized)) {
@@ -5124,6 +6084,13 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行选择器Matches相关逻辑。
+     *
+     * @param item item 参数。
+     * @param selector 浏览器元素选择器。
+     * @return 返回selector Matches结果。
+     */
     private boolean selectorMatches(PendingApproval item, String selector) {
         if (item == null || StrUtil.isBlank(selector)) {
             return false;
@@ -5143,6 +6110,12 @@ public class DangerousCommandApprovalService {
                         && opaqueSelector.startsWith(value));
     }
 
+    /**
+     * 执行审批选择器相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回审批Selector结果。
+     */
     public static String approvalSelector(PendingApproval pending) {
         if (pending == null) {
             return "";
@@ -5154,15 +6127,34 @@ public class DangerousCommandApprovalService {
         return approvalSelectorFromKey(pending.approvalKey());
     }
 
+    /**
+     * 生成安全展示用的审批选择器。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回safe审批Selector结果。
+     */
     private static String safeApprovalSelector(PendingApproval pending) {
         return approvalSelector(pending);
     }
 
+    /**
+     * 执行审批选择器From键相关逻辑。
+     *
+     * @param approvalKey 审批键标识或键值。
+     * @return 返回审批Selector From键结果。
+     */
     public static String approvalSelectorFromKey(String approvalKey) {
         String value = StrUtil.nullToEmpty(approvalKey).trim();
         return value.isEmpty() ? "" : "key_" + sha256Hex(value).substring(0, 24);
     }
 
+    /**
+     * 执行same待恢复审批相关逻辑。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 返回same Pending审批结果。
+     */
     private boolean samePendingApproval(PendingApproval left, PendingApproval right) {
         if (left == null || right == null) {
             return false;
@@ -5173,6 +6165,12 @@ public class DangerousCommandApprovalService {
         return left.approvalKey().equals(right.approvalKey());
     }
 
+    /**
+     * 执行待恢复队列From相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回pending Queue From结果。
+     */
     private List<PendingApproval> pendingQueueFrom(Object context) {
         List<PendingApproval> pending = new ArrayList<PendingApproval>();
         if (context == null) {
@@ -5187,6 +6185,13 @@ public class DangerousCommandApprovalService {
         return pending;
     }
 
+    /**
+     * 执行上下文值相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param key 配置键或映射键。
+     * @return 返回上下文Value结果。
+     */
     private Object contextValue(Object context, String key) {
         if (context instanceof FlowContext) {
             return ((FlowContext) context).get(key);
@@ -5197,6 +6202,12 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行待恢复映射队列From相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回pending Map Queue From结果。
+     */
     private List<Map<String, Object>> pendingMapQueueFrom(Object context) {
         List<Map<String, Object>> values = new ArrayList<Map<String, Object>>();
         for (PendingApproval item : filterActivePendingApprovals(pendingQueueFrom(context))) {
@@ -5205,6 +6216,12 @@ public class DangerousCommandApprovalService {
         return values;
     }
 
+    /**
+     * 转换为Pending审批List。
+     *
+     * @param raw 原始输入值。
+     * @return 返回转换后的Pending审批List。
+     */
     private List<PendingApproval> toPendingApprovalList(Object raw) {
         List<PendingApproval> values = new ArrayList<PendingApproval>();
         if (raw == null) {
@@ -5229,6 +6246,12 @@ public class DangerousCommandApprovalService {
         return values;
     }
 
+    /**
+     * 执行待恢复映射相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回pending Map结果。
+     */
     private Map<String, Object> pendingMap(PendingApproval pending) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("approvalId", pending.getApprovalId());
@@ -5244,6 +6267,12 @@ public class DangerousCommandApprovalService {
         return payload;
     }
 
+    /**
+     * 判断是否Pending Expired。
+     *
+     * @param pending 待恢复参数。
+     * @return 如果Pending Expired满足条件则返回 true，否则返回 false。
+     */
     private boolean isPendingExpired(PendingApproval pending) {
         if (pending == null) {
             return false;
@@ -5255,6 +6284,14 @@ public class DangerousCommandApprovalService {
         return expiresAt > 0L && System.currentTimeMillis() > expiresAt;
     }
 
+    /**
+     * 构建Pending消息。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @param code code 参数。
+     * @return 返回创建好的Pending消息。
+     */
     private String buildPendingMessage(String toolName, DetectionResult detection, String code) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("⚠️ 危险命令需要审批：\n");
@@ -5275,6 +6312,13 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    /**
+     * 脱敏审批展示。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回审批展示结果。
+     */
     private String redactApprovalDisplay(String value, int maxLength) {
         String normalized =
                 SecretRedactor.stripDisplayControls(
@@ -5282,10 +6326,24 @@ public class DangerousCommandApprovalService {
         return SecretRedactor.redact(normalized, maxLength);
     }
 
+    /**
+     * 执行redactedApprover相关逻辑。
+     *
+     * @param approver approver 参数。
+     * @return 返回redacted Approver结果。
+     */
     private static String redactedApprover(String approver) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(approver).trim(), 200);
     }
 
+    /**
+     * 构建Hardline消息。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @param code code 参数。
+     * @return 返回创建好的Hardline消息。
+     */
     private String buildHardlineMessage(String toolName, DetectionResult detection, String code) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("BLOCKED (hardline): ");
@@ -5298,6 +6356,13 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    /**
+     * 构建文件策略消息。
+     *
+     * @param toolName 工具名称。
+     * @param verdict 判定参数。
+     * @return 返回创建好的文件策略消息。
+     */
     private String buildFilePolicyMessage(
             String toolName, SecurityPolicyService.FileVerdict verdict) {
         StringBuilder buffer = new StringBuilder();
@@ -5309,6 +6374,12 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    /**
+     * 构建URL策略消息。
+     *
+     * @param verdict 判定参数。
+     * @return 返回创建好的URL策略消息。
+     */
     private String buildUrlPolicyMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
                 + verdict.getMessage()
@@ -5317,6 +6388,13 @@ public class DangerousCommandApprovalService {
                 + "\n请换用公开、可信且符合网站访问策略的地址。";
     }
 
+    /**
+     * 判断是否Approved。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param approvalKey 审批键标识或键值。
+     * @return 如果Approved满足条件则返回 true，否则返回 false。
+     */
     private boolean isApproved(FlowContext context, String approvalKey) {
         ApprovalKeyParts parts = parseApprovalKey(approvalKey);
         if (parts == null) {
@@ -5350,16 +6428,33 @@ public class DangerousCommandApprovalService {
                 || containsApprovalKey(loadAlwaysApprovedPatterns(), approvalKey);
     }
 
+    /**
+     * 追加会话审批。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param patternKey pattern键标识或键值。
+     */
     private void addSessionApproval(FlowContext context, String patternKey) {
         Set<String> approvals = loadSessionApprovals(context);
         approvals.add(patternKey);
         context.put(CONTEXT_SESSION_APPROVALS, new ArrayList<String>(approvals));
     }
 
+    /**
+     * 加载会话Approvals。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回会话Approvals结果。
+     */
     private Set<String> loadSessionApprovals(FlowContext context) {
         return stringSetFrom(context == null ? null : context.get(CONTEXT_SESSION_APPROVALS));
     }
 
+    /**
+     * 追加Always审批。
+     *
+     * @param patternKey pattern键标识或键值。
+     */
     private void addAlwaysApproval(String patternKey) throws Exception {
         Set<String> approvals = loadAlwaysApprovedPatterns();
         approvals.add(patternKey);
@@ -5368,6 +6463,11 @@ public class DangerousCommandApprovalService {
                 ONode.serialize(new ArrayList<String>(approvals)));
     }
 
+    /**
+     * 加载Always Approved Patterns。
+     *
+     * @return 返回Always Approved Patterns结果。
+     */
     private Set<String> loadAlwaysApprovedPatterns() {
         if (globalSettingRepository == null) {
             return new LinkedHashSet<String>();
@@ -5382,6 +6482,12 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 执行stringSetFrom相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @return 返回string Set From结果。
+     */
     private Set<String> stringSetFrom(Object raw) {
         Set<String> values = new LinkedHashSet<String>();
         if (raw == null) {
@@ -5415,7 +6521,7 @@ public class DangerousCommandApprovalService {
                     return values;
                 }
             } catch (Exception ignored) {
-                // fallback to plain string below
+                // 这里保留兜底路径，避免兼容输入导致主流程中断。
             }
         }
 
@@ -5423,6 +6529,12 @@ public class DangerousCommandApprovalService {
         return values;
     }
 
+    /**
+     * 清理审批值。
+     *
+     * @param raw 原始输入值。
+     * @return 返回clean审批Value结果。
+     */
     private String cleanApprovalValue(Object raw) {
         if (raw == null) {
             return "";
@@ -5430,6 +6542,13 @@ public class DangerousCommandApprovalService {
         return SecretRedactor.stripDisplayControls(String.valueOf(raw)).trim();
     }
 
+    /**
+     * 判断是否包含Pattern。
+     *
+     * @param approvals approvals 参数。
+     * @param patternKey pattern键标识或键值。
+     * @return 返回contains Pattern结果。
+     */
     private boolean containsPattern(Set<String> approvals, String patternKey) {
         if (approvals == null || StrUtil.isBlank(patternKey)) {
             return false;
@@ -5438,6 +6557,15 @@ public class DangerousCommandApprovalService {
                 approvals, Collections.<String>emptySet(), "", patternKey);
     }
 
+    /**
+     * 判断是否包含审批ForPattern。
+     *
+     * @param sessionApprovals 会话Approvals参数。
+     * @param alwaysApprovals alwaysApprovals 参数。
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @return 返回contains审批For Pattern结果。
+     */
     private boolean containsApprovalForPattern(
             Set<String> sessionApprovals,
             Set<String> alwaysApprovals,
@@ -5462,6 +6590,13 @@ public class DangerousCommandApprovalService {
         return false;
     }
 
+    /**
+     * 判断是否包含审批PatternAny工具。
+     *
+     * @param approvals approvals 参数。
+     * @param patternKey pattern键标识或键值。
+     * @return 返回contains审批Pattern Any工具结果。
+     */
     private boolean containsApprovalPatternAnyTool(Set<String> approvals, String patternKey) {
         if (approvals == null || StrUtil.isBlank(patternKey)) {
             return false;
@@ -5476,6 +6611,13 @@ public class DangerousCommandApprovalService {
         return false;
     }
 
+    /**
+     * 判断是否包含审批键。
+     *
+     * @param approvals approvals 参数。
+     * @param approvalKey 审批键标识或键值。
+     * @return 返回contains审批键结果。
+     */
     private boolean containsApprovalKey(Set<String> approvals, String approvalKey) {
         if (approvals == null || StrUtil.isBlank(approvalKey)) {
             return false;
@@ -5499,6 +6641,12 @@ public class DangerousCommandApprovalService {
         return false;
     }
 
+    /**
+     * 转换为Pending审批。
+     *
+     * @param raw 原始输入值。
+     * @return 返回转换后的Pending审批。
+     */
     private PendingApproval toPendingApproval(Object raw) {
         if (raw == null) {
             return null;
@@ -5536,6 +6684,12 @@ public class DangerousCommandApprovalService {
         return pending;
     }
 
+    /**
+     * 解析Map。
+     *
+     * @param text 待处理文本。
+     * @return 返回解析后的Map。
+     */
     private Map<?, ?> parseMap(String text) {
         if (StrUtil.isBlank(text)) {
             return null;
@@ -5548,6 +6702,12 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 解析静态资源Map。
+     *
+     * @param raw 原始输入值。
+     * @return 返回解析后的静态资源Map。
+     */
     private static Map<?, ?> parseStaticMap(Object raw) {
         if (raw == null) {
             return null;
@@ -5567,10 +6727,22 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
 
+    /**
+     * 清理审批文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回clean审批Text结果。
+     */
     private static String cleanApprovalText(Object value) {
         if (value == null) {
             return "";
@@ -5578,6 +6750,12 @@ public class DangerousCommandApprovalService {
         return SecretRedactor.stripDisplayControls(String.valueOf(value)).trim();
     }
 
+    /**
+     * 清理审批列表。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回clean审批List结果。
+     */
     private static List<String> cleanApprovalList(List<String> values) {
         List<String> cleaned = new ArrayList<String>();
         if (values == null) {
@@ -5592,6 +6770,12 @@ public class DangerousCommandApprovalService {
         return cleaned;
     }
 
+    /**
+     * 将输入对象转换为长整型数值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回long Value结果。
+     */
     private long longValue(Object value) {
         if (value == null) {
             return 0L;
@@ -5603,6 +6787,12 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 列出Value。
+     *
+     * @param raw 原始输入值。
+     * @return 返回Value列表。
+     */
     private List<String> listValue(Object raw) {
         List<String> values = new ArrayList<String>();
         if (raw instanceof Collection) {
@@ -5615,10 +6805,22 @@ public class DangerousCommandApprovalService {
         return values;
     }
 
+    /**
+     * 执行string值静态资源相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value静态资源结果。
+     */
     private static String stringValueStatic(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
 
+    /**
+     * 执行工具Label相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @return 返回工具Label结果。
+     */
     private String toolLabel(String toolName) {
         if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
             return "execute_python";
@@ -5632,6 +6834,12 @@ public class DangerousCommandApprovalService {
         return "execute_shell";
     }
 
+    /**
+     * 执行codeFence相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @return 返回code Fence结果。
+     */
     private String codeFence(String toolName) {
         if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
             return "python";
@@ -5642,6 +6850,12 @@ public class DangerousCommandApprovalService {
         return "shell";
     }
 
+    /**
+     * 执行trim预览相关逻辑。
+     *
+     * @param code code 参数。
+     * @return 返回trim Preview结果。
+     */
     private String trimPreview(String code) {
         String normalized = StrUtil.nullToEmpty(code).trim();
         if (normalized.length() <= 400) {
@@ -5650,10 +6864,22 @@ public class DangerousCommandApprovalService {
         return normalized.substring(0, 400) + "\n...";
     }
 
+    /**
+     * 执行规范化相关逻辑。
+     *
+     * @param code code 参数。
+     * @return 返回规范化结果。
+     */
     private String normalize(String code) {
         return normalizeCommand(code);
     }
 
+    /**
+     * 规范化命令。
+     *
+     * @param code code 参数。
+     * @return 返回命令结果。
+     */
     private static String normalizeCommand(String code) {
         String normalized = StrUtil.nullToEmpty(code).replace("\u0000", "");
         normalized = TerminalAnsiSanitizer.stripAnsi(normalized);
@@ -5662,6 +6888,12 @@ public class DangerousCommandApprovalService {
         return normalized.trim();
     }
 
+    /**
+     * 提取Python Shell Commands。
+     *
+     * @param code code 参数。
+     * @return 返回Python Shell Commands结果。
+     */
     private static List<String> extractPythonShellCommands(String code) {
         if (StrUtil.isBlank(code)) {
             return Collections.emptyList();
@@ -5677,6 +6909,12 @@ public class DangerousCommandApprovalService {
         return commands;
     }
 
+    /**
+     * 提取Java Script Child进程命令。
+     *
+     * @param code code 参数。
+     * @return 返回Java Script Child进程命令结果。
+     */
     private static String extractJavaScriptChildProcessCommand(String code) {
         if (StrUtil.isBlank(code)) {
             return null;
@@ -5700,6 +6938,13 @@ public class DangerousCommandApprovalService {
         return firstArgument + " " + listArguments;
     }
 
+    /**
+     * 读取Second Java Script参数List。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回读取到的Second Java Script参数List。
+     */
     private static String readSecondJavaScriptArgumentList(String code, int offset) {
         int index = skipWhitespace(code, offset);
         if (index < 0 || index >= code.length()) {
@@ -5717,6 +6962,13 @@ public class DangerousCommandApprovalService {
         return readQuotedStringListCommand(code, index + 1);
     }
 
+    /**
+     * 执行skipFirst参数相关逻辑。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回skip First参数结果。
+     */
     private static int skipFirstArgument(String code, int offset) {
         int index = skipWhitespace(code, offset);
         if (index < 0 || index >= code.length()) {
@@ -5732,6 +6984,13 @@ public class DangerousCommandApprovalService {
         return -1;
     }
 
+    /**
+     * 执行skipBracketed列表相关逻辑。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回skip Bracketed List结果。
+     */
     private static int skipBracketedList(String code, int offset) {
         if (code == null || offset < 0 || offset >= code.length() || code.charAt(offset) != '[') {
             return -1;
@@ -5758,6 +7017,13 @@ public class DangerousCommandApprovalService {
         return -1;
     }
 
+    /**
+     * 读取First Shell命令参数。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回读取到的First Shell命令参数。
+     */
     private static String readFirstShellCommandArgument(String code, int offset) {
         int index = skipWhitespace(code, offset);
         if (index < 0 || index >= code.length()) {
@@ -5773,6 +7039,13 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 读取Quoted String List命令。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回读取到的Quoted String List命令。
+     */
     private static String readQuotedStringListCommand(String code, int offset) {
         List<String> parts = new ArrayList<String>();
         int index = offset;
@@ -5813,6 +7086,13 @@ public class DangerousCommandApprovalService {
         return command.toString();
     }
 
+    /**
+     * 读取Quoted String。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回读取到的Quoted String。
+     */
     private static String readQuotedString(String code, int offset) {
         if (code == null || offset < 0 || offset >= code.length()) {
             return null;
@@ -5842,6 +7122,13 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    /**
+     * 执行skipQuoted字符串相关逻辑。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回skip Quoted String结果。
+     */
     private static int skipQuotedString(String code, int offset) {
         if (code == null || offset < 0 || offset >= code.length()) {
             return -1;
@@ -5868,6 +7155,13 @@ public class DangerousCommandApprovalService {
         return -1;
     }
 
+    /**
+     * 执行skipWhitespace相关逻辑。
+     *
+     * @param code code 参数。
+     * @param offset 分页偏移量。
+     * @return 返回skip Whitespace结果。
+     */
     private static int skipWhitespace(String code, int offset) {
         if (code == null || offset < 0 || offset > code.length()) {
             return -1;
@@ -5879,6 +7173,12 @@ public class DangerousCommandApprovalService {
         return index;
     }
 
+    /**
+     * 判断是否具有HelpOr版本命令特征。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回looks Like Help Or版本命令结果。
+     */
     private boolean looksLikeHelpOrVersionCommand(String command) {
         String normalized = StrUtil.nullToEmpty(command).toLowerCase(Locale.ROOT).trim();
         while (normalized.contains("  ")) {
@@ -5890,10 +7190,25 @@ public class DangerousCommandApprovalService {
                 || normalized.endsWith(" -v");
     }
 
+    /**
+     * 执行审批键相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @param normalizedCode normalizedCode 参数。
+     * @return 返回审批键结果。
+     */
     private String approvalKey(String toolName, String patternKey, String normalizedCode) {
         return approvalPattern(toolName, patternKey) + ":" + commandHash(normalizedCode);
     }
 
+    /**
+     * 执行combined审批键相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param detection detection 参数。
+     * @return 返回combined审批键结果。
+     */
     private String combinedApprovalKey(String toolName, DetectionResult detection) {
         if (detection == null) {
             return approvalKey(toolName, "", "");
@@ -5914,14 +7229,33 @@ public class DangerousCommandApprovalService {
                 + commandHash(detection.getNormalizedCode());
     }
 
+    /**
+     * 执行审批Pattern相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param patternKey pattern键标识或键值。
+     * @return 返回审批Pattern结果。
+     */
     private String approvalPattern(String toolName, String patternKey) {
         return cleanApprovalText(toolName) + ":" + cleanApprovalText(patternKey);
     }
 
+    /**
+     * 判断是否Tirith Pattern。
+     *
+     * @param patternKey pattern键标识或键值。
+     * @return 如果Tirith Pattern满足条件则返回 true，否则返回 false。
+     */
     private boolean isTirithPattern(String patternKey) {
         return StrUtil.nullToEmpty(patternKey).startsWith("tirith:");
     }
 
+    /**
+     * 判断是否包含Tirith。
+     *
+     * @param detection detection 参数。
+     * @return 返回contains Tirith结果。
+     */
     private boolean containsTirith(DetectionResult detection) {
         if (detection == null) {
             return false;
@@ -5934,6 +7268,12 @@ public class DangerousCommandApprovalService {
         return false;
     }
 
+    /**
+     * 解析审批键。
+     *
+     * @param approvalKey 审批键标识或键值。
+     * @return 返回解析后的审批键。
+     */
     private ApprovalKeyParts parseApprovalKey(String approvalKey) {
         if (StrUtil.isBlank(approvalKey)) {
             return null;
@@ -5955,6 +7295,12 @@ public class DangerousCommandApprovalService {
         return new ApprovalKeyParts(toolName, patternKey);
     }
 
+    /**
+     * 判断是否具有Sha256特征。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回looks Like Sha256结果。
+     */
     private boolean looksLikeSha256(String value) {
         if (value == null || value.length() != 64) {
             return false;
@@ -5970,10 +7316,22 @@ public class DangerousCommandApprovalService {
         return true;
     }
 
+    /**
+     * 执行命令哈希相关逻辑。
+     *
+     * @param normalizedCode normalizedCode 参数。
+     * @return 返回命令Hash结果。
+     */
     private String commandHash(String normalizedCode) {
         return sha256Hex(StrUtil.nullToEmpty(normalizedCode));
     }
 
+    /**
+     * 执行sha256Hex相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回sha256 Hex结果。
+     */
     private static String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -5993,14 +7351,31 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 执行pattern相关逻辑。
+     *
+     * @param regex regex 参数。
+     * @return 返回pattern结果。
+     */
     private static Pattern pattern(String regex) {
         return Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     }
 
+    /**
+     * 执行caseSensitivePattern相关逻辑。
+     *
+     * @param regex regex 参数。
+     * @return 返回case Sensitive Pattern结果。
+     */
     private static Pattern caseSensitivePattern(String regex) {
         return Pattern.compile(regex, Pattern.DOTALL);
     }
 
+    /**
+     * 构建审批键Aliases。
+     *
+     * @return 返回创建好的审批键Aliases。
+     */
     private static Map<String, Set<String>> buildApprovalKeyAliases() {
         Map<String, Set<String>> aliases = new LinkedHashMap<String, Set<String>>();
         addApprovalKeyAliases(aliases, RULES);
@@ -6008,6 +7383,12 @@ public class DangerousCommandApprovalService {
         return Collections.unmodifiableMap(aliases);
     }
 
+    /**
+     * 追加审批键Aliases。
+     *
+     * @param aliases aliases 参数。
+     * @param rules rules 参数。
+     */
     private static void addApprovalKeyAliases(
             Map<String, Set<String>> aliases, Collection<DangerRule> rules) {
         if (rules == null) {
@@ -6021,6 +7402,13 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /**
+     * 执行ruleSamples相关逻辑。
+     *
+     * @param rules rules 参数。
+     * @param max max 参数。
+     * @return 返回rule Samples结果。
+     */
     private static List<String> ruleSamples(List<DangerRule> rules, int max) {
         List<String> samples = new ArrayList<String>();
         if (rules == null) {
@@ -6038,6 +7426,12 @@ public class DangerousCommandApprovalService {
         return samples;
     }
 
+    /**
+     * 执行hardlineRuleSamples相关逻辑。
+     *
+     * @param max max 参数。
+     * @return 返回hardline Rule Samples结果。
+     */
     private static List<String> hardlineRuleSamples(int max) {
         List<String> samples = ruleSamples(HARDLINE_RULES, max);
         if (max > 0 && !samples.contains("hardline_metadata_url")) {
@@ -6049,6 +7443,13 @@ public class DangerousCommandApprovalService {
         return samples;
     }
 
+    /**
+     * 追加审批键AliasPair。
+     *
+     * @param aliases aliases 参数。
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     */
     private static void addApprovalKeyAliasPair(
             Map<String, Set<String>> aliases, String left, String right) {
         if (StrUtil.isBlank(left) || StrUtil.isBlank(right)) {
@@ -6073,6 +7474,12 @@ public class DangerousCommandApprovalService {
         rightAliases.add(rightValue);
     }
 
+    /**
+     * 执行审批键Aliases相关逻辑。
+     *
+     * @param patternKey pattern键标识或键值。
+     * @return 返回审批键Aliases结果。
+     */
     private Set<String> approvalKeyAliases(String patternKey) {
         if (StrUtil.isBlank(patternKey)) {
             return Collections.emptySet();
@@ -6085,11 +7492,20 @@ public class DangerousCommandApprovalService {
         return Collections.singleton(normalized);
     }
 
+    /** 枚举审批范围的可选值，保证状态表达在各模块间一致。 */
     public enum ApprovalScope {
+        /** 表示ONCE枚举值。 */
         ONCE,
+        /** 表示会话枚举值。 */
         SESSION,
+        /** 表示ALWAYS枚举值。 */
         ALWAYS;
 
+        /**
+         * 执行comment相关逻辑。
+         *
+         * @return 返回comment结果。
+         */
         public String comment() {
             if (this == SESSION) {
                 return "批准执行，并记住当前会话中的危险命令模式。";
@@ -6101,46 +7517,106 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /** 承载待恢复审批相关状态和辅助逻辑。 */
     public static class PendingApproval {
+        /** 记录待恢复审批中的审批标识。 */
         private String approvalId;
+
+        /** 记录待恢复审批中的工具名称。 */
         private String toolName;
+
+        /** 记录待恢复审批中的pattern键。 */
         private String patternKey;
+
+        /** 保存patternKeys集合，维持调用顺序或去重语义。 */
         private List<String> patternKeys = new ArrayList<String>();
+
+        /** 记录待恢复审批中的描述。 */
         private String description;
+
+        /** 记录待恢复审批中的命令。 */
         private String command;
+
+        /** 记录待恢复审批中的命令哈希。 */
         private String commandHash;
+
+        /** 记录待恢复审批中的审批键。 */
         private String approvalKey;
+
+        /** 记录待恢复审批中的创建时间。 */
         private long createdAt;
+
+        /** 记录待恢复审批中的expires时间。 */
         private long expiresAt;
 
+        /**
+         * 读取审批标识。
+         *
+         * @return 返回读取到的审批标识。
+         */
         public String getApprovalId() {
             return approvalId;
         }
 
+        /**
+         * 写入审批标识。
+         *
+         * @param approvalId 审批标识。
+         */
         public void setApprovalId(String approvalId) {
             this.approvalId = approvalId;
         }
 
+        /**
+         * 读取工具名称。
+         *
+         * @return 返回读取到的工具名称。
+         */
         public String getToolName() {
             return toolName;
         }
 
+        /**
+         * 写入工具名称。
+         *
+         * @param toolName 工具名称。
+         */
         public void setToolName(String toolName) {
             this.toolName = toolName;
         }
 
+        /**
+         * 读取Pattern键。
+         *
+         * @return 返回读取到的Pattern键。
+         */
         public String getPatternKey() {
             return patternKey;
         }
 
+        /**
+         * 写入Pattern键。
+         *
+         * @param patternKey pattern键标识或键值。
+         */
         public void setPatternKey(String patternKey) {
             this.patternKey = patternKey;
         }
 
+        /**
+         * 读取Pattern Keys。
+         *
+         * @return 返回读取到的Pattern Keys。
+         */
         public List<String> getPatternKeys() {
             return patternKeys;
         }
 
+        /**
+         * 写入Pattern Keys。
+         *
+         * @param patternKeys patternKeys 参数。
+         */
         public void setPatternKeys(List<String> patternKeys) {
             this.patternKeys =
                     patternKeys == null
@@ -6148,54 +7624,119 @@ public class DangerousCommandApprovalService {
                             : new ArrayList<String>(patternKeys);
         }
 
+        /**
+         * 读取Description。
+         *
+         * @return 返回读取到的Description。
+         */
         public String getDescription() {
             return description;
         }
 
+        /**
+         * 写入Description。
+         *
+         * @param description 描述参数。
+         */
         public void setDescription(String description) {
             this.description = description;
         }
 
+        /**
+         * 读取命令。
+         *
+         * @return 返回读取到的命令。
+         */
         public String getCommand() {
             return command;
         }
 
+        /**
+         * 写入命令。
+         *
+         * @param command 待执行或解析的命令文本。
+         */
         public void setCommand(String command) {
             this.command = command;
         }
 
+        /**
+         * 读取命令Hash。
+         *
+         * @return 返回读取到的命令Hash。
+         */
         public String getCommandHash() {
             return commandHash;
         }
 
+        /**
+         * 写入命令Hash。
+         *
+         * @param commandHash 命令哈希参数。
+         */
         public void setCommandHash(String commandHash) {
             this.commandHash = commandHash;
         }
 
+        /**
+         * 读取审批键。
+         *
+         * @return 返回读取到的审批键。
+         */
         public String getApprovalKey() {
             return approvalKey;
         }
 
+        /**
+         * 写入审批键。
+         *
+         * @param approvalKey 审批键标识或键值。
+         */
         public void setApprovalKey(String approvalKey) {
             this.approvalKey = approvalKey;
         }
 
+        /**
+         * 读取创建时间。
+         *
+         * @return 返回读取到的创建时间。
+         */
         public long getCreatedAt() {
             return createdAt;
         }
 
+        /**
+         * 写入创建时间。
+         *
+         * @param createdAt createdAt 参数。
+         */
         public void setCreatedAt(long createdAt) {
             this.createdAt = createdAt;
         }
 
+        /**
+         * 读取Expires时间。
+         *
+         * @return 返回读取到的Expires时间。
+         */
         public long getExpiresAt() {
             return expiresAt;
         }
 
+        /**
+         * 写入Expires时间。
+         *
+         * @param expiresAt expiresAt 参数。
+         */
         public void setExpiresAt(long expiresAt) {
             this.expiresAt = expiresAt;
         }
 
+        /**
+         * 执行审批键相关逻辑。
+         *
+         * @return 返回审批键结果。
+         */
         public String approvalKey() {
             return StrUtil.blankToDefault(
                     cleanApprovalText(approvalKey),
@@ -6206,6 +7747,11 @@ public class DangerousCommandApprovalService {
                             + cleanApprovalText(commandHash));
         }
 
+        /**
+         * 执行生效PatternKeys相关逻辑。
+         *
+         * @return 返回生效Pattern Keys结果。
+         */
         public List<String> effectivePatternKeys() {
             List<String> values = new ArrayList<String>();
             if (patternKeys != null) {
@@ -6222,6 +7768,11 @@ public class DangerousCommandApprovalService {
             return values;
         }
 
+        /**
+         * 判断是否Permanent审批Allowed。
+         *
+         * @return 如果Permanent审批Allowed满足条件则返回 true，否则返回 false。
+         */
         public boolean isPermanentApprovalAllowed() {
             for (String patternKey : effectivePatternKeys()) {
                 if (StrUtil.nullToEmpty(patternKey).startsWith("tirith:")) {
@@ -6232,25 +7783,55 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /** 表示Detection结果，携带调用方后续判断所需信息。 */
     public static class DetectionResult {
+        /** 记录Detection中的pattern键。 */
         private String patternKey;
+
+        /** 保存patternKeys集合，维持调用顺序或去重语义。 */
         private List<String> patternKeys = new ArrayList<String>();
+
+        /** 记录Detection中的描述。 */
         private String description;
+
+        /** 记录Detection中的normalizedCode。 */
         private String normalizedCode;
+
+        /** 是否启用hardline。 */
         private boolean hardline;
 
+        /**
+         * 读取Pattern键。
+         *
+         * @return 返回读取到的Pattern键。
+         */
         public String getPatternKey() {
             return patternKey;
         }
 
+        /**
+         * 写入Pattern键。
+         *
+         * @param patternKey pattern键标识或键值。
+         */
         public void setPatternKey(String patternKey) {
             this.patternKey = patternKey;
         }
 
+        /**
+         * 读取Pattern Keys。
+         *
+         * @return 返回读取到的Pattern Keys。
+         */
         public List<String> getPatternKeys() {
             return patternKeys;
         }
 
+        /**
+         * 写入Pattern Keys。
+         *
+         * @param patternKeys patternKeys 参数。
+         */
         public void setPatternKeys(List<String> patternKeys) {
             this.patternKeys =
                     patternKeys == null
@@ -6258,30 +7839,65 @@ public class DangerousCommandApprovalService {
                             : new ArrayList<String>(patternKeys);
         }
 
+        /**
+         * 读取Description。
+         *
+         * @return 返回读取到的Description。
+         */
         public String getDescription() {
             return description;
         }
 
+        /**
+         * 写入Description。
+         *
+         * @param description 描述参数。
+         */
         public void setDescription(String description) {
             this.description = description;
         }
 
+        /**
+         * 读取Normalized Code。
+         *
+         * @return 返回读取到的Normalized Code。
+         */
         public String getNormalizedCode() {
             return normalizedCode;
         }
 
+        /**
+         * 写入Normalized Code。
+         *
+         * @param normalizedCode normalizedCode 参数。
+         */
         public void setNormalizedCode(String normalizedCode) {
             this.normalizedCode = normalizedCode;
         }
 
+        /**
+         * 判断是否Hardline。
+         *
+         * @return 如果Hardline满足条件则返回 true，否则返回 false。
+         */
         public boolean isHardline() {
             return hardline;
         }
 
+        /**
+         * 写入Hardline。
+         *
+         * @param hardline hardline 参数。
+         */
         public void setHardline(boolean hardline) {
             this.hardline = hardline;
         }
 
+        /**
+         * 执行生效PatternKeys相关逻辑。
+         *
+         * @return 返回生效Pattern Keys结果。
+         */
         public List<String> effectivePatternKeys() {
             List<String> values = new ArrayList<String>();
             if (patternKeys != null) {
@@ -6298,18 +7914,41 @@ public class DangerousCommandApprovalService {
         }
     }
 
+    /** 承载密钥预览相关状态和辅助逻辑。 */
     private static class SecretPreview {
+        /**
+         * 生成安全展示用的URL。
+         *
+         * @param url 待校验或访问的 URL。
+         * @return 返回safe URL结果。
+         */
         private static String safeUrl(String url) {
             return com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(url);
         }
     }
 
+    /** 表示消息网关工具参数结果，携带调用方后续判断所需信息。 */
     private static class GatewayToolArgsResult {
+        /** 保存参数映射，便于按键快速查询。 */
         private final Map<String, Object> args;
+
+        /** 是否启用valid。 */
         private final boolean valid;
+
+        /** 记录消息网关工具参数中的消息。 */
         private final String message;
+
+        /** 记录消息网关工具参数中的原始文本。 */
         private final String rawText;
 
+        /**
+         * 创建消息网关工具参数结果实例，并注入运行所需依赖。
+         *
+         * @param args 工具或命令参数。
+         * @param valid valid标识或键值。
+         * @param message 平台消息或错误消息。
+         * @param rawText 原始文本参数。
+         */
         private GatewayToolArgsResult(
                 Map<String, Object> args, boolean valid, String message, String rawText) {
             this.args = args == null ? new LinkedHashMap<String, Object>() : args;
@@ -6318,87 +7957,184 @@ public class DangerousCommandApprovalService {
             this.rawText = StrUtil.nullToEmpty(rawText);
         }
 
+        /**
+         * 执行valid相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @return 返回valid结果。
+         */
         static GatewayToolArgsResult valid(Map<String, Object> args) {
             return new GatewayToolArgsResult(args, true, "", "");
         }
 
+        /**
+         * 执行invalid相关逻辑。
+         *
+         * @param message 平台消息或错误消息。
+         * @param rawText 原始文本参数。
+         * @return 返回invalid结果。
+         */
         static GatewayToolArgsResult invalid(String message, String rawText) {
             return new GatewayToolArgsResult(
                     new LinkedHashMap<String, Object>(), false, message, rawText);
         }
 
+        /**
+         * 读取参数。
+         *
+         * @return 返回读取到的参数。
+         */
         Map<String, Object> getArgs() {
             return args;
         }
 
+        /**
+         * 判断是否Valid。
+         *
+         * @return 如果Valid满足条件则返回 true，否则返回 false。
+         */
         boolean isValid() {
             return valid;
         }
 
+        /**
+         * 读取消息。
+         *
+         * @return 返回读取到的消息。
+         */
         String getMessage() {
             return message;
         }
 
+        /**
+         * 读取原始Text。
+         *
+         * @return 返回读取到的原始Text。
+         */
         String getRawText() {
             return rawText;
         }
     }
 
+    /** 定义审批Observer的抽象契约，供不同运行时实现保持一致行为。 */
     public interface ApprovalObserver {
+        /**
+         * 响应审批请求事件。
+         *
+         * @param event 事件参数。
+         */
         void onApprovalRequest(ApprovalRequestEvent event);
 
+        /**
+         * 响应审批响应事件。
+         *
+         * @param event 事件参数。
+         */
         void onApprovalResponse(ApprovalResponseEvent event);
     }
 
+    /** 承载审批请求事件相关状态和辅助逻辑。 */
     public static class ApprovalRequestEvent {
+        /** 记录审批请求事件中的会话标识。 */
         private final String sessionId;
+
+        /** 记录审批请求事件中的待恢复审批。 */
         private final PendingApproval pendingApproval;
+
+        /** 记录审批请求事件中的redacted待恢复审批。 */
         private final PendingApproval redactedPendingApproval;
 
+        /**
+         * 创建审批请求事件实例，并注入运行所需依赖。
+         *
+         * @param sessionId 当前会话标识。
+         * @param pendingApproval 待恢复审批参数。
+         */
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
             this.sessionId = SecretRedactor.redact(StrUtil.nullToEmpty(sessionId), 200);
             this.pendingApproval = pendingApproval;
             this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
         }
 
+        /**
+         * 读取会话标识。
+         *
+         * @return 返回读取到的会话标识。
+         */
         public String getSessionId() {
             return sessionId;
         }
 
+        /**
+         * 读取Pending审批。
+         *
+         * @return 返回读取到的Pending审批。
+         */
         public PendingApproval getPendingApproval() {
             return redactedPendingApproval;
         }
 
+        /**
+         * 读取工具名称。
+         *
+         * @return 返回读取到的工具名称。
+         */
         public String getToolName() {
             return redactedPendingApproval == null
                     ? ""
                     : StrUtil.nullToEmpty(redactedPendingApproval.getToolName());
         }
 
+        /**
+         * 读取命令。
+         *
+         * @return 返回读取到的命令。
+         */
         public String getCommand() {
             return redactedPendingApproval == null
                     ? ""
                     : StrUtil.nullToEmpty(redactedPendingApproval.getCommand());
         }
 
+        /**
+         * 读取Description。
+         *
+         * @return 返回读取到的Description。
+         */
         public String getDescription() {
             return redactedPendingApproval == null
                     ? ""
                     : StrUtil.nullToEmpty(redactedPendingApproval.getDescription());
         }
 
+        /**
+         * 读取Pattern Keys。
+         *
+         * @return 返回读取到的Pattern Keys。
+         */
         public List<String> getPatternKeys() {
             return redactedPendingApproval == null
                     ? Collections.<String>emptyList()
                     : redactedPendingApproval.effectivePatternKeys();
         }
 
+        /**
+         * 读取Primary Pattern键。
+         *
+         * @return 返回读取到的Primary Pattern键。
+         */
         public String getPrimaryPatternKey() {
             List<String> keys = getPatternKeys();
             return keys.isEmpty() ? "" : keys.get(0);
         }
     }
 
+    /**
+     * 执行redacted待恢复审批相关逻辑。
+     *
+     * @param source 来源参数。
+     * @return 返回redacted Pending审批结果。
+     */
     private static PendingApproval redactedPendingApproval(PendingApproval source) {
         if (source == null) {
             return null;
@@ -6417,6 +8153,13 @@ public class DangerousCommandApprovalService {
         return copy;
     }
 
+    /**
+     * 执行redacted文本列表相关逻辑。
+     *
+     * @param source 来源参数。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redacted Text List结果。
+     */
     private static List<String> redactedTextList(List<String> source, int maxLength) {
         if (source == null || source.isEmpty()) {
             return new ArrayList<String>();
@@ -6434,18 +8177,43 @@ public class DangerousCommandApprovalService {
         return values;
     }
 
+    /** 承载审批响应事件相关状态和辅助逻辑。 */
     public static class ApprovalResponseEvent extends ApprovalRequestEvent {
+        /** OUTCOMEAPPROVED的统一常量值。 */
         public static final String OUTCOME_APPROVED = "APPROVED";
+
+        /** OUTCOME拒绝的统一常量值。 */
         public static final String OUTCOME_DENIED = "DENIED";
+
+        /** OUTCOMETIMEDOUT的统一常量值。 */
         public static final String OUTCOME_TIMED_OUT = "TIMED_OUT";
+
+        /** OUTCOMEREVOKED的统一常量值。 */
         public static final String OUTCOME_REVOKED = "REVOKED";
 
+        /** 记录审批响应事件中的choice。 */
         private final String choice;
+
+        /** 记录审批响应事件中的outcome。 */
         private final String outcome;
+
+        /** 记录审批响应事件中的状态。 */
         private final String status;
+
+        /** 是否启用approved。 */
         private final boolean approved;
+
+        /** 记录审批响应事件中的approver。 */
         private final String approver;
 
+        /**
+         * 创建审批响应事件实例，并注入运行所需依赖。
+         *
+         * @param sessionId 当前会话标识。
+         * @param pendingApproval 待恢复审批参数。
+         * @param choice choice 参数。
+         * @param approver approver 参数。
+         */
         private ApprovalResponseEvent(
                 String sessionId, PendingApproval pendingApproval, String choice, String approver) {
             super(sessionId, pendingApproval);
@@ -6456,27 +8224,58 @@ public class DangerousCommandApprovalService {
             this.approver = redactedApprover(approver);
         }
 
+        /**
+         * 读取Choice。
+         *
+         * @return 返回读取到的Choice。
+         */
         public String getChoice() {
             return choice;
         }
 
+        /**
+         * 读取Outcome。
+         *
+         * @return 返回读取到的Outcome。
+         */
         public String getOutcome() {
             return outcome;
         }
 
+        /**
+         * 读取状态。
+         *
+         * @return 返回读取到的状态。
+         */
         public String getStatus() {
             return status;
         }
 
+        /**
+         * 判断是否Approved。
+         *
+         * @return 如果Approved满足条件则返回 true，否则返回 false。
+         */
         public boolean isApproved() {
             return approved;
         }
 
+        /**
+         * 读取Approver。
+         *
+         * @return 返回读取到的Approver。
+         */
         public String getApprover() {
             return approver;
         }
     }
 
+    /**
+     * 执行审批Outcome相关逻辑。
+     *
+     * @param choice choice 参数。
+     * @return 返回审批Outcome结果。
+     */
     private static String approvalOutcome(String choice) {
         String normalized = StrUtil.nullToEmpty(choice).trim().toLowerCase(Locale.ROOT);
         if ("deny".equals(normalized) || "denied".equals(normalized)) {
@@ -6491,6 +8290,12 @@ public class DangerousCommandApprovalService {
         return ApprovalResponseEvent.OUTCOME_APPROVED;
     }
 
+    /**
+     * 执行审批状态相关逻辑。
+     *
+     * @param outcome outcome 参数。
+     * @return 返回审批状态。
+     */
     private static String approvalStatus(String outcome) {
         if (ApprovalResponseEvent.OUTCOME_DENIED.equals(outcome)) {
             return "denied";
@@ -6504,22 +8309,48 @@ public class DangerousCommandApprovalService {
         return "approved";
     }
 
+    /** 承载审批键Parts相关状态和辅助逻辑。 */
     private static class ApprovalKeyParts {
+        /** 记录审批键Parts中的工具名称。 */
         private final String toolName;
+
+        /** 记录审批键Parts中的pattern键。 */
         private final String patternKey;
 
+        /**
+         * 创建审批键Parts实例，并注入运行所需依赖。
+         *
+         * @param toolName 工具名称。
+         * @param patternKey pattern键标识或键值。
+         */
         private ApprovalKeyParts(String toolName, String patternKey) {
             this.toolName = toolName;
             this.patternKey = patternKey;
         }
     }
 
+    /** 承载DangerRule相关状态和辅助逻辑。 */
     private static class DangerRule {
+        /** 记录DangerRule中的pattern键。 */
         private final String patternKey;
+
+        /** 记录DangerRule中的描述。 */
         private final String description;
+
+        /** 记录DangerRule中的pattern。 */
         private final Pattern pattern;
+
+        /** 保存工具集合，维持调用顺序或去重语义。 */
         private final Set<String> tools;
 
+        /**
+         * 创建Danger Rule实例，并注入运行所需依赖。
+         *
+         * @param patternKey pattern键标识或键值。
+         * @param description 描述参数。
+         * @param pattern pattern 参数。
+         * @param tools tools 参数。
+         */
         private DangerRule(
                 String patternKey, String description, Pattern pattern, String... tools) {
             this.patternKey = patternKey;
@@ -6528,14 +8359,31 @@ public class DangerousCommandApprovalService {
             this.tools = new LinkedHashSet<String>(Arrays.asList(tools));
         }
 
+        /**
+         * 执行matches相关逻辑。
+         *
+         * @param toolName 工具名称。
+         * @param code code 参数。
+         * @return 返回matches结果。
+         */
         private boolean matches(String toolName, String code) {
             return tools.contains(toolName) && pattern.matcher(code).find();
         }
 
+        /**
+         * 读取Pattern键。
+         *
+         * @return 返回读取到的Pattern键。
+         */
         private String getPatternKey() {
             return patternKey;
         }
 
+        /**
+         * 读取Description。
+         *
+         * @return 返回读取到的Description。
+         */
         private String getDescription() {
             return description;
         }

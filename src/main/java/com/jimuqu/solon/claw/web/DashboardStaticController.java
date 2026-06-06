@@ -13,37 +13,80 @@ import org.noear.solon.core.handle.DownloadedFile;
 /** Dashboard 静态资源兜底输出，绕过当前打包后静态文件处理器返回空内容的问题。 */
 @Controller
 public class DashboardStaticController {
+    /** 记录控制台静态资源中的路径保护。 */
     private final RuntimePathGuard pathGuard;
 
+    /**
+     * 创建控制台静态资源控制器实例，并注入运行所需依赖。
+     *
+     * @param pathGuard 文件或目录路径参数。
+     */
     public DashboardStaticController(RuntimePathGuard pathGuard) {
         this.pathGuard = pathGuard;
     }
 
+    /**
+     * 执行assets相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回assets结果。
+     */
     @Mapping("/assets/**")
     public Object assets(Context context) {
         return renderResource(context, "static" + context.path());
     }
 
+    /**
+     * 执行faviconIco相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回favicon Ico结果。
+     */
     @Mapping("/favicon.ico")
     public Object faviconIco(Context context) {
         return renderResource(context, "static/favicon.ico");
     }
 
+    /**
+     * 执行faviconSvg相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回favicon Svg结果。
+     */
     @Mapping("/favicon.svg")
     public Object faviconSvg(Context context) {
         return renderResource(context, "static/favicon.svg");
     }
 
+    /**
+     * 执行iconsSvg相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回icons Svg结果。
+     */
     @Mapping("/icons.svg")
     public Object iconsSvg(Context context) {
         return renderResource(context, "static/icons.svg");
     }
 
+    /**
+     * 执行logo相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回logo结果。
+     */
     @Mapping("/logo.png")
     public Object logo(Context context) {
         return renderResource(context, "static/logo.png");
     }
 
+    /**
+     * 渲染资源。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param resourcePath 文件或目录路径参数。
+     * @return 返回render Resource结果。
+     */
     private Object renderResource(Context context, String resourcePath) {
         File devFile = loadDevFile(resourcePath);
         if (devFile != null) {
@@ -65,6 +108,12 @@ public class DashboardStaticController {
                 .asAttachment(false);
     }
 
+    /**
+     * 加载Dev文件。
+     *
+     * @param resourcePath 文件或目录路径参数。
+     * @return 返回Dev文件结果。
+     */
     private File loadDevFile(String resourcePath) {
         String relative =
                 resourcePath.startsWith("static/")
@@ -84,6 +133,12 @@ public class DashboardStaticController {
         return null;
     }
 
+    /**
+     * 加载Classpath Bytes。
+     *
+     * @param resourcePath 文件或目录路径参数。
+     * @return 返回Classpath Bytes结果。
+     */
     private byte[] loadClasspathBytes(String resourcePath) {
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resourcePath);
         if (stream == null) {
@@ -93,11 +148,23 @@ public class DashboardStaticController {
         return IoUtil.readBytes(stream);
     }
 
+    /**
+     * 执行文件名称相关逻辑。
+     *
+     * @param resourcePath 文件或目录路径参数。
+     * @return 返回文件名称结果。
+     */
     private String fileName(String resourcePath) {
         int idx = resourcePath.lastIndexOf('/');
         return idx >= 0 ? resourcePath.substring(idx + 1) : resourcePath;
     }
 
+    /**
+     * 执行content类型相关逻辑。
+     *
+     * @param resourcePath 文件或目录路径参数。
+     * @return 返回content类型结果。
+     */
     private String contentType(String resourcePath) {
         String lower = resourcePath.toLowerCase();
         if (lower.endsWith(".js")) {

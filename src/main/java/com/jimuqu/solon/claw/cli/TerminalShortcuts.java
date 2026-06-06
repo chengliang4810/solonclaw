@@ -8,14 +8,27 @@ import org.jline.reader.LineReader;
 import org.jline.reader.Reference;
 import org.jline.reader.Widget;
 
-/** Registers local TUI shortcuts on top of JLine. */
+/** 承载终端Shortcuts相关状态和辅助逻辑。 */
 public final class TerminalShortcuts {
+    /** 创建终端Shortcuts实例。 */
     private TerminalShortcuts() {}
 
+    /**
+     * 执行install相关逻辑。
+     *
+     * @param reader reader 参数。
+     */
     public static void install(LineReader reader) {
         install(reader, System.getenv(), System.getProperty("os.name"));
     }
 
+    /**
+     * 执行install相关逻辑。
+     *
+     * @param reader reader 参数。
+     * @param env 环境变量参数。
+     * @param osName os名称参数。
+     */
     public static void install(LineReader reader, Map<String, String> env, String osName) {
         if (reader == null) {
             return;
@@ -29,6 +42,13 @@ public final class TerminalShortcuts {
         }
     }
 
+    /**
+     * 判断是否需要Preserve Ctrl J Newline。
+     *
+     * @param env 环境变量参数。
+     * @param osName os名称参数。
+     * @return 如果Preserve Ctrl J Newline满足条件则返回 true，否则返回 false。
+     */
     public static boolean shouldPreserveCtrlJNewline(Map<String, String> env, String osName) {
         String normalizedOs = StrUtil.nullToEmpty(osName).toLowerCase();
         if (normalizedOs.contains("windows")) {
@@ -52,10 +72,24 @@ public final class TerminalShortcuts {
         return envValue(env, "WSL_DISTRO_NAME").toLowerCase().contains("microsoft");
     }
 
+    /**
+     * 判断是否存在Env。
+     *
+     * @param env 环境变量参数。
+     * @param key 配置键或映射键。
+     * @return 如果Env满足条件则返回 true，否则返回 false。
+     */
     private static boolean hasEnv(Map<String, String> env, String key) {
         return StrUtil.isNotBlank(envValue(env, key));
     }
 
+    /**
+     * 执行环境变量值相关逻辑。
+     *
+     * @param env 环境变量参数。
+     * @param key 配置键或映射键。
+     * @return 返回env Value结果。
+     */
     private static String envValue(Map<String, String> env, String key) {
         if (env == null || key == null) {
             return "";
@@ -63,6 +97,14 @@ public final class TerminalShortcuts {
         return StrUtil.nullToEmpty(env.get(key)).trim();
     }
 
+    /**
+     * 执行register相关逻辑。
+     *
+     * @param reader reader 参数。
+     * @param widgetName widget名称标识或键值。
+     * @param command 待执行或解析的命令文本。
+     * @param sequence sequence 参数。
+     */
     static void register(
             final LineReader reader, String widgetName, final String command, String sequence) {
         if (reader == null || widgetName == null || command == null || sequence == null) {
@@ -72,6 +114,11 @@ public final class TerminalShortcuts {
                 .put(
                         widgetName,
                         new Widget() {
+                            /**
+                             * 执行apply相关逻辑。
+                             *
+                             * @return 返回apply结果。
+                             */
                             @Override
                             public boolean apply() {
                                 reader.getBuffer().clear();
@@ -86,6 +133,13 @@ public final class TerminalShortcuts {
         }
     }
 
+    /**
+     * 注册Newline。
+     *
+     * @param reader reader 参数。
+     * @param widgetName widget名称标识或键值。
+     * @param sequence sequence 参数。
+     */
     static void registerNewline(final LineReader reader, String widgetName, String sequence) {
         if (reader == null || widgetName == null || sequence == null) {
             return;
@@ -94,6 +148,11 @@ public final class TerminalShortcuts {
                 .put(
                         widgetName,
                         new Widget() {
+                            /**
+                             * 执行apply相关逻辑。
+                             *
+                             * @return 返回apply结果。
+                             */
                             @Override
                             public boolean apply() {
                                 reader.getBuffer().write("\n");
@@ -107,6 +166,11 @@ public final class TerminalShortcuts {
         }
     }
 
+    /**
+     * 执行help行相关逻辑。
+     *
+     * @return 返回help Line结果。
+     */
     public static String helpLine() {
         return "快捷键：Ctrl-G 事件，Ctrl-S 会话，Ctrl-T 任务，Ctrl-Y 复制上一条回复";
     }

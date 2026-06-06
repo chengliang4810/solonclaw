@@ -18,21 +18,48 @@ import org.noear.solon.flow.FlowContextInternal;
 
 /** 基于现有 SessionRecord / SQLite 的 AgentSession 适配层。 */
 public class SqliteAgentSession implements AgentSession {
+    /** META待恢复的统一常量值。 */
     private static final String META_PENDING = "_agent_pending_";
+
+    /** META待恢复原因的统一常量值。 */
     private static final String META_PENDING_REASON = "_pending_reason_";
+
+    /** META待恢复MARKED时间的统一常量值。 */
     private static final String META_PENDING_MARKED_AT = "_pending_marked_at_";
+
+    /** META待恢复CLEARED时间的统一常量值。 */
     private static final String META_PENDING_CLEARED_AT = "_pending_cleared_at_";
+
+    /** META待恢复LAST原因的统一常量值。 */
     private static final String META_PENDING_LAST_REASON = "_pending_last_reason_";
+
+    /** STOP循环历史的统一常量值。 */
     private static final String STOP_LOOP_HISTORY = "stoploop_history";
 
+    /** 记录SQLiteAgent会话中的会话记录。 */
     private final SessionRecord sessionRecord;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 记录SQLiteAgent会话中的缓存。 */
     private final InMemoryAgentSession cache;
 
+    /**
+     * 创建SQLite Agent会话实例，并注入运行所需依赖。
+     *
+     * @param sessionRecord 会话记录参数。
+     */
     public SqliteAgentSession(SessionRecord sessionRecord) {
         this(sessionRecord, null);
     }
 
+    /**
+     * 创建SQLite Agent会话实例，并注入运行所需依赖。
+     *
+     * @param sessionRecord 会话记录参数。
+     * @param sessionRepository 会话仓储依赖。
+     */
     public SqliteAgentSession(SessionRecord sessionRecord, SessionRepository sessionRepository) {
         if (sessionRecord == null || StrUtil.isBlank(sessionRecord.getSessionId())) {
             throw new IllegalArgumentException("SessionRecord with sessionId is required");
@@ -46,53 +73,97 @@ public class SqliteAgentSession implements AgentSession {
         loadMessages(sessionRecord);
     }
 
+    /**
+     * 读取会话标识。
+     *
+     * @return 返回读取到的会话标识。
+     */
     @Override
     public String getSessionId() {
         return cache.getSessionId();
     }
 
+    /**
+     * 读取Messages。
+     *
+     * @return 返回读取到的Messages。
+     */
     @Override
     public List<ChatMessage> getMessages() {
         return cache.getMessages();
     }
 
+    /**
+     * 读取Latest Messages。
+     *
+     * @param windowSize 窗口Size参数。
+     * @return 返回读取到的Latest Messages。
+     */
     @Override
     public List<ChatMessage> getLatestMessages(int windowSize) {
         return cache.getLatestMessages(windowSize);
     }
 
+    /**
+     * 追加消息。
+     *
+     * @param messages messages 参数。
+     */
     @Override
     public void addMessage(Collection<? extends ChatMessage> messages) {
         cache.addMessage(messages);
         syncRecord(false);
     }
 
+    /**
+     * 判断是否Empty。
+     *
+     * @return 如果Empty满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean isEmpty() {
         return cache.isEmpty();
     }
 
+    /** 执行clear相关逻辑。 */
     @Override
     public void clear() {
         cache.clear();
         syncRecord(true);
     }
 
+    /**
+     * 执行attrs相关逻辑。
+     *
+     * @return 返回attrs结果。
+     */
     @Override
     public Map<String, Object> attrs() {
         return cache.attrs();
     }
 
+    /** 更新Snapshot。 */
     @Override
     public void updateSnapshot() {
         syncRecord(true);
     }
 
+    /**
+     * 读取上下文。
+     *
+     * @return 返回读取到的上下文。
+     */
     @Override
     public FlowContext getContext() {
         return cache.getContext();
     }
 
+    /**
+     * 执行待恢复相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @param reason 原因参数。
+     */
     @Override
     public void pending(boolean pending, String reason) {
         String previousReason = getPendingReason();
@@ -119,30 +190,60 @@ public class SqliteAgentSession implements AgentSession {
         }
     }
 
+    /**
+     * 判断是否Pending。
+     *
+     * @return 如果Pending满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean isPending() {
         return isTruthy(cache.getContext().get(META_PENDING)) || AgentSession.super.isPending();
     }
 
+    /**
+     * 读取Pending Reason。
+     *
+     * @return 返回读取到的Pending Reason。
+     */
     @Override
     public String getPendingReason() {
         Object reason = cache.getContext().get(META_PENDING_REASON);
         return reason == null ? AgentSession.super.getPendingReason() : String.valueOf(reason);
     }
 
+    /**
+     * 读取Pending Marked时间。
+     *
+     * @return 返回读取到的Pending Marked时间。
+     */
     public long getPendingMarkedAt() {
         return longValue(cache.getContext().get(META_PENDING_MARKED_AT));
     }
 
+    /**
+     * 读取Pending Cleared时间。
+     *
+     * @return 返回读取到的Pending Cleared时间。
+     */
     public long getPendingClearedAt() {
         return longValue(cache.getContext().get(META_PENDING_CLEARED_AT));
     }
 
+    /**
+     * 读取Pending Last Reason。
+     *
+     * @return 返回读取到的Pending Last Reason。
+     */
     public String getPendingLastReason() {
         Object reason = cache.getContext().get(META_PENDING_LAST_REASON);
         return reason == null ? null : String.valueOf(reason);
     }
 
+    /**
+     * 加载Messages。
+     *
+     * @param sessionRecord 会话记录参数。
+     */
     private void loadMessages(SessionRecord sessionRecord) {
         try {
             if (StrUtil.isNotBlank(sessionRecord.getNdjson())) {
@@ -156,6 +257,12 @@ public class SqliteAgentSession implements AgentSession {
         }
     }
 
+    /**
+     * 加载上下文。
+     *
+     * @param sessionRecord 会话记录参数。
+     * @return 返回上下文结果。
+     */
     private FlowContext loadContext(SessionRecord sessionRecord) {
         try {
             if (StrUtil.isNotBlank(sessionRecord.getAgentSnapshotJson())) {
@@ -171,11 +278,16 @@ public class SqliteAgentSession implements AgentSession {
                 return context;
             }
         } catch (Throwable ignored) {
-            // fallback to a fresh context if the old snapshot cannot be restored
+            // 这里保留兜底路径，避免兼容输入导致主流程中断。
         }
         return FlowContext.of(sessionRecord.getSessionId());
     }
 
+    /**
+     * 规范化Snapshot Types。
+     *
+     * @param context 当前请求或运行上下文。
+     */
     private void normalizeSnapshotTypes(FlowContext context) {
         if (context == null) {
             return;
@@ -187,6 +299,11 @@ public class SqliteAgentSession implements AgentSession {
         }
     }
 
+    /**
+     * 规范化Trace Extras。
+     *
+     * @param trace trace 参数。
+     */
     private void normalizeTraceExtras(ReActTrace trace) {
         Object history = trace.getExtra(STOP_LOOP_HISTORY);
         if (history instanceof Collection && !(history instanceof LinkedList)) {
@@ -200,6 +317,11 @@ public class SqliteAgentSession implements AgentSession {
         }
     }
 
+    /**
+     * 执行同步记录相关逻辑。
+     *
+     * @param persist persist 参数。
+     */
     private void syncRecord(boolean persist) {
         try {
             sessionRecord.setNdjson(ChatMessage.toNdjson(cache.getMessages()));
@@ -215,6 +337,12 @@ public class SqliteAgentSession implements AgentSession {
         }
     }
 
+    /**
+     * 将输入对象转换为长整型数值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回long Value结果。
+     */
     private long longValue(Object value) {
         if (value instanceof Number) {
             return Math.max(0L, ((Number) value).longValue());
@@ -229,6 +357,12 @@ public class SqliteAgentSession implements AgentSession {
         }
     }
 
+    /**
+     * 判断配置值是否表达启用语义。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Truthy满足条件则返回 true，否则返回 false。
+     */
     private boolean isTruthy(Object value) {
         if (value instanceof Boolean) {
             return ((Boolean) value).booleanValue();

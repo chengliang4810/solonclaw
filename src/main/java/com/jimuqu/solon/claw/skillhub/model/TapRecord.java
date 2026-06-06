@@ -9,6 +9,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class TapRecord {
+    /** 记录来源库中的repo。 */
     private String repo;
+
+    /** 记录来源库中的路径。 */
     private String path;
 }

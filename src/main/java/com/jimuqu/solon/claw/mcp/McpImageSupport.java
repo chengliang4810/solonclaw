@@ -7,19 +7,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Handles MCP tool results that contain image content blocks. Converts image content to internal
- * attachment-friendly format.
- */
+/** 封装MCP图片辅助逻辑，降低主流程中的重复实现。 */
 public class McpImageSupport {
-    private static final int MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB cap
+    /** 单张 MCP 图片允许进入附件链路的最大字节数。 */
+    private static final int MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+    /** 创建MCP图片辅助实例。 */
     private McpImageSupport() {}
 
     /**
-     * Extracts image attachments from an MCP tool result object. Returns a list of image descriptor
-     * maps, each with keys: {@code mime_type}, {@code data} (base64), {@code size_bytes}, {@code
-     * source}.
+     * 提取图片。
+     *
+     * @param toolResult 工具结果响应或执行结果。
+     * @return 返回图片结果。
      */
     public static List<Map<String, Object>> extractImages(Object toolResult) {
         List<Map<String, Object>> images = new ArrayList<Map<String, Object>>();
@@ -42,7 +42,7 @@ public class McpImageSupport {
                 }
                 return images;
             }
-            // Recurse into content arrays (MCP result envelope)
+            // 递归解析 MCP result envelope 中的 content 数组。
             Object content = map.get("content");
             if (content instanceof List) {
                 for (Object item : (List<?>) content) {
@@ -53,14 +53,21 @@ public class McpImageSupport {
         return images;
     }
 
-    /** Returns true if the tool result contains at least one image content block. */
+    /**
+     * 判断是否存在图片。
+     *
+     * @param toolResult 工具结果响应或执行结果。
+     * @return 如果图片满足条件则返回 true，否则返回 false。
+     */
     public static boolean hasImages(Object toolResult) {
         return !extractImages(toolResult).isEmpty();
     }
 
     /**
-     * Converts an image descriptor map (from {@link #extractImages}) to a base64 data URI string
-     * suitable for embedding in HTML or markdown.
+     * 转换为Data URI。
+     *
+     * @param image描述符 图片描述符参数。
+     * @return 返回转换后的Data URI。
      */
     public static String toDataUri(Map<String, Object> imageDescriptor) {
         if (imageDescriptor == null) {
@@ -74,13 +81,18 @@ public class McpImageSupport {
         return "data:" + mimeType + ";base64," + data;
     }
 
+    /**
+     * 提取图片块。
+     *
+     * @param block 阻断参数。
+     * @return 返回图片块结果。
+     */
     private static Map<String, Object> extractImageBlock(Map<?, ?> block) {
         String source = stringValue(block.get("source"));
         String mimeType = "";
         String data = "";
 
-        // MCP image block: { type: "image", source: { type: "base64", media_type: "...", data:
-        // "..." } }
+        // 兼容 MCP 图片块：source 可承载 media_type、mimeType、data 或 url。
         Object sourceObj = block.get("source");
         if (sourceObj instanceof Map) {
             Map<?, ?> sourceMap = (Map<?, ?>) sourceObj;
@@ -92,7 +104,7 @@ public class McpImageSupport {
             source = stringValue(sourceMap.get("url"));
         }
 
-        // Fallback: flat image block with data/mimeType directly
+        // 兼容扁平图片块：data 和 mimeType 直接位于当前对象。
         if (StrUtil.isBlank(data)) {
             data = stringValue(block.get("data"));
         }
@@ -109,7 +121,7 @@ public class McpImageSupport {
             return null;
         }
 
-        // Validate and size-check the data
+        // 校验 base64 图片数据，并阻断超出大小上限的结果。
         if (StrUtil.isNotBlank(data)) {
             try {
                 byte[] bytes = Base64.getDecoder().decode(stripDataUri(data));
@@ -127,7 +139,7 @@ public class McpImageSupport {
             }
         }
 
-        // URL-only image reference
+        // 对仅提供 URL 的图片引用保留来源，不在此处下载远程内容。
         if (StrUtil.isNotBlank(source)) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("mime_type", mimeType);
@@ -139,6 +151,12 @@ public class McpImageSupport {
         return null;
     }
 
+    /**
+     * 剥离数据URI。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Data URI结果。
+     */
     private static String stripDataUri(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         int comma = text.indexOf(',');
@@ -148,6 +166,12 @@ public class McpImageSupport {
         return text;
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private static String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }

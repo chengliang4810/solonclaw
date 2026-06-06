@@ -11,13 +11,28 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Creates approximate usage events from legacy run/session token totals. */
+/** 提供用量Backfill相关业务能力，封装调用方不需要感知的运行细节。 */
 public class UsageBackfillService {
+    /** 保存用量事件仓储依赖，用于访问持久化数据。 */
     private final UsageEventRepository usageEventRepository;
+
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 记录用量Backfill中的calculator。 */
     private final UsageCostCalculator calculator;
 
+    /**
+     * 创建用量Backfill服务实例，并注入运行所需依赖。
+     *
+     * @param usageEventRepository 用量事件仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param calculator calculator 参数。
+     */
     public UsageBackfillService(
             UsageEventRepository usageEventRepository,
             AgentRunRepository agentRunRepository,
@@ -29,6 +44,11 @@ public class UsageBackfillService {
         this.calculator = calculator;
     }
 
+    /**
+     * 执行backfillApproximate相关逻辑。
+     *
+     * @return 返回backfill Approximate结果。
+     */
     public int backfillApproximate() throws Exception {
         int inserted = 0;
         Set<String> sessionsWithRunUsage = new LinkedHashSet<String>();
@@ -58,6 +78,12 @@ public class UsageBackfillService {
         return inserted;
     }
 
+    /**
+     * 从输入转换运行。
+     *
+     * @param run 运行参数。
+     * @return 返回运行结果。
+     */
     private UsageEventRecord fromRun(AgentRunRecord run) {
         if (run == null || StrUtil.isBlank(run.getRunId())) {
             return null;
@@ -83,6 +109,12 @@ public class UsageBackfillService {
         return event;
     }
 
+    /**
+     * 从输入转换会话。
+     *
+     * @param session 会话参数。
+     * @return 返回会话结果。
+     */
     private UsageEventRecord fromSession(SessionRecord session) {
         if (session == null || StrUtil.isBlank(session.getSessionId())) {
             return null;
@@ -112,6 +144,12 @@ public class UsageBackfillService {
         return event;
     }
 
+    /**
+     * 执行基础相关逻辑。
+     *
+     * @param eventId 事件标识。
+     * @return 返回base结果。
+     */
     private UsageEventRecord base(String eventId) {
         UsageEventRecord event = new UsageEventRecord();
         event.setEventId(eventId);
@@ -119,6 +157,11 @@ public class UsageBackfillService {
         return event;
     }
 
+    /**
+     * 应用成本。
+     *
+     * @param event 事件参数。
+     */
     private void applyCost(UsageEventRecord event) {
         UsageCost cost =
                 calculator.calculate(

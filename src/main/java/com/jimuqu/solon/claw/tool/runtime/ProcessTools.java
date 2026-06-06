@@ -14,13 +14,27 @@ import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Jimuqu 风格的受管后台进程工具。 */
+/** 提供进程工具能力，供 Agent 运行时按安全策略调用。 */
 public class ProcessTools {
+    /** 记录进程中的进程注册表。 */
     private final ProcessRegistry processRegistry;
+
+    /** 记录进程中的默认工作目录。 */
     private final String defaultWorkDir;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 注入应用配置，用于进程。 */
     private final AppConfig appConfig;
 
+    /**
+     * 创建进程工具实例，并注入运行所需依赖。
+     *
+     * @param processRegistry 进程注册表依赖组件。
+     * @param defaultWorkDir 默认工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public ProcessTools(
             ProcessRegistry processRegistry,
             String defaultWorkDir,
@@ -28,6 +42,14 @@ public class ProcessTools {
         this(processRegistry, defaultWorkDir, securityPolicyService, null);
     }
 
+    /**
+     * 创建进程工具实例，并注入运行所需依赖。
+     *
+     * @param processRegistry 进程注册表依赖组件。
+     * @param defaultWorkDir 默认工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param appConfig 应用运行配置。
+     */
     public ProcessTools(
             ProcessRegistry processRegistry,
             String defaultWorkDir,
@@ -39,10 +61,21 @@ public class ProcessTools {
         this.appConfig = appConfig;
     }
 
+    /**
+     * 执行background进程策略摘要相关逻辑。
+     *
+     * @return 返回background进程策略Summary结果。
+     */
     public Map<String, Object> backgroundProcessPolicySummary() {
         return backgroundProcessPolicySummary(appConfig);
     }
 
+    /**
+     * 执行background进程策略摘要相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回background进程策略Summary结果。
+     */
     public static Map<String, Object> backgroundProcessPolicySummary(AppConfig appConfig) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put(
@@ -96,6 +129,19 @@ public class ProcessTools {
         return summary;
     }
 
+    /**
+     * 执行进程相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param command 待执行或解析的命令文本。
+     * @param sessionId 当前会话标识。
+     * @param cwd 工作目录参数。
+     * @param data 数据参数。
+     * @param timeoutSeconds 超时时间，单位为秒。
+     * @param offset 分页偏移量。
+     * @param limit 最大返回数量。
+     * @return 返回进程结果。
+     */
     @ToolMapping(
             name = "process",
             description =
@@ -190,6 +236,13 @@ public class ProcessTools {
         }
     }
 
+    /**
+     * 启动当前组件并准备运行资源。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param cwd 工作目录参数。
+     * @return 返回start结果。
+     */
     private String start(String command, String cwd) throws Exception {
         if (StrUtil.isBlank(command)) {
             return ToolResultEnvelope.error("command is required for action=start").toJson();
@@ -217,6 +270,14 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行日志相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param offset 分页偏移量。
+     * @param limit 最大返回数量。
+     * @return 返回日志结果。
+     */
     private String log(String sessionId, Integer offset, Integer limit) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         int safeLimit = limit == null ? 200 : Math.max(1, limit.intValue());
@@ -257,6 +318,11 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @return 返回list结果。
+     */
     private String list() {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (ProcessRegistry.ManagedProcess managed : processRegistry.snapshot().values()) {
@@ -268,6 +334,12 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行events相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回events结果。
+     */
     private String events(Integer limit) {
         int safeLimit = limit == null ? 100 : Math.max(1, limit.intValue());
         List<Map<String, Object>> events = processRegistry.drainEvents(safeLimit);
@@ -278,6 +350,12 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行生命周期相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回生命周期结果。
+     */
     private String lifecycle(Integer limit) {
         int safeLimit = limit == null ? 100 : Math.max(1, limit.intValue());
         List<Map<String, Object>> events = processRegistry.recentLifecycleEvents(safeLimit);
@@ -288,6 +366,12 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行poll相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回poll结果。
+     */
     private String poll(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         String output = cleanOutput(managed.outputPreview(1000));
@@ -320,6 +404,13 @@ public class ProcessTools {
         return envelope.toJson();
     }
 
+    /**
+     * 执行waitFor相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param timeoutSeconds 超时时间，单位为秒。
+     * @return 返回wait For结果。
+     */
     private String waitFor(String sessionId, Integer timeoutSeconds) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         int maxSeconds = resolveProcessWaitTimeoutSeconds();
@@ -379,10 +470,21 @@ public class ProcessTools {
         return envelope.toJson();
     }
 
+    /**
+     * 解析进程Wait Timeout Seconds。
+     *
+     * @return 返回解析后的进程Wait Timeout Seconds。
+     */
     private int resolveProcessWaitTimeoutSeconds() {
         return resolveProcessWaitTimeoutSeconds(appConfig);
     }
 
+    /**
+     * 解析进程Wait Timeout Seconds。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回解析后的进程Wait Timeout Seconds。
+     */
     private static int resolveProcessWaitTimeoutSeconds(AppConfig appConfig) {
         if (appConfig == null || appConfig.getTerminal() == null) {
             return 180;
@@ -390,6 +492,12 @@ public class ProcessTools {
         return Math.max(1, appConfig.getTerminal().getProcessWaitTimeoutSeconds());
     }
 
+    /**
+     * 停止当前组件并释放运行状态。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回stop结果。
+     */
     private String stop(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         ProcessRegistry.StopResult stopResult = processRegistry.stopDetailed(managed.getId());
@@ -412,6 +520,14 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行写入相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param data 数据参数。
+     * @param appendNewline appendNewline 参数。
+     * @return 返回write结果。
+     */
     private String write(String sessionId, String data, boolean appendNewline) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         if (managed.isExited()) {
@@ -435,6 +551,12 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 关闭当前组件持有的运行资源。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回close结果。
+     */
     private String close(String sessionId) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         if (managed.isExited()) {
@@ -450,6 +572,12 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行alreadyExited相关逻辑。
+     *
+     * @param managed managed 参数。
+     * @return 返回already Exited结果。
+     */
     private String alreadyExited(ProcessRegistry.ManagedProcess managed) {
         return ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
                 .data("session_id", managed.getId())
@@ -462,6 +590,12 @@ public class ProcessTools {
                 .toJson();
     }
 
+    /**
+     * 执行assertStdin安全相关逻辑。
+     *
+     * @param managed managed 参数。
+     * @param payload 待签名或解析的载荷内容。
+     */
     private void assertStdinSafe(ProcessRegistry.ManagedProcess managed, String payload) {
         if (managed == null || StrUtil.isBlank(payload)) {
             return;
@@ -484,6 +618,12 @@ public class ProcessTools {
         }
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         String message = e == null ? "" : e.getMessage();
         if (StrUtil.isBlank(message) && e != null) {
@@ -492,10 +632,22 @@ public class ProcessTools {
         return safeText(message);
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param text 待处理文本。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String text) {
         return SecretRedactor.redact(text, 1000);
     }
 
+    /**
+     * 执行stdinExecution工具名称相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回stdin Execution工具名称结果。
+     */
     private String stdinExecutionToolName(String command) {
         String executable = stdinExecutionExecutable(command).toLowerCase(java.util.Locale.ROOT);
         if (executable.length() == 0) {
@@ -527,6 +679,12 @@ public class ProcessTools {
         return "";
     }
 
+    /**
+     * 执行stdinExecutionExecutable相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回stdin Execution Executable结果。
+     */
     private String stdinExecutionExecutable(String command) {
         List<String> tokens = commandTokens(command, 24);
         if (tokens.isEmpty()) {
@@ -626,6 +784,12 @@ public class ProcessTools {
         return "";
     }
 
+    /**
+     * 执行executableLabel相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回executable Label结果。
+     */
     private String executableLabel(String command) {
         String token = firstCommandToken(command);
         if (token.length() == 0) {
@@ -634,6 +798,12 @@ public class ProcessTools {
         return executableName(token);
     }
 
+    /**
+     * 执行executable名称相关逻辑。
+     *
+     * @param token token 参数。
+     * @return 返回executable名称结果。
+     */
     private String executableName(String token) {
         String value = StrUtil.nullToEmpty(token).trim();
         if (value.length() == 0) {
@@ -642,6 +812,12 @@ public class ProcessTools {
         return new File(value).getName();
     }
 
+    /**
+     * 判断是否Env Assignment。
+     *
+     * @param token token 参数。
+     * @return 如果Env Assignment满足条件则返回 true，否则返回 false。
+     */
     private boolean isEnvAssignment(String token) {
         String value = StrUtil.nullToEmpty(token);
         int equals = value.indexOf('=');
@@ -657,6 +833,12 @@ public class ProcessTools {
         return true;
     }
 
+    /**
+     * 执行sudo选项ConsumesNext相关逻辑。
+     *
+     * @param option 选项参数。
+     * @return 返回sudo Option Consumes Next结果。
+     */
     private boolean sudoOptionConsumesNext(String option) {
         String value = StrUtil.nullToEmpty(option);
         if ("-u".equals(value)
@@ -680,6 +862,12 @@ public class ProcessTools {
         return false;
     }
 
+    /**
+     * 执行first命令token相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回first命令token结果。
+     */
     private String firstCommandToken(String command) {
         List<String> tokens = commandTokens(command, 1);
         if (tokens.isEmpty()) {
@@ -688,6 +876,13 @@ public class ProcessTools {
         return tokens.get(0);
     }
 
+    /**
+     * 执行命令token相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param maxTokens maxtoken参数。
+     * @return 返回命令token结果。
+     */
     private List<String> commandTokens(String command, int maxTokens) {
         String text = StrUtil.nullToEmpty(command).trim();
         List<String> tokens = new ArrayList<String>();
@@ -735,6 +930,12 @@ public class ProcessTools {
         return tokens;
     }
 
+    /**
+     * 追加Notification元数据。
+     *
+     * @param envelope envelope 参数。
+     * @param managed managed 参数。
+     */
     private void addNotificationMetadata(
             ToolResultEnvelope envelope, ProcessRegistry.ManagedProcess managed) {
         envelope.data("notify_on_complete", Boolean.valueOf(managed.isNotifyOnComplete()));
@@ -744,6 +945,12 @@ public class ProcessTools {
         }
     }
 
+    /**
+     * 执行redactedWatchPatterns相关逻辑。
+     *
+     * @param watchPatterns 需要监听并提示的输出模式。。
+     * @return 返回redacted Watch Patterns结果。
+     */
     private List<String> redactedWatchPatterns(List<String> watchPatterns) {
         if (watchPatterns == null || watchPatterns.isEmpty()) {
             return java.util.Collections.emptyList();
@@ -755,6 +962,12 @@ public class ProcessTools {
         return redacted;
     }
 
+    /**
+     * 要求进程。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回进程结果。
+     */
     private ProcessRegistry.ManagedProcess requireProcess(String sessionId) {
         if (StrUtil.isBlank(sessionId)) {
             throw new IllegalArgumentException("session_id is required");
@@ -766,6 +979,12 @@ public class ProcessTools {
         return managed;
     }
 
+    /**
+     * 解析Work Dir。
+     *
+     * @param cwd 工作目录参数。
+     * @return 返回解析后的Work Dir。
+     */
     private File resolveWorkDir(String cwd) {
         String value = StrUtil.blankToDefault(cwd, defaultWorkDir);
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(value);
@@ -791,6 +1010,12 @@ public class ProcessTools {
         return dir;
     }
 
+    /**
+     * 生成安全展示用的路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe路径。
+     */
     private String safePath(String path) {
         String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).trim();
         if (value.length() == 0) {
@@ -803,6 +1028,11 @@ public class ProcessTools {
         return SecretRedactor.redact(name, 400);
     }
 
+    /**
+     * 执行assertBackground安全相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     */
     private void assertBackgroundSafe(String command) {
         if (securityPolicyService != null) {
             AppConfig appConfig = securityPolicyService.getAppConfig();
@@ -853,18 +1083,42 @@ public class ProcessTools {
         }
     }
 
+    /**
+     * 剥离ANSI。
+     *
+     * @param text 待处理文本。
+     * @return 返回strip ANSI结果。
+     */
     private String stripAnsi(String text) {
         return TerminalAnsiSanitizer.stripAnsi(text);
     }
 
+    /**
+     * 清理输出。
+     *
+     * @param text 待处理文本。
+     * @return 返回clean输出结果。
+     */
     private String cleanOutput(String text) {
         return SecretRedactor.redact(stripAnsi(text));
     }
 
+    /**
+     * 执行退出CodeMeaning相关逻辑。
+     *
+     * @param managed managed 参数。
+     * @return 返回退出码 Meaning结果。
+     */
     private String exitCodeMeaning(ProcessRegistry.ManagedProcess managed) {
         return TerminalExitCodeSemantics.interpret(managed.getCommand(), managed.getExitCode());
     }
 
+    /**
+     * 执行joinLines相关逻辑。
+     *
+     * @param lines lines 参数。
+     * @return 返回join Lines结果。
+     */
     private String joinLines(List<String> lines) {
         StringBuilder buffer = new StringBuilder();
         for (int i = 0; i < lines.size(); i++) {
@@ -876,6 +1130,13 @@ public class ProcessTools {
         return buffer.toString();
     }
 
+    /**
+     * 执行tail相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @param maxChars maxChars 参数。
+     * @return 返回tail结果。
+     */
     private String tail(String text, int maxChars) {
         String value = StrUtil.nullToEmpty(text);
         if (value.length() <= maxChars) {

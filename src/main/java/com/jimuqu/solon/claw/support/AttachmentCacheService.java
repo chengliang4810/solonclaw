@@ -18,15 +18,28 @@ import java.util.regex.Pattern;
 
 /** 附件缓存服务。 */
 public class AttachmentCacheService {
+    /** 最大缓存字节的统一常量值。 */
     private static final long MAX_CACHE_BYTES = 32L * 1024L * 1024L;
+
+    /** REDACTEDtoken文件PART的统一常量值。 */
     private static final Pattern REDACTED_TOKEN_FILE_PART =
             Pattern.compile(
                     "(?i)(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_)?\\*\\*\\*");
 
+    /** 记录附件缓存中的运行时主渠道。 */
     private final File runtimeHome;
+
+    /** 记录附件缓存中的缓存根用户。 */
     private final File cacheRoot;
+
+    /** 媒体引用PREFIX的统一常量值。 */
     private static final String MEDIA_REFERENCE_PREFIX = "media://";
 
+    /**
+     * 创建附件缓存服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public AttachmentCacheService(AppConfig appConfig) {
         String runtimeHomeValue = null;
         String cacheDirValue = null;
@@ -49,6 +62,11 @@ public class AttachmentCacheService {
         this.cacheRoot = new File(cacheDir, "media");
     }
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @return 返回策略Summary结果。
+     */
     public Map<String, Object> policySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("mediaReferencePrefix", MEDIA_REFERENCE_PREFIX);
@@ -130,6 +148,16 @@ public class AttachmentCacheService {
         return attachment;
     }
 
+    /**
+     * 从输入转换媒体缓存文件。
+     *
+     * @param platform 平台参数。
+     * @param file 文件或目录路径参数。
+     * @param explicitKind explicitKind 参数。
+     * @param fromQuote fromQuote 参数。
+     * @param transcribedText transcribed文本参数。
+     * @return 返回媒体缓存文件结果。
+     */
     public MessageAttachment fromMediaCacheFile(
             PlatformType platform,
             File file,
@@ -184,6 +212,12 @@ public class AttachmentCacheService {
         return fromLocalFile(platform, target, explicitKind, fromQuote, transcribedText);
     }
 
+    /**
+     * 执行平台目录相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @return 返回平台Dir结果。
+     */
     public File platformDir(PlatformType platform) {
         return new File(
                 cacheRoot,
@@ -191,6 +225,12 @@ public class AttachmentCacheService {
                         .toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * 执行媒体引用相关逻辑。
+     *
+     * @param attachment 附件参数。
+     * @return 返回媒体Reference结果。
+     */
     public String mediaReference(MessageAttachment attachment) {
         if (attachment == null) {
             return "";
@@ -198,6 +238,12 @@ public class AttachmentCacheService {
         return mediaReference(new File(attachment.getLocalPath()));
     }
 
+    /**
+     * 执行媒体引用相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回媒体Reference结果。
+     */
     public String mediaReference(File file) {
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (!isUnderMediaRoot(canonical)) {
@@ -218,6 +264,12 @@ public class AttachmentCacheService {
         }
     }
 
+    /**
+     * 解析媒体Reference。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的媒体Reference。
+     */
     public File resolveMediaReference(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (!text.startsWith(MEDIA_REFERENCE_PREFIX)) {
@@ -236,6 +288,14 @@ public class AttachmentCacheService {
         return canonical;
     }
 
+    /**
+     * 规范化Kind。
+     *
+     * @param kind kind 参数。
+     * @param name 名称参数。
+     * @param mimeType MIME 类型参数。
+     * @return 返回Kind结果。
+     */
     public static String normalizeKind(String kind, String name, String mimeType) {
         String normalized = StrUtil.nullToEmpty(kind).trim().toLowerCase(Locale.ROOT);
         if ("image".equals(normalized)
@@ -264,10 +324,25 @@ public class AttachmentCacheService {
         return "file";
     }
 
+    /**
+     * 规范化Mime类型。
+     *
+     * @param mimeType MIME 类型参数。
+     * @param name 名称参数。
+     * @return 返回Mime类型结果。
+     */
     public static String normalizeMimeType(String mimeType, String name) {
         return normalizeMimeType(mimeType, name, null);
     }
 
+    /**
+     * 规范化Mime类型。
+     *
+     * @param mimeType MIME 类型参数。
+     * @param name 名称参数。
+     * @param data 数据参数。
+     * @return 返回Mime类型结果。
+     */
     public static String normalizeMimeType(String mimeType, String name, byte[] data) {
         String sniffed = sniffImageMimeType(data);
         if (sniffed != null) {
@@ -361,10 +436,24 @@ public class AttachmentCacheService {
         return "application/octet-stream";
     }
 
+    /**
+     * 规范化Mime类型。
+     *
+     * @param file 文件或目录路径参数。
+     * @param mimeType MIME 类型参数。
+     * @param name 名称参数。
+     * @return 返回Mime类型结果。
+     */
     public static String normalizeMimeType(File file, String mimeType, String name) {
         return normalizeMimeType(mimeType, name, readImageHeader(file));
     }
 
+    /**
+     * 执行sniff图片MIME 类型相关逻辑。
+     *
+     * @param data 数据参数。
+     * @return 返回sniff图片Mime类型结果。
+     */
     public static String sniffImageMimeType(byte[] data) {
         if (data == null || data.length == 0) {
             return null;
@@ -402,6 +491,12 @@ public class AttachmentCacheService {
         return null;
     }
 
+    /**
+     * 读取图片Header。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回读取到的图片Header。
+     */
     private static byte[] readImageHeader(File file) {
         if (file == null || !file.isFile()) {
             return null;
@@ -428,14 +523,35 @@ public class AttachmentCacheService {
         }
     }
 
+    /**
+     * 执行ascii相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回ascii结果。
+     */
     private static byte[] ascii(String value) {
         return value.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     }
 
+    /**
+     * 执行startsWith相关逻辑。
+     *
+     * @param data 数据参数。
+     * @param prefix prefix 参数。
+     * @return 返回starts With结果。
+     */
     private static boolean startsWith(byte[] data, byte[] prefix) {
         return bytesEqual(data, 0, prefix);
     }
 
+    /**
+     * 执行字节Equal相关逻辑。
+     *
+     * @param data 数据参数。
+     * @param offset 分页偏移量。
+     * @param expected expected 参数。
+     * @return 返回bytes Equal结果。
+     */
     private static boolean bytesEqual(byte[] data, int offset, byte[] expected) {
         if (data == null
                 || expected == null
@@ -451,10 +567,22 @@ public class AttachmentCacheService {
         return true;
     }
 
+    /**
+     * 执行prefixed名称相关逻辑。
+     *
+     * @param originalName original名称参数。
+     * @return 返回prefixed名称结果。
+     */
     private String prefixedName(String originalName) {
         return UUID.randomUUID().toString().replace("-", "") + "_" + safeName(originalName);
     }
 
+    /**
+     * 生成安全展示用的名称。
+     *
+     * @param originalName original名称参数。
+     * @return 返回safe名称结果。
+     */
     private static String safeName(String originalName) {
         String value =
                 StrUtil.blankToDefault(originalName, "attachment.bin")
@@ -501,6 +629,12 @@ public class AttachmentCacheService {
         return value.length() == 0 ? "attachment.bin" : value;
     }
 
+    /**
+     * 移除Traversal Dots。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Traversal Dots结果。
+     */
     private static String removeTraversalDots(String value) {
         String result = StrUtil.nullToEmpty(value);
         while (result.contains("..")) {
@@ -513,6 +647,12 @@ public class AttachmentCacheService {
         return result.length() == 0 ? "attachment.bin" : result;
     }
 
+    /**
+     * 生成安全展示用的路径。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回safe路径。
+     */
     private static String safePath(File file) {
         if (file == null) {
             return "[unknown]";
@@ -524,6 +664,12 @@ public class AttachmentCacheService {
         return safeName(SecretRedactor.redact(name, 400));
     }
 
+    /**
+     * 生成安全展示用的媒体引用。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe媒体Reference结果。
+     */
     private static String safeMediaReference(String value) {
         String text = StrUtil.nullToEmpty(value).replace('\\', '/').trim();
         if (StrUtil.isBlank(text)) {
@@ -538,16 +684,34 @@ public class AttachmentCacheService {
         return safePath(new File(text));
     }
 
+    /**
+     * 判断是否Under缓存根用户。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 如果Under缓存根用户满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderCacheRoot(File file) {
         File runtimeCacheRoot =
                 cacheRoot.getParentFile() == null ? cacheRoot : cacheRoot.getParentFile();
         return isUnder(file, runtimeCacheRoot);
     }
 
+    /**
+     * 判断是否Under媒体根用户。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 如果Under媒体根用户满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderMediaRoot(File file) {
         return isUnder(file, cacheRoot);
     }
 
+    /**
+     * 判断是否Safe运行时Generated文件。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 如果Safe运行时Generated文件满足条件则返回 true，否则返回 false。
+     */
     private boolean isSafeRuntimeGeneratedFile(File file) {
         if (!isUnder(file, runtimeHome)) {
             return false;
@@ -570,6 +734,13 @@ public class AttachmentCacheService {
                 ".silk", ".ogg", ".opus", ".mp3", ".wav", ".m4a", ".aac", ".flac", ".amr");
     }
 
+    /**
+     * 判断是否Under。
+     *
+     * @param file 文件或目录路径参数。
+     * @param root root 参数。
+     * @return 如果Under满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnder(File file, File root) {
         try {
             return isUnderPath(file.getCanonicalFile(), root.getCanonicalFile());
@@ -578,6 +749,13 @@ public class AttachmentCacheService {
         return isUnderPath(file.getAbsoluteFile(), root.getAbsoluteFile());
     }
 
+    /**
+     * 判断是否Under路径。
+     *
+     * @param file 文件或目录路径参数。
+     * @param root root 参数。
+     * @return 如果Under路径满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderPath(File file, File root) {
         String rootPath = root.toPath().toAbsolutePath().normalize().toString();
         String filePath = file.toPath().toAbsolutePath().normalize().toString();
@@ -588,6 +766,12 @@ public class AttachmentCacheService {
         return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
     }
 
+    /**
+     * 执行扩展名相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回extension结果。
+     */
     private static String extension(String name) {
         String value = StrUtil.nullToEmpty(name).trim().toLowerCase(Locale.ROOT);
         int index = value.lastIndexOf('.');
@@ -597,6 +781,13 @@ public class AttachmentCacheService {
         return value.substring(index);
     }
 
+    /**
+     * 执行matches相关逻辑。
+     *
+     * @param ext ext 参数。
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回matches结果。
+     */
     private static boolean matches(String ext, String... values) {
         for (String value : values) {
             if (value.equalsIgnoreCase(ext)) {

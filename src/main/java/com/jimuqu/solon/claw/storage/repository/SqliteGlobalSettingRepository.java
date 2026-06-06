@@ -9,8 +9,15 @@ import lombok.RequiredArgsConstructor;
 /** SQLite 全局设置仓储。 */
 @RequiredArgsConstructor
 public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
+    /** 记录SQLiteGlobal设置中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 获取当前注册项或配置项。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回get结果。
+     */
     @Override
     public String get(String key) throws Exception {
         Connection connection = database.openConnection();
@@ -31,6 +38,12 @@ public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
         }
     }
 
+    /**
+     * 执行set相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     @Override
     public void set(String key, String value) throws Exception {
         Connection connection = database.openConnection();
@@ -48,6 +61,11 @@ public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
         }
     }
 
+    /**
+     * 执行remove相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     */
     @Override
     public void remove(String key) throws Exception {
         Connection connection = database.openConnection();

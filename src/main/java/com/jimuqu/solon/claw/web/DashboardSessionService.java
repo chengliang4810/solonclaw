@@ -24,19 +24,42 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** Dashboard 会话查询服务。 */
 public class DashboardSessionService {
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 注入检查点服务，用于调用对应业务能力。 */
     private final CheckpointService checkpointService;
+
+    /** 注入会话Artifact服务，用于调用对应业务能力。 */
     private final SessionArtifactService sessionArtifactService;
 
+    /**
+     * 创建控制台会话服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     */
     public DashboardSessionService(SessionRepository sessionRepository) {
         this(sessionRepository, null);
     }
 
+    /**
+     * 创建控制台会话服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param checkpointService checkpoint服务依赖。
+     */
     public DashboardSessionService(
             SessionRepository sessionRepository, CheckpointService checkpointService) {
         this(sessionRepository, checkpointService, new SessionArtifactService());
     }
 
+    /**
+     * 创建控制台会话服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     */
     public DashboardSessionService(
             SessionRepository sessionRepository,
             CheckpointService checkpointService,
@@ -49,6 +72,13 @@ public class DashboardSessionService {
                         : sessionArtifactService;
     }
 
+    /**
+     * 读取Sessions。
+     *
+     * @param limit 最大返回数量。
+     * @param offset 分页偏移量。
+     * @return 返回读取到的Sessions。
+     */
     public Map<String, Object> getSessions(int limit, int offset) throws Exception {
         int safeLimit = limit <= 0 ? 20 : Math.min(limit, 100);
         int safeOffset = Math.max(0, offset);
@@ -66,6 +96,12 @@ public class DashboardSessionService {
         return result;
     }
 
+    /**
+     * 读取会话Messages。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回读取到的会话Messages。
+     */
     public Map<String, Object> getSessionMessages(String sessionId) throws Exception {
         SessionRecord record = sessionRepository.findById(sessionId);
         if (record == null) {
@@ -157,6 +193,13 @@ public class DashboardSessionService {
         return result;
     }
 
+    /**
+     * 执行recap相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param maxExchanges maxExchanges 参数。
+     * @return 返回recap结果。
+     */
     public Map<String, Object> recap(String sessionId, int maxExchanges) throws Exception {
         SessionRecord record = sessionRepository.findById(sessionId);
         if (record == null) {
@@ -169,6 +212,14 @@ public class DashboardSessionService {
         return sessionArtifactService.recap(record, maxExchanges);
     }
 
+    /**
+     * 执行trajectory相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param userQuery 用户查询参数。
+     * @param completed completed 参数。
+     * @return 返回trajectory结果。
+     */
     public Map<String, Object> trajectory(String sessionId, String userQuery, boolean completed)
             throws Exception {
         SessionRecord record = sessionRepository.findById(sessionId);
@@ -182,6 +233,14 @@ public class DashboardSessionService {
         return sessionArtifactService.trajectory(record, userQuery, completed);
     }
 
+    /**
+     * 保存Trajectory。
+     *
+     * @param sessionId 当前会话标识。
+     * @param userQuery 用户查询参数。
+     * @param completed completed 参数。
+     * @return 返回Trajectory结果。
+     */
     public Map<String, Object> saveTrajectory(String sessionId, String userQuery, boolean completed)
             throws Exception {
         SessionRecord record = sessionRepository.findById(sessionId);
@@ -198,6 +257,12 @@ public class DashboardSessionService {
         return saved;
     }
 
+    /**
+     * 搜索Sessions。
+     *
+     * @param query 查询参数。
+     * @return 返回Sessions结果。
+     */
     public Map<String, Object> searchSessions(String query) throws Exception {
         List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
         if (StrUtil.isBlank(query)) {
@@ -223,11 +288,24 @@ public class DashboardSessionService {
         return Collections.singletonMap("results", results);
     }
 
+    /**
+     * 删除会话。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回会话结果。
+     */
     public Map<String, Object> deleteSession(String sessionId) throws Exception {
         sessionRepository.delete(sessionId);
         return Collections.singletonMap("ok", true);
     }
 
+    /**
+     * 更新会话。
+     *
+     * @param sessionId 当前会话标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回会话结果。
+     */
     public Map<String, Object> updateSession(String sessionId, Map<String, Object> body)
             throws Exception {
         SessionRecord record = sessionRepository.findById(sessionId);
@@ -247,6 +325,12 @@ public class DashboardSessionService {
         return toSessionInfo(sessionRepository.findById(sessionId));
     }
 
+    /**
+     * 执行会话Tree相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回会话Tree结果。
+     */
     public Map<String, Object> sessionTree(String sessionId) throws Exception {
         SessionRecord root = sessionRepository.findById(sessionId);
         if (root == null) {
@@ -266,6 +350,12 @@ public class DashboardSessionService {
         return result;
     }
 
+    /**
+     * 执行latestDescendant相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回latest Descendant结果。
+     */
     public Map<String, Object> latestDescendant(String sessionId) throws Exception {
         SessionRecord root = sessionRepository.findById(sessionId);
         if (root == null) {
@@ -288,6 +378,12 @@ public class DashboardSessionService {
         return result;
     }
 
+    /**
+     * 执行checkpoints相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回checkpoints结果。
+     */
     public Map<String, Object> checkpoints(String sessionId) throws Exception {
         if (checkpointService == null) {
             return Collections.singletonMap("checkpoints", Collections.emptyList());
@@ -304,6 +400,12 @@ public class DashboardSessionService {
         return Collections.singletonMap("checkpoints", checkpoints);
     }
 
+    /**
+     * 执行检查点预览相关逻辑。
+     *
+     * @param checkpointId checkpoint标识。
+     * @return 返回检查点Preview结果。
+     */
     public Map<String, Object> checkpointPreview(String checkpointId) throws Exception {
         if (checkpointService == null) {
             return Collections.emptyMap();
@@ -311,6 +413,12 @@ public class DashboardSessionService {
         return checkpointService.preview(checkpointId);
     }
 
+    /**
+     * 执行回滚检查点相关逻辑。
+     *
+     * @param checkpointId checkpoint标识。
+     * @return 返回回滚检查点结果。
+     */
     public Map<String, Object> rollbackCheckpoint(String checkpointId) throws Exception {
         if (checkpointService == null) {
             throw new IllegalStateException("checkpoint service is not configured");
@@ -319,6 +427,12 @@ public class DashboardSessionService {
         return toCheckpoint(record);
     }
 
+    /**
+     * 转换为会话Info。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的会话Info。
+     */
     private Map<String, Object> toSessionInfo(SessionRecord record) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(record.getNdjson());
         int toolCallCount = 0;
@@ -384,6 +498,12 @@ public class DashboardSessionService {
         return result;
     }
 
+    /**
+     * 执行目标状态相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回goal状态。
+     */
     private Map<String, Object> goalState(SessionRecord record) {
         GoalState state = GoalState.fromJson(record.getGoalStateJson());
         if (state == null || GoalState.STATUS_CLEARED.equals(state.getStatus())) {
@@ -402,6 +522,12 @@ public class DashboardSessionService {
         return result;
     }
 
+    /**
+     * 转换为检查点。
+     *
+     * @param checkpoint checkpoint 参数。
+     * @return 返回转换后的检查点。
+     */
     private Map<String, Object> toCheckpoint(CheckpointRecord checkpoint) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("checkpoint_id", safe(checkpoint.getCheckpointId(), 400));
@@ -412,6 +538,13 @@ public class DashboardSessionService {
         return item;
     }
 
+    /**
+     * 构建Snippet。
+     *
+     * @param record 记录参数。
+     * @param query 查询参数。
+     * @return 返回创建好的Snippet。
+     */
     private String buildSnippet(SessionRecord record, String query) throws Exception {
         String lowerQuery = query.toLowerCase(Locale.ROOT);
         for (ChatMessage message : MessageSupport.loadMessages(record.getNdjson())) {
@@ -437,6 +570,12 @@ public class DashboardSessionService {
         return trim(StrUtil.blankToDefault(record.getCompressedSummary(), record.getTitle()), 160);
     }
 
+    /**
+     * 解析来源。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回解析后的来源。
+     */
     private String parseSource(String sourceKey) {
         String[] parts = SourceKeySupport.split(sourceKey);
         if ("MEMORY".equalsIgnoreCase(parts[0])) {
@@ -445,6 +584,13 @@ public class DashboardSessionService {
         return parts[0].toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 执行trim相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @param limit 最大返回数量。
+     * @return 返回trim结果。
+     */
     private String trim(String text, int limit) {
         String normalized = StrUtil.nullToEmpty(text).replace('\n', ' ').trim();
         if (normalized.length() <= limit) {
@@ -453,10 +599,24 @@ public class DashboardSessionService {
         return normalized.substring(0, limit) + "...";
     }
 
+    /**
+     * 执行安全相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 生成安全展示用的列表。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe List结果。
+     */
     private List<String> safeList(List<String> values, int maxLength) {
         List<String> result = new ArrayList<String>();
         if (values == null) {

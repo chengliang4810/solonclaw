@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
  */
 public final class GatewayContextIsolation {
 
+    /** 创建消息网关上下文Isolation实例。 */
     private GatewayContextIsolation() {}
 
     /**

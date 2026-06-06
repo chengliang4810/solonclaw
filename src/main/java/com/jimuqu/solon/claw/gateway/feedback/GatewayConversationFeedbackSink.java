@@ -14,21 +14,47 @@ import org.slf4j.LoggerFactory;
 
 /** 面向消息渠道的中间态反馈 sink。 */
 public class GatewayConversationFeedbackSink implements ConversationFeedbackSink {
+    /** 日志的统一常量值。 */
     private static final Logger log =
             LoggerFactory.getLogger(GatewayConversationFeedbackSink.class);
 
+    /** 记录消息网关对话反馈接收端中的消息。 */
     private final GatewayMessage message;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 保存展示设置服务集合，维持调用顺序或去重语义。 */
     private final DisplaySettingsService displaySettingsService;
 
+    /** 记录消息网关对话反馈接收端中的最近一次工具名称。 */
     private String lastToolName;
+
+    /** 记录消息网关对话反馈接收端中的最近一次推理。 */
     private String lastReasoning;
+
+    /** 记录消息网关对话反馈接收端中的最近一次推理时间。 */
     private long lastReasoningAt;
+
+    /** 记录消息网关对话反馈接收端中的工具Started次数。 */
     private int toolStartedCount;
+
+    /** 记录消息网关对话反馈接收端中的工具Finished次数。 */
     private int toolFinishedCount;
+
+    /** 记录消息网关对话反馈接收端中的钉钉卡片Biz标识。 */
     private String dingtalkCardBizId;
+
+    /** 是否启用钉钉卡片Sent。 */
     private boolean dingtalkCardSent;
 
+    /**
+     * 创建消息网关对话Feedback接收端实例，并注入运行所需依赖。
+     *
+     * @param message 平台消息或错误消息。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     */
     public GatewayConversationFeedbackSink(
             GatewayMessage message,
             DeliveryService deliveryService,
@@ -38,6 +64,12 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         this.displaySettingsService = displaySettingsService;
     }
 
+    /**
+     * 响应工具Started事件。
+     *
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     */
     @Override
     public void onToolStarted(String toolName, Map<String, Object> args) {
         String progressMode = displaySettingsService.resolveToolProgress(message.getPlatform());
@@ -71,11 +103,23 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         sendText(buildToolProgressText(toolName, preview));
     }
 
+    /**
+     * 响应工具Finished事件。
+     *
+     * @param toolName 工具名称。
+     * @param result 结果响应或执行结果。
+     * @param durationMs durationMs 参数。
+     */
     @Override
     public void onToolFinished(String toolName, String result, long durationMs) {
         toolFinishedCount++;
     }
 
+    /**
+     * 响应推理事件。
+     *
+     * @param thought thought 参数。
+     */
     @Override
     public void onReasoning(String thought) {
         if (!displaySettingsService.isReasoningVisible(
@@ -104,6 +148,11 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
                                 Math.max(200, displaySettingsService.toolPreviewLength() * 4)));
     }
 
+    /**
+     * 响应最终回复事件。
+     *
+     * @param finalReply 最终回复参数。
+     */
     @Override
     public void onFinalReply(String finalReply) {
         if (!dingtalkCardSent || message.getPlatform() != PlatformType.DINGTALK) {
@@ -121,6 +170,13 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
                 summary);
     }
 
+    /**
+     * 构建工具Progress Text。
+     *
+     * @param toolName 工具名称。
+     * @param preview 预览参数。
+     * @return 返回创建好的工具Progress Text。
+     */
     private String buildToolProgressText(String toolName, String preview) {
         if (StrUtil.isBlank(preview)) {
             return "【工具】" + toolName;
@@ -128,12 +184,31 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         return "【工具】" + toolName + " · " + preview;
     }
 
+    /**
+     * 发送钉钉Progress Card。
+     *
+     * @param status 状态参数。
+     * @param toolName 工具名称。
+     * @param preview 预览参数。
+     * @param updateOnly updateOnly 参数。
+     * @return 返回钉钉Progress Card结果。
+     */
     private boolean sendDingtalkProgressCard(
             String status, String toolName, String preview, boolean updateOnly) {
         String summary = "当前步骤：" + toolName + "，已启动 " + toolStartedCount + " 个工具";
         return sendDingtalkProgressCard(status, toolName, preview, updateOnly, summary);
     }
 
+    /**
+     * 发送钉钉Progress Card。
+     *
+     * @param status 状态参数。
+     * @param toolName 工具名称。
+     * @param preview 预览参数。
+     * @param updateOnly updateOnly 参数。
+     * @param summary 摘要参数。
+     * @return 返回钉钉Progress Card结果。
+     */
     private boolean sendDingtalkProgressCard(
             String status, String toolName, String preview, boolean updateOnly, String summary) {
         try {
@@ -167,6 +242,11 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         }
     }
 
+    /**
+     * 发送Text。
+     *
+     * @param text 待处理文本。
+     */
     private void sendText(String text) {
         if (StrUtil.isBlank(text)) {
             return;
@@ -185,6 +265,11 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         }
     }
 
+    /**
+     * 执行基础请求相关逻辑。
+     *
+     * @return 返回base请求结果。
+     */
     private DeliveryRequest baseRequest() {
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(message.getPlatform());
@@ -195,6 +280,11 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         return request;
     }
 
+    /**
+     * 确保钉钉Card Biz标识。
+     *
+     * @return 返回钉钉Card Biz标识。
+     */
     private String ensureDingtalkCardBizId() {
         if (StrUtil.isBlank(dingtalkCardBizId)) {
             dingtalkCardBizId =
@@ -210,10 +300,23 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         return dingtalkCardBizId;
     }
 
+    /**
+     * 执行规范化相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @return 返回规范化结果。
+     */
     private String normalize(String text) {
         return StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
     }
 
+    /**
+     * 执行truncate相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @param limit 最大返回数量。
+     * @return 返回truncate结果。
+     */
     private String truncate(String text, int limit) {
         if (text == null || text.length() <= limit) {
             return StrUtil.nullToEmpty(text);
@@ -221,6 +324,12 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         return text.substring(0, Math.max(0, limit - 3)) + "...";
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";

@@ -18,10 +18,16 @@ import org.noear.solon.annotation.Mapping;
 /** 健康检查控制器。 */
 @Controller
 public class HealthController {
+    /** 服务名称的统一常量值。 */
     private static final String SERVICE_NAME = "solon-claw";
+
+    /** STARTED时间EPOCHMS的统一常量值。 */
     private static final long STARTED_AT_EPOCH_MS = System.currentTimeMillis();
+
+    /** STARTED时间NANOS的统一常量值。 */
     private static final long STARTED_AT_NANOS = System.nanoTime();
 
+    /** 注入状态服务，用于调用对应业务能力。 */
     @Inject(required = false)
     private DashboardStatusService statusService;
 
@@ -83,17 +89,28 @@ public class HealthController {
         return result;
     }
 
+    /**
+     * 执行运行时状态Snapshot相关逻辑。
+     *
+     * @return 返回运行时状态Snapshot结果。
+     */
     private Map<String, Object> runtimeStatusSnapshot() {
         if (statusService != null) {
             try {
                 return withStableRuntimeStatus(statusService.getHealthRuntimeSnapshot());
             } catch (Exception ignored) {
-                // Health endpoints must stay available even if runtime state providers fail.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
         return withStableRuntimeStatus(null);
     }
 
+    /**
+     * 执行withStable运行时状态相关逻辑。
+     *
+     * @param status 状态参数。
+     * @return 返回with Stable运行时状态。
+     */
     private Map<String, Object> withStableRuntimeStatus(Map<String, Object> status) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (status != null) {
@@ -126,6 +143,11 @@ public class HealthController {
         return result;
     }
 
+    /**
+     * 执行兜底运行时Capabilities相关逻辑。
+     *
+     * @return 返回兜底运行时Capabilities结果。
+     */
     private Map<String, Object> fallbackRuntimeCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("schema_version", Integer.valueOf(1));
@@ -136,6 +158,12 @@ public class HealthController {
         return capabilities;
     }
 
+    /**
+     * 执行兜底运行时状态相关逻辑。
+     *
+     * @param status 状态参数。
+     * @return 返回兜底运行时状态。
+     */
     private Map<String, Object> fallbackRuntimeStatus(Map<String, Object> status) {
         Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
         snapshot.put("schema_version", Integer.valueOf(1));
@@ -147,6 +175,12 @@ public class HealthController {
         return snapshot;
     }
 
+    /**
+     * 执行兜底诊断状态相关逻辑。
+     *
+     * @param status 状态参数。
+     * @return 返回兜底诊断状态。
+     */
     private Map<String, Object> fallbackDiagnosticsStatus(Map<String, Object> status) {
         Map<String, Object> diagnostics = new LinkedHashMap<String, Object>();
         diagnostics.put("state", "ok");
@@ -155,16 +189,33 @@ public class HealthController {
         return diagnostics;
     }
 
+    /**
+     * 执行supported模型Protocols相关逻辑。
+     *
+     * @return 返回supported模型Protocols结果。
+     */
     private List<String> supportedModelProtocols() {
         return new ArrayList<String>(
                 Arrays.asList("openai", "openai-responses", "ollama", "gemini", "anthropic"));
     }
 
+    /**
+     * 执行supportedChannels相关逻辑。
+     *
+     * @return 返回supported Channels结果。
+     */
     private List<String> supportedChannels() {
         return new ArrayList<String>(
                 Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
     }
 
+    /**
+     * 执行消息网关摘要相关逻辑。
+     *
+     * @param status 状态参数。
+     * @param fallbackUpdatedAt 兜底UpdatedAt参数。
+     * @return 返回消息网关Summary结果。
+     */
     private Map<String, Object> gatewaySummary(
             Map<String, Object> status, String fallbackUpdatedAt) {
         Map<String, Object> gateway = new LinkedHashMap<String, Object>();
@@ -183,6 +234,11 @@ public class HealthController {
         return gateway;
     }
 
+    /**
+     * 解析Pid。
+     *
+     * @return 返回解析后的Pid。
+     */
     private Integer parsePid() {
         try {
             String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
@@ -194,6 +250,11 @@ public class HealthController {
         }
     }
 
+    /**
+     * 执行isoNow相关逻辑。
+     *
+     * @return 返回iso Now结果。
+     */
     private String isoNow() {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         format.setTimeZone(TimeZone.getDefault());

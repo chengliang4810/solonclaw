@@ -10,18 +10,39 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Resolves local and configured external skill directories using Jimuqu-compatible rules. */
+/** 承载技能目录Resolver相关状态和辅助逻辑。 */
 public class SkillDirectoryResolver {
+    /** 注入应用配置，用于技能目录Resolver。 */
     private final AppConfig appConfig;
+
+    /** 记录技能目录Resolver中的运行时主渠道。 */
     private final File runtimeHome;
+
+    /** 记录技能目录Resolver中的技能目录。 */
     private final File skillsDir;
 
+    /** 承载外部技能目录摘要相关状态和辅助逻辑。 */
     public static final class ExternalSkillDirectorySummary {
+        /** 记录外部技能目录摘要中的已配置路径。 */
         private final String configuredPath;
+
+        /** 记录外部技能目录摘要中的目录。 */
         private final File directory;
+
+        /** 是否启用本地。 */
         private final boolean local;
+
+        /** 是否启用duplicate。 */
         private final boolean duplicate;
 
+        /**
+         * 创建外部技能Directory Summary实例，并注入运行所需依赖。
+         *
+         * @param configuredPath 文件或目录路径参数。
+         * @param directory 文件或目录路径参数。
+         * @param local 本地参数。
+         * @param duplicate duplicate 参数。
+         */
         public ExternalSkillDirectorySummary(
                 String configuredPath, File directory, boolean local, boolean duplicate) {
             this.configuredPath = configuredPath;
@@ -30,27 +51,57 @@ public class SkillDirectoryResolver {
             this.duplicate = duplicate;
         }
 
+        /**
+         * 读取Configured路径。
+         *
+         * @return 返回读取到的Configured路径。
+         */
         public String getConfiguredPath() {
             return configuredPath;
         }
 
+        /**
+         * 读取Directory。
+         *
+         * @return 返回读取到的Directory。
+         */
         public File getDirectory() {
             return directory;
         }
 
+        /**
+         * 读取Normalized路径。
+         *
+         * @return 返回读取到的Normalized路径。
+         */
         public String getNormalizedPath() {
             return directory.getAbsolutePath();
         }
 
+        /**
+         * 判断是否本地。
+         *
+         * @return 如果本地满足条件则返回 true，否则返回 false。
+         */
         public boolean isLocal() {
             return local;
         }
 
+        /**
+         * 判断是否Duplicate。
+         *
+         * @return 如果Duplicate满足条件则返回 true，否则返回 false。
+         */
         public boolean isDuplicate() {
             return duplicate;
         }
     }
 
+    /**
+     * 创建技能Directory Resolver实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public SkillDirectoryResolver(AppConfig appConfig) {
         this.appConfig = appConfig;
         String home =
@@ -67,10 +118,20 @@ public class SkillDirectoryResolver {
         this.skillsDir = FileUtil.file(skills).getAbsoluteFile();
     }
 
+    /**
+     * 执行本地技能目录相关逻辑。
+     *
+     * @return 返回本地技能Dir结果。
+     */
     public File localSkillsDir() {
         return skillsDir;
     }
 
+    /**
+     * 执行全部技能Dirs相关逻辑。
+     *
+     * @return 返回全部技能Dirs结果。
+     */
     public List<File> allSkillsDirs() {
         List<File> dirs = new ArrayList<File>();
         dirs.add(skillsDir);
@@ -78,6 +139,11 @@ public class SkillDirectoryResolver {
         return dirs;
     }
 
+    /**
+     * 执行外部技能Dirs相关逻辑。
+     *
+     * @return 返回外部技能Dirs结果。
+     */
     public List<File> externalSkillsDirs() {
         List<ExternalSkillDirectorySummary> summaries = externalSkillDirSummaries();
         if (summaries.isEmpty()) {
@@ -93,6 +159,11 @@ public class SkillDirectoryResolver {
         return dirs;
     }
 
+    /**
+     * 执行外部技能目录Summaries相关逻辑。
+     *
+     * @return 返回外部技能Dir Summaries结果。
+     */
     public List<ExternalSkillDirectorySummary> externalSkillDirSummaries() {
         List<String> configured =
                 appConfig == null || appConfig.getSkills() == null
@@ -122,6 +193,12 @@ public class SkillDirectoryResolver {
         return summaries;
     }
 
+    /**
+     * 解析外部技能Dir。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 返回解析后的外部技能Dir。
+     */
     private File resolveExternalSkillsDir(String rawPath) {
         String expanded = expandPathVariables(rawPath);
         File file = FileUtil.file(expanded);
@@ -131,6 +208,12 @@ public class SkillDirectoryResolver {
         return file.getAbsoluteFile();
     }
 
+    /**
+     * 执行expand路径Variables相关逻辑。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 返回expand路径Variables结果。
+     */
     private String expandPathVariables(String rawPath) {
         String value = StrUtil.nullToEmpty(rawPath).trim();
         if (value.equals("~")) {
@@ -141,6 +224,12 @@ public class SkillDirectoryResolver {
         return expandEnvironmentVariables(value);
     }
 
+    /**
+     * 执行expandEnvironmentVariables相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回expand Environment Variables结果。
+     */
     private String expandEnvironmentVariables(String value) {
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < value.length(); ) {
@@ -161,6 +250,12 @@ public class SkillDirectoryResolver {
         return result.toString();
     }
 
+    /**
+     * 执行规范OrAbsolute相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回规范Or Absolute结果。
+     */
     private File canonicalOrAbsolute(File file) {
         try {
             return file.getCanonicalFile();
@@ -169,6 +264,13 @@ public class SkillDirectoryResolver {
         }
     }
 
+    /**
+     * 判断是否Same文件。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 如果Same文件满足条件则返回 true，否则返回 false。
+     */
     private boolean isSameFile(File left, File right) {
         return left != null
                 && right != null

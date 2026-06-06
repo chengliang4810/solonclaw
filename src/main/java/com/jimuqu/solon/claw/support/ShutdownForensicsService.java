@@ -13,16 +13,30 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** Shutdown forensics captures process context for post-exit diagnostics. */
+/** 提供Shutdown Forensics相关业务能力，封装调用方不需要感知的运行细节。 */
 public class ShutdownForensicsService {
+    /** 注入应用配置，用于关闭Forensics。 */
     private final AppConfig appConfig;
+
+    /** 记录关闭Forensics中的started时间。 */
     private volatile long startedAt;
 
+    /**
+     * 创建Shutdown Forensics服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public ShutdownForensicsService(AppConfig appConfig) {
         this.appConfig = appConfig;
         this.startedAt = System.currentTimeMillis();
     }
 
+    /**
+     * 执行snapshot关闭上下文相关逻辑。
+     *
+     * @param reason 原因参数。
+     * @return 返回snapshot Shutdown上下文结果。
+     */
     public Map<String, Object> snapshotShutdownContext(String reason) {
         Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
         long now = System.currentTimeMillis();
@@ -54,6 +68,11 @@ public class ShutdownForensicsService {
         return snapshot;
     }
 
+    /**
+     * 执行persist关闭记录相关逻辑。
+     *
+     * @param reason 原因参数。
+     */
     public void persistShutdownRecord(String reason) {
         try {
             Map<String, Object> snapshot = snapshotShutdownContext(reason);
@@ -70,10 +89,16 @@ public class ShutdownForensicsService {
         }
     }
 
+    /** 执行persist生命周期关闭记录相关逻辑。 */
     public void persistLifecycleShutdownRecord() {
         persistShutdownRecord("lifecycle_shutdown");
     }
 
+    /**
+     * 执行last关闭记录相关逻辑。
+     *
+     * @return 返回last Shutdown记录结果。
+     */
     public Map<String, Object> lastShutdownRecord() {
         try {
             File latest = lastShutdownRecordFile();
@@ -92,6 +117,11 @@ public class ShutdownForensicsService {
         }
     }
 
+    /**
+     * 执行last关闭记录文件相关逻辑。
+     *
+     * @return 返回last Shutdown记录文件结果。
+     */
     public File lastShutdownRecordFile() {
         try {
             File forensicsDir = new File(appConfig.getRuntime().getHome(), "forensics");
@@ -116,6 +146,12 @@ public class ShutdownForensicsService {
         }
     }
 
+    /**
+     * 清理OldRecords。
+     *
+     * @param dir 文件或目录路径参数。
+     * @param keepCount keepCount 参数。
+     */
     private void cleanOldRecords(File dir, int keepCount) {
         File[] files = dir.listFiles();
         if (files == null || files.length <= keepCount) {
@@ -124,6 +160,13 @@ public class ShutdownForensicsService {
         java.util.Arrays.sort(
                 files,
                 new java.util.Comparator<File>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param a a 参数。
+                     * @param b b 参数。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(File a, File b) {
                         return Long.compare(a.lastModified(), b.lastModified());
@@ -135,6 +178,11 @@ public class ShutdownForensicsService {
         }
     }
 
+    /**
+     * 读取Pid。
+     *
+     * @return 返回读取到的Pid。
+     */
     private String getPid() {
         try {
             RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();

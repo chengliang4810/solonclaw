@@ -9,6 +9,12 @@ public interface SessionSearchService {
     /** 搜索或列出最近会话。 */
     List<SessionSearchEntry> search(String sourceKey, String query, int limit) throws Exception;
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @return 返回搜索结果。
+     */
     default List<SessionSearchEntry> search(SessionSearchQuery query) throws Exception {
         return search(
                 query == null ? null : query.getSourceKey(),

@@ -15,12 +15,21 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
-/** Jimuqu Curator 对齐的技能后台维护器。 */
+/** 提供技能技能维护相关业务能力，封装调用方不需要感知的运行细节。 */
 @RequiredArgsConstructor
 public class SkillCuratorService {
+    /** 注入应用配置，用于技能技能维护。 */
     private final AppConfig appConfig;
+
+    /** 注入本地技能服务，用于调用对应业务能力。 */
     private final LocalSkillService localSkillService;
 
+    /**
+     * 运行Once。
+     *
+     * @param force force 参数。
+     * @return 返回Once结果。
+     */
     public synchronized Map<String, Object> runOnce(boolean force) throws Exception {
         Map<String, Object> state = readState();
         long now = System.currentTimeMillis();
@@ -48,6 +57,13 @@ public class SkillCuratorService {
         }
         items.sort(
                 new java.util.Comparator<Map<String, Object>>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(Map<String, Object> left, Map<String, Object> right) {
                         return Long.compare(
@@ -60,18 +76,25 @@ public class SkillCuratorService {
         return report(state, now, "ok", items);
     }
 
+    /** 执行pause相关逻辑。 */
     public synchronized void pause() {
         Map<String, Object> state = readState();
         state.put("paused", Boolean.TRUE);
         writeState(state);
     }
 
+    /** 执行resume相关逻辑。 */
     public synchronized void resume() {
         Map<String, Object> state = readState();
         state.put("paused", Boolean.FALSE);
         writeState(state);
     }
 
+    /**
+     * 执行状态相关逻辑。
+     *
+     * @return 返回状态。
+     */
     public synchronized Map<String, Object> status() {
         Map<String, Object> state = readState();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -90,6 +113,14 @@ public class SkillCuratorService {
         return result;
     }
 
+    /**
+     * 执行review技能相关逻辑。
+     *
+     * @param descriptor descriptor 参数。
+     * @param skillsState 技能状态参数。
+     * @param now 当前时间戳。
+     * @return 返回review技能结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> reviewSkill(
             SkillDescriptor descriptor, Map<String, Object> skillsState, long now) {
@@ -156,14 +187,36 @@ public class SkillCuratorService {
         return item;
     }
 
+    /**
+     * 应用Suggestion。
+     *
+     * @param skillName 技能名称参数。
+     * @param suggestion suggestion 参数。
+     * @return 返回apply Suggestion结果。
+     */
     public synchronized Map<String, Object> applySuggestion(String skillName, String suggestion) {
         return recordSuggestionState(skillName, suggestion, "applied");
     }
 
+    /**
+     * 执行忽略Suggestion相关逻辑。
+     *
+     * @param skillName 技能名称参数。
+     * @param suggestion suggestion 参数。
+     * @return 返回忽略Suggestion结果。
+     */
     public synchronized Map<String, Object> ignoreSuggestion(String skillName, String suggestion) {
         return recordSuggestionState(skillName, suggestion, "ignored");
     }
 
+    /**
+     * 记录Suggestion状态。
+     *
+     * @param skillName 技能名称参数。
+     * @param suggestion suggestion 参数。
+     * @param status 状态参数。
+     * @return 返回Suggestion状态。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> recordSuggestionState(
             String skillName, String suggestion, String status) {
@@ -187,6 +240,12 @@ public class SkillCuratorService {
         return result;
     }
 
+    /**
+     * 检查ContentFlags。
+     *
+     * @param descriptor descriptor 参数。
+     * @return 返回inspect Content Flags结果。
+     */
     private List<String> inspectContentFlags(SkillDescriptor descriptor) {
         List<String> flags = new ArrayList<String>();
         try {
@@ -210,6 +269,15 @@ public class SkillCuratorService {
         return flags;
     }
 
+    /**
+     * 执行report相关逻辑。
+     *
+     * @param state 状态参数。
+     * @param now 当前时间戳。
+     * @param status 状态参数。
+     * @param items items 参数。
+     * @return 返回report结果。
+     */
     private Map<String, Object> report(
             Map<String, Object> state, long now, String status, List<Map<String, Object>> items) {
         Map<String, Object> report = new LinkedHashMap<String, Object>();
@@ -222,10 +290,22 @@ public class SkillCuratorService {
         return report;
     }
 
+    /**
+     * 执行技能引用相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回技能Reference结果。
+     */
     private String skillReference(String name) {
         return "skill://" + SecretRedactor.redact(StrUtil.blankToDefault(name, "unknown"), 400);
     }
 
+    /**
+     * 写入Report。
+     *
+     * @param report report 参数。
+     * @param now 当前时间戳。
+     */
     private void writeReport(Map<String, Object> report, long now) {
         String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date(now));
         File runDir = FileUtil.file(appConfig.getRuntime().getLogsDir(), "curator", stamp);
@@ -250,6 +330,11 @@ public class SkillCuratorService {
         FileUtil.writeUtf8String(markdown.toString(), FileUtil.file(runDir, "REPORT.md"));
     }
 
+    /**
+     * 读取状态。
+     *
+     * @return 返回读取到的状态。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> readState() {
         File stateFile = stateFile();
@@ -266,12 +351,24 @@ public class SkillCuratorService {
         return new LinkedHashMap<String, Object>();
     }
 
+    /**
+     * 写入状态。
+     *
+     * @param state 状态参数。
+     */
     private void writeState(Map<String, Object> state) {
         File file = stateFile();
         FileUtil.mkParentDirs(file);
         FileUtil.writeUtf8String(ONode.serialize(state), file);
     }
 
+    /**
+     * 确保Map。
+     *
+     * @param state 状态参数。
+     * @param key 配置键或映射键。
+     * @return 返回Map结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> ensureMap(Map<String, Object> state, String key) {
         Object current = state.get(key);
@@ -283,10 +380,21 @@ public class SkillCuratorService {
         return created;
     }
 
+    /**
+     * 执行状态文件相关逻辑。
+     *
+     * @return 返回状态文件结果。
+     */
     private File stateFile() {
         return FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state");
     }
 
+    /**
+     * 执行lastTouched时间相关逻辑。
+     *
+     * @param dir 文件或目录路径参数。
+     * @return 返回last Touched时间结果。
+     */
     private long lastTouchedAt(File dir) {
         long latest = dir == null ? 0L : dir.lastModified();
         if (dir != null && dir.exists()) {
@@ -297,6 +405,12 @@ public class SkillCuratorService {
         return latest <= 0 ? System.currentTimeMillis() : latest;
     }
 
+    /**
+     * 判断是否Pinned。
+     *
+     * @param descriptor descriptor 参数。
+     * @return 如果Pinned满足条件则返回 true，否则返回 false。
+     */
     @SuppressWarnings("unchecked")
     private boolean isPinned(SkillDescriptor descriptor) {
         Map<String, Object> metadata = descriptor.getMetadata();
@@ -313,6 +427,12 @@ public class SkillCuratorService {
         return false;
     }
 
+    /**
+     * 执行as布尔值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Boolean结果。
+     */
     private boolean asBoolean(Object value) {
         if (value instanceof Boolean) {
             return ((Boolean) value).booleanValue();
@@ -321,6 +441,12 @@ public class SkillCuratorService {
         return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();

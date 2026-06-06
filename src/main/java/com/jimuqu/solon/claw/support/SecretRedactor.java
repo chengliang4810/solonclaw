@@ -6,42 +6,69 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Redacts common secrets before returning logs/session details to dashboard clients. */
+/** 承载密钥脱敏器相关状态和辅助逻辑。 */
 public final class SecretRedactor {
+    /** BEARER的统一常量值。 */
     private static final Pattern BEARER =
             Pattern.compile(
                     "(?i)(Authorization:\\s*Bearer\\s+|\\bbearer\\s+)([A-Za-z0-9._~+/-]+=*)");
+
+    /** 环境变量ASSIGNMENT的统一常量值。 */
     private static final Pattern ENV_ASSIGNMENT =
             Pattern.compile(
                     "\\b([A-Z0-9_]{0,50}(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Z0-9_]{0,50})(=)(['\"]?)(\\S+)\\3");
+
+    /** 终端键值的统一常量值。 */
     private static final Pattern SHELL_KEY_VALUE =
             Pattern.compile(
                     "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|access[_-]?token|refresh[_-]?token|bearer[_-]?token|client[_-]?secret|private[_-]?key)(=)([^\\s,;&=\"#'}]+)");
+
+    /** JSONFIELD的统一常量值。 */
     private static final Pattern JSON_FIELD =
             Pattern.compile(
                     "(?i)(\"(?:api_?key|token|secret|password|access_?token|refresh_?token|auth_?token|bearer_?token|client_?secret|secret_?value|raw_?secret|secret_?input|key_?material|private_?key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
+
+    /** URLUSERINFO的统一常量值。 */
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
+
+    /** ENCODEDURLUSERINFO的统一常量值。 */
     private static final Pattern ENCODED_URL_USERINFO =
             Pattern.compile(
                     "(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(%(?:25){0,3}3a)([^/?#\\s@]+)@");
+
+    /** SCHEMELESSURLUSERINFO的统一常量值。 */
     private static final Pattern SCHEMELESS_URL_USERINFO =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_./:-])([A-Za-z0-9._~+%-]{1,80}):(?!//)([^\\s/@?#]+)@([A-Za-z0-9._~%-]+(?:\\:[0-9]{1,5})?(?:[/#?]|\\b))");
+
+    /** SENSITIVEURLUSERINFO的统一常量值。 */
     private static final Pattern SENSITIVE_URL_USERINFO =
             Pattern.compile("(?i)\\b(?:https?|wss?|ftp)://[^/?#\\s:@]+:[^/?#\\s@]+@[^\\s]+");
+
+    /** DBCONNSTR的统一常量值。 */
     private static final Pattern DB_CONNSTR =
             Pattern.compile(
                     "(?i)\\b((?:postgres(?:ql)?|mysql|mongodb(?:\\+srv)?|redis|amqp)://[^:\\s/@]+:)([^@\\s]+)(@)");
+
+    /** 私聊键的统一常量值。 */
     private static final Pattern PRIVATE_KEY =
             Pattern.compile(
                     "-----BEGIN[A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END[A-Z ]*PRIVATE KEY-----");
+
+    /** JWT的统一常量值。 */
     private static final Pattern JWT =
             Pattern.compile("eyJ[A-Za-z0-9_-]{10,}(?:\\.[A-Za-z0-9_=-]{4,}){0,2}");
+
+    /** SENSITIVE查询名称列表的统一常量值。 */
     private static final String SENSITIVE_QUERY_NAMES =
             "access_token|refresh_token|id_token|auth_token|oauth_token|authorization|proxy_authorization|bearer_token|code_verifier|client_assertion|saml_response|samlresponse|token|access_key|secret_key|session_token|api_key|apikey|client_secret|password|private_key|auth|jwt|session|secret|key|code|signature|security_token|x-amz-signature|x_amz_signature|x_amz_credential|x_amz_security_token|x_goog_signature|x_goog_credential|x_oss_signature|x_oss_security_token|x_cos_signature|x_cos_security_token|x_obs_signature|x_obs_security_token|x_ms_signature";
+
+    /** SENSITIVE查询的统一常量值。 */
     private static final Pattern SENSITIVE_QUERY =
             Pattern.compile("(?i)([?&;](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&;#\\s]+");
+
+    /** SENSITIVE路径的统一常量值。 */
     private static final Pattern SENSITIVE_PATH =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_])("
@@ -50,8 +77,12 @@ public final class SecretRedactor {
                             + "|(?:^|(?<=[\\s\"'=:]))(?:[^\\s\"'<>|;?#]+[\\\\/])*skills[\\\\/]\\.hub(?:[\\\\/][^\\s\"'<>|;?#]+)*"
                             + "|(?:^|(?<=[\\s\"'=:]))(?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh[\\\\/][^\\s\"'<>|;?#]+|credentials|secrets|credentials?[\\\\/][^\\s\"'<>|;?#]+|secrets?[\\\\/][^\\s\"'<>|;?#]+|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
                             + ")");
+
+    /** ENCODEDSEPARATOR的统一常量值。 */
     private static final String ENCODED_SEPARATOR =
             "(?:_|-|&#95;|&#x5[fF];|&lowbar;|%5[fF]|%255[fF])";
+
+    /** SENSITIVE文件token的统一常量值。 */
     private static final Pattern SENSITIVE_FILE_TOKEN =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_.-])(?:[^\\s\"'<>|;?#=\\\\/]*?(?:"
@@ -72,6 +103,8 @@ public final class SecretRedactor {
                             + ENCODED_SEPARATOR
                             + "key"
                             + ")[^\\s\"'<>|;?#=\\\\/]*\\.[A-Za-z0-9]{1,12})(?![A-Za-z0-9_.-])");
+
+    /** SENSITIVEURL路径SEGMENT的统一常量值。 */
     private static final Pattern SENSITIVE_URL_PATH_SEGMENT =
             Pattern.compile(
                     "(?i)/(?:(?:access|refresh|id)"
@@ -83,6 +116,8 @@ public final class SecretRedactor {
                             + "secret|private"
                             + ENCODED_SEPARATOR
                             + "key|credential|credentials|secret|password|auth|jwt|session|signature)(?:[/:=][^/?#\\s&;]+)+");
+
+    /** PREFIX密钥的统一常量值。 */
     private static final Pattern PREFIX_SECRET =
             Pattern.compile(
                     "(?<![A-Za-z0-9_-])("
@@ -118,20 +153,40 @@ public final class SecretRedactor {
                             + "|mem0_[A-Za-z0-9]{10,}"
                             + "|brv_[A-Za-z0-9]{10,}"
                             + ")(?![A-Za-z0-9_-])");
+
+    /** EMBEDDEDPREFIX密钥的统一常量值。 */
     private static final Pattern EMBEDDED_PREFIX_SECRET =
             Pattern.compile(
                     "(?i)((?:^|[^A-Za-z0-9])(?:[A-Za-z0-9_.-]{0,80})(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_))[A-Za-z0-9_-]{10,}");
+
+    /** 展示控制的统一常量值。 */
     private static final Pattern DISPLAY_CONTROL =
             Pattern.compile(
                     "[\\u0000-\\u0008\\u000B-\\u001F\\u007F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]");
+
+    /** 默认最大LENGTH的统一常量值。 */
     private static final int DEFAULT_MAX_LENGTH = 8000;
 
+    /** 创建密钥脱敏器实例。 */
     private SecretRedactor() {}
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param text 待处理文本。
+     * @return 返回redact结果。
+     */
     public static String redact(String text) {
         return redact(text, DEFAULT_MAX_LENGTH);
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param text 待处理文本。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redact结果。
+     */
     public static String redact(String text, int maxLength) {
         if (text == null) {
             return null;
@@ -163,7 +218,13 @@ public final class SecretRedactor {
         return result;
     }
 
-    /** Redacts only token-like values (prefix secrets, JWTs) without redacting file/path names. */
+    /**
+     * 脱敏token Only。
+     *
+     * @param text 待处理文本。
+     * @param maxLength 最大保留字符数。
+     * @return 返回token Only结果。
+     */
     public static String redactTokensOnly(String text, int maxLength) {
         if (text == null) {
             return null;
@@ -182,6 +243,12 @@ public final class SecretRedactor {
         return result;
     }
 
+    /**
+     * 脱敏Object。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Object结果。
+     */
     public static Object redactObject(Object value) {
         if (value instanceof String) {
             return redact((String) value);
@@ -189,6 +256,12 @@ public final class SecretRedactor {
         return value;
     }
 
+    /**
+     * 判断是否包含密钥Liketoken。
+     *
+     * @param text 待处理文本。
+     * @return 返回contains密钥Like token结果。
+     */
     public static boolean containsSecretLikeToken(String text) {
         if (StrUtil.isBlank(text)) {
             return false;
@@ -204,6 +277,12 @@ public final class SecretRedactor {
         }
     }
 
+    /**
+     * 脱敏URL。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回URL结果。
+     */
     public static String maskUrl(String value) {
         if (StrUtil.isBlank(value)) {
             return value;
@@ -220,6 +299,12 @@ public final class SecretRedactor {
         return PREFIX_SECRET.matcher(result).replaceAll("***");
     }
 
+    /**
+     * 剥离展示Controls。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip展示Controls结果。
+     */
     public static String stripDisplayControls(String value) {
         if (value == null) {
             return null;
@@ -227,6 +312,12 @@ public final class SecretRedactor {
         return DISPLAY_CONTROL.matcher(value).replaceAll("");
     }
 
+    /**
+     * 脱敏URL Userinfo。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回URL Userinfo结果。
+     */
     private static String redactUrlUserinfo(String value) {
         String result = redactEncodedUrlUserinfo(value);
         Matcher matcher = URL_USERINFO.matcher(result);
@@ -241,6 +332,12 @@ public final class SecretRedactor {
         return redactSchemelessUrlUserinfo(buffer.toString());
     }
 
+    /**
+     * 脱敏Encoded URL Userinfo。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Encoded URL Userinfo结果。
+     */
     private static String redactEncodedUrlUserinfo(String value) {
         Matcher matcher = ENCODED_URL_USERINFO.matcher(value);
         StringBuffer buffer = new StringBuffer(value.length());
@@ -258,6 +355,12 @@ public final class SecretRedactor {
         return buffer.toString();
     }
 
+    /**
+     * 脱敏Schemeless URL Userinfo。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Schemeless URL Userinfo结果。
+     */
     private static String redactSchemelessUrlUserinfo(String value) {
         Matcher matcher = SCHEMELESS_URL_USERINFO.matcher(value);
         StringBuffer buffer = new StringBuffer(value.length());
@@ -270,6 +373,12 @@ public final class SecretRedactor {
         return buffer.toString();
     }
 
+    /**
+     * 脱敏Encoded Sensitive Query。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Encoded Sensitive Query结果。
+     */
     private static String redactEncodedSensitiveQuery(String value) {
         StringBuilder buffer = new StringBuilder(value.length());
         int start = 0;
@@ -292,6 +401,13 @@ public final class SecretRedactor {
         return buffer.toString();
     }
 
+    /**
+     * 执行min正数相关逻辑。
+     *
+     * @param first first 参数。
+     * @param second second 参数。
+     * @return 返回min Positive结果。
+     */
     private static int minPositive(int first, int second) {
         if (first < 0) {
             return second;
@@ -302,6 +418,14 @@ public final class SecretRedactor {
         return Math.min(first, second);
     }
 
+    /**
+     * 执行next参数End相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param start start 参数。
+     * @param separator separator 参数。
+     * @return 返回next Parameter End结果。
+     */
     private static int nextParameterEnd(String value, int start, char separator) {
         for (int i = start; i < value.length(); i++) {
             char ch = value.charAt(i);
@@ -315,6 +439,12 @@ public final class SecretRedactor {
         return value.length();
     }
 
+    /**
+     * 判断是否URL Parameter Text Boundary。
+     *
+     * @param ch ch 参数。
+     * @return 如果URL Parameter Text Boundary满足条件则返回 true，否则返回 false。
+     */
     private static boolean isUrlParameterTextBoundary(char ch) {
         return Character.isWhitespace(ch)
                 || ch == '"'
@@ -327,6 +457,12 @@ public final class SecretRedactor {
                 || ch == '}';
     }
 
+    /**
+     * 脱敏Encoded Sensitive Parameter。
+     *
+     * @param parameter 参数参数。
+     * @return 返回Encoded Sensitive Parameter结果。
+     */
     private static String redactEncodedSensitiveParameter(String parameter) {
         int equals = parameter.indexOf('=');
         if (equals <= 0 || equals + 1 >= parameter.length()) {
@@ -342,6 +478,12 @@ public final class SecretRedactor {
         return name + "=***";
     }
 
+    /**
+     * 脱敏Embedded Encoded Sensitive Query。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Embedded Encoded Sensitive Query结果。
+     */
     private static String redactEmbeddedEncodedSensitiveQuery(String value) {
         if (StrUtil.isBlank(value)) {
             return value;
@@ -363,6 +505,12 @@ public final class SecretRedactor {
         return redactEncodedSensitiveQuery(value);
     }
 
+    /**
+     * 解码Repeated。
+     *
+     * @param raw 原始输入值。
+     * @return 返回decode Repeated结果。
+     */
     private static String decodeRepeated(String raw) {
         String value = StrUtil.nullToEmpty(raw);
         for (int i = 0; i < 4; i++) {
@@ -380,6 +528,12 @@ public final class SecretRedactor {
         return value;
     }
 
+    /**
+     * 规范化Sensitive Query名称。
+     *
+     * @param raw 原始输入值。
+     * @return 返回Sensitive Query名称结果。
+     */
     private static String normalizeSensitiveQueryName(String raw) {
         String name = StrUtil.nullToEmpty(raw);
         name = name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2");

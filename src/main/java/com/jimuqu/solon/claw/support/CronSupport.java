@@ -12,12 +12,16 @@ import java.util.regex.Pattern;
 
 /** 轻量级 cron 计算辅助类，覆盖 5 段 cron 与可选年份字段。 */
 public final class CronSupport {
+    /** RECURRING整型ERVAL正则的统一常量值。 */
     private static final Pattern RECURRING_INTERVAL_PATTERN =
             Pattern.compile(
                     "^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
+
+    /** DURATION正则的统一常量值。 */
     private static final Pattern DURATION_PATTERN =
             Pattern.compile("^(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
 
+    /** 创建定时任务辅助实例。 */
     private CronSupport() {}
 
     /**
@@ -64,6 +68,13 @@ public final class CronSupport {
         return fromEpochMillis + 60000L;
     }
 
+    /**
+     * 执行periodMillis相关逻辑。
+     *
+     * @param cronExpr 定时任务Expr参数。
+     * @param fromEpochMillis fromEpochMillis 参数。
+     * @return 返回period Millis结果。
+     */
     public static long periodMillis(String cronExpr, long fromEpochMillis) {
         if (StrUtil.isBlank(cronExpr) || isOneShot(cronExpr)) {
             return 0L;
@@ -90,6 +101,11 @@ public final class CronSupport {
         return matches(expr, normalized) || (normalized == 0 && matches(expr, 7));
     }
 
+    /**
+     * 执行validate相关逻辑。
+     *
+     * @param cronExpr 定时任务Expr参数。
+     */
     public static void validate(String cronExpr) {
         if (StrUtil.isBlank(cronExpr)) {
             throw new IllegalArgumentException("Cron expression is required");
@@ -122,6 +138,12 @@ public final class CronSupport {
         }
     }
 
+    /**
+     * 判断是否Interval。
+     *
+     * @param schedule schedule 参数。
+     * @return 如果Interval满足条件则返回 true，否则返回 false。
+     */
     public static boolean isInterval(String schedule) {
         return StrUtil.isNotBlank(schedule)
                 && RECURRING_INTERVAL_PATTERN
@@ -129,6 +151,12 @@ public final class CronSupport {
                         .matches();
     }
 
+    /**
+     * 判断是否定时任务Expression。
+     *
+     * @param schedule schedule 参数。
+     * @return 如果定时任务Expression满足条件则返回 true，否则返回 false。
+     */
     public static boolean isCronExpression(String schedule) {
         if (StrUtil.isBlank(schedule)) {
             return false;
@@ -145,6 +173,12 @@ public final class CronSupport {
         }
     }
 
+    /**
+     * 执行kind相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @return 返回kind结果。
+     */
     public static String kind(String schedule) {
         if (isInterval(schedule)) {
             return "interval";
@@ -155,6 +189,12 @@ public final class CronSupport {
         return "cron";
     }
 
+    /**
+     * 执行intervalMinutes相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @return 返回interval Minutes结果。
+     */
     public static Integer intervalMinutes(String schedule) {
         if (StrUtil.isBlank(schedule)) {
             return null;
@@ -171,6 +211,12 @@ public final class CronSupport {
         return Integer.valueOf((int) Math.max(1L, millis / 60000L));
     }
 
+    /**
+     * 执行absolute运行时间相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @return 返回absolute运行时间结果。
+     */
     public static Long absoluteRunAt(String schedule) {
         if (StrUtil.isBlank(schedule)) {
             return null;
@@ -186,6 +232,13 @@ public final class CronSupport {
         }
     }
 
+    /**
+     * 执行nextDirect调度相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @param fromEpochMillis fromEpochMillis 参数。
+     * @return 返回next Direct调度结果。
+     */
     private static Long nextDirectSchedule(String schedule, long fromEpochMillis) {
         String normalized = schedule.trim().toLowerCase(Locale.ROOT);
         Matcher matcher = RECURRING_INTERVAL_PATTERN.matcher(normalized);
@@ -204,6 +257,12 @@ public final class CronSupport {
         }
     }
 
+    /**
+     * 执行directIntervalMillis相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @return 返回direct Interval Millis结果。
+     */
     private static Long directIntervalMillis(String schedule) {
         Matcher matcher =
                 RECURRING_INTERVAL_PATTERN.matcher(schedule.trim().toLowerCase(Locale.ROOT));
@@ -213,6 +272,12 @@ public final class CronSupport {
         return Long.valueOf(Math.max(60000L, intervalMillis(matcher)));
     }
 
+    /**
+     * 执行intervalMillis相关逻辑。
+     *
+     * @param matcher matcher 参数。
+     * @return 返回interval Millis结果。
+     */
     private static long intervalMillis(Matcher matcher) {
         long amount = Long.parseLong(matcher.group(1));
         String unit = matcher.group(2);
@@ -225,6 +290,12 @@ public final class CronSupport {
         return amount * 60L * 1000L;
     }
 
+    /**
+     * 解析Iso Millis。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的Iso Millis。
+     */
     private static long parseIsoMillis(String value) {
         try {
             return Instant.parse(value).toEpochMilli();
@@ -234,6 +305,11 @@ public final class CronSupport {
         }
     }
 
+    /**
+     * 执行validate相关逻辑。
+     *
+     * @param parts parts 参数。
+     */
     private static void validate(String[] parts) {
         validateField(parts[0], 0, 59);
         validateField(parts[1], 0, 23);
@@ -245,6 +321,12 @@ public final class CronSupport {
         }
     }
 
+    /**
+     * 执行定时任务Parts相关逻辑。
+     *
+     * @param schedule schedule 参数。
+     * @return 返回定时任务Parts结果。
+     */
     private static String[] cronParts(String schedule) {
         if (StrUtil.isBlank(schedule)) {
             return null;
@@ -253,10 +335,24 @@ public final class CronSupport {
         return parts.length == 5 || parts.length == 6 ? parts : null;
     }
 
+    /**
+     * 判断是否匹配Year。
+     *
+     * @param parts parts 参数。
+     * @param year year 参数。
+     * @return 返回matches Year结果。
+     */
     private static boolean matchesYear(String[] parts, int year) {
         return parts.length < 6 || matches(parts[5], year);
     }
 
+    /**
+     * 校验Field。
+     *
+     * @param expr expr 参数。
+     * @param min min 参数。
+     * @param max max 参数。
+     */
     private static void validateField(String expr, int min, int max) {
         if ("*".equals(expr)) {
             return;

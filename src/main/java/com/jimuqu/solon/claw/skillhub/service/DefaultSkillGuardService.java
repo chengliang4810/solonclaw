@@ -19,10 +19,16 @@ import java.util.regex.Pattern;
 
 /** Java 版技能静态扫描器。 */
 public class DefaultSkillGuardService implements SkillGuardService {
+    /** 最大文件次数的统一常量值。 */
     private static final int MAX_FILE_COUNT = 50;
+
+    /** 最大TOTAL大小KB的统一常量值。 */
     private static final long MAX_TOTAL_SIZE_KB = 1024L;
+
+    /** 最大SINGLE文件KB的统一常量值。 */
     private static final long MAX_SINGLE_FILE_KB = 256L;
 
+    /** TRUSTEDREPOS的统一常量值。 */
     private static final Set<String> TRUSTED_REPOS =
             new LinkedHashSet<String>(
                     java.util.Arrays.asList(
@@ -31,6 +37,7 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "huggingface/skills",
                             "NVIDIA/skills"));
 
+    /** THREAT正则S的统一常量值。 */
     private static final List<ThreatPattern> THREAT_PATTERNS =
             java.util.Arrays.asList(
                     new ThreatPattern(
@@ -820,6 +827,13 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "docker\\s+pull\\s+",
                             "pulls a Docker image at runtime"));
 
+    /**
+     * 执行scan技能相关逻辑。
+     *
+     * @param skillPath 文件或目录路径参数。
+     * @param source 来源参数。
+     * @return 返回scan技能结果。
+     */
     @Override
     public ScanResult scanSkill(File skillPath, String source) throws Exception {
         ScanResult result = new ScanResult();
@@ -845,6 +859,13 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return result;
     }
 
+    /**
+     * 判断是否需要Allow Install。
+     *
+     * @param result 结果响应或执行结果。
+     * @param force force 参数。
+     * @return 如果Allow Install满足条件则返回 true，否则返回 false。
+     */
     @Override
     public InstallDecision shouldAllowInstall(ScanResult result, boolean force) {
         InstallDecision decision = new InstallDecision();
@@ -917,6 +938,12 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return decision;
     }
 
+    /**
+     * 格式化Report。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回Report结果。
+     */
     @Override
     public String formatReport(ScanResult result) {
         StringBuilder buffer = new StringBuilder();
@@ -959,6 +986,13 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return buffer.toString();
     }
 
+    /**
+     * 检查Structure。
+     *
+     * @param skillDir 文件或目录路径参数。
+     * @param files 文件或目录路径参数。
+     * @return 返回Structure结果。
+     */
     private List<Finding> checkStructure(File skillDir, List<File> files) {
         List<Finding> findings = new ArrayList<Finding>();
         long totalSize = 0L;
@@ -1018,6 +1052,13 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return findings;
     }
 
+    /**
+     * 执行scan文件相关逻辑。
+     *
+     * @param root root 参数。
+     * @param file 文件或目录路径参数。
+     * @return 返回scan文件结果。
+     */
     private List<Finding> scanFile(File root, File file) throws Exception {
         List<Finding> findings = new ArrayList<Finding>();
         String content = FileUtil.readString(file, StandardCharsets.UTF_8);
@@ -1044,6 +1085,12 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return findings;
     }
 
+    /**
+     * 执行determine判定相关逻辑。
+     *
+     * @param findings findings 参数。
+     * @return 返回determine Verdict结果。
+     */
     private String determineVerdict(List<Finding> findings) {
         boolean hasCritical = false;
         boolean hasHigh = false;
@@ -1064,6 +1111,12 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return "safe";
     }
 
+    /**
+     * 解析Trust级别。
+     *
+     * @param source 来源参数。
+     * @return 返回解析后的Trust级别。
+     */
     private String resolveTrustLevel(String source) {
         if (StrUtil.isBlank(source)) {
             return "community";
@@ -1099,6 +1152,12 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return "community";
     }
 
+    /**
+     * 构建Summary。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回创建好的Summary。
+     */
     private String buildSummary(ScanResult result) {
         if (result.getFindings().isEmpty()) {
             return result.getSkillName() + ": clean scan, no threats detected";
@@ -1116,6 +1175,18 @@ public class DefaultSkillGuardService implements SkillGuardService {
                 + String.join(", ", categories);
     }
 
+    /**
+     * 执行finding相关逻辑。
+     *
+     * @param patternId pattern标识。
+     * @param severity severity 参数。
+     * @param category 分类参数。
+     * @param file 文件或目录路径参数。
+     * @param line 行参数。
+     * @param match match 参数。
+     * @param description 描述参数。
+     * @return 返回finding结果。
+     */
     private Finding finding(
             String patternId,
             String severity,
@@ -1135,10 +1206,24 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return finding;
     }
 
+    /**
+     * 执行relative路径相关逻辑。
+     *
+     * @param root root 参数。
+     * @param file 文件或目录路径参数。
+     * @return 返回relative路径。
+     */
     private String relativePath(File root, File file) {
         return SkillIgnoreSupport.relativePath(root, file);
     }
 
+    /**
+     * 执行trim相关逻辑。
+     *
+     * @param line 行参数。
+     * @param maxLength 最大保留字符数。
+     * @return 返回trim结果。
+     */
     private String trim(String line, int maxLength) {
         String normalized = StrUtil.nullToEmpty(line).trim();
         if (normalized.length() <= maxLength) {
@@ -1147,13 +1232,32 @@ public class DefaultSkillGuardService implements SkillGuardService {
         return normalized.substring(0, maxLength) + "...";
     }
 
+    /** 承载ThreatPattern相关状态和辅助逻辑。 */
     private static class ThreatPattern {
+        /** 记录ThreatPattern中的pattern标识。 */
         private final String patternId;
+
+        /** 记录ThreatPattern中的severity。 */
         private final String severity;
+
+        /** 记录ThreatPattern中的category。 */
         private final String category;
+
+        /** 记录ThreatPattern中的pattern。 */
         private final Pattern pattern;
+
+        /** 记录ThreatPattern中的描述。 */
         private final String description;
 
+        /**
+         * 创建Threat Pattern实例，并注入运行所需依赖。
+         *
+         * @param patternId pattern标识。
+         * @param severity severity 参数。
+         * @param category 分类参数。
+         * @param regex regex 参数。
+         * @param description 描述参数。
+         */
         private ThreatPattern(
                 String patternId,
                 String severity,
@@ -1167,22 +1271,48 @@ public class DefaultSkillGuardService implements SkillGuardService {
             this.description = description;
         }
 
+        /**
+         * 执行matches相关逻辑。
+         *
+         * @param line 行参数。
+         * @return 返回matches结果。
+         */
         private boolean matches(String line) {
             return pattern.matcher(StrUtil.nullToEmpty(line)).find();
         }
 
+        /**
+         * 读取Pattern标识。
+         *
+         * @return 返回读取到的Pattern标识。
+         */
         private String getPatternId() {
             return patternId;
         }
 
+        /**
+         * 读取Severity。
+         *
+         * @return 返回读取到的Severity。
+         */
         private String getSeverity() {
             return severity;
         }
 
+        /**
+         * 读取Category。
+         *
+         * @return 返回读取到的Category。
+         */
         private String getCategory() {
             return category;
         }
 
+        /**
+         * 读取Description。
+         *
+         * @return 返回读取到的Description。
+         */
         private String getDescription() {
             return description;
         }

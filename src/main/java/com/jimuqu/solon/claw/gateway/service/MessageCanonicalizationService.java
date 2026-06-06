@@ -7,16 +7,24 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/**
- * Message canonicalization service. Normalizes messages from different platforms into a consistent
- * internal format.
- */
+/** 提供消息规范化相关业务能力，封装调用方不需要感知的运行细节。 */
 public class MessageCanonicalizationService {
+    /** MENTION正则的统一常量值。 */
     private static final Pattern MENTION_PATTERN =
             Pattern.compile("<@[A-Za-z0-9_-]+>|@[A-Za-z0-9_\\u4e00-\\u9fff]+");
+
+    /** EMOJICODE正则的统一常量值。 */
     private static final Pattern EMOJI_CODE_PATTERN = Pattern.compile(":[a-z0-9_+-]+:");
+
+    /** 最大文本LENGTH的统一常量值。 */
     private static final int MAX_TEXT_LENGTH = 32000;
 
+    /**
+     * 执行canonicalize相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回canonicalize结果。
+     */
     public GatewayMessage canonicalize(GatewayMessage message) {
         if (message == null) {
             return message;
@@ -30,6 +38,11 @@ public class MessageCanonicalizationService {
         return message;
     }
 
+    /**
+     * 执行策略相关逻辑。
+     *
+     * @return 返回策略结果。
+     */
     public Map<String, Object> policy() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("maxTextLength", Integer.valueOf(MAX_TEXT_LENGTH));
@@ -39,6 +52,12 @@ public class MessageCanonicalizationService {
         return result;
     }
 
+    /**
+     * 规范化Whitespace。
+     *
+     * @param text 待处理文本。
+     * @return 返回Whitespace结果。
+     */
     private String normalizeWhitespace(String text) {
         text = text.replace("\r\n", "\n").replace("\r", "\n");
         text = text.replaceAll("[ \\t]+\\n", "\n");
@@ -46,6 +65,13 @@ public class MessageCanonicalizationService {
         return text;
     }
 
+    /**
+     * 剥离平台Mentions。
+     *
+     * @param text 待处理文本。
+     * @param platform 平台参数。
+     * @return 返回strip平台Mentions结果。
+     */
     private String stripPlatformMentions(String text, PlatformType platform) {
         if (platform == null) {
             return text;
@@ -64,10 +90,22 @@ public class MessageCanonicalizationService {
         }
     }
 
+    /**
+     * 规范化Emoji Codes。
+     *
+     * @param text 待处理文本。
+     * @return 返回Emoji Codes结果。
+     */
     private String normalizeEmojiCodes(String text) {
         return text;
     }
 
+    /**
+     * 执行truncateIfNeeded相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @return 返回truncate If Needed结果。
+     */
     private String truncateIfNeeded(String text) {
         if (text.length() <= MAX_TEXT_LENGTH) {
             return text;

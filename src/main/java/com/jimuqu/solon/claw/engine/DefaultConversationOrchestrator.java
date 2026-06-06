@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
 
 /** DefaultConversationOrchestrator 实现。 */
 public class DefaultConversationOrchestrator implements ConversationOrchestrator {
+    /** 日志的统一常量值。 */
     private static final Logger log =
             LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
 
@@ -75,25 +76,73 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private static final String MAX_STEPS_RECOVERY_FALLBACK =
             "本轮执行已达到最大步骤限制，已保留当前进展。请继续给出更聚焦的下一步，或使用 /retry 继续。";
 
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 注入上下文服务，用于调用对应业务能力。 */
     private final ContextService contextService;
+
+    /** 注入上下文压缩服务，用于调用对应业务能力。 */
     private final ContextCompressionService contextCompressionService;
+
+    /** 记录默认对话编排器中的大模型消息网关。 */
     private final LlmGateway llmGateway;
+
+    /** 记录默认对话编排器中的工具注册表。 */
     private final ToolRegistry toolRegistry;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 保存展示设置服务集合，维持调用顺序或去重语义。 */
     private final DisplaySettingsService displaySettingsService;
+
+    /** 保存运行时设置服务集合，维持调用顺序或去重语义。 */
     private final RuntimeSettingsService runtimeSettingsService;
+
+    /** 注入dangerous命令审批服务，用于调用对应业务能力。 */
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
+
+    /** 记录默认对话编排器中的Agent运行Supervisor。 */
     private final AgentRunSupervisor agentRunSupervisor;
+
+    /** 注入运行时Footer服务，用于调用对应业务能力。 */
     private final RuntimeFooterService runtimeFooterService;
+
+    /** 注入Agent运行时服务，用于调用对应业务能力。 */
     private final AgentRuntimeService agentRuntimeService;
+
+    /** 记录默认对话编排器中的记忆管理器。 */
     private final MemoryManager memoryManager;
+
+    /** 注入目标服务，用于调用对应业务能力。 */
     private final GoalService goalService;
+
+    /** 注入语音服务，用于调用对应业务能力。 */
     private final SpeechService speechService;
+
+    /** 保存来源Locks映射，便于按键快速查询。 */
     private final ConcurrentMap<String, Object> sourceLocks =
             new ConcurrentHashMap<String, Object>();
+
+    /** 记录默认对话编排器中的钩子注册表。 */
     private AgentHookRegistry hookRegistry;
 
+    /**
+     * 创建默认对话编排器实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param llmGateway LLM网关参数。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param runtimeFooterService 运行时Footer服务依赖。
+     */
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
             ContextService contextService,
@@ -124,6 +173,22 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 null);
     }
 
+    /**
+     * 创建默认对话编排器实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param llmGateway LLM网关参数。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param runtimeFooterService 运行时Footer服务依赖。
+     * @param agentRuntimeService Agent运行时服务依赖。
+     */
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
             ContextService contextService,
@@ -155,6 +220,23 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 null);
     }
 
+    /**
+     * 创建默认对话编排器实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param llmGateway LLM网关参数。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param runtimeFooterService 运行时Footer服务依赖。
+     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param memoryManager 记忆Manager参数。
+     */
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
             ContextService contextService,
@@ -187,6 +269,24 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 null);
     }
 
+    /**
+     * 创建默认对话编排器实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param llmGateway LLM网关参数。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param runtimeFooterService 运行时Footer服务依赖。
+     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param memoryManager 记忆Manager参数。
+     * @param goalService 目标服务依赖。
+     */
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
             ContextService contextService,
@@ -220,6 +320,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 null);
     }
 
+    /**
+     * 创建默认对话编排器实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param llmGateway LLM网关参数。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param runtimeFooterService 运行时Footer服务依赖。
+     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param memoryManager 记忆Manager参数。
+     * @param goalService 目标服务依赖。
+     * @param speechService 语音服务依赖。
+     */
     public DefaultConversationOrchestrator(
             SessionRepository sessionRepository,
             ContextService contextService,
@@ -253,10 +372,23 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         this.speechService = speechService;
     }
 
+    /**
+     * 执行入站消息相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回Incoming结果。
+     */
     public GatewayReply handleIncoming(GatewayMessage message) throws Exception {
         return handleIncoming(message, ConversationEventSink.noop());
     }
 
+    /**
+     * 执行入站消息相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param eventSink 事件Sink参数。
+     * @return 返回Incoming结果。
+     */
     public GatewayReply handleIncoming(GatewayMessage message, ConversationEventSink eventSink)
             throws Exception {
         String sourceKey = message.sourceKey();
@@ -291,10 +423,23 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return runOnSession(session, message, eventSink);
     }
 
+    /**
+     * 运行Scheduled。
+     *
+     * @param syntheticMessage synthetic消息参数。
+     * @return 返回Scheduled结果。
+     */
     public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
         return runScheduled(syntheticMessage, ConversationEventSink.noop());
     }
 
+    /**
+     * 运行Scheduled。
+     *
+     * @param syntheticMessage synthetic消息参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回Scheduled结果。
+     */
     public GatewayReply runScheduled(
             GatewayMessage syntheticMessage, ConversationEventSink eventSink) throws Exception {
         String sourceKey = syntheticMessage.sourceKey();
@@ -307,19 +452,47 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 恢复待恢复。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回resume Pending结果。
+     */
     public GatewayReply resumePending(String sourceKey) throws Exception {
         return resumePending(sourceKey, null, ConversationEventSink.noop());
     }
 
+    /**
+     * 恢复待恢复。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @return 返回resume Pending结果。
+     */
     public GatewayReply resumePending(String sourceKey, String sessionId) throws Exception {
         return resumePending(sourceKey, sessionId, ConversationEventSink.noop());
     }
 
+    /**
+     * 恢复待恢复。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param eventSink 事件Sink参数。
+     * @return 返回resume Pending结果。
+     */
     public GatewayReply resumePending(String sourceKey, ConversationEventSink eventSink)
             throws Exception {
         return resumePending(sourceKey, null, eventSink);
     }
 
+    /**
+     * 恢复待恢复。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param eventSink 事件Sink参数。
+     * @return 返回resume Pending结果。
+     */
     public GatewayReply resumePending(
             String sourceKey, String sessionId, ConversationEventSink eventSink) throws Exception {
         synchronized (lockFor(sourceKey)) {
@@ -369,6 +542,13 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 追加Resume Pending System Note。
+     *
+     * @param systemPrompt 系统提示词参数。
+     * @param session 会话参数。
+     * @return 返回Resume Pending System Note结果。
+     */
     private String appendResumePendingSystemNote(String systemPrompt, SessionRecord session) {
         try {
             SqliteAgentSession agentSession = new SqliteAgentSession(session);
@@ -391,6 +571,13 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 查找Pending会话。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @return 返回Pending会话结果。
+     */
     private SessionRecord findPendingSession(String sourceKey, String sessionId) throws Exception {
         SessionRecord bound = sessionRepository.getBoundSession(sourceKey);
         if (StrUtil.isBlank(sessionId)) {
@@ -403,6 +590,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return target;
     }
 
+    /**
+     * 执行missing待恢复会话回复相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回missing Pending会话Reply结果。
+     */
     private GatewayReply missingPendingSessionReply(String sessionId) {
         if (StrUtil.isBlank(sessionId)) {
             return GatewayReply.error("当前来源键没有可恢复的 pending 会话。");
@@ -410,10 +603,23 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return GatewayReply.error("指定会话不是当前来源键下可恢复的 pending 会话。");
     }
 
+    /**
+     * 判断是否匹配来源键。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param session 会话参数。
+     * @return 返回matches来源键结果。
+     */
     private boolean matchesSourceKey(String sourceKey, SessionRecord session) {
         return session != null && StrUtil.equals(sourceKey, session.getSourceKey());
     }
 
+    /**
+     * 判断是否Pending会话。
+     *
+     * @param session 会话参数。
+     * @return 如果Pending会话满足条件则返回 true，否则返回 false。
+     */
     private boolean isPendingSession(SessionRecord session) {
         if (session == null) {
             return false;
@@ -429,6 +635,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 清理Agent Pending。
+     *
+     * @param session 会话参数。
+     */
     private void clearAgentPending(SessionRecord session) {
         if (session == null) {
             return;
@@ -447,10 +658,22 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 写入钩子注册表。
+     *
+     * @param hookRegistry 钩子注册表依赖组件。
+     */
     public void setHookRegistry(AgentHookRegistry hookRegistry) {
         this.hookRegistry = hookRegistry;
     }
 
+    /**
+     * 调用钩子。
+     *
+     * @param hookName 钩子名称参数。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     */
     private void invokeHook(String hookName, String sessionId, String message) {
         if (hookRegistry == null) {
             return;
@@ -463,6 +686,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         hookRegistry.invoke(hookName, args);
     }
 
+    /**
+     * 执行lockFor相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回lock For结果。
+     */
     private Object lockFor(String sourceKey) {
         String key = StrUtil.blankToDefault(sourceKey, "__default__");
         Object existing = sourceLocks.get(key);
@@ -474,6 +703,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return previous == null ? created : previous;
     }
 
+    /**
+     * 解析Agent范围。
+     *
+     * @param session 会话参数。
+     * @return 返回解析后的Agent范围。
+     */
     private AgentRuntimeScope resolveAgentScope(SessionRecord session) throws Exception {
         if (agentRuntimeService != null) {
             return agentRuntimeService.resolve(session);
@@ -486,6 +721,14 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return scope;
     }
 
+    /**
+     * 运行On会话。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     * @param eventSink 事件Sink参数。
+     * @return 返回On会话结果。
+     */
     private GatewayReply runOnSession(
             SessionRecord session, GatewayMessage message, ConversationEventSink eventSink)
             throws Exception {
@@ -588,6 +831,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 执行transcribe语音附件相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     */
     private void transcribeVoiceAttachments(GatewayMessage message) {
         if (speechService == null || message == null || message.getAttachments() == null) {
             return;
@@ -613,6 +861,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 判断是否Voice附件。
+     *
+     * @param attachment 附件参数。
+     * @return 如果Voice附件满足条件则返回 true，否则返回 false。
+     */
     private boolean isVoiceAttachment(
             com.jimuqu.solon.claw.core.model.MessageAttachment attachment) {
         String kind = StrUtil.nullToEmpty(attachment.getKind()).toLowerCase(Locale.ROOT);
@@ -620,6 +874,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return "voice".equals(kind) || mime.startsWith("audio/");
     }
 
+    /**
+     * 应用Transient模型Override。
+     *
+     * @param session 会话参数。
+     * @param message 平台消息或错误消息。
+     */
     private void applyTransientModelOverride(SessionRecord session, GatewayMessage message) {
         if (session == null || message == null || StrUtil.isBlank(message.getModelOverride())) {
             return;
@@ -643,6 +903,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         session.setTransientModelOverride(model);
     }
 
+    /**
+     * 应用工作区Override。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param message 平台消息或错误消息。
+     */
     private void applyWorkspaceOverride(AgentRuntimeScope agentScope, GatewayMessage message) {
         if (agentScope == null
                 || message == null
@@ -660,6 +926,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         agentScope.setWorkspaceDirOverride(true);
     }
 
+    /**
+     * 应用工具集Override。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param message 平台消息或错误消息。
+     */
     private void applyToolsetOverride(AgentRuntimeScope agentScope, GatewayMessage message) {
         if (agentScope == null || message == null) {
             return;
@@ -684,11 +956,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 org.noear.snack4.ONode.serialize(new ArrayList<String>(allowed)));
     }
 
+    /**
+     * 清理Final Reply。
+     *
+     * @param finalReply 最终回复参数。
+     * @return 返回Final Reply结果。
+     */
     private String sanitizeFinalReply(String finalReply) {
         String sanitized = MemoryContextBoundary.scrubVisibleText(finalReply);
         return StrUtil.blankToDefault(sanitized, EMPTY_REPLY_FALLBACK);
     }
 
+    /**
+     * 执行decorate最终回复相关逻辑。
+     *
+     * @param finalReply 最终回复参数。
+     * @param platform 平台参数。
+     * @param outcome outcome 参数。
+     * @return 返回decorate Final Reply结果。
+     */
     private String decorateFinalReply(
             String finalReply, PlatformType platform, AgentRunOutcome outcome) {
         String result = StrUtil.nullToEmpty(finalReply);
@@ -698,6 +984,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return runtimeFooterService.appendFooter(result, platform, outcome);
     }
 
+    /**
+     * 应用运行时元数据。
+     *
+     * @param reply 回复参数。
+     * @param outcome outcome 参数。
+     */
     private void applyRuntimeMetadata(GatewayReply reply, AgentRunOutcome outcome) {
         if (reply == null || outcome == null || reply.isError() || reply.isCommandHandled()) {
             return;
@@ -720,6 +1012,14 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 应用目标决策。
+     *
+     * @param reply 回复参数。
+     * @param session 会话参数。
+     * @param finalReply 最终回复参数。
+     * @param message 平台消息或错误消息。
+     */
     private void applyGoalDecision(
             GatewayReply reply, SessionRecord session, String finalReply, GatewayMessage message) {
         if (goalService == null
@@ -756,6 +1056,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 格式化Pending审批块。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回Pending审批块结果。
+     */
     private String formatPendingApprovalBlock(
             DangerousCommandApprovalService.PendingApproval pending) {
         StringBuilder buffer = new StringBuilder();
@@ -776,6 +1082,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return buffer.toString();
     }
 
+    /**
+     * 执行反馈接收端For相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回feedback接收端For结果。
+     */
     private ConversationFeedbackSink feedbackSinkFor(GatewayMessage message) {
         if (message == null
                 || message.isHeartbeat()
@@ -787,6 +1099,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 message, deliveryService, displaySettingsService);
     }
 
+    /**
+     * 执行消息From来源键相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回消息From来源键结果。
+     */
     private GatewayMessage messageFromSourceKey(String sourceKey) {
         String[] parts = SourceKeySupport.split(sourceKey);
         PlatformType platform = PlatformType.fromName(parts[0]);
@@ -796,6 +1114,13 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return message;
     }
 
+    /**
+     * 应用审批卡片IfNeeded。
+     *
+     * @param reply 回复参数。
+     * @param platform 平台参数。
+     * @param session 会话参数。
+     */
     private void applyApprovalCardIfNeeded(
             GatewayReply reply, PlatformType platform, SessionRecord session) {
         if (reply == null
@@ -815,10 +1140,26 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 .putAll(dangerousCommandApprovalService.buildDeliveryExtras(platform, pending));
     }
 
+    /**
+     * 执行同步记忆相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param userMessage 用户消息参数。
+     * @param finalReply 最终回复参数。
+     */
     private void syncMemory(String sourceKey, String userMessage, String finalReply) {
         syncMemory(sourceKey, userMessage, finalReply, null, null);
     }
 
+    /**
+     * 执行同步记忆相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param userMessage 用户消息参数。
+     * @param finalReply 最终回复参数。
+     * @param session 会话参数。
+     * @param outcome outcome 参数。
+     */
     private void syncMemory(
             String sourceKey,
             String userMessage,
@@ -836,6 +1177,16 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 执行记忆Turn上下文相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param userMessage 用户消息参数。
+     * @param finalReply 最终回复参数。
+     * @param session 会话参数。
+     * @param outcome outcome 参数。
+     * @return 返回记忆Turn上下文结果。
+     */
     private MemoryTurnContext memoryTurnContext(
             String sourceKey,
             String userMessage,
@@ -870,6 +1221,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 .build();
     }
 
+    /**
+     * 提取Text。
+     *
+     * @param assistantMessage assistant消息参数。
+     * @return 返回Text结果。
+     */
     private String extractText(AssistantMessage assistantMessage) {
         if (assistantMessage == null) {
             return "";
@@ -948,6 +1305,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
+    /**
+     * 判断是否存在Usable Recovery Reply。
+     *
+     * @param recovered recovered 参数。
+     * @return 如果Usable Recovery Reply满足条件则返回 true，否则返回 false。
+     */
     private boolean hasUsableRecoveryReply(LlmResult recovered) {
         if (recovered == null) {
             return false;
@@ -956,6 +1319,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return StrUtil.isNotBlank(text) && !isMaxStepsReply(text);
     }
 
+    /**
+     * 判断是否Max Steps Reply。
+     *
+     * @param replyText 回复文本参数。
+     * @return 如果Max Steps Reply满足条件则返回 true，否则返回 false。
+     */
     private boolean isMaxStepsReply(String replyText) {
         if (StrUtil.isBlank(replyText)) {
             return false;
@@ -1043,6 +1412,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";

@@ -11,13 +11,21 @@ import java.util.Map;
 
 /** 版本检查代理地址解析与校验。 */
 public final class ProxyUrlSupport {
+    /** 代理环境变量KEYS的统一常量值。 */
     private static final String[] PROXY_ENV_KEYS =
             new String[] {
                 "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"
             };
 
+    /** 创建Proxy URL辅助实例。 */
     private ProxyUrlSupport() {}
 
+    /**
+     * 解析Proxy。
+     *
+     * @param proxyUrl 待校验或访问的地址参数。
+     * @return 返回解析后的Proxy。
+     */
     public static Proxy parseProxy(String proxyUrl) {
         String value = StrUtil.nullToEmpty(proxyUrl).trim();
         if (value.length() == 0) {
@@ -46,6 +54,12 @@ public final class ProxyUrlSupport {
         return new Proxy(type, new InetSocketAddress(host, port));
     }
 
+    /**
+     * 校验Proxy Environment。
+     *
+     * @param environment environment 参数。
+     * @return 返回Proxy Environment结果。
+     */
     public static Map<String, String> validateProxyEnvironment(Map<String, String> environment) {
         Map<String, String> normalized = new LinkedHashMap<String, String>();
         if (environment == null || environment.isEmpty()) {
@@ -77,6 +91,12 @@ public final class ProxyUrlSupport {
         return normalized;
     }
 
+    /**
+     * 规范化Proxy URL。
+     *
+     * @param proxyUrl 待校验或访问的地址参数。
+     * @return 返回Proxy URL结果。
+     */
     public static String normalizeProxyUrl(String proxyUrl) {
         String value = StrUtil.nullToEmpty(proxyUrl).trim();
         if (value.toLowerCase(Locale.ROOT).startsWith("socks://")) {
@@ -85,6 +105,12 @@ public final class ProxyUrlSupport {
         return value;
     }
 
+    /**
+     * 解析URI。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的URI。
+     */
     private static URI parseUri(String value) {
         try {
             URI uri = new URI(value).parseServerAuthority();

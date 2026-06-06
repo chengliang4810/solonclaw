@@ -16,13 +16,25 @@ import org.slf4j.LoggerFactory;
 /** 后台技能维护调度器，只在 Agent 空闲窗口触发 Curator。 */
 @RequiredArgsConstructor
 public class SkillCuratorScheduler {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(SkillCuratorScheduler.class);
+
+    /** 注入应用配置，用于技能技能维护调度器。 */
     private final AppConfig appConfig;
+
+    /** 注入技能维护服务，用于调用对应业务能力。 */
     private final SkillCuratorService curatorService;
+
+    /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 记录技能技能维护调度器中的running。 */
     private final AtomicBoolean running = new AtomicBoolean(false);
+
+    /** 保存执行器服务执行组件，负责调度异步或定时任务。 */
     private ScheduledExecutorService executorService;
 
+    /** 启动当前组件并准备运行资源。 */
     public void start() {
         if (!appConfig.getCurator().isEnabled()) {
             return;
@@ -36,6 +48,7 @@ public class SkillCuratorScheduler {
                                 Math.max(1, appConfig.getCurator().getIntervalHours()) * 3600L));
         executorService.scheduleWithFixedDelay(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         tick();
@@ -46,6 +59,7 @@ public class SkillCuratorScheduler {
                 TimeUnit.SECONDS);
     }
 
+    /** 执行tick相关逻辑。 */
     public void tick() {
         if (!appConfig.getCurator().isEnabled()) {
             return;
@@ -65,6 +79,11 @@ public class SkillCuratorScheduler {
         }
     }
 
+    /**
+     * 判断是否Idle Enough。
+     *
+     * @return 如果Idle Enough满足条件则返回 true，否则返回 false。
+     */
     private boolean isIdleEnough() {
         if (agentRunControlService != null && agentRunControlService.hasRunningRuns()) {
             return false;
@@ -81,6 +100,7 @@ public class SkillCuratorScheduler {
         return System.currentTimeMillis() - lastFinishedAt >= minIdleMillis;
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
         if (executorService != null) {
             executorService.shutdownNow();
@@ -88,6 +108,12 @@ public class SkillCuratorScheduler {
         }
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";

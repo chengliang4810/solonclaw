@@ -28,7 +28,7 @@ public class LlmResult {
     /** 本轮 ReAct/模型调用累计输出 token。 */
     private long outputTokens;
 
-    /** 本轮累计 reasoning token。 */
+    /** 本轮累计 推理 token。 */
     private long reasoningTokens;
 
     /** 本轮可展示的 reasoning 文本。 */

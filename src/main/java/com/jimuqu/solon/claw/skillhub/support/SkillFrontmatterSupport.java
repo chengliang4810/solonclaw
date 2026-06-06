@@ -13,8 +13,15 @@ import org.yaml.snakeyaml.Yaml;
 
 /** SKILL.md frontmatter 解析辅助。 */
 public final class SkillFrontmatterSupport {
+    /** 创建技能元信息辅助实例。 */
     private SkillFrontmatterSupport() {}
 
+    /**
+     * 解析元信息。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的元信息。
+     */
     public static Map<String, Object> parseFrontmatter(String content) {
         if (StrUtil.isBlank(content) || !content.startsWith("---")) {
             return Collections.emptyMap();
@@ -46,6 +53,12 @@ public final class SkillFrontmatterSupport {
         }
     }
 
+    /**
+     * 解析Loose Scalars。
+     *
+     * @param yamlText YAML文本参数。
+     * @return 返回解析后的Loose Scalars。
+     */
     private static Map<String, Object> parseLooseScalars(String yamlText) {
         Map<String, Object> values = new LinkedHashMap<String, Object>();
         if (StrUtil.isBlank(yamlText)) {
@@ -74,6 +87,12 @@ public final class SkillFrontmatterSupport {
         return values;
     }
 
+    /**
+     * 剥离MatchingQuotes。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Matching Quotes结果。
+     */
     private static String stripMatchingQuotes(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (text.length() >= 2) {
@@ -86,6 +105,12 @@ public final class SkillFrontmatterSupport {
         return text;
     }
 
+    /**
+     * 解析String List。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的String List。
+     */
     public static List<String> parseStringList(Object value) {
         if (value instanceof List) {
             List<String> results = new ArrayList<String>();
@@ -104,6 +129,13 @@ public final class SkillFrontmatterSupport {
         return Collections.emptyList();
     }
 
+    /**
+     * 解析Description。
+     *
+     * @param frontmatter frontmatter 参数。
+     * @param fallback 兜底参数。
+     * @return 返回解析后的Description。
+     */
     public static String resolveDescription(Map<String, Object> frontmatter, String fallback) {
         Object description = frontmatter.get("description");
         if (description != null && StrUtil.isNotBlank(String.valueOf(description))) {
@@ -112,6 +144,13 @@ public final class SkillFrontmatterSupport {
         return StrUtil.blankToDefault(fallback, "");
     }
 
+    /**
+     * 解析名称。
+     *
+     * @param frontmatter frontmatter 参数。
+     * @param fallback 兜底参数。
+     * @return 返回解析后的名称。
+     */
     public static String resolveName(Map<String, Object> frontmatter, String fallback) {
         Object name = frontmatter.get("name");
         if (name != null && StrUtil.isNotBlank(String.valueOf(name))) {
@@ -120,10 +159,22 @@ public final class SkillFrontmatterSupport {
         return fallback;
     }
 
+    /**
+     * 解析Tags。
+     *
+     * @param frontmatter frontmatter 参数。
+     * @return 返回解析后的Tags。
+     */
     public static List<String> resolveTags(Map<String, Object> frontmatter) {
         return parseStringList(frontmatter.get("tags"));
     }
 
+    /**
+     * 解析配置引导状态。
+     *
+     * @param frontmatter frontmatter 参数。
+     * @return 返回解析后的配置引导状态。
+     */
     public static SkillSetupState resolveSetupState(Map<String, Object> frontmatter) {
         List<String> platforms = parseStringList(frontmatter.get("platforms"));
         if (!platforms.isEmpty()) {
@@ -149,6 +200,12 @@ public final class SkillFrontmatterSupport {
         return SkillSetupState.AVAILABLE;
     }
 
+    /**
+     * 解析Required Environment Variables。
+     *
+     * @param frontmatter frontmatter 参数。
+     * @return 返回解析后的Required Environment Variables。
+     */
     public static List<String> resolveRequiredEnvironmentVariables(
             Map<String, Object> frontmatter) {
         if (frontmatter == null || frontmatter.isEmpty()) {
@@ -161,6 +218,13 @@ public final class SkillFrontmatterSupport {
         return results;
     }
 
+    /**
+     * 读取Map。
+     *
+     * @param parent parent 参数。
+     * @param key 配置键或映射键。
+     * @return 返回读取到的Map。
+     */
     public static Map<String, Object> getMap(Map<String, Object> parent, String key) {
         Object value = parent.get(key);
         if (!(value instanceof Map)) {
@@ -169,6 +233,12 @@ public final class SkillFrontmatterSupport {
         return sanitizeMap((Map<?, ?>) value);
     }
 
+    /**
+     * 追加RequiredEnvironmentVariables。
+     *
+     * @param results results响应或执行结果。
+     * @param value 待规范化或校验的原始值。
+     */
     private static void addRequiredEnvironmentVariables(List<String> results, Object value) {
         if (value instanceof List) {
             for (Object item : (List<?>) value) {
@@ -184,12 +254,24 @@ public final class SkillFrontmatterSupport {
         addStringValue(results, value);
     }
 
+    /**
+     * 追加字符串值s。
+     *
+     * @param results results响应或执行结果。
+     * @param values 待规范化或校验的原始值集合。
+     */
     private static void addStringValues(List<String> results, List<String> values) {
         for (String value : values) {
             addStringValue(results, value);
         }
     }
 
+    /**
+     * 追加字符串值。
+     *
+     * @param results results响应或执行结果。
+     * @param value 待规范化或校验的原始值。
+     */
     private static void addStringValue(List<String> results, Object value) {
         if (value == null || StrUtil.isBlank(String.valueOf(value))) {
             return;
@@ -200,6 +282,11 @@ public final class SkillFrontmatterSupport {
         }
     }
 
+    /**
+     * 执行当前平台相关逻辑。
+     *
+     * @return 返回当前平台结果。
+     */
     private static String currentPlatform() {
         String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (osName.contains("win")) {
@@ -211,6 +298,12 @@ public final class SkillFrontmatterSupport {
         return "linux";
     }
 
+    /**
+     * 清理Map。
+     *
+     * @param input 输入参数。
+     * @return 返回Map结果。
+     */
     private static Map<String, Object> sanitizeMap(Map<?, ?> input) {
         Map<String, Object> output = new LinkedHashMap<String, Object>();
         for (Map.Entry<?, ?> entry : input.entrySet()) {
@@ -222,6 +315,12 @@ public final class SkillFrontmatterSupport {
         return output;
     }
 
+    /**
+     * 清理Value。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Value结果。
+     */
     @SuppressWarnings("unchecked")
     private static Object sanitizeValue(Object value) {
         if (value instanceof Map) {

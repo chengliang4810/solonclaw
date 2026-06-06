@@ -35,9 +35,17 @@ public class PromptCachePolicy {
         }
     }
 
+    /** 标记该配置项或记录是否处于启用状态。 */
     private final boolean enabled;
+
+    /** 记录提示词缓存中的layout。 */
     private final Layout layout;
 
+    /**
+     * 创建提示词缓存策略实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     */
     public PromptCachePolicy(AppConfig.PromptCacheConfig config) {
         this.enabled = config != null && config.isEnabled();
         this.layout = config == null ? Layout.SYSTEM_AND_3 : Layout.fromConfig(config.getLayout());

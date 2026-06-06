@@ -9,14 +9,27 @@ import java.util.ArrayList;
 import java.util.List;
 import org.noear.snack4.ONode;
 
-/** SolonClaw central skill index source. */
+/** 承载Solon项目索引来源相关状态和辅助逻辑。 */
 public class SolonClawIndexSource implements SkillSource {
+    /** 索引URL的统一常量值。 */
     private static final String INDEX_URL = "https://solon-claw.local/docs/api/skills-index.json";
 
+    /** 记录Solon项目索引来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
+
+    /** 记录Solon项目索引来源中的状态Store。 */
     private final SkillHubStateStore stateStore;
+
+    /** 记录Solon项目索引来源中的GitHub技能来源。 */
     private final GitHubSkillSource githubSkillSource;
 
+    /**
+     * 创建Solon项目Index来源实例，并注入运行所需依赖。
+     *
+     * @param httpClient HTTPClient参数。
+     * @param stateStore 状态Store参数。
+     * @param githubSkillSource GitHub技能来源参数。
+     */
     public SolonClawIndexSource(
             SkillHubHttpClient httpClient,
             SkillHubStateStore stateStore,
@@ -26,6 +39,13 @@ public class SolonClawIndexSource implements SkillSource {
         this.githubSkillSource = githubSkillSource;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) throws Exception {
         ONode index = loadIndex();
@@ -52,6 +72,12 @@ public class SolonClawIndexSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) throws Exception {
         ONode entry = findEntry(identifier);
@@ -79,17 +105,34 @@ public class SolonClawIndexSource implements SkillSource {
         return bundle;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         ONode entry = findEntry(identifier);
         return entry == null ? null : toMeta(entry);
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "solonclaw-index";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         try {
@@ -102,6 +145,11 @@ public class SolonClawIndexSource implements SkillSource {
         }
     }
 
+    /**
+     * 加载Index。
+     *
+     * @return 返回Index结果。
+     */
     private ONode loadIndex() throws Exception {
         String cached = stateStore.readCachedIndex("solonclaw-index");
         if (StrUtil.isNotBlank(cached)) {
@@ -112,6 +160,12 @@ public class SolonClawIndexSource implements SkillSource {
         return ONode.ofJson(text);
     }
 
+    /**
+     * 查找Entry。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回Entry结果。
+     */
     private ONode findEntry(String identifier) throws Exception {
         ONode index = loadIndex();
         String normalized = stripPrefix(identifier);
@@ -127,6 +181,12 @@ public class SolonClawIndexSource implements SkillSource {
         return null;
     }
 
+    /**
+     * 转换为Meta。
+     *
+     * @param node 节点参数。
+     * @return 返回转换后的Meta。
+     */
     private SkillMeta toMeta(ONode node) {
         SkillMeta meta = new SkillMeta();
         meta.setName(node.get("name").getString());
@@ -146,6 +206,12 @@ public class SolonClawIndexSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 移除签名前缀，得到纯十六进制签名。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回strip Prefix结果。
+     */
     private String stripPrefix(String identifier) {
         String normalized = StrUtil.nullToEmpty(identifier);
         String[] prefixes =

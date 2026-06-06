@@ -9,18 +9,35 @@ import java.util.ArrayList;
 import java.util.List;
 import org.noear.snack4.ONode;
 
-/** LobeHub source adapter。 */
+/** 承载Lobe中心技能来源相关状态和辅助逻辑。 */
 public class LobeHubSkillSource implements SkillSource {
+    /** 索引URL的统一常量值。 */
     private static final String INDEX_URL = "https://chat-agents.lobehub.com/index.json";
 
+    /** 记录Lobe中心技能来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
+
+    /** 记录Lobe中心技能来源中的状态Store。 */
     private final SkillHubStateStore stateStore;
 
+    /**
+     * 创建Lobe中心技能来源实例，并注入运行所需依赖。
+     *
+     * @param httpClient HTTPClient参数。
+     * @param stateStore 状态Store参数。
+     */
     public LobeHubSkillSource(SkillHubHttpClient httpClient, SkillHubStateStore stateStore) {
         this.httpClient = httpClient;
         this.stateStore = stateStore;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) throws Exception {
         ONode index = fetchIndex();
@@ -54,6 +71,12 @@ public class LobeHubSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) throws Exception {
         String agentId = normalizeIdentifier(identifier);
@@ -73,6 +96,12 @@ public class LobeHubSkillSource implements SkillSource {
         return bundle;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         String agentId = normalizeIdentifier(identifier);
@@ -95,16 +124,32 @@ public class LobeHubSkillSource implements SkillSource {
         return null;
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "lobehub";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         return "community";
     }
 
+    /**
+     * 拉取索引。
+     *
+     * @return 返回fetch Index结果。
+     */
     private ONode fetchIndex() throws Exception {
         String cached = stateStore.readCachedIndex("lobehub_index");
         if (StrUtil.isNotBlank(cached)) {
@@ -115,6 +160,12 @@ public class LobeHubSkillSource implements SkillSource {
         return ONode.ofJson(text);
     }
 
+    /**
+     * 转换To技能Md。
+     *
+     * @param agentData Agent数据参数。
+     * @return 返回convert To技能Md结果。
+     */
     public static String convertToSkillMd(ONode agentData) {
         ONode meta = agentData.get("meta").isObject() ? agentData.get("meta") : agentData;
         String identifier =
@@ -146,10 +197,22 @@ public class LobeHubSkillSource implements SkillSource {
         return buffer.toString();
     }
 
+    /**
+     * 规范化Tags。
+     *
+     * @param node 节点参数。
+     * @return 返回Tags结果。
+     */
     private List<String> normalizeTags(ONode node) {
         return normalizeTagsStatic(node);
     }
 
+    /**
+     * 规范化Tags静态资源。
+     *
+     * @param node 节点参数。
+     * @return 返回Tags静态资源结果。
+     */
     private static List<String> normalizeTagsStatic(ONode node) {
         List<String> tags = new ArrayList<String>();
         if (node.isArray()) {
@@ -160,6 +223,12 @@ public class LobeHubSkillSource implements SkillSource {
         return tags;
     }
 
+    /**
+     * 规范化Identifier。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回Identifier结果。
+     */
     private String normalizeIdentifier(String identifier) {
         if (identifier.startsWith("lobehub/")) {
             return identifier.substring("lobehub/".length());

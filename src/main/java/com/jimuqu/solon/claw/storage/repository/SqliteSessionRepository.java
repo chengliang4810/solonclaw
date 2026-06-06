@@ -23,6 +23,7 @@ import org.noear.solon.flow.FlowContext;
 /** SQLite 会话仓储实现。 */
 @RequiredArgsConstructor
 public class SqliteSessionRepository implements SessionRepository {
+    /** SELECTCOLUMNS的统一常量值。 */
     private static final String SELECT_COLUMNS =
             "session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, "
                     + "active_agent_name, platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, "
@@ -35,6 +36,7 @@ public class SqliteSessionRepository implements SessionRepository {
                     + "cumulative_cache_write_tokens, cumulative_total_tokens, last_usage_at, "
                     + "last_resolved_provider, last_resolved_model, created_at, updated_at";
 
+    /** SELECTCOLUMNSWITHALIAS的统一常量值。 */
     private static final String SELECT_COLUMNS_WITH_ALIAS =
             "s.session_id, s.source_key, s.branch_name, s.parent_session_id, s.model_override, s.service_tier_override, s.reasoning_effort_override, "
                     + "s.active_agent_name, s.platform_message_id, s.metadata_json, s.ndjson, s.title, s.compressed_summary, "
@@ -48,15 +50,28 @@ public class SqliteSessionRepository implements SessionRepository {
                     + "s.cumulative_total_tokens, s.last_usage_at, s.last_resolved_provider, "
                     + "s.last_resolved_model, s.created_at, s.updated_at";
 
+    /** 上下文待恢复审批的统一常量值。 */
     private static final String CONTEXT_PENDING_APPROVAL = "_dangerous_command_pending_";
+
+    /** 上下文待恢复审批队列的统一常量值。 */
     private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
             "_dangerous_command_pending_queue_";
+
+    /** 上下文会话APPROVALS的统一常量值。 */
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
+
+    /** 上下文会话YOLO的统一常量值。 */
     private static final String CONTEXT_SESSION_YOLO = "_dangerous_command_session_yolo_";
 
     /** 数据库访问对象。 */
     private final SqliteDatabase database;
 
+    /**
+     * 读取绑定会话。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回读取到的绑定会话。
+     */
     @Override
     public SessionRecord getBoundSession(String sourceKey) throws Exception {
         Connection connection = database.openConnection();
@@ -80,6 +95,12 @@ public class SqliteSessionRepository implements SessionRepository {
         return null;
     }
 
+    /**
+     * 执行bindNew会话相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回bind New会话结果。
+     */
     @Override
     public SessionRecord bindNewSession(String sourceKey) throws Exception {
         long now = System.currentTimeMillis();
@@ -95,6 +116,12 @@ public class SqliteSessionRepository implements SessionRepository {
         return record;
     }
 
+    /**
+     * 执行bind来源相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     */
     @Override
     public void bindSource(String sourceKey, String sessionId) throws Exception {
         Connection connection = database.openConnection();
@@ -111,6 +138,14 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 克隆会话。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sourceSessionId 来源会话标识。
+     * @param branchName branch名称参数。
+     * @return 返回clone会话结果。
+     */
     @Override
     public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName)
             throws Exception {
@@ -150,6 +185,12 @@ public class SqliteSessionRepository implements SessionRepository {
         return clone;
     }
 
+    /**
+     * 清理Agent Snapshot For Branch。
+     *
+     * @param snapshotJson snapshotJSON参数。
+     * @return 返回Agent Snapshot For Branch结果。
+     */
     private String sanitizeAgentSnapshotForBranch(String snapshotJson) {
         if (StrUtil.isBlank(snapshotJson)) {
             return snapshotJson;
@@ -166,6 +207,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 根据标识查找对应数据。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回按标识查找得到的结果。
+     */
     @Override
     public SessionRecord findById(String sessionId) throws Exception {
         Connection connection = database.openConnection();
@@ -189,6 +236,13 @@ public class SqliteSessionRepository implements SessionRepository {
         return null;
     }
 
+    /**
+     * 根据来源And Branch查找对应数据。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param branchName branch名称参数。
+     * @return 返回按来源And Branch查找得到的结果。
+     */
     @Override
     public SessionRecord findBySourceAndBranch(String sourceKey, String branchName)
             throws Exception {
@@ -216,6 +270,13 @@ public class SqliteSessionRepository implements SessionRepository {
         return null;
     }
 
+    /**
+     * 查找Resume Candidates。
+     *
+     * @param reference 引用参数。
+     * @param limit 最大返回数量。
+     * @return 返回Resume Candidates结果。
+     */
     @Override
     public List<SessionRecord> findResumeCandidates(String reference, int limit) throws Exception {
         List<SessionRecord> results = new ArrayList<SessionRecord>();
@@ -248,6 +309,11 @@ public class SqliteSessionRepository implements SessionRepository {
         return results;
     }
 
+    /**
+     * 执行save，服务于SQLite会话主流程相关逻辑。
+     *
+     * @param sessionRecord 会话记录参数。
+     */
     @Override
     public void save(SessionRecord sessionRecord) throws Exception {
         long updatedAt =
@@ -317,6 +383,13 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param keyword keyword 参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SessionRecord> search(String keyword, int limit) throws Exception {
         LinkedHashMap<String, SessionRecord> results = new LinkedHashMap<String, SessionRecord>();
@@ -521,17 +594,31 @@ public class SqliteSessionRepository implements SessionRepository {
     }
 
     /** 以 session_id 去重保序，避免 FTS 和 LIKE 兜底重复返回同一会话。 */
-    private void putSearchResult(LinkedHashMap<String, SessionRecord> results, SessionRecord record) {
+    private void putSearchResult(
+            LinkedHashMap<String, SessionRecord> results, SessionRecord record) {
         if (record != null && StrUtil.isNotBlank(record.getSessionId())) {
             results.put(record.getSessionId(), record);
         }
     }
 
+    /**
+     * 列出Recent。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回Recent列表。
+     */
     @Override
     public List<SessionRecord> listRecent(int limit) throws Exception {
         return listRecent(limit, 0);
     }
 
+    /**
+     * 列出Recent。
+     *
+     * @param limit 最大返回数量。
+     * @param offset 分页偏移量。
+     * @return 返回Recent列表。
+     */
     @Override
     public List<SessionRecord> listRecent(int limit, int offset) throws Exception {
         List<SessionRecord> results = new ArrayList<SessionRecord>();
@@ -560,6 +647,13 @@ public class SqliteSessionRepository implements SessionRepository {
         return results;
     }
 
+    /**
+     * 列出Pending Agent Sessions。
+     *
+     * @param updatedAfterMillis updatedAfterMillis 参数。
+     * @param limit 最大返回数量。
+     * @return 返回Pending Agent Sessions列表。
+     */
     @Override
     public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit)
             throws Exception {
@@ -591,6 +685,11 @@ public class SqliteSessionRepository implements SessionRepository {
         return results;
     }
 
+    /**
+     * 执行次数全部相关逻辑。
+     *
+     * @return 返回次数全部结果。
+     */
     @Override
     public int countAll() throws Exception {
         Connection connection = database.openConnection();
@@ -609,6 +708,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 列出Lineage。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回Lineage列表。
+     */
     @Override
     public List<SessionRecord> listLineage(String sessionId) throws Exception {
         if (StrUtil.isBlank(sessionId)) {
@@ -647,6 +752,12 @@ public class SqliteSessionRepository implements SessionRepository {
         return result;
     }
 
+    /**
+     * 执行latestDescendant路径相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回latest Descendant路径。
+     */
     @Override
     public List<String> latestDescendantPath(String sessionId) throws Exception {
         SessionRecord root = findById(sessionId);
@@ -675,6 +786,11 @@ public class SqliteSessionRepository implements SessionRepository {
         return path;
     }
 
+    /**
+     * 执行delete，服务于SQLite会话主流程相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     */
     @Override
     public void delete(String sessionId) throws Exception {
         Connection connection = database.openConnection();
@@ -703,6 +819,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 写入模型Override。
+     *
+     * @param sessionId 当前会话标识。
+     * @param modelOverride 模型Override标识或键值。
+     */
     @Override
     public void setModelOverride(String sessionId, String modelOverride) throws Exception {
         Connection connection = database.openConnection();
@@ -720,6 +842,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 写入服务Tier Override。
+     *
+     * @param sessionId 当前会话标识。
+     * @param serviceTierOverride serviceTierOverride标识或键值。
+     */
     @Override
     public void setServiceTierOverride(String sessionId, String serviceTierOverride)
             throws Exception {
@@ -738,6 +866,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 写入Reasoning Effort Override。
+     *
+     * @param sessionId 当前会话标识。
+     * @param reasoningEffortOverride 推理EffortOverride标识或键值。
+     */
     @Override
     public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride)
             throws Exception {
@@ -756,6 +890,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 写入Active Agent名称。
+     *
+     * @param sessionId 当前会话标识。
+     * @param agentName Agent名称参数。
+     */
     @Override
     public void setActiveAgentName(String sessionId, String agentName) throws Exception {
         Connection connection = database.openConnection();
@@ -773,6 +913,11 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 清理Active Agent名称。
+     *
+     * @param agentName Agent名称参数。
+     */
     @Override
     public void clearActiveAgentName(String agentName) throws Exception {
         Connection connection = database.openConnection();
@@ -789,6 +934,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 写入Goal状态。
+     *
+     * @param sessionId 当前会话标识。
+     * @param goalStateJson 目标状态JSON参数。
+     */
     @Override
     public void setGoalState(String sessionId, String goalStateJson) throws Exception {
         Connection connection = database.openConnection();
@@ -806,6 +957,12 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /**
+     * 写入Last Learning时间。
+     *
+     * @param sessionId 当前会话标识。
+     * @param lastLearningAt lastLearningAt 参数。
+     */
     @Override
     public void setLastLearningAt(String sessionId, long lastLearningAt) throws Exception {
         Connection connection = database.openConnection();
@@ -845,10 +1002,16 @@ public class SqliteSessionRepository implements SessionRepository {
                 insert.close();
             }
         } catch (Exception ignored) {
-            // Session persistence must survive runtimes where SQLite FTS5 is unavailable.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
     }
 
+    /**
+     * 删除搜索Index。
+     *
+     * @param connection 连接参数。
+     * @param sessionId 当前会话标识。
+     */
     private void deleteSearchIndex(Connection connection, String sessionId) {
         try {
             PreparedStatement delete =
@@ -860,10 +1023,16 @@ public class SqliteSessionRepository implements SessionRepository {
                 delete.close();
             }
         } catch (Exception ignored) {
-            // Search index is optional; table absence must not block primary session writes.
+            // 这里的失败不应影响主流程或安全关键路径。
         }
     }
 
+    /**
+     * 构建工具Index。
+     *
+     * @param ndjson ndjson 参数。
+     * @return 返回创建好的工具Index。
+     */
     @SuppressWarnings("unchecked")
     private ToolIndex buildToolIndex(String ndjson) {
         StringBuilder names = new StringBuilder();
@@ -904,6 +1073,12 @@ public class SqliteSessionRepository implements SessionRepository {
         return new ToolIndex(names.toString(), calls.toString());
     }
 
+    /**
+     * 执行append相关逻辑。
+     *
+     * @param buffer buffer 参数。
+     * @param value 待规范化或校验的原始值。
+     */
     private void append(StringBuilder buffer, String value) {
         if (StrUtil.isBlank(value) || "null".equals(value)) {
             return;
@@ -914,10 +1089,20 @@ public class SqliteSessionRepository implements SessionRepository {
         buffer.append(value.trim());
     }
 
+    /** 承载工具索引相关状态和辅助逻辑。 */
     private static class ToolIndex {
+        /** 记录工具索引中的名称。 */
         private final String names;
+
+        /** 记录工具索引中的calls。 */
         private final String calls;
 
+        /**
+         * 创建工具Index实例，并注入运行所需依赖。
+         *
+         * @param names names 参数。
+         * @param calls calls 参数。
+         */
         private ToolIndex(String names, String calls) {
             this.names = names;
             this.calls = calls;
