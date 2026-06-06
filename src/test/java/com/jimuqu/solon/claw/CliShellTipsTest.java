@@ -87,6 +87,45 @@ public class CliShellTipsTest {
     }
 
     @Test
+    void shouldTreatCopyWithoutPreviousReplyAsHandledLocalCommand() throws Exception {
+        CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
+        StringWriter buffer = new StringWriter();
+
+        int exitCode = sendOnce(shell, new PrintWriter(buffer), "/copy");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString()).contains("没有可复制的上一条回复。");
+    }
+
+    @Test
+    void shouldExplainTerminalOnlySlashCommandsLocallyWithoutCallingModel() throws Exception {
+        TrackingCliRuntime runtime = new TrackingCliRuntime();
+        CliShell shell = new CliShell(runtime, new CliMode(CliMode.Kind.CLI, null, null));
+
+        for (String command :
+                Arrays.asList(
+                        "/steer adjust",
+                        "/background hello",
+                        "/statusbar",
+                        "/footer",
+                        "/paste",
+                        "/image /tmp/example.png",
+                        "/handoff",
+                        "/subgoal status")) {
+            StringWriter buffer = new StringWriter();
+
+            int exitCode = sendOnce(shell, new PrintWriter(buffer), command);
+
+            assertThat(exitCode).as(command).isEqualTo(0);
+            assertThat(buffer.toString())
+                    .as(command)
+                    .contains("此命令是 TUI 交互命令")
+                    .contains("solonclaw");
+        }
+        assertThat(runtime.sendCount).isZero();
+    }
+
+    @Test
     void shouldSanitizeTerminalResponsesBeforeLocalCliCommandRouting() throws Exception {
         CliShell shell =
                 new CliShell(
@@ -561,6 +600,24 @@ public class CliShellTipsTest {
                 throw error;
             }
             return reply;
+        }
+    }
+
+    private static class TrackingCliRuntime extends CliRuntime {
+        private int sendCount;
+
+        private TrackingCliRuntime() {
+            super(null, null);
+        }
+
+        @Override
+        public GatewayReply send(
+                String sessionId,
+                String input,
+                List<MessageAttachment> attachments,
+                ConversationEventSink eventSink) {
+            sendCount++;
+            return GatewayReply.ok("routed-to-model");
         }
     }
 }

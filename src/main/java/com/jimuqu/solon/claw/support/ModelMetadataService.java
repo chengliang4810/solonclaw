@@ -13,16 +13,30 @@ import java.util.regex.Pattern;
 
 /** 模型能力元数据解析服务。 */
 public class ModelMetadataService {
+    /** OllamaTAG正则的统一常量值。 */
     private static final Pattern OLLAMA_TAG_PATTERN =
             Pattern.compile(
                     "^(\\d+\\.?\\d*b|latest|stable|q\\d|fp?\\d|instruct|chat|coder|vision|text)");
 
+    /** 注入应用配置，用于模型元数据。 */
     private final AppConfig appConfig;
 
+    /**
+     * 创建模型元数据服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public ModelMetadataService(AppConfig appConfig) {
         this.appConfig = appConfig;
     }
 
+    /**
+     * 解析运行时需要的目标对象。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param provider 模型或能力提供方。
+     * @return 返回resolve结果。
+     */
     public ModelMetadata resolve(String providerKey, AppConfig.ProviderConfig provider) {
         String dialect =
                 LlmProviderSupport.normalizeDialect(
@@ -72,6 +86,12 @@ public class ModelMetadataService {
         return metadata;
     }
 
+    /**
+     * 执行normalized模型名称相关逻辑。
+     *
+     * @param model 模型名称。
+     * @return 返回normalized模型名称结果。
+     */
     private String normalizedModelName(String model) {
         String value = StrUtil.nullToEmpty(model).trim();
         int slash = value.indexOf('/');
@@ -91,6 +111,12 @@ public class ModelMetadataService {
         return value;
     }
 
+    /**
+     * 判断是否提供方Prefix。
+     *
+     * @param prefix prefix 参数。
+     * @return 如果提供方Prefix满足条件则返回 true，否则返回 false。
+     */
     private boolean isProviderPrefix(String prefix) {
         String value = StrUtil.nullToEmpty(prefix).trim().toLowerCase();
         return "openai".equals(value)
@@ -100,10 +126,22 @@ public class ModelMetadataService {
                 || "google".equals(value);
     }
 
+    /**
+     * 判断是否具有OllamaTag特征。
+     *
+     * @param suffix suffix 参数。
+     * @return 返回looks Like Ollama Tag结果。
+     */
     private boolean looksLikeOllamaTag(String suffix) {
         return OLLAMA_TAG_PATTERN.matcher(StrUtil.nullToEmpty(suffix).trim().toLowerCase()).find();
     }
 
+    /**
+     * 执行aliases相关逻辑。
+     *
+     * @param model 模型名称。
+     * @return 返回aliases结果。
+     */
     private List<String> aliases(String model) {
         List<String> aliases = new ArrayList<String>();
         String value = StrUtil.nullToEmpty(model).trim();
@@ -141,6 +179,13 @@ public class ModelMetadataService {
         return aliases;
     }
 
+    /**
+     * 解析上下文Window。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的上下文Window。
+     */
     private int resolveContextWindow(String dialect, String model) {
         int configured = appConfig.getLlm().getContextWindowTokens();
         if (configured > 0) {
@@ -197,6 +242,13 @@ public class ModelMetadataService {
         return 64000;
     }
 
+    /**
+     * 判断是否匹配Any。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param needles needles 参数。
+     * @return 返回matches Any结果。
+     */
     private boolean matchesAny(String value, String... needles) {
         for (String needle : needles) {
             if (value.contains(needle)) {
@@ -206,10 +258,24 @@ public class ModelMetadataService {
         return false;
     }
 
+    /**
+     * 解析Supports工具。
+     *
+     * @param dialect dialect 参数。
+     * @return 返回解析后的Supports工具。
+     */
     private boolean resolveSupportsTools(String dialect) {
         return LlmProviderSupport.isSupportedDialect(dialect);
     }
 
+    /**
+     * 解析Supports Vision。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @return 返回解析后的Supports Vision。
+     */
     private boolean resolveSupportsVision(
             String dialect, String model, AppConfig.ProviderConfig provider) {
         if (provider != null && provider.getSupportsVision() != null) {
@@ -237,6 +303,13 @@ public class ModelMetadataService {
                 || lower.contains("grok-2-vision");
     }
 
+    /**
+     * 解析Supports Audio。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的Supports Audio。
+     */
     private boolean resolveSupportsAudio(String dialect, String model) {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
@@ -253,6 +326,13 @@ public class ModelMetadataService {
                 || lower.contains("gpt-4o-mini-transcribe");
     }
 
+    /**
+     * 解析Supports Pdf。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的Supports Pdf。
+     */
     private boolean resolveSupportsPdf(String dialect, String model) {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
@@ -270,6 +350,16 @@ public class ModelMetadataService {
                 || lower.contains("qwen3-vl");
     }
 
+    /**
+     * 解析Supports附件。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @param supportsVision supportsVision 参数。
+     * @param supportsAudio supports音频参数。
+     * @param supportsPdf supportsPdf 参数。
+     * @return 返回解析后的Supports附件。
+     */
     private boolean resolveSupportsAttachment(
             String dialect,
             String model,
@@ -292,6 +382,16 @@ public class ModelMetadataService {
                 || lower.contains("/vl");
     }
 
+    /**
+     * 解析输入Modalities。
+     *
+     * @param dialect dialect 参数。
+     * @param supportsVision supportsVision 参数。
+     * @param supportsAudio supports音频参数。
+     * @param supportsPdf supportsPdf 参数。
+     * @param supportsAttachment supports附件参数。
+     * @return 返回解析后的输入Modalities。
+     */
     private List<String> resolveInputModalities(
             String dialect,
             boolean supportsVision,
@@ -315,6 +415,14 @@ public class ModelMetadataService {
         return new ArrayList<String>(modalities);
     }
 
+    /**
+     * 解析输出Modalities。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @param supportsAudio supports音频参数。
+     * @return 返回解析后的输出Modalities。
+     */
     private List<String> resolveOutputModalities(
             String dialect, String model, boolean supportsAudio) {
         Set<String> modalities = new LinkedHashSet<String>();
@@ -329,6 +437,13 @@ public class ModelMetadataService {
         return new ArrayList<String>(modalities);
     }
 
+    /**
+     * 解析Api URL。
+     *
+     * @param provider 模型或能力提供方。
+     * @param dialect dialect 参数。
+     * @return 返回解析后的Api URL。
+     */
     private String resolveApiUrl(AppConfig.ProviderConfig provider, String dialect) {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
             return "";
@@ -336,6 +451,14 @@ public class ModelMetadataService {
         return LlmProviderSupport.buildApiUrl(provider.getBaseUrl(), dialect);
     }
 
+    /**
+     * 解析模型List URL。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param provider 模型或能力提供方。
+     * @param dialect dialect 参数。
+     * @return 返回解析后的模型List URL。
+     */
     private String resolveModelListUrl(
             String providerKey, AppConfig.ProviderConfig provider, String dialect) {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
@@ -344,6 +467,13 @@ public class ModelMetadataService {
         return LlmProviderSupport.buildModelListUrl(providerKey, provider.getBaseUrl(), dialect);
     }
 
+    /**
+     * 解析来源。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @return 返回解析后的来源。
+     */
     private String resolveSource(AppConfig.ProviderConfig provider, String model) {
         if (provider != null && StrUtil.isNotBlank(provider.getBaseUrl())) {
             return "provider_config";
@@ -354,6 +484,13 @@ public class ModelMetadataService {
         return "default";
     }
 
+    /**
+     * 解析来源追踪。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @return 返回解析后的来源追踪。
+     */
     private String resolveProvenance(AppConfig.ProviderConfig provider, String model) {
         if (provider != null && StrUtil.isNotBlank(provider.getBaseUrl())) {
             return "provider_config:base_url";
@@ -364,6 +501,13 @@ public class ModelMetadataService {
         return "default:fallback";
     }
 
+    /**
+     * 解析Supports Reasoning。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的Supports Reasoning。
+     */
     private boolean resolveSupportsReasoning(String dialect, String model) {
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
         return LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
@@ -381,6 +525,13 @@ public class ModelMetadataService {
                 || lower.contains("grok-4.3");
     }
 
+    /**
+     * 解析Supports Structured输出。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的Supports Structured输出。
+     */
     private boolean resolveSupportsStructuredOutput(String dialect, String model) {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
@@ -403,6 +554,13 @@ public class ModelMetadataService {
                 || lower.contains("glm");
     }
 
+    /**
+     * 解析Supports Open Weights。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的Supports Open Weights。
+     */
     private boolean resolveSupportsOpenWeights(String dialect, String model) {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
@@ -422,6 +580,13 @@ public class ModelMetadataService {
                 || lower.contains("minicpm");
     }
 
+    /**
+     * 解析Supports Interleaved。
+     *
+     * @param dialect dialect 参数。
+     * @param model 模型名称。
+     * @return 返回解析后的Supports Interleaved。
+     */
     private boolean resolveSupportsInterleaved(String dialect, String model) {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
@@ -431,6 +596,12 @@ public class ModelMetadataService {
                 && (lower.contains("claude-sonnet-4") || lower.contains("claude-opus-4"));
     }
 
+    /**
+     * 解析Supports提示词缓存。
+     *
+     * @param dialect dialect 参数。
+     * @return 返回解析后的Supports提示词缓存。
+     */
     private boolean resolveSupportsPromptCache(String dialect) {
         return LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
                 || LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)

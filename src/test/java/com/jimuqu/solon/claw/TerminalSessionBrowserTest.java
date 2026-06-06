@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -84,6 +85,51 @@ public class TerminalSessionBrowserTest {
                 .contains("session-alpha-0001")
                 .contains("已生成周报摘要");
         assertThat(browser.render("/session show missing")).contains("没有找到匹配的会话");
+    }
+
+    @Test
+    void shouldHandleSessionManagementCommandsWithoutTreatingThemAsSearchTerms() {
+        FakeSessionRepository repository = new FakeSessionRepository(sessions());
+        TerminalSessionBrowser browser = new TerminalSessionBrowser(repository);
+
+        assertThat(browser.isBrowserCommand("/sessions stats")).isTrue();
+        assertThat(browser.render("/sessions stats"))
+                .contains("会话统计")
+                .contains("total=2")
+                .contains("tokens=49")
+                .doesNotContain("搜索：stats");
+
+        assertThat(browser.render("/sessions rename session-alpha-0001 新标题"))
+                .contains("会话已重命名")
+                .contains("session-alpha-0001")
+                .contains("新标题");
+        assertThat(repository.findById("session-alpha-0001").getTitle()).isEqualTo("新标题");
+
+        String exported = browser.render("/sessions export - --session-id session-alpha-0001");
+        assertThat(exported)
+                .contains("\"session_id\":\"session-alpha-0001\"")
+                .contains("\"title\":\"新标题\"")
+                .doesNotContain("最近会话");
+
+        assertThat(browser.render("/sessions delete session-beta-0002 --yes"))
+                .contains("会话已删除")
+                .contains("session-beta-0002");
+        assertThat(repository.findById("session-beta-0002")).isNull();
+    }
+
+    @Test
+    void shouldRequireConfirmationForDestructiveSessionManagementCommands() {
+        FakeSessionRepository repository = new FakeSessionRepository(sessions());
+        TerminalSessionBrowser browser = new TerminalSessionBrowser(repository);
+
+        assertThat(browser.render("/sessions delete session-alpha-0001"))
+                .contains("需要确认")
+                .contains("--yes");
+        assertThat(repository.findById("session-alpha-0001")).isNotNull();
+
+        assertThat(browser.render("/sessions prune --older-than 1"))
+                .contains("需要确认")
+                .contains("--yes");
     }
 
     private List<SessionRecord> sessions() {
@@ -176,7 +222,15 @@ public class TerminalSessionBrowserTest {
         }
 
         @Override
-        public void save(SessionRecord sessionRecord) {}
+        public void save(SessionRecord sessionRecord) {
+            for (int i = 0; i < records.size(); i++) {
+                if (records.get(i).getSessionId().equals(sessionRecord.getSessionId())) {
+                    records.set(i, sessionRecord);
+                    return;
+                }
+            }
+            records.add(sessionRecord);
+        }
 
         @Override
         public List<SessionRecord> search(String keyword, int limit) {
@@ -210,7 +264,15 @@ public class TerminalSessionBrowserTest {
         }
 
         @Override
-        public void delete(String sessionId) {}
+        public void delete(String sessionId) {
+            Iterator<SessionRecord> iterator = records.iterator();
+            while (iterator.hasNext()) {
+                if (iterator.next().getSessionId().equals(sessionId)) {
+                    iterator.remove();
+                    return;
+                }
+            }
+        }
 
         @Override
         public void setModelOverride(String sessionId, String modelOverride) {}

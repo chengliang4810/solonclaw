@@ -67,39 +67,85 @@ import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
-/** tool bean configuration. */
+/** 承载工具配置并集中创建运行组件。 */
 @Configuration
 public class ToolConfiguration {
+    /**
+     * 执行注册表相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回注册表结果。
+     */
     @Bean
     public ProcessRegistry processRegistry(AppConfig appConfig) {
         return new ProcessRegistry(appConfig);
     }
 
+    /**
+     * 执行安全策略服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回安全策略服务结果。
+     */
     @Bean
     public SecurityPolicyService securityPolicyService(AppConfig appConfig) {
         return new SecurityPolicyService(appConfig);
     }
 
+    /**
+     * 执行tirith安全服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回tirith安全服务结果。
+     */
     @Bean
     public TirithSecurityService tirithSecurityService(AppConfig appConfig) {
         return new TirithSecurityService(appConfig);
     }
 
+    /**
+     * 执行工具结果转换服务相关逻辑。
+     *
+     * @return 返回工具结果Transform服务结果。
+     */
     @Bean
     public ToolResultTransformService toolResultTransformService() {
         return new ToolResultTransformService();
     }
 
+    /**
+     * 执行工具结果Storage服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回工具结果Storage服务结果。
+     */
     @Bean
     public ToolResultStorageService toolResultStorageService(AppConfig appConfig) {
         return new ToolResultStorageService(appConfig);
     }
 
+    /**
+     * 执行工具Call循环防护服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回工具Call循环防护服务结果。
+     */
     @Bean
     public ToolCallLoopGuardrailService toolCallLoopGuardrailService(AppConfig appConfig) {
         return new ToolCallLoopGuardrailService(appConfig);
     }
 
+    /**
+     * 执行dangerous命令审批服务相关逻辑。
+     *
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param appConfig 应用运行配置。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @return 返回dangerous命令审批服务结果。
+     */
     @Bean
     public DangerousCommandApprovalService dangerousCommandApprovalService(
             GlobalSettingRepository globalSettingRepository,
@@ -119,11 +165,26 @@ public class ToolConfiguration {
         return service;
     }
 
+    /**
+     * 执行附件缓存服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回附件缓存服务结果。
+     */
     @Bean
     public AttachmentCacheService attachmentCacheService(AppConfig appConfig) {
         return new AttachmentCacheService(appConfig);
     }
 
+    /**
+     * 执行图片Generation服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param imageGenProviders 图片GenProviders标识或键值。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回图片Generation服务结果。
+     */
     @Bean
     public ImageGenerationService imageGenerationService(
             AppConfig appConfig,
@@ -134,6 +195,15 @@ public class ToolConfiguration {
                 appConfig, attachmentCacheService, imageGenProviders, securityPolicyService);
     }
 
+    /**
+     * 执行语音服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param speechProviders 语音Providers标识或键值。
+     * @param transcriptionProviders 转写Providers标识或键值。
+     * @return 返回语音服务结果。
+     */
     @Bean
     public SpeechService speechService(
             AppConfig appConfig,
@@ -144,6 +214,14 @@ public class ToolConfiguration {
                 appConfig, attachmentCacheService, speechProviders, transcriptionProviders);
     }
 
+    /**
+     * 执行MCP运行时服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sqliteDatabase SQLiteDatabase参数。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回MCP运行时服务结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public McpRuntimeService mcpRuntimeService(
             AppConfig appConfig,
@@ -155,6 +233,14 @@ public class ToolConfiguration {
         return service;
     }
 
+    /**
+     * 执行浏览器运行时服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param browserProviders 浏览器Providers标识或键值。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回浏览器运行时服务结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public BrowserRuntimeService browserRuntimeService(
             AppConfig appConfig,
@@ -163,11 +249,44 @@ public class ToolConfiguration {
         return new BrowserRuntimeService(appConfig, browserProviders, securityPolicyService);
     }
 
+    /**
+     * 执行运行时路径保护相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回运行时路径保护结果。
+     */
     @Bean
     public RuntimePathGuard runtimePathGuard(AppConfig appConfig) {
         return new RuntimePathGuard(appConfig);
     }
 
+    /**
+     * 执行工具注册表相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param pluginTools 插件Tools参数。
+     * @return 返回工具注册表结果。
+     */
     @Bean
     public ToolRegistry toolRegistry(
             AppConfig appConfig,
@@ -217,6 +336,17 @@ public class ToolConfiguration {
                 pluginTools);
     }
 
+    /**
+     * 执行委托服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param holder holder 参数。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @return 返回委托服务结果。
+     */
     @Bean
     public DelegationService delegationService(
             AppConfig appConfig,
@@ -234,22 +364,49 @@ public class ToolConfiguration {
                 agentRunControlService);
     }
 
+    /**
+     * 执行展示设置服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @return 返回展示设置服务结果。
+     */
     @Bean
     public DisplaySettingsService displaySettingsService(
             AppConfig appConfig, GlobalSettingRepository globalSettingRepository) {
         return new DisplaySettingsService(appConfig, globalSettingRepository);
     }
 
+    /**
+     * 执行运行时Footer服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回运行时Footer服务结果。
+     */
     @Bean
     public RuntimeFooterService runtimeFooterService(AppConfig appConfig) {
         return new RuntimeFooterService(appConfig);
     }
 
+    /**
+     * 执行应用版本服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回app版本服务结果。
+     */
     @Bean
     public AppVersionService appVersionService(AppConfig appConfig) {
         return new AppVersionService(appConfig);
     }
 
+    /**
+     * 执行应用更新服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param appVersionService 应用版本服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回app更新服务结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public AppUpdateService appUpdateService(
             AppConfig appConfig,
@@ -258,16 +415,40 @@ public class ToolConfiguration {
         return new AppUpdateService(appConfig, appVersionService, securityPolicyService);
     }
 
+    /**
+     * 执行大模型提供方服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回大模型提供方服务结果。
+     */
     @Bean
     public LlmProviderService llmProviderService(AppConfig appConfig) {
         return new LlmProviderService(appConfig);
     }
 
+    /**
+     * 执行对话编排器Holder相关逻辑。
+     *
+     * @return 返回对话编排器Holder结果。
+     */
     @Bean
     public ConversationOrchestratorHolder conversationOrchestratorHolder() {
         return new ConversationOrchestratorHolder();
     }
 
+    /**
+     * 执行大模型消息网关相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolResultTransformService 工具结果转换Service响应或执行结果。
+     * @param toolCallLoopGuardrailService 工具CallLoop护栏服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param hookBridgeInterceptor 钩子BridgeInterceptor标识或键值。
+     * @return 返回大模型消息网关结果。
+     */
     @Bean
     public LlmGateway llmGateway(
             AppConfig appConfig,
@@ -291,6 +472,20 @@ public class ToolConfiguration {
         return gateway;
     }
 
+    /**
+     * 执行Agent运行Supervisor相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param contextBudgetService 上下文预算Service上下文。
+     * @param llmGateway LLM网关参数。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param usageEventRepository 用量事件仓储依赖。
+     * @param usageCostCalculator 用量成本Calculator参数。
+     * @return 返回Agent运行Supervisor结果。
+     */
     @Bean
     public AgentRunSupervisor agentRunSupervisor(
             AppConfig appConfig,
@@ -314,6 +509,28 @@ public class ToolConfiguration {
                 usageCostCalculator);
     }
 
+    /**
+     * 执行对话编排器相关逻辑。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param llmGateway LLM网关参数。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param deliveryService 投递服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param holder holder 参数。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param runtimeFooterService 运行时Footer服务依赖。
+     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param memoryManager 记忆Manager参数。
+     * @param goalService 目标服务依赖。
+     * @param agentHookRegistry Agent钩子注册表依赖组件。
+     * @param speechService 语音服务依赖。
+     * @return 返回对话编排器结果。
+     */
     @Bean
     public ConversationOrchestrator conversationOrchestrator(
             SessionRepository sessionRepository,

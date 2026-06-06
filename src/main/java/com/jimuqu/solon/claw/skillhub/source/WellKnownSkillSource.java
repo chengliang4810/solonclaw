@@ -14,14 +14,28 @@ import org.noear.snack4.ONode;
 
 /** well-known skill endpoint 适配器。 */
 public class WellKnownSkillSource implements SkillSource {
+    /** 基础路径的统一常量值。 */
     private static final String BASE_PATH = "/.well-known/skills";
 
+    /** 记录Well已知技能来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
 
+    /**
+     * 创建Well Known技能来源实例，并注入运行所需依赖。
+     *
+     * @param httpClient HTTPClient参数。
+     */
     public WellKnownSkillSource(SkillHubHttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) throws Exception {
         String indexUrl = queryToIndexUrl(query);
@@ -56,6 +70,12 @@ public class WellKnownSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) throws Exception {
         ParsedIdentifier parsed = parseIdentifier(identifier);
@@ -107,6 +127,12 @@ public class WellKnownSkillSource implements SkillSource {
         return bundle;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         ParsedIdentifier parsed = parseIdentifier(identifier);
@@ -126,16 +152,33 @@ public class WellKnownSkillSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "well-known";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         return "community";
     }
 
+    /**
+     * 查询To Index URL。
+     *
+     * @param query 查询参数。
+     * @return 返回To Index URL结果。
+     */
     private String queryToIndexUrl(String query) {
         String normalized = StrUtil.nullToEmpty(query).trim();
         if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
@@ -151,10 +194,23 @@ public class WellKnownSkillSource implements SkillSource {
         return normalized.replaceAll("/+$", "") + BASE_PATH + "/index.json";
     }
 
+    /**
+     * 执行wrapIdentifier相关逻辑。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param skillName 技能名称参数。
+     * @return 返回wrap Identifier结果。
+     */
     private String wrapIdentifier(String baseUrl, String skillName) {
         return "well-known:" + baseUrl + "#" + skillName;
     }
 
+    /**
+     * 解析Identifier。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回解析后的Identifier。
+     */
     private ParsedIdentifier parseIdentifier(String identifier) {
         if (StrUtil.isBlank(identifier) || !identifier.startsWith("well-known:")) {
             return null;
@@ -172,15 +228,29 @@ public class WellKnownSkillSource implements SkillSource {
         return parsed;
     }
 
+    /**
+     * 执行基础URL相关逻辑。
+     *
+     * @param indexUrl 待校验或访问的地址参数。
+     * @return 返回base URL结果。
+     */
     private String baseUrl(String indexUrl) {
         String normalized = indexUrl.replaceAll("/index\\.json$", "");
         return normalized;
     }
 
+    /** 承载ParsedIdentifier相关状态和辅助逻辑。 */
     private static class ParsedIdentifier {
+        /** 记录ParsedIdentifier中的基础URL。 */
         private String baseUrl;
+
+        /** 记录ParsedIdentifier中的索引URL。 */
         private String indexUrl;
+
+        /** 记录ParsedIdentifier中的技能名称。 */
         private String skillName;
+
+        /** 记录ParsedIdentifier中的技能URL。 */
         private String skillUrl;
     }
 }

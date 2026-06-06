@@ -10,15 +10,30 @@ import java.util.Collections;
 import java.util.List;
 import org.noear.snack4.ONode;
 
-/** skills.sh source adapter。 */
+/** 承载技能Sh技能来源相关状态和辅助逻辑。 */
 public class SkillsShSkillSource implements SkillSource {
+    /** 基础URL的统一常量值。 */
     private static final String BASE_URL = "https://skills.sh";
+
+    /** 搜索URL的统一常量值。 */
     private static final String SEARCH_URL = BASE_URL + "/api/search";
 
+    /** 记录技能Sh技能来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
+
+    /** 记录技能Sh技能来源中的状态Store。 */
     private final SkillHubStateStore stateStore;
+
+    /** 记录技能Sh技能来源中的GitHub技能来源。 */
     private final GitHubSkillSource githubSkillSource;
 
+    /**
+     * 创建技能Sh技能来源实例，并注入运行所需依赖。
+     *
+     * @param httpClient HTTPClient参数。
+     * @param stateStore 状态Store参数。
+     * @param githubSkillSource GitHub技能来源参数。
+     */
     public SkillsShSkillSource(
             SkillHubHttpClient httpClient,
             SkillHubStateStore stateStore,
@@ -28,6 +43,13 @@ public class SkillsShSkillSource implements SkillSource {
         this.githubSkillSource = githubSkillSource;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) throws Exception {
         if (StrUtil.isBlank(query)) {
@@ -56,6 +78,12 @@ public class SkillsShSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) throws Exception {
         String canonical = normalizeIdentifier(identifier);
@@ -67,6 +95,12 @@ public class SkillsShSkillSource implements SkillSource {
         return bundle;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         String canonical = normalizeIdentifier(identifier);
@@ -79,16 +113,33 @@ public class SkillsShSkillSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "skills-sh";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         return githubSkillSource.trustLevelFor(normalizeIdentifier(identifier));
     }
 
+    /**
+     * 执行metaFrom搜索Item相关逻辑。
+     *
+     * @param item item 参数。
+     * @return 返回meta From搜索Item结果。
+     */
     private SkillMeta metaFromSearchItem(ONode item) {
         String canonical = item.get("id").getString();
         if (StrUtil.isBlank(canonical)) {
@@ -125,6 +176,12 @@ public class SkillsShSkillSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 执行deserialize列表相关逻辑。
+     *
+     * @param json JSON参数。
+     * @return 返回deserialize List结果。
+     */
     private List<SkillMeta> deserializeList(String json) {
         SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
         List<SkillMeta> results = new ArrayList<SkillMeta>();
@@ -134,6 +191,12 @@ public class SkillsShSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 规范化Identifier。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回Identifier结果。
+     */
     private String normalizeIdentifier(String identifier) {
         String normalized = StrUtil.nullToEmpty(identifier).trim();
         if (normalized.startsWith("skills-sh/")) {
@@ -145,6 +208,12 @@ public class SkillsShSkillSource implements SkillSource {
         return normalized.replace('\\', '/');
     }
 
+    /**
+     * 执行wrapIdentifier相关逻辑。
+     *
+     * @param canonical canonical 参数。
+     * @return 返回wrap Identifier结果。
+     */
     private String wrapIdentifier(String canonical) {
         return "skills-sh/" + canonical;
     }

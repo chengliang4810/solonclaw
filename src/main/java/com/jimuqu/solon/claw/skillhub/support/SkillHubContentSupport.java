@@ -11,8 +11,15 @@ import java.util.List;
 
 /** Skills Hub 内容辅助。 */
 public final class SkillHubContentSupport {
+    /** 创建技能中心Content辅助实例。 */
     private SkillHubContentSupport() {}
 
+    /**
+     * 执行content哈希相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回content Hash结果。
+     */
     public static String contentHash(File path) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         if (path.isDirectory()) {
@@ -31,6 +38,12 @@ public final class SkillHubContentSupport {
                 + cn.hutool.core.util.HexUtil.encodeHexStr(digest.digest()).substring(0, 16);
     }
 
+    /**
+     * 执行包Content哈希相关逻辑。
+     *
+     * @param bundle bundle 参数。
+     * @return 返回包Content Hash结果。
+     */
     public static String bundleContentHash(SkillBundle bundle) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         List<String> keys = new ArrayList<String>(bundle.getFiles().keySet());
@@ -45,6 +58,12 @@ public final class SkillHubContentSupport {
                 + cn.hutool.core.util.HexUtil.encodeHexStr(digest.digest()).substring(0, 16);
     }
 
+    /**
+     * 写入包。
+     *
+     * @param targetDir 文件或目录路径参数。
+     * @param bundle bundle 参数。
+     */
     public static void writeBundle(File targetDir, SkillBundle bundle) {
         FileUtil.mkdir(targetDir);
         for (java.util.Map.Entry<String, String> entry : bundle.getFiles().entrySet()) {

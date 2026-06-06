@@ -25,12 +25,28 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     /** 应用配置。 */
     private final AppConfig appConfig;
 
+    /**
+     * 执行压缩IfNeeded相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @return 返回压缩If Needed结果。
+     */
     @Override
     public SessionRecord compressIfNeeded(
             SessionRecord session, String systemPrompt, String userMessage) throws Exception {
         return compressIfNeededWithOutcome(session, systemPrompt, userMessage).getSession();
     }
 
+    /**
+     * 执行压缩IfNeededWithOutcome相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @return 返回压缩If Needed With Outcome结果。
+     */
     @Override
     public CompressionOutcome compressIfNeededWithOutcome(
             SessionRecord session, String systemPrompt, String userMessage) throws Exception {
@@ -56,17 +72,40 @@ public class DefaultContextCompressionService implements ContextCompressionServi
                 compressNowWithOutcome(session, systemPrompt, null), estimatedTokens, threshold);
     }
 
+    /**
+     * 执行压缩Now相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @return 返回压缩Now结果。
+     */
     @Override
     public SessionRecord compressNow(SessionRecord session, String systemPrompt) throws Exception {
         return compressNow(session, systemPrompt, null);
     }
 
+    /**
+     * 执行压缩Now相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param focus focus 参数。
+     * @return 返回压缩Now结果。
+     */
     @Override
     public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus)
             throws Exception {
         return compressNowWithOutcome(session, systemPrompt, focus).getSession();
     }
 
+    /**
+     * 执行压缩NowWithOutcome相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param focus focus 参数。
+     * @return 返回压缩Now With Outcome结果。
+     */
     @Override
     public CompressionOutcome compressNowWithOutcome(
             SessionRecord session, String systemPrompt, String focus) throws Exception {
@@ -149,6 +188,14 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         }
     }
 
+    /**
+     * 执行with预算相关逻辑。
+     *
+     * @param outcome outcome 参数。
+     * @param estimatedTokens estimatedtoken参数。
+     * @param thresholdTokens thresholdtoken参数。
+     * @return 返回with Budget结果。
+     */
     private CompressionOutcome withBudget(
             CompressionOutcome outcome, int estimatedTokens, int thresholdTokens) {
         if (outcome != null) {
@@ -213,6 +260,13 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         }
     }
 
+    /**
+     * 执行shrink工具参数JSON相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @param headChars headChars 参数。
+     * @return 返回shrink工具参数JSON结果。
+     */
     private String shrinkToolArgumentsJson(String raw, int headChars) {
         if (StrUtil.isBlank(raw)) {
             return raw;
@@ -226,6 +280,12 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         }
     }
 
+    /**
+     * 执行shrink工具参数Object相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param headChars headChars 参数。
+     */
     @SuppressWarnings("unchecked")
     private void shrinkToolArgumentObject(Object value, int headChars) {
         if (value instanceof Map) {
@@ -262,7 +322,12 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return start;
     }
 
-    /** Jimuqu 对齐：最后一条用户消息永远不能被压进摘要。 */
+    /**
+     * 查找Last用户Index。
+     *
+     * @param messages messages 参数。
+     * @return 返回Last用户Index结果。
+     */
     private int findLastUserIndex(List<ChatMessage> messages) {
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
@@ -391,6 +456,12 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return String.join("\n", turns);
     }
 
+    /**
+     * 执行紧凑CompactedTurnContent相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @return 返回compact Compacted Turn Content结果。
+     */
     private String compactCompactedTurnContent(String content) {
         String safe = SecretRedactor.redact(content, 700);
         if (safe == null) {
@@ -477,6 +548,13 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return true;
     }
 
+    /**
+     * 判断是否Same Messages。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 如果Same Messages满足条件则返回 true，否则返回 false。
+     */
     private boolean isSameMessages(List<ChatMessage> left, List<ChatMessage> right) {
         if (left == right) {
             return true;
@@ -553,6 +631,12 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) estimated;
     }
 
+    /**
+     * 估算附件token。
+     *
+     * @param userMessage 用户消息参数。
+     * @return 返回附件token结果。
+     */
     private int estimateAttachmentTokens(String userMessage) {
         if (StrUtil.isBlank(userMessage) || !userMessage.contains("estimatedTokens=")) {
             return 0;

@@ -13,107 +13,233 @@ import org.noear.solon.core.handle.DownloadedFile;
 /** Dashboard SPA 页面入口。 */
 @Controller
 public class DashboardPageController {
+    /** 注入认证服务，用于调用对应业务能力。 */
     private final DashboardAuthService authService;
 
+    /**
+     * 创建控制台页面控制器实例，并注入运行所需依赖。
+     *
+     * @param authService 鉴权服务依赖。
+     */
     public DashboardPageController(DashboardAuthService authService) {
         this.authService = authService;
     }
 
+    /**
+     * 执行索引相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回index结果。
+     */
     @Mapping("/")
     public DownloadedFile index(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行索引Html相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回index Html结果。
+     */
     @Mapping("/index.html")
     public DownloadedFile indexHtml(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行状态相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回状态。
+     */
     @Mapping("/status")
     public DownloadedFile status(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行login相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回login结果。
+     */
     @Mapping("/login")
     public DownloadedFile login(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行聊天相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回chat结果。
+     */
     @Mapping("/chat")
     public DownloadedFile chat(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行sessions相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回sessions结果。
+     */
     @Mapping("/sessions")
     public DownloadedFile sessions(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行分析相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回分析结果。
+     */
     @Mapping("/analytics")
     public DownloadedFile analytics(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行models相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回models结果。
+     */
     @Mapping("/models")
     public DownloadedFile models(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行记忆相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回记忆结果。
+     */
     @Mapping("/memory")
     public DownloadedFile memory(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行logs相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回logs结果。
+     */
     @Mapping("/logs")
     public DownloadedFile logs(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行gateways相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回gateways结果。
+     */
     @Mapping("/gateways")
     public DownloadedFile gateways(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行channels相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回channels结果。
+     */
     @Mapping("/channels")
     public DownloadedFile channels(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行agents相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回agents结果。
+     */
     @Mapping("/agents")
     public DownloadedFile agents(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行files相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回files结果。
+     */
     @Mapping("/files")
     public DownloadedFile files(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行工作区相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回工作区结果。
+     */
     @Mapping("/workspace")
     public DownloadedFile workspace(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行定时任务相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回定时任务结果。
+     */
     @Mapping("/cron")
     public DownloadedFile cron(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行技能相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回技能结果。
+     */
     @Mapping("/skills")
     public DownloadedFile skills(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行配置相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回配置。
+     */
     @Mapping("/config")
     public DownloadedFile config(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 执行环境变量相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回env结果。
+     */
     @Mapping("/env")
     public DownloadedFile env(Context context) {
         return renderIndex(context);
     }
 
+    /**
+     * 渲染索引。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回render Index结果。
+     */
     private DownloadedFile renderIndex(Context context) {
         String html = loadIndexHtml();
         if (html == null) {
@@ -134,6 +260,11 @@ public class DashboardPageController {
                 .asAttachment(false);
     }
 
+    /**
+     * 加载Index Html。
+     *
+     * @return 返回Index Html结果。
+     */
     private String loadIndexHtml() {
         File devFile = new File(System.getProperty("user.dir"), "web/dist/index.html");
         if (devFile.exists()) {

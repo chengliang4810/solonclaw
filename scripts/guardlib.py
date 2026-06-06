@@ -381,9 +381,11 @@ def object_text_findings(
     for line in result.stdout.splitlines():
         if not line.strip():
             continue
+        parts = line.split(":", 3)
+        if len(parts) >= 3 and is_ignored_path(parts[1]):
+            continue
         total += 1
         if len(findings) < limit_remaining:
-            parts = line.split(":", 3)
             if len(parts) >= 3:
                 findings.append(f"{parts[0]}:{hide_blocked_text(parts[1], regex)}:{parts[2]}:<blocked>")
             else:

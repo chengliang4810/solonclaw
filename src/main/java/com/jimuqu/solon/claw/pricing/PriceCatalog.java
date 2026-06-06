@@ -12,10 +12,16 @@ import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** Model price catalog keyed by provider/model. */
+/** 承载价格Catalog相关状态和辅助逻辑。 */
 public class PriceCatalog {
+    /** 保存prices映射，便于按键快速查询。 */
     private final Map<String, ModelPrice> prices;
 
+    /**
+     * 创建价格Catalog实例，并注入运行所需依赖。
+     *
+     * @param prices prices 参数。
+     */
     public PriceCatalog(Map<String, ModelPrice> prices) {
         this.prices =
                 prices == null
@@ -23,10 +29,20 @@ public class PriceCatalog {
                         : new LinkedHashMap<String, ModelPrice>(prices);
     }
 
+    /**
+     * 返回当前类型的空结果。
+     *
+     * @return 返回empty结果。
+     */
     public static PriceCatalog empty() {
         return new PriceCatalog(Collections.<String, ModelPrice>emptyMap());
     }
 
+    /**
+     * 执行builtinDefaults相关逻辑。
+     *
+     * @return 返回builtin Defaults结果。
+     */
     public static PriceCatalog builtinDefaults() {
         Map<String, ModelPrice> defaults = new LinkedHashMap<String, ModelPrice>();
         add(
@@ -257,10 +273,22 @@ public class PriceCatalog {
         return new PriceCatalog(defaults);
     }
 
+    /**
+     * 执行已配置WithDefaults相关逻辑。
+     *
+     * @param modelPrices 模型Prices参数。
+     * @return 返回configured With Defaults结果。
+     */
     public static PriceCatalog configuredWithDefaults(List<ModelPrice> modelPrices) {
         return mergeWithConfigured(builtinDefaults().prices, modelPrices);
     }
 
+    /**
+     * 执行for配置相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回for配置。
+     */
     public static PriceCatalog forConfig(AppConfig appConfig) {
         Map<String, ModelPrice> defaults =
                 new LinkedHashMap<String, ModelPrice>(builtinDefaults().prices);
@@ -272,6 +300,13 @@ public class PriceCatalog {
         return mergeWithConfigured(defaults, configured);
     }
 
+    /**
+     * 合并With Configured。
+     *
+     * @param defaultPrices 默认Prices参数。
+     * @param modelPrices 模型Prices参数。
+     * @return 返回With Configured结果。
+     */
     private static PriceCatalog mergeWithConfigured(
             Map<String, ModelPrice> defaultPrices, List<ModelPrice> modelPrices) {
         Map<String, ModelPrice> merged = new LinkedHashMap<String, ModelPrice>(defaultPrices);
@@ -285,6 +320,12 @@ public class PriceCatalog {
         return new PriceCatalog(merged);
     }
 
+    /**
+     * 追加提供方Aliases。
+     *
+     * @param target target 参数。
+     * @param appConfig 应用运行配置。
+     */
     private static void addProviderAliases(Map<String, ModelPrice> target, AppConfig appConfig) {
         if (target == null || appConfig == null || appConfig.getProviders() == null) {
             return;
@@ -311,6 +352,14 @@ public class PriceCatalog {
         }
     }
 
+    /**
+     * 执行alias提供方相关逻辑。
+     *
+     * @param target target 参数。
+     * @param defaults defaults 参数。
+     * @param providerKey 提供方键标识或键值。
+     * @param sourceProvider 来源提供方标识或键值。
+     */
     private static void aliasProvider(
             Map<String, ModelPrice> target,
             PriceCatalog defaults,
@@ -327,10 +376,21 @@ public class PriceCatalog {
         }
     }
 
+    /**
+     * 执行大小相关逻辑。
+     *
+     * @return 返回大小结果。
+     */
     public int size() {
         return prices.size();
     }
 
+    /**
+     * 从输入转换JSON。
+     *
+     * @param json JSON参数。
+     * @return 返回JSON结果。
+     */
     public static PriceCatalog fromJson(String json) {
         if (StrUtil.isBlank(json)) {
             return empty();
@@ -388,6 +448,12 @@ public class PriceCatalog {
         return new PriceCatalog(parsed);
     }
 
+    /**
+     * 执行arrayNodes相关逻辑。
+     *
+     * @param array array 参数。
+     * @return 返回array Nodes结果。
+     */
     private static List<ONode> arrayNodes(ONode array) {
         List<ONode> nodes = array.getArray();
         if (nodes == null) {
@@ -396,6 +462,12 @@ public class PriceCatalog {
         return nodes;
     }
 
+    /**
+     * 执行add相关逻辑。
+     *
+     * @param target target 参数。
+     * @param price 价格参数。
+     */
     private static void add(Map<String, ModelPrice> target, ModelPrice price) {
         if (target != null
                 && price != null
@@ -405,6 +477,19 @@ public class PriceCatalog {
         }
     }
 
+    /**
+     * 执行价格相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @param inputCostPerMillion 输入成本PerMillion参数。
+     * @param outputCostPerMillion 输出成本PerMillion参数。
+     * @param cacheReadCostPerMillion 缓存Read成本PerMillion参数。
+     * @param cacheWriteCostPerMillion 缓存写入成本PerMillion参数。
+     * @param pricingVersion 价格版本参数。
+     * @param sourceUrl 待校验或访问的地址参数。
+     * @return 返回价格结果。
+     */
     private static ModelPrice price(
             String provider,
             String model,
@@ -428,6 +513,13 @@ public class PriceCatalog {
         return price;
     }
 
+    /**
+     * 执行free相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @return 返回free结果。
+     */
     private static ModelPrice free(String provider, String model) {
         ModelPrice price = new ModelPrice();
         price.setProvider(provider);
@@ -438,6 +530,12 @@ public class PriceCatalog {
         return price;
     }
 
+    /**
+     * 从输入转换Prices。
+     *
+     * @param modelPrices 模型Prices参数。
+     * @return 返回Prices结果。
+     */
     public static PriceCatalog fromPrices(List<ModelPrice> modelPrices) {
         Map<String, ModelPrice> parsed = new LinkedHashMap<String, ModelPrice>();
         if (modelPrices != null) {
@@ -452,6 +550,13 @@ public class PriceCatalog {
         return new PriceCatalog(parsed);
     }
 
+    /**
+     * 执行find相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @return 返回find结果。
+     */
     public ModelPrice find(String provider, String model) {
         String normalizedProvider = ModelPrice.normalize(provider);
         String normalizedModel = ModelPrice.normalize(model);
@@ -465,16 +570,35 @@ public class PriceCatalog {
         return null;
     }
 
+    /**
+     * 判断是否Empty。
+     *
+     * @return 如果Empty满足条件则返回 true，否则返回 false。
+     */
     public boolean isEmpty() {
         return prices.isEmpty();
     }
 
+    /**
+     * 执行文本相关逻辑。
+     *
+     * @param node 节点参数。
+     * @param key 配置键或映射键。
+     * @return 返回text结果。
+     */
     private static String text(ONode node, String key) {
         ONode value = node.get(key);
         String text = value == null ? null : value.getString();
         return StrUtil.isBlank(text) ? null : text;
     }
 
+    /**
+     * 执行first文本相关逻辑。
+     *
+     * @param node 节点参数。
+     * @param keys 候选键列表。
+     * @return 返回first Text结果。
+     */
     private static String firstText(ONode node, String... keys) {
         if (keys == null) {
             return null;
@@ -488,11 +612,25 @@ public class PriceCatalog {
         return null;
     }
 
+    /**
+     * 执行number相关逻辑。
+     *
+     * @param node 节点参数。
+     * @param key 配置键或映射键。
+     * @return 返回number结果。
+     */
     private static long number(ONode node, String key) {
         Long value = presentNumber(node, key);
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 执行presentNumber相关逻辑。
+     *
+     * @param node 节点参数。
+     * @param key 配置键或映射键。
+     * @return 返回present Number结果。
+     */
     private static Long presentNumber(ONode node, String key) {
         ONode value = node.get(key);
         if (value == null || StrUtil.isBlank(value.getString())) {
@@ -501,11 +639,25 @@ public class PriceCatalog {
         return Long.valueOf(Math.max(0L, value.getLong()));
     }
 
+    /**
+     * 执行firstNumber相关逻辑。
+     *
+     * @param node 节点参数。
+     * @param keys 候选键列表。
+     * @return 返回first Number结果。
+     */
     private static long firstNumber(ONode node, String... keys) {
         Long value = firstPresentNumber(node, keys);
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 执行firstPresentNumber相关逻辑。
+     *
+     * @param node 节点参数。
+     * @param keys 候选键列表。
+     * @return 返回first Present Number结果。
+     */
     private static Long firstPresentNumber(ONode node, String... keys) {
         if (keys == null) {
             return null;
@@ -519,6 +671,14 @@ public class PriceCatalog {
         return null;
     }
 
+    /**
+     * 应用token价格。
+     *
+     * @param price 价格参数。
+     * @param field field 参数。
+     * @param costPerMillion 成本PerMillion参数。
+     * @param microsPerToken microsPertoken参数。
+     */
     private static void applyTokenPrice(
             ModelPrice price, String field, String costPerMillion, Long microsPerToken) {
         if (StrUtil.isNotBlank(costPerMillion)) {
@@ -551,6 +711,13 @@ public class PriceCatalog {
         }
     }
 
+    /**
+     * 剥离Matching提供方Prefix。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @return 返回strip Matching提供方Prefix结果。
+     */
     private static String stripMatchingProviderPrefix(String provider, String model) {
         if (StrUtil.isBlank(provider) || StrUtil.isBlank(model)) {
             return model;
@@ -566,6 +733,13 @@ public class PriceCatalog {
         return model;
     }
 
+    /**
+     * 规范化模型Alias。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     * @return 返回模型Alias结果。
+     */
     private static String normalizeModelAlias(String provider, String model) {
         if (!"anthropic".equals(provider) || StrUtil.isBlank(model)) {
             return model;
@@ -586,6 +760,14 @@ public class PriceCatalog {
         return normalized.toString().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 根据提供方查找对应数据。
+     *
+     * @param candidateProvider candidate提供方标识或键值。
+     * @param originalProvider original提供方标识或键值。
+     * @param normalizedModel normalized模型参数。
+     * @return 返回按提供方查找得到的结果。
+     */
     private ModelPrice findByProvider(
             String candidateProvider, String originalProvider, String normalizedModel) {
         ModelPrice exact = prices.get(candidateProvider + "/" + normalizedModel);
@@ -605,6 +787,12 @@ public class PriceCatalog {
         return null;
     }
 
+    /**
+     * 执行提供方Candidates相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @return 返回提供方Candidates结果。
+     */
     private static List<String> providerCandidates(String provider) {
         if (StrUtil.isBlank(provider)) {
             return Collections.emptyList();

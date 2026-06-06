@@ -24,7 +24,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Jimuqu 风格 skills 工具集合。 */
+/** 提供技能工具能力，供 Agent 运行时按安全策略调用。 */
 public class SkillTools {
     /** 本地技能目录服务。 */
     private final LocalSkillService localSkillService;
@@ -44,6 +44,14 @@ public class SkillTools {
     /** 定时任务服务；用于技能归档后迁移 cron 绑定。 */
     private final CronJobService cronJobService;
 
+    /**
+     * 创建技能工具实例，并注入运行所需依赖。
+     *
+     * @param localSkillService 本地技能服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param sourceKey 渠道来源键。
+     */
     public SkillTools(
             LocalSkillService localSkillService,
             CheckpointService checkpointService,
@@ -52,6 +60,15 @@ public class SkillTools {
         this(localSkillService, checkpointService, sessionRepository, sourceKey, null, null);
     }
 
+    /**
+     * 创建技能工具实例，并注入运行所需依赖。
+     *
+     * @param localSkillService 本地技能服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     */
     public SkillTools(
             LocalSkillService localSkillService,
             CheckpointService checkpointService,
@@ -61,6 +78,16 @@ public class SkillTools {
         this(localSkillService, checkpointService, sessionRepository, sourceKey, agentScope, null);
     }
 
+    /**
+     * 创建技能工具实例，并注入运行所需依赖。
+     *
+     * @param localSkillService 本地技能服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param cronJobService 定时任务Job服务依赖。
+     */
     public SkillTools(
             LocalSkillService localSkillService,
             CheckpointService checkpointService,
@@ -76,6 +103,12 @@ public class SkillTools {
         this.cronJobService = cronJobService;
     }
 
+    /**
+     * 执行技能列表相关逻辑。
+     *
+     * @param category 分类参数。
+     * @return 返回技能List结果。
+     */
     @ToolMapping(
             name = "skills_list",
             description = "List available skills. Optional category filter.")
@@ -96,6 +129,13 @@ public class SkillTools {
         }
     }
 
+    /**
+     * 执行技能视图相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @return 返回技能视图。
+     */
     @ToolMapping(
             name = "skill_view",
             description = "Load full SKILL.md or a supporting file from a skill directory.")
@@ -113,6 +153,20 @@ public class SkillTools {
         }
     }
 
+    /**
+     * 执行技能Manage相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param name 名称参数。
+     * @param category 分类参数。
+     * @param content 待处理内容。
+     * @param oldText old文本参数。
+     * @param newText new文本参数。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param fileContent 文件或目录路径参数。
+     * @param absorbedInto absorbedInto 参数。
+     * @return 返回技能Manage结果。
+     */
     @ToolMapping(
             name = "skill_manage",
             description =
@@ -178,6 +232,19 @@ public class SkillTools {
         }
     }
 
+    /**
+     * 执行技能Manage相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param name 名称参数。
+     * @param category 分类参数。
+     * @param content 待处理内容。
+     * @param oldText old文本参数。
+     * @param newText new文本参数。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param fileContent 文件或目录路径参数。
+     * @return 返回技能Manage结果。
+     */
     public String skillManage(
             String action,
             String name,
@@ -203,6 +270,12 @@ public class SkillTools {
         return files;
     }
 
+    /**
+     * 注册技能Environment Passthrough。
+     *
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param view view 参数。
+     */
     private void registerSkillEnvironmentPassthrough(String filePath, SkillView view) {
         if (view == null || view.getDescriptor() == null) {
             return;
@@ -216,6 +289,11 @@ public class SkillTools {
                         view.getDescriptor().getMetadata()));
     }
 
+    /**
+     * 执行当前会话标识相关逻辑。
+     *
+     * @return 返回当前会话标识。
+     */
     private String currentSessionId() {
         try {
             SessionRecord session =
@@ -242,10 +320,23 @@ public class SkillTools {
         return new ONode().set("success", false).set("error", safeError(message)).toJson();
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回safe Error结果。
+     */
     private String safeError(String message) {
         return SecretRedactor.redact(StrUtil.nullToDefault(message, "unknown error"), 1000);
     }
 
+    /**
+     * 生成安全展示用的结果。
+     *
+     * @param message 平台消息或错误消息。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safeResult(String message, int maxLength) {
         return SecretRedactor.redact(StrUtil.nullToDefault(message, ""), maxLength);
     }
@@ -253,8 +344,15 @@ public class SkillTools {
     /** `skills_list` 单工具暴露对象。 */
     @RequiredArgsConstructor
     public static class SkillsListTool {
+        /** 记录技能列表中的委托。 */
         private final SkillTools delegate;
 
+        /**
+         * 执行技能列表相关逻辑。
+         *
+         * @param category 分类参数。
+         * @return 返回技能List结果。
+         */
         @ToolMapping(
                 name = "skills_list",
                 description = "List available skills. Optional category filter.")
@@ -268,8 +366,16 @@ public class SkillTools {
     /** `skill_view` 单工具暴露对象。 */
     @RequiredArgsConstructor
     public static class SkillViewTool {
+        /** 记录技能视图中的委托。 */
         private final SkillTools delegate;
 
+        /**
+         * 执行技能视图相关逻辑。
+         *
+         * @param name 名称参数。
+         * @param filePath 目标文件相对路径或绝对路径。
+         * @return 返回技能视图。
+         */
         @ToolMapping(
                 name = "skill_view",
                 description = "Load full SKILL.md or a supporting file from a skill directory.")
@@ -285,8 +391,23 @@ public class SkillTools {
     /** `skill_manage` 单工具暴露对象。 */
     @RequiredArgsConstructor
     public static class SkillManageTool {
+        /** 记录技能Manage中的委托。 */
         private final SkillTools delegate;
 
+        /**
+         * 执行技能Manage相关逻辑。
+         *
+         * @param action 操作参数。
+         * @param name 名称参数。
+         * @param category 分类参数。
+         * @param content 待处理内容。
+         * @param oldText old文本参数。
+         * @param newText new文本参数。
+         * @param filePath 目标文件相对路径或绝对路径。
+         * @param fileContent 文件或目录路径参数。
+         * @param absorbedInto absorbedInto 参数。
+         * @return 返回技能Manage结果。
+         */
         @ToolMapping(
                 name = "skill_manage",
                 description =
@@ -328,6 +449,13 @@ public class SkillTools {
         }
     }
 
+    /**
+     * 执行rewrite定时任务技能RefsAfterDelete相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param absorbedInto absorbedInto 参数。
+     * @return 返回rewrite定时任务技能Refs After Delete结果。
+     */
     private String rewriteCronSkillRefsAfterDelete(String name, String absorbedInto) {
         if (cronJobService == null || StrUtil.isBlank(name)) {
             return "";

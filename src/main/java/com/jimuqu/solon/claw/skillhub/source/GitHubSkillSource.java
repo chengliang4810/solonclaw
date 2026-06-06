@@ -21,10 +21,15 @@ import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** GitHub source adapter。 */
+/** 承载Git中心技能来源相关状态和辅助逻辑。 */
 public class GitHubSkillSource implements SkillSource {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(GitHubSkillSource.class);
+
+    /** API基础的统一常量值。 */
     private static final String API_BASE = "https://api.github.com/repos/";
+
+    /** TRUSTEDREPOS的统一常量值。 */
     private static final LinkedHashSet<String> TRUSTED_REPOS =
             new LinkedHashSet<String>(
                     java.util.Arrays.asList(
@@ -33,10 +38,22 @@ public class GitHubSkillSource implements SkillSource {
                             "huggingface/skills",
                             "NVIDIA/skills"));
 
+    /** 记录Git中心技能来源中的认证。 */
     private final GitHubAuth auth;
+
+    /** 记录Git中心技能来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
+
+    /** 记录Git中心技能来源中的状态Store。 */
     private final SkillHubStateStore stateStore;
 
+    /**
+     * 创建Git中心技能来源实例，并注入运行所需依赖。
+     *
+     * @param auth 鉴权参数。
+     * @param httpClient HTTPClient参数。
+     * @param stateStore 状态Store参数。
+     */
     public GitHubSkillSource(
             GitHubAuth auth, SkillHubHttpClient httpClient, SkillHubStateStore stateStore) {
         this.auth = auth;
@@ -44,6 +61,13 @@ public class GitHubSkillSource implements SkillSource {
         this.stateStore = stateStore;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) throws Exception {
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
@@ -87,6 +111,12 @@ public class GitHubSkillSource implements SkillSource {
         return dedupe(results);
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) throws Exception {
         String[] parts = splitIdentifier(identifier);
@@ -106,6 +136,12 @@ public class GitHubSkillSource implements SkillSource {
         return bundle;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         String[] parts = splitIdentifier(identifier);
@@ -129,11 +165,22 @@ public class GitHubSkillSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "github";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         String[] parts = splitIdentifier(identifier);
@@ -143,6 +190,13 @@ public class GitHubSkillSource implements SkillSource {
         return TRUSTED_REPOS.contains(parts[0]) ? "trusted" : "community";
     }
 
+    /**
+     * 列出技能In Repo。
+     *
+     * @param repo repo 参数。
+     * @param path 文件或目录路径。
+     * @return 返回技能In Repo列表。
+     */
     public List<SkillMeta> listSkillsInRepo(String repo, String path) throws Exception {
         String cacheKey = "github_search_" + repo.replace("/", "_") + "_" + path.replace("/", "_");
         String cached = stateStore.readCachedIndex(cacheKey);
@@ -178,18 +232,40 @@ public class GitHubSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 拉取文件Content。
+     *
+     * @param repo repo 参数。
+     * @param repoPath 文件或目录路径参数。
+     * @return 返回fetch文件Content结果。
+     */
     public String fetchFileContent(String repo, String repoPath) throws Exception {
         Map<String, String> headers = new LinkedHashMap<String, String>(auth.getHeaders());
         headers.put("Accept", "application/vnd.github.v3.raw");
         return httpClient.getText(API_BASE + repo + "/contents/" + trimSlashes(repoPath), headers);
     }
 
+    /**
+     * 执行download目录相关逻辑。
+     *
+     * @param repo repo 参数。
+     * @param path 文件或目录路径。
+     * @return 返回download Directory结果。
+     */
     private Map<String, String> downloadDirectory(String repo, String path) throws Exception {
         Map<String, String> files = new LinkedHashMap<String, String>();
         downloadDirectoryRecursive(repo, trimSlashes(path), "", files);
         return files;
     }
 
+    /**
+     * 执行download目录Recursive相关逻辑。
+     *
+     * @param repo repo 参数。
+     * @param repoPath 文件或目录路径参数。
+     * @param relativePrefix relativePrefix 参数。
+     * @param sink sink 参数。
+     */
     private void downloadDirectoryRecursive(
             String repo, String repoPath, String relativePrefix, Map<String, String> sink)
             throws Exception {
@@ -220,6 +296,11 @@ public class GitHubSkillSource implements SkillSource {
         }
     }
 
+    /**
+     * 执行全部Taps相关逻辑。
+     *
+     * @return 返回全部Taps结果。
+     */
     private List<TapRecord> allTaps() {
         List<TapRecord> taps = new ArrayList<TapRecord>();
         taps.add(defaultTap("openai/skills", "skills/"));
@@ -230,6 +311,13 @@ public class GitHubSkillSource implements SkillSource {
         return taps;
     }
 
+    /**
+     * 执行默认来源库相关逻辑。
+     *
+     * @param repo repo 参数。
+     * @param path 文件或目录路径。
+     * @return 返回默认Tap结果。
+     */
     private TapRecord defaultTap(String repo, String path) {
         TapRecord tap = new TapRecord();
         tap.setRepo(repo);
@@ -237,6 +325,12 @@ public class GitHubSkillSource implements SkillSource {
         return tap;
     }
 
+    /**
+     * 执行deserialize技能Meta列表相关逻辑。
+     *
+     * @param json JSON参数。
+     * @return 返回deserialize技能Meta List结果。
+     */
     private List<SkillMeta> deserializeSkillMetaList(String json) {
         SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
         List<SkillMeta> results = new ArrayList<SkillMeta>();
@@ -246,6 +340,12 @@ public class GitHubSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行dedupe相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回dedupe结果。
+     */
     private List<SkillMeta> dedupe(List<SkillMeta> input) {
         Map<String, SkillMeta> unique = new LinkedHashMap<String, SkillMeta>();
         for (SkillMeta meta : input) {
@@ -256,6 +356,12 @@ public class GitHubSkillSource implements SkillSource {
         return new ArrayList<SkillMeta>(unique.values());
     }
 
+    /**
+     * 拆分Identifier。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回Identifier结果。
+     */
     private String[] splitIdentifier(String identifier) {
         String normalized = trimSlashes(identifier);
         String[] parts = normalized.split("/", 3);
@@ -265,6 +371,12 @@ public class GitHubSkillSource implements SkillSource {
         return new String[] {parts[0] + "/" + parts[1], parts[2]};
     }
 
+    /**
+     * 执行trimSlashes相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回trim Slashes结果。
+     */
     private String trimSlashes(String value) {
         String normalized = StrUtil.nullToEmpty(value).replace('\\', '/');
         while (normalized.startsWith("/")) {
@@ -276,12 +388,24 @@ public class GitHubSkillSource implements SkillSource {
         return normalized;
     }
 
+    /**
+     * 执行last路径token相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回last路径token结果。
+     */
     private String lastPathToken(String path) {
         String normalized = trimSlashes(path);
         int index = normalized.lastIndexOf('/');
         return index >= 0 ? normalized.substring(index + 1) : normalized;
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";

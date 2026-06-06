@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@solon-claw/ink": ["src/types/solon-claw-ink.d.ts"]
+    }
+  }
+}

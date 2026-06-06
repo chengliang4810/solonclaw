@@ -12,11 +12,22 @@ import java.util.Map;
 
 /** Dashboard 运行时配置管理服务。 */
 public class DashboardRuntimeConfigService {
+    /** 记录控制台运行时配置中的配置Resolver。 */
     private final RuntimeConfigResolver configResolver;
+
+    /** 保存definitions集合，维持调用顺序或去重语义。 */
     private final List<ConfigItemDefinition> definitions;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
+    /**
+     * 创建控制台运行时配置服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     */
     public DashboardRuntimeConfigService(
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
@@ -455,6 +466,11 @@ public class DashboardRuntimeConfigService {
                                 "skills_hub"));
     }
 
+    /**
+     * 读取配置Items。
+     *
+     * @return 返回读取到的配置Items。
+     */
     public Map<String, Object> getConfigItems() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         for (ConfigItemDefinition definition : definitions) {
@@ -474,6 +490,12 @@ public class DashboardRuntimeConfigService {
         return result;
     }
 
+    /**
+     * 执行reveal相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回reveal结果。
+     */
     public Map<String, Object> reveal(String key) {
         ConfigItemDefinition definition = requireSupported(key);
         if (!definition.password) {
@@ -489,10 +511,25 @@ public class DashboardRuntimeConfigService {
         return result;
     }
 
+    /**
+     * 执行set相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回set结果。
+     */
     public Map<String, Object> set(String key, String value) {
         return set(key, value, true);
     }
 
+    /**
+     * 执行set相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param reconnectChannels reconnectChannels 参数。
+     * @return 返回set结果。
+     */
     public Map<String, Object> set(String key, String value, boolean reconnectChannels) {
         ConfigItemDefinition definition = requireSupported(key);
         if (definition.password) {
@@ -501,6 +538,14 @@ public class DashboardRuntimeConfigService {
         return writeNonSecret(key, value, reconnectChannels);
     }
 
+    /**
+     * 写入Non密钥。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param reconnectChannels reconnectChannels 参数。
+     * @return 返回Non密钥结果。
+     */
     public Map<String, Object> writeNonSecret(String key, String value, boolean reconnectChannels) {
         ConfigItemDefinition definition = requireSupported(key);
         if (definition.password) {
@@ -510,6 +555,14 @@ public class DashboardRuntimeConfigService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 更新密钥。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param reconnectChannels reconnectChannels 参数。
+     * @return 返回密钥结果。
+     */
     public Map<String, Object> updateSecret(String key, String value, boolean reconnectChannels) {
         ConfigItemDefinition definition = requireSupported(key);
         if (!definition.password) {
@@ -522,6 +575,13 @@ public class DashboardRuntimeConfigService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 执行persist相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param reconnectChannels reconnectChannels 参数。
+     */
     private void persist(String key, String value, boolean reconnectChannels) {
         configResolver.setFileValue(key, value);
         if (reconnectChannels) {
@@ -531,10 +591,23 @@ public class DashboardRuntimeConfigService {
         }
     }
 
+    /**
+     * 执行remove相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回remove结果。
+     */
     public Map<String, Object> remove(String key) {
         return remove(key, true);
     }
 
+    /**
+     * 执行remove相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param reconnectChannels reconnectChannels 参数。
+     * @return 返回remove结果。
+     */
     public Map<String, Object> remove(String key, boolean reconnectChannels) {
         ensureSupported(key);
         configResolver.removeFileValue(key);
@@ -546,10 +619,21 @@ public class DashboardRuntimeConfigService {
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 确保Supported。
+     *
+     * @param key 配置键或映射键。
+     */
     private void ensureSupported(String key) {
         requireSupported(key);
     }
 
+    /**
+     * 要求Supported。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回Supported结果。
+     */
     private ConfigItemDefinition requireSupported(String key) {
         for (ConfigItemDefinition definition : definitions) {
             if (definition.key.equals(key)) {
@@ -559,6 +643,12 @@ public class DashboardRuntimeConfigService {
         throw new IllegalStateException("Unsupported runtime config item: " + key);
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回redact结果。
+     */
     private String redact(String value) {
         if (value.length() <= 8) {
             return "****";
@@ -566,6 +656,17 @@ public class DashboardRuntimeConfigService {
         return value.substring(0, 4) + "..." + value.substring(value.length() - 4);
     }
 
+    /**
+     * 执行item相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param description 描述参数。
+     * @param category 分类参数。
+     * @param password password 参数。
+     * @param advanced advanced 参数。
+     * @param tool 工具参数。
+     * @return 返回item结果。
+     */
     private static ConfigItemDefinition item(
             String key,
             String description,
@@ -577,15 +678,40 @@ public class DashboardRuntimeConfigService {
                 key, description, category, password, advanced, null, Arrays.asList(tool));
     }
 
+    /** 承载配置ItemDefinition相关状态和辅助逻辑。 */
     private static class ConfigItemDefinition {
+        /** 记录配置ItemDefinition中的键。 */
         private final String key;
+
+        /** 记录配置ItemDefinition中的描述。 */
         private final String description;
+
+        /** 记录配置ItemDefinition中的category。 */
         private final String category;
+
+        /** 是否启用密码。 */
         private final boolean password;
+
+        /** 是否启用advanced。 */
         private final boolean advanced;
+
+        /** 记录配置ItemDefinition中的URL。 */
         private final String url;
+
+        /** 保存工具集合，维持调用顺序或去重语义。 */
         private final List<String> tools;
 
+        /**
+         * 创建配置Item Definition实例，并注入运行所需依赖。
+         *
+         * @param key 配置键或映射键。
+         * @param description 描述参数。
+         * @param category 分类参数。
+         * @param password password 参数。
+         * @param advanced advanced 参数。
+         * @param url 待校验或访问的 URL。
+         * @param tools tools 参数。
+         */
         private ConfigItemDefinition(
                 String key,
                 String description,

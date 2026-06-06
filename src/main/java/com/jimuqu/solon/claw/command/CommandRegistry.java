@@ -7,14 +7,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Central slash command registry shared by gateway, CLI, and TUI surfaces. */
+/** 维护命令注册信息，供运行时按需查询和装配。 */
 public final class CommandRegistry {
+    /** 范围CLI的统一常量值。 */
     private static final String SCOPE_CLI = "cli";
+
+    /** 范围消息网关的统一常量值。 */
     private static final String SCOPE_GATEWAY = "gateway";
+
+    /** 范围TUI的统一常量值。 */
     private static final String SCOPE_TUI = "tui";
 
+    /** COMMANDS的统一常量值。 */
     private static final Map<String, CommandDescriptor> COMMANDS =
             new LinkedHashMap<String, CommandDescriptor>();
+
+    /** ALIASES的统一常量值。 */
     private static final Map<String, String> ALIASES = new LinkedHashMap<String, String>();
 
     static {
@@ -44,6 +52,8 @@ public final class CommandRegistry {
         register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
         register(core("update", "system", "执行应用更新"));
+        register(core("setup", "configuration", "配置模型、消息渠道与初始化设置"));
+        register(core("config", "configuration", "查看或写入本地运行配置"));
         register(core("model", "model", "查看或切换模型").alias("provider"));
         register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
@@ -86,22 +96,45 @@ public final class CommandRegistry {
         register(terminal("quit", "退出当前终端会话").alias("exit"));
     }
 
+    /** 创建命令注册表实例。 */
     private CommandRegistry() {}
 
+    /**
+     * 获取当前注册项或配置项。
+     *
+     * @param name 名称参数。
+     * @return 返回get结果。
+     */
     public static CommandDescriptor get(String name) {
         return COMMANDS.get(CommandDescriptor.normalize(name));
     }
 
+    /**
+     * 解析运行时需要的目标对象。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回resolve结果。
+     */
     public static CommandDescriptor resolve(String command) {
         String normalized = CommandDescriptor.normalize(command);
         String canonical = ALIASES.containsKey(normalized) ? ALIASES.get(normalized) : normalized;
         return COMMANDS.get(canonical);
     }
 
+    /**
+     * 执行全部相关逻辑。
+     *
+     * @return 返回全部结果。
+     */
     public static Collection<CommandDescriptor> all() {
         return Collections.unmodifiableCollection(COMMANDS.values());
     }
 
+    /**
+     * 执行斜杠命令Commands相关逻辑。
+     *
+     * @return 返回slash Commands结果。
+     */
     public static List<String> slashCommands() {
         List<String> commands = new ArrayList<String>();
         for (CommandDescriptor descriptor : COMMANDS.values()) {
@@ -110,6 +143,14 @@ public final class CommandRegistry {
         return Collections.unmodifiableList(commands);
     }
 
+    /**
+     * 执行core相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param category 分类参数。
+     * @param description 描述参数。
+     * @return 返回core结果。
+     */
     private static CommandDescriptor.Builder core(
             String name, String category, String description) {
         return CommandDescriptor.builder(name)
@@ -118,14 +159,31 @@ public final class CommandRegistry {
                 .scopes(SCOPE_CLI, SCOPE_GATEWAY, SCOPE_TUI);
     }
 
+    /**
+     * 执行终端相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param description 描述参数。
+     * @return 返回终端结果。
+     */
     private static CommandDescriptor.Builder terminal(String name, String description) {
         return core(name, "terminal", description);
     }
 
+    /**
+     * 执行register相关逻辑。
+     *
+     * @param builder 构建器参数。
+     */
     private static void register(CommandDescriptor.Builder builder) {
         register(builder.build());
     }
 
+    /**
+     * 执行register相关逻辑。
+     *
+     * @param descriptor descriptor 参数。
+     */
     private static void register(CommandDescriptor descriptor) {
         COMMANDS.put(descriptor.getName(), descriptor);
         ALIASES.put(descriptor.getName(), descriptor.getName());

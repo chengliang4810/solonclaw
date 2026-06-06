@@ -11,10 +11,18 @@ import org.slf4j.LoggerFactory;
 
 /** 钩子注册与分发。线程安全。 */
 public class AgentHookRegistry {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(AgentHookRegistry.class);
 
+    /** 保存hooks映射，便于按键快速查询。 */
     private final Map<String, List<HookCallback>> hooks = new ConcurrentHashMap<>();
 
+    /**
+     * 执行register相关逻辑。
+     *
+     * @param hookName 钩子名称参数。
+     * @param callback 回调参数。
+     */
     public void register(String hookName, HookCallback callback) {
         hooks.computeIfAbsent(hookName, k -> new CopyOnWriteArrayList<>()).add(callback);
     }
@@ -53,6 +61,7 @@ public class AgentHookRegistry {
         return null;
     }
 
+    /** 执行clear相关逻辑。 */
     public void clear() {
         hooks.clear();
     }

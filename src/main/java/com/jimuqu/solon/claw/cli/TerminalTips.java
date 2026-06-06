@@ -5,8 +5,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-/** Small local tips surfaced by the terminal UI. */
+/** 承载终端Tips相关状态和辅助逻辑。 */
 public final class TerminalTips {
+    /** TIP 列表的统一常量值。 */
     private static final List<String> TIPS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -29,13 +30,26 @@ public final class TerminalTips {
                             "/skin mono 可切换到无 ANSI 的纯文本皮肤。",
                             "粘贴本地文件路径会自动作为附件发送。"));
 
+    /** 创建终端Tips实例。 */
     private TerminalTips() {}
 
+    /**
+     * 判断是否Tips命令。
+     *
+     * @param input 输入参数。
+     * @return 如果Tips命令满足条件则返回 true，否则返回 false。
+     */
     public static boolean isTipsCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         return "/tips".equalsIgnoreCase(value);
     }
 
+    /**
+     * 执行当前相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回当前结果。
+     */
     public static String current(String sessionId) {
         if (TIPS.isEmpty()) {
             return "";
@@ -45,6 +59,11 @@ public final class TerminalTips {
         return TIPS.get(index);
     }
 
+    /**
+     * 执行render相关逻辑。
+     *
+     * @return 返回render结果。
+     */
     public static String render() {
         StringBuilder buffer = new StringBuilder("终端提示：");
         for (int i = 0; i < TIPS.size(); i++) {

@@ -55,6 +55,12 @@ public interface GatewayPolicyRepository {
     /** 保存 pairing 请求。 */
     void savePairingRequest(PairingRequestRecord record) throws Exception;
 
+    /**
+     * 创建管理员Claim请求If Absent。
+     *
+     * @param record 记录参数。
+     * @return 返回创建好的管理员Claim请求If Absent。
+     */
     default boolean createAdminClaimRequestIfAbsent(PairingRequestRecord record) throws Exception {
         savePairingRequest(record);
         return true;
@@ -62,6 +68,18 @@ public interface GatewayPolicyRepository {
 
     /** 删除指定 pairing 请求。 */
     void deletePairingRequest(PlatformType platform, String code) throws Exception;
+
+    /**
+     * 删除平台下待处理 pairing 请求，但保留管理员认领请求。
+     *
+     * @param platform 平台参数。
+     */
+    default void deletePendingPairingRequests(PlatformType platform) throws Exception {
+        List<PairingRequestRecord> records = listPairingRequests(platform, false);
+        for (PairingRequestRecord record : records) {
+            deletePairingRequest(platform, record.getCode());
+        }
+    }
 
     /** 删除已过期 pairing 请求。 */
     void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis) throws Exception;

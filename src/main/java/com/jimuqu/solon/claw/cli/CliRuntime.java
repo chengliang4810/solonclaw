@@ -15,17 +15,35 @@ import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.List;
 import java.util.Locale;
 
-/** Shared local console runtime that reuses the normal command and conversation chain. */
+/** 承载CLI运行时相关状态和辅助逻辑。 */
 public class CliRuntime {
+    /** 注入命令服务，用于调用对应业务能力。 */
     private final CommandService commandService;
+
+    /** 记录CLI运行时中的对话编排器。 */
     private final ConversationOrchestrator conversationOrchestrator;
+
+    /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
 
+    /**
+     * 创建Cli运行时实例，并注入运行所需依赖。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     */
     public CliRuntime(
             CommandService commandService, ConversationOrchestrator conversationOrchestrator) {
         this(commandService, conversationOrchestrator, null);
     }
 
+    /**
+     * 创建Cli运行时实例，并注入运行所需依赖。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     */
     public CliRuntime(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
@@ -35,11 +53,28 @@ public class CliRuntime {
         this.agentRunControlService = agentRunControlService;
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回send结果。
+     */
     public GatewayReply send(String sessionId, String input, ConversationEventSink eventSink)
             throws Exception {
         return send(sessionId, input, null, eventSink);
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @param attachments attachments 参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回send结果。
+     */
     public GatewayReply send(
             String sessionId,
             String input,
@@ -49,6 +84,16 @@ public class CliRuntime {
         return send(sessionId, input, attachments, eventSink, null);
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @param attachments attachments 参数。
+     * @param eventSink 事件Sink参数。
+     * @param workspaceDir 文件或目录路径参数。
+     * @return 返回send结果。
+     */
     public GatewayReply send(
             String sessionId,
             String input,
@@ -70,6 +115,12 @@ public class CliRuntime {
         return conversationOrchestrator.handleIncoming(message, sink);
     }
 
+    /**
+     * 停止当前组件并释放运行状态。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回stop结果。
+     */
     public AgentRunStopResult stop(String sessionId) {
         if (agentRunControlService == null) {
             return AgentRunStopResult.none();
@@ -77,10 +128,22 @@ public class CliRuntime {
         return agentRunControlService.stop(sourceKey(sessionId));
     }
 
+    /**
+     * 执行来源键相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回来源键结果。
+     */
     public String sourceKey(String sessionId) {
         return "MEMORY:cli:" + StrUtil.blankToDefault(sessionId, "cli");
     }
 
+    /**
+     * 判断是否Supported Slash命令。
+     *
+     * @param text 待处理文本。
+     * @return 如果Supported Slash命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isSupportedSlashCommand(String text) {
         if (!text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
             return false;
@@ -95,15 +158,39 @@ public class CliRuntime {
         return commandService.supports(commandName);
     }
 
+    /**
+     * 执行消息相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @return 返回消息结果。
+     */
     private GatewayMessage message(String sessionId, String input) {
         return message(sessionId, input, null);
     }
 
+    /**
+     * 执行消息相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @param attachments attachments 参数。
+     * @return 返回消息结果。
+     */
     private GatewayMessage message(
             String sessionId, String input, List<MessageAttachment> attachments) {
         return message(sessionId, input, attachments, null);
     }
 
+    /**
+     * 执行消息相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @param attachments attachments 参数。
+     * @param workspaceDir 文件或目录路径参数。
+     * @return 返回消息结果。
+     */
     private GatewayMessage message(
             String sessionId,
             String input,

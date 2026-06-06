@@ -24,21 +24,47 @@ import org.noear.snack4.ONode;
 
 /** Tirith 命令安全扫描适配。 */
 public class TirithSecurityService {
+    /** 最大FINDINGS的统一常量值。 */
     private static final int MAX_FINDINGS = 50;
+
+    /** 最大摘要LENGTH的统一常量值。 */
     private static final int MAX_SUMMARY_LENGTH = 500;
+
+    /** 最大审计RULESAMPLES的统一常量值。 */
     private static final int MAX_AUDIT_RULE_SAMPLES = 5;
 
+    /** 注入应用配置，用于Tirith安全。 */
     private final AppConfig appConfig;
+
+    /** 记录Tirith安全中的最近一次审计摘要。 */
     private volatile AuditSummary lastAuditSummary;
 
+    /**
+     * 创建Tirith安全服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public TirithSecurityService(AppConfig appConfig) {
         this.appConfig = appConfig;
     }
 
+    /**
+     * 检查命令安全。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回命令安全结果。
+     */
     public ScanResult checkCommandSecurity(String command) {
         return checkCommandSecurity(command, "posix");
     }
 
+    /**
+     * 检查命令安全。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param shell 终端参数。
+     * @return 返回命令安全结果。
+     */
     private ScanResult checkCommandSecurity(String command, String shell) {
         AppConfig.SecurityConfig security = appConfig == null ? null : appConfig.getSecurity();
         if (security != null && !security.isTirithEnabled()) {
@@ -81,6 +107,11 @@ public class TirithSecurityService {
             Future<String> stdout =
                     executor.submit(
                             new Callable<String>() {
+                                /**
+                                 * 执行回调调用并返回结果。
+                                 *
+                                 * @return 返回call结果。
+                                 */
                                 @Override
                                 public String call() throws Exception {
                                     return readUtf8(started.getInputStream());
@@ -89,6 +120,11 @@ public class TirithSecurityService {
             Future<String> stderr =
                     executor.submit(
                             new Callable<String>() {
+                                /**
+                                 * 执行回调调用并返回结果。
+                                 *
+                                 * @return 返回call结果。
+                                 */
                                 @Override
                                 public String call() throws Exception {
                                     return readUtf8(started.getErrorStream());
@@ -148,17 +184,29 @@ public class TirithSecurityService {
                 try {
                     process.destroy();
                 } catch (Exception ignored) {
-                    // no-op
+                    // 当前分支无需额外处理。
                 }
             }
             executor.shutdownNow();
         }
     }
 
+    /**
+     * 检查命令安全For工具。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回命令安全For工具结果。
+     */
     public ScanResult checkCommandSecurityForTool(String toolName, String command) {
         return checkCommandSecurity(command, shellForToolCommand(toolName, command));
     }
 
+    /**
+     * 执行diagnose相关逻辑。
+     *
+     * @return 返回diagnose结果。
+     */
     public Diagnostic diagnose() {
         AppConfig.SecurityConfig security = appConfig == null ? null : appConfig.getSecurity();
         boolean enabled = security == null || security.isTirithEnabled();
@@ -197,6 +245,11 @@ public class TirithSecurityService {
                 summary);
     }
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @return 返回策略Summary结果。
+     */
     public Map<String, Object> policySummary() {
         Diagnostic diagnostic = diagnose();
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
@@ -248,6 +301,14 @@ public class TirithSecurityService {
         return summary;
     }
 
+    /**
+     * 执行scanner状态相关逻辑。
+     *
+     * @param enabled 启用状态开关值。
+     * @param configured 已配置对象。
+     * @param available available 参数。
+     * @return 返回scanner状态。
+     */
     private String scannerState(boolean enabled, boolean configured, boolean available) {
         if (!enabled) {
             return "disabled";
@@ -258,6 +319,11 @@ public class TirithSecurityService {
         return configured ? "configured_unavailable" : "unconfigured";
     }
 
+    /**
+     * 执行redacted摘要Fields相关逻辑。
+     *
+     * @return 返回redacted Summary Fields结果。
+     */
     private List<String> redactedSummaryFields() {
         return java.util.Arrays.asList(
                 "diagnostic.configuredPath",
@@ -273,6 +339,12 @@ public class TirithSecurityService {
                 "finding.description");
     }
 
+    /**
+     * 执行诊断摘要相关逻辑。
+     *
+     * @param diagnostic 诊断参数。
+     * @return 返回诊断Summary结果。
+     */
     private Map<String, Object> diagnosticSummary(Diagnostic diagnostic) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("scannerConfigured", Boolean.valueOf(diagnostic.isConfigured()));
@@ -290,6 +362,12 @@ public class TirithSecurityService {
         return map;
     }
 
+    /**
+     * 执行审计Surface摘要相关逻辑。
+     *
+     * @param diagnostic 诊断参数。
+     * @return 返回审计Surface Summary结果。
+     */
     private Map<String, Object> auditSurfaceSummary(Diagnostic diagnostic) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("surface", "tirith_command_scan");
@@ -306,29 +384,62 @@ public class TirithSecurityService {
         return map;
     }
 
+    /**
+     * 执行last审计映射相关逻辑。
+     *
+     * @param diagnostic 诊断参数。
+     * @return 返回last审计Map结果。
+     */
     private Map<String, Object> lastAuditMap(Diagnostic diagnostic) {
         AuditSummary last = lastAuditSummary;
         return (last == null ? emptyLastAuditSummary(diagnostic) : last).toMap();
     }
 
+    /**
+     * 执行emptyLast审计摘要相关逻辑。
+     *
+     * @param diagnostic 诊断参数。
+     * @return 返回empty Last审计Summary结果。
+     */
     private AuditSummary emptyLastAuditSummary(Diagnostic diagnostic) {
         return AuditSummary.emptyLast(diagnostic);
     }
 
+    /**
+     * 执行样例审计摘要相关逻辑。
+     *
+     * @param diagnostic 诊断参数。
+     * @return 返回sample审计Summary结果。
+     */
     private AuditSummary sampleAuditSummary(Diagnostic diagnostic) {
         return AuditSummary.sample(diagnostic);
     }
 
+    /**
+     * 记录And Return。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param shell 终端参数。
+     * @param result 结果响应或执行结果。
+     * @return 返回And Return结果。
+     */
     private ScanResult recordAndReturn(String command, String shell, ScanResult result) {
         try {
             lastAuditSummary =
                     AuditSummary.from(command, normalizeShell(shell), result, diagnose());
         } catch (Exception ignored) {
-            // Diagnostics must never change the security decision.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         return result;
     }
 
+    /**
+     * 执行终端For工具命令相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回Shell For工具命令结果。
+     */
     private String shellForToolCommand(String toolName, String command) {
         String tool = StrUtil.nullToEmpty(toolName).toLowerCase(Locale.ROOT);
         String text = StrUtil.nullToEmpty(command).trim().toLowerCase(Locale.ROOT);
@@ -347,6 +458,12 @@ public class TirithSecurityService {
         return "posix";
     }
 
+    /**
+     * 判断是否终端工具。
+     *
+     * @param toolName 工具名称。
+     * @return 如果终端工具满足条件则返回 true，否则返回 false。
+     */
     private boolean isTerminalTool(String toolName) {
         return "execute_shell".equals(toolName)
                 || "terminal".equals(toolName)
@@ -357,6 +474,12 @@ public class TirithSecurityService {
                 || "executeshell".equals(toolName);
     }
 
+    /**
+     * 规范化Shell。
+     *
+     * @param shell 终端参数。
+     * @return 返回Shell结果。
+     */
     private String normalizeShell(String shell) {
         String value = StrUtil.blankToDefault(shell, "posix").trim().toLowerCase(Locale.ROOT);
         if ("powershell".equals(value) || "cmd".equals(value)) {
@@ -365,6 +488,14 @@ public class TirithSecurityService {
         return "posix";
     }
 
+    /**
+     * 执行operationalFailure相关逻辑。
+     *
+     * @param failOpen failOpen 参数。
+     * @param failOpenSummary failOpen摘要参数。
+     * @param failClosedSummary failClosed摘要参数。
+     * @return 返回operational Failure结果。
+     */
     private ScanResult operationalFailure(
             boolean failOpen, String failOpenSummary, String failClosedSummary) {
         if (failOpen) {
@@ -373,6 +504,12 @@ public class TirithSecurityService {
         return new ScanResult("block", Collections.<Finding>emptyList(), failClosedSummary);
     }
 
+    /**
+     * 解析路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回解析后的路径。
+     */
     private String resolvePath(String path) {
         String raw = StrUtil.blankToDefault(path, "tirith").trim();
         if (raw.startsWith("~")) {
@@ -385,6 +522,12 @@ public class TirithSecurityService {
         return raw;
     }
 
+    /**
+     * 判断是否Executable Available。
+     *
+     * @param path 文件或目录路径。
+     * @return 如果Executable Available满足条件则返回 true，否则返回 false。
+     */
     private boolean isExecutableAvailable(String path) {
         if (StrUtil.isBlank(path)) {
             return false;
@@ -413,11 +556,23 @@ public class TirithSecurityService {
         return false;
     }
 
+    /**
+     * 判断是否Explicit路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 如果Explicit路径满足条件则返回 true，否则返回 false。
+     */
     private boolean isExplicitPath(String path) {
         File file = new File(path);
         return file.isAbsolute() || path.indexOf(File.separatorChar) >= 0 || path.indexOf('/') >= 0;
     }
 
+    /**
+     * 执行executableNames相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回executable Names结果。
+     */
     private List<String> executableNames(String path) {
         List<String> names = new ArrayList<String>();
         names.add(path);
@@ -440,10 +595,22 @@ public class TirithSecurityService {
         return names;
     }
 
+    /**
+     * 判断是否Windows。
+     *
+     * @return 如果Windows满足条件则返回 true，否则返回 false。
+     */
     private boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
+    /**
+     * 解析输出。
+     *
+     * @param stdout stdout 参数。
+     * @param action 操作参数。
+     * @return 返回解析后的输出。
+     */
     private ParsedOutput parseOutput(String stdout, String action) {
         if (StrUtil.isBlank(stdout)) {
             return new ParsedOutput(Collections.<Finding>emptyList(), "");
@@ -466,6 +633,12 @@ public class TirithSecurityService {
         }
     }
 
+    /**
+     * 解析Failure。
+     *
+     * @param action 操作参数。
+     * @return 返回解析后的Failure。
+     */
     private ParsedOutput parseFailure(String action) {
         if ("block".equals(action)) {
             return new ParsedOutput(
@@ -480,6 +653,12 @@ public class TirithSecurityService {
         return new ParsedOutput(Collections.<Finding>emptyList(), "");
     }
 
+    /**
+     * 解析Findings。
+     *
+     * @param raw 原始输入值。
+     * @return 返回解析后的Findings。
+     */
     private List<Finding> parseFindings(Object raw) {
         if (!(raw instanceof List)) {
             return Collections.emptyList();
@@ -496,6 +675,12 @@ public class TirithSecurityService {
         return findings;
     }
 
+    /**
+     * 读取Utf8。
+     *
+     * @param inputStream 输入流参数。
+     * @return 返回读取到的Utf8。
+     */
     private static String readUtf8(InputStream inputStream) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
         StringBuilder buffer = new StringBuilder();
@@ -509,6 +694,12 @@ public class TirithSecurityService {
         return buffer.toString();
     }
 
+    /**
+     * 读取Quietly。
+     *
+     * @param future future 参数。
+     * @return 返回读取到的Quietly。
+     */
     private String getQuietly(Future<String> future) {
         try {
             return future.get(100, TimeUnit.MILLISECONDS);
@@ -517,15 +708,35 @@ public class TirithSecurityService {
         }
     }
 
+    /**
+     * 执行限制相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param max max 参数。
+     * @return 返回限制结果。
+     */
     private static String limit(String value, int max) {
         String text = StrUtil.nullToEmpty(value);
         return text.length() > max ? text.substring(0, max) : text;
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param max max 参数。
+     * @return 返回safe Text结果。
+     */
     private static String safeText(String value, int max) {
         return limit(SecretRedactor.redact(StrUtil.nullToEmpty(value), max), max);
     }
 
+    /**
+     * 生成安全展示用的消息。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe消息结果。
+     */
     private static String safeMessage(Exception e) {
         if (e == null) {
             return "Exception";
@@ -534,40 +745,112 @@ public class TirithSecurityService {
         return safeText(message, MAX_SUMMARY_LENGTH);
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param map 待读取的映射对象。
+     * @param key 配置键或映射键。
+     * @return 返回string Value结果。
+     */
     private static String stringValue(Map<?, ?> map, String key) {
         Object value = map.get(key);
         return value == null ? "" : String.valueOf(value);
     }
 
+    /** 承载Parsed输出相关状态和辅助逻辑。 */
     private static class ParsedOutput {
+        /** 保存findings集合，维持调用顺序或去重语义。 */
         private final List<Finding> findings;
+
+        /** 记录Parsed输出中的摘要。 */
         private String summary;
 
+        /**
+         * 创建Parsed输出实例，并注入运行所需依赖。
+         *
+         * @param findings findings 参数。
+         * @param summary 摘要参数。
+         */
         private ParsedOutput(List<Finding> findings, String summary) {
             this.findings = findings;
             this.summary = summary;
         }
     }
 
+    /** 承载审计摘要相关状态和辅助逻辑。 */
     private static class AuditSummary {
+        /** 记录审计摘要中的surface。 */
         private final String surface;
+
+        /** 记录审计摘要中的scanner状态。 */
         private final String scannerState;
+
+        /** 记录审计摘要中的failure模式。 */
         private final String failureMode;
+
+        /** 记录审计摘要中的failureBehavior。 */
         private final String failureBehavior;
+
+        /** 记录审计摘要中的timeoutSeconds。 */
         private final int timeoutSeconds;
+
+        /** 记录审计摘要中的终端。 */
         private final String shell;
+
+        /** 记录审计摘要中的命令哈希。 */
         private final String commandHash;
+
+        /** 记录审计摘要中的命令LengthBucket。 */
         private final String commandLengthBucket;
+
+        /** 记录审计摘要中的action。 */
         private final String action;
+
+        /** 是否启用审批Required。 */
         private final boolean approvalRequired;
+
+        /** 记录审计摘要中的finding次数。 */
         private final int findingCount;
+
+        /** 保存findingRuleSamples集合，维持调用顺序或去重语义。 */
         private final List<String> findingRuleSamples;
+
+        /** 记录审计摘要中的摘要预览。 */
         private final String summaryPreview;
+
+        /** 是否启用脱敏Applied。 */
         private final boolean redactionApplied;
+
+        /** 是否启用原始命令Exposed。 */
         private final boolean rawCommandExposed;
+
+        /** 是否启用原始路径Exposed。 */
         private final boolean rawPathExposed;
+
+        /** 是否启用原始FindingsExposed。 */
         private final boolean rawFindingsExposed;
 
+        /**
+         * 创建审计Summary实例，并注入运行所需依赖。
+         *
+         * @param surface surface 参数。
+         * @param scannerState scanner状态参数。
+         * @param failureMode failure模式参数。
+         * @param failureBehavior failureBehavior 参数。
+         * @param timeoutSeconds 超时时间，单位为秒。
+         * @param shell 终端参数。
+         * @param commandHash 命令哈希参数。
+         * @param commandLengthBucket 命令LengthBucket参数。
+         * @param action 操作参数。
+         * @param approvalRequired 审批Required参数。
+         * @param findingCount findingCount 参数。
+         * @param findingRuleSamples findingRuleSamples 参数。
+         * @param summaryPreview 摘要预览参数。
+         * @param redactionApplied redactionApplied 参数。
+         * @param rawCommandExposed 原始命令Exposed参数。
+         * @param rawPathExposed 文件或目录路径参数。
+         * @param rawFindingsExposed 原始FindingsExposed参数。
+         */
         private AuditSummary(
                 String surface,
                 String scannerState,
@@ -609,6 +892,15 @@ public class TirithSecurityService {
             this.rawFindingsExposed = rawFindingsExposed;
         }
 
+        /**
+         * 执行from相关逻辑。
+         *
+         * @param command 待执行或解析的命令文本。
+         * @param shell 终端参数。
+         * @param result 结果响应或执行结果。
+         * @param diagnostic 诊断参数。
+         * @return 返回from结果。
+         */
         private static AuditSummary from(
                 String command, String shell, ScanResult result, Diagnostic diagnostic) {
             ScanResult safeResult = result == null ? ScanResult.allow() : result;
@@ -633,6 +925,12 @@ public class TirithSecurityService {
                     false);
         }
 
+        /**
+         * 执行样例相关逻辑。
+         *
+         * @param diagnostic 诊断参数。
+         * @return 返回sample结果。
+         */
         private static AuditSummary sample(Diagnostic diagnostic) {
             Diagnostic safeDiagnostic = diagnostic == null ? fallbackDiagnostic() : diagnostic;
             return new AuditSummary(
@@ -655,6 +953,12 @@ public class TirithSecurityService {
                     false);
         }
 
+        /**
+         * 执行emptyLast相关逻辑。
+         *
+         * @param diagnostic 诊断参数。
+         * @return 返回empty Last结果。
+         */
         private static AuditSummary emptyLast(Diagnostic diagnostic) {
             Diagnostic safeDiagnostic = diagnostic == null ? fallbackDiagnostic() : diagnostic;
             return new AuditSummary(
@@ -677,6 +981,11 @@ public class TirithSecurityService {
                     false);
         }
 
+        /**
+         * 执行兜底诊断相关逻辑。
+         *
+         * @return 返回兜底诊断结果。
+         */
         private static Diagnostic fallbackDiagnostic() {
             return new Diagnostic(
                     false,
@@ -692,6 +1001,11 @@ public class TirithSecurityService {
                     "tirith diagnostic unavailable");
         }
 
+        /**
+         * 转换为Map。
+         *
+         * @return 返回转换后的Map。
+         */
         private Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("surface", surface);
@@ -714,6 +1028,12 @@ public class TirithSecurityService {
             return map;
         }
 
+        /**
+         * 执行findingRuleSamples相关逻辑。
+         *
+         * @param findings findings 参数。
+         * @return 返回finding Rule Samples结果。
+         */
         private static List<String> findingRuleSamples(List<Finding> findings) {
             if (findings == null || findings.isEmpty()) {
                 return Collections.emptyList();
@@ -733,6 +1053,12 @@ public class TirithSecurityService {
             return samples;
         }
 
+        /**
+         * 执行命令哈希相关逻辑。
+         *
+         * @param command 待执行或解析的命令文本。
+         * @return 返回命令Hash结果。
+         */
         private static String commandHash(String command) {
             String text = StrUtil.nullToEmpty(command);
             if (text.length() == 0) {
@@ -747,6 +1073,13 @@ public class TirithSecurityService {
             }
         }
 
+        /**
+         * 执行hexPrefix相关逻辑。
+         *
+         * @param bytes 字节参数。
+         * @param chars chars 参数。
+         * @return 返回hex Prefix结果。
+         */
         private static String hexPrefix(byte[] bytes, int chars) {
             char[] digits = "0123456789abcdef".toCharArray();
             StringBuilder builder = new StringBuilder(chars);
@@ -760,6 +1093,12 @@ public class TirithSecurityService {
             return builder.toString();
         }
 
+        /**
+         * 执行命令LengthBucket相关逻辑。
+         *
+         * @param command 待执行或解析的命令文本。
+         * @return 返回命令Length Bucket结果。
+         */
         private static String commandLengthBucket(String command) {
             int length = StrUtil.nullToEmpty(command).length();
             if (length == 0) {
@@ -778,11 +1117,24 @@ public class TirithSecurityService {
         }
     }
 
+    /** 表示Scan结果，携带调用方后续判断所需信息。 */
     public static class ScanResult {
+        /** 记录Scan中的action。 */
         private final String action;
+
+        /** 保存findings集合，维持调用顺序或去重语义。 */
         private final List<Finding> findings;
+
+        /** 记录Scan中的摘要。 */
         private final String summary;
 
+        /**
+         * 创建Scan结果实例，并注入运行所需依赖。
+         *
+         * @param action 操作参数。
+         * @param findings findings 参数。
+         * @param summary 摘要参数。
+         */
         private ScanResult(String action, List<Finding> findings, String summary) {
             this.action = StrUtil.blankToDefault(action, "allow").toLowerCase(Locale.ROOT);
             this.findings =
@@ -792,42 +1144,108 @@ public class TirithSecurityService {
             this.summary = StrUtil.nullToEmpty(summary);
         }
 
+        /**
+         * 执行allow相关逻辑。
+         *
+         * @return 返回allow结果。
+         */
         public static ScanResult allow() {
             return new ScanResult("allow", Collections.<Finding>emptyList(), "");
         }
 
+        /**
+         * 读取Action。
+         *
+         * @return 返回读取到的Action。
+         */
         public String getAction() {
             return action;
         }
 
+        /**
+         * 读取Findings。
+         *
+         * @return 返回读取到的Findings。
+         */
         public List<Finding> getFindings() {
             return findings;
         }
 
+        /**
+         * 读取Summary。
+         *
+         * @return 返回读取到的Summary。
+         */
         public String getSummary() {
             return summary;
         }
 
+        /**
+         * 执行requires审批相关逻辑。
+         *
+         * @return 返回requires审批结果。
+         */
         public boolean requiresApproval() {
             return "warn".equals(action) || "block".equals(action);
         }
     }
 
+    /** 承载诊断相关状态和辅助逻辑。 */
     public static class Diagnostic {
+        /** 标记该配置项或记录是否处于启用状态。 */
         private final boolean enabled;
+
+        /** 是否启用已配置。 */
         private final boolean configured;
+
+        /** 记录诊断中的已配置路径。 */
         private final String configuredPath;
+
+        /** 记录诊断中的resolved路径。 */
         private final String resolvedPath;
+
+        /** 记录诊断中的已配置展示路径。 */
         private final String configuredDisplayPath;
+
+        /** 记录诊断中的resolved展示路径。 */
         private final String resolvedDisplayPath;
+
+        /** 是否启用available。 */
         private final boolean available;
+
+        /** 记录诊断中的timeoutSeconds。 */
         private final int timeoutSeconds;
+
+        /** 是否启用failOpen。 */
         private final boolean failOpen;
+
+        /** 记录诊断中的scanner状态。 */
         private final String scannerState;
+
+        /** 记录诊断中的failure模式。 */
         private final String failureMode;
+
+        /** 记录诊断中的failureBehavior。 */
         private final String failureBehavior;
+
+        /** 记录诊断中的摘要。 */
         private final String summary;
 
+        /**
+         * 创建诊断实例，并注入运行所需依赖。
+         *
+         * @param enabled 启用状态开关值。
+         * @param configured 已配置对象。
+         * @param configuredPath 文件或目录路径参数。
+         * @param resolvedPath 文件或目录路径参数。
+         * @param available available 参数。
+         * @param timeoutSeconds 超时时间，单位为秒。
+         * @param failOpen failOpen 参数。
+         * @param scannerState scanner状态参数。
+         * @param failureMode failure模式参数。
+         * @param failureBehavior failureBehavior 参数。
+         * @param summary 摘要参数。
+         */
         private Diagnostic(
                 boolean enabled,
                 boolean configured,
@@ -855,50 +1273,110 @@ public class TirithSecurityService {
             this.summary = safeText(summary, MAX_SUMMARY_LENGTH);
         }
 
+        /**
+         * 判断是否启用。
+         *
+         * @return 如果启用满足条件则返回 true，否则返回 false。
+         */
         public boolean isEnabled() {
             return enabled;
         }
 
+        /**
+         * 判断是否Configured。
+         *
+         * @return 如果Configured满足条件则返回 true，否则返回 false。
+         */
         public boolean isConfigured() {
             return configured;
         }
 
+        /**
+         * 读取Configured路径。
+         *
+         * @return 返回读取到的Configured路径。
+         */
         public String getConfiguredPath() {
             return configuredPath;
         }
 
+        /**
+         * 读取Resolved路径。
+         *
+         * @return 返回读取到的Resolved路径。
+         */
         public String getResolvedPath() {
             return resolvedPath;
         }
 
+        /**
+         * 判断是否Available。
+         *
+         * @return 如果Available满足条件则返回 true，否则返回 false。
+         */
         public boolean isAvailable() {
             return available;
         }
 
+        /**
+         * 读取Timeout Seconds。
+         *
+         * @return 返回读取到的Timeout Seconds。
+         */
         public int getTimeoutSeconds() {
             return timeoutSeconds;
         }
 
+        /**
+         * 判断是否Fail Open。
+         *
+         * @return 如果Fail Open满足条件则返回 true，否则返回 false。
+         */
         public boolean isFailOpen() {
             return failOpen;
         }
 
+        /**
+         * 读取Scanner状态。
+         *
+         * @return 返回读取到的Scanner状态。
+         */
         public String getScannerState() {
             return scannerState;
         }
 
+        /**
+         * 读取Failure模式。
+         *
+         * @return 返回读取到的Failure模式。
+         */
         public String getFailureMode() {
             return failureMode;
         }
 
+        /**
+         * 读取Failure Behavior。
+         *
+         * @return 返回读取到的Failure Behavior。
+         */
         public String getFailureBehavior() {
             return failureBehavior;
         }
 
+        /**
+         * 读取Summary。
+         *
+         * @return 返回读取到的Summary。
+         */
         public String getSummary() {
             return summary;
         }
 
+        /**
+         * 转换为Map。
+         *
+         * @return 返回转换后的Map。
+         */
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("enabled", Boolean.valueOf(enabled));
@@ -916,6 +1394,12 @@ public class TirithSecurityService {
         }
     }
 
+    /**
+     * 生成安全展示用的路径Ref。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe路径Ref结果。
+     */
     private static String safePathRef(String path) {
         String value = StrUtil.blankToDefault(path, "tirith").trim();
         if (StrUtil.isBlank(value)) {
@@ -931,12 +1415,28 @@ public class TirithSecurityService {
         return safeText(value, 200);
     }
 
+    /** 承载Finding相关状态和辅助逻辑。 */
     public static class Finding {
+        /** 记录Finding中的rule标识。 */
         private final String ruleId;
+
+        /** 记录Finding中的severity。 */
         private final String severity;
+
+        /** 记录Finding中的标题。 */
         private final String title;
+
+        /** 记录Finding中的描述。 */
         private final String description;
 
+        /**
+         * 创建Finding实例，并注入运行所需依赖。
+         *
+         * @param ruleId rule标识。
+         * @param severity severity 参数。
+         * @param title title 参数。
+         * @param description 描述参数。
+         */
         private Finding(String ruleId, String severity, String title, String description) {
             this.ruleId = safeText(ruleId, 200);
             this.severity = safeText(severity, 100);
@@ -944,6 +1444,12 @@ public class TirithSecurityService {
             this.description = safeText(description, MAX_SUMMARY_LENGTH);
         }
 
+        /**
+         * 执行from相关逻辑。
+         *
+         * @param map 待读取的映射对象。
+         * @return 返回from结果。
+         */
         public static Finding from(Map<?, ?> map) {
             Map<String, String> values = new LinkedHashMap<String, String>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
@@ -958,18 +1464,38 @@ public class TirithSecurityService {
                     values.get("description"));
         }
 
+        /**
+         * 读取Rule标识。
+         *
+         * @return 返回读取到的Rule标识。
+         */
         public String getRuleId() {
             return ruleId;
         }
 
+        /**
+         * 读取Severity。
+         *
+         * @return 返回读取到的Severity。
+         */
         public String getSeverity() {
             return severity;
         }
 
+        /**
+         * 读取标题。
+         *
+         * @return 返回读取到的标题。
+         */
         public String getTitle() {
             return title;
         }
 
+        /**
+         * 读取Description。
+         *
+         * @return 返回读取到的Description。
+         */
         public String getDescription() {
             return description;
         }

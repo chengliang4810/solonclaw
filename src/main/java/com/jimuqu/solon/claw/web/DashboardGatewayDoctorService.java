@@ -26,21 +26,40 @@ import java.util.TimeZone;
 
 /** Dashboard 网关 doctor 聚合服务。 */
 public class DashboardGatewayDoctorService {
+    /** GENERICAPI键健康检查CHECKDIALECTS的统一常量值。 */
     private static final Set<String> GENERIC_API_KEY_HEALTH_CHECK_DIALECTS =
             new HashSet<String>(
                     Arrays.asList(
                             LlmConstants.PROVIDER_OPENAI, LlmConstants.PROVIDER_OPENAI_RESPONSES));
+
+    /** DEDICATED健康检查CHECKDIALECTS的统一常量值。 */
     private static final Set<String> DEDICATED_HEALTH_CHECK_DIALECTS =
             new HashSet<String>(
                     Arrays.asList(LlmConstants.PROVIDER_GEMINI, LlmConstants.PROVIDER_ANTHROPIC));
 
+    /** 注入应用配置，用于控制台消息网关诊断。 */
     private final AppConfig appConfig;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
+
+    /** 注入关闭Forensics服务，用于调用对应业务能力。 */
     private final ShutdownForensicsService shutdownForensicsService;
 
+    /**
+     * 创建控制台消息网关诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     */
     public DashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -54,6 +73,14 @@ public class DashboardGatewayDoctorService {
                 null);
     }
 
+    /**
+     * 创建控制台消息网关诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     */
     public DashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -63,6 +90,14 @@ public class DashboardGatewayDoctorService {
         this(appConfig, deliveryService, llmProviderService, gatewayRuntimeRefreshService, null);
     }
 
+    /**
+     * 创建控制台消息网关诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     */
     public DashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -77,6 +112,15 @@ public class DashboardGatewayDoctorService {
                 shutdownForensicsService);
     }
 
+    /**
+     * 创建控制台消息网关诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     */
     public DashboardGatewayDoctorService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -92,6 +136,11 @@ public class DashboardGatewayDoctorService {
         this.shutdownForensicsService = shutdownForensicsService;
     }
 
+    /**
+     * 执行诊断相关逻辑。
+     *
+     * @return 返回诊断结果。
+     */
     public Map<String, Object> doctor() throws Exception {
         if (gatewayRuntimeRefreshService != null) {
             gatewayRuntimeRefreshService.refreshIfNeeded();
@@ -120,6 +169,15 @@ public class DashboardGatewayDoctorService {
         return result;
     }
 
+    /**
+     * 执行诊断摘要相关逻辑。
+     *
+     * @param model 模型名称。
+     * @param platforms platforms 参数。
+     * @param shutdown 关闭参数。
+     * @param config 当前模块使用的配置对象。
+     * @return 返回诊断Summary结果。
+     */
     private Map<String, Object> doctorSummary(
             Map<String, Object> model,
             List<Map<String, Object>> platforms,
@@ -140,6 +198,12 @@ public class DashboardGatewayDoctorService {
         return summary;
     }
 
+    /**
+     * 追加模型Issues。
+     *
+     * @param issues issues 参数。
+     * @param model 模型名称。
+     */
     @SuppressWarnings("unchecked")
     private void addModelIssues(List<Map<String, Object>> issues, Map<String, Object> model) {
         if (model == null || !(model.get("checks") instanceof List)) {
@@ -156,6 +220,12 @@ public class DashboardGatewayDoctorService {
         }
     }
 
+    /**
+     * 追加平台Issues。
+     *
+     * @param issues issues 参数。
+     * @param platforms platforms 参数。
+     */
     private void addPlatformIssues(
             List<Map<String, Object>> issues, List<Map<String, Object>> platforms) {
         if (platforms == null || platforms.isEmpty()) {
@@ -221,6 +291,12 @@ public class DashboardGatewayDoctorService {
         }
     }
 
+    /**
+     * 追加关闭Issues。
+     *
+     * @param issues issues 参数。
+     * @param shutdown 关闭参数。
+     */
     private void addShutdownIssues(List<Map<String, Object>> issues, Map<String, Object> shutdown) {
         if (shutdown == null || !Boolean.TRUE.equals(shutdown.get("available"))) {
             return;
@@ -239,6 +315,12 @@ public class DashboardGatewayDoctorService {
                 "查看 last_shutdown.record 并排查最近一次异常退出原因。");
     }
 
+    /**
+     * 追加配置Issues。
+     *
+     * @param issues issues 参数。
+     * @param config 当前模块使用的配置对象。
+     */
     private void addConfigIssues(List<Map<String, Object>> issues, Map<String, Object> config) {
         if (config == null || !Boolean.TRUE.equals(config.get("has_issues"))) {
             return;
@@ -278,6 +360,12 @@ public class DashboardGatewayDoctorService {
         }
     }
 
+    /**
+     * 执行模型NextAction相关逻辑。
+     *
+     * @param code code 参数。
+     * @return 返回模型Next Action结果。
+     */
     private String modelNextAction(String code) {
         if ("provider_present".equals(code)) {
             return "修正 model.providerKey，确保它命中 providers 中的 provider。";
@@ -306,6 +394,14 @@ public class DashboardGatewayDoctorService {
         return "修复模型 doctor 检查失败项：" + code + "。";
     }
 
+    /**
+     * 执行平台消息相关逻辑。
+     *
+     * @param platformName 平台名称参数。
+     * @param lastError last错误参数。
+     * @param lastReconnectError lastReconnect错误参数。
+     * @return 返回平台消息结果。
+     */
     private String platformMessage(
             String platformName, String lastError, String lastReconnectError) {
         String detail = StrUtil.isNotBlank(lastError) ? lastError : lastReconnectError;
@@ -315,6 +411,13 @@ public class DashboardGatewayDoctorService {
         return platformName + " 渠道最近一次连接失败：" + detail;
     }
 
+    /**
+     * 生成安全展示用的字符串列表。
+     *
+     * @param raw 原始输入值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe String List结果。
+     */
     private List<String> safeStringList(Object raw, int maxLength) {
         List<String> values = new ArrayList<String>();
         if (!(raw instanceof List)) {
@@ -329,6 +432,17 @@ public class DashboardGatewayDoctorService {
         return values;
     }
 
+    /**
+     * 追加Issue。
+     *
+     * @param issues issues 参数。
+     * @param severity severity 参数。
+     * @param section section 参数。
+     * @param code code 参数。
+     * @param target target 参数。
+     * @param message 平台消息或错误消息。
+     * @param nextAction nextAction 参数。
+     */
     private void addIssue(
             List<Map<String, Object>> issues,
             String severity,
@@ -347,6 +461,12 @@ public class DashboardGatewayDoctorService {
         issues.add(issue);
     }
 
+    /**
+     * 执行nextActions相关逻辑。
+     *
+     * @param issues issues 参数。
+     * @return 返回next Actions结果。
+     */
     private List<String> nextActions(List<Map<String, Object>> issues) {
         List<String> actions = new ArrayList<String>();
         Set<String> seen = new HashSet<String>();
@@ -359,6 +479,13 @@ public class DashboardGatewayDoctorService {
         return actions;
     }
 
+    /**
+     * 执行次数Severity相关逻辑。
+     *
+     * @param issues issues 参数。
+     * @param severity severity 参数。
+     * @return 返回次数Severity结果。
+     */
     private int countSeverity(List<Map<String, Object>> issues, String severity) {
         int count = 0;
         for (Map<String, Object> issue : issues) {
@@ -369,6 +496,12 @@ public class DashboardGatewayDoctorService {
         return count;
     }
 
+    /**
+     * 执行int值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回int Value结果。
+     */
     private int intValue(Object value) {
         if (value instanceof Number) {
             return ((Number) value).intValue();
@@ -380,6 +513,12 @@ public class DashboardGatewayDoctorService {
         }
     }
 
+    /**
+     * 执行highestSeverity相关逻辑。
+     *
+     * @param issues issues 参数。
+     * @return 返回highest Severity结果。
+     */
     private String highestSeverity(List<Map<String, Object>> issues) {
         String highest = "none";
         int rank = 0;
@@ -394,6 +533,12 @@ public class DashboardGatewayDoctorService {
         return highest;
     }
 
+    /**
+     * 执行severityRank相关逻辑。
+     *
+     * @param severity severity 参数。
+     * @return 返回severity Rank结果。
+     */
     private int severityRank(String severity) {
         if ("error".equalsIgnoreCase(severity)) {
             return 3;
@@ -407,6 +552,12 @@ public class DashboardGatewayDoctorService {
         return 0;
     }
 
+    /**
+     * 判断是否Abnormal Shutdown Reason。
+     *
+     * @param reason 原因参数。
+     * @return 如果Abnormal Shutdown Reason满足条件则返回 true，否则返回 false。
+     */
     private boolean isAbnormalShutdownReason(String reason) {
         String text = StrUtil.nullToEmpty(reason).trim().toLowerCase(Locale.ROOT);
         if (StrUtil.isBlank(text)) {
@@ -428,6 +579,11 @@ public class DashboardGatewayDoctorService {
                 || text.contains("sigkill");
     }
 
+    /**
+     * 执行配置诊断相关逻辑。
+     *
+     * @return 返回配置诊断结果。
+     */
     private Map<String, Object> configDoctor() {
         Map<String, Object> config =
                 RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome())
@@ -438,6 +594,11 @@ public class DashboardGatewayDoctorService {
         return config;
     }
 
+    /**
+     * 关闭摘要。
+     *
+     * @return 返回shutdown Summary结果。
+     */
     private Map<String, Object> shutdownSummary() {
         if (shutdownForensicsService == null) {
             return unavailableShutdownSummary();
@@ -460,17 +621,36 @@ public class DashboardGatewayDoctorService {
         return summary;
     }
 
+    /**
+     * 执行unavailable关闭摘要相关逻辑。
+     *
+     * @return 返回unavailable Shutdown Summary结果。
+     */
     private Map<String, Object> unavailableShutdownSummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("available", Boolean.FALSE);
         return summary;
     }
 
+    /**
+     * 生成安全展示用的Object文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe Object Text结果。
+     */
     private String safeObjectText(Object value, int maxLength) {
         return SecretRedactor.redact(
                 StrUtil.nullToEmpty(value == null ? null : String.valueOf(value)), maxLength);
     }
 
+    /**
+     * 查找状态。
+     *
+     * @param statuses statuses 参数。
+     * @param platformName 平台名称参数。
+     * @return 返回状态。
+     */
     private ChannelStatus findStatus(List<ChannelStatus> statuses, String platformName) {
         for (ChannelStatus status : statuses) {
             if (status.getPlatform() != null
@@ -481,6 +661,12 @@ public class DashboardGatewayDoctorService {
         return null;
     }
 
+    /**
+     * 转换为诊断Item。
+     *
+     * @param status 状态参数。
+     * @return 返回转换后的诊断Item。
+     */
     private Map<String, Object> toDoctorItem(ChannelStatus status) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put(
@@ -506,6 +692,12 @@ public class DashboardGatewayDoctorService {
         return item;
     }
 
+    /**
+     * 执行nextStep相关逻辑。
+     *
+     * @param status 状态参数。
+     * @return 返回next Step结果。
+     */
     private String nextStep(ChannelStatus status) {
         if (!status.isEnabled()) {
             return "在配置中启用该渠道。";
@@ -528,6 +720,12 @@ public class DashboardGatewayDoctorService {
         return "配置已就绪，等待网关连接。";
     }
 
+    /**
+     * 执行join相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回join结果。
+     */
     private String join(List<String> values) {
         StringBuilder buffer = new StringBuilder();
         for (String value : values) {
@@ -542,6 +740,11 @@ public class DashboardGatewayDoctorService {
         return buffer.length() == 0 ? GatewayBehaviorConstants.NONE : buffer.toString();
     }
 
+    /**
+     * 执行模型诊断相关逻辑。
+     *
+     * @return 返回模型诊断结果。
+     */
     private Map<String, Object> modelDoctor() {
         List<Map<String, Object>> checks = new ArrayList<Map<String, Object>>();
         String primaryKey = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
@@ -610,6 +813,12 @@ public class DashboardGatewayDoctorService {
         return result;
     }
 
+    /**
+     * 执行健康检查Check摘要相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @return 返回健康检查Check Summary结果。
+     */
     private Map<String, Object> healthCheckSummary(AppConfig.ProviderConfig provider) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         String dialect =
@@ -646,6 +855,13 @@ public class DashboardGatewayDoctorService {
         return summary;
     }
 
+    /**
+     * 执行模型列表URL相关逻辑。
+     *
+     * @param providerKey 提供方键标识或键值。
+     * @param provider 模型或能力提供方。
+     * @return 返回模型List URL结果。
+     */
     private String modelListUrl(String providerKey, AppConfig.ProviderConfig provider) {
         if (provider == null) {
             return "";
@@ -655,6 +871,13 @@ public class DashboardGatewayDoctorService {
                         providerKey, provider.getBaseUrl(), provider.getDialect()));
     }
 
+    /**
+     * 追加兜底Checks。
+     *
+     * @param checks checks 参数。
+     * @param primaryKey primary键标识或键值。
+     * @param providers 能力提供方列表。
+     */
     private void addFallbackChecks(
             List<Map<String, Object>> checks,
             String primaryKey,
@@ -708,6 +931,12 @@ public class DashboardGatewayDoctorService {
         }
     }
 
+    /**
+     * 执行requiresApi键相关逻辑。
+     *
+     * @param provider 模型或能力提供方。
+     * @return 返回requires Api键结果。
+     */
     private boolean requiresApiKey(AppConfig.ProviderConfig provider) {
         String dialect = LlmProviderSupport.normalizeDialect(provider.getDialect());
         if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
@@ -719,6 +948,12 @@ public class DashboardGatewayDoctorService {
                 || baseUrl.contains("::1"));
     }
 
+    /**
+     * 执行基础URLIssue相关逻辑。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     * @return 返回base URL Issue结果。
+     */
     private String baseUrlIssue(String baseUrl) {
         if (StrUtil.isBlank(baseUrl)) {
             return "baseUrl 为空。";
@@ -731,6 +966,15 @@ public class DashboardGatewayDoctorService {
         }
     }
 
+    /**
+     * 追加Check。
+     *
+     * @param checks checks 参数。
+     * @param passed passed 参数。
+     * @param code code 参数。
+     * @param passMessage pass消息参数。
+     * @param failMessage fail消息参数。
+     */
     private void addCheck(
             List<Map<String, Object>> checks,
             boolean passed,
@@ -740,6 +984,14 @@ public class DashboardGatewayDoctorService {
         checks.add(checkItem(passed, code, passed ? passMessage : failMessage));
     }
 
+    /**
+     * 检查Item。
+     *
+     * @param passed passed 参数。
+     * @param code code 参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回Item结果。
+     */
     private Map<String, Object> checkItem(boolean passed, String code, String message) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("passed", Boolean.valueOf(passed));
@@ -748,6 +1000,12 @@ public class DashboardGatewayDoctorService {
         return item;
     }
 
+    /**
+     * 执行配置引导状态相关逻辑。
+     *
+     * @param checks checks 参数。
+     * @return 返回配置引导状态。
+     */
     private String setupState(List<Map<String, Object>> checks) {
         for (Map<String, Object> check : checks) {
             if (Boolean.FALSE.equals(check.get("passed"))) {
@@ -757,10 +1015,23 @@ public class DashboardGatewayDoctorService {
         return "ready";
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String value, int maxLength) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value).trim(), maxLength);
     }
 
+    /**
+     * 执行运行时引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回运行时Reference结果。
+     */
     private String runtimeReference(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (StrUtil.isBlank(text)) {
@@ -785,6 +1056,12 @@ public class DashboardGatewayDoctorService {
         return externalPathReference(text);
     }
 
+    /**
+     * 执行外部路径引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回外部路径Reference结果。
+     */
     private String externalPathReference(String value) {
         String name = new File(StrUtil.nullToEmpty(value)).getName();
         if (StrUtil.isBlank(name)) {
@@ -793,6 +1070,12 @@ public class DashboardGatewayDoctorService {
         return "path://" + SecretRedactor.redact(name, 200);
     }
 
+    /**
+     * 执行normalized相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回normalized结果。
+     */
     private String normalized(File file) {
         String path = file.getAbsolutePath();
         if (File.separatorChar == '\\') {
@@ -801,6 +1084,11 @@ public class DashboardGatewayDoctorService {
         return path;
     }
 
+    /**
+     * 执行isoNow相关逻辑。
+     *
+     * @return 返回iso Now结果。
+     */
     private String isoNow() {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         format.setTimeZone(TimeZone.getDefault());

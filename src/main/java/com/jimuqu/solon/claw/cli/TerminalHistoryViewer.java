@@ -11,25 +11,52 @@ import java.util.Locale;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
-/** Local terminal history preview for the currently bound session. */
+/** 承载终端历史Viewer相关状态和辅助逻辑。 */
 public class TerminalHistoryViewer {
+    /** 默认限制的统一常量值。 */
     private static final int DEFAULT_LIMIT = 12;
+
+    /** 最大限制的统一常量值。 */
     private static final int MAX_LIMIT = 50;
+
+    /** 展示最大LENGTH的统一常量值。 */
     private static final int SHOW_MAX_LENGTH = 6000;
 
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 记录终端历史Viewer中的CLI运行时。 */
     private final CliRuntime cliRuntime;
 
+    /**
+     * 创建终端历史Viewer实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param cliRuntime CLI运行时参数。
+     */
     public TerminalHistoryViewer(SessionRepository sessionRepository, CliRuntime cliRuntime) {
         this.sessionRepository = sessionRepository;
         this.cliRuntime = cliRuntime;
     }
 
+    /**
+     * 判断是否历史命令。
+     *
+     * @param input 输入参数。
+     * @return 如果历史命令满足条件则返回 true，否则返回 false。
+     */
     public boolean isHistoryCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim().toLowerCase(Locale.ROOT);
         return "/history".equals(value) || value.startsWith("/history ");
     }
 
+    /**
+     * 执行render相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param input 输入参数。
+     * @return 返回render结果。
+     */
     public String render(String sessionId, String input) {
         if (sessionRepository == null || cliRuntime == null) {
             return "当前终端没有可用的会话历史。";
@@ -73,6 +100,13 @@ public class TerminalHistoryViewer {
         return buffer.toString();
     }
 
+    /**
+     * 渲染Entry。
+     *
+     * @param session 会话参数。
+     * @param input 输入参数。
+     * @return 返回render Entry结果。
+     */
     private String renderEntry(SessionRecord session, String input) {
         int target = showIndex(input);
         if (target <= 0) {
@@ -106,6 +140,13 @@ public class TerminalHistoryViewer {
         return buffer.toString();
     }
 
+    /**
+     * 执行entries相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param limit 最大返回数量。
+     * @return 返回entries结果。
+     */
     private List<HistoryEntry> entries(SessionRecord session, int limit) throws Exception {
         List<HistoryEntry> all = allEntries(session);
         if (all.size() <= limit) {
@@ -114,6 +155,12 @@ public class TerminalHistoryViewer {
         return new ArrayList<HistoryEntry>(all.subList(all.size() - limit, all.size()));
     }
 
+    /**
+     * 执行全部Entries相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回全部Entries结果。
+     */
     private List<HistoryEntry> allEntries(SessionRecord session) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         List<HistoryEntry> all = new ArrayList<HistoryEntry>();
@@ -135,6 +182,12 @@ public class TerminalHistoryViewer {
         return all;
     }
 
+    /**
+     * 执行限制相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回限制结果。
+     */
     private int limit(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         if (isShowCommand(value)) {
@@ -152,6 +205,12 @@ public class TerminalHistoryViewer {
         }
     }
 
+    /**
+     * 判断是否展示命令。
+     *
+     * @param input 输入参数。
+     * @return 如果展示命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isShowCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim().toLowerCase(Locale.ROOT);
         return value.equals("/history show")
@@ -160,6 +219,12 @@ public class TerminalHistoryViewer {
                 || value.startsWith("/history inspect ");
     }
 
+    /**
+     * 执行展示索引相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回展示Index结果。
+     */
     private int showIndex(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         String lower = value.toLowerCase(Locale.ROOT);
@@ -184,6 +249,12 @@ public class TerminalHistoryViewer {
         }
     }
 
+    /**
+     * 执行roleLabel相关逻辑。
+     *
+     * @param role role 参数。
+     * @return 返回role Label结果。
+     */
     private String roleLabel(ChatRole role) {
         if (role == ChatRole.USER) {
             return "用户";
@@ -197,6 +268,12 @@ public class TerminalHistoryViewer {
         return String.valueOf(role);
     }
 
+    /**
+     * 执行trim相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @return 返回trim结果。
+     */
     private String trim(String content) {
         String normalized =
                 StrUtil.nullToEmpty(content).replace('\r', ' ').replace('\n', ' ').trim();
@@ -206,12 +283,28 @@ public class TerminalHistoryViewer {
         return normalized.substring(0, 220) + "...";
     }
 
+    /** 承载历史Entry相关状态和辅助逻辑。 */
     private static class HistoryEntry {
+        /** 记录历史Entry中的索引。 */
         private final int index;
+
+        /** 记录历史Entry中的role。 */
         private final String role;
+
+        /** 记录历史Entry中的预览。 */
         private final String preview;
+
+        /** 记录历史Entry中的fullContent。 */
         private final String fullContent;
 
+        /**
+         * 创建历史Entry实例，并注入运行所需依赖。
+         *
+         * @param index 索引参数。
+         * @param role role 参数。
+         * @param preview 预览参数。
+         * @param fullContent fullContent 参数。
+         */
         private HistoryEntry(int index, String role, String preview, String fullContent) {
             this.index = index;
             this.role = role;

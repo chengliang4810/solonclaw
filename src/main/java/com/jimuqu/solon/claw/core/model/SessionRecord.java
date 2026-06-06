@@ -63,7 +63,7 @@ public class SessionRecord {
     /** ReAct/AgentSession 的 FlowContext 快照 JSON。 */
     private String agentSnapshotJson;
 
-    /** Jimuqu /goal 长目标循环状态 JSON。 */
+    /** 记录会话中的目标状态JSON。 */
     private String goalStateJson;
 
     /** 最近一次学习闭环执行时间。 */
@@ -87,7 +87,7 @@ public class SessionRecord {
     /** 最近一轮输出 token。 */
     private long lastOutputTokens;
 
-    /** 最近一轮 reasoning token。 */
+    /** 最近一轮 推理 token。 */
     private long lastReasoningTokens;
 
     /** 最近一轮 cache read token。 */
@@ -105,7 +105,7 @@ public class SessionRecord {
     /** 累计输出 token。 */
     private long cumulativeOutputTokens;
 
-    /** 累计 reasoning token。 */
+    /** 累计 推理 token。 */
     private long cumulativeReasoningTokens;
 
     /** 累计 cache read token。 */

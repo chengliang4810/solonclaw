@@ -13,15 +13,27 @@ import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
 
-/** Jimuqu session/run search endpoint. */
+/** 执行控制台搜索相关HTTP入口，负责请求参数转换与响应输出相关逻辑。 */
 @Controller
 public class DashboardSearchController {
+    /** 注入会话搜索服务，用于调用对应业务能力。 */
     private final SessionSearchService sessionSearchService;
 
+    /**
+     * 创建控制台搜索控制器实例，并注入运行所需依赖。
+     *
+     * @param sessionSearchService 会话搜索服务依赖。
+     */
     public DashboardSearchController(SessionSearchService sessionSearchService) {
         this.sessionSearchService = sessionSearchService;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回搜索结果。
+     */
     @Mapping(value = "/api/search", method = MethodType.GET)
     public Map<String, Object> search(Context context) throws Exception {
         SessionSearchQuery query = new SessionSearchQuery();
@@ -55,10 +67,23 @@ public class DashboardSearchController {
         return DashboardResponse.ok(result);
     }
 
+    /**
+     * 执行first相关逻辑。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 返回first结果。
+     */
     private String first(String left, String right) {
         return left == null || left.trim().length() == 0 ? right : left;
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(String value) {
         try {
             return Long.parseLong(value);
@@ -67,6 +92,13 @@ public class DashboardSearchController {
         }
     }
 
+    /**
+     * 执行安全相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }

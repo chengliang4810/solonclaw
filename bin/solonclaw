@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+JAR="${SOLONCLAW_JAR:-$ROOT/target/solon-claw-0.0.1.jar}"
+TERMINAL_UI="$ROOT/terminal-ui/dist/entry.js"
+
+if [ "${1:-}" = "server" ]; then
+    shift
+    if [ ! -f "$JAR" ]; then
+        echo "Error: backend jar not found: $JAR" >&2
+        echo "Run: mvn -Dskip.web.build=true -DskipTests package" >&2
+        exit 1
+    fi
+    exec java -jar "$JAR" server "$@"
+fi
+
+if [ "${1:-}" = "completion" ] || [ "${1:-}" = "--completion" ]; then
+    if [ ! -f "$JAR" ]; then
+        echo "Error: backend jar not found: $JAR" >&2
+        echo "Run: mvn -Dskip.web.build=true -DskipTests package" >&2
+        exit 1
+    fi
+    exec java -jar "$JAR" "$@"
+fi
+
+if [ ! -f "$TERMINAL_UI" ]; then
+    echo "Error: terminal UI is not built: $TERMINAL_UI" >&2
+    echo "Run: cd terminal-ui && npm install && npm run build" >&2
+    exit 1
+fi
+
+exec node "$TERMINAL_UI" "$@"

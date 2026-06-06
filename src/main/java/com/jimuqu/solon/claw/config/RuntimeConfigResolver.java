@@ -24,14 +24,29 @@ import org.yaml.snakeyaml.Yaml;
 
 /** 运行时配置解析器，统一处理 runtime/config.yml 中的可写配置项。 */
 public class RuntimeConfigResolver {
+    /** LOCK的统一常量值。 */
     private static final Object LOCK = new Object();
+
+    /** 记录运行时配置Resolver中的当前。 */
     private static volatile RuntimeConfigResolver current;
+
+    /** 键路径列表的统一常量值。 */
     private static final Map<String, String> KEY_PATHS = buildKeyPaths();
 
+    /** 记录运行时配置Resolver中的配置文件。 */
     private final File configFile;
+
+    /** 记录运行时配置Resolver中的最近一次Loaded时间。 */
     private volatile long lastLoadedAt;
+
+    /** 保存文件值s映射，便于按键快速查询。 */
     private volatile Map<String, Object> fileValues = Collections.emptyMap();
 
+    /**
+     * 创建运行时配置Resolver实例，并注入运行所需依赖。
+     *
+     * @param configFile 文件或目录路径参数。
+     */
     private RuntimeConfigResolver(File configFile) {
         this.configFile = configFile;
         reload();
@@ -72,7 +87,13 @@ public class RuntimeConfigResolver {
         return getInstance().getRaw(key);
     }
 
-    /** Jimuqu cfg_get 对齐入口：按嵌套路径读取 runtime/config.yml 的原始值。 */
+    /**
+     * 执行cfgGet相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @param defaultValue 默认值参数。
+     * @return 返回cfg Get结果。
+     */
     public static Object cfgGet(String path, Object defaultValue) {
         return getInstance().getByPath(path, defaultValue);
     }
@@ -116,10 +137,21 @@ public class RuntimeConfigResolver {
     public Map<String, String> fileValues() {
         reloadIfNeeded();
         Map<String, String> result = new LinkedHashMap<String, String>();
+        Set<String> emitted = new HashSet<String>();
         for (Map.Entry<String, String> entry : KEY_PATHS.entrySet()) {
             String value = stringify(fileValues.get(entry.getValue()));
             if (value != null) {
                 result.put(entry.getValue(), value);
+                emitted.add(entry.getValue());
+            }
+        }
+        for (Map.Entry<String, Object> entry : fileValues.entrySet()) {
+            if (emitted.contains(entry.getKey())) {
+                continue;
+            }
+            String value = stringify(entry.getValue());
+            if (value != null) {
+                result.put(entry.getKey(), value);
             }
         }
         return result;
@@ -189,6 +221,35 @@ public class RuntimeConfigResolver {
         write(root);
     }
 
+    /**
+     * 写入 runtime/config.yml 中的列表值，用于需要保留 YAML 结构的配置项。
+     *
+     * @param key 配置键。
+     * @param values 列表值；调用方负责保证元素结构符合业务配置。
+     */
+    public synchronized void setFileList(String key, List<? extends Map<String, String>> values) {
+        String path = requirePath(key);
+        Map<String, Object> root = loadYamlRoot();
+        List<Object> copy = new ArrayList<Object>();
+        if (values != null) {
+            for (Map<String, String> value : values) {
+                if (value == null) {
+                    continue;
+                }
+                Map<String, Object> item = new LinkedHashMap<String, Object>();
+                for (Map.Entry<String, String> entry : value.entrySet()) {
+                    if (StrUtil.isBlank(entry.getKey())) {
+                        continue;
+                    }
+                    item.put(entry.getKey(), StrUtil.nullToEmpty(entry.getValue()).trim());
+                }
+                copy.add(item);
+            }
+        }
+        setNestedValue(root, path, copy);
+        write(root);
+    }
+
     /** 删除 runtime/config.yml 中的键值。 */
     public synchronized void removeFileValue(String key) {
         String path = requirePath(key);
@@ -219,6 +280,7 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /** 执行reloadIfNeeded相关逻辑。 */
     private void reloadIfNeeded() {
         if (!configFile.exists()) {
             if (!fileValues.isEmpty()) {
@@ -235,6 +297,11 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /**
+     * 加载YAML根用户。
+     *
+     * @return 返回YAML根用户结果。
+     */
     private Map<String, Object> loadYamlRoot() {
         if (!configFile.exists()) {
             return new LinkedHashMap<String, Object>();
@@ -246,6 +313,11 @@ public class RuntimeConfigResolver {
         return sanitizeMap((Map<?, ?>) parsed);
     }
 
+    /**
+     * 执行写入相关逻辑。
+     *
+     * @param root root 参数。
+     */
     private void write(Map<String, Object> root) {
         DumperOptions options = new DumperOptions();
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
@@ -271,6 +343,12 @@ public class RuntimeConfigResolver {
         reload();
     }
 
+    /**
+     * 要求路径。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回路径。
+     */
     private String requirePath(String key) {
         String path = resolvePath(key);
         if (StrUtil.isBlank(path)) {
@@ -279,10 +357,23 @@ public class RuntimeConfigResolver {
         return path;
     }
 
+    /**
+     * 执行配置文件引用相关逻辑。
+     *
+     * @return 返回配置文件Reference结果。
+     */
     private String configFileReference() {
         return "runtime://config.yml";
     }
 
+    /**
+     * 执行配置键Item相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param reason 原因参数。
+     * @return 返回配置键Item结果。
+     */
     private static Map<String, Object> configKeyItem(String key, Object value, String reason) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("key", key);
@@ -291,6 +382,13 @@ public class RuntimeConfigResolver {
         return item;
     }
 
+    /**
+     * 生成安全展示用的配置值。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe配置Value结果。
+     */
     private static Object safeConfigValue(String key, Object value) {
         if (value == null) {
             return null;
@@ -326,6 +424,12 @@ public class RuntimeConfigResolver {
         return text;
     }
 
+    /**
+     * 判断是否具有路径值特征。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回looks Like路径Value结果。
+     */
     private static boolean looksLikePathValue(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (text.length() < 2 || text.contains("\n") || text.contains("\r")) {
@@ -341,6 +445,12 @@ public class RuntimeConfigResolver {
                 || text.matches("^[A-Za-z]:[\\\\/].*");
     }
 
+    /**
+     * 判断是否密钥键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果密钥键满足条件则返回 true，否则返回 false。
+     */
     private static boolean isSecretKey(String key) {
         String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
         return normalized.contains("apikey")
@@ -355,15 +465,28 @@ public class RuntimeConfigResolver {
                 || normalized.contains("private_key");
     }
 
+    /**
+     * 判断是否运行时主渠道键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果运行时主渠道键满足条件则返回 true，否则返回 false。
+     */
     private static boolean isRuntimeHomeKey(String key) {
         return "solonclaw.runtime.home".equals(key);
     }
 
+    /**
+     * 判断是否Known配置键。
+     *
+     * @param key 配置键或映射键。
+     * @param dynamicPrefixes dynamicPrefixes 参数。
+     * @return 如果Known配置键满足条件则返回 true，否则返回 false。
+     */
     private static boolean isKnownConfigKey(String key, List<String> dynamicPrefixes) {
         if (KEY_PATHS.containsKey(key) || KEY_PATHS.containsValue(key)) {
             return true;
         }
-        if ("fallbackProviders".equals(key) || key.startsWith("fallbackProviders.")) {
+        if ("fallbackProviders".equals(key)) {
             return true;
         }
         for (String prefix : dynamicPrefixes) {
@@ -374,6 +497,12 @@ public class RuntimeConfigResolver {
         return false;
     }
 
+    /**
+     * 执行knownDynamicPrefixes相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回known Dynamic Prefixes结果。
+     */
     private static List<String> knownDynamicPrefixes(AppConfig appConfig) {
         List<String> prefixes = new ArrayList<String>();
         addDynamicPrefix(prefixes, "providers.");
@@ -408,6 +537,12 @@ public class RuntimeConfigResolver {
         return prefixes;
     }
 
+    /**
+     * 追加DynamicPrefix。
+     *
+     * @param prefixes prefixes 参数。
+     * @param prefix prefix 参数。
+     */
     private static void addDynamicPrefix(List<String> prefixes, String prefix) {
         if (StrUtil.isBlank(prefix) || prefixes.contains(prefix)) {
             return;
@@ -415,6 +550,12 @@ public class RuntimeConfigResolver {
         prefixes.add(prefix);
     }
 
+    /**
+     * 执行生效路径相关逻辑。
+     *
+     * @param rawKey 原始键标识或键值。
+     * @return 返回生效路径。
+     */
     private static String effectivePath(String rawKey) {
         if (StrUtil.isBlank(rawKey) || isRuntimeHomeKey(rawKey)) {
             return null;
@@ -426,6 +567,12 @@ public class RuntimeConfigResolver {
         return appConfigPath(rawKey);
     }
 
+    /**
+     * 执行应用配置路径相关逻辑。
+     *
+     * @param configKey 配置键标识或键值。
+     * @return 返回app配置路径。
+     */
     private static String appConfigPath(String configKey) {
         if (StrUtil.isBlank(configKey)) {
             return null;
@@ -448,6 +595,13 @@ public class RuntimeConfigResolver {
         return null;
     }
 
+    /**
+     * 执行same配置值相关逻辑。
+     *
+     * @param rawValue 原始值参数。
+     * @param effectiveValue effective值参数。
+     * @return 返回same配置Value结果。
+     */
     private static boolean sameConfigValue(Object rawValue, Object effectiveValue) {
         if (rawValue == null && effectiveValue == null) {
             return true;
@@ -472,11 +626,23 @@ public class RuntimeConfigResolver {
         return normalizeValueText(rawValue).equals(normalizeValueText(effectiveValue));
     }
 
+    /**
+     * 解析Boolean。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的Boolean。
+     */
     private static boolean parseBoolean(Object value) {
         String text = StrUtil.nullToEmpty(String.valueOf(value)).trim();
         return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
     }
 
+    /**
+     * 规范化Value Text。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Value Text结果。
+     */
     private static String normalizeValueText(Object value) {
         if (value instanceof List || value instanceof Map) {
             return ONode.serialize(value);
@@ -484,12 +650,26 @@ public class RuntimeConfigResolver {
         return StrUtil.nullToEmpty(String.valueOf(value)).trim();
     }
 
+    /**
+     * 执行flatten应用配置相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回flatten App配置。
+     */
     private static Map<String, Object> flattenAppConfig(AppConfig appConfig) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         flattenBean("", appConfig, result, new HashSet<Object>());
         return result;
     }
 
+    /**
+     * 执行flattenBean相关逻辑。
+     *
+     * @param prefix prefix 参数。
+     * @param bean bean 参数。
+     * @param output 命令执行输出文本。
+     * @param visited visited 参数。
+     */
     private static void flattenBean(
             String prefix, Object bean, Map<String, Object> output, Set<Object> visited) {
         if (bean == null || visited.contains(bean)) {
@@ -513,6 +693,14 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /**
+     * 执行flatten值相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param output 命令执行输出文本。
+     * @param visited visited 参数。
+     */
     private static void flattenValue(
             String key, Object value, Map<String, Object> output, Set<Object> visited) {
         if (value == null || isScalar(value)) {
@@ -534,6 +722,12 @@ public class RuntimeConfigResolver {
         flattenBean(key, value, output, visited);
     }
 
+    /**
+     * 判断是否Scalar。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Scalar满足条件则返回 true，否则返回 false。
+     */
     private static boolean isScalar(Object value) {
         return value instanceof CharSequence
                 || value instanceof Number
@@ -542,6 +736,12 @@ public class RuntimeConfigResolver {
                 || value.getClass().isEnum();
     }
 
+    /**
+     * 解析路径。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回解析后的路径。
+     */
     private String resolvePath(String key) {
         if (StrUtil.isBlank(key)) {
             return null;
@@ -553,15 +753,23 @@ public class RuntimeConfigResolver {
         if (key.startsWith("solonclaw.runtime.")) {
             return null;
         }
+        if ("fallbackProviders".equals(key)) {
+            return key;
+        }
         if (key.startsWith("solonclaw.")
                 || key.startsWith("providers.")
-                || key.startsWith("model.")
-                || key.startsWith("fallbackProviders.")) {
+                || key.startsWith("model.")) {
             return key;
         }
         return null;
     }
 
+    /**
+     * 执行stringify相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回stringify结果。
+     */
     private String stringify(Object value) {
         if (value == null) {
             return null;
@@ -585,6 +793,13 @@ public class RuntimeConfigResolver {
         return String.valueOf(value).trim();
     }
 
+    /**
+     * 写入Nested Value。
+     *
+     * @param root root 参数。
+     * @param path 文件或目录路径。
+     * @param value 待规范化或校验的原始值。
+     */
     @SuppressWarnings("unchecked")
     private void setNestedValue(Map<String, Object> root, String path, Object value) {
         String[] parts = path.split("\\.");
@@ -600,6 +815,13 @@ public class RuntimeConfigResolver {
         cursor.put(parts[parts.length - 1], value);
     }
 
+    /**
+     * 移除Nested Value。
+     *
+     * @param root root 参数。
+     * @param path 文件或目录路径。
+     * @return 返回Nested Value结果。
+     */
     @SuppressWarnings("unchecked")
     private boolean removeNestedValue(Map<String, Object> root, String path) {
         String[] parts = path.split("\\.");
@@ -630,6 +852,12 @@ public class RuntimeConfigResolver {
         return true;
     }
 
+    /**
+     * 清理Map。
+     *
+     * @param input 输入参数。
+     * @return 返回Map结果。
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> sanitizeMap(Map<?, ?> input) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -648,6 +876,12 @@ public class RuntimeConfigResolver {
         return result;
     }
 
+    /**
+     * 清理List。
+     *
+     * @param input 输入参数。
+     * @return 返回List结果。
+     */
     @SuppressWarnings("unchecked")
     private static List<Object> sanitizeList(List<?> input) {
         List<Object> result = new ArrayList<Object>();
@@ -663,6 +897,13 @@ public class RuntimeConfigResolver {
         return result;
     }
 
+    /**
+     * 执行flatten相关逻辑。
+     *
+     * @param prefix prefix 参数。
+     * @param input 输入参数。
+     * @param output 命令执行输出文本。
+     */
     private static void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
         for (Map.Entry<?, ?> entry : input.entrySet()) {
             if (entry.getKey() == null) {
@@ -681,6 +922,12 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /**
+     * 解析运行时主渠道。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     * @return 返回解析后的运行时主渠道。
+     */
     private static File resolveRuntimeHome(String runtimeHome) {
         String raw = StrUtil.blankToDefault(runtimeHome, RuntimePathConstants.RUNTIME_HOME);
         File file = new File(raw);
@@ -690,6 +937,11 @@ public class RuntimeConfigResolver {
         return new File(System.getProperty("user.dir"), raw);
     }
 
+    /**
+     * 构建键Paths。
+     *
+     * @return 返回创建好的键Paths。
+     */
     private static Map<String, String> buildKeyPaths() {
         Map<String, String> mappings = new LinkedHashMap<String, String>();
 
@@ -891,6 +1143,13 @@ public class RuntimeConfigResolver {
         return mappings;
     }
 
+    /**
+     * 追加渠道映射pings。
+     *
+     * @param mappings mappings 参数。
+     * @param channelName 渠道名称参数。
+     * @param extraFields extraFields 参数。
+     */
     private static void addChannelMappings(
             Map<String, String> mappings, String channelName, String... extraFields) {
         String base = "solonclaw.channels." + channelName + ".";
@@ -909,6 +1168,12 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /**
+     * 追加全部。
+     *
+     * @param mappings mappings 参数。
+     * @param paths 文件或目录路径参数。
+     */
     private static void addAll(Map<String, String> mappings, String... paths) {
         if (paths == null) {
             return;
@@ -918,6 +1183,12 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /**
+     * 执行add相关逻辑。
+     *
+     * @param mappings mappings 参数。
+     * @param path 文件或目录路径。
+     */
     private static void add(Map<String, String> mappings, String path) {
         mappings.put(path, path);
     }

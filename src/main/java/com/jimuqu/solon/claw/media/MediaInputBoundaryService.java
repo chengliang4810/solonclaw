@@ -27,10 +27,19 @@ import org.slf4j.LoggerFactory;
 
 /** 多模态图片输入安全边界。 */
 public class MediaInputBoundaryService {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(MediaInputBoundaryService.class);
+
+    /** 最大图片附件的统一常量值。 */
     public static final int MAX_IMAGE_ATTACHMENTS = 3;
+
+    /** EMBEDTARGET字节的统一常量值。 */
     public static final long EMBED_TARGET_BYTES = 4L * 1024L * 1024L;
+
+    /** 最大图片字节的统一常量值。 */
     public static final long MAX_IMAGE_BYTES = 20L * 1024L * 1024L;
+
+    /** 图片MIMEALLOW列表的统一常量值。 */
     private static final Set<String> IMAGE_MIME_ALLOWLIST =
             new HashSet<String>(
                     Arrays.asList(
@@ -42,8 +51,14 @@ public class MediaInputBoundaryService {
                             "image/heic",
                             "image/heif"));
 
+    /** 记录媒体输入Boundary中的缓存根用户。 */
     private final File cacheRoot;
 
+    /**
+     * 创建媒体输入Boundary服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public MediaInputBoundaryService(AppConfig appConfig) {
         String cacheDir = null;
         if (appConfig != null && appConfig.getRuntime() != null) {
@@ -53,6 +68,12 @@ public class MediaInputBoundaryService {
                 FileUtil.file(StrUtil.blankToDefault(cacheDir, "runtime/cache")).getAbsoluteFile();
     }
 
+    /**
+     * 转换为图片块。
+     *
+     * @param attachment 附件参数。
+     * @return 返回转换后的图片块。
+     */
     public ImageBlock toImageBlock(MessageAttachment attachment) {
         if (!isImageAttachment(attachment)) {
             return null;
@@ -119,10 +140,21 @@ public class MediaInputBoundaryService {
         }
     }
 
+    /**
+     * 执行max图片附件相关逻辑。
+     *
+     * @return 返回max图片附件结果。
+     */
     public int maxImageAttachments() {
         return MAX_IMAGE_ATTACHMENTS;
     }
 
+    /**
+     * 判断是否图片附件。
+     *
+     * @param attachment 附件参数。
+     * @return 如果图片附件满足条件则返回 true，否则返回 false。
+     */
     private boolean isImageAttachment(MessageAttachment attachment) {
         if (attachment == null) {
             return false;
@@ -132,6 +164,13 @@ public class MediaInputBoundaryService {
         return "image".equals(kind) && mime.startsWith("image/");
     }
 
+    /**
+     * 执行图片载荷相关逻辑。
+     *
+     * @param data 数据参数。
+     * @param mimeType MIME 类型参数。
+     * @return 返回图片Payload结果。
+     */
     private ImagePayload imagePayload(byte[] data, String mimeType) {
         if (data == null || data.length == 0 || data.length > MAX_IMAGE_BYTES) {
             return null;
@@ -143,6 +182,13 @@ public class MediaInputBoundaryService {
         return shrinkImagePayload(data, mimeType);
     }
 
+    /**
+     * 执行shrink图片载荷相关逻辑。
+     *
+     * @param data 数据参数。
+     * @param mimeType MIME 类型参数。
+     * @return 返回shrink图片Payload结果。
+     */
     private ImagePayload shrinkImagePayload(byte[] data, String mimeType) {
         try {
             BufferedImage source = ImageIO.read(new java.io.ByteArrayInputStream(data));
@@ -179,6 +225,14 @@ public class MediaInputBoundaryService {
         return null;
     }
 
+    /**
+     * 执行scale图片相关逻辑。
+     *
+     * @param source 来源参数。
+     * @param width width标识或键值。
+     * @param height height 参数。
+     * @return 返回scale图片结果。
+     */
     private BufferedImage scaleImage(BufferedImage source, int width, int height) {
         BufferedImage target = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = target.createGraphics();
@@ -196,6 +250,13 @@ public class MediaInputBoundaryService {
         return target;
     }
 
+    /**
+     * 编码Jpeg。
+     *
+     * @param image 图片参数。
+     * @param quality quality 参数。
+     * @return 返回encode Jpeg结果。
+     */
     private byte[] encodeJpeg(BufferedImage image, float quality) throws Exception {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -214,27 +275,55 @@ public class MediaInputBoundaryService {
         }
     }
 
+    /** 承载图片载荷相关状态和辅助逻辑。 */
     private static final class ImagePayload {
+        /** 记录图片载荷中的base64。 */
         private final String base64;
+
+        /** 记录图片载荷中的MIME 类型。 */
         private final String mimeType;
 
+        /**
+         * 创建图片Payload实例，并注入运行所需依赖。
+         *
+         * @param base64 base64 参数。
+         * @param mimeType MIME 类型参数。
+         */
         private ImagePayload(String base64, String mimeType) {
             this.base64 = base64;
             this.mimeType = mimeType;
         }
     }
 
+    /**
+     * 规范化Mime。
+     *
+     * @param mimeType MIME 类型参数。
+     * @return 返回Mime结果。
+     */
     private String normalizeMime(String mimeType) {
         String value = StrUtil.nullToEmpty(mimeType).trim().toLowerCase(Locale.ROOT);
         return StrUtil.blankToDefault(value, "image/png");
     }
 
+    /**
+     * 清理Base64。
+     *
+     * @param data 数据参数。
+     * @return 返回clean Base64结果。
+     */
     private String cleanBase64(String data) {
         String value = StrUtil.nullToEmpty(data).trim();
         int comma = value.indexOf(',');
         return comma >= 0 ? value.substring(comma + 1).trim() : value;
     }
 
+    /**
+     * 执行数据URI载荷相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回data URI Payload结果。
+     */
     private String dataUriPayload(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         int comma = text.indexOf(',');
@@ -244,6 +333,12 @@ public class MediaInputBoundaryService {
         return text.substring(comma + 1).trim();
     }
 
+    /**
+     * 判断是否Under缓存根用户。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 如果Under缓存根用户满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderCacheRoot(File file) {
         try {
             return isUnderPath(file.getCanonicalFile(), cacheRoot.getCanonicalFile());
@@ -252,6 +347,13 @@ public class MediaInputBoundaryService {
         return isUnderPath(file.getAbsoluteFile(), cacheRoot.getAbsoluteFile());
     }
 
+    /**
+     * 判断是否Under路径。
+     *
+     * @param file 文件或目录路径参数。
+     * @param root root 参数。
+     * @return 如果Under路径满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderPath(File file, File root) {
         String rootPath = root.toPath().toAbsolutePath().normalize().toString();
         String filePath = file.toPath().toAbsolutePath().normalize().toString();
@@ -262,6 +364,12 @@ public class MediaInputBoundaryService {
         return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         return SecretRedactor.redact(e == null ? "" : e.getMessage(), 400);
     }

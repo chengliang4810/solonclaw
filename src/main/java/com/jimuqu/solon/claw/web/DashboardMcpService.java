@@ -28,25 +28,58 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.noear.snack4.ONode;
 
-/** Dashboard-first MCP server registry. */
+/** 提供控制台MCP相关业务能力，封装调用方不需要感知的运行细节。 */
 public class DashboardMcpService {
+    /** 最大OAUTHtokenREDIRECTS的统一常量值。 */
     private static final int MAX_OAUTH_TOKEN_REDIRECTS = 5;
+
+    /** TRANSPORTSTDIO的统一常量值。 */
     private static final String TRANSPORT_STDIO = "stdio";
+
+    /** TRANSPORTHTTP的统一常量值。 */
     private static final String TRANSPORT_HTTP = "http";
+
+    /** TRANSPORTSTREAMABLE的统一常量值。 */
     private static final String TRANSPORT_STREAMABLE = "streamable";
+
+    /** TRANSPORTSTREAMABLESTATELESS的统一常量值。 */
     private static final String TRANSPORT_STREAMABLE_STATELESS = "streamable_stateless";
+
+    /** TRANSPORTSSE的统一常量值。 */
     private static final String TRANSPORT_SSE = "sse";
 
+    /** 注入应用配置，用于控制台MCP。 */
     private final AppConfig appConfig;
+
+    /** 记录控制台MCP中的数据库。 */
     private final SqliteDatabase database;
+
+    /** 注入包安全服务，用于调用对应业务能力。 */
     private final McpPackageSecurityService packageSecurityService;
+
+    /** 注入MCP运行时服务，用于调用对应业务能力。 */
     private final McpRuntimeService mcpRuntimeService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
 
+    /**
+     * 创建控制台MCP服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param database database 参数。
+     */
     public DashboardMcpService(AppConfig appConfig, SqliteDatabase database) {
         this(appConfig, database, null, null);
     }
 
+    /**
+     * 创建控制台MCP服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param database database 参数。
+     * @param packageSecurityService 待校验或访问的地址参数。
+     */
     public DashboardMcpService(
             AppConfig appConfig,
             SqliteDatabase database,
@@ -54,6 +87,14 @@ public class DashboardMcpService {
         this(appConfig, database, packageSecurityService, null);
     }
 
+    /**
+     * 创建控制台MCP服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param database database 参数。
+     * @param packageSecurityService 待校验或访问的地址参数。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     */
     public DashboardMcpService(
             AppConfig appConfig,
             SqliteDatabase database,
@@ -74,6 +115,11 @@ public class DashboardMcpService {
         this.securityPolicyService = new SecurityPolicyService(appConfig);
     }
 
+    /**
+     * 执行oauth策略摘要相关逻辑。
+     *
+     * @return 返回oauth策略Summary结果。
+     */
     public static Map<String, Object> oauthPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("authorizationEndpointUrlSafety", Boolean.TRUE);
@@ -101,6 +147,11 @@ public class DashboardMcpService {
         return summary;
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @return 返回list结果。
+     */
     public Map<String, Object> list() throws Exception {
         List<Map<String, Object>> servers = new ArrayList<Map<String, Object>>();
         Connection connection = database.openConnection();
@@ -126,6 +177,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 执行save，服务于控制台MCP主流程相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回save结果。
+     */
     public Map<String, Object> save(Map<String, Object> body) throws Exception {
         String serverId = read(body, "serverId");
         if (StrUtil.isBlank(serverId)) {
@@ -208,6 +265,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 规范化Transport。
+     *
+     * @param rawTransport 原始Transport参数。
+     * @return 返回Transport结果。
+     */
     private String normalizeTransport(String rawTransport) {
         String transport =
                 StrUtil.blankToDefault(rawTransport, TRANSPORT_STDIO)
@@ -229,6 +292,13 @@ public class DashboardMcpService {
                         + "。可选值：stdio、http、streamable、streamable_stateless、sse。");
     }
 
+    /**
+     * 校验Transport Target。
+     *
+     * @param transport transport 参数。
+     * @param endpoint endpoint 参数。
+     * @param command 待执行或解析的命令文本。
+     */
     private void validateTransportTarget(String transport, String endpoint, String command) {
         if (TRANSPORT_STDIO.equals(transport)) {
             if (StrUtil.isBlank(command)) {
@@ -241,6 +311,12 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行check相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回check结果。
+     */
     public Map<String, Object> check(String serverId) throws Exception {
         McpCheckState state = checkServer(serverId, false);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -258,16 +334,34 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回connect结果。
+     */
     public Map<String, Object> connect(String serverId) throws Exception {
         McpRuntimeService.McpToolRefreshResult state = mcpRuntimeService.connect(serverId);
         return runtimeRefreshMap(state, "connected");
     }
 
+    /**
+     * 重新加载目标服务端配置与工具清单。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回reload结果。
+     */
     public Map<String, Object> reload(String serverId) throws Exception {
         McpRuntimeService.McpToolRefreshResult state = mcpRuntimeService.reload(serverId);
         return runtimeRefreshMap(state, "reloaded");
     }
 
+    /**
+     * 刷新工具。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回工具结果。
+     */
     public Map<String, Object> refreshTools(String serverId) throws Exception {
         McpRuntimeService.McpToolRefreshResult state =
                 appConfig.getMcp().isEnabled()
@@ -277,6 +371,12 @@ public class DashboardMcpService {
         return runtimeRefreshMap(state, "refreshed");
     }
 
+    /**
+     * 执行oauth状态相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回oauth状态。
+     */
     public Map<String, Object> oauthStatus(String serverId) throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -308,6 +408,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 清理OAuth 认证。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回OAuth 认证结果。
+     */
     public Map<String, Object> clearOAuth(String serverId) throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
         Map<String, Object> cleared = sanitizeOAuth(oauth);
@@ -342,6 +448,13 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 执行beginOAuth 认证相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回begin OAuth 认证结果。
+     */
     public Map<String, Object> beginOAuth(String serverId, Map<String, Object> body)
             throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
@@ -404,6 +517,13 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 执行completeOAuth 认证相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回complete OAuth 认证结果。
+     */
     public Map<String, Object> completeOAuth(String serverId, Map<String, Object> body)
             throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
@@ -466,6 +586,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 刷新OAuth 认证。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回OAuth 认证结果。
+     */
     public Map<String, Object> refreshOAuth(String serverId) throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
         if (!asBoolean(oauth.get("enabled"), false)) {
@@ -501,6 +627,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 执行OAuth401相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回O Auth401结果。
+     */
     public Map<String, Object> handleOAuth401(String serverId) throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
         if (asBoolean(oauth.get("enabled"), false)
@@ -525,10 +657,21 @@ public class DashboardMcpService {
                 serverId, "missing_refresh_token", "MCP server requires re-authentication.");
     }
 
+    /**
+     * 执行reload全部相关逻辑。
+     *
+     * @return 返回reload全部结果。
+     */
     public McpReloadResult reloadAll() throws Exception {
         return reloadAll(true);
     }
 
+    /**
+     * 执行reload全部相关逻辑。
+     *
+     * @param baselineInitial baselineInitial 参数。
+     * @return 返回reload全部结果。
+     */
     private McpReloadResult reloadAll(boolean baselineInitial) throws Exception {
         List<String> serverIds = enabledServerIds();
         List<String> changedServers = new ArrayList<String>();
@@ -547,11 +690,21 @@ public class DashboardMcpService {
                 appConfig.getMcp().isEnabled(), changedServers, unchangedServers, toolCount);
     }
 
+    /**
+     * 执行reload全部视图相关逻辑。
+     *
+     * @return 返回reload全部视图。
+     */
     public Map<String, Object> reloadAllView() throws Exception {
         McpReloadResult result = reloadAll(false);
         return reloadResultMap(result);
     }
 
+    /**
+     * 执行reload全部异步视图相关逻辑。
+     *
+     * @return 返回reload全部Async视图。
+     */
     public Map<String, Object> reloadAllAsyncView() throws Exception {
         List<String> serverIds = enabledServerIds();
         CompletableFuture<List<McpRuntimeService.McpToolRefreshResult>> future =
@@ -568,6 +721,12 @@ public class DashboardMcpService {
         return map;
     }
 
+    /**
+     * 执行异步Failure消息相关逻辑。
+     *
+     * @param future future 参数。
+     * @return 返回async Failure消息结果。
+     */
     private String asyncFailureMessage(CompletableFuture<?> future) {
         try {
             future.get();
@@ -582,6 +741,11 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行启用状态服务端标识相关逻辑。
+     *
+     * @return 返回enabled Server标识。
+     */
     private List<String> enabledServerIds() throws Exception {
         List<String> serverIds = new ArrayList<String>();
         Connection connection = database.openConnection();
@@ -604,6 +768,12 @@ public class DashboardMcpService {
         return serverIds;
     }
 
+    /**
+     * 执行reload结果映射相关逻辑。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回reload结果Map结果。
+     */
     private Map<String, Object> reloadResultMap(McpReloadResult result) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("enabled", Boolean.valueOf(result.isEnabled()));
@@ -622,6 +792,13 @@ public class DashboardMcpService {
         return map;
     }
 
+    /**
+     * 检查Server。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param baselineInitial baselineInitial 参数。
+     * @return 返回Server结果。
+     */
     private McpCheckState checkServer(String serverId, boolean baselineInitial) throws Exception {
         String previousHash = "";
         String previousToolsJson = "";
@@ -747,6 +924,12 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行delete，服务于控制台MCP主流程相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回delete结果。
+     */
     public Map<String, Object> delete(String serverId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -761,6 +944,12 @@ public class DashboardMcpService {
         return Collections.singletonMap("ok", true);
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map结果。
+     */
     private Map<String, Object> map(ResultSet resultSet) throws Exception {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("server_id", resultSet.getString("server_id"));
@@ -786,6 +975,13 @@ public class DashboardMcpService {
         return map;
     }
 
+    /**
+     * 执行persisted安全映射相关逻辑。
+     *
+     * @param status 状态参数。
+     * @param lastError last错误参数。
+     * @return 返回persisted安全Map结果。
+     */
     private Map<String, Object> persistedSecurityMap(String status, String lastError) {
         Map<String, Object> security = new LinkedHashMap<String, Object>();
         boolean blocked = "blocked".equals(StrUtil.nullToEmpty(status));
@@ -797,6 +993,12 @@ public class DashboardMcpService {
         return security;
     }
 
+    /**
+     * 执行inferPersisted安全原因相关逻辑。
+     *
+     * @param lastError last错误参数。
+     * @return 返回infer Persisted安全Reason结果。
+     */
     private String inferPersistedSecurityReason(String lastError) {
         String value = StrUtil.nullToEmpty(lastError);
         if (value.contains("OSV endpoint is unsafe")) {
@@ -808,15 +1010,34 @@ public class DashboardMcpService {
         return "blocked";
     }
 
+    /**
+     * 执行read相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @return 返回read结果。
+     */
     private String read(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行JSON相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回JSON结果。
+     */
     private String json(Object value) {
         return value == null ? null : ONode.serialize(value);
     }
 
+    /**
+     * 执行解析相关逻辑。
+     *
+     * @param json JSON参数。
+     * @return 返回parse结果。
+     */
     private Object parse(String json) {
         if (StrUtil.isBlank(json)) {
             return null;
@@ -828,11 +1049,25 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 脱敏Parsed。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Parsed结果。
+     */
     @SuppressWarnings("unchecked")
     private Object redactParsed(Object value) {
         return redactParsed(value, false, "");
     }
 
+    /**
+     * 脱敏Parsed。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param sensitiveContext sensitive上下文上下文。
+     * @param key 配置键或映射键。
+     * @return 返回Parsed结果。
+     */
     @SuppressWarnings("unchecked")
     private Object redactParsed(Object value, boolean sensitiveContext, String key) {
         if (value instanceof String) {
@@ -864,6 +1099,12 @@ public class DashboardMcpService {
         return value;
     }
 
+    /**
+     * 判断是否Sensitive键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Sensitive键满足条件则返回 true，否则返回 false。
+     */
     private boolean isSensitiveKey(String key) {
         String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase();
         return normalized.contains("api_key")
@@ -880,6 +1121,12 @@ public class DashboardMcpService {
                 || normalized.contains("authorization");
     }
 
+    /**
+     * 判断是否Sensitive展示键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Sensitive展示键满足条件则返回 true，否则返回 false。
+     */
     private boolean isSensitiveDisplayKey(String key) {
         String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase();
         return normalized.length() == 0
@@ -893,6 +1140,13 @@ public class DashboardMcpService {
                 || isSensitiveKey(normalized);
     }
 
+    /**
+     * 执行as布尔值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallback 兜底参数。
+     * @return 返回as Boolean结果。
+     */
     private boolean asBoolean(Object value, boolean fallback) {
         if (value == null) {
             return fallback;
@@ -903,6 +1157,13 @@ public class DashboardMcpService {
         return "true".equalsIgnoreCase(String.valueOf(value)) || "1".equals(String.valueOf(value));
     }
 
+    /**
+     * 检查Package安全。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param args 工具或命令参数。
+     * @return 返回Package安全结果。
+     */
     private McpPackageSecurityService.SecurityVerdict checkPackageSecurity(
             String command, Object args) {
         if (packageSecurityService == null) {
@@ -911,6 +1172,12 @@ public class DashboardMcpService {
         return packageSecurityService.check(command, args);
     }
 
+    /**
+     * 执行安全映射相关逻辑。
+     *
+     * @param verdict 判定参数。
+     * @return 返回安全Map结果。
+     */
     private Map<String, Object> securityMap(McpPackageSecurityService.SecurityVerdict verdict) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("allowed", verdict == null || verdict.isAllowed());
@@ -923,6 +1190,12 @@ public class DashboardMcpService {
         return map;
     }
 
+    /**
+     * 执行哈希相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回hash结果。
+     */
     private String hash(String value) {
         if (StrUtil.isBlank(value)) {
             return "";
@@ -940,6 +1213,12 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行oauth映射相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回oauth Map结果。
+     */
     private Map<String, Object> oauthMap(String serverId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -962,6 +1241,13 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 更新OAuth 认证。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param oauth oauth 参数。
+     * @param now 当前时间戳。
+     */
     private void updateOAuth(String serverId, Map<String, Object> oauth, long now)
             throws Exception {
         Connection connection = database.openConnection();
@@ -982,6 +1268,12 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 解析Map。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的Map。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseMap(String json) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -992,6 +1284,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 清理OAuth 认证。
+     *
+     * @param oauth oauth 参数。
+     * @return 返回OAuth 认证结果。
+     */
     private Map<String, Object> sanitizeOAuth(Map<String, Object> oauth) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (oauth == null) {
@@ -1013,6 +1311,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 判断是否密钥OAuth 认证键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果密钥OAuth 认证键满足条件则返回 true，否则返回 false。
+     */
     private boolean isSecretOAuthKey(String key) {
         return "access_token".equals(key)
                 || "refresh_token".equals(key)
@@ -1022,6 +1326,12 @@ public class DashboardMcpService {
                 || "code_verifier".equals(key);
     }
 
+    /**
+     * 判断是否OAuth 认证展示Error键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果OAuth 认证展示Error键满足条件则返回 true，否则返回 false。
+     */
     private boolean isOAuthDisplayErrorKey(String key) {
         return "error".equals(key)
                 || "error_description".equals(key)
@@ -1033,6 +1343,11 @@ public class DashboardMcpService {
                 || "authorizationError".equals(key);
     }
 
+    /**
+     * 清理OAuth 认证Secrets。
+     *
+     * @param oauth oauth 参数。
+     */
     private void clearOAuthSecrets(Map<String, Object> oauth) {
         oauth.remove("access_token");
         oauth.remove("refresh_token");
@@ -1044,6 +1359,17 @@ public class DashboardMcpService {
         oauth.remove("expires");
     }
 
+    /**
+     * 执行exchangeOAuth 认证Code相关逻辑。
+     *
+     * @param tokenEndpoint tokenEndpoint 参数。
+     * @param clientId client标识。
+     * @param redirectUri 文件或目录路径参数。
+     * @param code code 参数。
+     * @param codeVerifier codeVerifier 参数。
+     * @param oauth oauth 参数。
+     * @return 返回exchange OAuth 认证Code结果。
+     */
     private Map<String, Object> exchangeOAuthCode(
             String tokenEndpoint,
             String clientId,
@@ -1089,6 +1415,15 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行exchange刷新token相关逻辑。
+     *
+     * @param tokenEndpoint tokenEndpoint 参数。
+     * @param clientId client标识。
+     * @param refreshToken refreshtoken参数。
+     * @param oauth oauth 参数。
+     * @return 返回exchange刷新token结果。
+     */
     private Map<String, Object> exchangeRefreshToken(
             String tokenEndpoint, String clientId, String refreshToken, Map<String, Object> oauth)
             throws Exception {
@@ -1125,6 +1460,15 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行OAuth 认证token请求。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param form form 参数。
+     * @param redirectCount 文件或目录路径参数。
+     * @param initialUrl 待校验或访问的地址参数。
+     * @return 返回OAuth 认证token请求结果。
+     */
     private HttpResponse executeOAuthTokenRequest(
             String url, String form, int redirectCount, String initialUrl) {
         assertSafeRuntimeUrl(url, "MCP OAuth token_endpoint");
@@ -1160,10 +1504,23 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 判断是否Redirect。
+     *
+     * @param status 状态参数。
+     * @return 如果Redirect满足条件则返回 true，否则返回 false。
+     */
     private boolean isRedirect(int status) {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
+    /**
+     * 解析Redirect URL。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param location location 参数。
+     * @return 返回解析后的Redirect URL。
+     */
     private String resolveRedirectUrl(String baseUrl, String location) {
         try {
             return URI.create(baseUrl).resolve(location.trim()).toString();
@@ -1175,6 +1532,13 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行sameOrigin相关逻辑。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回same Origin结果。
+     */
     private boolean sameOrigin(String initialUrl, String url) {
         try {
             URI initial = URI.create(initialUrl);
@@ -1187,6 +1551,12 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行生效端口相关逻辑。
+     *
+     * @param uri 待校验或访问的地址参数。
+     * @return 返回生效Port结果。
+     */
     private int effectivePort(URI uri) {
         if (uri.getPort() >= 0) {
             return uri.getPort();
@@ -1200,6 +1570,12 @@ public class DashboardMcpService {
         return -1;
     }
 
+    /**
+     * 合并token响应。
+     *
+     * @param oauth oauth 参数。
+     * @param tokenResponse token响应响应或执行结果。
+     */
     private void mergeTokenResponse(Map<String, Object> oauth, Map<String, Object> tokenResponse) {
         oauth.put("access_token", tokenResponse.get("access_token"));
         copyIfPresent(tokenResponse, oauth, "refresh_token");
@@ -1218,7 +1594,7 @@ public class DashboardMcpService {
                         "expires_at",
                         Long.valueOf(System.currentTimeMillis() + Math.max(0L, seconds) * 1000L));
             } catch (Exception ignored) {
-                // Keep providers with non-standard expires_in values usable.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
         Object expiresAt = firstPresent(tokenResponse, "expires_at", "expiresAt", "expires");
@@ -1227,12 +1603,26 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 复制If Present。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     * @param key 配置键或映射键。
+     */
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
         }
     }
 
+    /**
+     * 追加Form。
+     *
+     * @param form form 参数。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void appendForm(StringBuilder form, String key, String value) throws Exception {
         if (form.length() > 0) {
             form.append('&');
@@ -1240,6 +1630,12 @@ public class DashboardMcpService {
         form.append(urlEncode(key)).append('=').append(urlEncode(value));
     }
 
+    /**
+     * 生成安全展示用的token错误。
+     *
+     * @param responseBody 响应正文响应或执行结果。
+     * @return 返回safe token Error结果。
+     */
     private String safeTokenError(String responseBody) {
         if (StrUtil.isBlank(responseBody)) {
             return "";
@@ -1249,6 +1645,12 @@ public class DashboardMcpService {
         return text.length() > 500 ? text.substring(0, 500) : text;
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         String message = e == null ? "" : String.valueOf(e.getMessage());
         if (StrUtil.isBlank(message) && e != null) {
@@ -1257,10 +1659,23 @@ public class DashboardMcpService {
         return safeDisplayError(message, 500);
     }
 
+    /**
+     * 生成安全展示用的展示错误。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回safe展示Error结果。
+     */
     private String safeDisplayError(String message) {
         return safeDisplayError(message, 1000);
     }
 
+    /**
+     * 生成安全展示用的展示错误。
+     *
+     * @param message 平台消息或错误消息。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe展示Error结果。
+     */
     private String safeDisplayError(String message, int maxLength) {
         String safe = SecretRedactor.redact(StrUtil.nullToEmpty(message), maxLength);
         if (safe.length() > maxLength) {
@@ -1269,6 +1684,13 @@ public class DashboardMcpService {
         return safe;
     }
 
+    /**
+     * 执行运行时刷新映射相关逻辑。
+     *
+     * @param state 状态参数。
+     * @param action 操作参数。
+     * @return 返回运行时刷新Map结果。
+     */
     private Map<String, Object> runtimeRefreshMap(
             McpRuntimeService.McpToolRefreshResult state, String action) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -1289,6 +1711,14 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 执行needsReauth相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param reason 原因参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回needs Reauth结果。
+     */
     private Map<String, Object> needsReauth(String serverId, String reason, String message) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("server_id", serverId);
@@ -1303,6 +1733,12 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 生成安全展示用的工具Names。
+     *
+     * @param toolNames 工具Names参数。
+     * @return 返回safe工具Names结果。
+     */
     private List<String> safeToolNames(List<String> toolNames) {
         if (toolNames == null || toolNames.isEmpty()) {
             return Collections.emptyList();
@@ -1314,11 +1750,24 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 判断是否存在密钥。
+     *
+     * @param oauth oauth 参数。
+     * @param key 配置键或映射键。
+     * @return 如果密钥满足条件则返回 true，否则返回 false。
+     */
     private boolean hasSecret(Map<String, Object> oauth, String key) {
         Object value = oauth == null ? null : oauth.get(key);
         return value != null && StrUtil.isNotBlank(String.valueOf(value));
     }
 
+    /**
+     * 执行oauthAuthenticated相关逻辑。
+     *
+     * @param oauth oauth 参数。
+     * @return 返回oauth Authenticated结果。
+     */
     private boolean oauthAuthenticated(Map<String, Object> oauth) {
         if (!asBoolean(oauth.get("enabled"), false)) {
             return false;
@@ -1330,6 +1779,12 @@ public class DashboardMcpService {
         return expiresAt == null || expiresAt.longValue() > System.currentTimeMillis();
     }
 
+    /**
+     * 执行oauth状态值相关逻辑。
+     *
+     * @param oauth oauth 参数。
+     * @return 返回oauth状态Value结果。
+     */
     private String oauthStatusValue(Map<String, Object> oauth) {
         if (oauth == null || oauth.isEmpty()) {
             return "not_configured";
@@ -1347,6 +1802,12 @@ public class DashboardMcpService {
         return "authenticated";
     }
 
+    /**
+     * 执行expires时间相关逻辑。
+     *
+     * @param oauth oauth 参数。
+     * @return 返回expires时间结果。
+     */
     private Long expiresAt(Map<String, Object> oauth) {
         Object value = firstPresent(oauth, "expires_at", "expiresAt", "expires");
         if (value == null) {
@@ -1366,6 +1827,13 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行firstPresent相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Present结果。
+     */
     private Object firstPresent(Map<String, Object> map, String... keys) {
         if (map == null) {
             return null;
@@ -1378,11 +1846,24 @@ public class DashboardMcpService {
         return null;
     }
 
+    /**
+     * 执行first文本相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Text结果。
+     */
     private String firstText(Map<String, Object> map, String... keys) {
         Object value = firstPresent(map, keys);
         return string(value);
     }
 
+    /**
+     * 执行范围文本相关逻辑。
+     *
+     * @param scopes scopes 参数。
+     * @return 返回范围Text结果。
+     */
     private String scopeText(Object scopes) {
         if (scopes == null) {
             return "";
@@ -1404,6 +1885,17 @@ public class DashboardMcpService {
         return String.valueOf(scopes).replace(',', ' ').trim();
     }
 
+    /**
+     * 执行授权URL相关逻辑。
+     *
+     * @param endpoint endpoint 参数。
+     * @param clientId client标识。
+     * @param redirectUri 文件或目录路径参数。
+     * @param state 状态参数。
+     * @param codeChallenge codeChallenge 参数。
+     * @param scope scope 参数。
+     * @return 返回授权URL结果。
+     */
     private String authorizationUrl(
             String endpoint,
             String clientId,
@@ -1426,6 +1918,12 @@ public class DashboardMcpService {
         return buffer.toString();
     }
 
+    /**
+     * 执行codeChallenge相关逻辑。
+     *
+     * @param verifier verifier 参数。
+     * @return 返回code Challenge结果。
+     */
     private String codeChallenge(String verifier) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         return Base64.getUrlEncoder()
@@ -1433,16 +1931,34 @@ public class DashboardMcpService {
                 .encodeToString(digest.digest(verifier.getBytes(StandardCharsets.US_ASCII)));
     }
 
+    /**
+     * 执行randomBase64URL相关逻辑。
+     *
+     * @param bytes 字节参数。
+     * @return 返回random Base64 URL结果。
+     */
     private String randomBase64Url(int bytes) {
         byte[] data = new byte[bytes];
         new SecureRandom().nextBytes(data);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(data);
     }
 
+    /**
+     * 执行URLEncode相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回URL Encode结果。
+     */
     private String urlEncode(String value) throws Exception {
         return URLEncoder.encode(StrUtil.nullToEmpty(value), "UTF-8").replace("+", "%20");
     }
 
+    /**
+     * 执行assert安全运行时URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param label label 参数。
+     */
     private void assertSafeRuntimeUrl(String url, String label) {
         if (StrUtil.isBlank(url)) {
             return;
@@ -1469,10 +1985,22 @@ public class DashboardMcpService {
         }
     }
 
+    /**
+     * 执行string相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string结果。
+     */
     private String string(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行次数工具相关逻辑。
+     *
+     * @param toolsJson toolsJSON参数。
+     * @return 返回次数工具结果。
+     */
     private int countTools(String toolsJson) {
         Object parsed = parse(toolsJson);
         if (parsed instanceof List) {
@@ -1481,6 +2009,12 @@ public class DashboardMcpService {
         return StrUtil.isBlank(toolsJson) ? 0 : 1;
     }
 
+    /**
+     * 执行工具Names相关逻辑。
+     *
+     * @param toolsJson toolsJSON参数。
+     * @return 返回工具Names结果。
+     */
     @SuppressWarnings("unchecked")
     private List<String> toolNames(String toolsJson) {
         Object parsed = parse(toolsJson);
@@ -1502,6 +2036,13 @@ public class DashboardMcpService {
         return result;
     }
 
+    /**
+     * 执行difference相关逻辑。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 返回difference结果。
+     */
     private List<String> difference(List<String> left, List<String> right) {
         List<String> result = new ArrayList<String>();
         List<String> safeRight = right == null ? Collections.<String>emptyList() : right;
@@ -1516,16 +2057,44 @@ public class DashboardMcpService {
         return result;
     }
 
+    /** 表示MCPCheck数据，在服务、仓储和接口之间传递。 */
     private static class McpCheckState {
+        /** 记录MCPCheck中的next哈希。 */
         private final String nextHash;
+
+        /** 是否启用工具Changed。 */
         private final boolean toolsChanged;
+
+        /** 记录MCPCheck中的工具次数。 */
         private final int toolCount;
+
+        /** 保存added工具集合，维持调用顺序或去重语义。 */
         private final List<String> addedTools;
+
+        /** 保存removed工具集合，维持调用顺序或去重语义。 */
         private final List<String> removedTools;
+
+        /** 注入安全判定，用于调用对应业务能力。 */
         private final McpPackageSecurityService.SecurityVerdict securityVerdict;
+
+        /** 记录MCPCheck中的状态。 */
         private final String status;
+
+        /** 记录MCPCheck中的错误。 */
         private final String error;
 
+        /**
+         * 创建MCP Check状态实例，并注入运行所需依赖。
+         *
+         * @param nextHash next哈希参数。
+         * @param toolsChanged toolsChanged 参数。
+         * @param toolCount 工具Count参数。
+         * @param addedTools addedTools 参数。
+         * @param removedTools removedTools 参数。
+         * @param securityVerdict 待校验或访问的地址参数。
+         * @param status 状态参数。
+         * @param error 错误参数。
+         */
         private McpCheckState(
                 String nextHash,
                 boolean toolsChanged,
@@ -1551,45 +2120,101 @@ public class DashboardMcpService {
             this.error = error;
         }
 
+        /**
+         * 读取Next Hash。
+         *
+         * @return 返回读取到的Next Hash。
+         */
         private String getNextHash() {
             return nextHash;
         }
 
+        /**
+         * 判断是否工具Changed。
+         *
+         * @return 如果工具Changed满足条件则返回 true，否则返回 false。
+         */
         private boolean isToolsChanged() {
             return toolsChanged;
         }
 
+        /**
+         * 读取工具次数。
+         *
+         * @return 返回读取到的工具次数。
+         */
         private int getToolCount() {
             return toolCount;
         }
 
+        /**
+         * 读取Added工具。
+         *
+         * @return 返回读取到的Added工具。
+         */
         private List<String> getAddedTools() {
             return addedTools;
         }
 
+        /**
+         * 读取Removed工具。
+         *
+         * @return 返回读取到的Removed工具。
+         */
         private List<String> getRemovedTools() {
             return removedTools;
         }
 
+        /**
+         * 读取安全Verdict。
+         *
+         * @return 返回读取到的安全Verdict。
+         */
         private McpPackageSecurityService.SecurityVerdict getSecurityVerdict() {
             return securityVerdict;
         }
 
+        /**
+         * 读取状态。
+         *
+         * @return 返回读取到的状态。
+         */
         private String getStatus() {
             return status;
         }
 
+        /**
+         * 读取Error。
+         *
+         * @return 返回读取到的Error。
+         */
         private String getError() {
             return error;
         }
     }
 
+    /** 表示MCPReload结果，携带调用方后续判断所需信息。 */
     public static class McpReloadResult {
+        /** 标记该配置项或记录是否处于启用状态。 */
         private final boolean enabled;
+
+        /** 保存changed服务端集合，维持调用顺序或去重语义。 */
         private final List<String> changedServers;
+
+        /** 保存unchanged服务端集合，维持调用顺序或去重语义。 */
         private final List<String> unchangedServers;
+
+        /** 记录MCPReload中的工具次数。 */
         private final int toolCount;
 
+        /**
+         * 创建MCP Reload结果实例，并注入运行所需依赖。
+         *
+         * @param enabled 启用状态开关值。
+         * @param changed服务端 changed服务端 参数。
+         * @param unchanged服务端 unchanged服务端 参数。
+         * @param toolCount 工具Count参数。
+         */
         private McpReloadResult(
                 boolean enabled,
                 List<String> changedServers,
@@ -1601,18 +2226,38 @@ public class DashboardMcpService {
             this.toolCount = toolCount;
         }
 
+        /**
+         * 判断是否启用。
+         *
+         * @return 如果启用满足条件则返回 true，否则返回 false。
+         */
         public boolean isEnabled() {
             return enabled;
         }
 
+        /**
+         * 读取Changed 服务端。
+         *
+         * @return 返回读取到的Changed 服务端。
+         */
         public List<String> getChangedServers() {
             return changedServers;
         }
 
+        /**
+         * 读取Unchanged 服务端。
+         *
+         * @return 返回读取到的Unchanged 服务端。
+         */
         public List<String> getUnchangedServers() {
             return unchangedServers;
         }
 
+        /**
+         * 读取工具次数。
+         *
+         * @return 返回读取到的工具次数。
+         */
         public int getToolCount() {
             return toolCount;
         }

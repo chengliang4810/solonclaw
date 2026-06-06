@@ -25,6 +25,7 @@ public class FileContextService implements ContextService {
     /** 全局设置仓储。 */
     private final GlobalSettingRepository globalSettingRepository;
 
+    /** 注入persona工作区服务，用于调用对应业务能力。 */
     private final PersonaWorkspaceService personaWorkspaceService;
 
     /** 构造文件上下文服务。 */
@@ -53,6 +54,13 @@ public class FileContextService implements ContextService {
         return buildSystemPrompt(sourceKey, null);
     }
 
+    /**
+     * 构建System提示词。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回创建好的System提示词。
+     */
     @Override
     public String buildSystemPrompt(String sourceKey, AgentRuntimeScope agentScope) {
         StringBuilder buffer = new StringBuilder();
@@ -82,6 +90,12 @@ public class FileContextService implements ContextService {
         return buffer.toString().trim();
     }
 
+    /**
+     * 追加Agent 块。
+     *
+     * @param buffer buffer 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     */
     private void appendAgentBlock(StringBuilder buffer, AgentRuntimeScope agentScope) {
         if (agentScope == null || agentScope.isDefaultAgentName()) {
             return;
@@ -101,6 +115,12 @@ public class FileContextService implements ContextService {
                 joinNonBlank(agentScope.getMemory(), readIfExists(agentScope.getMemoryFilePath())));
     }
 
+    /**
+     * 追加Project上下文Files。
+     *
+     * @param buffer buffer 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     */
     private void appendProjectContextFiles(StringBuilder buffer, AgentRuntimeScope agentScope) {
         if (agentScope == null || !agentScope.isWorkspaceDirOverride()) {
             return;
@@ -114,6 +134,14 @@ public class FileContextService implements ContextService {
         appendProjectFile(buffer, workspaceDir, ".cursorrules", "Project .cursorrules");
     }
 
+    /**
+     * 追加Project文件。
+     *
+     * @param buffer buffer 参数。
+     * @param workspaceDir 文件或目录路径参数。
+     * @param fileName 文件或目录路径参数。
+     * @param label label 参数。
+     */
     private void appendProjectFile(
             StringBuilder buffer, String workspaceDir, String fileName, String label) {
         java.io.File file = FileUtil.file(workspaceDir, fileName);
@@ -123,6 +151,12 @@ public class FileContextService implements ContextService {
         appendBlock(buffer, label, readIfExists(file.getAbsolutePath()));
     }
 
+    /**
+     * 读取If Exists。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回读取到的If Exists。
+     */
     private String readIfExists(String path) {
         if (StrUtil.isBlank(path)) {
             return "";
@@ -135,6 +169,13 @@ public class FileContextService implements ContextService {
         }
     }
 
+    /**
+     * 执行joinNon空白值相关逻辑。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 返回join Non Blank结果。
+     */
     private String joinNonBlank(String left, String right) {
         if (StrUtil.isBlank(left)) {
             return StrUtil.nullToEmpty(right);
@@ -203,6 +244,12 @@ public class FileContextService implements ContextService {
         buffer.append("[").append(label).append("]\n").append(content.trim());
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         return SecretRedactor.redact(
                 StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);

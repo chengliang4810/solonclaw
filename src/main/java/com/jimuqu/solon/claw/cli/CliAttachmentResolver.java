@@ -21,23 +21,45 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Resolves pasted local file paths in CLI/TUI input into normal message attachments. */
+/** 承载CLI附件Resolver相关状态和辅助逻辑。 */
 public class CliAttachmentResolver {
+    /** 最大附件字节的统一常量值。 */
     private static final long MAX_ATTACHMENT_BYTES = 32L * 1024L * 1024L;
+
+    /** 最大附件路径列表的统一常量值。 */
     private static final int MAX_ATTACHMENT_PATHS = 8;
+
+    /** QUOTEDtoken的统一常量值。 */
     private static final Pattern QUOTED_TOKEN = Pattern.compile("(['\"])([^'\"\\r\\n]{2,})\\1");
+
+    /** 文件URItoken的统一常量值。 */
     private static final Pattern FILE_URI_TOKEN = Pattern.compile("(?i)(?<!\\S)file:/[^\\s'\"<>]+");
+
+    /** Windows路径token的统一常量值。 */
     private static final Pattern WINDOWS_PATH_TOKEN =
             Pattern.compile("(?<![\\p{L}\\p{N}_./\\\\-])(?:[A-Za-z]:[/\\\\][^\\s'\"<>|]+)");
+
+    /** POSIX路径token的统一常量值。 */
     private static final Pattern POSIX_PATH_TOKEN =
             Pattern.compile(
                     "(?<![A-Za-z]:)(?<![\\p{L}\\p{N}_./\\\\-])(?:~?/[A-Za-z0-9._+@%=-][^\\s'\"<>|]*)");
+
+    /** ABSOLUTE路径IN消息的统一常量值。 */
     private static final Pattern ABSOLUTE_PATH_IN_MESSAGE =
             Pattern.compile("(?:(?<=\\s)|(?<=^)|(?<==)|(?<=:))(/[A-Za-z0-9._+@%-][^\\s'\"<>|;,]*)");
 
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
 
+    /**
+     * 创建Cli附件Resolver实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public CliAttachmentResolver(
             AppConfig appConfig, AttachmentCacheService attachmentCacheService) {
         this(
@@ -47,6 +69,12 @@ public class CliAttachmentResolver {
                 new SecurityPolicyService(appConfig));
     }
 
+    /**
+     * 创建Cli附件Resolver实例，并注入运行所需依赖。
+     *
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public CliAttachmentResolver(
             AttachmentCacheService attachmentCacheService,
             SecurityPolicyService securityPolicyService) {
@@ -54,6 +82,11 @@ public class CliAttachmentResolver {
         this.securityPolicyService = securityPolicyService;
     }
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @return 返回策略Summary结果。
+     */
     public static Map<String, Object> policySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("pastedLocalPathDetection", Boolean.TRUE);
@@ -81,6 +114,12 @@ public class CliAttachmentResolver {
         return summary;
     }
 
+    /**
+     * 解析运行时需要的目标对象。
+     *
+     * @param input 输入参数。
+     * @return 返回resolve结果。
+     */
     public ResolvedInput resolve(String input) {
         String text = StrUtil.nullToEmpty(input);
         List<Candidate> candidates = findCandidates(text);
@@ -130,6 +169,12 @@ public class CliAttachmentResolver {
         return new ResolvedInput(resolvedText, attachments);
     }
 
+    /**
+     * 渲染预览。
+     *
+     * @param input 输入参数。
+     * @return 返回render Preview结果。
+     */
     public String renderPreview(String input) {
         List<AttachmentPreview> previews = preview(input);
         if (previews.isEmpty()) {
@@ -157,6 +202,12 @@ public class CliAttachmentResolver {
         return buffer.toString();
     }
 
+    /**
+     * 执行预览相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回preview结果。
+     */
     public List<AttachmentPreview> preview(String input) {
         String text = StrUtil.nullToEmpty(input);
         List<Candidate> candidates = findCandidates(text);
@@ -195,6 +246,12 @@ public class CliAttachmentResolver {
         return previews;
     }
 
+    /**
+     * 查找Candidates。
+     *
+     * @param input 输入参数。
+     * @return 返回Candidates结果。
+     */
     private List<Candidate> findCandidates(String input) {
         Set<String> seen = new LinkedHashSet<String>();
         List<Candidate> candidates = new ArrayList<Candidate>();
@@ -212,6 +269,13 @@ public class CliAttachmentResolver {
         return unique;
     }
 
+    /**
+     * 追加Matches。
+     *
+     * @param candidates candidates标识或键值。
+     * @param matcher matcher 参数。
+     * @param group group 参数。
+     */
     private void addMatches(List<Candidate> candidates, Matcher matcher, int group) {
         while (matcher.find() && candidates.size() < MAX_ATTACHMENT_PATHS) {
             String value = group <= 0 ? matcher.group() : matcher.group(group);
@@ -222,6 +286,12 @@ public class CliAttachmentResolver {
         }
     }
 
+    /**
+     * 解析Candidate。
+     *
+     * @param candidate candidate标识或键值。
+     * @return 返回解析后的Candidate。
+     */
     private File resolveCandidate(String candidate) {
         String value = stripWrappingQuotes(StrUtil.nullToEmpty(candidate).trim());
         if (value.length() == 0) {
@@ -247,6 +317,12 @@ public class CliAttachmentResolver {
         }
     }
 
+    /**
+     * 判断是否具有本地文件token特征。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回looks Like本地文件token结果。
+     */
     private boolean looksLikeLocalFileToken(String value) {
         String text = stripWrappingQuotes(value);
         if (text.length() == 0) {
@@ -261,6 +337,12 @@ public class CliAttachmentResolver {
         return text.startsWith("/") || text.startsWith("~/");
     }
 
+    /**
+     * 执行expand用户主渠道相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回expand用户主渠道结果。
+     */
     private String expandUserHome(String value) {
         String home = System.getProperty("user.home");
         if (StrUtil.isBlank(home)) {
@@ -275,6 +357,12 @@ public class CliAttachmentResolver {
         return value;
     }
 
+    /**
+     * 剥离WrappingQuotes。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Wrapping Quotes结果。
+     */
     private String stripWrappingQuotes(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (text.length() >= 2) {
@@ -287,6 +375,14 @@ public class CliAttachmentResolver {
         return text;
     }
 
+    /**
+     * 执行replacetoken相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @param token token 参数。
+     * @param replacement replacement 参数。
+     * @return 返回replace token结果。
+     */
     private String replaceToken(String text, String token, String replacement) {
         if (StrUtil.isBlank(token)) {
             return text;
@@ -298,6 +394,12 @@ public class CliAttachmentResolver {
         return text.replace(stripWrappingQuotes(token), replacement);
     }
 
+    /**
+     * 剥离TrailingPunctuation。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Trailing Punctuation结果。
+     */
     private String stripTrailingPunctuation(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         while (text.length() > 0) {
@@ -311,6 +413,12 @@ public class CliAttachmentResolver {
         return text;
     }
 
+    /**
+     * 执行展示名称相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回展示名称结果。
+     */
     private String displayName(String path) {
         String value = stripWrappingQuotes(StrUtil.nullToEmpty(path).trim());
         if (StrUtil.isBlank(value)) {
@@ -330,31 +438,63 @@ public class CliAttachmentResolver {
         return FileUtil.file(value).getName();
     }
 
+    /**
+     * 生成安全展示用的消息。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe消息结果。
+     */
     private static String safeMessage(String value) {
         String result = SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
-        // Redact any remaining file paths in the message (e.g. path=/some/absolute/path)
+        // 兜底遮蔽消息中残留的绝对路径，例如 path=/some/absolute/path。
         result = ABSOLUTE_PATH_IN_MESSAGE.matcher(result).replaceAll("[REDACTED_PATH]");
         return result;
     }
 
+    /**
+     * 生成安全展示用的名称。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe名称结果。
+     */
     private static String safeName(String value) {
         return SecretRedactor.redact(StrUtil.blankToDefault(value, "-"), 400);
     }
 
+    /** 承载Candidate相关状态和辅助逻辑。 */
     private static class Candidate {
+        /** 记录Candidate中的originaltoken。 */
         private final String originalToken;
+
+        /** 记录Candidate中的路径。 */
         private final String path;
 
+        /**
+         * 创建Candidate实例，并注入运行所需依赖。
+         *
+         * @param originalToken originaltoken参数。
+         * @param path 文件或目录路径。
+         */
         private Candidate(String originalToken, String path) {
             this.originalToken = StrUtil.nullToEmpty(originalToken).trim();
             this.path = StrUtil.nullToEmpty(path).trim();
         }
     }
 
+    /** 承载Resolved输入相关状态和辅助逻辑。 */
     public static class ResolvedInput {
+        /** 记录Resolved输入中的文本。 */
         private final String text;
+
+        /** 保存附件集合，维持调用顺序或去重语义。 */
         private final List<MessageAttachment> attachments;
 
+        /**
+         * 创建Resolved输入实例，并注入运行所需依赖。
+         *
+         * @param text 待处理文本。
+         * @param attachments attachments 参数。
+         */
         public ResolvedInput(String text, List<MessageAttachment> attachments) {
             this.text = StrUtil.nullToEmpty(text);
             this.attachments =
@@ -363,23 +503,55 @@ public class CliAttachmentResolver {
                             : new ArrayList<MessageAttachment>(attachments);
         }
 
+        /**
+         * 读取Text。
+         *
+         * @return 返回读取到的Text。
+         */
         public String getText() {
             return text;
         }
 
+        /**
+         * 读取附件。
+         *
+         * @return 返回读取到的附件。
+         */
         public List<MessageAttachment> getAttachments() {
             return new ArrayList<MessageAttachment>(attachments);
         }
     }
 
+    /** 承载附件预览相关状态和辅助逻辑。 */
     public static class AttachmentPreview {
+        /** 记录附件预览中的状态。 */
         private final String status;
+
+        /** 记录附件预览中的名称。 */
         private final String name;
+
+        /** 记录附件预览中的kind。 */
         private final String kind;
+
+        /** 记录附件预览中的MIME 类型。 */
         private final String mimeType;
+
+        /** 记录附件预览中的大小字节。 */
         private final long sizeBytes;
+
+        /** 记录附件预览中的消息。 */
         private final String message;
 
+        /**
+         * 创建附件Preview实例，并注入运行所需依赖。
+         *
+         * @param status 状态参数。
+         * @param name 名称参数。
+         * @param kind kind 参数。
+         * @param mimeType MIME 类型参数。
+         * @param sizeBytes size字节参数。
+         * @param message 平台消息或错误消息。
+         */
         private AttachmentPreview(
                 String status,
                 String name,
@@ -395,43 +567,100 @@ public class CliAttachmentResolver {
             this.message = safeMessage(message);
         }
 
+        /**
+         * 执行allowed相关逻辑。
+         *
+         * @param name 名称参数。
+         * @param kind kind 参数。
+         * @param mimeType MIME 类型参数。
+         * @param sizeBytes size字节参数。
+         * @return 返回allowed结果。
+         */
         public static AttachmentPreview allowed(
                 String name, String kind, String mimeType, long sizeBytes) {
             return new AttachmentPreview("allowed", name, kind, mimeType, sizeBytes, "");
         }
 
+        /**
+         * 执行阻断相关逻辑。
+         *
+         * @param name 名称参数。
+         * @param message 平台消息或错误消息。
+         * @return 返回blocked结果。
+         */
         public static AttachmentPreview blocked(String name, String message) {
             return new AttachmentPreview("blocked", name, "-", "-", -1L, message);
         }
 
+        /**
+         * 执行missing相关逻辑。
+         *
+         * @param name 名称参数。
+         * @return 返回missing结果。
+         */
         public static AttachmentPreview missing(String name) {
             return new AttachmentPreview("missing", name, "-", "-", -1L, "文件不存在或不可读取");
         }
 
+        /**
+         * 读取状态。
+         *
+         * @return 返回读取到的状态。
+         */
         public String getStatus() {
             return status;
         }
 
+        /**
+         * 读取名称。
+         *
+         * @return 返回读取到的名称。
+         */
         public String getName() {
             return name;
         }
 
+        /**
+         * 读取Kind。
+         *
+         * @return 返回读取到的Kind。
+         */
         public String getKind() {
             return kind;
         }
 
+        /**
+         * 读取Mime类型。
+         *
+         * @return 返回读取到的Mime类型。
+         */
         public String getMimeType() {
             return mimeType;
         }
 
+        /**
+         * 读取大小Bytes。
+         *
+         * @return 返回读取到的大小Bytes。
+         */
         public long getSizeBytes() {
             return sizeBytes;
         }
 
+        /**
+         * 读取大小Text。
+         *
+         * @return 返回读取到的大小Text。
+         */
         public String getSizeText() {
             return sizeBytes < 0L ? "-" : String.valueOf(sizeBytes);
         }
 
+        /**
+         * 读取消息。
+         *
+         * @return 返回读取到的消息。
+         */
         public String getMessage() {
             return message;
         }

@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.io.File;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
@@ -23,12 +25,12 @@ public class AppConfigProviderLoadTest {
 
         assertThat(config.getProviders()).containsKeys("default", "local-ollama");
         assertThat(config.getModel().getProviderKey()).isEqualTo("default");
-        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
-        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
         assertThat(config.getSecurity().getHardlineAllowlist())
                 .containsExactly("hardline_shutdown", "hardline_windows_shutdown");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
         assertThat(config.getTerminal().getMaxForegroundTimeoutSeconds()).isEqualTo(600);
@@ -91,6 +93,48 @@ public class AppConfigProviderLoadTest {
                 .isEqualTo(Boolean.FALSE);
         assertThat(config.getFallbackProviders()).hasSize(1);
         assertThat(config.getFallbackProviders().get(0).getProvider()).isEqualTo("backup");
+    }
+
+    @Test
+    void shouldResolveEffectiveProviderFromRuntimeConfigAfterTerminalSetupWrites()
+            throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-provider-runtime").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  default:\n"
+                        + "    name: 启动配置\n"
+                        + "    baseUrl: https://startup.example.com\n"
+                        + "    apiKey: startup-key\n"
+                        + "    defaultModel: gpt-5.4\n"
+                        + "    dialect: openai-responses\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: \"\"\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        resolver.setFileValue("providers.default.name", "本地运行时配置");
+        resolver.setFileValue("providers.default.baseUrl", "https://api.xiaomimimo.com/v1");
+        resolver.setFileValue("providers.default.apiKey", "runtime-key");
+        resolver.setFileValue("providers.default.defaultModel", "mimo-v2.5-pro");
+        resolver.setFileValue("providers.default.dialect", "openai");
+        resolver.setFileValue("model.providerKey", "default");
+        resolver.setFileValue("model.default", "mimo-v2.5-pro");
+
+        LlmProviderService.ResolvedProvider resolved =
+                new LlmProviderService(config).resolveEffectiveProvider(null);
+
+        assertThat(resolved.getProviderKey()).isEqualTo("default");
+        assertThat(resolved.getLabel()).isEqualTo("本地运行时配置");
+        assertThat(resolved.getBaseUrl()).isEqualTo("https://api.xiaomimimo.com/v1");
+        assertThat(resolved.getApiUrl()).isEqualTo("https://api.xiaomimimo.com/v1/chat/completions");
+        assertThat(resolved.getApiKey()).isEqualTo("runtime-key");
+        assertThat(resolved.getDialect()).isEqualTo("openai");
+        assertThat(resolved.getModel()).isEqualTo("mimo-v2.5-pro");
     }
 
     @Test

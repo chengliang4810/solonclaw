@@ -22,11 +22,29 @@ import org.noear.solon.annotation.Param;
 /** MessagingTools 实现。 */
 @RequiredArgsConstructor
 public class MessagingTools {
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 记录Messaging中的来源键。 */
     private final String sourceKey;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入应用配置，用于Messaging。 */
     private final AppConfig appConfig;
 
+    /**
+     * 发送消息。
+     *
+     * @param platform 平台参数。
+     * @param chatId 聊天标识。
+     * @param threadId thread标识。
+     * @param text 待处理文本。
+     * @param mediaPaths 文件或目录路径参数。
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回消息结果。
+     */
     @ToolMapping(
             name = "send_message",
             description =
@@ -107,6 +125,16 @@ public class MessagingTools {
                 .toJson();
     }
 
+    /**
+     * 发送消息。
+     *
+     * @param platform 平台参数。
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     * @param mediaPaths 文件或目录路径参数。
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回消息结果。
+     */
     public String sendMessage(
             String platform,
             String chatId,
@@ -117,14 +145,34 @@ public class MessagingTools {
         return sendMessage(platform, chatId, null, text, mediaPaths, channelExtrasJson);
     }
 
+    /**
+     * 执行错误相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回error结果。
+     */
     private String error(String message) {
         return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
     }
 
+    /**
+     * 生成安全展示用的结果。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safeResult(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 解析附件。
+     *
+     * @param platform 平台参数。
+     * @param mediaPaths 文件或目录路径参数。
+     * @return 返回解析后的附件。
+     */
     private List<MessageAttachment> resolveAttachments(
             PlatformType platform, List<String> mediaPaths) {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
@@ -144,6 +192,12 @@ public class MessagingTools {
         return attachments;
     }
 
+    /**
+     * 解析附件文件。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 返回解析后的附件文件。
+     */
     private File resolveAttachmentFile(String rawPath) {
         File direct = new File(rawPath);
         if (direct.isFile()) {
@@ -165,6 +219,12 @@ public class MessagingTools {
         return direct.isAbsolute() ? direct : workspaceFile;
     }
 
+    /**
+     * 执行兜底Candidates相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @return 返回兜底Candidates结果。
+     */
     private List<File> fallbackCandidates(String fileName) {
         List<File> candidates = new ArrayList<File>();
         if (appConfig != null && appConfig.getRuntime() != null) {
@@ -178,6 +238,12 @@ public class MessagingTools {
         return candidates;
     }
 
+    /**
+     * 解析渠道Extras。
+     *
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回解析后的渠道Extras。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseChannelExtras(String channelExtrasJson) {
         if (StrUtil.isBlank(channelExtrasJson)) {

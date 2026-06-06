@@ -5,73 +5,160 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import java.util.Map;
 
-/** Controls active Agent runs without exposing engine implementation details. */
+/** 定义Agent运行Control的抽象契约，供不同运行时实现保持一致行为。 */
 public interface AgentRunControlService {
-    /** Request cancellation of the active run for a gateway source. */
+    /**
+     * 停止当前组件并释放运行状态。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回stop结果。
+     */
     AgentRunStopResult stop(String sourceKey);
 
-    /** Request cancellation of an active sibling run in the same gateway thread. */
+    /**
+     * 停止Sibling Thread运行。
+     *
+     * @param message 平台消息或错误消息。
+     * @param ownSourceKey own来源键标识或键值。
+     * @return 返回Sibling Thread运行结果。
+     */
     default AgentRunStopResult stopSiblingThreadRun(GatewayMessage message, String ownSourceKey) {
         return AgentRunStopResult.none();
     }
 
-    /** Whether the gateway source currently has an active run. */
+    /**
+     * 判断是否Running。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 如果Running满足条件则返回 true，否则返回 false。
+     */
     boolean isRunning(String sourceKey);
 
-    /** Whether any source currently has an active run. */
+    /**
+     * 判断是否存在Running运行。
+     *
+     * @return 如果Running运行满足条件则返回 true，否则返回 false。
+     */
     default boolean hasRunningRuns() {
         return false;
     }
 
-    /** Activity summary for the active run of a gateway source. */
+    /**
+     * 执行active运行摘要相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回active运行Summary结果。
+     */
     default Map<String, Object> activeRunSummary(String sourceKey) {
         return null;
     }
 
-    /** Number of currently active source runs. */
+    /**
+     * 执行running运行次数相关逻辑。
+     *
+     * @return 返回running运行次数结果。
+     */
     default int runningRunCount() {
         return hasRunningRuns() ? 1 : 0;
     }
 
-    /** Request cancellation of every currently active run. */
+    /**
+     * 停止全部Running运行。
+     *
+     * @return 返回全部Running运行结果。
+     */
     default int stopAllRunningRuns() {
         return 0;
     }
 
-    /** Request cancellation of every active run and optionally mark them resumable. */
+    /**
+     * 停止全部Running运行。
+     *
+     * @param resumeReason resume原因参数。
+     * @return 返回全部Running运行结果。
+     */
     default int stopAllRunningRuns(String resumeReason) {
         return stopAllRunningRuns();
     }
 
-    /** Last time any run finished. A zero value means no completed run is known. */
+    /**
+     * 执行last运行Finished时间相关逻辑。
+     *
+     * @return 返回last运行Finished时间结果。
+     */
     default long lastRunFinishedAt() {
         return 0L;
     }
 
+    /**
+     * 执行coordinate入站消息相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @return 返回coordinate Incoming结果。
+     */
     default RunBusyDecision coordinateIncoming(
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
         return RunBusyDecision.runNow("queue");
     }
 
+    /**
+     * 加入队列入站消息。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @return 返回queue Incoming结果。
+     */
     default RunBusyDecision queueIncoming(
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
         return RunBusyDecision.runNow("queue");
     }
 
+    /**
+     * 执行steer入站消息相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @return 返回steer Incoming结果。
+     */
     default RunBusyDecision steerIncoming(
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
         return RunBusyDecision.runNow("steer");
     }
 
+    /**
+     * 执行控制运行相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @param command 待执行或解析的命令文本。
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回control运行结果。
+     */
     default Map<String, Object> controlRun(
             String runId, String command, Map<String, Object> payload) throws Exception {
         throw new UnsupportedOperationException("run control unavailable");
     }
 
+    /**
+     * 消费Steer指令。
+     *
+     * @param runId 运行标识。
+     * @return 返回consume Steer Instruction结果。
+     */
     default String consumeSteerInstruction(String runId) {
         return null;
     }
 
+    /**
+     * 响应运行Finished事件。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runner runner 参数。
+     */
     default void onRunFinished(
             String sourceKey,
             String sessionId,

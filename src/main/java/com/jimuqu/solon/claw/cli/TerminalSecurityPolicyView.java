@@ -21,15 +21,29 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import java.util.Map;
 
-/** Read-only security policy summary for local terminal commands. */
+/** 呈现终端安全策略交互视图，封装终端侧输入输出细节。 */
 public final class TerminalSecurityPolicyView {
+    /** 创建终端安全策略视图实例。 */
     private TerminalSecurityPolicyView() {}
 
+    /**
+     * 判断是否安全命令。
+     *
+     * @param input 输入参数。
+     * @return 如果安全命令满足条件则返回 true，否则返回 false。
+     */
     public static boolean isSecurityCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim().toLowerCase(java.util.Locale.ROOT);
         return "/security".equals(value) || value.startsWith("/security ");
     }
 
+    /**
+     * 执行render相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param input 输入参数。
+     * @return 返回render结果。
+     */
     public static String render(AppConfig appConfig, String input) {
         AppConfig config = appConfig == null ? new AppConfig() : appConfig;
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(config);
@@ -154,6 +168,12 @@ public final class TerminalSecurityPolicyView {
         return renderAudit(securityPolicyService, approvalService, config);
     }
 
+    /**
+     * 执行模式相关逻辑。
+     *
+     * @param input 输入参数。
+     * @return 返回模式结果。
+     */
     private static String mode(String input) {
         String value = StrUtil.nullToEmpty(input).trim().toLowerCase(java.util.Locale.ROOT);
         if (value.length() <= "/security".length()) {
@@ -278,6 +298,14 @@ public final class TerminalSecurityPolicyView {
         return "audit";
     }
 
+    /**
+     * 渲染审计。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param config 当前模块使用的配置对象。
+     * @return 返回render审计结果。
+     */
     private static String renderAudit(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
@@ -341,6 +369,14 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染策略状态。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param config 当前模块使用的配置对象。
+     * @return 返回render策略状态。
+     */
     private static String renderPolicyStatus(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
@@ -383,6 +419,14 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染策略。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param config 当前模块使用的配置对象。
+     * @return 返回render策略结果。
+     */
     private static String renderPolicy(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
@@ -549,6 +593,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染审批策略。
+     *
+     * @param approval 审批参数。
+     * @return 返回render审批策略结果。
+     */
     private static String renderApprovalPolicy(Map<String, Object> approval) {
         StringBuilder buffer = new StringBuilder("审批策略摘要：");
         appendApprovalLine(buffer, approval);
@@ -584,6 +634,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染斜杠命令Confirm策略。
+     *
+     * @param slash 斜杠命令参数。
+     * @return 返回render Slash Confirm策略结果。
+     */
     private static String renderSlashConfirmPolicy(Map<String, Object> slash) {
         StringBuilder buffer = new StringBuilder("Slash 确认策略摘要：");
         buffer.append('\n')
@@ -610,6 +666,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染审批卡片策略。
+     *
+     * @param card 卡片参数。
+     * @return 返回render审批Card策略结果。
+     */
     private static String renderApprovalCardPolicy(Map<String, Object> card) {
         StringBuilder buffer = new StringBuilder("审批卡策略摘要：");
         buffer.append('\n')
@@ -652,6 +714,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染审批审计策略。
+     *
+     * @param audit audit 参数。
+     * @return 返回render审批审计策略结果。
+     */
     private static String renderApprovalAuditPolicy(Map<String, Object> audit) {
         StringBuilder buffer = new StringBuilder("审批审计策略摘要：");
         buffer.append('\n')
@@ -687,6 +755,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染MCPReload审批策略。
+     *
+     * @param reload reload 参数。
+     * @return 返回render MCP Reload审批策略结果。
+     */
     private static String renderMcpReloadApprovalPolicy(Map<String, Object> reload) {
         StringBuilder buffer = new StringBuilder("MCP 重载审批策略摘要：");
         buffer.append('\n')
@@ -722,6 +796,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染审批生命周期策略。
+     *
+     * @param lifecycle lifecycle 参数。
+     * @return 返回render审批生命周期策略结果。
+     */
     private static String renderApprovalLifecyclePolicy(Map<String, Object> lifecycle) {
         StringBuilder buffer = new StringBuilder("审批生命周期策略摘要：");
         buffer.append('\n')
@@ -769,6 +849,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染Hardline策略。
+     *
+     * @param hardline hardline 参数。
+     * @return 返回render Hardline策略结果。
+     */
     private static String renderHardlinePolicy(Map<String, Object> hardline) {
         StringBuilder buffer = new StringBuilder("硬阻断命令策略摘要：");
         buffer.append('\n')
@@ -791,6 +877,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染终端防护策略。
+     *
+     * @param guardrail 护栏参数。
+     * @return 返回render终端防护策略结果。
+     */
     private static String renderTerminalGuardrailPolicy(Map<String, Object> guardrail) {
         StringBuilder buffer = new StringBuilder("终端护栏策略摘要：");
         buffer.append('\n')
@@ -846,6 +938,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染Tirith策略。
+     *
+     * @param tirith tirith 参数。
+     * @return 返回render Tirith策略结果。
+     */
     private static String renderTirithPolicy(Map<String, Object> tirith) {
         StringBuilder buffer = new StringBuilder("Tirith 安全策略摘要：");
         buffer.append('\n')
@@ -872,6 +970,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染Tirith审批策略。
+     *
+     * @param tirith tirith 参数。
+     * @return 返回render Tirith审批策略结果。
+     */
     private static String renderTirithApprovalPolicy(Map<String, Object> tirith) {
         StringBuilder buffer = new StringBuilder("Tirith 审批策略摘要：");
         buffer.append('\n')
@@ -906,6 +1010,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染定时任务审批策略。
+     *
+     * @param cron 定时任务参数。
+     * @return 返回render定时任务审批策略结果。
+     */
     private static String renderCronApprovalPolicy(Map<String, Object> cron) {
         StringBuilder buffer = new StringBuilder("Cron 审批策略摘要：");
         buffer.append('\n')
@@ -946,6 +1056,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染子Agent审批策略。
+     *
+     * @param subagent 子Agent参数。
+     * @return 返回render Subagent审批策略结果。
+     */
     private static String renderSubagentApprovalPolicy(Map<String, Object> subagent) {
         StringBuilder buffer = new StringBuilder("子 Agent 审批策略摘要：");
         buffer.append('\n')
@@ -974,6 +1090,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染Smart审批策略。
+     *
+     * @param smart smart 参数。
+     * @return 返回render Smart审批策略结果。
+     */
     private static String renderSmartApprovalPolicy(Map<String, Object> smart) {
         StringBuilder buffer = new StringBuilder("智能审批策略摘要：");
         buffer.append('\n')
@@ -1009,6 +1131,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染URL策略。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回render URL策略结果。
+     */
     private static String renderUrlPolicy(Map<String, Object> url) {
         StringBuilder buffer = new StringBuilder("URL 安全策略摘要：");
         appendUrlLine(buffer, url);
@@ -1051,6 +1179,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染私有 URL策略。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回render私有 URL策略结果。
+     */
     private static String renderPrivateUrlPolicy(Map<String, Object> url) {
         StringBuilder buffer = new StringBuilder("私有 URL 安全策略摘要：");
         buffer.append('\n')
@@ -1086,6 +1220,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染网站策略。
+     *
+     * @param website 网站参数。
+     * @return 返回render Website策略结果。
+     */
     private static String renderWebsitePolicy(Map<String, Object> website) {
         StringBuilder buffer = new StringBuilder("网站策略摘要：");
         buffer.append('\n')
@@ -1122,6 +1262,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染路径策略。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回render路径策略结果。
+     */
     private static String renderPathPolicy(Map<String, Object> path) {
         StringBuilder buffer = new StringBuilder("路径安全策略摘要：");
         buffer.append('\n')
@@ -1165,6 +1311,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染凭据策略。
+     *
+     * @param credential 凭据参数。
+     * @return 返回render凭据策略结果。
+     */
     private static String renderCredentialPolicy(Map<String, Object> credential) {
         StringBuilder buffer = new StringBuilder("凭据文件策略摘要：");
         buffer.append('\n')
@@ -1196,6 +1348,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染技能凭据策略。
+     *
+     * @param skillCredential 技能凭据参数。
+     * @return 返回render技能凭据策略结果。
+     */
     private static String renderSkillCredentialPolicy(Map<String, Object> skillCredential) {
         StringBuilder buffer = new StringBuilder("技能凭据文件安全策略摘要：");
         buffer.append('\n')
@@ -1237,6 +1395,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染工具参数策略。
+     *
+     * @param toolArgs 工具Args参数。
+     * @return 返回render工具参数策略结果。
+     */
     private static String renderToolArgsPolicy(Map<String, Object> toolArgs) {
         StringBuilder buffer = new StringBuilder("工具参数安全策略摘要：");
         buffer.append('\n')
@@ -1283,6 +1447,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染MCP策略。
+     *
+     * @param mcp MCP参数。
+     * @return 返回render MCP策略结果。
+     */
     private static String renderMcpPolicy(Map<String, Object> mcp) {
         StringBuilder buffer = new StringBuilder("MCP 安全策略摘要：");
         buffer.append('\n')
@@ -1307,6 +1477,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染MCPOAuth 认证策略。
+     *
+     * @param oauth oauth 参数。
+     * @return 返回render MCP OAuth 认证策略结果。
+     */
     private static String renderMcpOAuthPolicy(Map<String, Object> oauth) {
         StringBuilder buffer = new StringBuilder("MCP OAuth 安全策略摘要：");
         buffer.append('\n')
@@ -1344,6 +1520,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染MCP包策略。
+     *
+     * @param mcpPackage MCP包参数。
+     * @return 返回render MCP Package策略结果。
+     */
     private static String renderMcpPackagePolicy(Map<String, Object> mcpPackage) {
         StringBuilder buffer = new StringBuilder("MCP 包安全策略摘要：");
         buffer.append('\n')
@@ -1392,6 +1574,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染审计工具策略。
+     *
+     * @param auditTool audit工具参数。
+     * @return 返回render审计工具策略结果。
+     */
     private static String renderAuditToolPolicy(Map<String, Object> auditTool) {
         StringBuilder buffer = new StringBuilder("安全审计工具策略摘要：");
         buffer.append('\n')
@@ -1427,6 +1615,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染结构策略。
+     *
+     * @param schema schema 参数。
+     * @return 返回render结构策略结果。
+     */
     private static String renderSchemaPolicy(Map<String, Object> schema) {
         StringBuilder buffer = new StringBuilder("工具 schema 安全策略摘要：");
         buffer.append('\n')
@@ -1446,6 +1640,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染附件策略。
+     *
+     * @param attachment 附件参数。
+     * @return 返回render附件策略结果。
+     */
     private static String renderAttachmentPolicy(Map<String, Object> attachment) {
         StringBuilder buffer = new StringBuilder("附件下载安全策略摘要：");
         buffer.append('\n')
@@ -1465,6 +1665,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染工具结果策略。
+     *
+     * @param toolResults 工具Results响应或执行结果。
+     * @return 返回render工具结果策略结果。
+     */
     private static String renderToolResultPolicy(Map<String, Object> toolResults) {
         StringBuilder buffer = new StringBuilder("工具输出安全策略摘要：");
         buffer.append('\n')
@@ -1500,6 +1706,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染终端Paste策略。
+     *
+     * @param paste paste 参数。
+     * @return 返回render终端Paste策略结果。
+     */
     private static String renderTerminalPastePolicy(Map<String, Object> paste) {
         StringBuilder buffer = new StringBuilder("终端粘贴附件安全策略摘要：");
         buffer.append('\n')
@@ -1536,6 +1748,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染媒体缓存策略。
+     *
+     * @param cache 缓存参数。
+     * @return 返回render媒体缓存策略结果。
+     */
     private static String renderMediaCachePolicy(Map<String, Object> cache) {
         StringBuilder buffer = new StringBuilder("媒体缓存安全策略摘要：");
         buffer.append('\n')
@@ -1562,6 +1780,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染补丁策略。
+     *
+     * @param patch 补丁参数。
+     * @return 返回render Patch策略结果。
+     */
     private static String renderPatchPolicy(Map<String, Object> patch) {
         StringBuilder buffer = new StringBuilder("补丁工具安全策略摘要：");
         buffer.append('\n')
@@ -1588,6 +1812,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染CodeExecution策略。
+     *
+     * @param code code 参数。
+     * @return 返回render Code Execution策略结果。
+     */
     private static String renderCodeExecutionPolicy(Map<String, Object> code) {
         StringBuilder buffer = new StringBuilder("代码执行安全策略摘要：");
         buffer.append('\n')
@@ -1614,6 +1844,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染子进程环境变量策略。
+     *
+     * @param env 环境变量参数。
+     * @return 返回render子进程Env策略结果。
+     */
     private static String renderSubprocessEnvPolicy(Map<String, Object> env) {
         StringBuilder buffer = new StringBuilder("子进程环境安全策略摘要：");
         buffer.append('\n')
@@ -1647,6 +1883,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染终端输出策略。
+     *
+     * @param output 命令执行输出文本。
+     * @return 返回render终端输出策略结果。
+     */
     private static String renderTerminalOutputPolicy(Map<String, Object> output) {
         StringBuilder buffer = new StringBuilder("终端输出安全策略摘要：");
         buffer.append('\n')
@@ -1690,6 +1932,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染sudo策略。
+     *
+     * @param sudo sudo 参数。
+     * @return 返回render Sudo策略结果。
+     */
     private static String renderSudoPolicy(Map<String, Object> sudo) {
         StringBuilder buffer = new StringBuilder("sudo 改写安全策略摘要：");
         buffer.append('\n')
@@ -1716,6 +1964,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 渲染进程策略。
+     *
+     * @param process 进程参数。
+     * @return 返回render进程策略结果。
+     */
     private static String renderProcessPolicy(Map<String, Object> process) {
         StringBuilder buffer = new StringBuilder("后台进程安全策略摘要：");
         buffer.append('\n')
@@ -1751,6 +2005,12 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    /**
+     * 追加审批Line。
+     *
+     * @param buffer buffer 参数。
+     * @param approval 审批参数。
+     */
     private static void appendApprovalLine(StringBuilder buffer, Map<String, Object> approval) {
         buffer.append('\n')
                 .append("- 审批：mode=")
@@ -1763,6 +2023,12 @@ public final class TerminalSecurityPolicyView {
                 .append(value(approval, "hardlineRuleCount"));
     }
 
+    /**
+     * 追加URL Line。
+     *
+     * @param buffer buffer 参数。
+     * @param url 待校验或访问的 URL。
+     */
     private static void appendUrlLine(StringBuilder buffer, Map<String, Object> url) {
         buffer.append('\n')
                 .append("- URL：privateAllowed=")
@@ -1775,6 +2041,12 @@ public final class TerminalSecurityPolicyView {
                 .append(value(url, "dnsResolutionRequired"));
     }
 
+    /**
+     * 追加Extended策略Lines。
+     *
+     * @param buffer buffer 参数。
+     * @param config 当前模块使用的配置对象。
+     */
     private static void appendExtendedPolicyLines(StringBuilder buffer, AppConfig config) {
         Map<String, Object> mcp = McpRuntimeService.policySummary(config);
         buffer.append('\n')
@@ -1842,6 +2114,12 @@ public final class TerminalSecurityPolicyView {
                 .append(value(toolResults, "persistedOutputRedacted"));
     }
 
+    /**
+     * 执行工具结果Storage摘要相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @return 返回工具结果Storage Summary结果。
+     */
     private static Map<String, Object> toolResultStorageSummary(AppConfig config) {
         ToolResultStorageService storage =
                 new ToolResultStorageService(
@@ -1852,12 +2130,25 @@ public final class TerminalSecurityPolicyView {
         return storage.policySummary();
     }
 
+    /**
+     * 执行sudo密码已配置相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @return 返回sudo密码Configured结果。
+     */
     private static boolean sudoPasswordConfigured(AppConfig config) {
         return config != null
                 && config.getTerminal() != null
                 && StrUtil.isNotBlank(config.getTerminal().getSudoPassword());
     }
 
+    /**
+     * 执行值相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param key 配置键或映射键。
+     * @return 返回value结果。
+     */
     private static String value(Map<String, Object> map, String key) {
         Object value = map == null ? null : map.get(key);
         return value == null ? "-" : String.valueOf(value);

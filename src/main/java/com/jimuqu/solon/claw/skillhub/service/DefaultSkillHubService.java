@@ -37,17 +37,45 @@ import org.slf4j.LoggerFactory;
 
 /** 默认 Skills Hub 服务。 */
 public class DefaultSkillHubService implements SkillHubService {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(DefaultSkillHubService.class);
 
+    /** 记录默认技能中心中的repo根用户。 */
     private final File repoRoot;
+
+    /** 记录默认技能中心中的技能目录。 */
     private final File skillsDir;
+
+    /** 注入技能导入服务，用于调用对应业务能力。 */
     private final SkillImportService skillImportService;
+
+    /** 注入技能保护服务，用于调用对应业务能力。 */
     private final SkillGuardService skillGuardService;
+
+    /** 记录默认技能中心中的状态Store。 */
     private final SkillHubStateStore stateStore;
+
+    /** 记录默认技能中心中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
+
+    /** 记录默认技能中心中的git中心认证。 */
     private final GitHubAuth gitHubAuth;
+
+    /** 记录默认技能中心中的git中心技能来源。 */
     private final GitHubSkillSource gitHubSkillSource;
 
+    /**
+     * 创建默认技能中心服务实例，并注入运行所需依赖。
+     *
+     * @param repoRoot repoRoot 参数。
+     * @param skillsDir 文件或目录路径参数。
+     * @param skillImportService 技能Import服务依赖。
+     * @param skillGuardService 技能防护服务依赖。
+     * @param stateStore 状态Store参数。
+     * @param httpClient HTTPClient参数。
+     * @param gitHubAuth gitHub鉴权参数。
+     * @param gitHubSkillSource gitHub技能来源参数。
+     */
     public DefaultSkillHubService(
             File repoRoot,
             File skillsDir,
@@ -67,6 +95,14 @@ public class DefaultSkillHubService implements SkillHubService {
         this.gitHubSkillSource = gitHubSkillSource;
     }
 
+    /**
+     * 执行browse相关逻辑。
+     *
+     * @param sourceFilter 来源过滤器参数。
+     * @param page page 参数。
+     * @param pageSize pageSize 参数。
+     * @return 返回browse结果。
+     */
     @Override
     public SkillBrowseResult browse(String sourceFilter, int page, int pageSize) throws Exception {
         SourceCollectResult collected =
@@ -88,6 +124,14 @@ public class DefaultSkillHubService implements SkillHubService {
         return result;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param sourceFilter 来源过滤器参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public SkillBrowseResult search(String query, String sourceFilter, int limit) throws Exception {
         SourceCollectResult collected = collectFromSources(query, sourceFilter, limit);
@@ -100,6 +144,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return result;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) throws Exception {
         for (SkillSource source : sources()) {
@@ -114,6 +164,14 @@ public class DefaultSkillHubService implements SkillHubService {
         return null;
     }
 
+    /**
+     * 执行install相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @param category 分类参数。
+     * @param force force 参数。
+     * @return 返回install结果。
+     */
     @Override
     public HubInstallRecord install(String identifier, String category, boolean force)
             throws Exception {
@@ -129,11 +187,22 @@ public class DefaultSkillHubService implements SkillHubService {
         throw new IllegalStateException("Skill not found in any source: " + identifier);
     }
 
+    /**
+     * 列出Installed。
+     *
+     * @return 返回Installed列表。
+     */
     @Override
     public List<HubInstallRecord> listInstalled() {
         return stateStore.listInstalled();
     }
 
+    /**
+     * 执行check相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回check结果。
+     */
     @Override
     public List<HubInstallRecord> check(String name) throws Exception {
         List<HubInstallRecord> results = new ArrayList<HubInstallRecord>();
@@ -159,6 +228,13 @@ public class DefaultSkillHubService implements SkillHubService {
         return results;
     }
 
+    /**
+     * 执行更新相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param force force 参数。
+     * @return 返回更新结果。
+     */
     @Override
     public List<HubInstallRecord> update(String name, boolean force) throws Exception {
         List<HubInstallRecord> updated = new ArrayList<HubInstallRecord>();
@@ -173,6 +249,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return updated;
     }
 
+    /**
+     * 执行审计相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回审计结果。
+     */
     @Override
     public List<ScanResult> audit(String name) throws Exception {
         List<ScanResult> results = new ArrayList<ScanResult>();
@@ -188,6 +270,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return results;
     }
 
+    /**
+     * 执行uninstall相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回uninstall结果。
+     */
     @Override
     public String uninstall(String name) {
         HubInstallRecord record = stateStore.getInstalled(name);
@@ -215,11 +303,23 @@ public class DefaultSkillHubService implements SkillHubService {
         return "Uninstalled " + name;
     }
 
+    /**
+     * 列出Taps。
+     *
+     * @return 返回Taps列表。
+     */
     @Override
     public List<TapRecord> listTaps() {
         return stateStore.listTaps();
     }
 
+    /**
+     * 追加来源库。
+     *
+     * @param repo repo 参数。
+     * @param path 文件或目录路径。
+     * @return 返回add Tap结果。
+     */
     @Override
     public String addTap(String repo, String path) {
         if (StrUtil.isBlank(repo) || !repo.contains("/")) {
@@ -239,6 +339,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return "Added tap: " + repo;
     }
 
+    /**
+     * 移除Tap。
+     *
+     * @param repo repo 参数。
+     * @return 返回Tap结果。
+     */
     @Override
     public String removeTap(String repo) {
         List<TapRecord> taps = new ArrayList<TapRecord>(stateStore.listTaps());
@@ -256,6 +362,14 @@ public class DefaultSkillHubService implements SkillHubService {
         return "Removed tap: " + repo;
     }
 
+    /**
+     * 收集From Sources。
+     *
+     * @param query 查询参数。
+     * @param sourceFilter 来源过滤器参数。
+     * @param limit 最大返回数量。
+     * @return 返回From Sources结果。
+     */
     private SourceCollectResult collectFromSources(String query, String sourceFilter, int limit)
             throws Exception {
         List<SkillMeta> results = new ArrayList<SkillMeta>();
@@ -294,6 +408,13 @@ public class DefaultSkillHubService implements SkillHubService {
         List<SkillMeta> deduped = new ArrayList<SkillMeta>(unique.values());
         deduped.sort(
                 new Comparator<SkillMeta>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(SkillMeta left, SkillMeta right) {
                         int rank =
@@ -311,6 +432,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return new SourceCollectResult(deduped, failedSources);
     }
 
+    /**
+     * 拉取FromRecorded来源。
+     *
+     * @param record 记录参数。
+     * @return 返回fetch From Recorded来源结果。
+     */
     private SkillBundle fetchFromRecordedSource(HubInstallRecord record) throws Exception {
         for (SkillSource source : sources()) {
             if (record.getSource().equals(source.sourceId())) {
@@ -320,6 +447,11 @@ public class DefaultSkillHubService implements SkillHubService {
         return null;
     }
 
+    /**
+     * 执行sources相关逻辑。
+     *
+     * @return 返回sources结果。
+     */
     protected List<SkillSource> sources() {
         List<SkillSource> sources = new ArrayList<SkillSource>();
         sources.add(new OfficialSkillSource(repoRoot));
@@ -335,6 +467,13 @@ public class DefaultSkillHubService implements SkillHubService {
         return sources;
     }
 
+    /**
+     * 判断是否匹配来源过滤器。
+     *
+     * @param source 来源参数。
+     * @param identifier identifier标识或键值。
+     * @return 返回matches来源Filter结果。
+     */
     private boolean matchesSourceFilter(SkillSource source, String identifier) {
         String normalized = StrUtil.nullToEmpty(identifier);
         String sourceId = source.sourceId();
@@ -359,6 +498,13 @@ public class DefaultSkillHubService implements SkillHubService {
         return false;
     }
 
+    /**
+     * 规范化Identifier For来源。
+     *
+     * @param source 来源参数。
+     * @param identifier identifier标识或键值。
+     * @return 返回Identifier For来源结果。
+     */
     private String normalizeIdentifierForSource(SkillSource source, String identifier) {
         String normalized = StrUtil.nullToEmpty(identifier);
         if ("well-known".equals(source.sourceId())) {
@@ -371,6 +517,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return normalized;
     }
 
+    /**
+     * 执行斜杠命令次数相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回slash次数结果。
+     */
     private int slashCount(String value) {
         int count = 0;
         for (int i = 0; i < value.length(); i++) {
@@ -381,6 +533,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return count;
     }
 
+    /**
+     * 执行trustRank相关逻辑。
+     *
+     * @param trustLevel trustLevel 参数。
+     * @return 返回trust Rank结果。
+     */
     private int trustRank(String trustLevel) {
         if ("builtin".equals(trustLevel)) {
             return 3;
@@ -394,6 +552,12 @@ public class DefaultSkillHubService implements SkillHubService {
         return 0;
     }
 
+    /**
+     * 克隆记录。
+     *
+     * @param record 记录参数。
+     * @return 返回clone记录结果。
+     */
     private HubInstallRecord cloneRecord(HubInstallRecord record) {
         HubInstallRecord copy = new HubInstallRecord();
         copy.setName(record.getName());
@@ -408,11 +572,23 @@ public class DefaultSkillHubService implements SkillHubService {
         return copy;
     }
 
+    /**
+     * 执行deriveCategory相关逻辑。
+     *
+     * @param installPath 文件或目录路径参数。
+     * @return 返回derive Category结果。
+     */
     private String deriveCategory(String installPath) {
         int index = installPath.lastIndexOf('/');
         return index < 0 ? null : installPath.substring(0, index);
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";
@@ -422,10 +598,20 @@ public class DefaultSkillHubService implements SkillHubService {
         return SecretRedactor.redact(value, 1000);
     }
 
+    /** 表示来源Collect结果，携带调用方后续判断所需信息。 */
     private static class SourceCollectResult {
+        /** 保存items集合，维持调用顺序或去重语义。 */
         private final List<SkillMeta> items;
+
+        /** 保存failedSources集合，维持调用顺序或去重语义。 */
         private final List<String> failedSources;
 
+        /**
+         * 创建来源Collect结果实例，并注入运行所需依赖。
+         *
+         * @param items items 参数。
+         * @param failedSources failedSources 参数。
+         */
         private SourceCollectResult(List<SkillMeta> items, List<String> failedSources) {
             this.items = items;
             this.failedSources = failedSources;

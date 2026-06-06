@@ -62,30 +62,88 @@ import org.noear.snack4.ONode;
 
 /** Dashboard 统一诊断服务。 */
 public class DashboardDiagnosticsService {
+    /** RECOVERABLE运行ITEM限制的统一常量值。 */
     private static final int RECOVERABLE_RUN_ITEM_LIMIT = 5;
+
+    /** RECOVERABLE运行SCAN限制的统一常量值。 */
     private static final int RECOVERABLE_RUN_SCAN_LIMIT = 100;
+
+    /** 进程SNAPSHOT限制的统一常量值。 */
     private static final int PROCESS_SNAPSHOT_LIMIT = 5;
+
+    /** 进程生命周期事件限制的统一常量值。 */
     private static final int PROCESS_LIFECYCLE_EVENT_LIMIT = 10;
 
+    /** 注入应用配置，用于控制台诊断。 */
     private final AppConfig appConfig;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
+
+    /** 记录控制台诊断中的工具注册表。 */
     private final ToolRegistry toolRegistry;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 记录控制台诊断中的对话编排器。 */
     private final ConversationOrchestrator conversationOrchestrator;
+
+    /** 保存审批审计仓储依赖，用于访问持久化数据。 */
     private final ApprovalAuditRepository approvalAuditRepository;
+
+    /** 注入斜杠命令Confirm服务，用于调用对应业务能力。 */
     private final SlashConfirmService slashConfirmService;
+
+    /** 注入命令服务，用于调用对应业务能力。 */
     private final CommandService commandService;
+
+    /** 注入审批服务，用于调用对应业务能力。 */
     private final DangerousCommandApprovalService approvalService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 注入tirith安全服务，用于调用对应业务能力。 */
     private final TirithSecurityService tirithSecurityService;
+
+    /** 注入工具结果Storage服务，用于调用对应业务能力。 */
     private final ToolResultStorageService toolResultStorageService;
+
+    /** 注入关闭Forensics服务，用于调用对应业务能力。 */
     private final ShutdownForensicsService shutdownForensicsService;
+
+    /** 注入运行时记忆Monitor服务，用于调用对应业务能力。 */
     private final RuntimeMemoryMonitorService runtimeMemoryMonitorService;
+
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
+
+    /** 记录控制台诊断中的进程注册表。 */
     private final ProcessRegistry processRegistry;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -119,6 +177,23 @@ public class DashboardDiagnosticsService {
                 null);
     }
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -152,6 +227,24 @@ public class DashboardDiagnosticsService {
                 null);
     }
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -186,6 +279,25 @@ public class DashboardDiagnosticsService {
                 null);
     }
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     * @param runtimeMemoryMonitorService 运行时记忆Monitor服务依赖。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -221,6 +333,26 @@ public class DashboardDiagnosticsService {
                 null);
     }
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     * @param runtimeMemoryMonitorService 运行时记忆Monitor服务依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -258,6 +390,27 @@ public class DashboardDiagnosticsService {
                 null);
     }
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     * @param runtimeMemoryMonitorService 运行时记忆Monitor服务依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -297,6 +450,28 @@ public class DashboardDiagnosticsService {
                 null);
     }
 
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     * @param runtimeMemoryMonitorService 运行时记忆Monitor服务依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     */
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
@@ -336,6 +511,11 @@ public class DashboardDiagnosticsService {
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
     }
 
+    /**
+     * 执行诊断相关逻辑。
+     *
+     * @return 返回诊断结果。
+     */
     public Map<String, Object> diagnostics() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("runtime", runtime());
@@ -349,6 +529,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行安全审计相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回安全审计结果。
+     */
     @SuppressWarnings("unchecked")
     public Map<String, Object> securityAudit(Map<String, Object> body) {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
@@ -379,6 +565,12 @@ public class DashboardDiagnosticsService {
         return fallback;
     }
 
+    /**
+     * 执行子进程EnvironmentProbe相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回子进程Environment Probe结果。
+     */
     public Map<String, Object> subprocessEnvironmentProbe(Map<String, Object> body) {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         List<String> requestedNames = envProbeNames(input.get("names"));
@@ -397,6 +589,13 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行子进程EnvironmentProbe摘要相关逻辑。
+     *
+     * @param requestedNames requestedNames请求载荷。
+     * @param decisions decisions 参数。
+     * @return 返回子进程Environment Probe Summary结果。
+     */
     private String subprocessEnvironmentProbeSummary(
             List<String> requestedNames, List<Map<String, Object>> decisions) {
         if (requestedNames == null || requestedNames.isEmpty()) {
@@ -438,6 +637,12 @@ public class DashboardDiagnosticsService {
                 + "。";
     }
 
+    /**
+     * 执行待恢复Approvals相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回pending Approvals结果。
+     */
     public Map<String, Object> pendingApprovals(int limit) throws Exception {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         int sessionScanLimit = Math.max(effectiveLimit, Math.min(effectiveLimit * 5, 300));
@@ -489,6 +694,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 解析审批。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回解析后的审批。
+     */
     public Map<String, Object> resolveApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         String sessionId = text(input, "sessionId");
@@ -541,6 +752,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行审批历史相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回审批历史结果。
+     */
     public Map<String, Object> approvalHistory(int limit) throws Exception {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
@@ -562,6 +779,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行alwaysApprovals相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回always Approvals结果。
+     */
     public Map<String, Object> alwaysApprovals(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
@@ -583,6 +806,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行revokeAlways审批相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回revoke Always审批结果。
+     */
     public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         String approval =
@@ -604,6 +833,12 @@ public class DashboardDiagnosticsService {
         return resolveResult(true, "ok", "长期授权已撤销。", null);
     }
 
+    /**
+     * 执行待恢复斜杠命令Confirms相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回pending Slash Confirms结果。
+     */
     public Map<String, Object> pendingSlashConfirms(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
@@ -625,6 +860,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 解析Slash Confirm。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回解析后的Slash Confirm。
+     */
     public Map<String, Object> resolveSlashConfirm(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         String sourceKey = text(input, "sourceKey");
@@ -663,6 +904,11 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行运行时相关逻辑。
+     *
+     * @return 返回运行时结果。
+     */
     private Map<String, Object> runtime() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("home", runtimeReference(appConfig.getRuntime().getHome()));
@@ -678,6 +924,11 @@ public class DashboardDiagnosticsService {
         return map;
     }
 
+    /**
+     * 执行配置刷新摘要相关逻辑。
+     *
+     * @return 返回配置刷新Summary结果。
+     */
     private Map<String, Object> configRefreshSummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put(
@@ -688,6 +939,11 @@ public class DashboardDiagnosticsService {
         return summary;
     }
 
+    /**
+     * 执行managed进程摘要相关逻辑。
+     *
+     * @return 返回managed进程Summary结果。
+     */
     private Map<String, Object> managedProcessSummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("available", Boolean.valueOf(processRegistry != null));
@@ -722,6 +978,12 @@ public class DashboardDiagnosticsService {
         return summary;
     }
 
+    /**
+     * 执行控制台Managed进程Snapshot相关逻辑。
+     *
+     * @param managed managed 参数。
+     * @return 返回控制台Managed进程Snapshot结果。
+     */
     private Map<String, Object> dashboardManagedProcessSnapshot(
             ProcessRegistry.ManagedProcess managed) {
         Map<String, Object> source = managed.toRedactedMap();
@@ -751,12 +1013,24 @@ public class DashboardDiagnosticsService {
         return snapshot;
     }
 
+    /**
+     * 复制If Present。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     * @param key 配置键或映射键。
+     */
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
         }
     }
 
+    /**
+     * 执行记忆Monitor摘要相关逻辑。
+     *
+     * @return 返回记忆Monitor Summary结果。
+     */
     private Map<String, Object> memoryMonitorSummary() {
         if (runtimeMemoryMonitorService == null) {
             Map<String, Object> summary = new LinkedHashMap<String, Object>();
@@ -767,6 +1041,11 @@ public class DashboardDiagnosticsService {
         return runtimeMemoryMonitorService.status();
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @return 返回运行结果。
+     */
     private Map<String, Object> runs() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("available", Boolean.valueOf(agentRunRepository != null));
@@ -798,6 +1077,12 @@ public class DashboardDiagnosticsService {
         return summary;
     }
 
+    /**
+     * 执行recoverable运行Item相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回recoverable运行Item结果。
+     */
     private Map<String, Object> recoverableRunItem(AgentRunRecord record) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("run_id", safeAuditPreview(record == null ? null : record.getRunId(), 200));
@@ -819,6 +1104,11 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 关闭摘要。
+     *
+     * @return 返回shutdown Summary结果。
+     */
     private Map<String, Object> shutdownSummary() {
         if (shutdownForensicsService == null) {
             return unavailableShutdownSummary();
@@ -841,17 +1131,34 @@ public class DashboardDiagnosticsService {
         return summary;
     }
 
+    /**
+     * 执行unavailable关闭摘要相关逻辑。
+     *
+     * @return 返回unavailable Shutdown Summary结果。
+     */
     private Map<String, Object> unavailableShutdownSummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("available", Boolean.FALSE);
         return summary;
     }
 
+    /**
+     * 生成安全展示用的Object文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe Object Text结果。
+     */
     private String safeObjectText(Object value, int maxLength) {
         return SecretRedactor.redact(
                 StrUtil.nullToEmpty(value == null ? null : String.valueOf(value)), maxLength);
     }
 
+    /**
+     * 执行providers相关逻辑。
+     *
+     * @return 返回providers结果。
+     */
     private List<Map<String, Object>> providers() {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
@@ -868,6 +1175,11 @@ public class DashboardDiagnosticsService {
         return items;
     }
 
+    /**
+     * 执行channels相关逻辑。
+     *
+     * @return 返回channels结果。
+     */
     private List<Map<String, Object>> channels() {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (ChannelStatus status : deliveryService.statuses()) {
@@ -889,6 +1201,11 @@ public class DashboardDiagnosticsService {
         return items;
     }
 
+    /**
+     * 执行流健康检查相关逻辑。
+     *
+     * @return 返回stream健康检查结果。
+     */
     private Map<String, Object> streamHealth() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         AppConfig.ProviderConfig provider =
@@ -952,6 +1269,11 @@ public class DashboardDiagnosticsService {
         return summary;
     }
 
+    /**
+     * 执行工具相关逻辑。
+     *
+     * @return 返回工具结果。
+     */
     private Map<String, Object> tools() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("count", toolRegistry.listToolNames().size());
@@ -961,6 +1283,11 @@ public class DashboardDiagnosticsService {
         return map;
     }
 
+    /**
+     * 执行工具Policies相关逻辑。
+     *
+     * @return 返回工具Policies结果。
+     */
     private Map<String, Object> toolPolicies() {
         Map<String, Object> policies = new LinkedHashMap<String, Object>();
         policies.put("schema_sanitizer", safeSchemaSanitizerPolicySummary());
@@ -970,6 +1297,11 @@ public class DashboardDiagnosticsService {
         return policies;
     }
 
+    /**
+     * 执行附件Policies相关逻辑。
+     *
+     * @return 返回附件Policies结果。
+     */
     private Map<String, Object> attachmentPolicies() {
         Map<String, Object> policies = new LinkedHashMap<String, Object>();
         policies.put("download_io", safeAttachmentDownloadPolicySummary());
@@ -978,6 +1310,11 @@ public class DashboardDiagnosticsService {
         return policies;
     }
 
+    /**
+     * 执行MCP相关逻辑。
+     *
+     * @return 返回MCP结果。
+     */
     private Map<String, Object> mcp() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("enabled", appConfig.getMcp().isEnabled());
@@ -988,6 +1325,11 @@ public class DashboardDiagnosticsService {
         return map;
     }
 
+    /**
+     * 执行安全相关逻辑。
+     *
+     * @return 返回安全结果。
+     */
     private Map<String, Object> security() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         Map<String, Object> approvals = new LinkedHashMap<String, Object>();
@@ -1088,6 +1430,11 @@ public class DashboardDiagnosticsService {
         return map;
     }
 
+    /**
+     * 生成安全展示用的审批策略摘要。
+     *
+     * @return 返回safe审批策略Summary结果。
+     */
     private Map<String, Object> safeApprovalPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1148,6 +1495,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的Hardline策略摘要。
+     *
+     * @return 返回safe Hardline策略Summary结果。
+     */
     private Map<String, Object> safeHardlinePolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1178,6 +1530,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的定时任务审批策略摘要。
+     *
+     * @return 返回safe定时任务审批策略Summary结果。
+     */
     private Map<String, Object> safeCronApprovalPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1208,6 +1565,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的子Agent审批策略摘要。
+     *
+     * @return 返回safe Subagent审批策略Summary结果。
+     */
     private Map<String, Object> safeSubagentApprovalPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1234,6 +1596,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的Smart审批策略摘要。
+     *
+     * @return 返回safe Smart审批策略Summary结果。
+     */
     private Map<String, Object> safeSmartApprovalPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1266,6 +1633,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的Tirith审批策略摘要。
+     *
+     * @return 返回safe Tirith审批策略Summary结果。
+     */
     private Map<String, Object> safeTirithApprovalPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1292,6 +1664,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的审批生命周期策略摘要。
+     *
+     * @return 返回safe审批生命周期策略Summary结果。
+     */
     private Map<String, Object> safeApprovalLifecyclePolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1331,6 +1708,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的斜杠命令Confirm策略摘要。
+     *
+     * @return 返回safe Slash Confirm策略Summary结果。
+     */
     private Map<String, Object> safeSlashConfirmPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1375,6 +1757,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的审批卡片策略摘要。
+     *
+     * @return 返回safe审批Card策略Summary结果。
+     */
     private Map<String, Object> safeApprovalCardPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1420,6 +1807,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的审批审计策略摘要。
+     *
+     * @return 返回safe审批审计策略Summary结果。
+     */
     private Map<String, Object> safeApprovalAuditPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1449,6 +1841,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的MCPReload策略摘要。
+     *
+     * @return 返回safe MCP Reload策略Summary结果。
+     */
     private Map<String, Object> safeMcpReloadPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -1476,6 +1873,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的MCP运行时策略摘要。
+     *
+     * @return 返回safe MCP运行时策略Summary结果。
+     */
     private Map<String, Object> safeMcpRuntimePolicySummary() {
         try {
             Map<String, Object> summary = McpRuntimeService.policySummary(appConfig);
@@ -1516,6 +1918,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的MCPOAuth 认证策略摘要。
+     *
+     * @return 返回safe MCP OAuth 认证策略Summary结果。
+     */
     private Map<String, Object> safeMcpOAuthPolicySummary() {
         try {
             Map<String, Object> summary = DashboardMcpService.oauthPolicySummary();
@@ -1544,6 +1951,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的MCP包安全策略摘要。
+     *
+     * @return 返回safe MCP Package安全策略Summary结果。
+     */
     private Map<String, Object> safeMcpPackageSecurityPolicySummary() {
         try {
             Map<String, Object> summary = new McpPackageSecurityService(null).policySummary();
@@ -1577,6 +1989,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的结构清理器策略摘要。
+     *
+     * @return 返回safe结构清理器策略Summary结果。
+     */
     private Map<String, Object> safeSchemaSanitizerPolicySummary() {
         try {
             Map<String, Object> summary = SolonClawToolSchemaSanitizer.policySummary();
@@ -1600,6 +2017,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的补丁Parser策略摘要。
+     *
+     * @return 返回safe Patch Parser策略Summary结果。
+     */
     private Map<String, Object> safePatchParserPolicySummary() {
         try {
             Map<String, Object> summary = SolonClawPatchTools.patchParserPolicySummary();
@@ -1635,6 +2057,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的CodeExecution策略摘要。
+     *
+     * @return 返回safe Code Execution策略Summary结果。
+     */
     private Map<String, Object> safeCodeExecutionPolicySummary() {
         try {
             Map<String, Object> summary =
@@ -1647,6 +2074,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "workdirTextValidated");
             copyPolicyValue(summary, safe, "scriptPreflightPathPolicy");
             copyPolicyValue(summary, safe, "scriptPreflightUrlPolicy");
+            copyPolicyValue(summary, safe, "fileGuardrailMode");
+            copyPolicyValue(summary, safe, "urlGuardrailMode");
             copyPolicyValue(summary, safe, "dangerousCommandRulesApplied");
             copyPolicyValue(summary, safe, "hardlineRulesApplied");
             copyPolicyValue(summary, safe, "foregroundBackgroundGuardrail");
@@ -1676,6 +2105,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的子进程Environment策略摘要。
+     *
+     * @return 返回safe子进程Environment策略Summary结果。
+     */
     private Map<String, Object> safeSubprocessEnvironmentPolicySummary() {
         try {
             Map<String, Object> summary = SubprocessEnvironmentSanitizer.policySummary(appConfig);
@@ -1711,6 +2145,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的附件Download策略摘要。
+     *
+     * @return 返回safe附件Download策略Summary结果。
+     */
     private Map<String, Object> safeAttachmentDownloadPolicySummary() {
         try {
             Map<String, Object> summary = BoundedAttachmentIO.policySummary();
@@ -1738,6 +2177,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的附件媒体缓存策略摘要。
+     *
+     * @return 返回safe附件媒体缓存策略Summary结果。
+     */
     private Map<String, Object> safeAttachmentMediaCachePolicySummary() {
         try {
             Map<String, Object> summary = new AttachmentCacheService(appConfig).policySummary();
@@ -1763,6 +2207,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的附件终端Paste策略摘要。
+     *
+     * @return 返回safe附件终端Paste策略Summary结果。
+     */
     private Map<String, Object> safeAttachmentTerminalPastePolicySummary() {
         try {
             Map<String, Object> summary = CliAttachmentResolver.policySummary();
@@ -1792,6 +2241,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的凭据文件策略摘要。
+     *
+     * @return 返回safe凭据文件策略Summary结果。
+     */
     private Map<String, Object> safeCredentialFilePolicySummary() {
         try {
             Map<String, Object> summary = new SkillCredentialFileService(appConfig).policySummary();
@@ -1824,6 +2278,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的终端输出策略摘要。
+     *
+     * @return 返回safe终端输出策略Summary结果。
+     */
     private Map<String, Object> safeTerminalOutputPolicySummary() {
         try {
             Map<String, Object> summary =
@@ -1860,6 +2319,12 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的终端退出CodeSemantics。
+     *
+     * @param summary 摘要参数。
+     * @return 返回safe终端退出码 Semantics结果。
+     */
     private Map<String, Object> safeTerminalExitCodeSemantics(Map<String, Object> summary) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
         copyPolicyValue(summary, safe, "knownCommandCount");
@@ -1874,6 +2339,11 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的工具结果Storage策略摘要。
+     *
+     * @return 返回safe工具结果Storage策略Summary结果。
+     */
     private Map<String, Object> safeToolResultStoragePolicySummary() {
         try {
             ToolResultStorageService service =
@@ -1922,6 +2392,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的sudoRewrite策略摘要。
+     *
+     * @return 返回safe Sudo Rewrite策略Summary结果。
+     */
     private Map<String, Object> safeSudoRewritePolicySummary() {
         try {
             boolean sudoPasswordConfigured =
@@ -1949,10 +2424,21 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的Background进程策略摘要。
+     *
+     * @return 返回safe Background进程策略Summary结果。
+     */
     private Map<String, Object> safeBackgroundProcessPolicySummary() {
         return safeBackgroundProcessPolicySummary(false);
     }
 
+    /**
+     * 生成安全展示用的Background进程策略摘要。
+     *
+     * @param includeWrapperFamilies includeWrapperFamilies 参数。
+     * @return 返回safe Background进程策略Summary结果。
+     */
     private Map<String, Object> safeBackgroundProcessPolicySummary(boolean includeWrapperFamilies) {
         try {
             Map<String, Object> summary = ProcessTools.backgroundProcessPolicySummary(appConfig);
@@ -1991,6 +2477,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的终端防护策略摘要。
+     *
+     * @return 返回safe终端防护策略Summary结果。
+     */
     private Map<String, Object> safeTerminalGuardrailPolicySummary() {
         if (approvalService == null) {
             return unavailablePolicy("approval service is unavailable");
@@ -2036,6 +2527,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的URL策略摘要。
+     *
+     * @return 返回safe URL策略Summary结果。
+     */
     private Map<String, Object> safeUrlPolicySummary() {
         if (securityPolicyService == null) {
             return unavailablePolicy("url policy service is unavailable");
@@ -2086,6 +2582,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的私有 URL策略摘要。
+     *
+     * @return 返回safe私有 URL策略Summary结果。
+     */
     private Map<String, Object> safePrivateUrlPolicySummary() {
         if (securityPolicyService == null) {
             return unavailablePolicy("url policy service is unavailable");
@@ -2112,6 +2613,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的网站策略摘要。
+     *
+     * @return 返回safe Website策略Summary结果。
+     */
     private Map<String, Object> safeWebsitePolicySummary() {
         if (securityPolicyService == null) {
             return unavailablePolicy("website policy service is unavailable");
@@ -2136,6 +2642,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的路径策略摘要。
+     *
+     * @return 返回safe路径策略Summary结果。
+     */
     private Map<String, Object> safePathPolicySummary() {
         if (securityPolicyService == null) {
             return unavailablePolicy("security policy service is unavailable");
@@ -2174,6 +2685,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的凭据策略摘要。
+     *
+     * @return 返回safe凭据策略Summary结果。
+     */
     private Map<String, Object> safeCredentialPolicySummary() {
         if (securityPolicyService == null) {
             return unavailablePolicy("security policy service is unavailable");
@@ -2199,6 +2715,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的工具参数策略摘要。
+     *
+     * @return 返回safe工具参数策略Summary结果。
+     */
     private Map<String, Object> safeToolArgsPolicySummary() {
         if (securityPolicyService == null) {
             return unavailablePolicy("security policy service is unavailable");
@@ -2239,6 +2760,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的Tirith策略摘要。
+     *
+     * @return 返回safe Tirith策略Summary结果。
+     */
     private Map<String, Object> safeTirithPolicySummary() {
         if (tirithSecurityService == null) {
             return unavailablePolicy("tirith security service is unavailable");
@@ -2293,6 +2819,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 生成安全展示用的Tirith诊断。
+     *
+     * @return 返回safe Tirith诊断结果。
+     */
     private Map<String, Object> safeTirithDiagnostic() {
         if (tirithSecurityService == null) {
             return unavailablePolicy("tirith security service is unavailable");
@@ -2304,11 +2835,23 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行unavailable策略相关逻辑。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回unavailable策略结果。
+     */
     private Map<String, Object> unavailablePolicy(Exception e) {
         return unavailablePolicy(
                 StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
     }
 
+    /**
+     * 执行unavailable策略相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回unavailable策略结果。
+     */
     private Map<String, Object> unavailablePolicy(String message) {
         Map<String, Object> fallback = new LinkedHashMap<String, Object>();
         fallback.put("available", Boolean.FALSE);
@@ -2316,6 +2859,13 @@ public class DashboardDiagnosticsService {
         return fallback;
     }
 
+    /**
+     * 复制策略Value。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     * @param key 配置键或映射键。
+     */
     private static void copyPolicyValue(
             Map<String, Object> source, Map<String, Object> target, String key) {
         if (source.containsKey(key)) {
@@ -2323,6 +2873,12 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 列出大小。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回大小列表。
+     */
     private int listSize(Object value) {
         if (!(value instanceof Iterable)) {
             return 0;
@@ -2334,6 +2890,12 @@ public class DashboardDiagnosticsService {
         return count;
     }
 
+    /**
+     * 生成安全展示用的安全审计结果。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回safe安全审计结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> safeSecurityAuditResult(Map<String, Object> result) {
         if (result == null) {
@@ -2358,6 +2920,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的安全审计策略。
+     *
+     * @param policy 策略参数。
+     * @return 返回safe安全审计策略结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> safeSecurityAuditPolicy(Map<String, Object> policy) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -2381,6 +2949,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的安全审计Approvals。
+     *
+     * @param approvals approvals 参数。
+     * @return 返回safe安全审计Approvals结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> safeSecurityAuditApprovals(Map<String, Object> approvals) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -2438,6 +3012,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的安全审计安全。
+     *
+     * @param security 待校验或访问的地址参数。
+     * @return 返回safe安全审计安全结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> safeSecurityAuditSecurity(Map<String, Object> security) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -2465,6 +3045,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的安全审计终端。
+     *
+     * @param terminal 终端参数。
+     * @return 返回safe安全审计终端结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> safeSecurityAuditTerminal(Map<String, Object> terminal) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -2499,6 +3085,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的安全审计Coverage。
+     *
+     * @param coverage coverage 参数。
+     * @return 返回safe安全审计Coverage结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> safeSecurityAuditCoverage(Map<String, Object> coverage) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -2620,6 +3212,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的审批生命周期策略。
+     *
+     * @param source 来源参数。
+     * @return 返回safe审批生命周期策略结果。
+     */
     private Map<String, Object> safeApprovalLifecyclePolicy(Map<String, Object> source) {
         return filterPolicyMap(
                 source,
@@ -2651,6 +3249,12 @@ public class DashboardDiagnosticsService {
                 "encodedUrlParameterRedacted");
     }
 
+    /**
+     * 生成安全展示用的斜杠命令Confirm策略。
+     *
+     * @param source 来源参数。
+     * @return 返回safe Slash Confirm策略结果。
+     */
     private Map<String, Object> safeSlashConfirmPolicy(Map<String, Object> source) {
         return filterPolicyMap(
                 source,
@@ -2692,6 +3296,12 @@ public class DashboardDiagnosticsService {
                 "gatewayTimeoutSeconds");
     }
 
+    /**
+     * 生成安全展示用的审批卡片策略。
+     *
+     * @param source 来源参数。
+     * @return 返回safe审批Card策略结果。
+     */
     private Map<String, Object> safeApprovalCardPolicy(Map<String, Object> source) {
         return filterPolicyMap(
                 source,
@@ -2729,6 +3339,12 @@ public class DashboardDiagnosticsService {
                 "fragmentUrlParameterRedacted");
     }
 
+    /**
+     * 生成安全展示用的审批审计策略。
+     *
+     * @param source 来源参数。
+     * @return 返回safe审批审计策略结果。
+     */
     private Map<String, Object> safeApprovalAuditPolicy(Map<String, Object> source) {
         return filterPolicyMap(
                 source,
@@ -2750,6 +3366,12 @@ public class DashboardDiagnosticsService {
                 "manualRevocationAudited");
     }
 
+    /**
+     * 生成安全展示用的MCPReload策略。
+     *
+     * @param source 来源参数。
+     * @return 返回safe MCP Reload策略结果。
+     */
     private Map<String, Object> safeMcpReloadPolicy(Map<String, Object> source) {
         return filterPolicyMap(
                 source,
@@ -2769,6 +3391,12 @@ public class DashboardDiagnosticsService {
                 "reloadHistoryNoticeRedacted");
     }
 
+    /**
+     * 生成安全展示用的安全审计附件策略。
+     *
+     * @param attachment 附件参数。
+     * @return 返回safe安全审计附件策略结果。
+     */
     private Map<String, Object> safeSecurityAuditAttachmentPolicy(Map<String, Object> attachment) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
         if (attachment.get("downloadIo") instanceof Map) {
@@ -2783,6 +3411,12 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 复制审计Coverage Booleans。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     */
     private void copyAuditCoverageBooleans(Map<String, Object> source, Map<String, Object> target) {
         copyPolicyValue(source, target, "dangerousCommandApproval");
         copyPolicyValue(source, target, "configuredCredentialCommandPathApproval");
@@ -2825,6 +3459,13 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(source, target, "readOnlyAuditTool");
     }
 
+    /**
+     * 执行过滤器策略映射相关逻辑。
+     *
+     * @param source 来源参数。
+     * @param keys 候选键列表。
+     * @return 返回filter策略Map结果。
+     */
     private Map<String, Object> filterPolicyMap(Map<String, Object> source, String... keys) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
         for (String key : keys) {
@@ -2833,6 +3474,11 @@ public class DashboardDiagnosticsService {
         return safe;
     }
 
+    /**
+     * 执行安全审计策略相关逻辑。
+     *
+     * @return 返回安全审计策略结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> securityAuditPolicy() {
         Map<String, Object> fallback = new LinkedHashMap<String, Object>();
@@ -2857,6 +3503,11 @@ public class DashboardDiagnosticsService {
         return fallback;
     }
 
+    /**
+     * 执行安全策略Probes相关逻辑。
+     *
+     * @return 返回安全策略Probes结果。
+     */
     private Map<String, Object> securityPolicyProbes() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
@@ -5477,6 +6128,14 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行URLProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回URL Probe结果。
+     */
     private Map<String, Object> urlProbe(String key, String label, String url) {
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
         return policyProbeItem(
@@ -5489,6 +6148,14 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行私有 URLProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回私有 URL Probe结果。
+     */
     private Map<String, Object> privateUrlProbe(String key, String label, String url) {
         if (privateUrlsAllowedByPolicy()) {
             return skippedPolicyProbeItem(
@@ -5509,6 +6176,11 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行私聊UrlsAllowed根据策略相关逻辑。
+     *
+     * @return 返回私聊Urls Allowed根据策略结果。
+     */
     private boolean privateUrlsAllowedByPolicy() {
         try {
             Map<String, Object> summary = securityPolicyService.privateUrlPolicySummary();
@@ -5520,6 +6192,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行网站策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回website策略Probe结果。
+     */
     private Map<String, Object> websitePolicyProbe(String key, String label) {
         AppConfig.WebsiteBlocklistConfig blocklist =
                 appConfig == null || appConfig.getSecurity() == null
@@ -5545,6 +6224,15 @@ public class DashboardDiagnosticsService {
         return websitePolicyProbe(key, label, rule, url);
     }
 
+    /**
+     * 执行网站策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param rule rule 参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回website策略Probe结果。
+     */
     private Map<String, Object> websitePolicyProbe(
             String key, String label, String rule, String url) {
         AppConfig.WebsiteBlocklistConfig blocklist =
@@ -5578,6 +6266,12 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行first已配置网站Rule相关逻辑。
+     *
+     * @param blocklist blocklist 参数。
+     * @return 返回first Configured Website Rule结果。
+     */
     private String firstConfiguredWebsiteRule(AppConfig.WebsiteBlocklistConfig blocklist) {
         String direct = firstText(blocklist.getDomains());
         if (StrUtil.isNotBlank(direct)) {
@@ -5595,6 +6289,12 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行网站ProbeURL相关逻辑。
+     *
+     * @param rawRule 原始Rule参数。
+     * @return 返回website Probe URL结果。
+     */
     private String websiteProbeUrl(String rawRule) {
         String rule = StrUtil.nullToEmpty(rawRule).trim();
         if (rule.length() == 0 || rule.indexOf('*') > 0 || rule.indexOf("***") >= 0) {
@@ -5629,6 +6329,15 @@ public class DashboardDiagnosticsService {
         return "https://" + host + "/dashboard-policy-probe";
     }
 
+    /**
+     * 执行first索引相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param first first 参数。
+     * @param second second 参数。
+     * @param third third 参数。
+     * @return 返回first Index结果。
+     */
     private int firstIndex(String value, char first, char second, char third) {
         int result = -1;
         for (int i = 0; i < value.length(); i++) {
@@ -5641,10 +6350,22 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行number值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回number Value结果。
+     */
     private Number numberValue(Object value) {
         return value instanceof Number ? (Number) value : null;
     }
 
+    /**
+     * 执行first文本相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Text结果。
+     */
     private String firstText(List<String> values) {
         if (values == null) {
             return "";
@@ -5657,6 +6378,12 @@ public class DashboardDiagnosticsService {
         return "";
     }
 
+    /**
+     * 执行first文本值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回first Text Value结果。
+     */
     private String firstTextValue(Object value) {
         if (!(value instanceof List)) {
             return "";
@@ -5670,6 +6397,15 @@ public class DashboardDiagnosticsService {
         return "";
     }
 
+    /**
+     * 执行路径Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param path 文件或目录路径。
+     * @param writeLike 写入Like参数。
+     * @return 返回路径Probe结果。
+     */
     private Map<String, Object> pathProbe(
             String key, String label, String path, boolean writeLike) {
         SecurityPolicyService.FileVerdict verdict =
@@ -5684,6 +6420,14 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行workdir文本Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param workdir 命令执行工作目录。
+     * @return 返回workdir Text Probe结果。
+     */
     private Map<String, Object> workdirTextProbe(String key, String label, String workdir) {
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workdir);
         return policyProbeItem(
@@ -5696,6 +6440,14 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行工具参数URLProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回工具参数URL Probe结果。
+     */
     private Map<String, Object> toolArgsUrlProbe(String key, String label, String url) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("content", "download: " + url);
@@ -5711,6 +6463,15 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行工具参数策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     * @return 返回工具参数策略Probe结果。
+     */
     private Map<String, Object> toolArgsPolicyProbe(
             String key, String label, String toolName, Map<String, Object> args) {
         if (privateUrlsAllowedByPolicy()) {
@@ -5729,6 +6490,14 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行命令URL策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回命令URL策略Probe结果。
+     */
     private Map<String, Object> commandUrlPolicyProbe(String key, String label, String command) {
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkCommandUrls(command);
         return policyProbeItem(
@@ -5741,6 +6510,14 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行私有 URL命令策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回私有 URL命令策略Probe结果。
+     */
     private Map<String, Object> privateUrlCommandPolicyProbe(
             String key, String label, String command) {
         if (privateUrlsAllowedByPolicy()) {
@@ -5754,6 +6531,14 @@ public class DashboardDiagnosticsService {
         return commandUrlPolicyProbe(key, label, command);
     }
 
+    /**
+     * 执行命令路径策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回命令路径策略Probe结果。
+     */
     private Map<String, Object> commandPathPolicyProbe(String key, String label, String command) {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkCommandPaths(command);
@@ -5768,6 +6553,14 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行redacted命令路径Target相关逻辑。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param path 文件或目录路径。
+     * @param message 平台消息或错误消息。
+     * @return 返回redacted命令路径Target结果。
+     */
     private String redactedCommandPathTarget(String command, String path, String message) {
         if (StrUtil.isBlank(path) || !requiresCommandPathRedaction(message)) {
             return command;
@@ -5788,11 +6581,24 @@ public class DashboardDiagnosticsService {
         return redacted;
     }
 
+    /**
+     * 执行requires命令路径脱敏相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回requires命令路径脱敏结果。
+     */
     private boolean requiresCommandPathRedaction(String message) {
         String value = StrUtil.nullToEmpty(message);
         return value.contains("凭据") || value.contains("敏感");
     }
 
+    /**
+     * 生成安全展示用的路径ProbeTarget。
+     *
+     * @param path 文件或目录路径。
+     * @param message 平台消息或错误消息。
+     * @return 返回safe路径Probe Target结果。
+     */
     private String safePathProbeTarget(String path, String message) {
         if (requiresCommandPathRedaction(message)) {
             return "[REDACTED_PATH]";
@@ -5800,6 +6606,14 @@ public class DashboardDiagnosticsService {
         return safeAuditPreview(path, 400);
     }
 
+    /**
+     * 执行命令Always阻断URLProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回命令Always 块ed URL Probe结果。
+     */
     private Map<String, Object> commandAlwaysBlockedUrlProbe(
             String key, String label, String command) {
         SecurityPolicyService.UrlVerdict verdict =
@@ -5814,6 +6628,15 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行文件工具路径策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param toolName 工具名称。
+     * @param path 文件或目录路径。
+     * @return 返回文件工具路径策略Probe结果。
+     */
     private Map<String, Object> fileToolPathPolicyProbe(
             String key, String label, String toolName, String path) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -5830,10 +6653,27 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行补丁工具策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param patch 补丁参数。
+     * @return 返回patch工具策略Probe结果。
+     */
     private Map<String, Object> patchToolPolicyProbe(String key, String label, String patch) {
         return patchToolPolicyProbe(key, label, "patch", patch);
     }
 
+    /**
+     * 执行补丁工具策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param argKey arg键标识或键值。
+     * @param patch 补丁参数。
+     * @return 返回patch工具策略Probe结果。
+     */
     private Map<String, Object> patchToolPolicyProbe(
             String key, String label, String argKey, String patch) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -5851,6 +6691,13 @@ public class DashboardDiagnosticsService {
                 verdict.getMessage());
     }
 
+    /**
+     * 执行结构清理器Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回结构清理器Probe结果。
+     */
     private Map<String, Object> schemaSanitizerProbe(String key, String label) {
         String schema =
                 "{"
@@ -5897,6 +6744,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行MCP包安全Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回MCP Package安全Probe结果。
+     */
     private Map<String, Object> mcpPackageSecurityProbe(String key, String label) {
         try {
             String secret = "sk-dashboardmcppackageprobe12345";
@@ -5968,6 +6822,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行MCPOAuth 认证策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回MCP OAuth 认证策略Probe结果。
+     */
     private Map<String, Object> mcpOAuthPolicyProbe(String key, String label) {
         try {
             Map<String, Object> summary = DashboardMcpService.oauthPolicySummary();
@@ -6014,6 +6875,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行MCP工具Change策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回MCP工具Change策略Probe结果。
+     */
     private Map<String, Object> mcpToolChangePolicyProbe(String key, String label) {
         try {
             Map<String, Object> summary = McpRuntimeService.policySummary(appConfig);
@@ -6051,6 +6919,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行MCP运行时参数策略Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回MCP运行时参数策略Probe结果。
+     */
     private Map<String, Object> mcpRuntimeArgumentPolicyProbe(String key, String label) {
         try {
             Map<String, Object> summary = McpRuntimeService.policySummary(appConfig);
@@ -6092,6 +6967,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行子进程EnvironmentProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回子进程Environment Probe结果。
+     */
     private Map<String, Object> subprocessEnvironmentProbe(String key, String label) {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
@@ -6139,6 +7021,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行工具结果StorageProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回工具结果Storage Probe结果。
+     */
     private Map<String, Object> toolResultStorageProbe(String key, String label) {
         try {
             ToolResultStorageService service =
@@ -6190,6 +7079,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行控制台Probe工具结果Storage服务相关逻辑。
+     *
+     * @return 返回控制台Probe工具结果Storage服务结果。
+     */
     private ToolResultStorageService dashboardProbeToolResultStorageService() {
         String cacheDir =
                 appConfig == null || appConfig.getRuntime() == null
@@ -6198,6 +7092,13 @@ public class DashboardDiagnosticsService {
         return new ToolResultStorageService(cacheDir, 256, 200000, 300);
     }
 
+    /**
+     * 执行工具结果Retrieval脱敏Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回工具结果Retrieval脱敏Probe结果。
+     */
     private Map<String, Object> toolResultRetrievalRedactionProbe(String key, String label) {
         Path cacheDir = null;
         try {
@@ -6260,6 +7161,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行运行时Probe结果文件相关逻辑。
+     *
+     * @param cacheDir 文件或目录路径参数。
+     * @param resultRef 结果Ref响应或执行结果。
+     * @return 返回运行时Probe结果文件结果。
+     */
     private Path runtimeProbeResultFile(Path cacheDir, String resultRef) {
         String prefix = "runtime://tool-results/";
         if (cacheDir == null || !StrUtil.startWith(resultRef, prefix)) {
@@ -6277,6 +7185,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行repeat文本相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param count count 参数。
+     * @return 返回repeat Text结果。
+     */
     private String repeatText(String value, int count) {
         StringBuilder builder = new StringBuilder(StrUtil.nullToEmpty(value).length() * count);
         for (int i = 0; i < count; i++) {
@@ -6285,6 +7200,14 @@ public class DashboardDiagnosticsService {
         return builder.toString();
     }
 
+    /**
+     * 执行附件DownloadURLProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回附件Download URL Probe结果。
+     */
     private Map<String, Object> attachmentDownloadUrlProbe(String key, String label, String url) {
         boolean allowed = true;
         String message = "";
@@ -6304,6 +7227,15 @@ public class DashboardDiagnosticsService {
                 StrUtil.blankToDefault(message, allowed ? "附件下载 URL 未被阻断。" : "附件下载 URL 已被阻断。"));
     }
 
+    /**
+     * 执行附件RedirectURLProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param redirectUrl 文件或目录路径参数。
+     * @return 返回附件Redirect URL Probe结果。
+     */
     private Map<String, Object> attachmentRedirectUrlProbe(
             String key, String label, String initialUrl, String redirectUrl) {
         try {
@@ -6344,6 +7276,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行附件媒体缓存Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回附件媒体缓存Probe结果。
+     */
     private Map<String, Object> attachmentMediaCacheProbe(String key, String label) {
         File runtimeHome = null;
         try {
@@ -6414,6 +7353,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行附件终端PasteProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回附件终端Paste Probe结果。
+     */
     private Map<String, Object> attachmentTerminalPasteProbe(String key, String label) {
         File runtimeHome = null;
         try {
@@ -6501,6 +7447,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行补丁Parser路径Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回patch Parser路径Probe结果。
+     */
     private Map<String, Object> patchParserPathProbe(String key, String label) {
         Path dir = null;
         try {
@@ -6542,6 +7495,11 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 删除Probe Directory。
+     *
+     * @param dir 文件或目录路径参数。
+     */
     private void deleteProbeDirectory(Path dir) {
         if (dir == null) {
             return;
@@ -6552,15 +7510,42 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行hardline命令Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回hardline命令Probe结果。
+     */
     private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
         return hardlineCommandProbe(key, label, command, null);
     }
 
+    /**
+     * 执行hardline命令Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @param expectedPatternKey expectedPattern键标识或键值。
+     * @return 返回hardline命令Probe结果。
+     */
     private Map<String, Object> hardlineCommandProbe(
             String key, String label, String command, String expectedPatternKey) {
         return hardlineCommandProbe(key, label, command, expectedPatternKey, false);
     }
 
+    /**
+     * 执行hardline命令Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @param expectedPatternKey expectedPattern键标识或键值。
+     * @param expectedAllowed expectedAllowed 参数。
+     * @return 返回hardline命令Probe结果。
+     */
     private Map<String, Object> hardlineCommandProbe(
             String key,
             String label,
@@ -6592,6 +7577,13 @@ public class DashboardDiagnosticsService {
                 message);
     }
 
+    /**
+     * 执行sudoRewriteProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回sudo Rewrite Probe结果。
+     */
     private Map<String, Object> sudoRewriteProbe(String key, String label) {
         Path dir = null;
         String secret = "dashboard-sudo-probe-secret";
@@ -6629,6 +7621,14 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行终端防护Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回终端防护Probe结果。
+     */
     private Map<String, Object> terminalGuardrailProbe(String key, String label, String command) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(key, label, "terminal_guardrail", command, "审批服务尚未启用。");
@@ -6647,6 +7647,13 @@ public class DashboardDiagnosticsService {
                 guidance);
     }
 
+    /**
+     * 执行终端输出Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回终端输出Probe结果。
+     */
     private Map<String, Object> terminalOutputProbe(String key, String label) {
         try {
             AppConfig probeConfig = new AppConfig();
@@ -6694,6 +7701,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行background进程保护Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回background进程保护Probe结果。
+     */
     private Map<String, Object> backgroundProcessGuardProbe(String key, String label) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
@@ -6736,6 +7750,13 @@ public class DashboardDiagnosticsService {
                 message);
     }
 
+    /**
+     * 执行审批审计脱敏Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回审批审计脱敏Probe结果。
+     */
     private Map<String, Object> approvalAuditRedactionProbe(String key, String label) {
         try {
             String secret = "sk-dashboardapprovalauditprobe12345";
@@ -6798,6 +7819,14 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行tirith安全Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回tirith安全Probe结果。
+     */
     private Map<String, Object> tirithSecurityProbe(String key, String label, String command) {
         if (tirithSecurityService == null) {
             return skippedPolicyProbeItem(key, label, "tirith_security", command, "命令安全扫描服务尚未启用。");
@@ -6851,6 +7880,12 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行tirithProbeUnavailable消息相关逻辑。
+     *
+     * @param summary 摘要参数。
+     * @return 返回tirith Probe Unavailable消息结果。
+     */
     @SuppressWarnings("unchecked")
     private String tirithProbeUnavailableMessage(Map<String, Object> summary) {
         String message = "";
@@ -6867,6 +7902,16 @@ public class DashboardDiagnosticsService {
         return "命令安全扫描器不可用，跳过可执行探针。" + (StrUtil.isBlank(message) ? "" : " " + message);
     }
 
+    /**
+     * 执行审批DetectionProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @param expectedPatternKey expectedPattern键标识或键值。
+     * @return 返回审批Detection Probe结果。
+     */
     private Map<String, Object> approvalDetectionProbe(
             String key, String label, String toolName, String command, String expectedPatternKey) {
         if (approvalService == null) {
@@ -6891,6 +7936,13 @@ public class DashboardDiagnosticsService {
                 message);
     }
 
+    /**
+     * 执行codeExecutionSandboxProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回code Execution Sandbox Probe结果。
+     */
     private Map<String, Object> codeExecutionSandboxProbe(String key, String label) {
         File runtimeHome = null;
         try {
@@ -6898,10 +7950,15 @@ public class DashboardDiagnosticsService {
             AppConfig probeConfig = new AppConfig();
             probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
             probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            probeConfig.getSecurity().setFileGuardrailMode("strict");
+            probeConfig.getSecurity().setUrlGuardrailMode("strict");
+            probeConfig.getSecurity().setGuardrailMode("strict");
             SecurityPolicyService policy = new SecurityPolicyService(probeConfig);
             SolonClawCodeExecutionSkills.SafePythonSkill python =
                     new SolonClawCodeExecutionSkills.SafePythonSkill(
-                            runtimeHome.getAbsolutePath(), "python", policy);
+                            runtimeHome.getAbsolutePath(),
+                            SolonClawCodeExecutionSkills.defaultPythonCommand(),
+                            policy);
             SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
                     new SolonClawCodeExecutionSkills.SafeNodejsSkill(
                             runtimeHome.getAbsolutePath(), policy);
@@ -6932,6 +7989,17 @@ public class DashboardDiagnosticsService {
                             && Boolean.TRUE.equals(summary.get("dangerousCommandRulesApplied"))
                             && Boolean.TRUE.equals(summary.get("sandboxEnvironmentSanitized"));
             boolean passed = fileBlocked && urlBlocked && shellBlocked && policyAdvertised;
+            String message =
+                    passed
+                            ? "代码执行入口已在执行前复用文件、URL、危险命令和沙箱环境安全策略。"
+                            : "代码执行预检、危险命令或沙箱环境策略检查未通过：fileBlocked="
+                                    + fileBlocked
+                                    + ", urlBlocked="
+                                    + urlBlocked
+                                    + ", shellBlocked="
+                                    + shellBlocked
+                                    + ", policyAdvertised="
+                                    + policyAdvertised;
             return policyProbeItem(
                     key,
                     label,
@@ -6939,7 +8007,7 @@ public class DashboardDiagnosticsService {
                     true,
                     passed,
                     "execute_python, execute_js, .env, private URL, child_process",
-                    passed ? "代码执行入口已在执行前复用文件、URL、危险命令和沙箱环境安全策略。" : "代码执行预检、危险命令或沙箱环境策略检查未通过。");
+                    message);
         } catch (Exception e) {
             return policyProbeItem(
                     key,
@@ -6955,6 +8023,16 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行rejectsCode相关逻辑。
+     *
+     * @param skill 技能参数。
+     * @param code code 参数。
+     * @param expected expected 参数。
+     * @param forbidden forbidden标识或键值。
+     * @param secret 签名使用的共享密钥。
+     * @return 返回rejects Code结果。
+     */
     private boolean rejectsCode(
             SolonClawCodeExecutionSkills.SafePythonSkill skill,
             String code,
@@ -6969,6 +8047,16 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行rejectsCode相关逻辑。
+     *
+     * @param skill 技能参数。
+     * @param code code 参数。
+     * @param expected expected 参数。
+     * @param forbidden forbidden标识或键值。
+     * @param secret 签名使用的共享密钥。
+     * @return 返回rejects Code结果。
+     */
     private boolean rejectsCode(
             SolonClawCodeExecutionSkills.SafeNodejsSkill skill,
             String code,
@@ -6983,6 +8071,15 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行拒绝消息安全相关逻辑。
+     *
+     * @param e 捕获到的异常。
+     * @param expected expected 参数。
+     * @param forbidden forbidden标识或键值。
+     * @param secret 签名使用的共享密钥。
+     * @return 返回拒绝消息Safe结果。
+     */
     private boolean rejectedMessageSafe(
             Exception e, String expected, String forbidden, String secret) {
         String message = StrUtil.nullToEmpty(e.getMessage());
@@ -6991,6 +8088,13 @@ public class DashboardDiagnosticsService {
                 && (StrUtil.isBlank(secret) || !StrUtil.contains(message, secret));
     }
 
+    /**
+     * 执行审批选择器Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回审批Selector Probe结果。
+     */
     private Map<String, Object> approvalSelectorProbe(String key, String label) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
@@ -7030,6 +8134,13 @@ public class DashboardDiagnosticsService {
                 blocked ? "非法选择器与过短 key 前缀均不会命中待审批项。" : "审批选择器安全检查未通过。");
     }
 
+    /**
+     * 执行审批ExpiryCleanupProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回审批Expiry Cleanup Probe结果。
+     */
     private Map<String, Object> approvalExpiryCleanupProbe(String key, String label) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
@@ -7066,6 +8177,13 @@ public class DashboardDiagnosticsService {
                 expiredPruned ? "过期待审批项在读取前会被清理，不会继续等待审批或被误批准。" : "审批过期清理检查未通过。");
     }
 
+    /**
+     * 执行审批卡片选择器Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回审批Card Selector Probe结果。
+     */
     private Map<String, Object> approvalCardSelectorProbe(String key, String label) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
@@ -7116,6 +8234,13 @@ public class DashboardDiagnosticsService {
                 passed ? "审批卡出站编号会回退为安全 key 选择器，并生成安全确认命令。" : "审批卡选择器安全检查未通过。");
     }
 
+    /**
+     * 执行审批卡片载荷Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回审批Card Payload Probe结果。
+     */
     private Map<String, Object> approvalCardPayloadProbe(String key, String label) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
@@ -7152,6 +8277,13 @@ public class DashboardDiagnosticsService {
                 blocked ? "审批卡载荷中的非法编号会被拒绝，非法范围不会提升为永久审批。" : "审批卡载荷注入安全检查未通过。");
     }
 
+    /**
+     * 执行斜杠命令Confirm选择器Probe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回slash Confirm Selector Probe结果。
+     */
     private Map<String, Object> slashConfirmSelectorProbe(String key, String label) {
         if (slashConfirmService == null) {
             return skippedPolicyProbeItem(
@@ -7177,6 +8309,13 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行斜杠命令ConfirmExpiryProbe相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @return 返回slash Confirm Expiry Probe结果。
+     */
     private Map<String, Object> slashConfirmExpiryProbe(String key, String label) {
         if (slashConfirmService == null) {
             return skippedPolicyProbeItem(
@@ -7202,6 +8341,16 @@ public class DashboardDiagnosticsService {
                 expiredBlocked ? "过期 Slash 确认不会被消费，并会从待确认队列清理。" : "Slash 确认过期清理检查未通过。");
     }
 
+    /**
+     * 执行skipped策略ProbeItem相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param surface surface 参数。
+     * @param target target 参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回skipped策略Probe Item结果。
+     */
     private Map<String, Object> skippedPolicyProbeItem(
             String key, String label, String surface, String target, String message) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -7218,6 +8367,18 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 执行策略ProbeItem相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param label label 参数。
+     * @param surface surface 参数。
+     * @param expectedAllowed expectedAllowed 参数。
+     * @param actualAllowed actualAllowed 参数。
+     * @param target target 参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回策略Probe Item结果。
+     */
     private Map<String, Object> policyProbeItem(
             String key,
             String label,
@@ -7239,6 +8400,12 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 执行全部ProbePassed相关逻辑。
+     *
+     * @param items items 参数。
+     * @return 返回全部Probe Passed结果。
+     */
     private boolean allProbePassed(List<Map<String, Object>> items) {
         for (Map<String, Object> item : items) {
             if (!Boolean.TRUE.equals(item.get("passed"))) {
@@ -7248,6 +8415,13 @@ public class DashboardDiagnosticsService {
         return true;
     }
 
+    /**
+     * 执行待恢复审批Item相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param pending 待恢复参数。
+     * @return 返回pending审批Item结果。
+     */
     private Map<String, Object> pendingApprovalItem(
             SessionRecord session, DangerousCommandApprovalService.PendingApproval pending) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -7282,6 +8456,13 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 执行redacted文本列表相关逻辑。
+     *
+     * @param source 来源参数。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redacted Text List结果。
+     */
     private List<Object> redactedTextList(List<String> source, int maxLength) {
         List<Object> values = new ArrayList<Object>();
         if (source == null) {
@@ -7295,6 +8476,12 @@ public class DashboardDiagnosticsService {
         return values;
     }
 
+    /**
+     * 执行环境变量Probe输入相关逻辑。
+     *
+     * @param names names 参数。
+     * @return 返回env Probe输入结果。
+     */
     private Map<String, String> envProbeInput(List<String> names) {
         Map<String, String> values = new LinkedHashMap<String, String>();
         if (names == null) {
@@ -7308,6 +8495,12 @@ public class DashboardDiagnosticsService {
         return values;
     }
 
+    /**
+     * 执行环境变量ProbeNames相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回env Probe Names结果。
+     */
     private List<String> envProbeNames(Object value) {
         List<String> values = new ArrayList<String>();
         if (value instanceof List) {
@@ -7327,6 +8520,12 @@ public class DashboardDiagnosticsService {
         return values;
     }
 
+    /**
+     * 追加环境变量Probe名称。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param raw 原始输入值。
+     */
     private void addEnvProbeName(List<String> values, String raw) {
         String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw)).trim();
         if (value.length() > 0) {
@@ -7334,6 +8533,12 @@ public class DashboardDiagnosticsService {
         }
     }
 
+    /**
+     * 执行审批RuleSources相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回审批Rule Sources结果。
+     */
     private List<String> approvalRuleSources(
             DangerousCommandApprovalService.PendingApproval pending) {
         List<String> sources = new ArrayList<String>();
@@ -7352,6 +8557,12 @@ public class DashboardDiagnosticsService {
         return sources;
     }
 
+    /**
+     * 执行permanentDisabled原因相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回permanent Disabled Reason结果。
+     */
     private String permanentDisabledReason(
             DangerousCommandApprovalService.PendingApproval pending) {
         if (pending == null || pending.isPermanentApprovalAllowed()) {
@@ -7365,6 +8576,12 @@ public class DashboardDiagnosticsService {
         return "该审批项不允许长期授权。";
     }
 
+    /**
+     * 执行审批范围Options相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回审批范围Options结果。
+     */
     private List<String> approvalScopeOptions(
             DangerousCommandApprovalService.PendingApproval pending) {
         List<String> scopes = new ArrayList<String>();
@@ -7376,6 +8593,12 @@ public class DashboardDiagnosticsService {
         return scopes;
     }
 
+    /**
+     * 执行expiresInSeconds相关逻辑。
+     *
+     * @param expiresAt expiresAt 参数。
+     * @return 返回expires In Seconds结果。
+     */
     private long expiresInSeconds(long expiresAt) {
         if (expiresAt <= 0L) {
             return 0L;
@@ -7384,10 +8607,22 @@ public class DashboardDiagnosticsService {
         return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
     }
 
+    /**
+     * 判断是否Expired。
+     *
+     * @param expiresAt expiresAt 参数。
+     * @return 如果Expired满足条件则返回 true，否则返回 false。
+     */
     private boolean isExpired(long expiresAt) {
         return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
     }
 
+    /**
+     * 解析审批范围。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的审批范围。
+     */
     private DangerousCommandApprovalService.ApprovalScope parseApprovalScope(String value) {
         String normalized = StrUtil.nullToEmpty(value).trim().toLowerCase();
         if ("always".equals(normalized)) {
@@ -7399,6 +8634,15 @@ public class DashboardDiagnosticsService {
         return DangerousCommandApprovalService.ApprovalScope.ONCE;
     }
 
+    /**
+     * 解析结果。
+     *
+     * @param success success 参数。
+     * @param code code 参数。
+     * @param message 平台消息或错误消息。
+     * @param reply 回复参数。
+     * @return 返回解析后的结果。
+     */
     private Map<String, Object> resolveResult(
             boolean success, String code, String message, Map<String, Object> reply) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -7411,6 +8655,14 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行disabled列表相关逻辑。
+     *
+     * @param items items 参数。
+     * @param code code 参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回disabled List结果。
+     */
     private Map<String, Object> disabledList(
             List<Map<String, Object>> items, String code, String message) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -7422,6 +8674,12 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    /**
+     * 执行回复映射相关逻辑。
+     *
+     * @param reply 回复参数。
+     * @return 返回reply Map结果。
+     */
     private Map<String, Object> replyMap(GatewayReply reply) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("session_id", safeAuditPreview(reply.getSessionId(), 240));
@@ -7431,6 +8689,12 @@ public class DashboardDiagnosticsService {
         return map;
     }
 
+    /**
+     * 执行审批审计Item相关逻辑。
+     *
+     * @param event 事件参数。
+     * @return 返回审批审计Item结果。
+     */
     private Map<String, Object> approvalAuditItem(ApprovalAuditEvent event) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("event_id", safeAuditPreview(event.getEventId(), 120));
@@ -7452,10 +8716,23 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 生成安全展示用的审计预览。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe审计Preview结果。
+     */
     private String safeAuditPreview(String value, int maxLength) {
         return StrUtil.nullToEmpty(SecretRedactor.redact(value, maxLength));
     }
 
+    /**
+     * 执行redacted审批键相关逻辑。
+     *
+     * @param approvalKey 审批键标识或键值。
+     * @return 返回redacted审批键结果。
+     */
     private String redactedApprovalKey(String approvalKey) {
         String value = SecretRedactor.redact(StrUtil.nullToEmpty(approvalKey), 1000);
         int split = value.lastIndexOf(':');
@@ -7465,10 +8742,22 @@ public class DashboardDiagnosticsService {
         return redactedIdentifier(value);
     }
 
+    /**
+     * 执行redactedIdentifier相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回redacted Identifier结果。
+     */
     private String redactedIdentifier(String value) {
         return StrUtil.isBlank(value) ? "" : "***";
     }
 
+    /**
+     * 执行always审批Item相关逻辑。
+     *
+     * @param approval 审批参数。
+     * @return 返回always审批Item结果。
+     */
     private Map<String, Object> alwaysApprovalItem(String approval) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         String value = StrUtil.nullToEmpty(approval);
@@ -7485,6 +8774,12 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 解析Always审批。
+     *
+     * @param approvalId 审批标识。
+     * @return 返回解析后的Always审批。
+     */
     private String resolveAlwaysApproval(String approvalId) {
         if (StrUtil.isNotBlank(approvalId) && approvalService != null) {
             for (String approval : approvalService.listAlwaysApprovals()) {
@@ -7496,11 +8791,23 @@ public class DashboardDiagnosticsService {
         return "";
     }
 
+    /**
+     * 执行always审批标识相关逻辑。
+     *
+     * @param approval 审批参数。
+     * @return 返回always审批标识。
+     */
     private String alwaysApprovalId(String approval) {
         String value = StrUtil.nullToEmpty(approval);
         return value.isEmpty() ? "" : SecureUtil.sha256(value).substring(0, 24);
     }
 
+    /**
+     * 追加Always审批Revoked审计。
+     *
+     * @param approval 审批参数。
+     * @param approver approver 参数。
+     */
     private void appendAlwaysApprovalRevokedAudit(String approval, String approver) {
         if (approvalAuditRepository == null) {
             return;
@@ -7529,10 +8836,16 @@ public class DashboardDiagnosticsService {
         try {
             approvalAuditRepository.append(audit);
         } catch (Exception ignored) {
-            // Audit persistence must not affect safety-critical approval handling.
+            // 审计持久化失败不能影响安全关键的审批处理。
         }
     }
 
+    /**
+     * 执行斜杠命令ConfirmItem相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回slash Confirm Item结果。
+     */
     private Map<String, Object> slashConfirmItem(SlashConfirmService.PendingConfirm pending) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         long now = System.currentTimeMillis();
@@ -7561,6 +8874,13 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    /**
+     * 查找Pending Slash Confirm。
+     *
+     * @param confirmId confirm标识。
+     * @param fallbackSourceKey 兜底来源键标识或键值。
+     * @return 返回Pending Slash Confirm结果。
+     */
     private SlashConfirmService.PendingConfirm findPendingSlashConfirm(
             String confirmId, String fallbackSourceKey) {
         if (slashConfirmService == null) {
@@ -7586,16 +8906,35 @@ public class DashboardDiagnosticsService {
         return null;
     }
 
+    /**
+     * 执行短标识相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回short标识。
+     */
     private String shortId(String value) {
         String safe = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         return safe.length() <= 8 ? safe : safe.substring(0, 8);
     }
 
+    /**
+     * 执行来源Ref相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回来源Ref结果。
+     */
     private String sourceRef(String value) {
         String safe = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         return safe.isEmpty() ? "" : SecureUtil.sha256(safe).substring(0, 12);
     }
 
+    /**
+     * 执行斜杠命令Confirm命令行相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param confirmId confirm标识。
+     * @return 返回slash Confirm命令Line结果。
+     */
     private String slashConfirmCommandLine(String action, String confirmId) {
         if ("deny".equals(action)) {
             return "/deny " + StrUtil.nullToEmpty(confirmId);
@@ -7606,6 +8945,13 @@ public class DashboardDiagnosticsService {
         return "/approve " + StrUtil.nullToEmpty(confirmId);
     }
 
+    /**
+     * 执行控制台消息相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param text 待处理文本。
+     * @return 返回控制台消息结果。
+     */
     private GatewayMessage dashboardMessage(String sourceKey, String text) {
         GatewayMessage message =
                 new GatewayMessage(PlatformType.MEMORY, "dashboard", "dashboard", text);
@@ -7614,6 +8960,12 @@ public class DashboardDiagnosticsService {
         return message;
     }
 
+    /**
+     * 解析JSON List。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的JSON List。
+     */
     @SuppressWarnings("unchecked")
     private List<Object> parseJsonList(String json) {
         if (StrUtil.isBlank(json)) {
@@ -7629,6 +8981,13 @@ public class DashboardDiagnosticsService {
         return new ArrayList<Object>();
     }
 
+    /**
+     * 执行redactedJSON列表相关逻辑。
+     *
+     * @param json JSON参数。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redacted JSON List结果。
+     */
     private List<Object> redactedJsonList(String json, int maxLength) {
         List<Object> source = parseJsonList(json);
         List<Object> values = new ArrayList<Object>();
@@ -7642,6 +9001,12 @@ public class DashboardDiagnosticsService {
         return values;
     }
 
+    /**
+     * 判断是否可以Write Parent。
+     *
+     * @param path 文件或目录路径。
+     * @return 如果Write Parent满足条件则返回 true，否则返回 false。
+     */
     private boolean canWriteParent(String path) {
         if (path == null) {
             return false;
@@ -7650,6 +9015,12 @@ public class DashboardDiagnosticsService {
         return parent != null && parent.exists() && parent.canWrite();
     }
 
+    /**
+     * 执行运行时引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回运行时Reference结果。
+     */
     private String runtimeReference(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (StrUtil.isBlank(text)) {
@@ -7674,6 +9045,12 @@ public class DashboardDiagnosticsService {
         return externalPathReference(text);
     }
 
+    /**
+     * 执行外部路径引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回外部路径Reference结果。
+     */
     private String externalPathReference(String value) {
         String name = new File(StrUtil.nullToEmpty(value)).getName();
         if (StrUtil.isBlank(name)) {
@@ -7682,6 +9059,12 @@ public class DashboardDiagnosticsService {
         return "path://" + SecretRedactor.redact(name, 200);
     }
 
+    /**
+     * 执行normalized相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回normalized结果。
+     */
     private String normalized(File file) {
         String path = file.getAbsolutePath();
         if (File.separatorChar == '\\') {
@@ -7690,15 +9073,35 @@ public class DashboardDiagnosticsService {
         return path;
     }
 
+    /**
+     * 执行大小相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回大小结果。
+     */
     private int size(List<?> values) {
         return values == null ? 0 : values.size();
     }
 
+    /**
+     * 执行文本相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @return 返回text结果。
+     */
     private String text(Map<String, Object> body, String key) {
         Object value = body.get(key);
         return value == null ? null : SecretRedactor.stripDisplayControls(String.valueOf(value));
     }
 
+    /**
+     * 执行bool相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @return 返回bool结果。
+     */
     private Boolean bool(Map<String, Object> body, String key) {
         Object value = body.get(key);
         if (value instanceof Boolean) {

@@ -54,47 +54,106 @@ import org.noear.snack4.ONode;
 
 /** FeishuChannelAdapter 实现。 */
 public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** tokenURL的统一常量值。 */
     private static final String TOKEN_URL =
             "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
+
+    /** SENDURL的统一常量值。 */
     private static final String SEND_URL =
             "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id";
+
+    /** 图片上传URL的统一常量值。 */
     private static final String IMAGE_UPLOAD_URL = "https://open.feishu.cn/open-apis/im/v1/images";
+
+    /** 文件上传URL的统一常量值。 */
     private static final String FILE_UPLOAD_URL = "https://open.feishu.cn/open-apis/im/v1/files";
+
+    /** 消息资源URL的统一常量值。 */
     private static final String MESSAGE_RESOURCE_URL =
             "https://open.feishu.cn/open-apis/im/v1/messages/%s/resources/%s?type=%s";
+
+    /** 机器人INFOURL的统一常量值。 */
     private static final String BOT_INFO_URL = "https://open.feishu.cn/open-apis/bot/v3/info";
+
+    /** 消息REACTIONURL的统一常量值。 */
     private static final String MESSAGE_REACTION_URL =
             "https://open.feishu.cn/open-apis/im/v1/messages/%s/reactions";
+
+    /** COMMENT回复TARGETPREFIX的统一常量值。 */
     private static final String COMMENT_REPLY_TARGET_PREFIX = "comment|";
+
+    /** COMMENT回复URL的统一常量值。 */
     private static final String COMMENT_REPLY_URL =
             "https://open.feishu.cn/open-apis/drive/v1/files/%s/comments/%s/replies?file_type=%s";
+
+    /** COMMENTADDURL的统一常量值。 */
     private static final String COMMENT_ADD_URL =
             "https://open.feishu.cn/open-apis/drive/v1/files/%s/new_comments";
+
+    /** PROCESSINGREACTIONTYPING的统一常量值。 */
     private static final String PROCESSING_REACTION_TYPING = "Typing";
+
+    /** PROCESSINGREACTIONFAILURE的统一常量值。 */
     private static final String PROCESSING_REACTION_FAILURE = "CrossMark";
+
+    /** PROCESSINGREACTION缓存大小的统一常量值。 */
     private static final int PROCESSING_REACTION_CACHE_SIZE = 1024;
 
+    /** 记录飞书渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录飞书渠道中的tenantAccesstoken。 */
     private volatile String tenantAccessToken;
+
+    /** 记录飞书渠道中的tokenExpire时间。 */
     private volatile long tokenExpireAt;
+
+    /** 记录飞书渠道中的wsClient。 */
     private volatile com.lark.oapi.ws.Client wsClient;
+
+    /** 保存入站执行器执行组件，负责调度异步或定时任务。 */
     private ExecutorService inboundExecutor;
+
+    /** 保存processingReactions映射，便于按键快速查询。 */
     private final Map<String, String> processingReactions =
             Collections.synchronizedMap(
                     new LinkedHashMap<String, String>(64, 0.75f, true) {
+                        /**
+                         * 移除Eldest Entry。
+                         *
+                         * @param eldest eldest 参数。
+                         * @return 返回Eldest Entry结果。
+                         */
                         @Override
                         protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
                             return size() > PROCESSING_REACTION_CACHE_SIZE;
                         }
                     });
 
+    /**
+     * 创建飞书渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public FeishuChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
         this(config, attachmentCacheService, null);
     }
 
+    /**
+     * 创建飞书渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public FeishuChannelAdapter(
             AppConfig.ChannelConfig config,
             AttachmentCacheService attachmentCacheService,
@@ -109,6 +168,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @return 返回connect结果。
+     */
     @Override
     public boolean connect() {
         if (!isEnabled()) {
@@ -148,6 +212,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                     EventDispatcher.newBuilder("", "")
                             .onP2MessageReceiveV1(
                                     new ImService.P2MessageReceiveV1Handler() {
+                                        /**
+                                         * 执行handle相关逻辑。
+                                         *
+                                         * @param event 事件参数。
+                                         */
                                         @Override
                                         public void handle(P2MessageReceiveV1 event) {
                                             if (event == null
@@ -157,6 +226,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                             }
                                             inboundExecutor.submit(
                                                     new Runnable() {
+                                                        /** 执行异步任务主体。 */
                                                         @Override
                                                         public void run() {
                                                             try {
@@ -174,6 +244,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     })
                             .onP2MessageReactionCreatedV1(
                                     new ImService.P2MessageReactionCreatedV1Handler() {
+                                        /**
+                                         * 执行handle相关逻辑。
+                                         *
+                                         * @param event 事件参数。
+                                         */
                                         @Override
                                         public void handle(P2MessageReactionCreatedV1 event)
                                                 throws Exception {
@@ -183,6 +258,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     })
                             .onP2MessageReactionDeletedV1(
                                     new ImService.P2MessageReactionDeletedV1Handler() {
+                                        /**
+                                         * 执行handle相关逻辑。
+                                         *
+                                         * @param event 事件参数。
+                                         */
                                         @Override
                                         public void handle(P2MessageReactionDeletedV1 event)
                                                 throws Exception {
@@ -192,6 +272,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     })
                             .onP2CardActionTrigger(
                                     new P2CardActionTriggerHandler() {
+                                        /**
+                                         * 执行handle相关逻辑。
+                                         *
+                                         * @param event 事件参数。
+                                         * @return 返回handle结果。
+                                         */
                                         @Override
                                         public P2CardActionTriggerResponse handle(
                                                 P2CardActionTrigger event) throws Exception {
@@ -203,6 +289,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                             .onCustomizedEvent(
                                     "drive.notice.comment_add_v1",
                                     new CustomEventHandler() {
+                                        /**
+                                         * 执行handle相关逻辑。
+                                         *
+                                         * @param event 事件参数。
+                                         */
                                         @Override
                                         public void handle(EventReq event) throws Exception {
                                             handleDriveCommentEvent(event);
@@ -230,6 +321,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
         shutdownWebsocketClient();
@@ -241,6 +333,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         setDetail("disconnected");
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param request 当前请求对象。
+     */
     @Override
     public void send(DeliveryRequest request) {
         if (StrUtil.isBlank(request.getChatId())) {
@@ -270,6 +367,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行WebSocket事件相关逻辑。
+     *
+     * @param event 事件参数。
+     */
     public void handleWebsocketEvent(P2MessageReceiveV1Data event) {
         GatewayMessage message =
                 toGatewayMessage(
@@ -321,6 +423,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message == null ? "" : StrUtil.nullToEmpty(message.getThreadId()).trim();
     }
 
+    /**
+     * 执行Reaction创建事件相关逻辑。
+     *
+     * @param event 事件参数。
+     */
     private void handleReactionCreatedEvent(P2MessageReactionCreatedV1Data event) {
         if (event == null) {
             return;
@@ -342,6 +449,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行Reaction删除事件相关逻辑。
+     *
+     * @param event 事件参数。
+     */
     private void handleReactionDeletedEvent(P2MessageReactionDeletedV1Data event) {
         if (event == null) {
             return;
@@ -363,6 +475,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行卡片Action事件相关逻辑。
+     *
+     * @param event 事件参数。
+     */
     private void handleCardActionEvent(P2CardActionTriggerData event) {
         if (event == null || inboundMessageHandler() == null) {
             return;
@@ -378,6 +495,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行DriveComment事件相关逻辑。
+     *
+     * @param req req 参数。
+     */
     private void handleDriveCommentEvent(final EventReq req) {
         if (!config.isCommentEnabled() || inboundMessageHandler() == null) {
             return;
@@ -387,6 +509,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         inboundExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
@@ -404,6 +527,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 转换为Comment消息网关消息。
+     *
+     * @param req req 参数。
+     * @return 返回转换后的Comment消息网关消息。
+     */
     protected GatewayMessage toCommentGatewayMessage(EventReq req) {
         ONode root = ONode.ofJson(readEventBody(req));
         ONode event = root.get("event");
@@ -473,6 +602,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 读取事件Body。
+     *
+     * @param req req 参数。
+     * @return 返回读取到的事件Body。
+     */
     private String readEventBody(EventReq req) {
         if (req == null) {
             return "{}";
@@ -484,6 +619,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return body == null ? "{}" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
     }
 
+    /**
+     * 提取Comment Text。
+     *
+     * @param content 待处理内容。
+     * @return 返回Comment Text结果。
+     */
     private String extractCommentText(ONode content) {
         if (content == null || content.isNull()) {
             return "";
@@ -496,6 +637,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return buffer.toString().trim();
     }
 
+    /**
+     * 收集Comment Text。
+     *
+     * @param node 节点参数。
+     * @param buffer buffer 参数。
+     */
     private void collectCommentText(ONode node, StringBuilder buffer) {
         if (node == null || node.isNull()) {
             return;
@@ -538,6 +685,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 判断是否允许Comment用户。
+     *
+     * @param userId 用户标识。
+     * @param fileType 文件或目录路径参数。
+     * @param fileToken 文件或目录路径参数。
+     * @return 如果Comment用户满足条件则返回 true，否则返回 false。
+     */
     private boolean allowCommentUser(String userId, String fileType, String fileToken) {
         if (!config.isCommentEnabled()) {
             return false;
@@ -554,6 +709,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return contains(pairings.get(key), userId) || contains(pairings.get("*"), userId);
     }
 
+    /**
+     * 加载Comment Pairings。
+     *
+     * @return 返回Comment Pairings结果。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, List<String>> loadCommentPairings() {
         if (StrUtil.isBlank(config.getCommentPairingFile())) {
@@ -592,14 +752,33 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return new LinkedHashMap<String, List<String>>();
     }
 
+    /**
+     * 转义Target。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回escape Target结果。
+     */
     private String escapeTarget(String value) {
         return StrUtil.nullToEmpty(value).replace("|", "%7C");
     }
 
+    /**
+     * 执行unescapeTarget相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回unescape Target结果。
+     */
     private String unescapeTarget(String value) {
         return StrUtil.nullToEmpty(value).replace("%7C", "|");
     }
 
+    /**
+     * 转换为消息网关消息。
+     *
+     * @param messageNode 消息节点参数。
+     * @param sender sender 参数。
+     * @return 返回转换后的消息网关消息。
+     */
     private GatewayMessage toGatewayMessage(
             EventMessage messageNode, com.lark.oapi.service.im.v1.model.EventSender sender) {
         if (messageNode == null) {
@@ -633,6 +812,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 提取入站Text。
+     *
+     * @param messageType 消息类型参数。
+     * @param content 待处理内容。
+     * @return 返回入站Text结果。
+     */
     private String extractInboundText(String messageType, ONode content) {
         if ("text".equalsIgnoreCase(messageType)) {
             return content.get("text").getString();
@@ -643,6 +829,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "";
     }
 
+    /**
+     * 提取入站附件。
+     *
+     * @param messageType 消息类型参数。
+     * @param content 待处理内容。
+     * @param messageId 消息标识。
+     * @return 返回入站附件结果。
+     */
     private List<MessageAttachment> extractInboundAttachments(
             String messageType, ONode content, String messageId) {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
@@ -709,6 +903,16 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return attachments;
     }
 
+    /**
+     * 判断是否允许入站。
+     *
+     * @param chatType 聊天类型参数。
+     * @param chatId 聊天标识。
+     * @param userId 用户标识。
+     * @param mentions mentions 参数。
+     * @param rawContent 原始Content参数。
+     * @return 如果入站满足条件则返回 true，否则返回 false。
+     */
     private boolean allowInbound(
             String chatType,
             String chatId,
@@ -745,6 +949,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return true;
     }
 
+    /**
+     * 执行contains相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param target target 参数。
+     * @return 返回contains结果。
+     */
     private boolean contains(List<String> values, String target) {
         if (values == null || target == null) {
             return false;
@@ -758,6 +969,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 执行discover机器人名称相关逻辑。
+     *
+     * @param mentions mentions 参数。
+     */
     private void discoverBotName(MentionEvent[] mentions) {
         if (StrUtil.isNotBlank(config.getBotName()) || mentions == null) {
             return;
@@ -770,6 +986,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 判断是否机器人Mentioned。
+     *
+     * @param mentions mentions 参数。
+     * @param rawContent 原始Content参数。
+     * @return 如果机器人Mentioned满足条件则返回 true，否则返回 false。
+     */
     private boolean isBotMentioned(MentionEvent[] mentions, String rawContent) {
         if (mentions == null || mentions.length == 0) {
             return false;
@@ -797,6 +1020,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return mentions.length > 0 && StrUtil.nullToEmpty(rawContent).contains("@_user_");
     }
 
+    /**
+     * 解析Post Content。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的Post Content。
+     */
     private PostParseResult parsePostContent(ONode content) {
         PostParseResult result = new PostParseResult();
         ONode locale = content.get("zh_cn");
@@ -811,6 +1040,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return result;
     }
 
+    /**
+     * 收集Post Node。
+     *
+     * @param node 节点参数。
+     * @param result 结果响应或执行结果。
+     */
     private void collectPostNode(ONode node, PostParseResult result) {
         if (node == null || node.isNull()) {
             return;
@@ -882,6 +1117,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 追加Text。
+     *
+     * @param buffer buffer 参数。
+     * @param text 待处理文本。
+     */
     private void appendText(StringBuilder buffer, String text) {
         if (StrUtil.isBlank(text)) {
             return;
@@ -892,6 +1133,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         buffer.append(text.trim());
     }
 
+    /**
+     * 转换为Card Action消息网关消息。
+     *
+     * @param event 事件参数。
+     * @return 返回转换后的Card Action消息网关消息。
+     */
     private GatewayMessage toCardActionGatewayMessage(P2CardActionTriggerData event) {
         if (event == null || event.getContext() == null) {
             return null;
@@ -922,6 +1169,15 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 转换为Reaction消息网关消息。
+     *
+     * @param messageId 消息标识。
+     * @param userId 用户标识。
+     * @param emoji emoji 参数。
+     * @param created created 参数。
+     * @return 返回转换后的Reaction消息网关消息。
+     */
     private GatewayMessage toReactionGatewayMessage(
             String messageId, UserId userId, String emoji, boolean created) {
         if (StrUtil.isBlank(messageId)) {
@@ -955,6 +1211,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 拉取消息Meta。
+     *
+     * @param messageId 消息标识。
+     * @return 返回fetch消息Meta结果。
+     */
     private ONode fetchMessageMeta(String messageId) {
         refreshTenantTokenIfNecessary();
         String url = "https://open.feishu.cn/open-apis/im/v1/messages/" + messageId;
@@ -974,6 +1236,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return ensureOk(response, "Feishu message lookup failed");
     }
 
+    /** 执行hydrate机器人身份相关逻辑。 */
     protected void hydrateBotIdentity() {
         if (StrUtil.isNotBlank(config.getBotOpenId())
                 && StrUtil.isNotBlank(config.getBotUserId())
@@ -1018,6 +1281,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 拉取应用Info。
+     *
+     * @return 返回fetch Application Info结果。
+     */
     protected Map<String, String> fetchApplicationInfo() throws Exception {
         Client client = Client.newBuilder(config.getAppId(), config.getAppSecret()).build();
         GetApplicationReq request =
@@ -1034,6 +1302,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return result;
     }
 
+    /**
+     * 拉取机器人Info。
+     *
+     * @return 返回fetch机器人Info结果。
+     */
     protected Map<String, String> fetchBotInfo() {
         refreshTenantTokenIfNecessary();
         assertSafeUrl(BOT_INFO_URL, "Feishu bot info URL");
@@ -1076,6 +1349,15 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return result;
     }
 
+    /**
+     * 执行download消息资源相关逻辑。
+     *
+     * @param resourceType 资源类型参数。
+     * @param messageId 消息标识。
+     * @param fileKey 文件或目录路径参数。
+     * @param fallbackName 兜底名称参数。
+     * @return 返回download消息Resource结果。
+     */
     private MessageAttachment downloadMessageResource(
             String resourceType, String messageId, String fileKey, String fallbackName) {
         if (StrUtil.isBlank(messageId) || StrUtil.isBlank(fileKey)) {
@@ -1108,12 +1390,24 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 result.getData());
     }
 
+    /**
+     * 发送Text。
+     *
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     */
     private void sendText(String chatId, String text) {
         for (String chunk : splitOutboundText(text, 5000)) {
             sendTextChunk(chatId, chunk);
         }
     }
 
+    /**
+     * 发送Text Chunk。
+     *
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     */
     private void sendTextChunk(String chatId, String text) {
         String content = ONode.serialize(new FeishuTextMessage(text));
         String body =
@@ -1126,6 +1420,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         log.info("[FEISHU:{}] {}", chatId, text);
     }
 
+    /**
+     * 拆分出站Text。
+     *
+     * @param text 待处理文本。
+     * @param maxChars maxChars 参数。
+     * @return 返回出站Text结果。
+     */
     protected List<String> splitOutboundText(String text, int maxChars) {
         List<String> chunks = new ArrayList<String>();
         String remaining = StrUtil.nullToEmpty(text);
@@ -1147,6 +1448,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return chunks;
     }
 
+    /**
+     * 查找Fence Aware Split。
+     *
+     * @param text 待处理文本。
+     * @param maxChars maxChars 参数。
+     * @return 返回Fence Aware Split结果。
+     */
     private int findFenceAwareSplit(String text, int maxChars) {
         int split = text.lastIndexOf("\n\n", maxChars);
         if (split < maxChars / 2) {
@@ -1158,14 +1466,32 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return Math.max(1, split);
     }
 
+    /**
+     * 关闭Fence If Needed。
+     *
+     * @param chunk 分片参数。
+     * @return 返回Fence If Needed结果。
+     */
     private String closeFenceIfNeeded(String chunk) {
         return hasUnclosedFence(chunk) ? chunk + "\n```" : chunk;
     }
 
+    /**
+     * 重新打开FenceIfNeeded。
+     *
+     * @param previousChunk previous分片参数。
+     * @return 返回reopen Fence If Needed结果。
+     */
     private String reopenFenceIfNeeded(String previousChunk) {
         return hasUnclosedFence(previousChunk) ? "```\n" : "";
     }
 
+    /**
+     * 判断是否存在Unclosed Fence。
+     *
+     * @param text 待处理文本。
+     * @return 如果Unclosed Fence满足条件则返回 true，否则返回 false。
+     */
     private boolean hasUnclosedFence(String text) {
         boolean open = false;
         String[] lines = StrUtil.nullToEmpty(text).split("\\R", -1);
@@ -1177,10 +1503,22 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return open;
     }
 
+    /**
+     * 判断是否Comment Reply Target。
+     *
+     * @param chatId 聊天标识。
+     * @return 如果Comment Reply Target满足条件则返回 true，否则返回 false。
+     */
     private boolean isCommentReplyTarget(String chatId) {
         return StrUtil.startWith(chatId, COMMENT_REPLY_TARGET_PREFIX);
     }
 
+    /**
+     * 发送Comment Reply。
+     *
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     */
     private void sendCommentReply(String chatId, String text) {
         String[] parts = chatId.split("\\|", -1);
         if (parts.length < 6) {
@@ -1212,6 +1550,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 构建Comment Body。
+     *
+     * @param text 待处理文本。
+     * @param whole whole 参数。
+     * @param fileType 文件或目录路径参数。
+     * @return 返回创建好的Comment Body。
+     */
     private ONode buildCommentBody(String text, boolean whole, String fileType) {
         String sanitized =
                 StrUtil.nullToEmpty(text)
@@ -1241,6 +1587,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 .parent();
     }
 
+    /**
+     * 发送附件。
+     *
+     * @param chatId 聊天标识。
+     * @param attachment 附件参数。
+     */
     private void sendAttachment(String chatId, MessageAttachment attachment) {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
@@ -1276,6 +1628,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         ensureOk(postJson(SEND_URL, payload), "Feishu file send failed");
     }
 
+    /**
+     * 判断是否审批Card请求。
+     *
+     * @param request 当前请求对象。
+     * @return 如果审批Card请求满足条件则返回 true，否则返回 false。
+     */
     private boolean isApprovalCardRequest(DeliveryRequest request) {
         return DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD.equalsIgnoreCase(
                 stringValue(
@@ -1284,6 +1642,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 : request.getChannelExtras().get("mode")));
     }
 
+    /**
+     * 发送Dangerous审批Card。
+     *
+     * @param request 当前请求对象。
+     */
     private void sendDangerousApprovalCard(DeliveryRequest request) {
         ONode card = buildDangerousApprovalCard(request);
 
@@ -1296,6 +1659,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
     }
 
+    /**
+     * 构建Dangerous审批Card。
+     *
+     * @param request 当前请求对象。
+     * @return 返回创建好的Dangerous审批Card。
+     */
     protected ONode buildDangerousApprovalCard(DeliveryRequest request) {
         Map<String, Object> extras =
                 request.getChannelExtras() == null
@@ -1363,6 +1732,16 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return card;
     }
 
+    /**
+     * 执行卡片Button相关逻辑。
+     *
+     * @param label label 参数。
+     * @param action 操作参数。
+     * @param approvalId 审批标识。
+     * @param scope scope 参数。
+     * @param type 类型参数。
+     * @return 返回card Button结果。
+     */
     private Object cardButton(
             String label, String action, String approvalId, String scope, String type) {
         ONode root = new ONode();
@@ -1376,21 +1755,46 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return root.toData();
     }
 
+    /**
+     * 执行审批卡片文本相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回审批Card Text结果。
+     */
     private String approvalCardText(Object value, int maxLength) {
         return SecretRedactor.redact(
                 TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
     }
 
+    /**
+     * 执行审批卡片选择器相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回审批Card Selector结果。
+     */
     private String approvalCardSelector(Object value) {
         String selector = DangerousCommandApprovalService.safeApprovalSelectorToken(value);
         return selector == null ? "" : selector;
     }
 
+    /**
+     * 执行审批卡片AllowAlways相关逻辑。
+     *
+     * @param extras extras 参数。
+     * @return 返回审批Card Allow Always结果。
+     */
     private boolean approvalCardAllowAlways(Map<String, Object> extras) {
         Object value = extras == null ? null : extras.get("approvalAllowAlways");
         return value == null || Boolean.parseBoolean(stringValue(value));
     }
 
+    /**
+     * 执行upload图片相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回upload图片结果。
+     */
     private String uploadImage(File file) {
         assertSafeUrl(IMAGE_UPLOAD_URL, "Feishu image upload URL");
         HttpResponse httpResponse =
@@ -1415,6 +1819,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return imageKey;
     }
 
+    /**
+     * 执行upload文件相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @param uploadType upload类型参数。
+     * @return 返回upload文件结果。
+     */
     private String uploadFile(File file, String uploadType) {
         assertSafeUrl(FILE_UPLOAD_URL, "Feishu file upload URL");
         HttpResponse httpResponse =
@@ -1440,6 +1851,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return fileKey;
     }
 
+    /**
+     * 解析文件Routing。
+     *
+     * @param attachment 附件参数。
+     * @return 返回解析后的文件Routing。
+     */
     private UploadRouting resolveFileRouting(MessageAttachment attachment) {
         String name =
                 StrUtil.blankToDefault(attachment.getOriginalName(), "attachment.bin")
@@ -1468,6 +1885,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return new UploadRouting("stream", "file");
     }
 
+    /**
+     * 执行firstNon空白值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank结果。
+     */
     private String firstNonBlank(String... values) {
         if (values == null) {
             return null;
@@ -1480,10 +1903,23 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return null;
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行postJSON相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param body 请求体或消息正文内容。
+     * @return 返回post JSON结果。
+     */
     private String postJson(String url, String body) {
         assertSafeUrl(url, "Feishu API URL");
         HttpResponse response =
@@ -1508,11 +1944,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             refreshTenantTokenIfNecessary();
-            ONode body =
-                    new ONode()
-                            .set(
-                                    "reaction_type",
-                                    new ONode().set("emoji_type", emojiType));
+            ONode body = new ONode().set("reaction_type", new ONode().set("emoji_type", emojiType));
             String url = String.format(MESSAGE_REACTION_URL, messageId);
             ONode response =
                     ensureOk(postJson(url, body.toJson()), "Feishu reaction create failed");
@@ -1564,6 +1996,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 确保Ok。
+     *
+     * @param response 当前响应对象。
+     * @param defaultMessage 默认消息参数。
+     * @return 返回Ok结果。
+     */
     protected ONode ensureOk(String response, String defaultMessage) {
         ONode node = ONode.ofJson(response);
         int code = node.get("code").getInt(0);
@@ -1574,6 +2013,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return node;
     }
 
+    /** 刷新Tenant token If Necessary。 */
     private synchronized void refreshTenantTokenIfNecessary() {
         long now = System.currentTimeMillis();
         if (StrUtil.isNotBlank(tenantAccessToken) && now < tokenExpireAt) {
@@ -1610,6 +2050,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         tokenExpireAt = now + Math.max(60000L, (expire - 60L) * 1000L);
     }
 
+    /** 关闭WebSocketClient。 */
     private void shutdownWebsocketClient() {
         if (wsClient == null) {
             return;
@@ -1640,6 +2081,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行受控响应正文相关逻辑。
+     *
+     * @param response 当前响应对象。
+     * @param purpose purpose 参数。
+     * @return 返回guarded响应Body结果。
+     */
     private String guardedResponseBody(HttpResponse response, String purpose) {
         int status = response.getStatus();
         if (status >= 300 && status < 400) {
@@ -1656,6 +2104,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
+    /**
+     * 执行assert安全URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param purpose purpose 参数。
+     */
     private void assertSafeUrl(String url, String purpose) {
         if (securityPolicyService == null) {
             return;
@@ -1671,30 +2125,60 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 生成安全展示用的平台消息。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe平台消息结果。
+     */
     protected String safePlatformMessage(String value) {
         return SecretRedactor.redact(value, 1000);
     }
 
+    /** 承载飞书文本消息相关状态和辅助逻辑。 */
     @RequiredArgsConstructor
     public static class FeishuTextMessage {
+        /** 记录飞书文本消息中的文本。 */
         private final String text;
 
+        /**
+         * 读取Text。
+         *
+         * @return 返回读取到的Text。
+         */
         public String getText() {
             return text;
         }
     }
 
+    /** 承载UploadRouting相关状态和辅助逻辑。 */
     @RequiredArgsConstructor
     private static class UploadRouting {
+        /** 记录UploadRouting中的upload类型。 */
         private final String uploadType;
+
+        /** 记录UploadRouting中的消息类型。 */
         private final String messageType;
     }
 
+    /** 承载Post媒体Ref相关状态和辅助逻辑。 */
     private static class PostMediaRef {
+        /** 记录Post媒体Ref中的文件键。 */
         private final String fileKey;
+
+        /** 记录Post媒体Ref中的文件名称。 */
         private final String fileName;
+
+        /** 记录Post媒体Ref中的资源类型。 */
         private final String resourceType;
 
+        /**
+         * 创建Post媒体Ref实例，并注入运行所需依赖。
+         *
+         * @param fileKey 文件或目录路径参数。
+         * @param fileName 文件或目录路径参数。
+         * @param resourceType 资源类型参数。
+         */
         private PostMediaRef(String fileKey, String fileName, String resourceType) {
             this.fileKey = fileKey;
             this.fileName = fileName;
@@ -1702,10 +2186,18 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 表示Post解析结果，携带调用方后续判断所需信息。 */
     private static class PostParseResult {
+        /** 记录Post解析中的文本。 */
         private final StringBuilder text = new StringBuilder();
+
+        /** 记录Post解析中的文本Content。 */
         private String textContent;
+
+        /** 保存图片Keys集合，维持调用顺序或去重语义。 */
         private final List<String> imageKeys = new ArrayList<String>();
+
+        /** 保存媒体Refs集合，维持调用顺序或去重语义。 */
         private final List<PostMediaRef> mediaRefs = new ArrayList<PostMediaRef>();
     }
 }

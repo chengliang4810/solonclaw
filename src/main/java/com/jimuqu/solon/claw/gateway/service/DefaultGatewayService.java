@@ -62,6 +62,16 @@ public class DefaultGatewayService {
     private final ConcurrentMap<String, Long> recentMessageKeys =
             new ConcurrentHashMap<String, Long>();
 
+    /**
+     * 创建默认消息网关服务实例，并注入运行所需依赖。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param skillLearningService 技能Learning服务依赖。
+     */
     public DefaultGatewayService(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
@@ -80,6 +90,17 @@ public class DefaultGatewayService {
                 null);
     }
 
+    /**
+     * 创建默认消息网关服务实例，并注入运行所需依赖。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param skillLearningService 技能Learning服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public DefaultGatewayService(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
@@ -99,6 +120,18 @@ public class DefaultGatewayService {
                 null);
     }
 
+    /**
+     * 创建默认消息网关服务实例，并注入运行所需依赖。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param skillLearningService 技能Learning服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param channelAdapters 渠道Adapters参数。
+     */
     public DefaultGatewayService(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
@@ -125,7 +158,7 @@ public class DefaultGatewayService {
     }
 
     /**
-     * 处理单条统一网关消息。
+     * 执行单条统一网关消息相关逻辑。
      *
      * @param message 渠道统一消息
      * @return 网关处理结果
@@ -219,6 +252,12 @@ public class DefaultGatewayService {
         }
     }
 
+    /**
+     * 生成安全展示用的Deliver目标Notice。
+     *
+     * @param message 平台消息或错误消息。
+     * @param reply 回复参数。
+     */
     private void safeDeliverGoalNotice(GatewayMessage message, GatewayReply reply) {
         if (reply == null
                 || reply.getRuntimeMetadata() == null
@@ -229,6 +268,12 @@ public class DefaultGatewayService {
         safeDeliver(message, notice);
     }
 
+    /**
+     * 生成安全展示用的调度目标Kickoff。
+     *
+     * @param message 平台消息或错误消息。
+     * @param reply 回复参数。
+     */
     private void safeScheduleGoalKickoff(final GatewayMessage message, GatewayReply reply) {
         if (reply == null
                 || reply.getRuntimeMetadata() == null
@@ -239,6 +284,7 @@ public class DefaultGatewayService {
         Thread thread =
                 new Thread(
                         new Runnable() {
+                            /** 执行异步任务主体。 */
                             @Override
                             public void run() {
                                 try {
@@ -275,6 +321,12 @@ public class DefaultGatewayService {
         thread.start();
     }
 
+    /**
+     * 生成安全展示用的调度目标Continuation。
+     *
+     * @param message 平台消息或错误消息。
+     * @param reply 回复参数。
+     */
     private void safeScheduleGoalContinuation(final GatewayMessage message, GatewayReply reply) {
         if (reply == null
                 || reply.getRuntimeMetadata() == null
@@ -288,6 +340,7 @@ public class DefaultGatewayService {
         Thread thread =
                 new Thread(
                         new Runnable() {
+                            /** 执行异步任务主体。 */
                             @Override
                             public void run() {
                                 try {
@@ -324,10 +377,24 @@ public class DefaultGatewayService {
         thread.start();
     }
 
+    /**
+     * 判断是否存在Text元数据。
+     *
+     * @param reply 回复参数。
+     * @param key 配置键或映射键。
+     * @return 如果Text元数据满足条件则返回 true，否则返回 false。
+     */
     private boolean hasTextMetadata(GatewayReply reply, String key) {
         return StrUtil.isNotBlank(textMetadata(reply, key));
     }
 
+    /**
+     * 执行文本元数据相关逻辑。
+     *
+     * @param reply 回复参数。
+     * @param key 配置键或映射键。
+     * @return 返回text元数据结果。
+     */
     private String textMetadata(GatewayReply reply, String key) {
         if (reply == null || reply.getRuntimeMetadata() == null) {
             return "";
@@ -530,6 +597,12 @@ public class DefaultGatewayService {
         return SecretRedactor.redact(safe, 1000);
     }
 
+    /**
+     * 执行根用户Cause相关逻辑。
+     *
+     * @param throwable 捕获到的异常。
+     * @return 返回根用户Cause结果。
+     */
     private Throwable rootCause(Throwable throwable) {
         Throwable current = throwable;
         while (current != null && current.getCause() != null && current.getCause() != current) {
@@ -538,6 +611,12 @@ public class DefaultGatewayService {
         return current;
     }
 
+    /**
+     * 执行错误类型相关逻辑。
+     *
+     * @param throwable 捕获到的异常。
+     * @return 返回error类型结果。
+     */
     private String errorType(Throwable throwable) {
         Throwable cause = rootCause(throwable);
         return cause == null ? "Throwable" : cause.getClass().getSimpleName();

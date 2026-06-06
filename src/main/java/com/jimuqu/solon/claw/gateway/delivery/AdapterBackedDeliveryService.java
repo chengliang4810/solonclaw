@@ -53,6 +53,12 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         adapter.send(request);
     }
 
+    /**
+     * 判断是否需要Filter Silence Narration。
+     *
+     * @param request 当前请求对象。
+     * @return 如果Filter Silence Narration满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldFilterSilenceNarration(DeliveryRequest request) {
         return appConfig != null
                 && appConfig.getGateway().isFilterSilenceNarration()
@@ -60,6 +66,12 @@ public class AdapterBackedDeliveryService implements DeliveryService {
                 && isSilenceNarration(request == null ? null : request.getText());
     }
 
+    /**
+     * 判断是否存在附件。
+     *
+     * @param request 当前请求对象。
+     * @return 如果附件满足条件则返回 true，否则返回 false。
+     */
     private boolean hasAttachments(DeliveryRequest request) {
         if (request == null) {
             return false;
@@ -68,6 +80,12 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         return attachments != null && !attachments.isEmpty();
     }
 
+    /**
+     * 判断是否Silence Narration。
+     *
+     * @param content 待处理内容。
+     * @return 如果Silence Narration满足条件则返回 true，否则返回 false。
+     */
     static boolean isSilenceNarration(String content) {
         if (StrUtil.isBlank(content)) {
             return false;
@@ -90,6 +108,12 @@ public class AdapterBackedDeliveryService implements DeliveryService {
                 || "no reply".equals(normalized);
     }
 
+    /**
+     * 剥离SilenceDecorators。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Silence Decorators结果。
+     */
     private static String stripSilenceDecorators(String value) {
         String result = value == null ? "" : value.trim();
         while (result.length() > 1 && isSilenceDecorator(result.charAt(0))) {
@@ -101,6 +125,12 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         return result;
     }
 
+    /**
+     * 判断是否Silence Decorator。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Silence Decorator满足条件则返回 true，否则返回 false。
+     */
     private static boolean isSilenceDecorator(char value) {
         return value == '`'
                 || value == '*'

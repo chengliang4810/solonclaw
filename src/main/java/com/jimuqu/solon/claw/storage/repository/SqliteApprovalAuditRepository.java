@@ -12,8 +12,14 @@ import lombok.RequiredArgsConstructor;
 /** SQLite 危险命令审批审计仓储。 */
 @RequiredArgsConstructor
 public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
+    /** 记录SQLite审批审计中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 执行append相关逻辑。
+     *
+     * @param event 事件参数。
+     */
     @Override
     public void append(ApprovalAuditEvent event) throws Exception {
         if (event == null || event.getEventId() == null) {
@@ -49,6 +55,12 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
         }
     }
 
+    /**
+     * 列出Recent。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回Recent列表。
+     */
     @Override
     public List<ApprovalAuditEvent> listRecent(int limit) throws Exception {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 500));
@@ -74,6 +86,12 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
         return items;
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map结果。
+     */
     private ApprovalAuditEvent map(ResultSet resultSet) throws Exception {
         ApprovalAuditEvent event = new ApprovalAuditEvent();
         event.setEventId(resultSet.getString("event_id"));

@@ -24,35 +24,82 @@ import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 import org.noear.solon.annotation.Param;
 
-/** Solon AI file skill wrapped with Jimuqu path and credential guardrails. */
+/** 承载Solon项目文件Read写入技能相关状态和辅助逻辑。 */
 public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
+    /** 默认READOFFSET的统一常量值。 */
     private static final int DEFAULT_READ_OFFSET = 1;
+
+    /** 默认READ限制的统一常量值。 */
     private static final int DEFAULT_READ_LIMIT = 500;
+
+    /** UTF8BOM的统一常量值。 */
     private static final String UTF8_BOM = "\ufeff";
+
+    /** READDEDUP状态消息的统一常量值。 */
     private static final String READ_DEDUP_STATUS_MESSAGE =
             "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 file_read 结果继续任务。";
 
+    /** 记录Solon项目文件Read写入技能中的根用户路径。 */
     private final Path rootPath;
+
+    /** 记录Solon项目文件Read写入技能中的real根用户路径。 */
     private final Path realRootPath;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录Solon项目文件Read写入技能中的maxLinesSupplier。 */
     private final IntSupplier maxLinesSupplier;
+
+    /** 记录Solon项目文件Read写入技能中的max行LengthSupplier。 */
     private final IntSupplier maxLineLengthSupplier;
+
+    /** 记录Solon项目文件Read写入技能中的文件状态Tracker。 */
     private final SolonClawFileStateTracker fileStateTracker;
+
+    /** 保存readDedup映射，便于按键快速查询。 */
     private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
+
+    /** 记录Solon项目文件Read写入技能中的最近一次Read键。 */
     private ReadKey lastReadKey;
+
+    /** 记录Solon项目文件Read写入技能中的consecutiveRead次数。 */
     private int consecutiveReadCount;
+
+    /** 记录Solon项目文件Read写入技能中的observedOther工具CallEpoch。 */
     private int observedOtherToolCallEpoch;
 
+    /**
+     * 创建Solon项目文件Read Write技能实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public SolonClawFileReadWriteSkill(
             String workDir, SecurityPolicyService securityPolicyService) {
         this(workDir, securityPolicyService, 2000, 2000, new SolonClawFileStateTracker());
     }
 
+    /**
+     * 创建Solon项目文件Read Write技能实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param appConfig 应用运行配置。
+     */
     public SolonClawFileReadWriteSkill(
             String workDir, SecurityPolicyService securityPolicyService, AppConfig appConfig) {
         this(workDir, securityPolicyService, appConfig, new SolonClawFileStateTracker());
     }
 
+    /**
+     * 创建Solon项目文件Read Write技能实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param fileStateTracker 文件或目录路径参数。
+     */
     public SolonClawFileReadWriteSkill(
             String workDir,
             SecurityPolicyService securityPolicyService,
@@ -66,6 +113,14 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 fileStateTracker);
     }
 
+    /**
+     * 创建Solon项目文件Read Write技能实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param maxLines maxLines 参数。
+     * @param maxLineLength max行Length参数。
+     */
     public SolonClawFileReadWriteSkill(
             String workDir,
             SecurityPolicyService securityPolicyService,
@@ -79,6 +134,15 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 new SolonClawFileStateTracker());
     }
 
+    /**
+     * 创建Solon项目文件Read Write技能实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param maxLines maxLines 参数。
+     * @param maxLineLength max行Length参数。
+     * @param fileStateTracker 文件或目录路径参数。
+     */
     public SolonClawFileReadWriteSkill(
             String workDir,
             SecurityPolicyService securityPolicyService,
@@ -93,6 +157,15 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 fileStateTracker);
     }
 
+    /**
+     * 创建Solon项目文件Read Write技能实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param maxLinesSupplier maxLinesSupplier 参数。
+     * @param maxLineLengthSupplier max行LengthSupplier参数。
+     * @param fileStateTracker 文件或目录路径参数。
+     */
     private SolonClawFileReadWriteSkill(
             String workDir,
             SecurityPolicyService securityPolicyService,
@@ -110,6 +183,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
     }
 
+    /**
+     * 执行写入相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @param content 待处理内容。
+     * @return 返回write结果。
+     */
     @Override
     @ToolMapping(name = "file_write", description = "写入文本到文件。会自动创建不存在的目录。")
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
@@ -148,10 +228,24 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return envelope.toJson();
     }
 
+    /**
+     * 执行read相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @return 返回read结果。
+     */
     public String read(@Param("fileName") String fileName) {
         return read(fileName, null, null);
     }
 
+    /**
+     * 执行read相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @param offset 分页偏移量。
+     * @param limit 最大返回数量。
+     * @return 返回read结果。
+     */
     @ToolMapping(
             name = "file_read",
             description =
@@ -174,6 +268,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return readPaged(fileName, offset, limit);
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @param dirName 文件或目录路径参数。
+     * @return 返回list结果。
+     */
     @Override
     @ToolMapping(name = "file_list", description = "列出指定目录下的文件和子目录。如果不指定目录，则列出根目录。")
     public String list(@Param(value = "dirName", required = false) String dirName) {
@@ -182,6 +282,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return SecretRedactor.redact(super.list(dirName), 20000);
     }
 
+    /**
+     * 执行delete，服务于Solon项目文件Read写入技能主流程相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @return 返回delete结果。
+     */
     @Override
     @ToolMapping(name = "file_delete", description = "删除指定文件或空目录。")
     public String delete(@Param("fileName") String fileName) {
@@ -192,6 +298,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return SecretRedactor.redact(result, 1000);
     }
 
+    /**
+     * 执行assert安全相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param path 文件或目录路径。
+     */
     private void assertSafe(String toolName, String path) {
         if (securityPolicyService == null || StrUtil.isBlank(path)) {
             return;
@@ -206,6 +318,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 执行阻断消息相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param verdict 判定参数。
+     * @return 返回blocked消息结果。
+     */
     private String blockedMessage(String toolName, SecurityPolicyService.FileVerdict verdict) {
         return "BLOCKED: 文件安全策略阻止访问："
                 + verdict.getMessage()
@@ -216,6 +335,14 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
     }
 
+    /**
+     * 读取Paged。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @param offset 分页偏移量。
+     * @param limit 最大返回数量。
+     * @return 返回读取到的Paged。
+     */
     private String readPaged(String fileName, Integer offset, Integer limit) {
         if (StrUtil.isBlank(fileName)) {
             return ToolResultEnvelope.error("fileName is required").toJson();
@@ -328,10 +455,22 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 生成安全展示用的展示路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe展示路径。
+     */
     private String safeDisplayPath(String path) {
         return SecretRedactor.redact(path, 400);
     }
 
+    /**
+     * 生成安全展示用的工具错误。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe工具Error结果。
+     */
     private String safeToolError(Exception e) {
         String message = e == null ? "" : e.getMessage();
         if (StrUtil.isBlank(message) && e != null) {
@@ -340,6 +479,14 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return SecretRedactor.redact(message, 1000);
     }
 
+    /**
+     * 执行numbered行相关逻辑。
+     *
+     * @param lineNumber 行Number参数。
+     * @param line 行参数。
+     * @param maxLineLength max行Length参数。
+     * @return 返回numbered Line结果。
+     */
     private String numberedLine(int lineNumber, String line, int maxLineLength) {
         String value = StrUtil.nullToEmpty(line);
         if (value.length() > maxLineLength) {
@@ -348,14 +495,31 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return lineNumber + "|" + value;
     }
 
+    /**
+     * 解析Max Lines。
+     *
+     * @return 返回解析后的Max Lines。
+     */
     private int resolveMaxLines() {
         return resolvePositiveLimit(maxLinesSupplier, 2000);
     }
 
+    /**
+     * 解析Max Line Length。
+     *
+     * @return 返回解析后的Max Line Length。
+     */
     private int resolveMaxLineLength() {
         return resolvePositiveLimit(maxLineLengthSupplier, 2000);
     }
 
+    /**
+     * 解析Positive限制。
+     *
+     * @param supplier supplier 参数。
+     * @param fallback 兜底参数。
+     * @return 返回解析后的Positive限制。
+     */
     private static int resolvePositiveLimit(IntSupplier supplier, int fallback) {
         try {
             return Math.max(1, supplier == null ? fallback : supplier.getAsInt());
@@ -364,9 +528,20 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 执行fixed限制相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回fixed限制结果。
+     */
     private static IntSupplier fixedLimit(final int value) {
         final int safeValue = Math.max(1, value);
         return new IntSupplier() {
+            /**
+             * 读取As Int。
+             *
+             * @return 返回读取到的As Int。
+             */
             @Override
             public int getAsInt() {
                 return safeValue;
@@ -374,8 +549,19 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         };
     }
 
+    /**
+     * 执行应用配置MaxLines相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回app配置Max Lines结果。
+     */
     private static IntSupplier appConfigMaxLines(final AppConfig appConfig) {
         return new IntSupplier() {
+            /**
+             * 读取As Int。
+             *
+             * @return 返回读取到的As Int。
+             */
             @Override
             public int getAsInt() {
                 return appConfig == null || appConfig.getTask() == null
@@ -385,8 +571,19 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         };
     }
 
+    /**
+     * 执行应用配置Max行Length相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回app配置Max Line Length结果。
+     */
     private static IntSupplier appConfigMaxLineLength(final AppConfig appConfig) {
         return new IntSupplier() {
+            /**
+             * 读取As Int。
+             *
+             * @return 返回读取到的As Int。
+             */
             @Override
             public int getAsInt() {
                 return appConfig == null || appConfig.getTask() == null
@@ -396,6 +593,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         };
     }
 
+    /**
+     * 执行joinLines相关逻辑。
+     *
+     * @param lines lines 参数。
+     * @return 返回join Lines结果。
+     */
     private String joinLines(List<String> lines) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < lines.size(); i++) {
@@ -407,6 +610,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return builder.toString();
     }
 
+    /**
+     * 写入Text Preserving Bom。
+     *
+     * @param target target 参数。
+     * @param content 待处理内容。
+     */
     private void writeTextPreservingBom(Path target, String content) throws Exception {
         String value = StrUtil.nullToEmpty(content);
         if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
@@ -418,6 +627,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         AtomicFileWriteSupport.writeUtf8(target, value);
     }
 
+    /**
+     * 判断是否存在Leading Bom。
+     *
+     * @param target target 参数。
+     * @return 如果Leading Bom满足条件则返回 true，否则返回 false。
+     */
     private boolean hasLeadingBom(Path target) {
         if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
             return false;
@@ -433,6 +648,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 剥离LeadingBom。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Leading Bom结果。
+     */
     private String stripLeadingBom(String value) {
         if (value != null && value.startsWith(UTF8_BOM)) {
             return value.substring(UTF8_BOM.length());
@@ -440,6 +661,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return value;
     }
 
+    /**
+     * 解析路径。
+     *
+     * @param name 名称参数。
+     * @return 返回解析后的路径。
+     */
     private Path resolvePath(String name) {
         String value = StrUtil.nullToEmpty(name);
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
@@ -453,6 +680,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return path;
     }
 
+    /**
+     * 执行assertContained相关逻辑。
+     *
+     * @param name 名称参数。
+     */
     private void assertContained(String name) {
         if (StrUtil.isBlank(name)) {
             return;
@@ -460,6 +692,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         resolvePath(name);
     }
 
+    /**
+     * 执行assertResolvedWithin根用户相关逻辑。
+     *
+     * @param target target 参数。
+     */
     private void assertResolvedWithinRoot(Path target) {
         Path existing = nearestExistingPath(target);
         if (existing == null) {
@@ -471,6 +708,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 执行nearestExisting路径相关逻辑。
+     *
+     * @param target target 参数。
+     * @return 返回nearest Existing路径。
+     */
     private Path nearestExistingPath(Path target) {
         Path current = target;
         while (current != null) {
@@ -482,6 +725,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return null;
     }
 
+    /**
+     * 生成安全展示用的Real路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe Real路径。
+     */
     private Path safeRealPath(Path path) {
         try {
             return path.toRealPath();
@@ -490,10 +739,23 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 执行resolved输出路径相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回resolved输出路径。
+     */
     private String resolvedOutputPath(Path path) {
         return safeRealPath(path).toString();
     }
 
+    /**
+     * 执行similarFiles相关逻辑。
+     *
+     * @param requestedPath 文件或目录路径参数。
+     * @param target target 参数。
+     * @return 返回similar Files结果。
+     */
     private List<String> similarFiles(String requestedPath, Path target) {
         Path dir = target == null ? null : target.getParent();
         if (dir == null || !Files.isDirectory(dir)) {
@@ -529,6 +791,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         Collections.sort(
                 scored,
                 new Comparator<ScoredPath>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(ScoredPath left, ScoredPath right) {
                         int byScore = Integer.compare(right.score, left.score);
@@ -548,6 +817,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return result;
     }
 
+    /**
+     * 执行allowedSuggestion相关逻辑。
+     *
+     * @param candidate candidate标识或键值。
+     * @return 返回allowed Suggestion结果。
+     */
     private boolean allowedSuggestion(Path candidate) {
         if (securityPolicyService == null) {
             return true;
@@ -559,6 +834,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return verdict.isAllowed();
     }
 
+    /**
+     * 执行展示路径ForCandidate相关逻辑。
+     *
+     * @param candidate candidate标识或键值。
+     * @return 返回展示路径For Candidate结果。
+     */
     private String displayPathForCandidate(Path candidate) {
         Path normalized = candidate.toAbsolutePath().normalize();
         if (normalized.startsWith(rootPath)) {
@@ -567,6 +848,15 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return normalized.toString();
     }
 
+    /**
+     * 执行similarityScore相关逻辑。
+     *
+     * @param lowerName lower名称参数。
+     * @param requestedBase requested基础请求载荷。
+     * @param requestedExt requestedExt请求载荷。
+     * @param candidateName candidate名称标识或键值。
+     * @return 返回similarity Score结果。
+     */
     private int similarityScore(
             String lowerName, String requestedBase, String requestedExt, String candidateName) {
         String candidateLower = candidateName.toLowerCase(Locale.ROOT);
@@ -600,6 +890,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return 0;
     }
 
+    /**
+     * 执行commonCharacter次数相关逻辑。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 返回common Character次数结果。
+     */
     private int commonCharacterCount(String left, String right) {
         java.util.Set<Character> seen = new java.util.HashSet<Character>();
         for (int i = 0; i < left.length(); i++) {
@@ -614,16 +911,36 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         return common;
     }
 
+    /**
+     * 执行basename相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回basename结果。
+     */
     private String basename(String name) {
         int dot = name.lastIndexOf('.');
         return dot <= 0 ? name : name.substring(0, dot);
     }
 
+    /**
+     * 执行扩展名相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回extension结果。
+     */
     private String extension(String name) {
         int dot = name.lastIndexOf('.');
         return dot <= 0 ? "" : name.substring(dot);
     }
 
+    /**
+     * 执行duplicateRead结果相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @param key 配置键或映射键。
+     * @param targetFile 文件或目录路径参数。
+     * @return 返回duplicate Read结果。
+     */
     private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
         resetDedupHitsAfterOtherToolCall();
         long modifiedAt = targetFile.lastModified();
@@ -656,6 +973,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 执行assertNotInternal文件状态Content相关逻辑。
+     *
+     * @param content 待处理内容。
+     */
     private void assertNotInternalFileStatusContent(String content) {
         if (!isInternalFileStatusText(content)) {
             return;
@@ -664,6 +986,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 "Refusing to write internal read_file status text as file content. Re-read the file or reconstruct the intended file contents before writing.");
     }
 
+    /**
+     * 判断是否Internal文件状态Text。
+     *
+     * @param content 待处理内容。
+     * @return 如果Internal文件状态Text满足条件则返回 true，否则返回 false。
+     */
     private boolean isInternalFileStatusText(String content) {
         String stripped = StrUtil.nullToEmpty(content).trim();
         if (stripped.length() == 0) {
@@ -676,6 +1004,14 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 && stripped.length() <= 2 * READ_DEDUP_STATUS_MESSAGE.length();
     }
 
+    /**
+     * 记录Read。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @param key 配置键或映射键。
+     * @param targetFile 文件或目录路径参数。
+     * @return 返回Read结果。
+     */
     private ReadStatus recordRead(String fileName, ReadKey key, File targetFile) {
         resetDedupHitsAfterOtherToolCall();
         synchronized (readDedup) {
@@ -710,6 +1046,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /**
+     * 清理Read Dedup。
+     *
+     * @param fileName 文件或目录路径参数。
+     */
     private void clearReadDedup(String fileName) {
         if (StrUtil.isBlank(fileName)) {
             return;
@@ -736,6 +1077,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /** 执行resetDedupHitsAfterOther工具Call相关逻辑。 */
     private void resetDedupHitsAfterOtherToolCall() {
         int currentEpoch = ToolCallLoopGuardrailService.otherToolCallEpoch();
         synchronized (readDedup) {
@@ -751,6 +1093,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /** 执行capReadDedup相关逻辑。 */
     private void capReadDedup() {
         while (readDedup.size() > 500) {
             ReadKey first = readDedup.keySet().iterator().next();
@@ -758,41 +1101,94 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /** 承载ReadTracker相关状态和辅助逻辑。 */
     private static final class ReadTracker {
+        /** 记录ReadTracker中的modified时间。 */
         private long modifiedAt;
+
+        /** 记录ReadTracker中的dedupHits。 */
         private int dedupHits;
     }
 
+    /** 承载Read状态相关状态和辅助逻辑。 */
     private static final class ReadStatus {
+        /** 是否启用阻断。 */
         private final boolean blocked;
+
+        /** 记录Read状态中的消息。 */
         private final String message;
+
+        /** 记录Read状态中的次数。 */
         private final int count;
 
+        /**
+         * 创建Read状态实例，并注入运行所需依赖。
+         *
+         * @param blocked 阻断参数。
+         * @param message 平台消息或错误消息。
+         * @param count count 参数。
+         */
         private ReadStatus(boolean blocked, String message, int count) {
             this.blocked = blocked;
             this.message = message;
             this.count = count;
         }
 
+        /**
+         * 构造成功结果。
+         *
+         * @param count count 参数。
+         * @return 返回ok结果。
+         */
         private static ReadStatus ok(int count) {
             return new ReadStatus(false, null, count);
         }
 
+        /**
+         * 执行warn相关逻辑。
+         *
+         * @param message 平台消息或错误消息。
+         * @param count count 参数。
+         * @return 返回warn结果。
+         */
         private static ReadStatus warn(String message, int count) {
             return new ReadStatus(false, message, count);
         }
 
+        /**
+         * 执行阻断相关逻辑。
+         *
+         * @param message 平台消息或错误消息。
+         * @param count count 参数。
+         * @return 返回block结果。
+         */
         private static ReadStatus block(String message, int count) {
             return new ReadStatus(true, message, count);
         }
     }
 
+    /** 承载Read键相关状态和辅助逻辑。 */
     private static final class ReadKey {
+        /** 记录Read键中的路径。 */
         private final String path;
+
+        /** 记录Read键中的offset。 */
         private final int offset;
+
+        /** 记录Read键中的限制。 */
         private final int limit;
+
+        /** 记录Read键中的max行Length。 */
         private final int maxLineLength;
 
+        /**
+         * 创建Read键实例，并注入运行所需依赖。
+         *
+         * @param path 文件或目录路径。
+         * @param offset 分页偏移量。
+         * @param limit 最大返回数量。
+         * @param maxLineLength max行Length参数。
+         */
         private ReadKey(String path, int offset, int limit, int maxLineLength) {
             this.path = path;
             this.offset = offset;
@@ -800,6 +1196,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             this.maxLineLength = maxLineLength;
         }
 
+        /**
+         * 判断两个对象是否表示同一业务值。
+         *
+         * @param o o 参数。
+         * @return 返回equals结果。
+         */
         @Override
         public boolean equals(Object o) {
             if (!(o instanceof ReadKey)) {
@@ -812,6 +1214,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     && path.equals(other.path);
         }
 
+        /**
+         * 计算当前对象的哈希值。
+         *
+         * @return 返回hash Code结果。
+         */
         @Override
         public int hashCode() {
             int result = path.hashCode();
@@ -822,10 +1229,20 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 
+    /** 承载Scored路径相关状态和辅助逻辑。 */
     private static final class ScoredPath {
+        /** 记录Scored路径中的score。 */
         private final int score;
+
+        /** 记录Scored路径中的路径。 */
         private final String path;
 
+        /**
+         * 创建Scored路径实例，并注入运行所需依赖。
+         *
+         * @param score score 参数。
+         * @param path 文件或目录路径。
+         */
         private ScoredPath(int score, String path) {
             this.score = score;
             this.path = path;

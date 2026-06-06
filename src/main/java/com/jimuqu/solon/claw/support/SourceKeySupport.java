@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 
 /** 来源键转换辅助类。 */
 public final class SourceKeySupport {
+    /** 创建来源键辅助实例。 */
     private SourceKeySupport() {}
 
     /** 将来源键转换为投递请求。 */

@@ -15,13 +15,28 @@ import org.slf4j.LoggerFactory;
 
 /** 启动时恢复近期因 Agent pending 中断而未完成的会话。 */
 public class PendingSessionRecoveryService {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(PendingSessionRecoveryService.class);
+
+    /** 最大AUTORESUMESESSIONS的统一常量值。 */
     private static final int MAX_AUTO_RESUME_SESSIONS = 20;
 
+    /** 注入应用配置，用于待恢复会话恢复。 */
     private final AppConfig appConfig;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 记录待恢复会话恢复中的对话编排器。 */
     private final ConversationOrchestrator conversationOrchestrator;
 
+    /**
+     * 创建Pending会话Recovery服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     */
     public PendingSessionRecoveryService(
             AppConfig appConfig,
             SessionRepository sessionRepository,
@@ -31,6 +46,11 @@ public class PendingSessionRecoveryService {
         this.conversationOrchestrator = conversationOrchestrator;
     }
 
+    /**
+     * 恢复Recent待恢复Sessions。
+     *
+     * @return 返回recover Recent Pending Sessions结果。
+     */
     public int recoverRecentPendingSessions() {
         if (sessionRepository == null || conversationOrchestrator == null) {
             return 0;
@@ -56,6 +76,13 @@ public class PendingSessionRecoveryService {
         return recovered;
     }
 
+    /**
+     * 判断是否需要Auto Resume。
+     *
+     * @param session 会话参数。
+     * @param updatedAfter updatedAfter 参数。
+     * @return 如果Auto Resume满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldAutoResume(SessionRecord session, long updatedAfter) {
         if (session == null || StrUtil.isBlank(session.getSourceKey())) {
             return false;
@@ -77,6 +104,12 @@ public class PendingSessionRecoveryService {
         }
     }
 
+    /**
+     * 执行resume相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回resume结果。
+     */
     private boolean resume(SessionRecord session) {
         try {
             SqliteAgentSession agentSession = new SqliteAgentSession(session);
@@ -111,6 +144,11 @@ public class PendingSessionRecoveryService {
         return false;
     }
 
+    /**
+     * 执行恢复窗口Millis相关逻辑。
+     *
+     * @return 返回recovery Window Millis结果。
+     */
     private long recoveryWindowMillis() {
         int staleAfterMinutes =
                 appConfig == null || appConfig.getTask() == null
@@ -120,6 +158,12 @@ public class PendingSessionRecoveryService {
         return minutes * 60L * 1000L;
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown";

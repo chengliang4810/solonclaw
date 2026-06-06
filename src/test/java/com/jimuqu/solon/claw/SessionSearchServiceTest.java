@@ -140,8 +140,7 @@ public class SessionSearchServiceTest {
         SessionRecord current = env.sessionRepository.bindNewSession("FEISHU:fs-chat:fs-user");
         current.setTitle("current feishu");
         current.setNdjson(
-                MessageSupport.toNdjson(
-                        Arrays.asList(ChatMessage.ofUser("在飞书里查微信创建的定时任务"))));
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("在飞书里查微信创建的定时任务"))));
         env.sessionRepository.save(current);
 
         SessionRecord previous = env.sessionRepository.bindNewSession("WEIXIN:wx-chat:wx-user");
@@ -150,17 +149,15 @@ public class SessionSearchServiceTest {
                 MessageSupport.toNdjson(
                         Arrays.asList(
                                 ChatMessage.ofUser("创建 Sub2Api账号状态巡检-v2 定时任务"),
-                                ChatMessage.ofAssistant(
-                                        "已创建 cron job Sub2Api账号状态巡检-v2 ACTIVE"))));
+                                ChatMessage.ofAssistant("已创建 cron job Sub2Api账号状态巡检-v2 ACTIVE"))));
         env.sessionRepository.save(previous);
 
         List<SessionSearchEntry> entries =
                 env.sessionSearchService.search(
-                        "FEISHU:fs-chat:fs-user",
-                        "Sub2Api账号状态巡检-v2 定时任务 cron 微信渠道 停止 暂停",
-                        5);
+                        "FEISHU:fs-chat:fs-user", "Sub2Api账号状态巡检-v2 定时任务 cron 微信渠道 停止 暂停", 5);
 
-        assertThat(entries).extracting(SessionSearchEntry::getSessionId)
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getSessionId)
                 .contains(previous.getSessionId());
     }
 

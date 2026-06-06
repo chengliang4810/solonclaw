@@ -10,8 +10,17 @@ import org.noear.solon.annotation.Param;
 /** Skills Hub 工具集合。 */
 @RequiredArgsConstructor
 public class SkillHubTools {
+    /** 注入技能中心服务，用于调用对应业务能力。 */
     private final SkillHubService skillHubService;
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param source 来源参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @ToolMapping(
             name = "skills_hub_search",
             description = "Search remote skill sources and return normalized metadata.")
@@ -27,6 +36,12 @@ public class SkillHubTools {
                         limit == null ? 10 : limit.intValue()));
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @ToolMapping(
             name = "skills_hub_inspect",
             description = "Inspect a remote skill identifier without installing it.")
@@ -35,6 +50,14 @@ public class SkillHubTools {
         return safeResult(skillHubService.inspect(identifier));
     }
 
+    /**
+     * 执行install相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @param category 分类参数。
+     * @param force force 参数。
+     * @return 返回install结果。
+     */
     @ToolMapping(
             name = "skills_hub_install",
             description =
@@ -49,11 +72,22 @@ public class SkillHubTools {
                         identifier, category, force != null && force.booleanValue()));
     }
 
+    /**
+     * 执行列表相关逻辑。
+     *
+     * @return 返回list结果。
+     */
     @ToolMapping(name = "skills_hub_list", description = "List hub-installed skills.")
     public String list() throws Exception {
         return safeResult(skillHubService.listInstalled());
     }
 
+    /**
+     * 执行check相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回check结果。
+     */
     @ToolMapping(
             name = "skills_hub_check",
             description = "Check hub-installed skills for upstream updates.")
@@ -62,6 +96,13 @@ public class SkillHubTools {
         return safeResult(skillHubService.check(name));
     }
 
+    /**
+     * 执行更新相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param force force 参数。
+     * @return 返回更新结果。
+     */
     @ToolMapping(
             name = "skills_hub_update",
             description = "Update hub-installed skills from their upstream sources.")
@@ -73,6 +114,12 @@ public class SkillHubTools {
         return safeResult(skillHubService.update(name, force != null && force.booleanValue()));
     }
 
+    /**
+     * 执行审计相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回审计结果。
+     */
     @ToolMapping(
             name = "skills_hub_audit",
             description = "Audit installed hub skills with the local skills guard.")
@@ -81,6 +128,12 @@ public class SkillHubTools {
         return safeResult(skillHubService.audit(name));
     }
 
+    /**
+     * 执行uninstall相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回uninstall结果。
+     */
     @ToolMapping(name = "skills_hub_uninstall", description = "Uninstall a hub-installed skill.")
     public String uninstall(@Param(name = "name", description = "技能名") String name)
             throws Exception {
@@ -88,6 +141,14 @@ public class SkillHubTools {
                 java.util.Collections.singletonMap("message", skillHubService.uninstall(name)));
     }
 
+    /**
+     * 执行来源库相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param repo repo 参数。
+     * @param path 文件或目录路径。
+     * @return 返回tap结果。
+     */
     @ToolMapping(
             name = "skills_hub_tap",
             description = "Manage GitHub taps for the skills hub. action supports list/add/remove.")
@@ -114,14 +175,30 @@ public class SkillHubTools {
                 1000);
     }
 
+    /**
+     * 生成安全展示用的结果。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe结果。
+     */
     private String safeResult(Object value) {
         return SecretRedactor.redact(ONode.serialize(value), 20000);
     }
 
+    /** 提供搜索工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class SearchTool {
+        /** 记录搜索中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行搜索相关逻辑。
+         *
+         * @param query 查询参数。
+         * @param source 来源参数。
+         * @param limit 最大返回数量。
+         * @return 返回搜索结果。
+         */
         @ToolMapping(
                 name = "skills_hub_search",
                 description = "Search remote skill sources and return normalized metadata.")
@@ -134,10 +211,18 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供Inspect工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class InspectTool {
+        /** 记录Inspect中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行inspect相关逻辑。
+         *
+         * @param identifier identifier标识或键值。
+         * @return 返回inspect结果。
+         */
         @ToolMapping(
                 name = "skills_hub_inspect",
                 description = "Inspect a remote skill identifier without installing it.")
@@ -147,10 +232,20 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供Install工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class InstallTool {
+        /** 记录Install中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行install相关逻辑。
+         *
+         * @param identifier identifier标识或键值。
+         * @param category 分类参数。
+         * @param force force 参数。
+         * @return 返回install结果。
+         */
         @ToolMapping(
                 name = "skills_hub_install",
                 description =
@@ -164,20 +259,35 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供List工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ListTool {
+        /** 记录列表中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行列表相关逻辑。
+         *
+         * @return 返回list结果。
+         */
         @ToolMapping(name = "skills_hub_list", description = "List hub-installed skills.")
         public String list() throws Exception {
             return delegate.list();
         }
     }
 
+    /** 提供Check工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class CheckTool {
+        /** 记录Check中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行check相关逻辑。
+         *
+         * @param name 名称参数。
+         * @return 返回check结果。
+         */
         @ToolMapping(
                 name = "skills_hub_check",
                 description = "Check hub-installed skills for upstream updates.")
@@ -188,10 +298,19 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供更新工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class UpdateTool {
+        /** 记录更新中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行更新相关逻辑。
+         *
+         * @param name 名称参数。
+         * @param force force 参数。
+         * @return 返回更新结果。
+         */
         @ToolMapping(
                 name = "skills_hub_update",
                 description = "Update hub-installed skills from their upstream sources.")
@@ -204,10 +323,18 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供审计工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class AuditTool {
+        /** 记录审计中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行审计相关逻辑。
+         *
+         * @param name 名称参数。
+         * @return 返回审计结果。
+         */
         @ToolMapping(
                 name = "skills_hub_audit",
                 description = "Audit installed hub skills with the local skills guard.")
@@ -218,10 +345,18 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供Uninstall工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class UninstallTool {
+        /** 记录Uninstall中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行uninstall相关逻辑。
+         *
+         * @param name 名称参数。
+         * @return 返回uninstall结果。
+         */
         @ToolMapping(
                 name = "skills_hub_uninstall",
                 description = "Uninstall a hub-installed skill.")
@@ -231,10 +366,20 @@ public class SkillHubTools {
         }
     }
 
+    /** 提供Tap工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class TapTool {
+        /** 记录来源库中的委托。 */
         private final SkillHubTools delegate;
 
+        /**
+         * 执行来源库相关逻辑。
+         *
+         * @param action 操作参数。
+         * @param repo repo 参数。
+         * @param path 文件或目录路径。
+         * @return 返回tap结果。
+         */
         @ToolMapping(
                 name = "skills_hub_tap",
                 description =

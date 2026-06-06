@@ -14,9 +14,19 @@ import org.noear.solon.annotation.Param;
 /** SessionSearchTools 实现。 */
 @RequiredArgsConstructor
 public class SessionSearchTools {
+    /** 注入会话搜索服务，用于调用对应业务能力。 */
     private final SessionSearchService sessionSearchService;
+
+    /** 记录会话搜索中的来源键。 */
     private final String sourceKey;
 
+    /**
+     * 执行会话搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回会话搜索结果。
+     */
     public String sessionSearch(
             @Param(name = "query", description = "检索主题；为空时列出最近会话", required = false) String query,
             @Param(name = "limit", description = "结果条数，默认 3，最大 5", required = false) Integer limit)
@@ -24,6 +34,15 @@ public class SessionSearchTools {
         return sessionSearch(query, null, null, limit);
     }
 
+    /**
+     * 执行会话搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param sessionId 当前会话标识。
+     * @param aroundMessageId around消息标识。
+     * @param limit 最大返回数量。
+     * @return 返回会话搜索结果。
+     */
     @ToolMapping(
             name = "session_search",
             description =
@@ -63,6 +82,11 @@ public class SessionSearchTools {
         }
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param session 会话参数。
+     */
     private void redact(SessionSearchEntry session) {
         if (session == null) {
             return;
@@ -81,6 +105,13 @@ public class SessionSearchTools {
         session.setSnippet(redact(session.getSnippet(), 2000));
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redact结果。
+     */
     private String redact(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }

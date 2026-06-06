@@ -96,6 +96,12 @@ public class DelegateTools {
         return items;
     }
 
+    /**
+     * 解析String Array。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的String Array。
+     */
     private List<String> parseStringArray(String json) {
         if (StrUtil.isBlank(json) || "null".equalsIgnoreCase(json.trim())) {
             return new ArrayList<String>();
@@ -103,6 +109,12 @@ public class DelegateTools {
         return AgentRuntimePolicy.parseStringList(json);
     }
 
+    /**
+     * 执行错误相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回error结果。
+     */
     private String error(String message) {
         return ToolResultEnvelope.error(
                         SecretRedactor.redact(

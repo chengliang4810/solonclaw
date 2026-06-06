@@ -11,21 +11,43 @@ import org.noear.snack4.ONode;
 
 /** 解析会话当前激活 Agent，并冻结运行路径与角色配置。 */
 public class AgentRuntimeService {
+    /** VALID名称正则的统一常量值。 */
     private static final String VALID_NAME_PATTERN = "^[a-zA-Z0-9][a-zA-Z0-9._-]*$";
 
+    /** 注入应用配置，用于Agent运行时。 */
     private final AppConfig appConfig;
+
+    /** 保存仓储依赖，用于访问持久化数据。 */
     private final AgentProfileRepository repository;
 
+    /**
+     * 创建Agent运行时服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param repository repository依赖组件。
+     */
     public AgentRuntimeService(AppConfig appConfig, AgentProfileRepository repository) {
         this.appConfig = appConfig;
         this.repository = repository;
     }
 
+    /**
+     * 解析运行时需要的目标对象。
+     *
+     * @param session 会话参数。
+     * @return 返回resolve结果。
+     */
     public AgentRuntimeScope resolve(SessionRecord session) throws Exception {
         String active = session == null ? null : session.getActiveAgentName();
         return resolveByName(active);
     }
 
+    /**
+     * 解析根据名称。
+     *
+     * @param rawName 原始名称参数。
+     * @return 返回解析后的根据名称。
+     */
     public AgentRuntimeScope resolveByName(String rawName) throws Exception {
         String name = normalizeName(rawName);
         if (AgentRuntimeScope.DEFAULT_AGENT.equals(name)) {
@@ -44,6 +66,11 @@ public class AgentRuntimeService {
         return scope;
     }
 
+    /**
+     * 执行默认范围相关逻辑。
+     *
+     * @return 返回默认范围结果。
+     */
     public AgentRuntimeScope defaultScope() {
         AgentRuntimeScope scope = new AgentRuntimeScope();
         scope.setAgentName(AgentRuntimeScope.DEFAULT_AGENT);
@@ -60,6 +87,13 @@ public class AgentRuntimeService {
         return scope;
     }
 
+    /**
+     * 执行create，服务于Agent运行时主流程相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param rolePrompt role提示词参数。
+     * @return 返回create结果。
+     */
     public AgentProfile create(String name, String rolePrompt) throws Exception {
         validateName(name);
         String normalized = normalizeName(name);
@@ -87,6 +121,12 @@ public class AgentRuntimeService {
         return saved;
     }
 
+    /**
+     * 执行save，服务于Agent运行时主流程相关逻辑。
+     *
+     * @param profile 文件或目录路径参数。
+     * @return 返回save结果。
+     */
     public AgentProfile save(AgentProfile profile) throws Exception {
         validateName(profile.getAgentName());
         rejectDefault(profile.getAgentName());
@@ -101,12 +141,22 @@ public class AgentRuntimeService {
         return saved;
     }
 
+    /**
+     * 执行delete，服务于Agent运行时主流程相关逻辑。
+     *
+     * @param name 名称参数。
+     */
     public void delete(String name) throws Exception {
         String normalized = normalizeName(name);
         rejectDefault(normalized);
         repository.deleteByName(normalized);
     }
 
+    /**
+     * 标记使用。
+     *
+     * @param name 名称参数。
+     */
     public void markUsed(String name) throws Exception {
         String normalized = normalizeName(name);
         if (AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {
@@ -121,14 +171,31 @@ public class AgentRuntimeService {
         repository.save(profile);
     }
 
+    /**
+     * 执行Agent根用户相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回Agent根用户结果。
+     */
     public File agentRoot(String name) {
         return FileUtil.file(appConfig.getRuntime().getHome(), "agents", normalizeName(name));
     }
 
+    /**
+     * 规范化名称。
+     *
+     * @param name 名称参数。
+     * @return 返回名称结果。
+     */
     public String normalizeName(String name) {
         return AgentRuntimeScope.normalizeName(name);
     }
 
+    /**
+     * 校验名称。
+     *
+     * @param name 名称参数。
+     */
     public void validateName(String name) {
         String normalized = normalizeName(name);
         if (AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {
@@ -142,12 +209,23 @@ public class AgentRuntimeService {
         }
     }
 
+    /**
+     * 执行reject默认相关逻辑。
+     *
+     * @param name 名称参数。
+     */
     public void rejectDefault(String name) {
         if (AgentRuntimeScope.DEFAULT_AGENT.equalsIgnoreCase(normalizeName(name))) {
             throw new IllegalArgumentException("default 是内置 Agent，映射 runtime 根目录，不允许创建、编辑、删除或克隆。");
         }
     }
 
+    /**
+     * 执行指定名称范围相关逻辑。
+     *
+     * @param profile 文件或目录路径参数。
+     * @return 返回指定名称范围结果。
+     */
     private AgentRuntimeScope namedScope(AgentProfile profile) {
         File root = agentRoot(profile.getAgentName());
         File workspace = FileUtil.file(root, "workspace");
@@ -179,6 +257,11 @@ public class AgentRuntimeService {
         return scope;
     }
 
+    /**
+     * 确保指定名称Dirs。
+     *
+     * @param name 名称参数。
+     */
     private void ensureNamedDirs(String name) {
         File root = agentRoot(name);
         FileUtil.mkdir(FileUtil.file(root, "workspace"));
@@ -186,6 +269,12 @@ public class AgentRuntimeService {
         FileUtil.mkdir(FileUtil.file(root, "cache"));
     }
 
+    /**
+     * 转换为Snapshot。
+     *
+     * @param scope scope 参数。
+     * @return 返回转换后的Snapshot。
+     */
     private String toSnapshot(AgentRuntimeScope scope) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("agent_name", scope.getEffectiveName());
@@ -207,6 +296,13 @@ public class AgentRuntimeService {
         return ONode.serialize(map);
     }
 
+    /**
+     * 执行引用相关逻辑。
+     *
+     * @param scope scope 参数。
+     * @param child child 参数。
+     * @return 返回reference结果。
+     */
     private String reference(AgentRuntimeScope scope, String child) {
         String base =
                 "agent://"

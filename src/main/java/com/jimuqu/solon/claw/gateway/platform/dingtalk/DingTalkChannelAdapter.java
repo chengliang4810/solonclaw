@@ -68,47 +68,113 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ConcurrentHashMap;
 import org.noear.snack4.ONode;
 
 /** DingTalkChannelAdapter 实现。 */
 public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 媒体上传URL的统一常量值。 */
     private static final String MEDIA_UPLOAD_URL = "https://oapi.dingtalk.com/media/upload";
+
+    /** 状态LAST用户标识的统一常量值。 */
     private static final String STATE_LAST_USER_ID = "last_user_id";
+
+    /** 状态LASTUNION标识的统一常量值。 */
     private static final String STATE_LAST_UNION_ID = "last_union_id";
+
+    /** 状态LASTSPACE标识的统一常量值。 */
     private static final String STATE_LAST_SPACE_ID = "last_space_id";
+
+    /** 状态会话WEBHOOK的统一常量值。 */
     private static final String STATE_SESSION_WEBHOOK = "session_webhook";
+
+    /** 状态会话WEBHOOKEXPIRES时间的统一常量值。 */
     private static final String STATE_SESSION_WEBHOOK_EXPIRES_AT = "session_webhook_expires_at";
+
+    /** PROCESSINGEMOTION思考的统一常量值。 */
     private static final String PROCESSING_EMOTION_THINKING = "🤔Thinking";
+
+    /** PROCESSINGEMOTIONDONE的统一常量值。 */
     private static final String PROCESSING_EMOTION_DONE = "🥳Done";
+
+    /** PROCESSINGEMOTION类型的统一常量值。 */
     private static final int PROCESSING_EMOTION_TYPE = 2;
+
+    /** PROCESSING文本EMOTION标识的统一常量值。 */
     private static final String PROCESSING_TEXT_EMOTION_ID = "2659900";
+
+    /** PROCESSING文本EMOTIONBACKGROUND标识的统一常量值。 */
     private static final String PROCESSING_TEXT_EMOTION_BACKGROUND_ID = "im_bg_1";
+
+    /** PROCESSINGEMOTION缓存大小的统一常量值。 */
     private static final int PROCESSING_EMOTION_CACHE_SIZE = 1024;
+
+    /** 记录DingTalk渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
+
+    /** 保存渠道状态仓储依赖，用于访问持久化数据。 */
     private final ChannelStateRepository channelStateRepository;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录DingTalk渠道中的oauthClient。 */
     private final Client oauthClient;
+
+    /** 记录DingTalk渠道中的robotClient。 */
     private final com.aliyun.dingtalkrobot_1_0.Client robotClient;
+
+    /** 记录DingTalk渠道中的conv文件Client。 */
     private final com.aliyun.dingtalkconv_file_1_0.Client convFileClient;
+
+    /** 记录DingTalk渠道中的storageClient。 */
     private final com.aliyun.dingtalkstorage_2_0.Client storageClient;
+
+    /** 记录DingTalk渠道中的imClient。 */
     private final com.aliyun.dingtalkim_1_0.Client imClient;
+
+    /** 记录DingTalk渠道中的access token。 */
     private volatile String accessToken;
+
+    /** 记录DingTalk渠道中的access tokenExpire时间。 */
     private volatile long accessTokenExpireAt;
+
+    /** 记录DingTalk渠道中的流Client。 */
     private volatile OpenDingTalkClient streamClient;
+
+    /** 保存callback执行器执行组件，负责调度异步或定时任务。 */
     private ExecutorService callbackExecutor;
+
+    /** 保存对话群组Flags映射，便于按键快速查询。 */
     private final Map<String, Boolean> conversationGroupFlags =
             new ConcurrentHashMap<String, Boolean>();
+
+    /** 保存会话Webhooks映射，便于按键快速查询。 */
     private final Map<String, SessionWebhookState> sessionWebhooks =
             new ConcurrentHashMap<String, SessionWebhookState>();
+
+    /** 保存卡片InstanceBindings映射，便于按键快速查询。 */
     private final Map<String, String> cardInstanceBindings =
             new ConcurrentHashMap<String, String>();
+
+    /** 保存processingEmotionStarts映射，便于按键快速查询。 */
     private final Map<String, Boolean> processingEmotionStarts = newProcessingEmotionCache();
+
+    /** 保存processingEmotionCompletions映射，便于按键快速查询。 */
     private final Map<String, Boolean> processingEmotionCompletions = newProcessingEmotionCache();
 
+    /**
+     * 创建Ding Talk渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param channelStateRepository 渠道状态仓储依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public DingTalkChannelAdapter(
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
@@ -116,6 +182,14 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         this(config, channelStateRepository, attachmentCacheService, null);
     }
 
+    /**
+     * 创建Ding Talk渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param channelStateRepository 渠道状态仓储依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public DingTalkChannelAdapter(
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
@@ -151,6 +225,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @return 返回connect结果。
+     */
     @Override
     public boolean connect() {
         log.info(
@@ -201,6 +280,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     DingTalkStreamTopics.BOT_MESSAGE_TOPIC,
                                     new OpenDingTalkCallbackListener<
                                             ChatbotMessage, Map<String, Object>>() {
+                                        /**
+                                         * 执行当前回调或工具调用。
+                                         *
+                                         * @param message 平台消息或错误消息。
+                                         * @return 返回执行结果。
+                                         */
                                         public Map<String, Object> execute(ChatbotMessage message) {
                                             handleInbound(message);
                                             return new HashMap<String, Object>();
@@ -210,6 +295,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     DingTalkStreamTopics.CARD_CALLBACK_TOPIC,
                                     new OpenDingTalkCallbackListener<
                                             Map<String, Object>, Map<String, Object>>() {
+                                        /**
+                                         * 执行当前回调或工具调用。
+                                         *
+                                         * @param payload 待签名或解析的载荷内容。
+                                         * @return 返回执行结果。
+                                         */
                                         @Override
                                         public Map<String, Object> execute(
                                                 Map<String, Object> payload) {
@@ -239,6 +330,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
         try {
@@ -259,6 +351,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param request 当前请求对象。
+     */
     @Override
     public void send(DeliveryRequest request) throws Exception {
         if (isBlank(request.getChatId())) {
@@ -333,6 +430,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private Map<String, Boolean> newProcessingEmotionCache() {
         return Collections.synchronizedMap(
                 new LinkedHashMap<String, Boolean>(64, 0.75f, true) {
+                    /**
+                     * 移除Eldest Entry。
+                     *
+                     * @param eldest eldest 参数。
+                     * @return 返回Eldest Entry结果。
+                     */
                     @Override
                     protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
                         return size() > PROCESSING_EMOTION_CACHE_SIZE;
@@ -340,12 +443,18 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 执行入站相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     */
     private void handleInbound(final ChatbotMessage message) {
         if (callbackExecutor == null || inboundMessageHandler() == null || message == null) {
             return;
         }
         callbackExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     public void run() {
                         try {
                             String text = extractText(message);
@@ -420,12 +529,18 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 执行卡片回调相关逻辑。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     */
     private void handleCardCallback(final Map<String, Object> payload) {
         if (callbackExecutor == null || inboundMessageHandler() == null || payload == null) {
             return;
         }
         callbackExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
@@ -443,6 +558,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /** 刷新access token If Necessary。 */
     protected synchronized void refreshAccessTokenIfNecessary() throws Exception {
         long now = System.currentTimeMillis();
         if (!isBlank(accessToken) && accessTokenExpireAt > now + 60000L) {
@@ -541,10 +657,22 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 .setBackgroundId(PROCESSING_TEXT_EMOTION_BACKGROUND_ID));
     }
 
+    /**
+     * 构建Markdown Param。
+     *
+     * @param text 待处理文本。
+     * @return 返回创建好的Markdown Param。
+     */
     private String buildMarkdownParam(String text) {
         return new ONode().set("title", resolveMarkdownTitle(text)).set("text", text).toJson();
     }
 
+    /**
+     * 判断是否群组对话。
+     *
+     * @param request 当前请求对象。
+     * @return 如果群组对话满足条件则返回 true，否则返回 false。
+     */
     private boolean isGroupConversation(DeliveryRequest request) {
         if ("group".equalsIgnoreCase(request.getChatType())) {
             return true;
@@ -556,6 +684,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return value == null || value.booleanValue();
     }
 
+    /**
+     * 提取Text。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回Text结果。
+     */
     private String extractText(ChatbotMessage message) {
         String messageType = message.getMsgtype();
         if ("reaction".equalsIgnoreCase(messageType) || "emoji".equalsIgnoreCase(messageType)) {
@@ -579,6 +713,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "";
     }
 
+    /**
+     * 提取附件。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回附件结果。
+     */
     private List<MessageAttachment> extractAttachments(ChatbotMessage message) {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
         MessageContent content = message.getContent();
@@ -659,6 +799,16 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return attachments;
     }
 
+    /**
+     * 追加附件。
+     *
+     * @param attachments attachments 参数。
+     * @param kind kind 参数。
+     * @param downloadCode downloadCode 参数。
+     * @param fileName 文件或目录路径参数。
+     * @param mimeType MIME 类型参数。
+     * @param transcribedText transcribed文本参数。
+     */
     private void addAttachment(
             List<MessageAttachment> attachments,
             String kind,
@@ -695,6 +845,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 解析Download URL。
+     *
+     * @param downloadCode downloadCode 参数。
+     * @return 返回解析后的Download URL。
+     */
     private String resolveDownloadUrl(String downloadCode) throws Exception {
         RobotMessageFileDownloadHeaders headers = new RobotMessageFileDownloadHeaders();
         headers.setXAcsDingtalkAccessToken(accessToken);
@@ -713,6 +869,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return response.getBody().getDownloadUrl();
     }
 
+    /**
+     * 发送Text。
+     *
+     * @param request 当前请求对象。
+     */
     private void sendText(DeliveryRequest request) throws Exception {
         boolean isGroup = isGroupConversation(request);
         if (isGroup) {
@@ -796,6 +957,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送附件。
+     *
+     * @param request 当前请求对象。
+     * @param attachment 附件参数。
+     */
     private void sendAttachment(DeliveryRequest request, MessageAttachment attachment)
             throws Exception {
         DeliveryContext context = resolveDeliveryContext(request);
@@ -813,6 +980,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         log.info("[DINGTALK:{}] native attachment sent {}", request.getChatId(), fileName);
     }
 
+    /**
+     * 判断是否Ai Card请求。
+     *
+     * @param request 当前请求对象。
+     * @return 如果Ai Card请求满足条件则返回 true，否则返回 false。
+     */
     protected boolean isAiCardRequest(DeliveryRequest request) {
         Map<String, Object> extras = request.getChannelExtras();
         if (extras == null || extras.isEmpty()) {
@@ -827,6 +1000,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 || StrUtil.isNotBlank(stringValue(extras.get("cardTemplateId")));
     }
 
+    /**
+     * 发送Ai Card。
+     *
+     * @param request 当前请求对象。
+     */
     protected void sendAiCard(DeliveryRequest request) throws Exception {
         Map<String, Object> extras =
                 request.getChannelExtras() == null
@@ -911,6 +1089,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 response.getBody().getProcessQueryKey());
     }
 
+    /**
+     * 判断是否Ai Card更新请求。
+     *
+     * @param extras extras 参数。
+     * @return 如果Ai Card更新请求满足条件则返回 true，否则返回 false。
+     */
     private boolean isAiCardUpdateRequest(Map<String, Object> extras) {
         if (extras == null || extras.isEmpty()) {
             return false;
@@ -923,6 +1107,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return Boolean.parseBoolean(String.valueOf(extras.get("updateExisting")));
     }
 
+    /**
+     * 更新Ai Card。
+     *
+     * @param extras extras 参数。
+     */
     private void updateAiCard(Map<String, Object> extras) throws Exception {
         String cardBizId = stringValue(extras.get("cardBizId"));
         String cardData = jsonString(extras.get("cardData"));
@@ -951,6 +1140,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         log.info("[DINGTALK] ai card updated cardBizId={}", cardBizId);
     }
 
+    /**
+     * 执行upload媒体相关逻辑。
+     *
+     * @param attachment 附件参数。
+     * @return 返回upload媒体结果。
+     */
     private String uploadMedia(MessageAttachment attachment) {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
@@ -989,6 +1184,14 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return mediaId;
     }
 
+    /**
+     * 构建Webhook媒体Payload。
+     *
+     * @param kind kind 参数。
+     * @param mediaId 媒体标识。
+     * @param attachment 附件参数。
+     * @return 返回创建好的Webhook媒体Payload。
+     */
     private ONode buildWebhookMediaPayload(
             String kind, String mediaId, MessageAttachment attachment) {
         if ("image".equals(kind)) {
@@ -1018,6 +1221,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 .asObject();
     }
 
+    /**
+     * 执行remember会话Webhook相关逻辑。
+     *
+     * @param chatId 聊天标识。
+     * @param sessionWebhook 会话Webhook参数。
+     * @param expiredTime expired时间参数。
+     */
     private void rememberSessionWebhook(String chatId, String sessionWebhook, Long expiredTime) {
         if (isBlank(chatId) || isBlank(sessionWebhook)) {
             return;
@@ -1036,6 +1246,15 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 判断是否允许入站。
+     *
+     * @param message 平台消息或错误消息。
+     * @param conversationId conversation标识。
+     * @param chatType 聊天类型参数。
+     * @param userId 用户标识。
+     * @return 如果入站满足条件则返回 true，否则返回 false。
+     */
     private boolean allowInbound(
             ChatbotMessage message, String conversationId, String chatType, String userId) {
         if ("group".equals(chatType)) {
@@ -1073,6 +1292,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return true;
     }
 
+    /**
+     * 执行contains相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param target target 参数。
+     * @return 返回contains结果。
+     */
     private boolean contains(List<String> values, String target) {
         if (values == null || target == null) {
             return false;
@@ -1086,6 +1312,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 转换为Card Callback消息。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回转换后的Card Callback消息。
+     */
     private GatewayMessage toCardCallbackMessage(Map<String, Object> payload) {
         ONode node = ONode.ofJson(ONode.serialize(payload));
         String processKey =
@@ -1126,6 +1358,14 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 查找Nested。
+     *
+     * @param node 节点参数。
+     * @param parentKey parent键标识或键值。
+     * @param childKey child键标识或键值。
+     * @return 返回Nested结果。
+     */
     private String findNested(ONode node, String parentKey, String childKey) {
         ONode parent = node.get(parentKey);
         if (parent == null || parent.isNull()) {
@@ -1134,6 +1374,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return parent.get(childKey).getString();
     }
 
+    /**
+     * 执行firstNon空白值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank结果。
+     */
     private String firstNonBlank(String... values) {
         if (values == null) {
             return null;
@@ -1146,6 +1392,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return null;
     }
 
+    /**
+     * 判断是否存在Any Send Options。
+     *
+     * @param options options 参数。
+     * @return 如果Any Send Options满足条件则返回 true，否则返回 false。
+     */
     private boolean hasAnySendOptions(
             SendRobotInteractiveCardRequest.SendRobotInteractiveCardRequestSendOptions options) {
         return options != null
@@ -1155,10 +1407,22 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         || notBlank(options.getReceiverListJson()));
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行JSON字符串相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回JSON String结果。
+     */
     private String jsonString(Object value) {
         if (value == null) {
             return null;
@@ -1169,6 +1433,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return ONode.serialize(value);
     }
 
+    /**
+     * 解析投递上下文。
+     *
+     * @param request 当前请求对象。
+     * @return 返回解析后的投递上下文。
+     */
     private DeliveryContext resolveDeliveryContext(DeliveryRequest request) throws Exception {
         DeliveryContext context = new DeliveryContext();
         context.chatId = request.getChatId();
@@ -1183,6 +1453,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return context;
     }
 
+    /**
+     * 解析Space标识。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回解析后的Space标识。
+     */
     private String resolveSpaceId(DeliveryContext context) throws Exception {
         String cached =
                 channelStateRepository.get(
@@ -1211,6 +1487,15 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return spaceId;
     }
 
+    /**
+     * 读取Upload Info。
+     *
+     * @param unionId union标识。
+     * @param fileName 文件或目录路径参数。
+     * @param size size 参数。
+     * @param spaceId space标识。
+     * @return 返回读取到的Upload Info。
+     */
     private String getUploadInfo(String unionId, String fileName, int size, String spaceId)
             throws Exception {
         GetFileUploadInfoHeaders headers = new GetFileUploadInfoHeaders();
@@ -1240,6 +1525,15 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return response.getBody().getUploadKey();
     }
 
+    /**
+     * 执行upload文件字节相关逻辑。
+     *
+     * @param uploadKey upload键标识或键值。
+     * @param data 数据参数。
+     * @param unionId union标识。
+     * @param spaceId space标识。
+     * @param fileName 文件或目录路径参数。
+     */
     private void uploadFileBytes(
             String uploadKey, byte[] data, String unionId, String spaceId, String fileName) {
         com.aliyun.dingtalkstorage_2_0.models.GetFileUploadInfoResponseBody body =
@@ -1278,6 +1572,16 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行commitUploaded文件相关逻辑。
+     *
+     * @param uploadKey upload键标识或键值。
+     * @param unionId union标识。
+     * @param spaceId space标识。
+     * @param fileName 文件或目录路径参数。
+     * @param size size 参数。
+     * @return 返回commit Uploaded文件结果。
+     */
     private String commitUploadedFile(
             String uploadKey, String unionId, String spaceId, String fileName, int size)
             throws Exception {
@@ -1304,6 +1608,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return response.getBody().getDentry().getId();
     }
 
+    /**
+     * 发送对话文件。
+     *
+     * @param context 当前请求或运行上下文。
+     * @param spaceId space标识。
+     * @param dentryId dentry标识。
+     */
     private void sendConversationFile(DeliveryContext context, String spaceId, String dentryId)
             throws Exception {
         SendHeaders headers = new SendHeaders();
@@ -1325,14 +1636,33 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 判断是否Blank。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Blank满足条件则返回 true，否则返回 false。
+     */
     private boolean isBlank(String value) {
         return StrUtil.isBlank(value);
     }
 
+    /**
+     * 判断文本是否包含非空白内容。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回not Blank结果。
+     */
     private boolean notBlank(String value) {
         return !isBlank(value);
     }
 
+    /**
+     * 执行受控响应正文相关逻辑。
+     *
+     * @param response 当前响应对象。
+     * @param purpose purpose 参数。
+     * @return 返回guarded响应Body结果。
+     */
     private String guardedResponseBody(HttpResponse response, String purpose) {
         int status = response.getStatus();
         if (status >= 300 && status < 400) {
@@ -1349,6 +1679,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
+    /**
+     * 执行assert安全URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param purpose purpose 参数。
+     */
     private void assertSafeUrl(String url, String purpose) {
         if (securityPolicyService == null) {
             return;
@@ -1364,6 +1700,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 解析Markdown标题。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的Markdown标题。
+     */
     private String resolveMarkdownTitle(String content) {
         if (isBlank(content)) {
             return "solon-claw";
@@ -1378,27 +1720,50 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "solon-claw";
     }
 
+    /** 表示会话Webhook数据，在服务、仓储和接口之间传递。 */
     private static class SessionWebhookState {
+        /** 记录会话Webhook中的URL。 */
         private final String url;
+
+        /** 记录会话Webhook中的expires时间。 */
         private final long expiresAt;
 
+        /**
+         * 创建会话Webhook状态实例，并注入运行所需依赖。
+         *
+         * @param url 待校验或访问的 URL。
+         * @param expiresAt expiresAt 参数。
+         */
         private SessionWebhookState(String url, long expiresAt) {
             this.url = url;
             this.expiresAt = expiresAt;
         }
 
+        /**
+         * 判断是否Valid。
+         *
+         * @return 如果Valid满足条件则返回 true，否则返回 false。
+         */
         private boolean isValid() {
             return expiresAt <= 0 || expiresAt > System.currentTimeMillis();
         }
     }
 
+    /** 承载投递上下文相关状态和辅助逻辑。 */
     private static class DeliveryContext {
+        /** 记录投递上下文中的聊天标识。 */
         private String chatId;
+
+        /** 记录投递上下文中的union标识。 */
         private String unionId;
+
+        /** 是否启用群组。 */
         private boolean group;
     }
 
+    /** 表示投递Upload数据，在服务、仓储和接口之间传递。 */
     private static class DeliveryUploadState {
+        /** 当前的统一常量值。 */
         private static final ThreadLocal<
                         com.aliyun.dingtalkstorage_2_0.models.GetFileUploadInfoResponseBody>
                 current =

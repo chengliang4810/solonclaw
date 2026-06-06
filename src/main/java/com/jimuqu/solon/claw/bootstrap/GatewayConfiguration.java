@@ -65,9 +65,18 @@ import java.util.Map;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
-/** gateway bean configuration. */
+/** 承载消息网关配置并集中创建运行组件。 */
 @Configuration
 public class GatewayConfiguration {
+    /**
+     * 执行渠道Adapters相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param channelStateRepository 渠道状态仓储依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @return 返回渠道Adapters结果。
+     */
     @Bean
     public Map<PlatformType, ChannelAdapter> channelAdapters(
             AppConfig appConfig,
@@ -116,6 +125,14 @@ public class GatewayConfiguration {
         return adapters;
     }
 
+    /**
+     * 执行投递服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param channelAdapters 渠道Adapters参数。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @return 返回投递服务结果。
+     */
     @Bean
     public DeliveryService deliveryService(
             AppConfig appConfig,
@@ -125,6 +142,19 @@ public class GatewayConfiguration {
                 appConfig, channelAdapters, gatewayPolicyRepository);
     }
 
+    /**
+     * 执行运行时设置服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param dashboardConfigService dashboard配置Service配置对象。
+     * @param dashboardRuntimeConfigService dashboard运行时配置Service配置对象。
+     * @param appVersionService 应用版本服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param dashboardProviderService dashboard提供方Service标识或键值。
+     * @return 返回运行时设置服务结果。
+     */
     @Bean
     public RuntimeSettingsService runtimeSettingsService(
             AppConfig appConfig,
@@ -146,47 +176,130 @@ public class GatewayConfiguration {
                 dashboardProviderService);
     }
 
+    /**
+     * 执行渠道连接管理器相关逻辑。
+     *
+     * @param channelAdapters 渠道Adapters参数。
+     * @return 返回渠道Connection管理器结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public ChannelConnectionManager channelConnectionManager(
             Map<PlatformType, ChannelAdapter> channelAdapters) {
         return new ChannelConnectionManager(channelAdapters);
     }
 
+    /**
+     * 执行消息网关运行时刷新服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param channelConnectionManager 渠道连接Manager参数。
+     * @return 返回消息网关运行时刷新服务结果。
+     */
     @Bean
     public GatewayRuntimeRefreshService gatewayRuntimeRefreshService(
             AppConfig appConfig, ChannelConnectionManager channelConnectionManager) {
         return new GatewayRuntimeRefreshService(appConfig, channelConnectionManager);
     }
 
+    /**
+     * 执行消息网关授权服务相关逻辑。
+     *
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param appConfig 应用运行配置。
+     * @return 返回消息网关授权服务结果。
+     */
     @Bean
     public GatewayAuthorizationService gatewayAuthorizationService(
             GatewayPolicyRepository gatewayPolicyRepository, AppConfig appConfig) {
         return new GatewayAuthorizationService(gatewayPolicyRepository, appConfig);
     }
 
+    /**
+     * 执行目标服务相关逻辑。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @return 返回goal服务结果。
+     */
     @Bean
     public GoalService goalService(SessionRepository sessionRepository) {
         return new GoalService(sessionRepository);
     }
 
+    /**
+     * 执行消息网关重启Coordinator相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @return 返回消息网关重启Coordinator结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public GatewayRestartCoordinator gatewayRestartCoordinator(
             AppConfig appConfig, AgentRunControlService agentRunControlService) {
         return new GatewayRestartCoordinator(appConfig, agentRunControlService);
     }
 
+    /**
+     * 执行消息网关重启Notification服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @return 返回消息网关重启Notification服务结果。
+     */
     @Bean
     public GatewayRestartNotificationService gatewayRestartNotificationService(
             AppConfig appConfig, DeliveryService deliveryService) {
         return new GatewayRestartNotificationService(appConfig, deliveryService);
     }
 
+    /**
+     * 执行斜杠命令Confirm服务相关逻辑。
+     *
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @return 返回slash Confirm服务结果。
+     */
     @Bean
     public SlashConfirmService slashConfirmService(
             GlobalSettingRepository globalSettingRepository) {
         return new SlashConfirmService(globalSettingRepository);
     }
 
+    /**
+     * 执行命令服务相关逻辑。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param defaultCronScheduler 默认定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginManager 插件Manager参数。
+     * @param dashboardCuratorService dashboardCurator服务依赖。
+     * @param dashboardSkillsService dashboard技能服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     * @return 返回命令服务结果。
+     */
     @Bean
     public CommandService commandService(
             SessionRepository sessionRepository,
@@ -256,6 +369,21 @@ public class GatewayConfiguration {
                 browserRuntimeService);
     }
 
+    /**
+     * 执行消息网关服务相关逻辑。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param skillLearningService 技能Learning服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param channelAdapters 渠道Adapters参数。
+     * @param channelConnectionManager 渠道连接Manager参数。
+     * @param gatewayRestartNotificationService 网关RestartNotification服务依赖。
+     * @return 返回消息网关服务结果。
+     */
     @Bean
     public DefaultGatewayService gatewayService(
             CommandService commandService,
@@ -281,16 +409,29 @@ public class GatewayConfiguration {
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {
+                    /**
+                     * 执行handle相关逻辑。
+                     *
+                     * @param message 平台消息或错误消息。
+                     */
                     @Override
                     public void handle(GatewayMessage message) throws Exception {
                         service.handle(message);
                     }
                 });
-        channelConnectionManager.startAll();
-        gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
+        if (StartupModeContext.shouldStartServerLifecycle()) {
+            channelConnectionManager.startAll();
+            gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
+        }
         return service;
     }
 
+    /**
+     * 执行消息网关Injection认证服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回消息网关Injection认证服务结果。
+     */
     @Bean
     public GatewayInjectionAuthService gatewayInjectionAuthService(AppConfig appConfig) {
         return new GatewayInjectionAuthService(appConfig);

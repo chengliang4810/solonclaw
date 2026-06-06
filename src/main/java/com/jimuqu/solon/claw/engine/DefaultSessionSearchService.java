@@ -25,21 +25,44 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 默认会话搜索服务。 */
 public class DefaultSessionSearchService implements SessionSearchService {
+    /** 默认限制的统一常量值。 */
     private static final int DEFAULT_LIMIT = 3;
+
+    /** 最大限制的统一常量值。 */
     private static final int MAX_LIMIT = 5;
+
+    /** 摘要系统提示词的统一常量值。 */
     private static final String SUMMARY_SYSTEM_PROMPT =
             "你正在回顾历史会话，目标是帮助当前任务快速回忆相关内容。"
                     + "\n请围绕搜索主题总结：用户目标、采取的动作、关键结论/决策、重要命令或文件、未解决事项。"
                     + "\n只输出基于对话记录可确认的事实。";
 
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 记录默认会话搜索中的大模型消息网关。 */
     private final LlmGateway llmGateway;
+
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
 
+    /**
+     * 创建默认会话搜索服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param llmGateway LLM网关参数。
+     */
     public DefaultSessionSearchService(SessionRepository sessionRepository, LlmGateway llmGateway) {
         this(sessionRepository, llmGateway, null);
     }
 
+    /**
+     * 创建默认会话搜索服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param llmGateway LLM网关参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
     public DefaultSessionSearchService(
             SessionRepository sessionRepository,
             LlmGateway llmGateway,
@@ -49,6 +72,14 @@ public class DefaultSessionSearchService implements SessionSearchService {
         this.agentRunRepository = agentRunRepository;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SessionSearchEntry> search(String sourceKey, String query, int limit)
             throws Exception {
@@ -114,6 +145,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return results;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SessionSearchEntry> search(SessionSearchQuery query) throws Exception {
         if (query == null) {
@@ -145,6 +182,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return filtered;
     }
 
+    /**
+     * 判断是否需要搜索运行。
+     *
+     * @param query 查询参数。
+     * @return 如果搜索运行满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldSearchRuns(SessionSearchQuery query) {
         return agentRunRepository != null
                 && (StrUtil.isNotBlank(query.getRunId())
@@ -152,6 +195,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         || StrUtil.isNotBlank(query.getChannel()));
     }
 
+    /**
+     * 搜索运行范围。
+     *
+     * @param query 查询参数。
+     * @return 返回运行范围结果。
+     */
     private List<SessionSearchEntry> searchRunScope(SessionSearchQuery query) throws Exception {
         int limit =
                 Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
@@ -193,6 +242,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return new ArrayList<SessionSearchEntry>(results.values());
     }
 
+    /**
+     * 执行entryFrom运行相关逻辑。
+     *
+     * @param run 运行参数。
+     * @return 返回entry From运行结果。
+     */
     private SessionSearchEntry entryFromRun(AgentRunRecord run) throws Exception {
         SessionRecord session =
                 StrUtil.isBlank(run.getSessionId())
@@ -220,6 +275,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return entry;
     }
 
+    /**
+     * 执行entryFrom工具Call相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回entry From工具Call结果。
+     */
     private SessionSearchEntry entryFromToolCall(ToolCallRecord record) throws Exception {
         SessionRecord session =
                 StrUtil.isBlank(record.getSessionId())
@@ -248,6 +309,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return entry;
     }
 
+    /**
+     * 执行entry键相关逻辑。
+     *
+     * @param entry entry 参数。
+     * @return 返回entry键结果。
+     */
     private String entryKey(SessionSearchEntry entry) {
         return StrUtil.blankToDefault(entry.getRunId(), "")
                 + ":"
@@ -256,6 +323,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 + StrUtil.blankToDefault(entry.getSessionId(), "");
     }
 
+    /**
+     * 执行firstNon空白值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank结果。
+     */
     private String firstNonBlank(String... values) {
         if (values == null) {
             return "";
@@ -268,6 +341,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return "";
     }
 
+    /**
+     * 执行firstNon空白值值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank Value结果。
+     */
     private String firstNonBlankValue(String... values) {
         if (values == null) {
             return null;
@@ -280,6 +359,15 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return null;
     }
 
+    /**
+     * 构建Summary。
+     *
+     * @param currentSession current会话参数。
+     * @param representative representative 参数。
+     * @param query 查询参数。
+     * @param fallback 兜底参数。
+     * @return 返回创建好的Summary。
+     */
     private String buildSummary(
             SessionRecord currentSession,
             SessionRecord representative,
@@ -317,6 +405,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         }
     }
 
+    /**
+     * 提取Text。
+     *
+     * @param assistantMessage assistant消息参数。
+     * @return 返回Text结果。
+     */
     private String extractText(AssistantMessage assistantMessage) {
         if (assistantMessage == null) {
             return "";
@@ -330,6 +424,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return "";
     }
 
+    /**
+     * 格式化对话。
+     *
+     * @param session 会话参数。
+     * @return 返回对话结果。
+     */
     private String formatConversation(SessionRecord session) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         StringBuilder buffer = new StringBuilder();
@@ -346,6 +446,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return trim(buffer.toString(), 4000);
     }
 
+    /**
+     * 执行scroll相关逻辑。
+     *
+     * @param query 查询参数。
+     * @return 返回scroll结果。
+     */
     private List<SessionSearchEntry> scroll(SessionSearchQuery query) throws Exception {
         int limit =
                 Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
@@ -385,6 +491,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return results;
     }
 
+    /**
+     * 查找消息Index。
+     *
+     * @param messages messages 参数。
+     * @param aroundMessageId around消息标识。
+     * @return 返回消息Index结果。
+     */
     private int findMessageIndex(List<ChatMessage> messages, String aroundMessageId) {
         for (int i = 0; i < messages.size(); i++) {
             if (aroundMessageId.equals(resolveMessageId(messages.get(i), i))) {
@@ -394,6 +507,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return -1;
     }
 
+    /**
+     * 查找Preview消息标识。
+     *
+     * @param session 会话参数。
+     * @param query 查询参数。
+     * @return 返回Preview消息标识。
+     */
     private String findPreviewMessageId(SessionRecord session, String query) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
@@ -411,6 +531,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return null;
     }
 
+    /**
+     * 解析消息标识。
+     *
+     * @param message 平台消息或错误消息。
+     * @param index 索引参数。
+     * @return 返回解析后的消息标识。
+     */
     private String resolveMessageId(ChatMessage message, int index) {
         if (message != null && message.getMetadata() != null) {
             Object value = message.getMetadata().get("platformMessageId");
@@ -427,6 +554,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return "message-" + index;
     }
 
+    /**
+     * 构建Preview。
+     *
+     * @param session 会话参数。
+     * @param query 查询参数。
+     * @return 返回创建好的Preview。
+     */
     private String buildPreview(SessionRecord session, String query) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
@@ -444,6 +578,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return "";
     }
 
+    /**
+     * 执行trimAroundMatch相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param query 查询参数。
+     * @return 返回trim Around Match结果。
+     */
     private String trimAroundMatch(String content, String query) {
         String normalized = content.replace('\r', ' ').replace('\n', ' ').trim();
         if (query.length() == 0) {
@@ -461,6 +602,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return prefix + normalized.substring(start, end) + suffix;
     }
 
+    /**
+     * 解析根用户标识。
+     *
+     * @param session 会话参数。
+     * @return 返回解析后的根用户标识。
+     */
     private String resolveRootId(SessionRecord session) throws Exception {
         if (session == null || StrUtil.isBlank(session.getSessionId())) {
             return null;
@@ -468,6 +615,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return sessionRepository.resolveRootSessionId(session.getSessionId());
     }
 
+    /**
+     * 解析标题。
+     *
+     * @param display 展示参数。
+     * @param representative representative 参数。
+     * @return 返回解析后的标题。
+     */
     private String resolveTitle(SessionRecord display, SessionRecord representative) {
         String title = display == null ? "" : display.getTitle();
         if (StrUtil.isNotBlank(title)) {
@@ -480,6 +634,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 + (display != null ? display.getSessionId() : representative.getSessionId());
     }
 
+    /**
+     * 执行roleLabel相关逻辑。
+     *
+     * @param role role 参数。
+     * @return 返回role Label结果。
+     */
     private String roleLabel(ChatRole role) {
         if (role == ChatRole.USER) {
             return "User";
@@ -493,6 +653,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return String.valueOf(role);
     }
 
+    /**
+     * 执行trim相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param maxLength 最大保留字符数。
+     * @return 返回trim结果。
+     */
     private String trim(String content, int maxLength) {
         String normalized =
                 StrUtil.nullToEmpty(content).replace('\r', ' ').replace('\n', ' ').trim();
@@ -502,10 +669,20 @@ public class DefaultSessionSearchService implements SessionSearchService {
         return normalized.substring(0, maxLength) + "...";
     }
 
+    /** 承载搜索Candidate相关状态和辅助逻辑。 */
     private static class SearchCandidate {
+        /** 记录搜索Candidate中的展示。 */
         private final SessionRecord display;
+
+        /** 记录搜索Candidate中的representative。 */
         private final SessionRecord representative;
 
+        /**
+         * 创建搜索Candidate实例，并注入运行所需依赖。
+         *
+         * @param display 展示参数。
+         * @param representative representative 参数。
+         */
         private SearchCandidate(SessionRecord display, SessionRecord representative) {
             this.display = display;
             this.representative = representative;

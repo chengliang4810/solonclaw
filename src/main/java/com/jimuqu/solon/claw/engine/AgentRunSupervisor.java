@@ -57,33 +57,80 @@ import org.slf4j.LoggerFactory;
 
 /** SolonClaw 风格的外层 Agent run 状态机。 */
 public class AgentRunSupervisor implements AgentRunControlService {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(AgentRunSupervisor.class);
+
+    /** EMPTY回复恢复提示词的统一常量值。 */
     private static final String EMPTY_REPLY_RECOVERY_PROMPT =
             "你刚刚已经完成了工具调用，但没有输出最终答复。请基于当前会话中的最新工具结果，直接用中文给出简洁最终答复，不要再次调用工具。";
+
+    /** EMPTY回复兜底的统一常量值。 */
     private static final String EMPTY_REPLY_FALLBACK =
             "本轮已完成工具调用，但模型没有返回可读结论。请使用 /retry 重试，或继续给出下一步指令。";
+
+    /** 最大STEPS恢复提示词的统一常量值。 */
     private static final String MAX_STEPS_RECOVERY_PROMPT =
             "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。";
+
+    /** 最大STEPS恢复兜底的统一常量值。 */
     private static final String MAX_STEPS_RECOVERY_FALLBACK =
             "本轮执行已达到最大步骤限制，已保留当前进展。请继续给出更聚焦的下一步，或使用 /retry 继续。";
+
+    /** 排队运行标识键的统一常量值。 */
     private static final String QUEUED_RUN_ID_KEY = "__queuedRunId";
+
+    /** 队列标识键的统一常量值。 */
     private static final String QUEUE_ID_KEY = "__queueId";
 
+    /** 注入应用配置，用于Agent运行Supervisor。 */
     private final AppConfig appConfig;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
+
+    /** 注入上下文压缩服务，用于调用对应业务能力。 */
     private final ContextCompressionService contextCompressionService;
+
+    /** 注入上下文预算服务，用于调用对应业务能力。 */
     private final ContextBudgetService contextBudgetService;
+
+    /** 记录Agent运行Supervisor中的大模型消息网关。 */
     private final LlmGateway llmGateway;
+
+    /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
+
+    /** 保存用量事件仓储依赖，用于访问持久化数据。 */
     private final UsageEventRepository usageEventRepository;
+
+    /** 记录Agent运行Supervisor中的用量成本Calculator。 */
     private final UsageCostCalculator usageCostCalculator;
+
+    /** 保存running运行映射，便于按键快速查询。 */
     private final ConcurrentMap<String, RunHandle> runningRuns =
             new ConcurrentHashMap<String, RunHandle>();
+
+    /** 保存drainingQueues映射，便于按键快速查询。 */
     private final ConcurrentMap<String, AtomicBoolean> drainingQueues =
             new ConcurrentHashMap<String, AtomicBoolean>();
+
+    /** 记录Agent运行Supervisor中的最近一次运行Finished时间。 */
     private volatile long lastRunFinishedAt;
 
+    /**
+     * 创建Agent运行Supervisor实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param contextBudgetService 上下文预算Service上下文。
+     * @param llmGateway LLM网关参数。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     */
     public AgentRunSupervisor(
             AppConfig appConfig,
             SessionRepository sessionRepository,
@@ -104,6 +151,19 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 null);
     }
 
+    /**
+     * 创建Agent运行Supervisor实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param contextBudgetService 上下文预算Service上下文。
+     * @param llmGateway LLM网关参数。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param usageEventRepository 用量事件仓储依赖。
+     * @param usageCostCalculator 用量成本Calculator参数。
+     */
     public AgentRunSupervisor(
             AppConfig appConfig,
             SessionRepository sessionRepository,
@@ -125,6 +185,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         this.usageCostCalculator = usageCostCalculator;
     }
 
+    /**
+     * 停止当前组件并释放运行状态。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回stop结果。
+     */
     @Override
     public AgentRunStopResult stop(String sourceKey) {
         RunHandle handle = runningRuns.get(normalizeSourceKey(sourceKey));
@@ -142,6 +208,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 handle.runId, handle.sessionId, interruptSent, handle.startedAt);
     }
 
+    /**
+     * 停止Sibling Thread运行。
+     *
+     * @param message 平台消息或错误消息。
+     * @param ownSourceKey own来源键标识或键值。
+     * @return 返回Sibling Thread运行结果。
+     */
     @Override
     public AgentRunStopResult stopSiblingThreadRun(GatewayMessage message, String ownSourceKey) {
         if (message == null || StrUtil.isBlank(message.getThreadId())) {
@@ -169,6 +242,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return AgentRunStopResult.none();
     }
 
+    /**
+     * 执行active运行摘要相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回active运行Summary结果。
+     */
     @Override
     public Map<String, Object> activeRunSummary(String sourceKey) {
         String key = normalizeSourceKey(sourceKey);
@@ -206,11 +285,22 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 停止全部Running运行。
+     *
+     * @return 返回全部Running运行结果。
+     */
     @Override
     public int stopAllRunningRuns() {
         return stopAllRunningRuns(null);
     }
 
+    /**
+     * 停止全部Running运行。
+     *
+     * @param resumeReason resume原因参数。
+     * @return 返回全部Running运行结果。
+     */
     @Override
     public int stopAllRunningRuns(String resumeReason) {
         int stopped = 0;
@@ -225,6 +315,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return stopped;
     }
 
+    /**
+     * 执行lastActivityDescription相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回last Activity Description结果。
+     */
     private String lastActivityDescription(AgentRunRecord record) {
         if (record == null) {
             return "unknown";
@@ -236,6 +332,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return phase;
     }
 
+    /**
+     * 执行coordinate入站消息相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @return 返回coordinate Incoming结果。
+     */
     @Override
     public RunBusyDecision coordinateIncoming(
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
@@ -324,6 +428,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return decision;
     }
 
+    /**
+     * 加入队列入站消息。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @return 返回queue Incoming结果。
+     */
     @Override
     public RunBusyDecision queueIncoming(String sourceKey, String sessionId, GatewayMessage message)
             throws Exception {
@@ -339,6 +451,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return decision;
     }
 
+    /**
+     * 执行steer入站消息相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @return 返回steer Incoming结果。
+     */
     @Override
     public RunBusyDecision steerIncoming(String sourceKey, String sessionId, GatewayMessage message)
             throws Exception {
@@ -370,6 +490,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return decision;
     }
 
+    /**
+     * 执行控制运行相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @param command 待执行或解析的命令文本。
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回control运行结果。
+     */
     @Override
     public Map<String, Object> controlRun(String runId, String command, Map<String, Object> payload)
             throws Exception {
@@ -431,6 +559,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return result;
     }
 
+    /**
+     * 消费Steer指令。
+     *
+     * @param runId 运行标识。
+     * @return 返回consume Steer Instruction结果。
+     */
     @Override
     public String consumeSteerInstruction(String runId) {
         try {
@@ -455,6 +589,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 响应运行Finished事件。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runner runner 参数。
+     */
     @Override
     public void onRunFinished(
             String sourceKey, String sessionId, Function<GatewayMessage, GatewayReply> runner) {
@@ -481,27 +622,60 @@ public class AgentRunSupervisor implements AgentRunControlService {
         thread.start();
     }
 
+    /**
+     * 判断是否Running。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 如果Running满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean isRunning(String sourceKey) {
         RunHandle handle = runningRuns.get(normalizeSourceKey(sourceKey));
         return handle != null && !handle.cancelled.get();
     }
 
+    /**
+     * 判断是否存在Running运行。
+     *
+     * @return 如果Running运行满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean hasRunningRuns() {
         return !runningRuns.isEmpty();
     }
 
+    /**
+     * 执行running运行次数相关逻辑。
+     *
+     * @return 返回running运行次数结果。
+     */
     @Override
     public int runningRunCount() {
         return runningRuns.size();
     }
 
+    /**
+     * 执行last运行Finished时间相关逻辑。
+     *
+     * @return 返回last运行Finished时间结果。
+     */
     @Override
     public long lastRunFinishedAt() {
         return lastRunFinishedAt;
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @return 返回运行结果。
+     */
     public AgentRunOutcome run(
             SessionRecord session,
             String systemPrompt,
@@ -515,6 +689,19 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 session, systemPrompt, userMessage, tools, feedbackSink, eventSink, resume, null);
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回运行结果。
+     */
     public AgentRunOutcome run(
             SessionRecord session,
             String systemPrompt,
@@ -537,6 +724,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 Collections.<MessageAttachment>emptyList());
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param userAttachments 用户Attachments参数。
+     * @return 返回运行结果。
+     */
     public AgentRunOutcome run(
             SessionRecord session,
             String systemPrompt,
@@ -883,6 +1084,18 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 执行压缩BeforeAttempt相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param resolved resolved 参数。
+     * @param runContext 运行上下文上下文。
+     * @param eventSink 事件Sink参数。
+     * @param runId 运行标识。
+     * @return 返回压缩Before Attempt结果。
+     */
     private CompressionOutcome compressBeforeAttempt(
             SessionRecord session,
             String systemPrompt,
@@ -949,12 +1162,30 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return outcome;
     }
 
+    /**
+     * 克隆会话状态。
+     *
+     * @param source 来源参数。
+     * @return 返回clone会话状态。
+     */
     private SessionRecord cloneSessionState(SessionRecord source) {
         SessionRecord clone = new SessionRecord();
         clone.setNdjson(source.getNdjson());
         return clone;
     }
 
+    /**
+     * 执行recover相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param prompt 提示词参数。
+     * @param resolved resolved 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param runContext 运行上下文上下文。
+     * @return 返回recover结果。
+     */
     private LlmResult recover(
             SessionRecord session,
             String systemPrompt,
@@ -994,6 +1225,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 构建Candidate Configs。
+     *
+     * @param session 会话参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回创建好的Candidate Configs。
+     */
     private List<AppConfig.LlmConfig> buildCandidateConfigs(
             SessionRecord session, AgentRuntimeScope agentScope) {
         List<AppConfig.LlmConfig> candidates = new java.util.ArrayList<AppConfig.LlmConfig>();
@@ -1014,6 +1252,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return candidates;
     }
 
+    /**
+     * 转换为大模型配置。
+     *
+     * @param resolved resolved 参数。
+     * @return 返回转换后的大模型配置。
+     */
     private AppConfig.LlmConfig toLlmConfig(LlmProviderService.ResolvedProvider resolved) {
         AppConfig.LlmConfig config = copyLlmConfig(appConfig.getLlm());
         config.setProvider(StrUtil.nullToEmpty(resolved.getProviderKey()).trim());
@@ -1024,6 +1268,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return config;
     }
 
+    /**
+     * 复制大模型配置。
+     *
+     * @param source 来源参数。
+     * @return 返回大模型配置。
+     */
     private AppConfig.LlmConfig copyLlmConfig(AppConfig.LlmConfig source) {
         AppConfig.LlmConfig copy = new AppConfig.LlmConfig();
         copy.setProvider(source.getProvider());
@@ -1039,6 +1289,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return copy;
     }
 
+    /**
+     * 执行提供方签名相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @return 返回提供方签名结果。
+     */
     private String providerSignature(AppConfig.LlmConfig config) {
         return StrUtil.nullToEmpty(config.getProvider())
                 + "|"
@@ -1051,6 +1307,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 + (StrUtil.isBlank(config.getApiKey()) ? "no-key" : "has-key");
     }
 
+    /**
+     * 提取Text。
+     *
+     * @param assistantMessage assistant消息参数。
+     * @return 返回Text结果。
+     */
     private String extractText(AssistantMessage assistantMessage) {
         if (assistantMessage == null) {
             return "";
@@ -1073,12 +1335,25 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return "";
     }
 
+    /**
+     * 判断是否存在Visible Content。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 如果Visible Content满足条件则返回 true，否则返回 false。
+     */
     private boolean hasVisibleContent(LlmResult result) {
         return result != null
                 && (StrUtil.isNotBlank(extractText(result.getAssistantMessage()))
                         || StrUtil.isNotBlank(result.getRawResponse()));
     }
 
+    /**
+     * 判断是否存在Recent工具Activity。
+     *
+     * @param previousNdjson previousNdjson 参数。
+     * @param currentNdjson currentNdjson 参数。
+     * @return 如果Recent工具Activity满足条件则返回 true，否则返回 false。
+     */
     private boolean hasRecentToolActivity(String previousNdjson, String currentNdjson) {
         try {
             List<ChatMessage> previous = MessageSupport.loadMessages(previousNdjson);
@@ -1102,6 +1377,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return false;
     }
 
+    /**
+     * 执行次数工具相关逻辑。
+     *
+     * @param messages messages 参数。
+     * @return 返回次数工具结果。
+     */
     private int countTools(List<ChatMessage> messages) {
         int count = 0;
         for (ChatMessage message : messages) {
@@ -1112,11 +1393,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return count;
     }
 
+    /**
+     * 判断是否存在Usable Recovery Reply。
+     *
+     * @param recovered recovered 参数。
+     * @return 如果Usable Recovery Reply满足条件则返回 true，否则返回 false。
+     */
     private boolean hasUsableRecoveryReply(LlmResult recovered) {
         String text = recovered == null ? "" : extractText(recovered.getAssistantMessage());
         return StrUtil.isNotBlank(text) && !isMaxStepsReply(text);
     }
 
+    /**
+     * 应用Recovered记录文本。
+     *
+     * @param base 基础参数。
+     * @param recovered recovered 参数。
+     */
     private void applyRecoveredTranscript(LlmResult base, LlmResult recovered) {
         if (base == null || recovered == null || recovered.getAssistantMessage() == null) {
             return;
@@ -1134,6 +1427,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 执行dropTransientAssistantTail相关逻辑。
+     *
+     * @param messages messages 参数。
+     */
     private void dropTransientAssistantTail(List<ChatMessage> messages) {
         while (!messages.isEmpty()) {
             ChatMessage message = messages.get(messages.size() - 1);
@@ -1149,6 +1447,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 判断是否Max Steps Reply。
+     *
+     * @param replyText 回复文本参数。
+     * @return 如果Max Steps Reply满足条件则返回 true，否则返回 false。
+     */
     private boolean isMaxStepsReply(String replyText) {
         if (StrUtil.isBlank(replyText)) {
             return false;
@@ -1159,10 +1463,24 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 || replyText.contains("已达到硬性步数上限");
     }
 
+    /**
+     * 执行classifyRetryable相关逻辑。
+     *
+     * @param error 错误参数。
+     * @return 返回classify Retryable结果。
+     */
     private boolean classifyRetryable(Throwable error) {
         return LlmErrorClassifier.classify(error).isRetryable();
     }
 
+    /**
+     * 执行attempt元数据相关逻辑。
+     *
+     * @param resolved resolved 参数。
+     * @param attemptNo attemptNo 参数。
+     * @param candidateIndex candidate索引标识或键值。
+     * @return 返回attempt元数据结果。
+     */
     private Map<String, Object> attemptMetadata(
             AppConfig.LlmConfig resolved, int attemptNo, int candidateIndex) {
         Map<String, Object> metadata = new java.util.LinkedHashMap<String, Object>();
@@ -1175,6 +1493,15 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return metadata;
     }
 
+    /**
+     * 执行错误元数据相关逻辑。
+     *
+     * @param error 错误参数。
+     * @param resolved resolved 参数。
+     * @param attemptNo attemptNo 参数。
+     * @param candidateIndex candidate索引标识或键值。
+     * @return 返回error元数据结果。
+     */
     private Map<String, Object> errorMetadata(
             Throwable error, AppConfig.LlmConfig resolved, int attemptNo, int candidateIndex) {
         LlmErrorClassifier.ClassifiedError classified = LlmErrorClassifier.classify(error);
@@ -1188,6 +1515,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return metadata;
     }
 
+    /**
+     * 执行兜底元数据相关逻辑。
+     *
+     * @param previousProvider previous提供方标识或键值。
+     * @param next next 参数。
+     * @param lastError last错误参数。
+     * @return 返回兜底元数据结果。
+     */
     private Map<String, Object> fallbackMetadata(
             String previousProvider, AppConfig.LlmConfig next, Throwable lastError) {
         LlmErrorClassifier.ClassifiedError classified = LlmErrorClassifier.classify(lastError);
@@ -1204,6 +1539,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return metadata;
     }
 
+    /**
+     * 应用用量。
+     *
+     * @param session 会话参数。
+     * @param result 结果响应或执行结果。
+     */
     private void applyUsage(SessionRecord session, LlmResult result) {
         if (session == null || result == null) {
             return;
@@ -1242,6 +1583,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 记录用量事件。
+     *
+     * @param runRecord 运行记录参数。
+     * @param result 结果响应或执行结果。
+     */
     private void recordUsageEvent(AgentRunRecord runRecord, LlmResult result) {
         if (usageEventRepository == null || runRecord == null || result == null) {
             return;
@@ -1294,6 +1641,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 应用成本。
+     *
+     * @param event 事件参数。
+     */
     private void applyCost(UsageEventRecord event) {
         if (event == null) {
             return;
@@ -1332,6 +1684,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         event.setPricedAt(cost.getPricedAt());
     }
 
+    /**
+     * 合并用量。
+     *
+     * @param base 基础参数。
+     * @param extra extra 参数。
+     */
     private void mergeUsage(LlmResult base, LlmResult extra) {
         if (base == null || extra == null) {
             return;
@@ -1353,6 +1711,15 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
     }
 
+    /**
+     * 注册运行。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param runId 运行标识。
+     * @param sessionId 当前会话标识。
+     * @param startedAt startedAt 参数。
+     * @return 返回运行结果。
+     */
     private RunHandle registerRun(
             String sourceKey, String runId, String sessionId, long startedAt) {
         RunHandle handle = new RunHandle(runId, sessionId, Thread.currentThread(), startedAt);
@@ -1360,6 +1727,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return handle;
     }
 
+    /**
+     * 取消注册运行。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param handle handle 参数。
+     */
     private void unregisterRun(String sourceKey, RunHandle handle) {
         if (handle == null) {
             return;
@@ -1368,6 +1741,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         lastRunFinishedAt = System.currentTimeMillis();
     }
 
+    /**
+     * 标记会话Resume Pending。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param resumeReason resume原因参数。
+     */
     private void markSessionResumePending(String sourceKey, String resumeReason) {
         if (StrUtil.isBlank(sourceKey) || StrUtil.isBlank(resumeReason)) {
             return;
@@ -1385,6 +1764,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 恢复Stale运行。
+     *
+     * @param staleAfterMillis staleAfterMillis 参数。
+     */
     public void recoverStaleRuns(long staleAfterMillis) {
         if (agentRunRepository == null) {
             return;
@@ -1398,18 +1782,34 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 更新运行Phase。
+     *
+     * @param runRecord 运行记录参数。
+     * @param phase phase 参数。
+     */
     private void updateRunPhase(AgentRunRecord runRecord, String phase) throws Exception {
         runRecord.setPhase(phase);
         heartbeat(runRecord);
         agentRunRepository.saveRun(runRecord);
     }
 
+    /**
+     * 执行心跳相关逻辑。
+     *
+     * @param runRecord 运行记录参数。
+     */
     private void heartbeat(AgentRunRecord runRecord) {
         long now = System.currentTimeMillis();
         runRecord.setHeartbeatAt(now);
         runRecord.setLastActivityAt(now);
     }
 
+    /**
+     * 检查Cancellation。
+     *
+     * @param sourceKey 渠道来源键。
+     */
     private void checkCancellation(String sourceKey) {
         if (isCancellationRequested(sourceKey)) {
             throw new AgentRunCancelledException();
@@ -1419,11 +1819,26 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 判断是否Cancellation Requested。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 如果Cancellation Requested满足条件则返回 true，否则返回 false。
+     */
     private boolean isCancellationRequested(String sourceKey) {
         RunHandle handle = runningRuns.get(normalizeSourceKey(sourceKey));
         return handle != null && handle.cancelled.get();
     }
 
+    /**
+     * 加入队列消息。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @param policy 策略参数。
+     * @return 返回queue消息结果。
+     */
     private QueuedRunMessage queueMessage(
             String sourceKey, String sessionId, GatewayMessage message, String policy)
             throws Exception {
@@ -1458,6 +1873,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return queued;
     }
 
+    /**
+     * 执行serialize消息相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回serialize消息结果。
+     */
     private String serializeMessage(GatewayMessage message) {
         if (message == null) {
             return "{}";
@@ -1477,6 +1898,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return org.noear.snack4.ONode.serialize(map);
     }
 
+    /**
+     * 执行deserialize消息相关逻辑。
+     *
+     * @param queued 排队参数。
+     * @return 返回deserialize消息结果。
+     */
     private GatewayMessage deserializeMessage(QueuedRunMessage queued) {
         GatewayMessage message = new GatewayMessage();
         try {
@@ -1523,10 +1950,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return message;
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 清空队列。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runner runner 参数。
+     */
     private void drainQueue(
             String sourceKey, String sessionId, Function<GatewayMessage, GatewayReply> runner) {
         if (runner == null) {
@@ -1570,6 +2010,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 标记Queued运行Started。
+     *
+     * @param queued 排队参数。
+     */
     private void markQueuedRunStarted(QueuedRunMessage queued) {
         try {
             AgentRunRecord record =
@@ -1594,6 +2039,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 标记Queued运行Finished。
+     *
+     * @param queued 排队参数。
+     * @param status 状态参数。
+     * @param finalReply 最终回复参数。
+     * @param error 错误参数。
+     */
     private void markQueuedRunFinished(
             QueuedRunMessage queued, String status, String finalReply, String error) {
         try {
@@ -1624,6 +2077,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 规范化Busy策略。
+     *
+     * @param policy 策略参数。
+     * @return 返回Busy策略结果。
+     */
     private String normalizeBusyPolicy(String policy) {
         String normalized = StrUtil.blankToDefault(policy, "queue").trim().toLowerCase(Locale.ROOT);
         if ("interrupt".equals(normalized)
@@ -1635,6 +2094,15 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return "queue";
     }
 
+    /**
+     * 记录命令。
+     *
+     * @param runId 运行标识。
+     * @param sourceKey 渠道来源键。
+     * @param command 待执行或解析的命令文本。
+     * @param payloadJson 载荷JSON请求载荷。
+     * @param status 状态参数。
+     */
     private void recordCommand(
             String runId, String sourceKey, String command, String payloadJson, String status)
             throws Exception {
@@ -1652,6 +2120,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         agentRunRepository.saveRunControlCommand(record);
     }
 
+    /**
+     * 追加运行事件。
+     *
+     * @param record 记录参数。
+     * @param eventType 事件类型参数。
+     * @param summary 摘要参数。
+     * @param metadataJson 元数据JSON参数。
+     */
     private void appendRunEvent(
             AgentRunRecord record, String eventType, String summary, String metadataJson) {
         if (record == null) {
@@ -1675,6 +2151,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /**
+     * 转义JSON。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回escape JSON结果。
+     */
     private String escapeJson(String value) {
         if (value == null) {
             return "";
@@ -1682,6 +2164,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "";
@@ -1690,10 +2178,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()));
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String value) {
         return SecretRedactor.redact(AgentRunContext.safe(value, 1000), 1000);
     }
 
+    /**
+     * 提取Queued Marker。
+     *
+     * @param text 待处理文本。
+     * @param key 配置键或映射键。
+     * @return 返回Queued Marker结果。
+     */
     private String extractQueuedMarker(String text, String key) {
         if (StrUtil.isBlank(text) || StrUtil.isBlank(key)) {
             return null;
@@ -1722,6 +2223,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return null;
     }
 
+    /**
+     * 剥离排队Markers。
+     *
+     * @param text 待处理文本。
+     * @return 返回strip Queued Markers结果。
+     */
     private String stripQueuedMarkers(String text) {
         if (StrUtil.isBlank(text)) {
             return text;
@@ -1738,17 +2245,41 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return text.substring(0, start);
     }
 
+    /**
+     * 规范化来源键。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回来源键结果。
+     */
     private String normalizeSourceKey(String sourceKey) {
         return StrUtil.blankToDefault(sourceKey, "__default__");
     }
 
+    /** 承载运行Handle相关状态和辅助逻辑。 */
     private static class RunHandle {
+        /** 记录运行Handle中的运行标识。 */
         private final String runId;
+
+        /** 记录运行Handle中的会话标识。 */
         private final String sessionId;
+
+        /** 记录运行Handle中的thread。 */
         private final Thread thread;
+
+        /** 记录运行Handle中的started时间。 */
         private final long startedAt;
+
+        /** 记录运行Handle中的cancelled。 */
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
+        /**
+         * 创建运行Handle实例，并注入运行所需依赖。
+         *
+         * @param runId 运行标识。
+         * @param sessionId 当前会话标识。
+         * @param thread thread 参数。
+         * @param startedAt startedAt 参数。
+         */
         private RunHandle(String runId, String sessionId, Thread thread, long startedAt) {
             this.runId = runId;
             this.sessionId = sessionId;
@@ -1757,6 +2288,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /** 执行pruneOld运行相关逻辑。 */
     private void pruneOldRuns() {
         int days = appConfig.getTrace().getRetentionDays();
         if (days <= 0) {

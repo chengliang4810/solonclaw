@@ -4,6 +4,7 @@ import java.util.Map;
 
 /** 对话中间态反馈接收器。 */
 public interface ConversationFeedbackSink {
+    /** NOOP的统一常量值。 */
     ConversationFeedbackSink NOOP = new ConversationFeedbackSink() {};
 
     /** 工具开始执行。 */

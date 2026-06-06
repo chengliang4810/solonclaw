@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Locale;
 import lombok.Getter;
 
-/** Jimuqu 对齐的模型错误分类器。 */
+/** 承载大模型错误Classifier相关状态和辅助逻辑。 */
 public final class LlmErrorClassifier {
+    /** BILLING正则S的统一常量值。 */
     private static final List<String> BILLING_PATTERNS =
             Arrays.asList(
                     "insufficient credits",
@@ -22,6 +23,8 @@ public final class LlmErrorClassifier {
                     "account is deactivated",
                     "plan does not include",
                     "billing_not_active");
+
+    /** 频率限制正则S的统一常量值。 */
     private static final List<String> RATE_LIMIT_PATTERNS =
             Arrays.asList(
                     "rate limit",
@@ -38,8 +41,12 @@ public final class LlmErrorClassifier {
                     "throttlingexception",
                     "too many concurrent requests",
                     "servicequotaexceededexception");
+
+    /** 用量限制正则S的统一常量值。 */
     private static final List<String> USAGE_LIMIT_PATTERNS =
             Arrays.asList("usage limit", "quota", "limit exceeded", "key limit exceeded");
+
+    /** 用量限制TRANSIENTSIGNALS的统一常量值。 */
     private static final List<String> USAGE_LIMIT_TRANSIENT_SIGNALS =
             Arrays.asList(
                     "try again",
@@ -50,6 +57,8 @@ public final class LlmErrorClassifier {
                     "requests remaining",
                     "periodic",
                     "window");
+
+    /** 上下文OVERFLOW正则S的统一常量值。 */
     private static final List<String> CONTEXT_OVERFLOW_PATTERNS =
             Arrays.asList(
                     "context length",
@@ -70,8 +79,12 @@ public final class LlmErrorClassifier {
                     "上下文长度",
                     "超过最大长度",
                     "exceeds the maximum number of input tokens");
+
+    /** 载荷TOOLARGE正则S的统一常量值。 */
     private static final List<String> PAYLOAD_TOO_LARGE_PATTERNS =
             Arrays.asList("request entity too large", "payload too large", "error code: 413");
+
+    /** 模型NOTFOUND正则S的统一常量值。 */
     private static final List<String> MODEL_NOT_FOUND_PATTERNS =
             Arrays.asList(
                     "is not a valid model",
@@ -84,6 +97,8 @@ public final class LlmErrorClassifier {
                     "unsupported model",
                     "model_not_available",
                     "invalid_model");
+
+    /** 认证正则S的统一常量值。 */
     private static final List<String> AUTH_PATTERNS =
             Arrays.asList(
                     "invalid api key",
@@ -95,6 +110,8 @@ public final class LlmErrorClassifier {
                     "token expired",
                     "token revoked",
                     "access denied");
+
+    /** TRANSPORT正则S的统一常量值。 */
     private static final List<String> TRANSPORT_PATTERNS =
             Arrays.asList(
                     "timeout",
@@ -111,8 +128,15 @@ public final class LlmErrorClassifier {
                     "ssl",
                     "tls");
 
+    /** 创建大模型Error Classifier实例。 */
     private LlmErrorClassifier() {}
 
+    /**
+     * 执行classify相关逻辑。
+     *
+     * @param error 错误参数。
+     * @return 返回classify结果。
+     */
     public static ClassifiedError classify(Throwable error) {
         String message = collectErrorText(error).toLowerCase(Locale.ROOT);
         int status = extractStatusCode(message);
@@ -160,6 +184,17 @@ public final class LlmErrorClassifier {
         return result(FailoverReason.UNKNOWN, status, false, true, false, message);
     }
 
+    /**
+     * 执行结果相关逻辑。
+     *
+     * @param reason 原因参数。
+     * @param statusCode 状态Code参数。
+     * @param retryable retryable 参数。
+     * @param fallback 兜底参数。
+     * @param compress compress 参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回结果。
+     */
     private static ClassifiedError result(
             FailoverReason reason,
             int statusCode,
@@ -170,6 +205,13 @@ public final class LlmErrorClassifier {
         return new ClassifiedError(reason, statusCode, retryable, fallback, compress, message);
     }
 
+    /**
+     * 判断是否包含Any。
+     *
+     * @param message 平台消息或错误消息。
+     * @param patterns patterns 参数。
+     * @return 返回contains Any结果。
+     */
     private static boolean containsAny(String message, List<String> patterns) {
         if (StrUtil.isBlank(message)) {
             return false;
@@ -182,6 +224,12 @@ public final class LlmErrorClassifier {
         return false;
     }
 
+    /**
+     * 收集Error Text。
+     *
+     * @param error 错误参数。
+     * @return 返回Error Text结果。
+     */
     private static String collectErrorText(Throwable error) {
         StringBuilder buffer = new StringBuilder();
         Throwable current = error;
@@ -197,6 +245,12 @@ public final class LlmErrorClassifier {
         return buffer.toString();
     }
 
+    /**
+     * 提取状态Code。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回状态Code结果。
+     */
     private static int extractStatusCode(String message) {
         for (int code : new int[] {400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 529}) {
             String value = String.valueOf(code);
@@ -214,28 +268,61 @@ public final class LlmErrorClassifier {
         return 0;
     }
 
+    /** 枚举故障切换Reason的可选值，保证状态表达在各模块间一致。 */
     public enum FailoverReason {
+        /** 表示认证枚举值。 */
         AUTH,
+        /** 表示BILLING枚举值。 */
         BILLING,
+        /** 表示频率限制枚举值。 */
         RATE_LIMIT,
+        /** 表示OVERLOADED枚举值。 */
         OVERLOADED,
+        /** 表示SERVER ERROR枚举值。 */
         SERVER_ERROR,
+        /** 表示TIMEOUT枚举值。 */
         TIMEOUT,
+        /** 表示上下文OVERFLOW枚举值。 */
         CONTEXT_OVERFLOW,
+        /** 表示PAYLOAD TOO LARGE枚举值。 */
         PAYLOAD_TOO_LARGE,
+        /** 表示模型NOT FOUND枚举值。 */
         MODEL_NOT_FOUND,
+        /** 表示UNKNOWN枚举值。 */
         UNKNOWN
     }
 
+    /** 承载Classified错误相关状态和辅助逻辑。 */
     @Getter
     public static class ClassifiedError {
+        /** 记录Classified错误中的原因。 */
         private final FailoverReason reason;
+
+        /** 记录Classified错误中的状态Code。 */
         private final int statusCode;
+
+        /** 是否启用retryable。 */
         private final boolean retryable;
+
+        /** 标记是否需要兜底。 */
         private final boolean shouldFallback;
+
+        /** 标记是否需要压缩。 */
         private final boolean shouldCompress;
+
+        /** 记录Classified错误中的消息。 */
         private final String message;
 
+        /**
+         * 创建Classified Error实例，并注入运行所需依赖。
+         *
+         * @param reason 原因参数。
+         * @param statusCode 状态Code参数。
+         * @param retryable retryable 参数。
+         * @param shouldFallback should兜底参数。
+         * @param shouldCompress shouldCompress 参数。
+         * @param message 平台消息或错误消息。
+         */
         private ClassifiedError(
                 FailoverReason reason,
                 int statusCode,

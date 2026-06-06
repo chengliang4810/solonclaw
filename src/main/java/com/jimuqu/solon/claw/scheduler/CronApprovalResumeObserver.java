@@ -5,23 +5,42 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.List;
 
-/** Resumes cron jobs that were paused only to wait for guardrail approval. */
+/** 承载定时任务审批ResumeObserver相关状态和辅助逻辑。 */
 public class CronApprovalResumeObserver
         implements DangerousCommandApprovalService.ApprovalObserver {
+    /** 定时任务任务PREFIX的统一常量值。 */
     private static final String CRON_JOB_PREFIX = "cron-job:";
+
+    /** 审批PAUSEPREFIX的统一常量值。 */
     private static final String APPROVAL_PAUSE_PREFIX = "waiting for approval:";
 
+    /** 注入定时任务任务服务，用于调用对应业务能力。 */
     private final CronJobService cronJobService;
 
+    /**
+     * 创建定时任务审批Resume Observer实例，并注入运行所需依赖。
+     *
+     * @param cronJobService 定时任务Job服务依赖。
+     */
     public CronApprovalResumeObserver(CronJobService cronJobService) {
         this.cronJobService = cronJobService;
     }
 
+    /**
+     * 响应审批请求事件。
+     *
+     * @param event 事件参数。
+     */
     @Override
     public void onApprovalRequest(DangerousCommandApprovalService.ApprovalRequestEvent event) {
-        // No-op: the scheduler pauses the job when it creates the approval request.
+        // 保留此处实现约束，避免后续维护时破坏既有行为。
     }
 
+    /**
+     * 响应审批响应事件。
+     *
+     * @param event 事件参数。
+     */
     @Override
     public void onApprovalResponse(DangerousCommandApprovalService.ApprovalResponseEvent event) {
         if (cronJobService == null || event == null || !event.isApproved()) {
@@ -41,10 +60,16 @@ public class CronApprovalResumeObserver
             }
             cronJobService.resume(jobId);
         } catch (Exception ignored) {
-            // Approval handling must not fail because a best-effort cron resume failed.
+            // 这里的失败不应影响主流程或安全关键路径。
         }
     }
 
+    /**
+     * 执行定时任务任务标识相关逻辑。
+     *
+     * @param patternKeys patternKeys 参数。
+     * @return 返回定时任务任务标识。
+     */
     private String cronJobId(List<String> patternKeys) {
         if (patternKeys == null) {
             return "";

@@ -16,10 +16,21 @@ import org.noear.solon.annotation.Param;
 /** 运行时配置工具。 */
 @RequiredArgsConstructor
 public class ConfigTools {
+    /** 保存运行时设置服务集合，维持调用顺序或去重语义。 */
     private final RuntimeSettingsService runtimeSettingsService;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
+
+    /** 注入应用配置，用于配置。 */
     private final AppConfig appConfig;
 
+    /**
+     * 执行配置Get相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回配置Get结果。
+     */
     @ToolMapping(
             name = "config_get",
             description =
@@ -42,6 +53,13 @@ public class ConfigTools {
         }
     }
 
+    /**
+     * 执行配置Set相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回配置Set结果。
+     */
     @ToolMapping(
             name = "config_set",
             description =
@@ -67,6 +85,12 @@ public class ConfigTools {
         }
     }
 
+    /**
+     * 执行配置刷新相关逻辑。
+     *
+     * @param reconnectChannels reconnectChannels 参数。
+     * @return 返回配置刷新结果。
+     */
     @ToolMapping(
             name = "config_refresh",
             description =
@@ -94,6 +118,12 @@ public class ConfigTools {
         }
     }
 
+    /**
+     * 执行配置环境变量Probe相关逻辑。
+     *
+     * @param names names 参数。
+     * @return 返回配置Env Probe结果。
+     */
     @ToolMapping(
             name = "config_env_probe",
             description =
@@ -120,6 +150,13 @@ public class ConfigTools {
         }
     }
 
+    /**
+     * 执行配置Set密钥相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回配置Set密钥结果。
+     */
     @ToolMapping(
             name = "config_set_secret",
             description =
@@ -139,6 +176,12 @@ public class ConfigTools {
         }
     }
 
+    /**
+     * 执行错误相关逻辑。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回error结果。
+     */
     private String error(Exception e) {
         return ToolResultEnvelope.error(
                         SecretRedactor.redact(
@@ -149,6 +192,12 @@ public class ConfigTools {
                 .toJson();
     }
 
+    /**
+     * 执行环境变量Probe输入相关逻辑。
+     *
+     * @param names names 参数。
+     * @return 返回env Probe输入结果。
+     */
     private Map<String, String> envProbeInput(List<String> names) {
         Map<String, String> env = new LinkedHashMap<String, String>();
         for (String name : names) {
@@ -159,6 +208,12 @@ public class ConfigTools {
         return env;
     }
 
+    /**
+     * 解析Probe Names。
+     *
+     * @param raw 原始输入值。
+     * @return 返回解析后的Probe Names。
+     */
     private List<String> parseProbeNames(String raw) {
         List<String> values = new ArrayList<String>();
         String text = SecretRedactor.stripDisplayControls(raw == null ? "" : raw).trim();
@@ -181,6 +236,12 @@ public class ConfigTools {
         return values;
     }
 
+    /**
+     * 追加Probe名称。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param raw 原始输入值。
+     */
     private void addProbeName(List<String> values, String raw) {
         String value = SecretRedactor.stripDisplayControls(raw == null ? "" : raw).trim();
         if (value.length() > 0) {
@@ -188,6 +249,13 @@ public class ConfigTools {
         }
     }
 
+    /**
+     * 生成安全展示用的文本列表。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe Text List结果。
+     */
     private List<Object> safeTextList(List<String> values, int maxLength) {
         List<Object> items = new ArrayList<Object>();
         if (values == null) {
@@ -201,6 +269,13 @@ public class ConfigTools {
         return items;
     }
 
+    /**
+     * 生成安全展示用的值。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Value结果。
+     */
     private Object safeValue(String key, Object value) {
         if (value == null) {
             return null;
@@ -211,6 +286,13 @@ public class ConfigTools {
         return "***";
     }
 
+    /**
+     * 生成安全展示用的预览。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Preview结果。
+     */
     private String safePreview(String key, Object value) {
         if (value == null) {
             return "";
@@ -221,14 +303,29 @@ public class ConfigTools {
         return SecretRedactor.redact(String.valueOf(value), 1000);
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /** 提供配置Get工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigGetTool {
+        /** 记录配置Get中的委托。 */
         private final ConfigTools delegate;
 
+        /**
+         * 执行配置Get相关逻辑。
+         *
+         * @param key 配置键或映射键。
+         * @return 返回配置Get结果。
+         */
         @ToolMapping(
                 name = "config_get",
                 description =
@@ -237,6 +334,12 @@ public class ConfigTools {
             return delegate.configGet(key);
         }
 
+        /**
+         * 执行配置Read相关逻辑。
+         *
+         * @param key 配置键或映射键。
+         * @return 返回配置Read结果。
+         */
         @ToolMapping(
                 name = "config_read",
                 description =
@@ -246,6 +349,12 @@ public class ConfigTools {
             return delegate.configGet(key);
         }
 
+        /**
+         * 执行配置环境变量Probe相关逻辑。
+         *
+         * @param names names 参数。
+         * @return 返回配置Env Probe结果。
+         */
         @ToolMapping(
                 name = "config_env_probe",
                 description =
@@ -257,10 +366,19 @@ public class ConfigTools {
         }
     }
 
+    /** 提供配置Set工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigSetTool {
+        /** 记录配置Set中的委托。 */
         private final ConfigTools delegate;
 
+        /**
+         * 执行配置Set相关逻辑。
+         *
+         * @param key 配置键或映射键。
+         * @param value 待规范化或校验的原始值。
+         * @return 返回配置Set结果。
+         */
         @ToolMapping(
                 name = "config_set",
                 description =
@@ -272,6 +390,13 @@ public class ConfigTools {
             return delegate.configSet(key, value);
         }
 
+        /**
+         * 执行配置写入相关逻辑。
+         *
+         * @param key 配置键或映射键。
+         * @param value 待规范化或校验的原始值。
+         * @return 返回配置Write结果。
+         */
         @ToolMapping(
                 name = "config_write",
                 description =
@@ -284,10 +409,19 @@ public class ConfigTools {
         }
     }
 
+    /** 提供配置Set密钥工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigSetSecretTool {
+        /** 记录配置Set密钥中的委托。 */
         private final ConfigTools delegate;
 
+        /**
+         * 执行配置Set密钥相关逻辑。
+         *
+         * @param key 配置键或映射键。
+         * @param value 待规范化或校验的原始值。
+         * @return 返回配置Set密钥结果。
+         */
         @ToolMapping(
                 name = "config_set_secret",
                 description =
@@ -298,6 +432,13 @@ public class ConfigTools {
             return delegate.configSetSecret(key, value);
         }
 
+        /**
+         * 执行配置更新密钥相关逻辑。
+         *
+         * @param key 配置键或映射键。
+         * @param value 待规范化或校验的原始值。
+         * @return 返回配置更新密钥结果。
+         */
         @ToolMapping(
                 name = "config_update_secret",
                 description =
@@ -309,10 +450,18 @@ public class ConfigTools {
         }
     }
 
+    /** 提供配置刷新工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigRefreshTool {
+        /** 记录配置刷新中的委托。 */
         private final ConfigTools delegate;
 
+        /**
+         * 执行配置刷新相关逻辑。
+         *
+         * @param reconnectChannels reconnectChannels 参数。
+         * @return 返回配置刷新结果。
+         */
         @ToolMapping(
                 name = "config_refresh",
                 description =

@@ -19,8 +19,14 @@ import lombok.RequiredArgsConstructor;
 /** SQLite Agent run 仓储实现。 */
 @RequiredArgsConstructor
 public class SqliteAgentRunRepository implements AgentRunRepository {
+    /** 记录SQLiteAgent运行中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 保存运行。
+     *
+     * @param record 记录参数。
+     */
     @Override
     public void saveRun(AgentRunRecord record) throws Exception {
         Connection connection = database.openConnection();
@@ -69,6 +75,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 查找运行。
+     *
+     * @param runId 运行标识。
+     * @return 返回运行结果。
+     */
     @Override
     public AgentRunRecord findRun(String runId) throws Exception {
         Connection connection = database.openConnection();
@@ -88,6 +100,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出根据会话。
+     *
+     * @param sessionId 当前会话标识。
+     * @param limit 最大返回数量。
+     * @return 返回根据会话列表。
+     */
     @Override
     public List<AgentRunRecord> listBySession(String sessionId, int limit) throws Exception {
         List<AgentRunRecord> records = new ArrayList<AgentRunRecord>();
@@ -113,6 +132,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 列出Finished With用量。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回Finished With用量列表。
+     */
     @Override
     public List<AgentRunRecord> listFinishedWithUsage(int limit) throws Exception {
         List<AgentRunRecord> records = new ArrayList<AgentRunRecord>();
@@ -137,6 +162,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 列出Recoverable。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回Recoverable列表。
+     */
     @Override
     public List<AgentRunRecord> listRecoverable(int limit) throws Exception {
         List<AgentRunRecord> records = new ArrayList<AgentRunRecord>();
@@ -161,6 +192,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 列出Active Before。
+     *
+     * @param beforeEpochMillis beforeEpochMillis 参数。
+     * @param limit 最大返回数量。
+     * @return 返回Active Before列表。
+     */
     @Override
     public List<AgentRunRecord> listActiveBefore(long beforeEpochMillis, int limit)
             throws Exception {
@@ -187,6 +225,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 标记Stale运行。
+     *
+     * @param beforeEpochMillis beforeEpochMillis 参数。
+     * @param now 当前时间戳。
+     */
     @Override
     public void markStaleRuns(long beforeEpochMillis, long now) throws Exception {
         List<AgentRunRecord> stale = listActiveBefore(beforeEpochMillis, 500);
@@ -212,6 +256,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出Active根据来源。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param limit 最大返回数量。
+     * @return 返回Active根据来源列表。
+     */
     @Override
     public List<AgentRunRecord> listActiveBySource(String sourceKey, int limit) throws Exception {
         List<AgentRunRecord> records = new ArrayList<AgentRunRecord>();
@@ -237,6 +288,18 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 搜索运行。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runId 运行标识。
+     * @param query 查询参数。
+     * @param timeFrom 时间From参数。
+     * @param timeTo 时间To参数。
+     * @param limit 最大返回数量。
+     * @return 返回运行结果。
+     */
     @Override
     public List<AgentRunRecord> searchRuns(
             String sourceKey,
@@ -292,6 +355,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 追加事件。
+     *
+     * @param event 事件参数。
+     */
     @Override
     public void appendEvent(AgentRunEventRecord event) throws Exception {
         Connection connection = database.openConnection();
@@ -320,6 +388,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出Events。
+     *
+     * @param runId 运行标识。
+     * @return 返回Events列表。
+     */
     @Override
     public List<AgentRunEventRecord> listEvents(String runId) throws Exception {
         List<AgentRunEventRecord> events = new ArrayList<AgentRunEventRecord>();
@@ -344,6 +418,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return events;
     }
 
+    /**
+     * 保存运行Control命令。
+     *
+     * @param command 待执行或解析的命令文本。
+     */
     @Override
     public void saveRunControlCommand(RunControlCommand command) throws Exception {
         Connection connection = database.openConnection();
@@ -366,6 +445,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出运行Control Commands。
+     *
+     * @param runId 运行标识。
+     * @return 返回运行Control Commands列表。
+     */
     @Override
     public List<RunControlCommand> listRunControlCommands(String runId) throws Exception {
         List<RunControlCommand> records = new ArrayList<RunControlCommand>();
@@ -390,6 +475,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 查找Latest Pending命令。
+     *
+     * @param runId 运行标识。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回Latest Pending命令结果。
+     */
     @Override
     public RunControlCommand findLatestPendingCommand(String runId, String command)
             throws Exception {
@@ -412,6 +504,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 标记运行Control命令Handled。
+     *
+     * @param commandId 命令标识。
+     * @param status 状态参数。
+     * @param handledAt handledAt 参数。
+     */
     @Override
     public void markRunControlCommandHandled(String commandId, String status, long handledAt)
             throws Exception {
@@ -430,6 +529,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 保存Queued消息。
+     *
+     * @param message 平台消息或错误消息。
+     */
     @Override
     public void saveQueuedMessage(QueuedRunMessage message) throws Exception {
         Connection connection = database.openConnection();
@@ -456,6 +560,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 查找Next Queued消息。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @return 返回Next Queued消息结果。
+     */
     @Override
     public QueuedRunMessage findNextQueuedMessage(String sourceKey, String sessionId)
             throws Exception {
@@ -478,6 +589,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 执行次数排队Messages相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @return 返回次数Queued Messages结果。
+     */
     @Override
     public int countQueuedMessages(String sourceKey, String sessionId) throws Exception {
         Connection connection = database.openConnection();
@@ -499,6 +617,14 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 标记Queued消息。
+     *
+     * @param queueId 队列标识。
+     * @param status 状态参数。
+     * @param timestamp 请求携带的时间戳。
+     * @param error 错误参数。
+     */
     @Override
     public void markQueuedMessage(String queueId, String status, long timestamp, String error)
             throws Exception {
@@ -521,6 +647,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 保存工具Call。
+     *
+     * @param record 记录参数。
+     */
     @Override
     public void saveToolCall(ToolCallRecord record) throws Exception {
         Connection connection = database.openConnection();
@@ -557,6 +688,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出工具Calls。
+     *
+     * @param runId 运行标识。
+     * @return 返回工具Calls列表。
+     */
     @Override
     public List<ToolCallRecord> listToolCalls(String runId) throws Exception {
         List<ToolCallRecord> records = new ArrayList<ToolCallRecord>();
@@ -581,6 +718,19 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 搜索工具Calls。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runId 运行标识。
+     * @param toolName 工具名称。
+     * @param query 查询参数。
+     * @param timeFrom 时间From参数。
+     * @param timeTo 时间To参数。
+     * @param limit 最大返回数量。
+     * @return 返回工具Calls结果。
+     */
     @Override
     public List<ToolCallRecord> searchToolCalls(
             String sourceKey,
@@ -652,6 +802,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 保存Subagent运行。
+     *
+     * @param record 记录参数。
+     */
     @Override
     public void saveSubagentRun(SubagentRunRecord record) throws Exception {
         Connection connection = database.openConnection();
@@ -684,6 +839,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出Subagents。
+     *
+     * @param parentRunId parent运行标识。
+     * @return 返回Subagents列表。
+     */
     @Override
     public List<SubagentRunRecord> listSubagents(String parentRunId) throws Exception {
         List<SubagentRunRecord> records = new ArrayList<SubagentRunRecord>();
@@ -708,6 +869,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 保存Recovery。
+     *
+     * @param record 记录参数。
+     */
     @Override
     public void saveRecovery(RunRecoveryRecord record) throws Exception {
         Connection connection = database.openConnection();
@@ -732,6 +898,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 列出Recoveries。
+     *
+     * @param runId 运行标识。
+     * @return 返回Recoveries列表。
+     */
     @Override
     public List<RunRecoveryRecord> listRecoveries(String runId) throws Exception {
         List<RunRecoveryRecord> records = new ArrayList<RunRecoveryRecord>();
@@ -756,6 +928,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return records;
     }
 
+    /**
+     * 执行pruneBefore相关逻辑。
+     *
+     * @param beforeEpochMillis beforeEpochMillis 参数。
+     */
     @Override
     public void pruneBefore(long beforeEpochMillis) throws Exception {
         Connection connection = database.openConnection();
@@ -798,6 +975,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 执行map运行相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map运行结果。
+     */
     private AgentRunRecord mapRun(ResultSet resultSet) throws Exception {
         AgentRunRecord record = new AgentRunRecord();
         record.setRunId(resultSet.getString("run_id"));
@@ -837,6 +1020,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 执行map事件相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map事件结果。
+     */
     private AgentRunEventRecord mapEvent(ResultSet resultSet) throws Exception {
         AgentRunEventRecord record = new AgentRunEventRecord();
         record.setEventId(resultSet.getString("event_id"));
@@ -855,6 +1044,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 执行map工具Call相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map工具Call结果。
+     */
     private ToolCallRecord mapToolCall(ResultSet resultSet) throws Exception {
         ToolCallRecord record = new ToolCallRecord();
         record.setToolCallId(resultSet.getString("tool_call_id"));
@@ -880,6 +1075,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 执行map子Agent相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map Subagent结果。
+     */
     private SubagentRunRecord mapSubagent(ResultSet resultSet) throws Exception {
         SubagentRunRecord record = new SubagentRunRecord();
         record.setSubagentId(resultSet.getString("subagent_id"));
@@ -903,6 +1104,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 执行map运行控制命令相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map运行Control命令结果。
+     */
     private RunControlCommand mapRunControlCommand(ResultSet resultSet) throws Exception {
         RunControlCommand record = new RunControlCommand();
         record.setCommandId(resultSet.getString("command_id"));
@@ -916,6 +1123,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 执行map排队消息相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map Queued消息结果。
+     */
     private QueuedRunMessage mapQueuedMessage(ResultSet resultSet) throws Exception {
         QueuedRunMessage record = new QueuedRunMessage();
         record.setQueueId(resultSet.getString("queue_id"));
@@ -933,6 +1146,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 执行map恢复相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map Recovery结果。
+     */
     private RunRecoveryRecord mapRecovery(ResultSet resultSet) throws Exception {
         RunRecoveryRecord record = new RunRecoveryRecord();
         record.setRecoveryId(resultSet.getString("recovery_id"));
@@ -948,6 +1167,17 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return record;
     }
 
+    /**
+     * 追加运行Filters。
+     *
+     * @param sql sql 参数。
+     * @param args 工具或命令参数。
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runId 运行标识。
+     * @param timeFrom 时间From参数。
+     * @param timeTo 时间To参数。
+     */
     private void appendRunFilters(
             StringBuilder sql,
             List<Object> args,
@@ -978,6 +1208,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 执行bind参数相关逻辑。
+     *
+     * @param statement statement 参数。
+     * @param args 工具或命令参数。
+     */
     private void bindArgs(PreparedStatement statement, List<Object> args) throws Exception {
         for (int i = 0; i < args.size(); i++) {
             Object value = args.get(i);
@@ -991,6 +1227,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 追加事件Fts。
+     *
+     * @param connection 连接参数。
+     * @param event 事件参数。
+     */
     private void appendEventFts(Connection connection, AgentRunEventRecord event) {
         try {
             PreparedStatement statement =
@@ -1008,6 +1250,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 执行increment工具Call次数相关逻辑。
+     *
+     * @param connection 连接参数。
+     * @param record 记录参数。
+     */
     private void incrementToolCallCount(Connection connection, ToolCallRecord record) {
         if (record == null
                 || record.getRunId() == null
@@ -1026,6 +1274,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 追加工具结果Fts。
+     *
+     * @param connection 连接参数。
+     * @param record 记录参数。
+     */
     private void appendToolResultFts(Connection connection, ToolCallRecord record) {
         if (record == null || !record.isResultIndexable()) {
             return;
@@ -1058,6 +1312,12 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         }
     }
 
+    /**
+     * 转义JSON。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回escape JSON结果。
+     */
     private String escapeJson(String value) {
         if (value == null) {
             return "";
@@ -1065,6 +1325,13 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redact结果。
+     */
     private String redact(String value, int maxLength) {
         return value == null ? null : SecretRedactor.redact(value, maxLength);
     }
