@@ -15,6 +15,8 @@ public class SolonClawExecuteCodeWebRpcTest {
     void shouldExposeCodeExecutionPolicySummaryWithoutSecrets() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTerminal().setEnvPassthrough(java.util.Arrays.asList("TENOR_API_KEY"));
+        env.appConfig.getSecurity().setFileGuardrailMode("strict");
+        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
 
         Map<String, Object> summary =
                 SolonClawCodeExecutionSkills.codeExecutionPolicySummary(env.appConfig);
@@ -41,8 +43,8 @@ public class SolonClawExecuteCodeWebRpcTest {
         assertThat(summary.get("stagingCleanup")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("outputRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary))
-                .contains("web_search")
-                .contains("web_extract")
+                .contains("websearch")
+                .contains("webfetch")
                 .contains("read_file")
                 .contains("write_file")
                 .contains("search_files")
@@ -53,7 +55,7 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
-    void shouldExposeJimuquWebSearchAndExtractInsideExecuteCode() throws Exception {
+    void shouldExposeJimuquWebSearchAndFetchInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
@@ -68,13 +70,13 @@ public class SolonClawExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from solonclaw_tools import web_search, web_extract\n"
-                                        + "search = web_search('solon ai', limit=2)\n"
+                                "from solonclaw_tools import websearch, webfetch\n"
+                                        + "search = websearch('solon ai', limit=2)\n"
                                         + "print(search['data']['web'][0]['url'])\n"
                                         + "print(search['data']['web'][0]['title'])\n"
-                                        + "extract = web_extract(['https://example.com/docs'])\n"
-                                        + "print(extract['results'][0]['title'])\n"
-                                        + "print(extract['results'][0]['content'])\n",
+                                        + "extract = webfetch('https://example.com/docs')\n"
+                                        + "print(extract['title'])\n"
+                                        + "print(extract['content'])\n",
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
@@ -87,7 +89,45 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
-    void shouldReturnWebExtractErrorsPerUrl() throws Exception {
+    void shouldExposeAliasToolsInsideExecuteCode() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        java.nio.file.Path workspace =
+                new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        java.nio.file.Files.write(
+                workspace.resolve("alias-source.txt"),
+                java.util.Arrays.asList("alias input"),
+                java.nio.charset.StandardCharsets.UTF_8);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig,
+                        new FakeWebsearchTool(),
+                        new FakeWebfetchTool());
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from solonclaw_tools import file_read, file_write, web_search, web_extract\n"
+                                        + "print(file_read('alias-source.txt')['content'].splitlines()[0])\n"
+                                        + "print(file_write('alias-output.txt', 'alias output\\n')['success'])\n"
+                                        + "print(web_search('solon ai')['data']['web'][0]['title'])\n"
+                                        + "print(web_extract(['https://example.com/docs'])['title'])\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(4);
+        assertThat(result.get("output").getString())
+                .contains("alias input")
+                .contains("True")
+                .contains("Solon AI")
+                .contains("Example Docs");
+    }
+
+    @Test
+    void shouldReturnWebfetchErrors() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
@@ -102,10 +142,10 @@ public class SolonClawExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from solonclaw_tools import web_extract\n"
-                                        + "extract = web_extract(['https://example.com/fail'])\n"
-                                        + "print(extract['results'][0]['url'])\n"
-                                        + "print(extract['results'][0]['error'])\n",
+                                "from solonclaw_tools import webfetch\n"
+                                        + "extract = webfetch('https://example.com/fail')\n"
+                                        + "print(extract['url'])\n"
+                                        + "print(extract['error'])\n",
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
@@ -116,7 +156,7 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
-    void shouldBlockReturnedWebExtractContentUrlsInsideExecuteCode() throws Exception {
+    void shouldBlockReturnedWebfetchContentUrlsInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -147,10 +187,10 @@ public class SolonClawExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from solonclaw_tools import web_extract\n"
-                                        + "extract = web_extract(['https://example.com/docs'])\n"
-                                        + "print(extract['results'][0]['error'])\n"
-                                        + "print(extract['results'][0]['content'])\n",
+                                "from solonclaw_tools import webfetch\n"
+                                        + "extract = webfetch('https://example.com/docs')\n"
+                                        + "print(extract['error'])\n"
+                                        + "print(extract['content'])\n",
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
@@ -177,12 +217,12 @@ public class SolonClawExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from solonclaw_tools import search_files, web_extract, _call\n"
+                                "from solonclaw_tools import search_files, webfetch, _call\n"
                                         + "secret = 'ghp_' + '1234567890abcdef'\n"
                                         + "print(search_files('x', path='missing-token-' + secret)['error'])\n"
                                         + "print(_call('secret_tool_' + secret, {})['error'])\n"
-                                        + "extract = web_extract(['https://example.com/fail?token=' + secret])\n"
-                                        + "print(extract['results'][0]['error'])\n",
+                                        + "extract = webfetch('https://example.com/fail?token=' + secret)\n"
+                                        + "print(extract['error'])\n",
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
@@ -250,12 +290,12 @@ public class SolonClawExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from solonclaw_tools import search_files, web_search, web_extract\n"
+                                "from solonclaw_tools import search_files, websearch, webfetch\n"
                                         + "import json\n"
                                         + "search = json.dumps(search_files('rpcfile', path='.'), ensure_ascii=False)\n"
-                                        + "web = json.dumps(web_search('secret'), ensure_ascii=False)\n"
+                                        + "web = json.dumps(websearch('secret'), ensure_ascii=False)\n"
                                         + "url_secret = 'ghp_' + 'rpcurlinput12345'\n"
-                                        + "extract = json.dumps(web_extract(['https://example.com/docs?token=' + url_secret]), ensure_ascii=False)\n"
+                                        + "extract = json.dumps(webfetch('https://example.com/docs?token=' + url_secret), ensure_ascii=False)\n"
                                         + "for raw in ['ghp_' + 'filepath12345', 'ghp_' + 'rpcfile12345', 'ghp_' + 'rpcsearchurl12345', 'ghp_' + 'rpcsearchtitle12345', 'ghp_' + 'rpcsearchdesc12345', url_secret, 'ghp_' + 'rpcextracttitle12345', 'ghp_' + 'rpcextractcontent12345']:\n"
                                         + "    assert raw not in search + web + extract\n"
                                         + "print(search)\n"

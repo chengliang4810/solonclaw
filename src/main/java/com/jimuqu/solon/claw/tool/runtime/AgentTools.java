@@ -34,7 +34,7 @@ public class AgentTools {
             @Param(
                             name = "args",
                             description =
-                                    "Agent command arguments, for example: list, create coder 你是代码助手, use coder, tools coder file_read,skills_list")
+                                    "Agent command arguments, for example: list, create coder 你是代码助手, use coder, tools coder read_file,skills_list")
                     String args) {
         try {
             String result = agentProfileService.handleCommand(args, sessionRepository, sourceKey);

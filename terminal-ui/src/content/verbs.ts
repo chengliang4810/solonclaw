@@ -14,8 +14,8 @@ export const TOOL_VERBS: Record<string, string> = {
   search_code: 'searching',
   search_files: 'searching',
   terminal: 'terminal',
-  web_extract: 'extracting',
-  web_search: 'searching',
+  webfetch: 'extracting',
+  websearch: 'searching',
   write_file: 'writing'
 }
 

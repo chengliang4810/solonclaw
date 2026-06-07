@@ -27,8 +27,8 @@ public class ToolCallLoopGuardrailServiceTest {
         ReActTrace trace = newTrace();
         Map<String, Object> args = args("query", "same");
 
-        runFailedCall(interceptor, trace, "web_search", args);
-        runFailedCall(interceptor, trace, "web_search", args);
+        runFailedCall(interceptor, trace, "websearch", args);
+        runFailedCall(interceptor, trace, "websearch", args);
 
         assertThat(trace.getLastObservation()).contains("工具循环提醒");
         assertThat(trace.getLastObservation()).contains("repeated_exact_failure_warning");
@@ -46,9 +46,9 @@ public class ToolCallLoopGuardrailServiceTest {
         ReActTrace trace = newTrace();
         Map<String, Object> args = args("query", "same");
 
-        runFailedCall(interceptor, trace, "web_search", args);
-        runFailedCall(interceptor, trace, "web_search", args);
-        interceptor.onAction(trace, "web_search", args);
+        runFailedCall(interceptor, trace, "websearch", args);
+        runFailedCall(interceptor, trace, "websearch", args);
+        interceptor.onAction(trace, "websearch", args);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
@@ -60,7 +60,7 @@ public class ToolCallLoopGuardrailServiceTest {
         assertThat(haltMetadata)
                 .containsEntry("action", "block")
                 .containsEntry("code", "repeated_exact_failure_block")
-                .containsEntry("tool_name", "web_search")
+                .containsEntry("tool_name", "websearch")
                 .containsKey("message");
         assertThat(String.valueOf(haltMetadata.get("message"))).contains("相同参数");
     }
@@ -123,9 +123,9 @@ public class ToolCallLoopGuardrailServiceTest {
         Map<String, Object> firstArgs = nestedArgs(false);
         Map<String, Object> reorderedArgs = nestedArgs(true);
 
-        runFailedCall(interceptor, trace, "web_search", firstArgs);
-        runFailedCall(interceptor, trace, "web_search", reorderedArgs);
-        interceptor.onAction(trace, "web_search", reorderedArgs);
+        runFailedCall(interceptor, trace, "websearch", firstArgs);
+        runFailedCall(interceptor, trace, "websearch", reorderedArgs);
+        interceptor.onAction(trace, "websearch", reorderedArgs);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getLastObservation())
@@ -264,9 +264,9 @@ public class ToolCallLoopGuardrailServiceTest {
         ReActTrace trace = newTrace();
         Map<String, Object> args = args("query", "same");
 
-        runFailedCall(interceptor, trace, "web_search", args);
-        runSuccessfulCall(interceptor, trace, "web_search", args, "{\"status\":\"success\"}");
-        runFailedCall(interceptor, trace, "web_search", args);
+        runFailedCall(interceptor, trace, "websearch", args);
+        runSuccessfulCall(interceptor, trace, "websearch", args, "{\"status\":\"success\"}");
+        runFailedCall(interceptor, trace, "websearch", args);
 
         assertThat(trace.getLastObservation()).doesNotContain("repeated_exact_failure_warning");
     }

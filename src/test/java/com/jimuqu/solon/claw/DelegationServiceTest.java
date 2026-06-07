@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.LlmResult;
@@ -9,13 +11,16 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DelegateTools;
+import com.jimuqu.solon.claw.tool.runtime.TodoTools;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 
 public class DelegationServiceTest {
     @Test
@@ -30,6 +35,48 @@ public class DelegationServiceTest {
         assertThat(result.getSessionId()).isNotBlank();
         assertThat(env.sessionRepository.getBoundSession("MEMORY:room-a:user-a").getSessionId())
                 .isEqualTo(parent.getSessionId());
+        assertThat(env.sessionRepository.findById(result.getSessionId()).getParentSessionId())
+                .isEqualTo(parent.getSessionId());
+
+        DeliveryRequest childTarget =
+                SourceKeySupport.toDeliveryRequest(result.getSourceKey(), "child reply");
+        assertThat(childTarget.getPlatform()).isEqualTo(PlatformType.MEMORY);
+        assertThat(childTarget.getChatId()).isEqualTo("room-a");
+        assertThat(childTarget.getUserId()).isEqualTo("user-a");
+        assertThat(childTarget.getThreadId())
+                .startsWith("delegate-")
+                .contains(result.getSubagentId());
+
+        TodoTools parentTodo = new TodoTools(env.appConfig, "MEMORY:room-a:user-a");
+        TodoTools childTodo = new TodoTools(env.appConfig, result.getSourceKey());
+        parentTodo.todo(Arrays.asList(item("parent", "parent task", "pending")), false);
+        childTodo.todo(Arrays.asList(item("child", "child task", "in_progress")), false);
+
+        ONode parentList = ONode.ofJson(parentTodo.todo(null, null));
+        ONode childList = ONode.ofJson(childTodo.todo(null, null));
+        assertThat(parentList.get("todos").size()).isEqualTo(1);
+        assertThat(parentList.get("todos").get(0).get("id").getString()).isEqualTo("parent");
+        assertThat(childList.get("todos").size()).isEqualTo(1);
+        assertThat(childList.get("todos").get(0).get("id").getString()).isEqualTo("child");
+    }
+
+    @Test
+    void shouldCreateThreadScopedChildSourceKeyForThreadedParents() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String parentSourceKey = "MEMORY:room-a:thread-1:user-a";
+        SessionRecord parent = env.sessionRepository.bindNewSession(parentSourceKey);
+
+        DelegationResult result =
+                env.delegationService.delegateSingle(parentSourceKey, "sub task", "ctx");
+
+        DeliveryRequest childTarget =
+                SourceKeySupport.toDeliveryRequest(result.getSourceKey(), "child reply");
+        assertThat(childTarget.getPlatform()).isEqualTo(PlatformType.MEMORY);
+        assertThat(childTarget.getChatId()).isEqualTo("room-a");
+        assertThat(childTarget.getUserId()).isEqualTo("user-a");
+        assertThat(childTarget.getThreadId())
+                .startsWith("thread-1-delegate-")
+                .contains(result.getSubagentId());
         assertThat(env.sessionRepository.findById(result.getSessionId()).getParentSessionId())
                 .isEqualTo(parent.getSessionId());
     }
@@ -225,6 +272,14 @@ public class DelegationServiceTest {
             lastToolObjects = new ArrayList<Object>(toolObjects);
             return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
+    }
+
+    private static TodoTools.TodoItem item(String id, String content, String status) {
+        TodoTools.TodoItem item = new TodoTools.TodoItem();
+        item.setId(id);
+        item.setContent(content);
+        item.setStatus(status);
+        return item;
     }
 
     private static class RecordingDelegationService implements DelegationService {

@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 import org.noear.solon.annotation.Param;
@@ -37,7 +39,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
 
     /** READDEDUP状态消息的统一常量值。 */
     private static final String READ_DEDUP_STATUS_MESSAGE =
-            "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 file_read 结果继续任务。";
+            "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 read_file 结果继续任务。";
 
     /** 记录Solon项目文件Read写入技能中的根用户路径。 */
     private final Path rootPath;
@@ -229,6 +231,18 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     }
 
     /**
+     * 参考风格写入工具名，复用当前文件安全与结果封装。
+     *
+     * @param path 文件路径。
+     * @param content 待写入内容。
+     * @return 返回write结果。
+     */
+    @ToolMapping(name = "write_file", description = "Write text content to a workspace file.")
+    public String writeFile(@Param("path") String path, @Param("content") String content) {
+        return write(path, content);
+    }
+
+    /**
      * 执行read相关逻辑。
      *
      * @param fileName 文件或目录路径参数。
@@ -266,6 +280,102 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     Integer limit) {
         assertSafe(ToolNameConstants.FILE_READ, fileName);
         return readPaged(fileName, offset, limit);
+    }
+
+    /**
+     * 参考风格读取工具名，复用当前分页、去重和安全策略。
+     *
+     * @param path 文件路径。
+     * @param offset 从第几行开始读取。
+     * @param limit 最大返回行数。
+     * @return 返回read结果。
+     */
+    @ToolMapping(
+            name = "read_file",
+            description = "Read a text file with line numbers. offset starts at 1 and limit defaults to 500.")
+    public String readFile(
+            @Param("path") String path,
+            @Param(name = "offset", required = false, defaultValue = "1") Integer offset,
+            @Param(name = "limit", required = false, defaultValue = "500") Integer limit) {
+        assertSafe(ToolNameConstants.READ_FILE, path);
+        return readPaged(path, offset, limit);
+    }
+
+    /**
+     * 搜索文件内容或文件名。
+     *
+     * @param pattern 搜索模式。
+     * @param target 搜索目标：content/files。
+     * @param path 搜索目录。
+     * @param fileGlob 文件名包含过滤。
+     * @param limit 最大返回条数。
+     * @param offset 跳过条数。
+     * @param outputMode 输出模式。
+     * @param context 匹配上下文行数。
+     * @return 返回搜索结果。
+     */
+    @ToolMapping(name = "search_files", description = "Search workspace files by content or file name.")
+    public String searchFiles(
+            @Param(name = "pattern", description = "Text or regex pattern to search.") String pattern,
+            @Param(name = "target", required = false, defaultValue = "content") String target,
+            @Param(name = "path", required = false, defaultValue = ".") String path,
+            @Param(name = "file_glob", required = false) String fileGlob,
+            @Param(name = "limit", required = false, defaultValue = "50") Integer limit,
+            @Param(name = "offset", required = false, defaultValue = "0") Integer offset,
+            @Param(name = "output_mode", required = false, defaultValue = "content")
+                    String outputMode,
+            @Param(name = "context", required = false, defaultValue = "0") Integer context) {
+        assertSafe(ToolNameConstants.SEARCH_FILES, path);
+        String query = StrUtil.nullToEmpty(pattern);
+        if (StrUtil.isBlank(query)) {
+            return ToolResultEnvelope.error("pattern is required").toJson();
+        }
+        int safeLimit = Math.max(1, Math.min(limit == null ? 50 : limit.intValue(), 200));
+        int safeOffset = Math.max(0, offset == null ? 0 : offset.intValue());
+        int safeContext = Math.max(0, Math.min(context == null ? 0 : context.intValue(), 5));
+        Path root;
+        try {
+            root = resolvePath(StrUtil.blankToDefault(path, "."));
+        } catch (Exception e) {
+            return ToolResultEnvelope.error("搜索失败: " + safeToolError(e)).toJson();
+        }
+        if (!Files.exists(root)) {
+            return ToolResultEnvelope.error("搜索路径不存在: " + safeDisplayPath(path))
+                    .data("path", safeDisplayPath(path))
+                    .toJson();
+        }
+        SearchCollector collector =
+                new SearchCollector(
+                        query,
+                        StrUtil.blankToDefault(target, "content"),
+                        fileGlob,
+                        StrUtil.blankToDefault(outputMode, "content"),
+                        safeLimit,
+                        safeOffset,
+                        safeContext);
+        try {
+            searchFiles(root, collector);
+        } catch (Exception e) {
+            return ToolResultEnvelope.error("搜索失败: " + safeToolError(e)).toJson();
+        }
+        String preview = joinSearchMatches(collector.matches);
+        return ToolResultEnvelope.ok(
+                        "搜索完成："
+                                + collector.returned
+                                + "/"
+                                + collector.matched
+                                + " matches")
+                .data("pattern", SecretRedactor.redact(query, 400))
+                .data("target", collector.target)
+                .data("path", safeDisplayPath(StrUtil.blankToDefault(path, ".")))
+                .data("matches", collector.matches)
+                .data("match_count", Integer.valueOf(collector.matched))
+                .data("returned", Integer.valueOf(collector.returned))
+                .data("offset", Integer.valueOf(safeOffset))
+                .data("limit", Integer.valueOf(safeLimit))
+                .preview(preview)
+                .truncated(collector.truncated)
+                .toJson();
     }
 
     /**
@@ -452,6 +562,141 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     .data("path", safeDisplayPath(fileName))
                     .data("resolved_path", resolvedPath)
                     .toJson();
+        }
+    }
+
+    /**
+     * 递归搜索文件。
+     *
+     * @param root 搜索根路径。
+     * @param collector 搜索状态。
+     */
+    private void searchFiles(Path root, SearchCollector collector) throws Exception {
+        if (Files.isRegularFile(root, LinkOption.NOFOLLOW_LINKS)) {
+            searchOneFile(root, collector);
+            return;
+        }
+        try (java.util.stream.Stream<Path> stream = Files.walk(root, 8)) {
+            java.util.Iterator<Path> iterator = stream.iterator();
+            int scanned = 0;
+            while (iterator.hasNext() && scanned < 5000 && !collector.isFull()) {
+                Path path = iterator.next();
+                scanned++;
+                if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                        || !collector.acceptFile(path)) {
+                    continue;
+                }
+                searchOneFile(path, collector);
+            }
+        }
+    }
+
+    /**
+     * 搜索单个文件。
+     *
+     * @param file 文件路径。
+     * @param collector 搜索状态。
+     */
+    private void searchOneFile(Path file, SearchCollector collector) {
+        if (!allowedSuggestion(file)) {
+            return;
+        }
+        String displayPath = displayPathForCandidate(file);
+        if (collector.searchFilesOnly()) {
+            if (collector.matchesText(displayPath)) {
+                collector.addMatch(searchMatch(displayPath, 0, ""));
+            }
+            return;
+        }
+        if (looksBinary(file)) {
+            return;
+        }
+        try {
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            for (int i = 0; i < lines.size() && !collector.isFull(); i++) {
+                String line = stripLeadingBom(lines.get(i));
+                if (collector.matchesText(line)) {
+                    collector.addMatch(
+                            searchMatch(
+                                    displayPath,
+                                    i + 1,
+                                    collector.renderLine(lines, i, resolveMaxLineLength())));
+                }
+            }
+        } catch (Exception ignored) {
+            // 非UTF-8或不可读文件跳过，保持搜索工具可继续返回其它结果。
+        }
+    }
+
+    /**
+     * 构建搜索匹配项。
+     *
+     * @param path 文件路径。
+     * @param line 行号。
+     * @param text 匹配文本。
+     * @return 返回匹配项。
+     */
+    private Map<String, Object> searchMatch(String path, int line, String text) {
+        Map<String, Object> match = new LinkedHashMap<String, Object>();
+        match.put("path", safeDisplayPath(path));
+        if (line > 0) {
+            match.put("line", Integer.valueOf(line));
+        }
+        if (StrUtil.isNotBlank(text)) {
+            match.put("text", SecretRedactor.redact(text, 2000));
+        }
+        return match;
+    }
+
+    /**
+     * 拼接搜索预览。
+     *
+     * @param matches 匹配项。
+     * @return 返回预览文本。
+     */
+    private String joinSearchMatches(List<Map<String, Object>> matches) {
+        StringBuilder builder = new StringBuilder();
+        for (Map<String, Object> match : matches) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(match.get("path"));
+            Object line = match.get("line");
+            if (line != null) {
+                builder.append(':').append(line);
+            }
+            Object text = match.get("text");
+            if (text != null) {
+                builder.append(" ").append(text);
+            }
+        }
+        return builder.toString();
+    }
+
+    /**
+     * 判断文件是否像二进制。
+     *
+     * @param file 文件路径。
+     * @return 如果像二进制返回true。
+     */
+    private boolean looksBinary(Path file) {
+        try {
+            if (Files.size(file) > 2L * 1024L * 1024L) {
+                return true;
+            }
+            byte[] bytes = Files.readAllBytes(file);
+            int max = Math.min(bytes.length, 4096);
+            for (int i = 0; i < max; i++) {
+                if (bytes[i] == 0) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return true;
         }
     }
 
@@ -830,7 +1075,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("fileName", displayPathForCandidate(candidate));
         SecurityPolicyService.FileVerdict verdict =
-                securityPolicyService.checkFileToolArgs(ToolNameConstants.FILE_READ, args);
+                securityPolicyService.checkFileToolArgs(ToolNameConstants.READ_FILE, args);
         return verdict.isAllowed();
     }
 
@@ -954,7 +1199,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 return ToolResultEnvelope.error(
                                 "BLOCKED: 已连续多次读取同一文件区域且文件未变化："
                                         + safeDisplayPath(fileName)
-                                        + "。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
+                                        + "。请停止重复调用 read_file，使用之前读取到的内容继续任务。")
                         .data("path", safeDisplayPath(fileName))
                         .data(
                                 "resolved_path",
@@ -1246,6 +1491,200 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         private ScoredPath(int score, String path) {
             this.score = score;
             this.path = path;
+        }
+    }
+
+    /** 文件搜索状态。 */
+    private static final class SearchCollector {
+        /** 搜索模式。 */
+        private final String pattern;
+
+        /** 搜索目标。 */
+        private final String target;
+
+        /** 文件名过滤。 */
+        private final String fileGlob;
+
+        /** 输出模式。 */
+        private final String outputMode;
+
+        /** 最大返回条数。 */
+        private final int limit;
+
+        /** 跳过条数。 */
+        private final int offset;
+
+        /** 上下文行数。 */
+        private final int context;
+
+        /** 正则模式。 */
+        private final Pattern regex;
+
+        /** 保存匹配项。 */
+        private final List<Map<String, Object>> matches = new ArrayList<Map<String, Object>>();
+
+        /** 匹配总数。 */
+        private int matched;
+
+        /** 返回数量。 */
+        private int returned;
+
+        /** 是否截断。 */
+        private boolean truncated;
+
+        /**
+         * 创建搜索状态。
+         *
+         * @param pattern 搜索模式。
+         * @param target 搜索目标。
+         * @param fileGlob 文件名过滤。
+         * @param outputMode 输出模式。
+         * @param limit 最大返回条数。
+         * @param offset 跳过条数。
+         * @param context 上下文行数。
+         */
+        private SearchCollector(
+                String pattern,
+                String target,
+                String fileGlob,
+                String outputMode,
+                int limit,
+                int offset,
+                int context) {
+            this.pattern = StrUtil.nullToEmpty(pattern);
+            this.target = StrUtil.blankToDefault(target, "content").trim().toLowerCase(Locale.ROOT);
+            this.fileGlob = StrUtil.nullToEmpty(fileGlob).trim().toLowerCase(Locale.ROOT);
+            this.outputMode =
+                    StrUtil.blankToDefault(outputMode, "content").trim().toLowerCase(Locale.ROOT);
+            this.limit = limit;
+            this.offset = offset;
+            this.context = context;
+            this.regex = compileRegex(this.pattern);
+        }
+
+        /**
+         * 判断是否只搜索文件名。
+         *
+         * @return 如果只搜索文件名返回true。
+         */
+        private boolean searchFilesOnly() {
+            return "files".equals(target) || "filename".equals(target) || "file".equals(target);
+        }
+
+        /**
+         * 判断是否接受文件。
+         *
+         * @param path 文件路径。
+         * @return 如果接受返回true。
+         */
+        private boolean acceptFile(Path path) {
+            if (StrUtil.isBlank(fileGlob)) {
+                return true;
+            }
+            String name =
+                    path == null || path.getFileName() == null
+                            ? ""
+                            : path.getFileName().toString().toLowerCase(Locale.ROOT);
+            return name.contains(fileGlob.replace("*", ""));
+        }
+
+        /**
+         * 判断文本是否匹配。
+         *
+         * @param text 文本。
+         * @return 如果匹配返回true。
+         */
+        private boolean matchesText(String text) {
+            String value = StrUtil.nullToEmpty(text);
+            if (regex != null) {
+                return regex.matcher(value).find();
+            }
+            return value.toLowerCase(Locale.ROOT).contains(pattern.toLowerCase(Locale.ROOT));
+        }
+
+        /**
+         * 追加匹配项。
+         *
+         * @param match 匹配项。
+         */
+        private void addMatch(Map<String, Object> match) {
+            matched++;
+            if (matched <= offset) {
+                return;
+            }
+            if (returned >= limit) {
+                truncated = true;
+                return;
+            }
+            matches.add(match);
+            returned++;
+        }
+
+        /**
+         * 判断是否已收满。
+         *
+         * @return 如果收满返回true。
+         */
+        private boolean isFull() {
+            return returned >= limit && truncated;
+        }
+
+        /**
+         * 渲染匹配行。
+         *
+         * @param lines 文件行。
+         * @param index 匹配行索引。
+         * @param maxLineLength 最大行长度。
+         * @return 返回渲染文本。
+         */
+        private String renderLine(List<String> lines, int index, int maxLineLength) {
+            if (!"content".equals(outputMode) && !"context".equals(outputMode)) {
+                return "";
+            }
+            if (context <= 0 || lines == null) {
+                return trimLine(lines == null ? "" : lines.get(index), maxLineLength);
+            }
+            int start = Math.max(0, index - context);
+            int end = Math.min(lines.size() - 1, index + context);
+            StringBuilder builder = new StringBuilder();
+            for (int i = start; i <= end; i++) {
+                if (builder.length() > 0) {
+                    builder.append('\n');
+                }
+                builder.append(i + 1).append('|').append(trimLine(lines.get(i), maxLineLength));
+            }
+            return builder.toString();
+        }
+
+        /**
+         * 编译正则。
+         *
+         * @param pattern 搜索模式。
+         * @return 返回正则，普通文本则返回null。
+         */
+        private static Pattern compileRegex(String pattern) {
+            String value = StrUtil.nullToEmpty(pattern);
+            if (!(value.startsWith("/") && value.endsWith("/") && value.length() > 2)) {
+                return null;
+            }
+            try {
+                return Pattern.compile(value.substring(1, value.length() - 1));
+            } catch (PatternSyntaxException ignored) {
+                return null;
+            }
+        }
+
+        /**
+         * 裁剪单行文本。
+         *
+         * @param line 行内容。
+         * @param maxLineLength 最大长度。
+         * @return 返回裁剪结果。
+         */
+        private static String trimLine(String line, int maxLineLength) {
+            String value = StrUtil.nullToEmpty(line);
+            int max = Math.max(1, maxLineLength);
+            return value.length() > max ? value.substring(0, max) + "... [truncated]" : value;
         }
     }
 }

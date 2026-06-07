@@ -2870,6 +2870,17 @@ public class DangerousCommandApprovalService {
                         (trace, args) ->
                                 evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
                 .onTool(
+                        ToolNameConstants.READ_FILE,
+                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.READ_FILE, args))
+                .onTool(
+                        ToolNameConstants.WRITE_FILE,
+                        (trace, args) ->
+                                evaluateFileTool(trace, ToolNameConstants.WRITE_FILE, args))
+                .onTool(
+                        ToolNameConstants.SEARCH_FILES,
+                        (trace, args) ->
+                                evaluateFileTool(trace, ToolNameConstants.SEARCH_FILES, args))
+                .onTool(
                         ToolNameConstants.FILE_LIST,
                         (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_LIST, args))
                 .onTool(
@@ -2883,7 +2894,13 @@ public class DangerousCommandApprovalService {
                         ToolNameConstants.WEBFETCH,
                         (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBFETCH, args))
                 .onTool(
+                        "web_extract",
+                        (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBFETCH, args))
+                .onTool(
                         ToolNameConstants.WEBSEARCH,
+                        (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBSEARCH, args))
+                .onTool(
+                        "web_search",
                         (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBSEARCH, args))
                 .onTool(
                         ToolNameConstants.CODESEARCH,
@@ -4691,8 +4708,10 @@ public class DangerousCommandApprovalService {
                 || "execute-code".equals(lower)) {
             return ToolNameConstants.EXECUTE_CODE;
         }
-        if ("web_extract".equals(lower)
-                || "web_fetch".equals(lower)
+        if ("web_extract".equals(lower)) {
+            return ToolNameConstants.WEBFETCH;
+        }
+        if ("web_fetch".equals(lower)
                 || "fetch_url".equals(lower)
                 || "fetch".equals(lower)
                 || "url_fetch".equals(lower)
@@ -4701,15 +4720,19 @@ public class DangerousCommandApprovalService {
                 || "read_url".equals(lower)) {
             return ToolNameConstants.WEBFETCH;
         }
-        if ("web_search".equals(lower)
-                || "search_web".equals(lower)
+        if ("web_search".equals(lower)) {
+            return ToolNameConstants.WEBSEARCH;
+        }
+        if ("search_web".equals(lower)
                 || "search".equals(lower)
                 || "internet_search".equals(lower)) {
             return ToolNameConstants.WEBSEARCH;
         }
+        if ("search_files".equals(lower)) {
+            return ToolNameConstants.SEARCH_FILES;
+        }
         if ("code_search".equals(lower)
                 || "search_code".equals(lower)
-                || "search_files".equals(lower)
                 || "file_search".equals(lower)) {
             return ToolNameConstants.CODESEARCH;
         }
@@ -4723,17 +4746,23 @@ public class DangerousCommandApprovalService {
                 || "browser_close".equals(lower)) {
             return ToolNameConstants.BROWSER;
         }
+        if ("file_read".equals(lower)) {
+            return ToolNameConstants.FILE_READ;
+        }
+        if ("file_write".equals(lower)) {
+            return ToolNameConstants.FILE_WRITE;
+        }
         if ("read_file".equals(lower)
                 || "file-read".equals(lower)
                 || "file_read_file".equals(lower)) {
-            return ToolNameConstants.FILE_READ;
+            return ToolNameConstants.READ_FILE;
         }
         if ("write_file".equals(lower)
                 || "file-write".equals(lower)
                 || "create_file".equals(lower)
                 || "file_create".equals(lower)
                 || "save_file".equals(lower)) {
-            return ToolNameConstants.FILE_WRITE;
+            return ToolNameConstants.WRITE_FILE;
         }
         if ("list_file".equals(lower)
                 || "list_files".equals(lower)
@@ -4888,6 +4917,9 @@ public class DangerousCommandApprovalService {
     private boolean isFileSecurityTool(String toolName) {
         return ToolNameConstants.FILE_READ.equals(toolName)
                 || ToolNameConstants.FILE_WRITE.equals(toolName)
+                || ToolNameConstants.READ_FILE.equals(toolName)
+                || ToolNameConstants.WRITE_FILE.equals(toolName)
+                || ToolNameConstants.SEARCH_FILES.equals(toolName)
                 || ToolNameConstants.FILE_LIST.equals(toolName)
                 || ToolNameConstants.FILE_DELETE.equals(toolName)
                 || ToolNameConstants.PATCH.equals(toolName);
@@ -4901,7 +4933,9 @@ public class DangerousCommandApprovalService {
      */
     private boolean isUrlSecurityTool(String toolName) {
         return ToolNameConstants.WEBFETCH.equals(toolName)
+                || "web_extract".equals(toolName)
                 || ToolNameConstants.WEBSEARCH.equals(toolName)
+                || "web_search".equals(toolName)
                 || ToolNameConstants.CODESEARCH.equals(toolName)
                 || ToolNameConstants.BROWSER.equals(toolName);
     }

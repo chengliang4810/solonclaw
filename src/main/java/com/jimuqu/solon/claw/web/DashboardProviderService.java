@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
+import com.jimuqu.solon.claw.support.ProviderProfileService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
@@ -49,6 +50,9 @@ public class DashboardProviderService {
 
     /** 注入模型元数据服务，用于调用对应业务能力。 */
     private final ModelMetadataService modelMetadataService;
+
+    /** 注入Provider画像服务，用于输出运行时画像。 */
+    private final ProviderProfileService providerProfileService;
 
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
@@ -101,6 +105,7 @@ public class DashboardProviderService {
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.llmProviderService = llmProviderService;
         this.modelMetadataService = new ModelMetadataService(appConfig);
+        this.providerProfileService = new ProviderProfileService(appConfig, llmProviderService);
         this.securityPolicyService =
                 securityPolicyService == null
                         ? new SecurityPolicyService(appConfig)
@@ -123,6 +128,7 @@ public class DashboardProviderService {
         result.put("defaultProviderKey", appConfig.getModel().getProviderKey());
         result.put("defaultModel", appConfig.getModel().getDefault());
         result.put("fallbackProviders", cloneFallbackProviders(appConfig.getFallbackProviders()));
+        result.put("providerProfiles", providerProfileService.listProfiles());
         return result;
     }
 

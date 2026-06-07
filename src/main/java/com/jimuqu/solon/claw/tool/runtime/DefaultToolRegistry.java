@@ -49,6 +49,9 @@ public class DefaultToolRegistry implements ToolRegistry {
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
@@ -87,6 +90,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    "web_search",
+                    "web_extract",
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
@@ -878,6 +883,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         boolean fileSkillAdded = false;
         boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
+        boolean websearchToolAdded = false;
+        boolean webfetchToolAdded = false;
         List<Object> gatewayCandidates = new ArrayList<Object>();
 
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
@@ -963,10 +970,16 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(agentTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
-            } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {
-                tools.add(websearchTool);
-            } else if (ToolNameConstants.WEBFETCH.equals(toolName)) {
-                tools.add(webfetchTool);
+            } else if (ToolNameConstants.WEBSEARCH.equals(toolName) || "web_search".equals(toolName)) {
+                if (!websearchToolAdded) {
+                    tools.add(websearchTool);
+                    websearchToolAdded = true;
+                }
+            } else if (ToolNameConstants.WEBFETCH.equals(toolName) || "web_extract".equals(toolName)) {
+                if (!webfetchToolAdded) {
+                    tools.add(webfetchTool);
+                    webfetchToolAdded = true;
+                }
             } else if (ToolNameConstants.CODESEARCH.equals(toolName)) {
                 tools.add(codeSearchTool);
             } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
@@ -1053,6 +1066,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     private boolean isFileTool(String toolName) {
         return ToolNameConstants.FILE_READ.equals(toolName)
                 || ToolNameConstants.FILE_WRITE.equals(toolName)
+                || ToolNameConstants.READ_FILE.equals(toolName)
+                || ToolNameConstants.WRITE_FILE.equals(toolName)
+                || ToolNameConstants.SEARCH_FILES.equals(toolName)
                 || ToolNameConstants.FILE_LIST.equals(toolName)
                 || ToolNameConstants.FILE_DELETE.equals(toolName);
     }
@@ -1129,6 +1145,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 读取工具启用状态。 */
     private boolean isEnabled(String sourceKey, String toolName) {
         try {
+            if (isFileTool(toolName) && areCoreFileToolsDisabled(sourceKey)) {
+                return false;
+            }
             if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {
                 return preferenceStore.isToolEnabled(sourceKey, toolName, false);
             }
@@ -1136,6 +1155,38 @@ public class DefaultToolRegistry implements ToolRegistry {
         } catch (SQLException e) {
             return false;
         }
+    }
+
+    /**
+     * 判断文件工具组是否已整体禁用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 如果文件工具组被整体禁用则返回 true。
+     */
+    private boolean areCoreFileToolsDisabled(String sourceKey) throws SQLException {
+        for (String fileToolName : coreFileToolNames()) {
+            if (!preferenceStore.hasScopedToolToggle(sourceKey, fileToolName)
+                    || preferenceStore.isToolEnabled(sourceKey, fileToolName)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 文件工具名集合。
+     *
+     * @return 返回文件工具名集合。
+     */
+    private List<String> coreFileToolNames() {
+        return Arrays.asList(
+                ToolNameConstants.FILE_READ,
+                ToolNameConstants.FILE_WRITE,
+                ToolNameConstants.READ_FILE,
+                ToolNameConstants.WRITE_FILE,
+                ToolNameConstants.SEARCH_FILES,
+                ToolNameConstants.FILE_LIST,
+                ToolNameConstants.FILE_DELETE);
     }
 
     /** 设置工具启用状态。 */

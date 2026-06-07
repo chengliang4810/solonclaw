@@ -37,13 +37,13 @@ public class ToolCallLoopGuardrailService {
                     new HashSet<String>(
                             Arrays.asList(
                                     ToolNameConstants.FILE_READ,
-                                    "read_file",
+                                    ToolNameConstants.READ_FILE,
                                     ToolNameConstants.FILE_LIST,
                                     ToolNameConstants.CODESEARCH,
-                                    "search_files",
+                                    ToolNameConstants.SEARCH_FILES,
                                     ToolNameConstants.WEBSEARCH,
-                                    "web_search",
                                     ToolNameConstants.WEBFETCH,
+                                    "web_search",
                                     "web_extract",
                                     ToolNameConstants.SESSION_SEARCH,
                                     "browser_snapshot",
@@ -73,7 +73,7 @@ public class ToolCallLoopGuardrailService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS,
                                     ToolNameConstants.FILE_WRITE,
-                                    "write_file",
+                                    ToolNameConstants.WRITE_FILE,
                                     ToolNameConstants.FILE_DELETE,
                                     ToolNameConstants.PATCH,
                                     ToolNameConstants.TODO,
@@ -866,7 +866,8 @@ public class ToolCallLoopGuardrailService {
      * @return 如果文件Read工具满足条件则返回 true，否则返回 false。
      */
     private static boolean isFileReadTool(String toolName) {
-        return ToolNameConstants.FILE_READ.equals(toolName) || "read_file".equals(toolName);
+        return ToolNameConstants.FILE_READ.equals(toolName)
+                || ToolNameConstants.READ_FILE.equals(toolName);
     }
 
     /**

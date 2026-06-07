@@ -307,6 +307,8 @@ public class ToolResultStorageService {
      */
     private List<String> untrustedToolNames() {
         List<String> names = new ArrayList<String>(UNTRUSTED_TOOL_NAMES);
+        names.remove("web_extract");
+        names.remove("web_search");
         Collections.sort(names);
         return names;
     }

@@ -2,11 +2,20 @@ package com.jimuqu.solon.claw.support.constants;
 
 /** 工具名称常量。 */
 public interface ToolNameConstants {
-    /** 文件READ的统一常量值。 */
+    /** 文件读取的原始兼容工具名。 */
     String FILE_READ = "file_read";
 
-    /** 文件写入的统一常量值。 */
+    /** 文件写入的原始兼容工具名。 */
     String FILE_WRITE = "file_write";
+
+    /** 参考风格读取文件工具名。 */
+    String READ_FILE = "read_file";
+
+    /** 参考风格写入文件工具名。 */
+    String WRITE_FILE = "write_file";
+
+    /** 参考风格文件搜索工具名。 */
+    String SEARCH_FILES = "search_files";
 
     /** 文件列表的统一常量值。 */
     String FILE_LIST = "file_list";
