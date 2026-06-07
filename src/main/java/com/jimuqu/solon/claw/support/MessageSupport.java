@@ -36,12 +36,26 @@ public final class MessageSupport {
 
     /** 修复发给模型前的消息序列，避免孤儿 tool 消息或连续 user 消息破坏协议。 */
     public static int repairMessageSequence(List<ChatMessage> messages) {
+        return repairMessageSequence(messages, false);
+    }
+
+    /**
+     * 修复发给模型前的消息序列。
+     *
+     * @param messages 消息列表。
+     * @param preserveUnansweredToolCalls 是否保留尚未回答的assistant tool_call。
+     * @return 返回修复数量。
+     */
+    public static int repairMessageSequence(
+            List<ChatMessage> messages, boolean preserveUnansweredToolCalls) {
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
 
         int repairs = dropStrayToolMessages(messages);
-        repairs += dropUnansweredAssistantToolCalls(messages);
+        if (!preserveUnansweredToolCalls) {
+            repairs += dropUnansweredAssistantToolCalls(messages);
+        }
         repairs += mergeConsecutiveTextUsers(messages);
         return repairs;
     }

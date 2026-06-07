@@ -18,6 +18,9 @@ public final class AgentRuntimePolicy {
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
@@ -259,6 +262,9 @@ public final class AgentRuntimePolicy {
         if ("file".equals(key) || "files".equals(key)) {
             output.add(ToolNameConstants.FILE_READ);
             output.add(ToolNameConstants.FILE_WRITE);
+            output.add(ToolNameConstants.READ_FILE);
+            output.add(ToolNameConstants.WRITE_FILE);
+            output.add(ToolNameConstants.SEARCH_FILES);
             output.add(ToolNameConstants.FILE_LIST);
             output.add(ToolNameConstants.FILE_DELETE);
             output.add(ToolNameConstants.PATCH);
@@ -303,6 +309,8 @@ public final class AgentRuntimePolicy {
         if ("web".equals(key) || "search".equals(key)) {
             output.add(ToolNameConstants.WEBSEARCH);
             output.add(ToolNameConstants.WEBFETCH);
+            output.add("web_search");
+            output.add("web_extract");
             output.add(ToolNameConstants.CODESEARCH);
             return;
         }

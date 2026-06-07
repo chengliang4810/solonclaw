@@ -46,8 +46,12 @@ public class SolonClawCodeExecutionSkills {
     private static final List<String> EXECUTE_CODE_RPC_TOOLS =
             Collections.unmodifiableList(
                     Arrays.asList(
+                            "websearch",
+                            "webfetch",
                             "web_search",
                             "web_extract",
+                            "file_read",
+                            "file_write",
                             "read_file",
                             "write_file",
                             "search_files",
@@ -213,7 +217,7 @@ public class SolonClawCodeExecutionSkills {
         @ToolMapping(
                 name = "execute_code",
                 description =
-                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes web_search, web_extract, read_file, write_file, search_files, patch and terminal for multi-step local processing.")
+                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes websearch/web_search, webfetch/web_extract, file_read/read_file, file_write/write_file, search_files, patch and terminal for multi-step local processing.")
         public String executeCode(
                 @Param(
                                 name = "code",
@@ -501,9 +505,13 @@ public class SolonClawCodeExecutionSkills {
                             + "def _unavailable(name):\n"
                             + "    raise RuntimeError(name + ' is not available in jimuqu-agent execute_code yet. Use normal tool calls instead.')\n"
                             + "\n"
+                            + "def websearch(query, limit=5): return _call('websearch', {'query': query, 'limit': limit})\n"
                             + "def web_search(query, limit=5): return _call('web_search', {'query': query, 'limit': limit})\n"
-                            + "def web_extract(urls): return _call('web_extract', {'urls': urls})\n"
+                            + "def webfetch(url, format='markdown', timeout=120): return _call('webfetch', {'url': url, 'format': format, 'timeout': timeout})\n"
+                            + "def web_extract(urls, format='markdown', timeout=120): return _call('web_extract', {'urls': urls, 'format': format, 'timeout': timeout})\n"
+                            + "def file_read(path, offset=1, limit=500): return _call('file_read', {'path': path, 'offset': offset, 'limit': limit})\n"
                             + "def read_file(path, offset=1, limit=500): return _call('read_file', {'path': path, 'offset': offset, 'limit': limit})\n"
+                            + "def file_write(path, content): return _call('file_write', {'path': path, 'content': content})\n"
                             + "def write_file(path, content): return _call('write_file', {'path': path, 'content': content})\n"
                             + "def search_files(pattern, target='content', path='.', file_glob=None, limit=50, offset=0, output_mode='content', context=0): return _call('search_files', {'pattern': pattern, 'target': target, 'path': path, 'file_glob': file_glob, 'limit': limit, 'offset': offset, 'output_mode': output_mode, 'context': context})\n"
                             + "def patch(path=None, old_string=None, new_string=None, replace_all=False, mode='replace', patch=None): return _call('patch', {'path': path, 'old_string': old_string, 'new_string': new_string, 'replace_all': replace_all, 'mode': mode, 'patch': patch})\n"
@@ -597,14 +605,14 @@ public class SolonClawCodeExecutionSkills {
         private String dispatchRpcTool(String toolName, Map<String, Object> args) {
             try {
                 ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool(toolName);
-                if ("read_file".equals(toolName)) {
+                if ("read_file".equals(toolName) || "file_read".equals(toolName)) {
                     return normalizeToolResult(
                             fileSkill.read(
                                     getString(args, "path", null),
                                     Integer.valueOf(getInt(args, "offset", 1)),
                                     Integer.valueOf(getInt(args, "limit", 500))));
                 }
-                if ("write_file".equals(toolName)) {
+                if ("write_file".equals(toolName) || "file_write".equals(toolName)) {
                     return normalizeToolResult(
                             fileSkill.write(
                                     getString(args, "path", null), getString(args, "content", "")));
@@ -631,17 +639,17 @@ public class SolonClawCodeExecutionSkills {
                 if ("search_files".equals(toolName)) {
                     return rpcJson(searchFiles(args));
                 }
-                if ("web_search".equals(toolName)) {
+                if ("websearch".equals(toolName) || "web_search".equals(toolName)) {
                     return rpcJson(webSearch(args));
                 }
-                if ("web_extract".equals(toolName)) {
-                    return rpcJson(webExtract(args));
+                if ("webfetch".equals(toolName) || "web_extract".equals(toolName)) {
+                    return rpcJson(webFetch(args));
                 }
                 return rpcJson(
                         errorMap(
                                 "Tool '"
                                         + toolName
-                                        + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, web_extract, web_search, write_file"));
+                                        + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, webfetch, websearch, write_file"));
             } catch (Exception e) {
                 return rpcJson(errorMap(safeErrorText(e)));
             }
@@ -660,6 +668,7 @@ public class SolonClawCodeExecutionSkills {
                 if (parsed instanceof Map) {
                     Map<String, Object> map = castMap(parsed);
                     ensureStatusField(map);
+                    ensureOutputField(map);
                     return rpcJson(map);
                 }
                 if (parsed instanceof List) {
@@ -818,39 +827,40 @@ public class SolonClawCodeExecutionSkills {
         }
 
         /**
-         * 执行WebExtract相关逻辑。
+         * 执行WebFetch相关逻辑。
          *
          * @param args 工具或命令参数。
-         * @return 返回Web Extract结果。
+         * @return 返回Web Fetch结果。
          */
-        private Map<String, Object> webExtract(Map<String, Object> args) throws Exception {
-            Object rawUrls = args == null ? null : args.get("urls");
-            List<String> urls = stringList(rawUrls);
-            if (urls.isEmpty()) {
-                return errorMap("urls is required");
+        private Map<String, Object> webFetch(Map<String, Object> args) throws Exception {
+            String url = getString(args, "url", "");
+            if (StrUtil.isBlank(url)) {
+                List<String> urls = stringList(args == null ? null : args.get("urls"));
+                url = urls.isEmpty() ? "" : urls.get(0);
+            }
+            if (StrUtil.isBlank(url)) {
+                return errorMap("url is required");
             }
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-            for (String url : urls) {
-                Map<String, Object> item = new LinkedHashMap<String, Object>();
-                item.put("url", url);
-                try {
-                    Document doc = webfetchTool.webfetch(url, "markdown", Integer.valueOf(120));
-                    item.put(
-                            "title",
-                            StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
-                    item.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
-                    item.put("error", null);
-                } catch (Exception e) {
-                    item.put("title", url);
-                    item.put("content", "");
-                    item.put("error", safeErrorText(e));
-                }
-                items.add(item);
+            result.put("url", url);
+            try {
+                Document doc =
+                        webfetchTool.webfetch(
+                                url,
+                                getString(args, "format", "markdown"),
+                                Integer.valueOf(getInt(args, "timeout", 120)));
+                result.put("title", StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
+                result.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
+                result.put("error", null);
+                result.put("status", "success");
+                result.put("success", Boolean.TRUE);
+            } catch (Exception e) {
+                result.put("title", url);
+                result.put("content", "");
+                result.put("error", safeErrorText(e));
+                result.put("status", "error");
+                result.put("success", Boolean.FALSE);
             }
-            result.put("results", items);
-            result.put("status", "success");
-            result.put("success", Boolean.TRUE);
             return result;
         }
 
@@ -1123,6 +1133,31 @@ public class SolonClawCodeExecutionSkills {
             if (error != null && StrUtil.isNotBlank(String.valueOf(error))) {
                 map.put("status", "error");
                 map.put("success", Boolean.FALSE);
+            }
+        }
+
+        /**
+         * 确保RPC工具结果拥有Python侧易用的output字段。
+         *
+         * @param map 待读取的映射对象。
+         */
+        private void ensureOutputField(Map<String, Object> map) {
+            if (map == null || map.containsKey("output")) {
+                return;
+            }
+            Object summary = map.get("summary");
+            if (summary != null && StrUtil.isNotBlank(String.valueOf(summary))) {
+                map.put("output", String.valueOf(summary));
+                return;
+            }
+            Object preview = map.get("preview");
+            if (preview != null && StrUtil.isNotBlank(String.valueOf(preview))) {
+                map.put("output", String.valueOf(preview));
+                return;
+            }
+            Object error = map.get("error");
+            if (error != null && StrUtil.isNotBlank(String.valueOf(error))) {
+                map.put("output", String.valueOf(error));
             }
         }
 

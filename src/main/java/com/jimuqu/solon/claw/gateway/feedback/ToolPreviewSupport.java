@@ -140,6 +140,9 @@ public final class ToolPreviewSupport {
     private static String[] preferredKeys(String toolName) {
         if ("file_read".equals(toolName)
                 || "file_write".equals(toolName)
+                || "read_file".equals(toolName)
+                || "write_file".equals(toolName)
+                || "search_files".equals(toolName)
                 || "file_delete".equals(toolName)
                 || "patch".equals(toolName)) {
             return new String[] {"fileName", "path", "filePath"};
@@ -173,10 +176,11 @@ public final class ToolPreviewSupport {
         }
         if ("session_search".equals(toolName)
                 || "websearch".equals(toolName)
+                || "web_search".equals(toolName)
                 || "codesearch".equals(toolName)) {
             return new String[] {"query", "q", "keyword"};
         }
-        if ("webfetch".equals(toolName)) {
+        if ("webfetch".equals(toolName) || "web_extract".equals(toolName)) {
             return new String[] {"url", "urls"};
         }
         if ("cronjob".equals(toolName)) {

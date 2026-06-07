@@ -107,7 +107,7 @@ public class PluginConfiguration implements PluginRegistrationSink {
     public void loadPlugins(@Inject AgentPluginManager manager) {
         manager.discoverAndLoad(this);
         log.info(
-                "Plugin providers registered: web_search={}, image_gen={}, video_gen={}, browser={}, memory={}",
+                "Plugin providers registered: websearch={}, image_gen={}, video_gen={}, browser={}, memory={}",
                 webSearchProviders.size(),
                 imageGenProviders.size(),
                 videoGenProviders.size(),

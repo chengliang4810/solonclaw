@@ -248,7 +248,7 @@ public class SqliteAgentSession implements AgentSession {
         try {
             if (StrUtil.isNotBlank(sessionRecord.getNdjson())) {
                 List<ChatMessage> messages = MessageSupport.loadMessages(sessionRecord.getNdjson());
-                MessageSupport.repairMessageSequence(messages);
+                MessageSupport.repairMessageSequence(messages, isPending());
                 cache.addMessage(messages);
             }
         } catch (Exception e) {

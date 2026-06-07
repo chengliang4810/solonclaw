@@ -54,10 +54,15 @@ public class ToolRegistryExposureTest {
                         "websearch",
                         "webfetch",
                         "browser",
-                        "security_audit",
-                        "clarify",
                         "file_read",
                         "file_write",
+                        "read_file",
+                        "write_file",
+                        "search_files",
+                        "web_search",
+                        "web_extract",
+                        "security_audit",
+                        "clarify",
                         "file_list",
                         "file_delete",
                         "patch",
@@ -79,7 +84,8 @@ public class ToolRegistryExposureTest {
         assertThat(names).contains("tool_gateway");
         assertThat(names)
                 .doesNotContain(
-                        "exists_cmd", "list_files", "read_file", "write_file", "search_files");
+                        "exists_cmd",
+                        "list_files");
 
         List<Object> tools = env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1");
         String joined = tools.toString();
@@ -102,6 +108,31 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("ConfigRefreshTool");
         assertThat(joined).doesNotContain("ToolGatewaySkill");
+    }
+
+    @Test
+    void shouldSearchFilesWithCanonicalToolResultEnvelope() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("canonical-search.txt"),
+                Arrays.asList("alpha", "needle", "omega"),
+                StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result =
+                ONode.ofJson(
+                        fileSkill.searchFiles(
+                                "needle", "content", ".", "*.txt", 10, 0, "content", 0));
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("matches").size()).isEqualTo(1);
+        assertThat(result.get("matches").get(0).get("path").getString())
+                .contains("canonical-search.txt");
+        assertThat(result.get("preview").getString()).contains("needle");
     }
 
     @Test
@@ -195,7 +226,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(
                         tools.audit(
                                 "tool_args",
-                                "file_write",
+                                "write_file",
                                 null,
                                 null,
                                 null,
@@ -1629,8 +1660,8 @@ public class ToolRegistryExposureTest {
         assertThat(codeExecutionPolicy.get("stagingCleanup").getBoolean()).isTrue();
         assertThat(codeExecutionPolicy.get("outputRedacted").getBoolean()).isTrue();
         assertThat(String.valueOf(codeExecutionPolicy))
-                .contains("web_search")
-                .contains("web_extract")
+                .contains("websearch")
+                .contains("webfetch")
                 .contains("read_file")
                 .contains("write_file")
                 .contains("search_files")
@@ -3425,7 +3456,14 @@ public class ToolRegistryExposureTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.toolRegistry.disableTools(
                 "MEMORY:room-1:user-1",
-                java.util.Arrays.asList("file_read", "file_write", "file_list", "file_delete"));
+                java.util.Arrays.asList(
+                        "file_read",
+                        "file_write",
+                        "read_file",
+                        "write_file",
+                        "search_files",
+                        "file_list",
+                        "file_delete"));
 
         String joined = env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").toString();
 

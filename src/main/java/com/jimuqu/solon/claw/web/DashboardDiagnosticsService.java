@@ -4023,19 +4023,19 @@ public class DashboardDiagnosticsService {
                 fileToolPathPolicyProbe(
                         "file_tool_credential_path",
                         "文件工具凭据路径参数检查",
-                        ToolNameConstants.FILE_READ,
+                        ToolNameConstants.READ_FILE,
                         ".env"));
         items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_entity_credential_path",
                         "文件工具编码凭据路径检查",
-                        ToolNameConstants.FILE_READ,
+                        ToolNameConstants.READ_FILE,
                         "client&#95;secret.json"));
         items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_project_env_write",
                         "文件工具项目环境凭据写入检查",
-                        ToolNameConstants.FILE_WRITE,
+                        ToolNameConstants.WRITE_FILE,
                         ".env.local"));
         items.add(
                 patchToolPolicyProbe(

@@ -1415,6 +1415,8 @@ public class LocalSkillService implements SkillCatalogService {
             return java.util.Arrays.asList(
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    "web_search",
+                    "web_extract",
                     ToolNameConstants.CODESEARCH);
         }
         if ("gateway".equalsIgnoreCase(toolset) || "tool_gateway".equalsIgnoreCase(toolset)) {
@@ -1430,6 +1432,9 @@ public class LocalSkillService implements SkillCatalogService {
                     ToolNameConstants.GET_CURRENT_TIME,
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH);

@@ -12122,7 +12122,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
         webfetchArgs.put("url", "https://docs.blocked.example/page");
         Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
-        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_name", "webfetch");
         gatewayWebfetch.put("tool_args", webfetchArgs);
         TestTrace webfetchTrace = new TestTrace();
 
@@ -12254,7 +12254,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
         urlArgs.put("url", "http://169.254.169.254/latest/meta-data/");
         Map<String, Object> gatewayUrl = new LinkedHashMap<String, Object>();
-        gatewayUrl.put("tool_name", "web_extract");
+        gatewayUrl.put("tool_name", "webfetch");
         gatewayUrl.put("tool_args", urlArgs);
         TestTrace urlTrace = new TestTrace();
 
@@ -12833,7 +12833,7 @@ public class DangerousCommandApprovalServiceTest {
                         env.appConfig,
                         new SecurityPolicyService(env.appConfig));
         Map<String, Object> malformedArgs = new LinkedHashMap<String, Object>();
-        malformedArgs.put("tool_name", "web_extract");
+        malformedArgs.put("tool_name", "webfetch");
         malformedArgs.put(
                 "tool_args",
                 "{\"url\":\"http://169.254.169.254/latest/meta-data/?api%255Fkey=secret123\"");
@@ -12896,7 +12896,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
         webfetchArgs.put("url", "wss://internal.example/socket");
         Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
-        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_name", "webfetch");
         gatewayWebfetch.put("tool_args", webfetchArgs);
         TestTrace webfetchTrace = new TestTrace();
 
@@ -12920,7 +12920,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
         webfetchArgs.put("url", "ftp://example.com/private.txt");
         Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
-        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_name", "webfetch");
         gatewayWebfetch.put("tool_args", webfetchArgs);
         TestTrace webfetchTrace = new TestTrace();
 
@@ -12961,7 +12961,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> userinfoArgs = new LinkedHashMap<String, Object>();
         userinfoArgs.put("url", "https://user:password@example.com/private");
         Map<String, Object> gatewayUserinfo = new LinkedHashMap<String, Object>();
-        gatewayUserinfo.put("tool_name", "web_extract");
+        gatewayUserinfo.put("tool_name", "webfetch");
         gatewayUserinfo.put("tool_args", userinfoArgs);
         TestTrace userinfoTrace = new TestTrace();
 
@@ -13004,7 +13004,7 @@ public class DangerousCommandApprovalServiceTest {
                 "target",
                 Collections.singletonMap("url", "https://docs.blocked.ex\u202Eample/private"));
         Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_name", "webfetch");
         gatewayArgs.put("tool_args", nested);
         TestTrace trace = new TestTrace();
 
@@ -13030,7 +13030,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
         urlArgs.put("url", "https://example.com/callback?api%255Fkey=secret-value-123&ok=value");
         Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_name", "webfetch");
         gatewayArgs.put("tool_args", urlArgs);
         TestTrace trace = new TestTrace();
 
@@ -13057,7 +13057,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
         urlArgs.put("url", "https://example.com/callback?next=sk-proj-abcdefghijklmnop");
         Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_name", "webfetch");
         gatewayArgs.put("tool_args", urlArgs);
         TestTrace trace = new TestTrace();
 
@@ -13111,7 +13111,7 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
         toolArgs.put("transport", transport);
         Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_name", "webfetch");
         gatewayArgs.put("tool_args", toolArgs);
         TestTrace trace = new TestTrace();
 

@@ -261,7 +261,7 @@ public class SecurityPolicyServiceTest {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("fileName", runtimeHome.resolve("cache/bws_cache.json").toString());
 
-        SecurityPolicyService.FileVerdict fileTool = policy.checkFileToolArgs("file_read", args);
+        SecurityPolicyService.FileVerdict fileTool = policy.checkFileToolArgs("read_file", args);
         SecurityPolicyService.FileVerdict relative =
                 policy.checkPath("cache/bws_cache.json", false);
         SecurityPolicyService.FileVerdict command =
@@ -1896,7 +1896,7 @@ public class SecurityPolicyServiceTest {
                 .contains("apply_patch", "diff_apply");
         assertThat(String.valueOf(summary.get("patchTextKeySamples"))).contains("patch", "diff");
         assertThat(String.valueOf(summary.get("writeLikeToolSamples")))
-                .contains("file_write", "patch");
+                .contains("write_file", "patch");
     }
 
     @Test

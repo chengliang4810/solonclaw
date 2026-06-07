@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,6 +60,9 @@ public class DefaultDelegationService implements DelegationService {
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
@@ -97,6 +101,8 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    "web_search",
+                    "web_extract",
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
@@ -277,7 +283,7 @@ public class DefaultDelegationService implements DelegationService {
         try {
             SessionRecord parentSession = sessionRepository.getBoundSession(sourceKey);
             String subagentId = "sa-" + IdSupport.newId();
-            String childSourceKey = sourceKey + ":delegate:" + IdSupport.newId();
+            String childSourceKey = childSourceKey(sourceKey, subagentId);
             cloneToolVisibility(sourceKey, childSourceKey);
             applyAllowedTools(
                     sourceKey,
@@ -325,6 +331,20 @@ public class DefaultDelegationService implements DelegationService {
         } finally {
             concurrencyLimiter.release();
         }
+    }
+
+    /** 构造合法子来源键：复用父平台、会话和用户，把子 Agent 放入独立线程。 */
+    private String childSourceKey(String parentSourceKey, String subagentId) {
+        String[] parts = SourceKeySupport.split(parentSourceKey);
+        String platform = StrUtil.blankToDefault(parts[0], PlatformType.MEMORY.name());
+        String chatId = StrUtil.blankToDefault(parts[1], "delegate");
+        String userId = StrUtil.blankToDefault(parts[2], "agent");
+        String parentThread = StrUtil.nullToEmpty(parts[3]).trim();
+        String childThread =
+                StrUtil.isBlank(parentThread)
+                        ? "delegate-" + subagentId
+                        : parentThread + "-delegate-" + subagentId;
+        return platform + ":" + chatId + ":" + childThread + ":" + userId;
     }
 
     /**
@@ -501,10 +521,15 @@ public class DefaultDelegationService implements DelegationService {
         for (String toolName : requested) {
             String normalized = StrUtil.nullToEmpty(toolName).trim();
             if (ALL_TOOLS.contains(normalized)
-                    && preferenceStore.isToolEnabled(parentSourceKey, normalized)) {
+                    && isParentToolEnabled(parentSourceKey, normalized)) {
                 preferenceStore.setToolEnabled(childSourceKey, normalized, true);
             }
         }
+    }
+
+    /** 判断父会话是否允许某个工具。 */
+    private boolean isParentToolEnabled(String parentSourceKey, String toolName) throws Exception {
+        return preferenceStore.isToolEnabled(parentSourceKey, toolName);
     }
 
     /** 预先创建子会话并写入父会话关系。 */
