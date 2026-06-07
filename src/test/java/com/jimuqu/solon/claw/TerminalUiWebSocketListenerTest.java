@@ -47,6 +47,62 @@ public class TerminalUiWebSocketListenerTest {
     }
 
     @Test
+    void shouldAllowLocalWebSocketWithoutDashboardToken() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getDashboard().setAccessToken("tui-secret");
+        TerminalUiWebSocketListener listener = listener(env);
+        FakeSocket socket = new FakeSocket();
+
+        listener.onOpen(socket);
+
+        assertThat(socket.closed).isFalse();
+        assertThat(socket.sent).anySatisfy(text -> assertThat(text).contains("server.ready"));
+    }
+
+    @Test
+    void shouldCloseRemoteWebSocketWhenDashboardTokenIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getDashboard().setAccessToken("tui-secret");
+        TerminalUiWebSocketListener listener = listener(env);
+        FakeSocket socket = FakeSocket.remote("203.0.113.10");
+
+        listener.onOpen(socket);
+
+        assertThat(socket.closed).isTrue();
+        assertThat(socket.closeCode).isEqualTo(1008);
+        assertThat(socket.sent).isEmpty();
+    }
+
+    @Test
+    void shouldAllowRemoteWebSocketWhenDashboardTokenMatchesQuery() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getDashboard().setAccessToken("tui-secret");
+        TerminalUiWebSocketListener listener = listener(env);
+        FakeSocket socket = FakeSocket.remote("203.0.113.10");
+        socket.param("token", "tui-secret");
+
+        listener.onOpen(socket);
+
+        assertThat(socket.closed).isFalse();
+        assertThat(socket.sent).anySatisfy(text -> assertThat(text).contains("server.ready"));
+    }
+
+    @Test
+    void shouldAllowRemoteWebSocketWhenAuthorizationHeaderMatchesDashboardToken()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getDashboard().setAccessToken("tui-secret");
+        TerminalUiWebSocketListener listener = listener(env);
+        FakeSocket socket = FakeSocket.remote("203.0.113.10");
+        socket.param("Authorization", "Bearer tui-secret");
+
+        listener.onOpen(socket);
+
+        assertThat(socket.closed).isFalse();
+        assertThat(socket.sent).anySatisfy(text -> assertThat(text).contains("server.ready"));
+    }
+
+    @Test
     void shouldSendChatEventsOverWebSocket() throws Exception {
         TerminalUiWebSocketListener listener = listener();
         FakeSocket socket = new FakeSocket();
@@ -1211,6 +1267,24 @@ public class TerminalUiWebSocketListenerTest {
     private static class FakeSocket implements WebSocket {
         private final List<String> sent =
                 Collections.synchronizedList(new ArrayList<String>());
+        private final MultiMap<String> params = new MultiMap<String>(true);
+        private final Map<String, Object> attrs = new java.util.LinkedHashMap<String, Object>();
+        private final InetSocketAddress remoteAddress;
+        private boolean closed;
+        private int closeCode;
+        private String closeReason;
+
+        private FakeSocket() {
+            this(new InetSocketAddress("127.0.0.1", 10000));
+        }
+
+        private FakeSocket(InetSocketAddress remoteAddress) {
+            this.remoteAddress = remoteAddress;
+        }
+
+        private static FakeSocket remote(String host) {
+            return new FakeSocket(new InetSocketAddress(host, 10000));
+        }
 
         @Override
         public String id() {
@@ -1227,7 +1301,7 @@ public class TerminalUiWebSocketListenerTest {
 
         @Override
         public boolean isValid() {
-            return true;
+            return !closed;
         }
 
         @Override
@@ -1237,7 +1311,8 @@ public class TerminalUiWebSocketListenerTest {
 
         @Override
         public String url() {
-            return "ws://127.0.0.1/ws/tui";
+            String token = params.get("token");
+            return token == null ? "ws://127.0.0.1/ws/tui" : "ws://127.0.0.1/ws/tui?token=" + token;
         }
 
         @Override
@@ -1250,25 +1325,27 @@ public class TerminalUiWebSocketListenerTest {
 
         @Override
         public MultiMap<String> paramMap() {
-            return new MultiMap<String>();
+            return params;
         }
 
         @Override
         public String param(String name) {
-            return null;
+            return params.get(name);
         }
 
         @Override
         public String paramOrDefault(String name, String def) {
-            return def;
+            return params.getOrDefault(name, def);
         }
 
         @Override
-        public void param(String name, String value) {}
+        public void param(String name, String value) {
+            params.add(name, value);
+        }
 
         @Override
         public InetSocketAddress remoteAddress() {
-            return new InetSocketAddress("127.0.0.1", 10000);
+            return remoteAddress;
         }
 
         @Override
@@ -1278,26 +1355,28 @@ public class TerminalUiWebSocketListenerTest {
 
         @Override
         public Map<String, Object> attrMap() {
-            return new java.util.LinkedHashMap<String, Object>();
+            return attrs;
         }
 
         @Override
         public boolean attrHas(String name) {
-            return false;
+            return attrs.containsKey(name);
         }
 
         @Override
         public <T> T attr(String name) {
-            return null;
+            return (T) attrs.get(name);
         }
 
         @Override
         public <T> T attrOrDefault(String name, T def) {
-            return def;
+            return (T) attrs.getOrDefault(name, def);
         }
 
         @Override
-        public <T> void attr(String name, T value) {}
+        public <T> void attr(String name, T value) {
+            attrs.put(name, value);
+        }
 
         @Override
         public long getIdleTimeout() {
@@ -1319,9 +1398,15 @@ public class TerminalUiWebSocketListenerTest {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            closed = true;
+        }
 
         @Override
-        public void close(int code, String reason) {}
+        public void close(int code, String reason) {
+            closed = true;
+            closeCode = code;
+            closeReason = reason;
+        }
     }
 }

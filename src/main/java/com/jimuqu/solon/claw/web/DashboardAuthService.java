@@ -3,13 +3,17 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.noear.snack4.ONode;
 import org.noear.solon.core.handle.Context;
+import org.noear.solon.net.websocket.WebSocket;
 
 /** Dashboard 访问控制与 token 注入服务。 */
 public class DashboardAuthService {
@@ -85,6 +89,28 @@ public class DashboardAuthService {
     }
 
     /**
+     * 判断 WebSocket 连接是否允许访问 Dashboard 同级控制面。
+     *
+     * @param socket WebSocket 握手后的连接对象。
+     * @return 本地连接直接放行，远程连接必须携带 Dashboard 访问令牌。
+     */
+    public boolean isAuthorized(WebSocket socket) {
+        if (isLocalRequest(socket)) {
+            return true;
+        }
+        String token = accessToken();
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        String auth = webSocketParam(socket, "Authorization");
+        if (("Bearer " + token).equals(auth)) {
+            return true;
+        }
+        String queryToken = webSocketParam(socket, "token");
+        return token.equals(queryToken) || token.equals(urlDecode(queryToken));
+    }
+
+    /**
      * 判断是否可以Reveal token。
      *
      * @param context 当前请求或运行上下文。
@@ -110,6 +136,23 @@ public class DashboardAuthService {
         } catch (Exception e) {
             return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
         }
+    }
+
+    /**
+     * 判断 WebSocket 连接是否来自本机回环地址。
+     *
+     * @param socket WebSocket 连接对象。
+     * @return 如果远端地址是本地回环地址则返回 true。
+     */
+    public boolean isLocalRequest(WebSocket socket) {
+        if (socket == null) {
+            return false;
+        }
+        InetSocketAddress remoteAddress = socket.remoteAddress();
+        if (remoteAddress == null || remoteAddress.getAddress() == null) {
+            return false;
+        }
+        return remoteAddress.getAddress().isLoopbackAddress();
     }
 
     /**
@@ -310,6 +353,38 @@ public class DashboardAuthService {
                         ? ""
                         : StrUtil.nullToEmpty(appConfig.getDashboard().getAccessToken());
         return StrUtil.isBlank(configured) ? "admin" : configured;
+    }
+
+    /** 按大小写不敏感方式读取 WebSocket 握手参数或请求头。 */
+    private String webSocketParam(WebSocket socket, String name) {
+        if (socket == null || StrUtil.isBlank(name)) {
+            return "";
+        }
+        String value = socket.param(name);
+        if (StrUtil.isNotBlank(value)) {
+            return value;
+        }
+        if (socket.paramMap() == null) {
+            return "";
+        }
+        for (String key : socket.paramMap().keySet()) {
+            if (name.equalsIgnoreCase(key)) {
+                return StrUtil.nullToEmpty(socket.paramMap().get(key));
+            }
+        }
+        return "";
+    }
+
+    /** 解码 WebSocket 查询串中的 token，兼容 Solon WebSocket 当前未自动解码的参数。 */
+    private String urlDecode(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        try {
+            return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+        } catch (Exception e) {
+            return value;
+        }
     }
 
     /**

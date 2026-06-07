@@ -12,6 +12,8 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -47,6 +49,20 @@ public class TuiShellHeaderTest {
                 .contains("provider=default")
                 .contains("model=-")
                 .contains("reasoning=-");
+    }
+
+    @Test
+    void shouldResolveTuiHistoryFileInsideRuntimeHome() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-history");
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null), null, config);
+
+        java.io.File historyFile = historyFile(shell);
+
+        assertThat(historyFile)
+                .isEqualTo(runtimeHome.resolve("history").resolve("tui.history").toFile());
+        assertThat(historyFile.getParentFile()).isDirectory();
     }
 
     @Test
@@ -283,6 +299,12 @@ public class TuiShellHeaderTest {
         method.setAccessible(true);
         method.invoke(shell, writer, sessionId);
         return buffer.toString();
+    }
+
+    private java.io.File historyFile(TuiShell shell) throws Exception {
+        Method method = TuiShell.class.getDeclaredMethod("historyFile");
+        method.setAccessible(true);
+        return (java.io.File) method.invoke(shell);
     }
 
     private String footerLine(TuiShell shell, String sessionId, LocalTerminalTaskRunner runner)
