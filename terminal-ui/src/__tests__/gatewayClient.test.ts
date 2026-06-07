@@ -101,11 +101,15 @@ describe('GatewayClient SolonClaw bridge', () => {
   const originalWebSocket = globalThis.WebSocket
   let originalGatewayUrl: string | undefined
   let originalSidecarUrl: string | undefined
+  let originalDashboardToken: string | undefined
+  let originalDashboardAccessToken: string | undefined
   const originalServerUrl = process.env.SOLONCLAW_SERVER_URL
 
   beforeEach(() => {
     originalGatewayUrl = process.env.SOLONCLAW_TUI_GATEWAY_URL
     originalSidecarUrl = process.env.SOLONCLAW_TUI_SIDECAR_URL
+    originalDashboardToken = process.env.SOLONCLAW_DASHBOARD_TOKEN
+    originalDashboardAccessToken = process.env.SOLONCLAW_DASHBOARD_ACCESS_TOKEN
     FakeWebSocket.reset()
     process.env.SOLONCLAW_SERVER_URL = 'http://127.0.0.1:8080'
     vi.stubGlobal(
@@ -133,6 +137,18 @@ describe('GatewayClient SolonClaw bridge', () => {
       delete process.env.SOLONCLAW_TUI_SIDECAR_URL
     } else {
       process.env.SOLONCLAW_TUI_SIDECAR_URL = originalSidecarUrl
+    }
+
+    if (originalDashboardToken === undefined) {
+      delete process.env.SOLONCLAW_DASHBOARD_TOKEN
+    } else {
+      process.env.SOLONCLAW_DASHBOARD_TOKEN = originalDashboardToken
+    }
+
+    if (originalDashboardAccessToken === undefined) {
+      delete process.env.SOLONCLAW_DASHBOARD_ACCESS_TOKEN
+    } else {
+      process.env.SOLONCLAW_DASHBOARD_ACCESS_TOKEN = originalDashboardAccessToken
     }
 
     if (originalFetch) {
@@ -167,6 +183,29 @@ describe('GatewayClient SolonClaw bridge', () => {
     expect(FakeWebSocket.instances[0]!.url).toBe('ws://127.0.0.1:18080/ws/tui')
     expect(FakeWebSocket.instances[0]!.sent[0]).toContain('client.hello')
     expect(events).toContain('gateway.ready')
+  })
+
+  it('sends dashboard token during handshake and redacts websocket token from logs', async () => {
+    process.env.SOLONCLAW_DASHBOARD_TOKEN = 'hunter2'
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async (_url, init) => {
+      expect(init).toEqual({ headers: { Authorization: 'Bearer hunter2' } })
+
+      return {
+        json: async () => ({ protocol_version: 1, ws_url: 'ws://127.0.0.1:18080/ws/tui?token=hunter2' }),
+        ok: true,
+        status: 200
+      } as Response
+    })
+    const gw = new GatewayClient()
+
+    gw.start()
+
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1))
+    FakeWebSocket.instances[0]!.open()
+
+    expect(FakeWebSocket.instances[0]!.url).toBe('ws://127.0.0.1:18080/ws/tui?token=hunter2')
+    expect(gw.getLogTail(20)).not.toContain('hunter2')
+    gw.kill()
   })
 
   it('waits for backend handshake before sending early RPC requests', async () => {

@@ -1,10 +1,13 @@
 package com.jimuqu.solon.claw.cli;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
+import java.io.File;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -198,7 +201,7 @@ public class TuiShell {
                         .terminal(terminal)
                         .appName("solon-claw-tui")
                         .completer(new StringsCompleter(COMMANDS))
-                        .variable(LineReader.HISTORY_FILE, ".solonclaw-tui-history")
+                        .variable(LineReader.HISTORY_FILE, historyFile().toPath())
                         .build();
         TerminalShortcuts.install(reader);
         renderHeader(writer, sessionId);
@@ -245,6 +248,18 @@ public class TuiShell {
                     });
         }
         return 0;
+    }
+
+    /** 解析 TUI 输入历史文件，避免真实输入落到仓库工作目录。 */
+    private File historyFile() {
+        String runtimeHome =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? RuntimePathConstants.RUNTIME_HOME
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME);
+        File historyDir = FileUtil.file(runtimeHome, "history");
+        FileUtil.mkdir(historyDir);
+        return FileUtil.file(historyDir, "tui.history");
     }
 
     /**

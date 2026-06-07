@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.tui;
 
+import com.jimuqu.solon.claw.web.DashboardAuthService;
+import java.util.Collections;
 import java.util.Map;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -12,15 +14,26 @@ public class TerminalUiController {
     /** 终端 UI 握手响应构造服务。 */
     private final TerminalUiHandshakeService handshakeService;
 
+    /** 复用 Dashboard 访问控制服务，避免 TUI 握手暴露独立凭据规则。 */
+    private final DashboardAuthService authService;
+
     /** 注入终端 UI 握手服务。 */
-    public TerminalUiController(TerminalUiHandshakeService handshakeService) {
+    public TerminalUiController(
+            TerminalUiHandshakeService handshakeService, DashboardAuthService authService) {
         this.handshakeService = handshakeService;
+        this.authService = authService;
     }
 
     /** 返回终端 UI 协议版本与 WebSocket 地址。 */
     @Mapping(value = "/api/tui/handshake", method = MethodType.GET)
     public Map<String, Object> handshake(Context context) {
-        return handshakeService.handshake(baseUrl(context));
+        boolean canRevealToken = authService == null || authService.canRevealToken(context);
+        if (!canRevealToken) {
+            authService.writeUnauthorized(context);
+            return Collections.emptyMap();
+        }
+        String token = authService == null ? "" : authService.sessionToken();
+        return handshakeService.handshake(baseUrl(context), token);
     }
 
     /** 根据当前请求头生成后端对外可访问的基础地址。 */

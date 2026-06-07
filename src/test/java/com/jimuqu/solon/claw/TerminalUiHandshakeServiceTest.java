@@ -30,4 +30,23 @@ public class TerminalUiHandshakeServiceTest {
 
         assertThat(handshake.get("ws_url")).isEqualTo("ws://127.0.0.1:18081/ws/tui");
     }
+
+    @Test
+    void shouldAppendAuthorizedDashboardTokenToWebSocketUrl() {
+        TerminalUiHandshakeService service = new TerminalUiHandshakeService(() -> 9443);
+
+        Map<String, Object> handshake = service.handshake("https://agent.example.com/base", "abc+/=");
+
+        assertThat(handshake.get("ws_url"))
+                .isEqualTo("wss://agent.example.com:9443/base/ws/tui?token=abc%2B%2F%3D");
+    }
+
+    @Test
+    void shouldNotExposeTokenForAnonymousHandshake() {
+        TerminalUiHandshakeService service = new TerminalUiHandshakeService(() -> 9443);
+
+        Map<String, Object> handshake = service.handshake("https://agent.example.com/base", "");
+
+        assertThat(handshake.get("ws_url")).isEqualTo("wss://agent.example.com:9443/base/ws/tui");
+    }
 }

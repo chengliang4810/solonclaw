@@ -56,6 +56,9 @@ const resolveServerUrl = () => normalizeServerUrl(process.env.SOLONCLAW_SERVER_U
 
 const handshakeUrl = () => `${resolveServerUrl()}/api/tui/handshake`
 
+const resolveDashboardToken = () =>
+  process.env.SOLONCLAW_DASHBOARD_ACCESS_TOKEN?.trim() || process.env.SOLONCLAW_DASHBOARD_TOKEN?.trim() || ''
+
 type HandshakeResponse = {
   app?: string
   features?: string[]
@@ -66,7 +69,10 @@ type HandshakeResponse = {
 
 const fetchHandshake = async (): Promise<HandshakeResponse> => {
   const url = handshakeUrl()
-  const response = await fetch(url)
+  const dashboardToken = resolveDashboardToken()
+  const response = dashboardToken
+    ? await fetch(url, { headers: { Authorization: `Bearer ${dashboardToken}` } })
+    : await fetch(url)
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)

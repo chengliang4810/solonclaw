@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
+import com.jimuqu.solon.claw.web.DashboardAuthService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -58,6 +59,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private final SolonClawShellSkill shellSkill;
     /** 危险命令审批服务，用于把 TUI 审批弹层选择写回真实审批流。 */
     private final DangerousCommandApprovalService approvalService;
+    /** 复用 Dashboard 访问令牌策略保护远程 TUI WebSocket 控制面。 */
+    private final DashboardAuthService dashboardAuthService;
     /** 当前 WebSocket 连接对应的审批观察器，断开连接时需要注销避免泄露。 */
     private final Map<WebSocket, TerminalUiApprovalObserver> approvalObservers =
             new java.util.concurrent.ConcurrentHashMap<WebSocket, TerminalUiApprovalObserver>();
@@ -141,6 +144,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         this.promptExecutor = Executors.newCachedThreadPool(new TerminalUiThreadFactory());
         this.sessionRepository = sessionRepository;
         this.approvalService = approvalService;
+        this.dashboardAuthService = appConfig == null ? null : new DashboardAuthService(appConfig);
         this.rpcService =
                 new TerminalUiRpcService(
                         appConfig,
@@ -178,6 +182,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     /** 连接建立后通知终端 UI 当前协议可用。 */
     @Override
     public void onOpen(WebSocket socket) {
+        if (dashboardAuthService != null && !dashboardAuthService.isAuthorized(socket)) {
+            socket.close(1008, "Unauthorized");
+            return;
+        }
         if (approvalService != null) {
             TerminalUiApprovalObserver observer = new TerminalUiApprovalObserver(socket);
             approvalObservers.put(socket, observer);
