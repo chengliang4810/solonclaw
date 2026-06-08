@@ -49,6 +49,8 @@ export interface AppConfig {
   feishu?: Record<string, any>
   dingtalk?: Record<string, any>
   weixin?: Record<string, any>
+  qqbot?: Record<string, any>
+  yuanbao?: Record<string, any>
   platforms?: Record<string, any>
   [key: string]: any
 }
@@ -124,6 +126,8 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
     feishu: data.channels?.feishu || {},
     dingtalk: data.channels?.dingtalk || {},
     weixin: data.channels?.weixin || {},
+    qqbot: data.channels?.qqbot || {},
+    yuanbao: data.channels?.yuanbao || {},
     platforms: {
       feishu: {
         enabled: configBoolean(data.channels?.feishu?.enabled),
@@ -154,6 +158,20 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
           account_id: configPreview(runtimeConfig, 'solonclaw.channels.weixin.accountId'),
         },
       },
+      qqbot: {
+        enabled: configBoolean(data.channels?.qqbot?.enabled),
+        extra: {
+          app_id: configPreview(runtimeConfig, 'solonclaw.channels.qqbot.appId'),
+          client_secret: configPreview(runtimeConfig, 'solonclaw.channels.qqbot.clientSecret'),
+        },
+      },
+      yuanbao: {
+        enabled: configBoolean(data.channels?.yuanbao?.enabled),
+        extra: {
+          app_id: configPreview(runtimeConfig, 'solonclaw.channels.yuanbao.appId'),
+          app_secret: configPreview(runtimeConfig, 'solonclaw.channels.yuanbao.appSecret'),
+        },
+      },
     },
   }
 }
@@ -179,7 +197,14 @@ export async function updateConfigSection(
       ...(next.react || {}),
       maxSteps: values.max_turns ?? next.react?.maxSteps,
     }
-  } else if (section === 'wecom' || section === 'feishu' || section === 'dingtalk' || section === 'weixin') {
+  } else if (
+    section === 'wecom'
+    || section === 'feishu'
+    || section === 'dingtalk'
+    || section === 'weixin'
+    || section === 'qqbot'
+    || section === 'yuanbao'
+  ) {
     next.channels = {
       ...(next.channels || {}),
       [section]: {
@@ -226,6 +251,18 @@ export async function saveCredentials(
     if ('enabled' in values) entries.push({ key: 'solonclaw.channels.weixin.enabled', value: values.enabled })
     if (values.token !== undefined) entries.push({ key: 'solonclaw.channels.weixin.token', value: values.token })
     if (values.extra?.account_id !== undefined) entries.push({ key: 'solonclaw.channels.weixin.accountId', value: values.extra.account_id })
+  }
+
+  if (platform === 'qqbot') {
+    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.qqbot.enabled', value: values.enabled })
+    if (values.extra?.app_id !== undefined) entries.push({ key: 'solonclaw.channels.qqbot.appId', value: values.extra.app_id })
+    if (values.extra?.client_secret !== undefined) entries.push({ key: 'solonclaw.channels.qqbot.clientSecret', value: values.extra.client_secret })
+  }
+
+  if (platform === 'yuanbao') {
+    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.yuanbao.enabled', value: values.enabled })
+    if (values.extra?.app_id !== undefined) entries.push({ key: 'solonclaw.channels.yuanbao.appId', value: values.extra.app_id })
+    if (values.extra?.app_secret !== undefined) entries.push({ key: 'solonclaw.channels.yuanbao.appSecret', value: values.extra.app_secret })
   }
 
   for (const entry of entries) {

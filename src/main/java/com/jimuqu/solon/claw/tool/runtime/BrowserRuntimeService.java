@@ -83,6 +83,7 @@ public class BrowserRuntimeService {
      * @return 返回create结果。
      */
     public BrowserResult create(String taskId) {
+        purgeExpiredLeases();
         BrowserProvider provider = selectProvider();
         if (provider == null) {
             return BrowserResult.error("browser_unavailable", "No available browser provider");
@@ -368,6 +369,26 @@ public class BrowserRuntimeService {
     private boolean hasLeaseCapacity() {
         synchronized (leases) {
             return leases.size() < maxConcurrency;
+        }
+    }
+
+    /** 清理已过期租约，避免空闲会话长期占用浏览器并发额度。 */
+    private void purgeExpiredLeases() {
+        List<Lease> expired = new ArrayList<Lease>();
+        synchronized (leases) {
+            for (Map.Entry<String, Lease> entry : new ArrayList<Map.Entry<String, Lease>>(leases.entrySet())) {
+                Lease lease = entry.getValue();
+                if (lease == null || !isExpired(lease)) {
+                    continue;
+                }
+                Lease removed = leases.remove(entry.getKey());
+                if (removed != null && removed.closed.compareAndSet(false, true)) {
+                    expired.add(removed);
+                }
+            }
+        }
+        for (Lease lease : expired) {
+            safeClose(lease.provider, lease.providerSession.getSessionId());
         }
     }
 

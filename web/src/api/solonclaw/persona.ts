@@ -1,4 +1,5 @@
 import { request } from '../client'
+import { getPersonaMeta } from '@/shared/personaMeta'
 
 export interface PersonaFileData {
   key: string
@@ -15,17 +16,6 @@ export interface PersonaDiaryEntry {
   path: string
 }
 
-const META: Record<string, { title: string; fileName: string }> = {
-  agents: { title: '规则', fileName: 'AGENTS.md' },
-  memory: { title: '记忆', fileName: 'MEMORY.md' },
-  memory_today: { title: '日记', fileName: 'memory/YYYY-MM-DD.md' },
-  soul: { title: '灵魂', fileName: 'SOUL.md' },
-  identity: { title: '身份', fileName: 'IDENTITY.md' },
-  user: { title: '用户', fileName: 'USER.md' },
-  tools: { title: '工具', fileName: 'TOOLS.md' },
-  heartbeat: { title: '心跳', fileName: 'HEARTBEAT.md' },
-}
-
 interface WorkspaceFile {
   key: string
   name: string
@@ -35,7 +25,7 @@ interface WorkspaceFile {
 }
 
 export function personaMeta(key: string) {
-  return META[key] || { title: key, fileName: key }
+  return getPersonaMeta(key)
 }
 
 export async function fetchPersonaFile(key: string): Promise<PersonaFileData> {

@@ -11,9 +11,9 @@ import {
 describe('setup panel helpers', () => {
   it('lists model, channel, and doctor setup actions in user workflow order', () => {
     expect(setupPanelRows()).toEqual([
-      { description: 'Provider, API key, model', key: 'model', label: 'Model' },
-      { description: 'Domestic messaging channels', key: 'gateway', label: 'Channels' },
-      { description: 'Run model and channel checks', key: 'doctor', label: 'Doctor' }
+      { description: '提供方、API Key、模型', key: 'model', label: '模型' },
+      { description: '国内消息渠道', key: 'gateway', label: '渠道' },
+      { description: '检查模型与渠道配置', key: 'doctor', label: '诊断' }
     ])
   })
 
@@ -47,15 +47,15 @@ describe('setup panel helpers', () => {
         provider_configured: true,
         runtime_config: '/tmp/runtime/config.yml'
       })
-    ).toEqual(['model: configured', 'provider: openai', 'current: mimo-v2.5-pro', 'config: /tmp/runtime/config.yml'])
+    ).toEqual(['模型：已配置', '提供方：openai', '当前模型：mimo-v2.5-pro', '配置文件：/tmp/runtime/config.yml'])
   })
 
   it('formats missing setup status without hiding the next action', () => {
     expect(setupStatusLines({ provider_configured: false })).toEqual([
-      'model: missing',
-      'provider: (unset)',
-      'current: (unset)',
-      'config: (unknown)'
+      '模型：未配置',
+      '提供方：（未设置）',
+      '当前模型：（未设置）',
+      '配置文件：（未知）'
     ])
   })
 })

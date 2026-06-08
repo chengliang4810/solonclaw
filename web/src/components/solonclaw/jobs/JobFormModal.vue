@@ -587,7 +587,7 @@ function handlePresetChange(value: string) {
 
         <NFormItem :label="t('jobs.deliverPreview')">
           <NInput
-            :value="`${deliveryPlatform}:${formData.deliver_chat_id || 'chat_id'}${formData.deliver_thread_id ? ':' + formData.deliver_thread_id : ''}`"
+            :value="`${deliveryPlatform}:${formData.deliver_chat_id || t('jobs.deliverPreviewEmptyChat')}${formData.deliver_thread_id ? ':' + formData.deliver_thread_id : ''}`"
             readonly
           />
         </NFormItem>

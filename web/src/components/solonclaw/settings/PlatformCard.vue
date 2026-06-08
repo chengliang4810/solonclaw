@@ -10,13 +10,14 @@ const props = defineProps<{
   credentials?: Record<string, any>
 }>()
 
-const expanded = ref(true)
 const { t } = useI18n()
 
 const enabled = computed(() => {
   if (props.credentials?.enabled !== undefined) return !!props.credentials.enabled
   return !!props.config?.enabled
 })
+
+const expanded = ref(enabled.value)
 </script>
 
 <template>

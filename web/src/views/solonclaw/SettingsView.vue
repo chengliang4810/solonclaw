@@ -26,7 +26,10 @@ onMounted(() => {
 <template>
   <div class="settings-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t("settings.title") }}</h2>
+      <div>
+        <h2 class="header-title">{{ t("settings.title") }}</h2>
+        <p class="header-subtitle">{{ t("settings.description") }}</p>
+      </div>
     </header>
 
     <div class="settings-content">

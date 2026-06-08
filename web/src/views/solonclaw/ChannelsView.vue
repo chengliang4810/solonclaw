@@ -16,7 +16,10 @@ onMounted(() => {
 <template>
   <div class="channels-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('sidebar.channels') }}</h2>
+      <div>
+        <h2 class="header-title">{{ t('sidebar.channels') }}</h2>
+        <p class="header-subtitle">{{ t('channels.description') }}</p>
+      </div>
     </header>
 
     <div class="channels-content">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NSelect, useMessage } from 'naive-ui'
 import { useAgentsStore } from '@/stores/solonclaw/agents'
 
@@ -9,11 +10,12 @@ const props = defineProps<{
 
 const message = useMessage()
 const agentsStore = useAgentsStore()
+const { t } = useI18n()
 
 const options = computed(() =>
   [
     {
-      label: '默认 Agent',
+      label: t('agents.selectorDefault'),
       value: 'default',
       disabled: false,
     },
@@ -34,14 +36,14 @@ async function load() {
 async function handleChange(value: string | number | Array<string | number>) {
   if (typeof value !== 'string' || value === agentsStore.activeAgentName) return
   if (!props.sessionId) {
-    message.warning('请先选择一个会话')
+    message.warning(t('agents.selectSessionFirst'))
     return
   }
   try {
     await agentsStore.activateAgent(value, props.sessionId)
-    message.success(`当前会话已切换到 Agent：${value}`)
+    message.success(t('agents.activateSuccess', { name: value }))
   } catch (err: any) {
-    message.error(err?.message || '切换 Agent 失败')
+    message.error(err?.message || t('agents.activateFailed'))
   }
 }
 
@@ -51,7 +53,7 @@ watch(() => props.sessionId, load)
 
 <template>
   <div class="agent-selector">
-    <span class="agent-selector-label">当前 Agent</span>
+    <span class="agent-selector-label">{{ t('agents.selectorLabel') }}</span>
     <NSelect
       :value="agentsStore.activeAgentName"
       :options="options"
