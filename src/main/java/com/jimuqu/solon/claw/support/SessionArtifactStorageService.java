@@ -16,17 +16,27 @@ import java.util.Map;
 import java.util.TimeZone;
 import org.noear.snack4.ONode;
 
-/** Jimuqu session artifact persistence under runtime/artifacts. */
+/** 提供会话Artifact Storage相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SessionArtifactStorageService {
+    /** TRAJECTORYSUCCESS文件的统一常量值。 */
     private static final String TRAJECTORY_SUCCESS_FILE = "trajectory_samples.jsonl";
+
+    /** TRAJECTORYFAILED文件的统一常量值。 */
     private static final String TRAJECTORY_FAILED_FILE = "failed_trajectories.jsonl";
 
+    /** 记录会话ArtifactStorage中的artifacts目录。 */
     private final File artifactsDir;
 
+    /** 创建会话Artifact Storage服务实例。 */
     public SessionArtifactStorageService() {
         this(new File(RuntimePathConstants.RUNTIME_HOME, RuntimePathConstants.ARTIFACTS_DIR_NAME));
     }
 
+    /**
+     * 创建会话Artifact Storage服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public SessionArtifactStorageService(AppConfig appConfig) {
         this(
                 new File(
@@ -38,6 +48,11 @@ public class SessionArtifactStorageService {
                         RuntimePathConstants.ARTIFACTS_DIR_NAME));
     }
 
+    /**
+     * 创建会话Artifact Storage服务实例，并注入运行所需依赖。
+     *
+     * @param artifactsDir 会话产物存储目录。
+     */
     public SessionArtifactStorageService(File artifactsDir) {
         this.artifactsDir =
                 artifactsDir == null
@@ -47,6 +62,13 @@ public class SessionArtifactStorageService {
                         : artifactsDir;
     }
 
+    /**
+     * 追加Trajectory。
+     *
+     * @param trajectory trajectory 参数。
+     * @param completed completed 参数。
+     * @return 返回Trajectory结果。
+     */
     public Map<String, Object> appendTrajectory(Map<String, Object> trajectory, boolean completed)
             throws Exception {
         Map<String, Object> entry = toTrajectoryEntry(trajectory, completed);
@@ -74,6 +96,13 @@ public class SessionArtifactStorageService {
         return result;
     }
 
+    /**
+     * 转换为Trajectory Entry。
+     *
+     * @param trajectory trajectory 参数。
+     * @param completed completed 参数。
+     * @return 返回转换后的Trajectory Entry。
+     */
     private Map<String, Object> toTrajectoryEntry(
             Map<String, Object> trajectory, boolean completed) {
         Map<String, Object> entry = new LinkedHashMap<String, Object>();
@@ -89,6 +118,11 @@ public class SessionArtifactStorageService {
         return entry;
     }
 
+    /**
+     * 执行utc时间戳相关逻辑。
+     *
+     * @return 返回utc时间戳结果。
+     */
     private String utcTimestamp() {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
         format.setTimeZone(TimeZone.getTimeZone("UTC"));

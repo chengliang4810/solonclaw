@@ -25,21 +25,38 @@ import org.noear.snack4.ONode;
 
 /** Solon Claw Cron 任务管理服务。 */
 public class CronJobService {
+    /** PROTECTED定时任务DISABLEDTOOLSETS的统一常量值。 */
     public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
+
+    /** 状态ACTIVE的统一常量值。 */
     private static final String STATUS_ACTIVE = "ACTIVE";
+
+    /** 状态PAUSED的统一常量值。 */
     private static final String STATUS_PAUSED = "PAUSED";
+
+    /** 状态COMPLETED的统一常量值。 */
     private static final String STATUS_COMPLETED = "COMPLETED";
+
+    /** 默认来源的统一常量值。 */
     private static final String DEFAULT_SOURCE = "MEMORY:dashboard:cron";
+
+    /** 定时任务密钥VAR的统一常量值。 */
     private static final String CRON_SECRET_VAR =
             "\\$\\{?\\w*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)\\w*\\}?";
+
+    /** 定时任务GitHub认证HEADER的统一常量值。 */
     private static final Pattern CRON_GITHUB_AUTH_HEADER =
             Pattern.compile(
                     "curl\\s+[^\\n]*(?:-H|--header)\\s+[\"']Authorization:\\s*token\\s+"
                             + CRON_SECRET_VAR
                             + "[\"']\\s+[\"']?https://api\\.github\\.com(?:/|\\b)",
                     Pattern.CASE_INSENSITIVE);
+
+    /** VARIATION选择器CP的统一常量值。 */
     private static final int VARIATION_SELECTOR_CP = 0xFE0F;
+
+    /** EMOJINEIGHBOURCPRANGES的统一常量值。 */
     private static final int[][] EMOJI_NEIGHBOUR_CP_RANGES =
             new int[][] {
                 new int[] {0x1F000, 0x1FFFF},
@@ -48,6 +65,8 @@ public class CronJobService {
                 new int[] {0x1F1E6, 0x1F1FF},
                 new int[] {0x20E3, 0x20E3}
             };
+
+    /** 定时任务提示词THREATS的统一常量值。 */
     private static final CronPromptThreat[] CRON_PROMPT_THREATS =
             new CronPromptThreat[] {
                 threat(
@@ -85,14 +104,30 @@ public class CronJobService {
                                 + "|(?:\\bkill\\b[^\\n]*(?:\\$\\(\\s*(?:pgrep|pidof)\\b|`\\s*(?:pgrep|pidof)\\b))")
             };
 
+    /** 注入应用配置，用于定时任务任务。 */
     private final AppConfig appConfig;
+
+    /** 保存定时任务任务仓储依赖，用于访问持久化数据。 */
     private final CronJobRepository cronJobRepository;
 
+    /**
+     * 创建定时任务任务服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     */
     public CronJobService(AppConfig appConfig, CronJobRepository cronJobRepository) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
     }
 
+    /**
+     * 执行create，服务于定时任务任务主流程相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param body 请求体或消息正文内容。
+     * @return 返回create结果。
+     */
     public CronJobRecord create(String sourceKey, Map<String, Object> body) throws Exception {
         String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), null);
         String prompt = string(body.get("prompt"), "");
@@ -159,6 +194,13 @@ public class CronJobService {
         return cronJobRepository.save(record);
     }
 
+    /**
+     * 执行更新相关逻辑。
+     *
+     * @param jobId job标识。
+     * @param body 请求体或消息正文内容。
+     * @return 返回更新结果。
+     */
     public CronJobRecord update(String jobId, Map<String, Object> body) throws Exception {
         CronJobRecord record = require(jobId);
         if (body.containsKey("name")) {
@@ -276,6 +318,12 @@ public class CronJobService {
         return cronJobRepository.update(record);
     }
 
+    /**
+     * 应用Editable状态。
+     *
+     * @param record 记录参数。
+     * @param rawStatus 原始状态参数。
+     */
     private void applyEditableStatus(CronJobRecord record, String rawStatus) {
         String status = StrUtil.nullToEmpty(rawStatus).trim().toLowerCase(Locale.ROOT);
         if (StrUtil.isBlank(status)) {
@@ -314,6 +362,12 @@ public class CronJobService {
         throw new IllegalStateException("unsupported cron job status: " + rawStatus);
     }
 
+    /**
+     * 列出全部。
+     *
+     * @param includeDisabled includeDisabled 参数。
+     * @return 返回全部列表。
+     */
     public List<CronJobRecord> listAll(boolean includeDisabled) throws Exception {
         List<CronJobRecord> result = new ArrayList<CronJobRecord>();
         for (CronJobRecord job : cronJobRepository.listAll()) {
@@ -324,6 +378,13 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 列出根据来源。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param includeDisabled includeDisabled 参数。
+     * @return 返回根据来源列表。
+     */
     public List<CronJobRecord> listBySource(String sourceKey, boolean includeDisabled)
             throws Exception {
         List<CronJobRecord> result = new ArrayList<CronJobRecord>();
@@ -335,6 +396,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行require相关逻辑。
+     *
+     * @param jobId job标识。
+     * @return 返回require结果。
+     */
     public CronJobRecord require(String jobId) throws Exception {
         CronJobRecord record = cronJobRepository.findById(jobId);
         if (record == null) {
@@ -343,6 +410,13 @@ public class CronJobService {
         return record;
     }
 
+    /**
+     * 执行pause相关逻辑。
+     *
+     * @param jobId job标识。
+     * @param reason 原因参数。
+     * @return 返回pause结果。
+     */
     public CronJobRecord pause(String jobId, String reason) throws Exception {
         CronJobRecord record = require(jobId);
         record.setStatus(STATUS_PAUSED);
@@ -351,6 +425,12 @@ public class CronJobService {
         return cronJobRepository.update(record);
     }
 
+    /**
+     * 执行resume相关逻辑。
+     *
+     * @param jobId job标识。
+     * @return 返回resume结果。
+     */
     public CronJobRecord resume(String jobId) throws Exception {
         CronJobRecord record = require(jobId);
         record.setStatus(STATUS_ACTIVE);
@@ -363,10 +443,23 @@ public class CronJobService {
         return cronJobRepository.update(record);
     }
 
+    /**
+     * 执行trigger相关逻辑。
+     *
+     * @param jobId job标识。
+     * @return 返回trigger结果。
+     */
     public CronJobRecord trigger(String jobId) throws Exception {
         return trigger(jobId, "manual");
     }
 
+    /**
+     * 执行trigger相关逻辑。
+     *
+     * @param jobId job标识。
+     * @param triggerType trigger类型参数。
+     * @return 返回trigger结果。
+     */
     public CronJobRecord trigger(String jobId, String triggerType) throws Exception {
         CronJobRecord record = require(jobId);
         record.setStatus(STATUS_ACTIVE);
@@ -375,17 +468,37 @@ public class CronJobService {
         return cronJobRepository.update(record);
     }
 
+    /**
+     * 执行remove相关逻辑。
+     *
+     * @param jobId job标识。
+     * @return 返回remove结果。
+     */
     public CronJobRecord remove(String jobId) throws Exception {
         CronJobRecord record = require(jobId);
         cronJobRepository.delete(jobId);
         return record;
     }
 
+    /**
+     * 执行历史相关逻辑。
+     *
+     * @param jobId job标识。
+     * @param limit 最大返回数量。
+     * @return 返回历史结果。
+     */
     public List<CronJobRunRecord> history(String jobId, int limit) throws Exception {
         require(jobId);
         return cronJobRepository.listRuns(jobId, limit);
     }
 
+    /**
+     * 执行rewrite技能Refs相关逻辑。
+     *
+     * @param consolidated consolidated标识或键值。
+     * @param pruned pruned 参数。
+     * @return 返回rewrite技能Refs结果。
+     */
     public Map<String, Object> rewriteSkillRefs(
             Map<String, String> consolidated, List<String> pruned) throws Exception {
         Map<String, String> consolidatedMap = normalizedMap(consolidated);
@@ -447,6 +560,12 @@ public class CronJobService {
         return report;
     }
 
+    /**
+     * 运行To视图。
+     *
+     * @param record 记录参数。
+     * @return 返回To视图。
+     */
     public Map<String, Object> runToView(CronJobRunRecord record) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("run_id", record.getRunId());
@@ -471,6 +590,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行durationMillis相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回duration Millis结果。
+     */
     private Long durationMillis(CronJobRunRecord record) {
         if (record == null || record.getStartedAt() <= 0 || record.getFinishedAt() <= 0) {
             return null;
@@ -478,6 +603,12 @@ public class CronJobService {
         return Long.valueOf(Math.max(0L, record.getFinishedAt() - record.getStartedAt()));
     }
 
+    /**
+     * 转换为视图。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的视图。
+     */
     public Map<String, Object> toView(CronJobRecord record) {
         Map<String, Object> schedule = new LinkedHashMap<String, Object>();
         String scheduleKind = CronSupport.kind(record.getCronExpr());
@@ -551,6 +682,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行guide相关逻辑。
+     *
+     * @return 返回guide结果。
+     */
     public Map<String, Object> guide() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("objective", "通过 Cron 自动化创建、编辑、暂停、恢复、立即运行和复核任务，并把结果投递到本地或指定国内渠道。");
@@ -625,6 +761,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行策略相关逻辑。
+     *
+     * @return 返回策略结果。
+     */
     public Map<String, Object> policy() {
         Map<String, Object> policy = new LinkedHashMap<String, Object>();
         policy.put(
@@ -734,7 +875,7 @@ public class CronJobService {
                         "--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
         delivery.put(
                 "wrapResponsePolicy",
-                "--wrap-response wraps job output; --raw, --no-wrap, and --no-wrap-response deliver raw output.");
+                "--wrap-response 会包装任务输出；--raw、--no-wrap 和 --no-wrap-response 会投递原始输出。");
         delivery.put(
                 "supportedPlatforms",
                 Arrays.asList(
@@ -751,11 +892,11 @@ public class CronJobService {
         delivery.put(
                 "targetModes",
                 Arrays.asList(
-                        "origin returns to the job source conversation",
-                        "local stores the result in run history only",
-                        "platform uses the configured default target",
-                        "platform:chat_id:thread_id targets a specific conversation thread",
-                        "target1,target2 delivers one run result to multiple targets"));
+                        "origin 会回复到任务来源会话",
+                        "local 只把结果写入运行历史",
+                        "platform 使用该平台已配置的默认目标",
+                        "platform:chat_id:thread_id 会投递到指定会话线程",
+                        "target1,target2 会把同一次运行结果投递到多个目标"));
         policy.put("delivery", delivery);
 
         Map<String, Object> skillBinding = new LinkedHashMap<String, Object>();
@@ -807,6 +948,11 @@ public class CronJobService {
         return policy;
     }
 
+    /**
+     * 执行定时任务运行时Isolation策略相关逻辑。
+     *
+     * @return 返回定时任务运行时Isolation策略结果。
+     */
     private Map<String, Object> cronRuntimeIsolationPolicy() {
         Map<String, Object> isolation = new LinkedHashMap<String, Object>();
         isolation.put("sourceBoundSessionRuns", Boolean.TRUE);
@@ -830,6 +976,11 @@ public class CronJobService {
         return isolation;
     }
 
+    /**
+     * 执行定时任务InactivityTimeoutSeconds相关逻辑。
+     *
+     * @return 返回定时任务Inactivity Timeout Seconds结果。
+     */
     private int cronInactivityTimeoutSeconds() {
         if (appConfig == null || appConfig.getScheduler() == null) {
             return 600;
@@ -838,6 +989,11 @@ public class CronJobService {
         return timeout >= 0 ? timeout : 600;
     }
 
+    /**
+     * 执行定时任务GuideActions相关逻辑。
+     *
+     * @return 返回定时任务Guide Actions结果。
+     */
     private Map<String, Object> cronGuideActions() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("list", "查看当前会话或全部任务");
@@ -855,6 +1011,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务GuideActionSyntax相关逻辑。
+     *
+     * @return 返回定时任务Guide Action Syntax结果。
+     */
     private Map<String, Object> cronGuideActionSyntax() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put(
@@ -876,6 +1037,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务GuideAliases相关逻辑。
+     *
+     * @return 返回定时任务Guide Aliases结果。
+     */
     private Map<String, Object> cronGuideAliases() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("add", Arrays.asList("create"));
@@ -889,6 +1055,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务Guide技能Binding相关逻辑。
+     *
+     * @return 返回定时任务Guide技能Binding结果。
+     */
     private Map<String, Object> cronGuideSkillBinding() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("fields", Arrays.asList("skill", "skills"));
@@ -911,6 +1082,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务Guide投递相关逻辑。
+     *
+     * @return 返回定时任务Guide投递结果。
+     */
     private Map<String, Object> cronGuideDelivery() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put(
@@ -960,6 +1136,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务Guide运行时Modes相关逻辑。
+     *
+     * @return 返回定时任务Guide运行时Modes结果。
+     */
     private Map<String, Object> cronGuideRuntimeModes() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("agent", "默认模式，使用 prompt 和 skills 进入 Agent 主循环。");
@@ -991,6 +1172,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务Guide历史And状态相关逻辑。
+     *
+     * @return 返回定时任务Guide历史And状态。
+     */
     private Map<String, Object> cronGuideHistoryAndStatus() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put(
@@ -1032,6 +1218,11 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行定时任务Guide安全相关逻辑。
+     *
+     * @return 返回定时任务Guide安全结果。
+     */
     private Map<String, Object> cronGuideSecurity() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put(
@@ -1053,11 +1244,17 @@ public class CronJobService {
         result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         result.put(
                 "enabled_toolsets_policy",
-                "protected disabled toolsets override per-job and scheduler enabled_toolsets.");
+                "受保护的禁用工具集会覆盖任务级和 scheduler enabled_toolsets 配置。");
         result.put("approval_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
 
+    /**
+     * 执行状态相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回状态。
+     */
     private String state(CronJobRecord record) {
         if (STATUS_PAUSED.equalsIgnoreCase(record.getStatus())) {
             return "paused";
@@ -1068,6 +1265,12 @@ public class CronJobService {
         return "scheduled";
     }
 
+    /**
+     * 执行actions相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回actions结果。
+     */
     private Map<String, Object> actions(CronJobRecord record) {
         String status = record == null || record.getStatus() == null ? "" : record.getStatus();
         boolean paused = STATUS_PAUSED.equalsIgnoreCase(status);
@@ -1094,6 +1297,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行调度展示相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回调度展示结果。
+     */
     private String scheduleDisplay(CronJobRecord record) {
         String expr = record.getCronExpr();
         String kind = CronSupport.kind(expr);
@@ -1111,6 +1320,11 @@ public class CronJobService {
         return expr;
     }
 
+    /**
+     * 校验上下文From。
+     *
+     * @param refs refs 参数。
+     */
     private void validateContextFrom(List<String> refs) throws Exception {
         for (String ref : refs) {
             if (cronJobRepository.findById(ref) == null) {
@@ -1119,10 +1333,22 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 判断是否包含DependencyRefs。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回contains Dependency Refs结果。
+     */
     private boolean containsDependencyRefs(Map<String, Object> body) {
         return body.containsKey("context_from") || body.containsKey("depends_on");
     }
 
+    /**
+     * 执行dependencyRefs相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回dependency Refs结果。
+     */
     private List<String> dependencyRefs(Map<String, Object> body) {
         if (body.containsKey("context_from")) {
             return stringList(body.get("context_from"));
@@ -1130,6 +1356,11 @@ public class CronJobService {
         return stringList(body.get("depends_on"));
     }
 
+    /**
+     * 校验Script。
+     *
+     * @param script script 参数。
+     */
     private void validateScript(String script) {
         if (StrUtil.isBlank(script)) {
             return;
@@ -1158,6 +1389,13 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 判断是否Under Directory。
+     *
+     * @param root root 参数。
+     * @param target target 参数。
+     * @return 如果Under Directory满足条件则返回 true，否则返回 false。
+     */
     private boolean isUnderDirectory(File root, File target) throws java.io.IOException {
         java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
         java.nio.file.Path targetPath =
@@ -1168,6 +1406,12 @@ public class CronJobService {
         return targetPath.startsWith(rootPath);
     }
 
+    /**
+     * 规范化Workdir。
+     *
+     * @param workdir 命令执行工作目录。
+     * @return 返回Workdir结果。
+     */
     private String normalizeWorkdir(String workdir) {
         String value = StrUtil.nullToEmpty(workdir).trim();
         if (StrUtil.isBlank(value)) {
@@ -1209,6 +1453,12 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         if (e == null) {
             return "Exception";
@@ -1217,6 +1467,12 @@ public class CronJobService {
                 StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
+    /**
+     * 执行workdir引用相关逻辑。
+     *
+     * @param workdir 命令执行工作目录。
+     * @return 返回workdir Reference结果。
+     */
     private String workdirReference(String workdir) {
         String value = StrUtil.nullToEmpty(workdir).trim();
         if (StrUtil.isBlank(value)) {
@@ -1234,7 +1490,7 @@ public class CronJobService {
                 return "runtime://" + filePath.substring(homePath.length() + 1).replace('\\', '/');
             }
         } catch (Exception ignored) {
-            // Fall through to a filename-only external reference.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         String name = FileUtil.file(value).getName();
         if (StrUtil.isBlank(name)) {
@@ -1243,6 +1499,12 @@ public class CronJobService {
         return "path://" + SecretRedactor.redact(name, 200);
     }
 
+    /**
+     * 执行normalized路径相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回normalized路径。
+     */
     private String normalizedPath(File file) {
         String path = file.getAbsolutePath();
         if (File.separatorChar == '\\') {
@@ -1251,10 +1513,22 @@ public class CronJobService {
         return path;
     }
 
+    /**
+     * 执行usesForward斜杠命令相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回uses Forward Slash结果。
+     */
     private boolean usesForwardSlash(String path) {
         return path != null && path.indexOf('/') >= 0 && path.indexOf('\\') < 0;
     }
 
+    /**
+     * 执行expand用户主渠道相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回expand用户主渠道结果。
+     */
     private String expandUserHome(String path) {
         if (StrUtil.isBlank(path)) {
             return path;
@@ -1272,6 +1546,11 @@ public class CronJobService {
         return path;
     }
 
+    /**
+     * 执行scan提示词相关逻辑。
+     *
+     * @param prompt 提示词参数。
+     */
     public void scanPrompt(String prompt) {
         if (StrUtil.isBlank(prompt)) {
             return;
@@ -1293,12 +1572,26 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 剥离定时任务安全Constructs。
+     *
+     * @param prompt 提示词参数。
+     * @return 返回strip定时任务Safe Constructs结果。
+     */
     private static String stripCronSafeConstructs(String prompt) {
         return CRON_GITHUB_AUTH_HEADER
                 .matcher(prompt)
                 .replaceAll("curl https://api.github.com/user");
     }
 
+    /**
+     * 判断是否Invisible Injection Char。
+     *
+     * @param ch ch 参数。
+     * @param text 待处理文本。
+     * @param index 索引参数。
+     * @return 如果Invisible Injection Char满足条件则返回 true，否则返回 false。
+     */
     private static boolean isInvisibleInjectionChar(char ch, String text, int index) {
         if (ch == '\u200d' && zwjHasEmojiNeighbour(text, index)) {
             return false;
@@ -1315,6 +1608,13 @@ public class CronJobService {
                 || ch == '\u202e';
     }
 
+    /**
+     * 执行zwjHasEmojiNeighbour相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @param index 索引参数。
+     * @return 返回zwj Has Emoji Neighbour结果。
+     */
     private static boolean zwjHasEmojiNeighbour(String text, int index) {
         int left = index - 1;
         while (left >= 0 && text.charAt(left) == VARIATION_SELECTOR_CP) {
@@ -1330,6 +1630,12 @@ public class CronJobService {
                 && isEmojiCodePoint(text.codePointAt(right));
     }
 
+    /**
+     * 判断是否Emoji Code Point。
+     *
+     * @param codePoint codePoint 参数。
+     * @return 如果Emoji Code Point满足条件则返回 true，否则返回 false。
+     */
     private static boolean isEmojiCodePoint(int codePoint) {
         for (int i = 0; i < EMOJI_NEIGHBOUR_CP_RANGES.length; i++) {
             int[] range = EMOJI_NEIGHBOUR_CP_RANGES[i];
@@ -1340,25 +1646,55 @@ public class CronJobService {
         return false;
     }
 
+    /**
+     * 执行threat相关逻辑。
+     *
+     * @param id 标识。
+     * @param regex regex 参数。
+     * @return 返回threat结果。
+     */
     private static CronPromptThreat threat(String id, String regex) {
         return new CronPromptThreat(id, Pattern.compile(regex, Pattern.CASE_INSENSITIVE));
     }
 
+    /** 承载定时任务提示词Threat相关状态和辅助逻辑。 */
     private static class CronPromptThreat {
+        /** 记录定时任务提示词Threat中的标识。 */
         private final String id;
+
+        /** 记录定时任务提示词Threat中的pattern。 */
         private final Pattern pattern;
 
+        /**
+         * 创建定时任务提示词Threat实例，并注入运行所需依赖。
+         *
+         * @param id 标识。
+         * @param pattern pattern 参数。
+         */
         private CronPromptThreat(String id, Pattern pattern) {
             this.id = id;
             this.pattern = pattern;
         }
     }
 
+    /** 承载模型Override相关状态和辅助逻辑。 */
     private static class ModelOverride {
+        /** 记录模型Override中的模型。 */
         private final String model;
+
+        /** 记录模型Override中的提供方。 */
         private final String provider;
+
+        /** 记录模型Override中的基础URL。 */
         private final String baseUrl;
 
+        /**
+         * 创建模型Override实例，并注入运行所需依赖。
+         *
+         * @param model 模型名称。
+         * @param provider 模型或能力提供方。
+         * @param baseUrl 待校验或访问的地址参数。
+         */
         private ModelOverride(String model, String provider, String baseUrl) {
             this.model = model;
             this.provider = provider;
@@ -1366,6 +1702,12 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 执行JSON相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回JSON结果。
+     */
     private String json(Object value) {
         if (value == null) {
             return null;
@@ -1373,15 +1715,33 @@ public class CronJobService {
         return ONode.serialize(value);
     }
 
+    /**
+     * 执行默认Deliver相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回默认Deliver结果。
+     */
     private String defaultDeliver(Map<String, Object> body) {
         return body != null && body.get("origin") != null ? "origin" : "local";
     }
 
+    /**
+     * 投递Value。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回Value结果。
+     */
     private String deliverValue(Object value, String defaultValue) {
         List<String> targets = stringList(value);
         return targets.isEmpty() ? defaultValue : join(targets);
     }
 
+    /**
+     * 校验Deliver Targets。
+     *
+     * @param deliver deliver 参数。
+     */
     private void validateDeliverTargets(String deliver) {
         if (StrUtil.isBlank(deliver)) {
             return;
@@ -1405,6 +1765,12 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 执行join相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回join结果。
+     */
     private String join(List<String> values) {
         StringBuilder builder = new StringBuilder();
         for (String value : values) {
@@ -1419,6 +1785,12 @@ public class CronJobService {
         return builder.length() == 0 ? null : builder.toString();
     }
 
+    /**
+     * 执行解析相关逻辑。
+     *
+     * @param json JSON参数。
+     * @return 返回parse结果。
+     */
     private Object parse(String json) {
         if (StrUtil.isBlank(json)) {
             return null;
@@ -1426,10 +1798,22 @@ public class CronJobService {
         return ONode.ofJson(json).toData();
     }
 
+    /**
+     * 生成安全展示用的视图文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe视图Text结果。
+     */
     private String safeViewText(String value) {
         return SecretRedactor.redact(value);
     }
 
+    /**
+     * 生成安全展示用的视图值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe视图Value结果。
+     */
     private Object safeViewValue(Object value) {
         if (value instanceof String) {
             return safeViewText((String) value);
@@ -1452,6 +1836,12 @@ public class CronJobService {
         return value;
     }
 
+    /**
+     * 解析List。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的List。
+     */
     private List<String> parseList(String json) {
         List<String> result = new ArrayList<String>();
         Object data = parse(json);
@@ -1465,10 +1855,22 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行first相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first结果。
+     */
     private Object first(List<String> values) {
         return values.isEmpty() ? null : values.get(0);
     }
 
+    /**
+     * 执行定时任务启用状态Toolsets相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回定时任务启用 Toolsets结果。
+     */
     private List<String> cronEnabledToolsets(Map<String, Object> body) {
         if (body == null) {
             return new ArrayList<String>();
@@ -1480,6 +1882,12 @@ public class CronJobService {
         return filterProtectedCronToolsets(stringList(value));
     }
 
+    /**
+     * 执行过滤器Protected定时任务Toolsets相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回filter Protected定时任务Toolsets结果。
+     */
     public static List<String> filterProtectedCronToolsets(List<String> values) {
         List<String> result = new ArrayList<String>();
         if (values == null) {
@@ -1498,6 +1906,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 规范化Toolset名称。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Toolset名称结果。
+     */
     private static String normalizeToolsetName(String value) {
         String normalized = StrUtil.nullToEmpty(value).trim().toLowerCase(Locale.ROOT);
         if ("cron".equals(normalized)) {
@@ -1509,6 +1923,12 @@ public class CronJobService {
         return normalized;
     }
 
+    /**
+     * 执行string列表相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string List结果。
+     */
     @SuppressWarnings("unchecked")
     private List<String> stringList(Object value) {
         List<String> result = new ArrayList<String>();
@@ -1549,6 +1969,14 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行调度值相关逻辑。
+     *
+     * @param scheduleValue schedule值参数。
+     * @param cronExprValue 定时任务Expr值参数。
+     * @param defaultValue 默认值参数。
+     * @return 返回调度Value结果。
+     */
     private String scheduleValue(Object scheduleValue, Object cronExprValue, String defaultValue) {
         String schedule = scheduleObjectValue(scheduleValue);
         if (StrUtil.isNotBlank(schedule)) {
@@ -1561,6 +1989,12 @@ public class CronJobService {
         return defaultValue;
     }
 
+    /**
+     * 执行调度Object值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回调度Object Value结果。
+     */
     private String scheduleObjectValue(Object value) {
         if (value instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) value;
@@ -1580,6 +2014,12 @@ public class CronJobService {
         return string(value, null);
     }
 
+    /**
+     * 执行structuredTarget相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回structured Target结果。
+     */
     private String structuredTarget(Map<?, ?> value) {
         if (value == null || value.isEmpty()) {
             return null;
@@ -1603,6 +2043,14 @@ public class CronJobService {
         return builder.toString();
     }
 
+    /**
+     * 应用模型Pin。
+     *
+     * @param record 记录参数。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     */
     private void applyModelPin(
             CronJobRecord record, String model, String provider, String baseUrl) {
         String normalizedModel = normalizeBlank(model);
@@ -1628,6 +2076,18 @@ public class CronJobService {
         record.setBaseUrl(normalizedBaseUrl);
     }
 
+    /**
+     * 执行模型Override相关逻辑。
+     *
+     * @param modelValue 模型值参数。
+     * @param providerValue 提供方值标识或键值。
+     * @param baseUrlValue 待校验或访问的地址参数。
+     * @param baseUrlAliasValue 待校验或访问的地址参数。
+     * @param defaultModel 默认模型参数。
+     * @param defaultProvider 默认提供方标识或键值。
+     * @param defaultBaseUrl 待校验或访问的地址参数。
+     * @return 返回模型Override结果。
+     */
     private ModelOverride modelOverride(
             Object modelValue,
             Object providerValue,
@@ -1658,20 +2118,47 @@ public class CronJobService {
         return new ModelOverride(model, provider, baseUrl);
     }
 
+    /**
+     * 执行默认模型值相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param record 记录参数。
+     * @return 返回默认模型Value结果。
+     */
     private String defaultModelValue(Map<String, Object> body, CronJobRecord record) {
         return body.containsKey("model") ? null : record.getModel();
     }
 
+    /**
+     * 执行默认提供方值相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param record 记录参数。
+     * @return 返回默认提供方Value结果。
+     */
     private String defaultProviderValue(Map<String, Object> body, CronJobRecord record) {
         return body.containsKey("provider") ? null : record.getProvider();
     }
 
+    /**
+     * 执行默认基础URL值相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param record 记录参数。
+     * @return 返回默认Base URL Value结果。
+     */
     private String defaultBaseUrlValue(Map<String, Object> body, CronJobRecord record) {
         return body.containsKey("base_url") || body.containsKey("baseUrl")
                 ? null
                 : record.getBaseUrl();
     }
 
+    /**
+     * 执行object映射相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回object Map结果。
+     */
     private Map<?, ?> objectMap(Object value) {
         if (value instanceof Map) {
             return (Map<?, ?>) value;
@@ -1691,6 +2178,13 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 执行first字符串相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first String结果。
+     */
     private String firstString(Map<?, ?> map, String... keys) {
         for (int i = 0; i < keys.length; i++) {
             Object value = map.get(keys[i]);
@@ -1701,6 +2195,12 @@ public class CronJobService {
         return null;
     }
 
+    /**
+     * 规范化Base URL。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Base URL结果。
+     */
     private String normalizeBaseUrl(String value) {
         String normalized = normalizeBlank(value);
         while (StrUtil.isNotBlank(normalized) && normalized.endsWith("/")) {
@@ -1709,6 +2209,13 @@ public class CronJobService {
         return normalized;
     }
 
+    /**
+     * 规范化Trigger类型。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallback 兜底参数。
+     * @return 返回Trigger类型结果。
+     */
     public String normalizeTriggerType(String value, String fallback) {
         String text = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         if (text.length() == 0) {
@@ -1741,6 +2248,12 @@ public class CronJobService {
         return builder.length() == 0 ? fallback : builder.toString();
     }
 
+    /**
+     * 规范化Blank。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Blank结果。
+     */
     private String normalizeBlank(String value) {
         if (value == null) {
             return null;
@@ -1749,6 +2262,12 @@ public class CronJobService {
         return text.length() == 0 ? null : text;
     }
 
+    /**
+     * 执行规范技能相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回规范技能结果。
+     */
     private List<String> canonicalSkills(Map<String, Object> body) {
         List<String> result = stringList(body.get("skills"));
         for (String item : stringList(body.get("skill"))) {
@@ -1757,6 +2276,13 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 应用技能Delta。
+     *
+     * @param current current 参数。
+     * @param body 请求体或消息正文内容。
+     * @return 返回apply技能Delta结果。
+     */
     private List<String> applySkillsDelta(List<String> current, Map<String, Object> body) {
         List<String> result = normalizedList(current);
         Object raw =
@@ -1783,6 +2309,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 判断是否存在技能Delta。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 如果技能Delta满足条件则返回 true，否则返回 false。
+     */
     private boolean hasSkillsDelta(Map<String, Object> body) {
         return body.containsKey("skills_delta")
                 || body.containsKey("skillsDelta")
@@ -1796,11 +2328,24 @@ public class CronJobService {
                 || body.containsKey("removeSkills");
     }
 
+    /**
+     * 清理技能。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回技能结果。
+     */
     private boolean clearSkills(Map<String, Object> body) {
         return Boolean.TRUE.equals(body.get("clear_skills"))
                 || Boolean.TRUE.equals(body.get("clearSkills"));
     }
 
+    /**
+     * 执行merged字符串列表相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回merged String List结果。
+     */
     private List<String> mergedStringList(Map<?, ?> map, String... keys) {
         List<String> result = new ArrayList<String>();
         if (map == null || keys == null) {
@@ -1817,6 +2362,13 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行firstPresent相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Present结果。
+     */
     private Object firstPresent(Map<?, ?> map, String... keys) {
         if (map == null || keys == null) {
             return null;
@@ -1829,6 +2381,16 @@ public class CronJobService {
         return null;
     }
 
+    /**
+     * 执行默认任务名称相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param prompt 提示词参数。
+     * @param skills 技能参数。
+     * @param script script 参数。
+     * @param noAgent noAgent 参数。
+     * @return 返回默认任务名称结果。
+     */
     private String defaultJobName(
             Map<String, Object> body,
             String prompt,
@@ -1855,6 +2417,12 @@ public class CronJobService {
         return labelSource.trim();
     }
 
+    /**
+     * 执行normalized映射相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回normalized Map结果。
+     */
     private Map<String, String> normalizedMap(Map<String, String> values) {
         Map<String, String> result = new LinkedHashMap<String, String>();
         if (values == null) {
@@ -1870,6 +2438,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 执行normalized列表相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回normalized List结果。
+     */
     private List<String> normalizedList(List<String> values) {
         List<String> result = new ArrayList<String>();
         if (values == null) {
@@ -1881,6 +2455,12 @@ public class CronJobService {
         return result;
     }
 
+    /**
+     * 追加字符串。
+     *
+     * @param result 结果响应或执行结果。
+     * @param value 待规范化或校验的原始值。
+     */
     private void addString(List<String> result, Object value) {
         String text = value == null ? "" : String.valueOf(value).trim();
         if (StrUtil.isNotBlank(text) && !result.contains(text)) {
@@ -1888,6 +2468,13 @@ public class CronJobService {
         }
     }
 
+    /**
+     * 执行string相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回string结果。
+     */
     private String string(Object value, String defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -1896,6 +2483,13 @@ public class CronJobService {
         return text.length() == 0 ? defaultValue : text;
     }
 
+    /**
+     * 执行int值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回int Value结果。
+     */
     private int intValue(Object value, int defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -1906,6 +2500,13 @@ public class CronJobService {
         return Integer.parseInt(String.valueOf(value));
     }
 
+    /**
+     * 执行bool相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回bool结果。
+     */
     private boolean bool(Object value, boolean defaultValue) {
         if (value == null) {
             return defaultValue;

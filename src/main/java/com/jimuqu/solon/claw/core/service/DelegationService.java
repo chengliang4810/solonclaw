@@ -11,6 +11,13 @@ public interface DelegationService {
     DelegationResult delegateSingle(String sourceKey, String prompt, String context)
             throws Exception;
 
+    /**
+     * 执行委托Single相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param task 任务参数。
+     * @return 返回委托Single结果。
+     */
     default DelegationResult delegateSingle(String sourceKey, DelegationTask task)
             throws Exception {
         return delegateSingle(
@@ -23,16 +30,37 @@ public interface DelegationService {
     List<DelegationResult> delegateBatch(String sourceKey, List<DelegationTask> tasks)
             throws Exception;
 
+    /**
+     * 写入Spawn Paused。
+     *
+     * @param paused paused 参数。
+     */
     default void setSpawnPaused(boolean paused) {}
 
+    /**
+     * 判断是否Spawn Paused。
+     *
+     * @return 如果Spawn Paused满足条件则返回 true，否则返回 false。
+     */
     default boolean isSpawnPaused() {
         return false;
     }
 
+    /**
+     * 中断子Agent。
+     *
+     * @param subagentId 子Agent标识。
+     * @return 返回interrupt Subagent结果。
+     */
     default boolean interruptSubagent(String subagentId) {
         return false;
     }
 
+    /**
+     * 执行activeSubagents相关逻辑。
+     *
+     * @return 返回active Subagents结果。
+     */
     default List<Map<String, Object>> activeSubagents() {
         return java.util.Collections.emptyList();
     }

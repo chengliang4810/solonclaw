@@ -10,6 +10,11 @@ import org.noear.snack4.ONode;
 
 /** 自更新重启器，在独立 JVM 中完成 jar 替换与重启。 */
 public class SelfUpdateLauncher {
+    /**
+     * 执行main相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     */
     public static void main(String[] args) throws Exception {
         if (args == null || args.length < 4) {
             return;
@@ -83,6 +88,12 @@ public class SelfUpdateLauncher {
         append(logFile, "SelfUpdateLauncher restarted application with updated jar\n");
     }
 
+    /**
+     * 执行append相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @param text 待处理文本。
+     */
     private static void append(File file, String text) {
         try {
             FileUtil.appendUtf8String(text, file);

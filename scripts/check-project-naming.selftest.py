@@ -223,6 +223,17 @@ def main() -> int:
         require_failure(blocked_object_text, "Naming check did not block forbidden naming in git object text inside a release range.")
         assert_no_raw_blocked_output(blocked_object_text.stdout + blocked_object_text.stderr, [BLOCKED_FIXTURE], "git object text scan")
 
+        write_text(sandbox / "package-lock.json", BLOCKED_FIXTURE + " inside ignored third-party lockfile")
+        git(sandbox, "add", "package-lock.json")
+        git(sandbox, "commit", "-m", "fix: ignored lockfile fixture / Ignored lockfile fixture")
+        ignored_lockfile_object_text = invoke_git_naming_check(
+            sandbox, git_range="HEAD^..HEAD", with_extra_fixture=True, check_object_text=True
+        )
+        require_success(
+            ignored_lockfile_object_text,
+            "Naming check should ignore package lockfiles during git object text scanning",
+        )
+
         write_text(sandbox / "README.md", "Clean default branch again")
         git(sandbox, "add", "README.md")
         git(sandbox, "commit", "-m", "fix: clean default branch again / Clean default branch again")

@@ -19,23 +19,49 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Patch tool backed by the local workspace. */
+/** 提供Solon项目Patch工具能力，供 Agent 运行时按安全策略调用。 */
 public class SolonClawPatchTools {
+    /** UTF8BOM的统一常量值。 */
     private static final String UTF8_BOM = "\ufeff";
 
+    /** 记录Solon项目补丁中的根用户路径。 */
     private final Path rootPath;
+
+    /** 记录Solon项目补丁中的real根用户路径。 */
     private final Path realRootPath;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录Solon项目补丁中的文件状态Tracker。 */
     private final SolonClawFileStateTracker fileStateTracker;
 
+    /**
+     * 创建Solon项目Patch工具实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     */
     public SolonClawPatchTools(String workDir) {
         this(workDir, null);
     }
 
+    /**
+     * 创建Solon项目Patch工具实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public SolonClawPatchTools(String workDir, SecurityPolicyService securityPolicyService) {
         this(workDir, securityPolicyService, new SolonClawFileStateTracker());
     }
 
+    /**
+     * 创建Solon项目Patch工具实例，并注入运行所需依赖。
+     *
+     * @param workDir 命令执行工作目录。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param fileStateTracker 文件或目录路径参数。
+     */
     public SolonClawPatchTools(
             String workDir,
             SecurityPolicyService securityPolicyService,
@@ -52,6 +78,11 @@ public class SolonClawPatchTools {
         }
     }
 
+    /**
+     * 执行补丁Parser策略摘要相关逻辑。
+     *
+     * @return 返回patch Parser策略Summary结果。
+     */
     public static Map<String, Object> patchParserPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("enabled", Boolean.TRUE);
@@ -82,6 +113,17 @@ public class SolonClawPatchTools {
         return summary;
     }
 
+    /**
+     * 执行补丁相关逻辑。
+     *
+     * @param mode 模式参数。
+     * @param path 文件或目录路径。
+     * @param oldString old字符串参数。
+     * @param newString new字符串参数。
+     * @param replaceAll replaceAll 参数。
+     * @param patchText 补丁文本参数。
+     * @return 返回patch结果。
+     */
     @ToolMapping(
             name = "patch",
             description =
@@ -123,6 +165,15 @@ public class SolonClawPatchTools {
         return ONode.serialize(result);
     }
 
+    /**
+     * 执行replace相关逻辑。
+     *
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param oldString old字符串参数。
+     * @param newString new字符串参数。
+     * @param replaceAll replaceAll 参数。
+     * @return 返回replace结果。
+     */
     private PatchResult replace(
             String filePath, String oldString, String newString, boolean replaceAll)
             throws IOException {
@@ -175,6 +226,12 @@ public class SolonClawPatchTools {
         return result;
     }
 
+    /**
+     * 应用V4a。
+     *
+     * @param patchText 补丁文本参数。
+     * @return 返回apply V4a结果。
+     */
     private PatchResult applyV4a(String patchText) throws IOException {
         if (StrUtil.isBlank(patchText)) {
             return PatchResult.error("patch content required");
@@ -208,6 +265,12 @@ public class SolonClawPatchTools {
         return result;
     }
 
+    /**
+     * 判断是否存在Patch Envelope。
+     *
+     * @param patchText 补丁文本参数。
+     * @return 如果Patch Envelope满足条件则返回 true，否则返回 false。
+     */
     private boolean hasPatchEnvelope(String patchText) {
         String normalized = patchText.replace("\r\n", "\n").replace('\r', '\n');
         String[] lines = normalized.split("\n", -1);
@@ -223,6 +286,12 @@ public class SolonClawPatchTools {
         return false;
     }
 
+    /**
+     * 解析V4a。
+     *
+     * @param patchText 补丁文本参数。
+     * @return 返回解析后的V4a。
+     */
     private List<PatchOperation> parseV4a(String patchText) {
         String normalized = patchText.replace("\r\n", "\n").replace('\r', '\n');
         String[] lines = normalized.split("\n", -1);
@@ -292,6 +361,13 @@ public class SolonClawPatchTools {
         return operations;
     }
 
+    /**
+     * 执行finishOperation相关逻辑。
+     *
+     * @param operations operations 参数。
+     * @param current current 参数。
+     * @param hunk hunk 参数。
+     */
     private void finishOperation(
             List<PatchOperation> operations, PatchOperation current, Hunk hunk) {
         if (current == null) {
@@ -303,6 +379,12 @@ public class SolonClawPatchTools {
         operations.add(current);
     }
 
+    /**
+     * 解析Move文件。
+     *
+     * @param line 行参数。
+     * @return 返回解析后的Move文件。
+     */
     private PatchOperation parseMoveFile(String line) {
         String body = afterMarker(line, "*** Move File:");
         int arrow = body.indexOf("->");
@@ -316,6 +398,12 @@ public class SolonClawPatchTools {
         return op;
     }
 
+    /**
+     * 校验Operations。
+     *
+     * @param operations operations 参数。
+     * @return 返回Operations结果。
+     */
     private List<String> validateOperations(List<PatchOperation> operations) throws IOException {
         List<String> errors = new ArrayList<String>();
         for (PatchOperation operation : operations) {
@@ -378,6 +466,12 @@ public class SolonClawPatchTools {
         return errors;
     }
 
+    /**
+     * 检查策略。
+     *
+     * @param operations operations 参数。
+     * @return 返回策略结果。
+     */
     private PatchResult checkPolicy(List<PatchOperation> operations) {
         if (securityPolicyService == null) {
             return null;
@@ -397,6 +491,12 @@ public class SolonClawPatchTools {
         return null;
     }
 
+    /**
+     * 检查策略。
+     *
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @return 返回策略结果。
+     */
     private PatchResult checkPolicy(String filePath) {
         if (securityPolicyService == null) {
             return null;
@@ -412,6 +512,13 @@ public class SolonClawPatchTools {
                         + SecretRedactor.redact(verdict.getPath(), 400));
     }
 
+    /**
+     * 应用Operation。
+     *
+     * @param operation operation 参数。
+     * @param result 结果响应或执行结果。
+     * @param diff diff 参数。
+     */
     private void applyOperation(PatchOperation operation, PatchResult result, StringBuilder diff)
             throws IOException {
         Path target = resolvePath(operation.filePath);
@@ -477,6 +584,13 @@ public class SolonClawPatchTools {
         }
     }
 
+    /**
+     * 应用Hunks。
+     *
+     * @param current current 参数。
+     * @param hunks hunks 参数。
+     * @return 返回apply Hunks结果。
+     */
     private ApplyResult applyHunks(String current, List<Hunk> hunks) {
         String content = current;
         for (Hunk hunk : hunks) {
@@ -516,6 +630,14 @@ public class SolonClawPatchTools {
         return ApplyResult.success(content);
     }
 
+    /**
+     * 写入AdditionOnly。
+     *
+     * @param content 待处理内容。
+     * @param hint hint 参数。
+     * @param insertText insert文本参数。
+     * @return 返回insert Addition Only结果。
+     */
     private ApplyResult insertAdditionOnly(String content, String hint, String insertText) {
         if (StrUtil.isBlank(insertText)) {
             return ApplyResult.success(content);
@@ -547,6 +669,13 @@ public class SolonClawPatchTools {
                         + content.substring(nextLine + 1));
     }
 
+    /**
+     * 执行次数Occurrences相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param needle needle 参数。
+     * @return 返回次数Occurrences结果。
+     */
     private int countOccurrences(String content, String needle) {
         if (StrUtil.isEmpty(content) || StrUtil.isEmpty(needle)) {
             return 0;
@@ -560,6 +689,13 @@ public class SolonClawPatchTools {
         return count;
     }
 
+    /**
+     * 追加With Newline。
+     *
+     * @param content 待处理内容。
+     * @param insertText insert文本参数。
+     * @return 返回With Newline结果。
+     */
     private String appendWithNewline(String content, String insertText) {
         String base = StrUtil.nullToEmpty(content);
         if (base.endsWith("\n")) {
@@ -568,6 +704,12 @@ public class SolonClawPatchTools {
         return base + "\n" + insertText + "\n";
     }
 
+    /**
+     * 收集Add Content。
+     *
+     * @param operation operation 参数。
+     * @return 返回Add Content结果。
+     */
     private String collectAddContent(PatchOperation operation) {
         List<String> lines = new ArrayList<String>();
         for (Hunk hunk : operation.hunks) {
@@ -580,6 +722,13 @@ public class SolonClawPatchTools {
         return join(lines, "\n");
     }
 
+    /**
+     * 查找Matches。
+     *
+     * @param content 待处理内容。
+     * @param needle needle 参数。
+     * @return 返回Matches结果。
+     */
     private List<Integer> findMatches(String content, String needle) {
         if (StrUtil.isEmpty(needle)) {
             return Collections.emptyList();
@@ -593,6 +742,15 @@ public class SolonClawPatchTools {
         return matches;
     }
 
+    /**
+     * 执行replaceMatches相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param oldString old字符串参数。
+     * @param newString new字符串参数。
+     * @param matches matches 参数。
+     * @return 返回replace Matches结果。
+     */
     private String replaceMatches(
             String content, String oldString, String newString, List<Integer> matches) {
         String updated = content;
@@ -607,6 +765,13 @@ public class SolonClawPatchTools {
         return updated;
     }
 
+    /**
+     * 执行closestHint相关逻辑。
+     *
+     * @param oldString old字符串参数。
+     * @param content 待处理内容。
+     * @return 返回closest Hint结果。
+     */
     private String closestHint(String oldString, String content) {
         String anchor = firstNonBlankLine(oldString);
         if (StrUtil.isBlank(anchor)) {
@@ -629,6 +794,12 @@ public class SolonClawPatchTools {
         return "";
     }
 
+    /**
+     * 执行firstNon空白值行相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @return 返回first Non Blank Line结果。
+     */
     private String firstNonBlankLine(String text) {
         if (text == null) {
             return "";
@@ -641,6 +812,14 @@ public class SolonClawPatchTools {
         return "";
     }
 
+    /**
+     * 执行simpleDiff相关逻辑。
+     *
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param oldContent oldContent 参数。
+     * @param newContent newContent 参数。
+     * @return 返回simple Diff结果。
+     */
     private String simpleDiff(String filePath, String oldContent, String newContent) {
         StringBuilder diff = new StringBuilder();
         boolean added = StrUtil.isEmpty(oldContent) && StrUtil.isNotEmpty(newContent);
@@ -670,6 +849,12 @@ public class SolonClawPatchTools {
         return diff.toString();
     }
 
+    /**
+     * 解析路径。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 返回解析后的路径。
+     */
     private Path resolvePath(String rawPath) {
         String value = StrUtil.nullToEmpty(rawPath).trim();
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
@@ -683,6 +868,11 @@ public class SolonClawPatchTools {
         return target;
     }
 
+    /**
+     * 执行assertResolvedWithin根用户相关逻辑。
+     *
+     * @param target target 参数。
+     */
     private void assertResolvedWithinRoot(Path target) {
         Path existing = nearestExistingPath(target);
         if (existing == null) {
@@ -694,6 +884,12 @@ public class SolonClawPatchTools {
         }
     }
 
+    /**
+     * 执行nearestExisting路径相关逻辑。
+     *
+     * @param target target 参数。
+     * @return 返回nearest Existing路径。
+     */
     private Path nearestExistingPath(Path target) {
         Path current = target;
         while (current != null) {
@@ -705,6 +901,12 @@ public class SolonClawPatchTools {
         return null;
     }
 
+    /**
+     * 生成安全展示用的Real路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe Real路径。
+     */
     private Path safeRealPath(Path path) {
         try {
             return path.toRealPath();
@@ -713,14 +915,32 @@ public class SolonClawPatchTools {
         }
     }
 
+    /**
+     * 执行resolved输出路径相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回resolved输出路径。
+     */
     private String resolvedOutputPath(Path path) {
         return safeRealPath(path).toString();
     }
 
+    /**
+     * 执行read相关逻辑。
+     *
+     * @param target target 参数。
+     * @return 返回read结果。
+     */
     private String read(Path target) throws IOException {
         return stripLeadingBom(new String(Files.readAllBytes(target), StandardCharsets.UTF_8));
     }
 
+    /**
+     * 执行写入相关逻辑。
+     *
+     * @param target target 参数。
+     * @param content 待处理内容。
+     */
     private void write(Path target, String content) throws IOException {
         String value = StrUtil.nullToEmpty(content);
         if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
@@ -732,6 +952,12 @@ public class SolonClawPatchTools {
         AtomicFileWriteSupport.writeUtf8(target, value);
     }
 
+    /**
+     * 判断是否存在Leading Bom。
+     *
+     * @param target target 参数。
+     * @return 如果Leading Bom满足条件则返回 true，否则返回 false。
+     */
     private boolean hasLeadingBom(Path target) {
         if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
             return false;
@@ -747,6 +973,12 @@ public class SolonClawPatchTools {
         }
     }
 
+    /**
+     * 剥离LeadingBom。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Leading Bom结果。
+     */
     private String stripLeadingBom(String value) {
         if (value != null && value.startsWith(UTF8_BOM)) {
             return value.substring(UTF8_BOM.length());
@@ -754,10 +986,23 @@ public class SolonClawPatchTools {
         return value;
     }
 
+    /**
+     * 执行afterMarker相关逻辑。
+     *
+     * @param line 行参数。
+     * @param marker marker 参数。
+     * @return 返回after Marker结果。
+     */
     private String afterMarker(String line, String marker) {
         return line.substring(marker.length()).trim();
     }
 
+    /**
+     * 提取上下文Hint。
+     *
+     * @param line 行参数。
+     * @return 返回上下文Hint结果。
+     */
     private String extractContextHint(String line) {
         String trimmed = line.trim();
         if (!trimmed.startsWith("@@")) {
@@ -770,14 +1015,32 @@ public class SolonClawPatchTools {
         return StrUtil.blankToDefault(body, null);
     }
 
+    /**
+     * 执行hintLabel相关逻辑。
+     *
+     * @param hunk hunk 参数。
+     * @return 返回hint Label结果。
+     */
     private String hintLabel(Hunk hunk) {
         return StrUtil.isBlank(hunk.contextHint) ? "(no hint)" : "'" + hunk.contextHint + "'";
     }
 
+    /**
+     * 规范化路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回路径。
+     */
     private String normalizePath(String path) {
         return StrUtil.nullToEmpty(path).replace('\\', '/');
     }
 
+    /**
+     * 生成安全展示用的路径。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回safe路径。
+     */
     private String safePath(String path) {
         String value =
                 SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
@@ -794,6 +1057,13 @@ public class SolonClawPatchTools {
         return SecretRedactor.redact(name, 400);
     }
 
+    /**
+     * 执行join相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param separator separator 参数。
+     * @return 返回join结果。
+     */
     private String join(List<String> values, String separator) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < values.size(); i++) {
@@ -805,27 +1075,61 @@ public class SolonClawPatchTools {
         return builder.toString();
     }
 
+    /** 表示补丁结果，携带调用方后续判断所需信息。 */
     public static class PatchResult {
+        /** 是否启用success。 */
         public boolean success;
+
+        /** 记录补丁中的错误。 */
         public String error;
+
+        /** 记录补丁中的diff。 */
         public String diff;
+
+        /** 记录补丁中的warning。 */
         public String _warning;
+
+        /** 记录补丁中的resolved路径。 */
         public String resolved_path;
+
+        /** 保存warnings集合，维持调用顺序或去重语义。 */
         public List<String> warnings = new ArrayList<String>();
+
+        /** 保存filesmodified集合，维持调用顺序或去重语义。 */
         public List<String> files_modified = new ArrayList<String>();
+
+        /** 保存files创建集合，维持调用顺序或去重语义。 */
         public List<String> files_created = new ArrayList<String>();
+
+        /** 保存files删除集合，维持调用顺序或去重语义。 */
         public List<String> files_deleted = new ArrayList<String>();
 
+        /** 保存filesModified集合，维持调用顺序或去重语义。 */
         private final List<String> filesModified = files_modified;
+
+        /** 保存files创建集合，维持调用顺序或去重语义。 */
         private final List<String> filesCreated = files_created;
+
+        /** 保存files删除集合，维持调用顺序或去重语义。 */
         private final List<String> filesDeleted = files_deleted;
 
+        /**
+         * 执行success相关逻辑。
+         *
+         * @return 返回success结果。
+         */
         public static PatchResult success() {
             PatchResult result = new PatchResult();
             result.success = true;
             return result;
         }
 
+        /**
+         * 执行错误相关逻辑。
+         *
+         * @param error 错误参数。
+         * @return 返回error结果。
+         */
         public static PatchResult error(String error) {
             PatchResult result = new PatchResult();
             result.success = false;
@@ -834,6 +1138,11 @@ public class SolonClawPatchTools {
             return result;
         }
 
+        /**
+         * 追加Warning。
+         *
+         * @param warning warning 参数。
+         */
         private void addWarning(String warning) {
             if (StrUtil.isBlank(warning)) {
                 return;
@@ -846,6 +1155,7 @@ public class SolonClawPatchTools {
             }
         }
 
+        /** 脱敏输出。 */
         private void redactOutput() {
             error = redact(error, 1000);
             diff = redact(diff, 20000);
@@ -857,6 +1167,12 @@ public class SolonClawPatchTools {
             redactList(files_deleted, 400);
         }
 
+        /**
+         * 脱敏List。
+         *
+         * @param values 待规范化或校验的原始值集合。
+         * @param maxLength 最大保留字符数。
+         */
         private static void redactList(List<String> values, int maxLength) {
             if (values == null || values.isEmpty()) {
                 return;
@@ -866,10 +1182,22 @@ public class SolonClawPatchTools {
             }
         }
 
+        /**
+         * 脱敏文本中的密钥、令牌和敏感路径。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @param maxLength 最大保留字符数。
+         * @return 返回redact结果。
+         */
         private static String redact(String value, int maxLength) {
             return value == null ? null : SecretRedactor.redact(value, maxLength);
         }
 
+        /**
+         * 写入Single Resolved路径。
+         *
+         * @param path 文件或目录路径。
+         */
         private void setSingleResolvedPath(String path) {
             if (StrUtil.isNotBlank(path) && StrUtil.isBlank(resolved_path)) {
                 resolved_path = path;
@@ -879,53 +1207,113 @@ public class SolonClawPatchTools {
         }
     }
 
+    /** 承载补丁Operation相关状态和辅助逻辑。 */
     private static class PatchOperation {
+        /** 记录补丁Operation中的类型。 */
         private final String type;
+
+        /** 记录补丁Operation中的文件路径。 */
         private final String filePath;
+
+        /** 记录补丁Operation中的new路径。 */
         private String newPath;
+
+        /** 记录补丁Operation中的错误。 */
         private String error;
+
+        /** 保存hunks集合，维持调用顺序或去重语义。 */
         private final List<Hunk> hunks = new ArrayList<Hunk>();
 
+        /**
+         * 创建Patch Operation实例，并注入运行所需依赖。
+         *
+         * @param type 类型参数。
+         * @param filePath 目标文件相对路径或绝对路径。
+         */
         private PatchOperation(String type, String filePath) {
             this.type = type;
             this.filePath = StrUtil.nullToEmpty(filePath).trim();
         }
     }
 
+    /** 承载Hunk相关状态和辅助逻辑。 */
     private static class Hunk {
+        /** 记录Hunk中的上下文Hint。 */
         private final String contextHint;
+
+        /** 保存lines集合，维持调用顺序或去重语义。 */
         private final List<HunkLine> lines = new ArrayList<HunkLine>();
 
+        /**
+         * 创建Hunk实例，并注入运行所需依赖。
+         *
+         * @param contextHint 上下文Hint上下文。
+         */
         private Hunk(String contextHint) {
             this.contextHint = contextHint;
         }
     }
 
+    /** 承载Hunk行相关状态和辅助逻辑。 */
     private static class HunkLine {
+        /** 记录Hunk行中的prefix。 */
         private final char prefix;
+
+        /** 记录Hunk行中的content。 */
         private final String content;
 
+        /**
+         * 创建Hunk Line实例，并注入运行所需依赖。
+         *
+         * @param prefix prefix 参数。
+         * @param content 待处理内容。
+         */
         private HunkLine(char prefix, String content) {
             this.prefix = prefix;
             this.content = StrUtil.nullToEmpty(content);
         }
     }
 
+    /** 表示Apply结果，携带调用方后续判断所需信息。 */
     private static class ApplyResult {
+        /** 是否启用success。 */
         private final boolean success;
+
+        /** 记录Apply中的content。 */
         private final String content;
+
+        /** 记录Apply中的错误。 */
         private final String error;
 
+        /**
+         * 创建Apply结果实例，并注入运行所需依赖。
+         *
+         * @param success success 参数。
+         * @param content 待处理内容。
+         * @param error 错误参数。
+         */
         private ApplyResult(boolean success, String content, String error) {
             this.success = success;
             this.content = content;
             this.error = error;
         }
 
+        /**
+         * 执行success相关逻辑。
+         *
+         * @param content 待处理内容。
+         * @return 返回success结果。
+         */
         private static ApplyResult success(String content) {
             return new ApplyResult(true, content, null);
         }
 
+        /**
+         * 执行错误相关逻辑。
+         *
+         * @param error 错误参数。
+         * @return 返回error结果。
+         */
         private static ApplyResult error(String error) {
             return new ApplyResult(false, null, error);
         }

@@ -19,19 +19,42 @@ import org.noear.snack4.ONode;
 
 /** Dashboard Agent run 查询服务。 */
 public class DashboardRunService {
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
+
+    /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 注入委托服务，用于调用对应业务能力。 */
     private final DelegationService delegationService;
 
+    /**
+     * 创建控制台运行服务实例，并注入运行所需依赖。
+     *
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
     public DashboardRunService(AgentRunRepository agentRunRepository) {
         this(agentRunRepository, null, null);
     }
 
+    /**
+     * 创建控制台运行服务实例，并注入运行所需依赖。
+     *
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     */
     public DashboardRunService(
             AgentRunRepository agentRunRepository, AgentRunControlService agentRunControlService) {
         this(agentRunRepository, agentRunControlService, null);
     }
 
+    /**
+     * 创建控制台运行服务实例，并注入运行所需依赖。
+     *
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param delegationService delegation服务依赖。
+     */
     public DashboardRunService(
             AgentRunRepository agentRunRepository,
             AgentRunControlService agentRunControlService,
@@ -41,6 +64,13 @@ public class DashboardRunService {
         this.delegationService = delegationService;
     }
 
+    /**
+     * 执行会话运行相关逻辑。
+     *
+     * @param sessionId 当前会话标识。
+     * @param limit 最大返回数量。
+     * @return 返回会话运行结果。
+     */
     public Map<String, Object> sessionRuns(String sessionId, int limit) throws Exception {
         List<Map<String, Object>> runs = new ArrayList<Map<String, Object>>();
         for (AgentRunRecord record :
@@ -50,11 +80,23 @@ public class DashboardRunService {
         return Collections.singletonMap("runs", runs);
     }
 
+    /**
+     * 执行异步任务主体。
+     *
+     * @param runId 运行标识。
+     * @return 返回运行结果。
+     */
     public Map<String, Object> run(String runId) throws Exception {
         AgentRunRecord record = agentRunRepository.findRun(runId);
         return record == null ? Collections.<String, Object>emptyMap() : toRun(record);
     }
 
+    /**
+     * 执行详情相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @return 返回detail结果。
+     */
     public Map<String, Object> detail(String runId) throws Exception {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("run", run(runId));
@@ -66,6 +108,12 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 执行recoverable相关逻辑。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回recoverable结果。
+     */
     public Map<String, Object> recoverable(int limit) throws Exception {
         List<Map<String, Object>> runs = new ArrayList<Map<String, Object>>();
         for (AgentRunRecord record : agentRunRepository.listRecoverable(limit <= 0 ? 50 : limit)) {
@@ -74,6 +122,11 @@ public class DashboardRunService {
         return Collections.singletonMap("runs", runs);
     }
 
+    /**
+     * 执行activeSubagents相关逻辑。
+     *
+     * @return 返回active Subagents结果。
+     */
     public Map<String, Object> activeSubagents() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put(
@@ -85,6 +138,13 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 执行控制子Agent相关逻辑。
+     *
+     * @param subagentId 子Agent标识。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回control Subagent结果。
+     */
     public Map<String, Object> controlSubagent(String subagentId, String command) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("subagent_id", redact(subagentId, 1000));
@@ -118,6 +178,14 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 执行控制相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @param command 待执行或解析的命令文本。
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回control结果。
+     */
     public Map<String, Object> control(String runId, String command, Map<String, Object> payload)
             throws Exception {
         AgentRunRecord record = agentRunRepository.findRun(runId);
@@ -138,6 +206,12 @@ public class DashboardRunService {
         return result;
     }
 
+    /**
+     * 执行events相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @return 返回events结果。
+     */
     public Map<String, Object> events(String runId) throws Exception {
         List<Map<String, Object>> events = new ArrayList<Map<String, Object>>();
         for (AgentRunEventRecord event : agentRunRepository.listEvents(runId)) {
@@ -146,6 +220,12 @@ public class DashboardRunService {
         return Collections.singletonMap("events", events);
     }
 
+    /**
+     * 执行工具Calls相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @return 返回工具Calls结果。
+     */
     public Map<String, Object> toolCalls(String runId) throws Exception {
         List<Map<String, Object>> tools = new ArrayList<Map<String, Object>>();
         for (ToolCallRecord record : agentRunRepository.listToolCalls(runId)) {
@@ -154,6 +234,12 @@ public class DashboardRunService {
         return Collections.singletonMap("tools", tools);
     }
 
+    /**
+     * 执行subagents相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @return 返回subagents结果。
+     */
     public Map<String, Object> subagents(String runId) throws Exception {
         List<Map<String, Object>> subagents = new ArrayList<Map<String, Object>>();
         for (SubagentRunRecord record : agentRunRepository.listSubagents(runId)) {
@@ -162,6 +248,12 @@ public class DashboardRunService {
         return Collections.singletonMap("subagents", subagents);
     }
 
+    /**
+     * 执行recoveries相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @return 返回recoveries结果。
+     */
     public Map<String, Object> recoveries(String runId) throws Exception {
         List<Map<String, Object>> recoveries = new ArrayList<Map<String, Object>>();
         for (RunRecoveryRecord record : agentRunRepository.listRecoveries(runId)) {
@@ -170,6 +262,12 @@ public class DashboardRunService {
         return Collections.singletonMap("recoveries", recoveries);
     }
 
+    /**
+     * 执行commands相关逻辑。
+     *
+     * @param runId 运行标识。
+     * @return 返回commands结果。
+     */
     public Map<String, Object> commands(String runId) throws Exception {
         List<Map<String, Object>> commands = new ArrayList<Map<String, Object>>();
         for (RunControlCommand record : agentRunRepository.listRunControlCommands(runId)) {
@@ -178,6 +276,12 @@ public class DashboardRunService {
         return Collections.singletonMap("commands", commands);
     }
 
+    /**
+     * 转换为运行。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的运行。
+     */
     private Map<String, Object> toRun(AgentRunRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("run_id", safeId(record.getRunId()));
@@ -224,12 +328,24 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 转换为Recoverable运行。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的Recoverable运行。
+     */
     private Map<String, Object> toRecoverableRun(AgentRunRecord record) {
         Map<String, Object> map = toRun(record);
         map.put("recovery_diagnosis", recoveryDiagnosis(record));
         return map;
     }
 
+    /**
+     * 执行恢复Diagnosis相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回recovery Diagnosis结果。
+     */
     private Map<String, Object> recoveryDiagnosis(AgentRunRecord record) {
         Map<String, Object> diagnosis = new LinkedHashMap<String, Object>();
         diagnosis.put("reason", "recoverable_run_requires_operator_review");
@@ -240,6 +356,12 @@ public class DashboardRunService {
         return diagnosis;
     }
 
+    /**
+     * 执行心跳Age相关逻辑。
+     *
+     * @param record 记录参数。
+     * @return 返回心跳Age结果。
+     */
     private long heartbeatAge(AgentRunRecord record) {
         long heartbeatAt = record.getHeartbeatAt();
         if (heartbeatAt <= 0L) {
@@ -248,6 +370,12 @@ public class DashboardRunService {
         return Math.max(0L, System.currentTimeMillis() - heartbeatAt);
     }
 
+    /**
+     * 转换为事件。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的事件。
+     */
     private Map<String, Object> toEvent(AgentRunEventRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("event_id", safeId(record.getEventId()));
@@ -273,10 +401,22 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 执行nonNegative相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回non Negative结果。
+     */
     private Integer nonNegative(int value) {
         return Integer.valueOf(Math.max(0, value));
     }
 
+    /**
+     * 转换为工具Call。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的工具Call。
+     */
     private Map<String, Object> toToolCall(ToolCallRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("tool_call_id", safeId(record.getToolCallId()));
@@ -302,6 +442,12 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 转换为Subagent。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的Subagent。
+     */
     private Map<String, Object> toSubagent(SubagentRunRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("subagent_id", safeId(record.getSubagentId()));
@@ -332,6 +478,12 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 转换为命令。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的命令。
+     */
     private Map<String, Object> toCommand(RunControlCommand record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("command_id", safeId(record.getCommandId()));
@@ -349,6 +501,12 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 转换为Recovery。
+     *
+     * @param record 记录参数。
+     * @return 返回转换后的Recovery。
+     */
     private Map<String, Object> toRecovery(RunRecoveryRecord record) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("recovery_id", safeId(record.getRecoveryId()));
@@ -368,6 +526,15 @@ public class DashboardRunService {
         return map;
     }
 
+    /**
+     * 解析JSON Field。
+     *
+     * @param json JSON参数。
+     * @param field field 参数。
+     * @param runId 运行标识。
+     * @param eventId 事件标识。
+     * @return 返回解析后的JSON Field。
+     */
     private Object parseJsonField(String json, String field, String runId, String eventId) {
         if (json == null || json.trim().length() == 0) {
             return null;
@@ -390,6 +557,12 @@ public class DashboardRunService {
         }
     }
 
+    /**
+     * 脱敏Parsed。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Parsed结果。
+     */
     private Object redactParsed(Object value) {
         if (value instanceof String) {
             return redact((String) value, 8000);
@@ -412,14 +585,34 @@ public class DashboardRunService {
         return value;
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redact结果。
+     */
     private String redact(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 生成安全展示用的标识。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe标识。
+     */
     private String safeId(String value) {
         return SecretRedactor.redact(value, 400);
     }
 
+    /**
+     * 执行truncate相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回truncate结果。
+     */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;

@@ -18,16 +18,58 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Jimuqu cronjob tool. */
+/** 提供Cronjob工具能力，供 Agent 运行时按安全策略调用。 */
 @RequiredArgsConstructor
 public class CronjobTools {
+    /** 注入定时任务任务服务，用于调用对应业务能力。 */
     private final CronJobService cronJobService;
+
+    /** 记录Cronjob中的来源键。 */
     private final String sourceKey;
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param deliverChatId deliver聊天标识。
+     * @param deliverThreadId deliverThread标识。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param addSkill add技能参数。
+     * @param addSkills add技能参数。
+     * @param removeSkill remove技能参数。
+     * @param removeSkills remove技能参数。
+     * @param clearSkills clear技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param dependsOn dependsOn 参数。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param enabled 启用状态开关值。
+     * @param jobStatus job状态参数。
+     * @param state 状态参数。
+     * @param pausedReason paused原因参数。
+     * @param triggerType trigger类型参数。
+     * @param limit 最大返回数量。
+     * @param reason 原因参数。
+     * @return 返回cronjob结果。
+     */
     @ToolMapping(
             name = "cronjob",
             description =
-                    "Manage scheduled cron jobs. Use action='list', action='status', or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, status, inspect/show/detail, next/upcoming, update/edit, pause/disable/stop, resume/enable/start, remove/delete/rm, run/run_now/trigger/retry/rerun, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, deliver_chat_id, deliver_thread_id, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
+                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。")
     public String cronjob(
             @Param(
                             name = "action",
@@ -173,7 +215,7 @@ public class CronjobTools {
             }
             if ("capabilities".equals(normalized) || "policy".equals(normalized)) {
                 Map<String, Object> policy = cronJobService.policy();
-                return ToolResultEnvelope.ok("Cronjob tool policy")
+                return ToolResultEnvelope.ok("Cronjob 工具策略")
                         .data("policy", policy)
                         .data("actions", policy.get("actions"))
                         .data("action_syntax", policy.get("action_syntax"))
@@ -186,7 +228,7 @@ public class CronjobTools {
                         .data("execution", policy.get("execution"))
                         .data("runtime_isolation", policy.get("runtime_isolation"))
                         .preview(
-                                "cronjob policy: add/edit/pause/resume/run/remove/history, skills, delivery, wrap_response")
+                                "cronjob 策略：add/edit/pause/resume/run/remove/history、skills、delivery、wrap_response")
                         .toJson();
             }
 
@@ -195,7 +237,7 @@ public class CronjobTools {
                         cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
                 Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
-                return ToolResultEnvelope.ok("Cronjob status")
+                return ToolResultEnvelope.ok("Cronjob 状态")
                         .data("status", status)
                         .data("count", status.get("total"))
                         .data("next", status.get("next"))
@@ -208,7 +250,7 @@ public class CronjobTools {
                 List<CronJobRecord> jobs =
                         cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
-                return ToolResultEnvelope.ok("Listed cron jobs")
+                return ToolResultEnvelope.ok("已列出定时任务")
                         .data("jobs", views(jobs))
                         .data("count", Integer.valueOf(jobs.size()))
                         .preview(preview(jobs))
@@ -220,7 +262,7 @@ public class CronjobTools {
                         cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
                 List<CronJobRecord> upcoming = upcoming(jobs, limit == null ? 5 : limit.intValue());
-                return ToolResultEnvelope.ok("Listed upcoming cron jobs")
+                return ToolResultEnvelope.ok("已列出即将运行的定时任务")
                         .data("jobs", views(upcoming))
                         .data("count", Integer.valueOf(upcoming.size()))
                         .data(
@@ -264,7 +306,7 @@ public class CronjobTools {
                 applyDefaultOriginDelivery(createBody);
                 CronJobRecord job = cronJobService.create(sourceKey, createBody);
                 Map<String, Object> view = formattedView(job);
-                return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
+                return ToolResultEnvelope.ok("已创建定时任务：" + job.getJobId())
                         .data("job_id", job.getJobId())
                         .data("name", safeText(job.getName()))
                         .data("skill", view.get("skill"))
@@ -274,14 +316,14 @@ public class CronjobTools {
                         .data("deliver", safeText(job.getDeliverPlatform()))
                         .data("next_run_at", Long.valueOf(job.getNextRunAt()))
                         .data("job", view)
-                        .data("message", "Cron job '" + safeText(job.getName()) + "' created.")
+                        .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
                         .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
                         .toJson();
             }
 
             if (jobId == null || jobId.trim().length() == 0) {
                 return ToolResultEnvelope.error(
-                                "job_id is required for action: " + safeText(normalized))
+                                "action=" + safeText(normalized) + " 需要提供 job_id。")
                         .toJson();
             }
 
@@ -290,13 +332,13 @@ public class CronjobTools {
                 Map<String, Object> view = formattedView(job);
                 int historyLimit = safeLimit(limit == null ? 5 : limit.intValue());
                 List<CronJobRunRecord> runs = cronJobService.history(jobId, historyLimit);
-                return ToolResultEnvelope.ok("Cron job details: " + job.getJobId())
+                return ToolResultEnvelope.ok("定时任务详情：" + job.getJobId())
                         .data("job_id", job.getJobId())
                         .data("job", view)
                         .data("runs", runViews(runs))
                         .data("run_count", Integer.valueOf(runs.size()))
                         .data("limit", Integer.valueOf(historyLimit))
-                        .data("message", "Cron job '" + safeText(job.getName()) + "' details.")
+                        .data("message", "定时任务 '" + safeText(job.getName()) + "' 的详情。")
                         .preview(
                                 safeText(
                                         job.getJobId()
@@ -310,7 +352,7 @@ public class CronjobTools {
             if ("history".equals(normalized)) {
                 List<CronJobRunRecord> runs =
                         cronJobService.history(jobId, limit == null ? 20 : limit.intValue());
-                return ToolResultEnvelope.ok("Listed cron run history")
+                return ToolResultEnvelope.ok("已列出定时任务运行历史")
                         .data("job_id", jobId)
                         .data("runs", runViews(runs))
                         .data("count", Integer.valueOf(runs.size()))
@@ -351,40 +393,39 @@ public class CronjobTools {
                                 state,
                                 pausedReason);
                 if (updateBody.isEmpty()) {
-                    return ToolResultEnvelope.error("No updates provided.").toJson();
+                    return ToolResultEnvelope.error("未提供任何更新内容。").toJson();
                 }
                 job = cronJobService.update(jobId, updateBody);
             } else if ("pause".equals(normalized)) {
-                job = cronJobService.pause(jobId, pauseReason(reason, "paused by cronjob tool"));
+                job = cronJobService.pause(jobId, pauseReason(reason, "通过 cronjob 工具暂停"));
             } else if ("resume".equals(normalized)) {
                 job = cronJobService.resume(jobId);
             } else if ("remove".equals(normalized)) {
                 job = cronJobService.remove(jobId);
-                return ToolResultEnvelope.ok("Cron job '" + safeText(job.getName()) + "' removed.")
-                        .data("message", "Cron job '" + safeText(job.getName()) + "' removed.")
+                return ToolResultEnvelope.ok("定时任务 '" + safeText(job.getName()) + "' 已删除。")
+                        .data("message", "定时任务 '" + safeText(job.getName()) + "' 已删除。")
                         .data("removed_job", removedView(job))
                         .preview(safeText(job.getJobId() + " " + job.getName() + " REMOVED"))
                         .toJson();
             } else if ("run".equals(normalized)) {
                 job = cronJobService.trigger(jobId, runTriggerType(triggerType, reason));
                 Map<String, Object> view = formattedView(job);
-                return ToolResultEnvelope.ok(
-                                "Cron job queued for immediate run: " + safeText(job.getName()))
+                return ToolResultEnvelope.ok("定时任务已加入立即运行队列：" + safeText(job.getName()))
                         .data("job", view)
                         .data("triggered", Boolean.TRUE)
                         .data("next_run_at", view.get("next_run_at"))
                         .data(
                                 "trigger_message",
-                                "Cron job '"
+                                "定时任务 '"
                                         + safeText(job.getName())
-                                        + "' will run on the next scheduler tick.")
+                                        + "' 将在下一次调度 tick 运行。")
                         .preview(safeText(job.getJobId() + " " + job.getName() + " TRIGGERED"))
                         .toJson();
             } else {
-                return ToolResultEnvelope.error("Unsupported cronjob action: " + safeText(action))
+                return ToolResultEnvelope.error("不支持的 cronjob action：" + safeText(action))
                         .toJson();
             }
-            return ToolResultEnvelope.ok("Cron job action completed: " + normalized)
+            return ToolResultEnvelope.ok("定时任务操作已完成：" + normalized)
                     .data("job", formattedView(job))
                     .preview(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
                     .toJson();
@@ -393,12 +434,25 @@ public class CronjobTools {
         }
     }
 
+    /**
+     * 运行Trigger类型。
+     *
+     * @param triggerType trigger类型参数。
+     * @param reason 原因参数。
+     * @return 返回Trigger类型结果。
+     */
     private String runTriggerType(String triggerType, String reason) {
         String raw = triggerType == null || triggerType.trim().length() == 0 ? reason : triggerType;
         String normalized = cronJobService.normalizeTriggerType(raw, "manual");
         return "scheduled".equals(normalized) ? "manual" : normalized;
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Exception e) {
         String message = e == null ? "" : e.getMessage();
         if ((message == null || message.length() == 0) && e != null) {
@@ -407,10 +461,40 @@ public class CronjobTools {
         return safeText(message);
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param text 待处理文本。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String text) {
         return SecretRedactor.redact(text, 1000);
     }
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @return 返回cronjob结果。
+     */
     public String cronjob(
             String action,
             String jobId,
@@ -469,6 +553,40 @@ public class CronjobTools {
                 null);
     }
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param deliverChatId deliver聊天标识。
+     * @param deliverThreadId deliverThread标识。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param addSkill add技能参数。
+     * @param addSkills add技能参数。
+     * @param removeSkill remove技能参数。
+     * @param removeSkills remove技能参数。
+     * @param clearSkills clear技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param dependsOn dependsOn 参数。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param limit 最大返回数量。
+     * @param reason 原因参数。
+     * @return 返回cronjob结果。
+     */
     public String cronjob(
             String action,
             String jobId,
@@ -537,6 +655,31 @@ public class CronjobTools {
                 reason);
     }
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param limit 最大返回数量。
+     * @return 返回cronjob结果。
+     */
     public String cronjob(
             String action,
             String jobId,
@@ -596,6 +739,35 @@ public class CronjobTools {
                 null);
     }
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param deliverChatId deliver聊天标识。
+     * @param deliverThreadId deliverThread标识。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param dependsOn dependsOn 参数。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param limit 最大返回数量。
+     * @param reason 原因参数。
+     * @return 返回cronjob结果。
+     */
     public String cronjob(
             String action,
             String jobId,
@@ -659,6 +831,39 @@ public class CronjobTools {
                 reason);
     }
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param deliverChatId deliver聊天标识。
+     * @param deliverThreadId deliverThread标识。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param dependsOn dependsOn 参数。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param enabled 启用状态开关值。
+     * @param status 状态参数。
+     * @param state 状态参数。
+     * @param pausedReason paused原因参数。
+     * @param limit 最大返回数量。
+     * @param reason 原因参数。
+     * @return 返回cronjob结果。
+     */
     public String cronjob(
             String action,
             String jobId,
@@ -726,6 +931,32 @@ public class CronjobTools {
                 reason);
     }
 
+    /**
+     * 执行cronjob相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param jobId job标识。
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param repeat repeat 参数。
+     * @param includeDisabled includeDisabled 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param limit 最大返回数量。
+     * @param reason 原因参数。
+     * @return 返回cronjob结果。
+     */
     public String cronjob(
             String action,
             String jobId,
@@ -786,6 +1017,39 @@ public class CronjobTools {
                 reason);
     }
 
+    /**
+     * 执行正文相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param schedule schedule 参数。
+     * @param prompt 提示词参数。
+     * @param deliver deliver 参数。
+     * @param deliverChatId deliver聊天标识。
+     * @param deliverThreadId deliverThread标识。
+     * @param skill 技能参数。
+     * @param skills 技能参数。
+     * @param addSkill add技能参数。
+     * @param addSkills add技能参数。
+     * @param removeSkill remove技能参数。
+     * @param removeSkills remove技能参数。
+     * @param clearSkills clear技能参数。
+     * @param repeat repeat 参数。
+     * @param wrapResponse wrap响应响应或执行结果。
+     * @param script script 参数。
+     * @param workdir 命令执行工作目录。
+     * @param noAgent noAgent 参数。
+     * @param contextFrom 上下文From上下文。
+     * @param dependsOn dependsOn 参数。
+     * @param enabledToolsets 启用状态Toolsets开关值。
+     * @param model 模型名称。
+     * @param provider 模型或能力提供方。
+     * @param baseUrl 待校验或访问的地址参数。
+     * @param enabled 启用状态开关值。
+     * @param status 状态参数。
+     * @param state 状态参数。
+     * @param pausedReason paused原因参数。
+     * @return 返回body结果。
+     */
     private Map<String, Object> body(
             String name,
             String schedule,
@@ -859,6 +1123,15 @@ public class CronjobTools {
         return body;
     }
 
+    /**
+     * 执行技能Delta相关逻辑。
+     *
+     * @param addSkill add技能参数。
+     * @param addSkills add技能参数。
+     * @param removeSkill remove技能参数。
+     * @param removeSkills remove技能参数。
+     * @return 返回技能Delta结果。
+     */
     private Map<String, Object> skillDelta(
             Object addSkill, Object addSkills, Object removeSkill, Object removeSkills) {
         Map<String, Object> delta = new LinkedHashMap<String, Object>();
@@ -873,6 +1146,12 @@ public class CronjobTools {
         return delta;
     }
 
+    /**
+     * 追加全部字符串s。
+     *
+     * @param result 结果响应或执行结果。
+     * @param value 待规范化或校验的原始值。
+     */
     @SuppressWarnings("unchecked")
     private void addAllStrings(List<String> result, Object value) {
         if (value == null) {
@@ -899,6 +1178,12 @@ public class CronjobTools {
         }
     }
 
+    /**
+     * 追加字符串。
+     *
+     * @param result 结果响应或执行结果。
+     * @param value 待规范化或校验的原始值。
+     */
     private void addString(List<String> result, Object value) {
         if (value == null) {
             return;
@@ -910,12 +1195,24 @@ public class CronjobTools {
         result.add(text);
     }
 
+    /**
+     * 执行put相关逻辑。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void put(Map<String, Object> body, String key, Object value) {
         if (value != null) {
             body.put(key, value);
         }
     }
 
+    /**
+     * 应用默认Origin投递。
+     *
+     * @param body 请求体或消息正文内容。
+     */
     private void applyDefaultOriginDelivery(Map<String, Object> body) {
         if (!body.containsKey("deliver")) {
             body.put("deliver", "origin");
@@ -925,6 +1222,11 @@ public class CronjobTools {
         }
     }
 
+    /**
+     * 执行originFrom来源键相关逻辑。
+     *
+     * @return 返回origin From来源键结果。
+     */
     private Map<String, Object> originFromSourceKey() {
         String[] parts = SourceKeySupport.split(sourceKey);
         Map<String, Object> origin = new LinkedHashMap<String, Object>();
@@ -937,6 +1239,12 @@ public class CronjobTools {
         return origin;
     }
 
+    /**
+     * 执行views相关逻辑。
+     *
+     * @param jobs jobs 参数。
+     * @return 返回views结果。
+     */
     private List<Map<String, Object>> views(List<CronJobRecord> jobs) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRecord job : jobs) {
@@ -945,6 +1253,12 @@ public class CronjobTools {
         return result;
     }
 
+    /**
+     * 运行Views。
+     *
+     * @param runs runs 参数。
+     * @return 返回Views结果。
+     */
     private List<Map<String, Object>> runViews(List<CronJobRunRecord> runs) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRunRecord run : runs) {
@@ -953,6 +1267,13 @@ public class CronjobTools {
         return result;
     }
 
+    /**
+     * 执行upcoming相关逻辑。
+     *
+     * @param jobs jobs 参数。
+     * @param limit 最大返回数量。
+     * @return 返回upcoming结果。
+     */
     private List<CronJobRecord> upcoming(List<CronJobRecord> jobs, int limit) {
         List<CronJobRecord> result = new ArrayList<CronJobRecord>();
         for (CronJobRecord job : jobs) {
@@ -968,6 +1289,13 @@ public class CronjobTools {
         Collections.sort(
                 result,
                 new Comparator<CronJobRecord>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(CronJobRecord left, CronJobRecord right) {
                         long delta = left.getNextRunAt() - right.getNextRunAt();
@@ -989,6 +1317,13 @@ public class CronjobTools {
         return new ArrayList<CronJobRecord>(result.subList(0, safeLimit));
     }
 
+    /**
+     * 执行状态视图相关逻辑。
+     *
+     * @param jobs jobs 参数。
+     * @param limit 最大返回数量。
+     * @return 返回状态视图。
+     */
     private Map<String, Object> statusView(List<CronJobRecord> jobs, int limit) {
         int safeLimit = safeLimit(limit);
         int active = 0;
@@ -1037,16 +1372,34 @@ public class CronjobTools {
         return result;
     }
 
+    /**
+     * 判断是否Failed。
+     *
+     * @param job job 参数。
+     * @return 如果Failed满足条件则返回 true，否则返回 false。
+     */
     private boolean isFailed(CronJobRecord job) {
         return "error".equalsIgnoreCase(job.getLastStatus())
                 || notBlank(job.getLastError())
                 || notBlank(job.getLastDeliveryError());
     }
 
+    /**
+     * 判断文本是否包含非空白内容。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回not Blank结果。
+     */
     private boolean notBlank(String value) {
         return value != null && value.trim().length() > 0;
     }
 
+    /**
+     * 执行failure视图相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回failure视图。
+     */
     private Map<String, Object> failureView(CronJobRecord job) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("job_id", job.getJobId());
@@ -1059,8 +1412,14 @@ public class CronjobTools {
         return result;
     }
 
+    /**
+     * 执行状态预览相关逻辑。
+     *
+     * @param status 状态参数。
+     * @return 返回状态Preview结果。
+     */
     private String statusPreview(Map<String, Object> status) {
-        return "Cron status: total="
+        return "Cron 状态：total="
                 + status.get("total")
                 + ", active="
                 + status.get("active")
@@ -1072,6 +1431,12 @@ public class CronjobTools {
                 + ((List<?>) status.get("recent_failures")).size();
     }
 
+    /**
+     * 生成安全展示用的限制。
+     *
+     * @param limit 最大返回数量。
+     * @return 返回safe限制结果。
+     */
     private int safeLimit(int limit) {
         if (limit <= 0) {
             return 5;
@@ -1079,6 +1444,12 @@ public class CronjobTools {
         return Math.min(limit, 50);
     }
 
+    /**
+     * 执行formatted视图相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回formatted视图。
+     */
     private Map<String, Object> formattedView(CronJobRecord job) {
         Map<String, Object> base = cronJobService.toView(job);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -1125,10 +1496,22 @@ public class CronjobTools {
         return result;
     }
 
+    /**
+     * 生成安全展示用的Object文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Object Text结果。
+     */
     private String safeObjectText(Object value) {
         return value == null ? null : safeText(String.valueOf(value));
     }
 
+    /**
+     * 生成安全展示用的值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Value结果。
+     */
     @SuppressWarnings("unchecked")
     private Object safeValue(Object value) {
         if (value instanceof String) {
@@ -1151,6 +1534,12 @@ public class CronjobTools {
         return value;
     }
 
+    /**
+     * 执行removed视图相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回removed视图。
+     */
     private Map<String, Object> removedView(CronJobRecord job) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", job.getJobId());
@@ -1159,6 +1548,13 @@ public class CronjobTools {
         return result;
     }
 
+    /**
+     * 执行pause原因相关逻辑。
+     *
+     * @param reason 原因参数。
+     * @param fallback 兜底参数。
+     * @return 返回pause Reason结果。
+     */
     private String pauseReason(String reason, String fallback) {
         if (reason == null || reason.trim().length() == 0) {
             return fallback;
@@ -1166,6 +1562,12 @@ public class CronjobTools {
         return reason.trim();
     }
 
+    /**
+     * 执行repeat展示相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回repeat展示结果。
+     */
     private String repeatDisplay(CronJobRecord job) {
         int times = job.getRepeatTimes();
         int completed = job.getRepeatCompleted();
@@ -1178,9 +1580,15 @@ public class CronjobTools {
         return completed > 0 ? completed + "/" + times : times + " times";
     }
 
+    /**
+     * 执行预览相关逻辑。
+     *
+     * @param jobs jobs 参数。
+     * @return 返回preview结果。
+     */
     private String preview(List<CronJobRecord> jobs) {
         if (jobs.isEmpty()) {
-            return "No cron jobs";
+            return "没有定时任务";
         }
         StringBuilder buffer = new StringBuilder();
         for (CronJobRecord job : jobs) {
@@ -1192,9 +1600,15 @@ public class CronjobTools {
         return buffer.toString();
     }
 
+    /**
+     * 执行预览运行相关逻辑。
+     *
+     * @param runs runs 参数。
+     * @return 返回preview运行结果。
+     */
     private String previewRuns(List<CronJobRunRecord> runs) {
         if (runs.isEmpty()) {
-            return "No cron run history";
+            return "没有定时任务运行历史";
         }
         StringBuilder buffer = new StringBuilder();
         for (CronJobRunRecord run : runs) {

@@ -8,26 +8,35 @@ import java.nio.file.Path;
 
 /** 支持外部日志轮转恢复的滚动文件 appender。 */
 public class WatchedRollingFileAppender<E> extends RollingFileAppender<E> {
+    /** 记录WatchedRolling文件Appender中的active文件键。 */
     private Object activeFileKey;
 
+    /** 启动当前组件并准备运行资源。 */
     @Override
     public void start() {
         super.start();
         activeFileKey = readFileKey(getFile());
     }
 
+    /** 执行rollover相关逻辑。 */
     @Override
     public void rollover() {
         super.rollover();
         activeFileKey = readFileKey(getFile());
     }
 
+    /**
+     * 执行subAppend相关逻辑。
+     *
+     * @param event 事件参数。
+     */
     @Override
     protected void subAppend(E event) {
         reopenIfExternallyRotated();
         super.subAppend(event);
     }
 
+    /** 重新打开IfExternallyRotated。 */
     private void reopenIfExternallyRotated() {
         String fileName = getFile();
         if (fileName == null || getOutputStream() == null) {
@@ -53,6 +62,12 @@ public class WatchedRollingFileAppender<E> extends RollingFileAppender<E> {
         }
     }
 
+    /**
+     * 读取文件键。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @return 返回读取到的文件键。
+     */
     private Object readFileKey(String fileName) {
         if (fileName == null) {
             return null;

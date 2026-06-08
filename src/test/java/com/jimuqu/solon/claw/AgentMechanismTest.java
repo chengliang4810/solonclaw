@@ -138,7 +138,7 @@ public class AgentMechanismTest {
         env.agentProfileService.createAgent("minimal", "只读 Agent");
         env.send("tools-room", "tools-user", "hello");
         env.send("tools-room", "tools-user", "/pairing claim-admin");
-        env.send("tools-room", "tools-user", "/agent tools minimal file_read,skills_list");
+        env.send("tools-room", "tools-user", "/agent tools minimal read_file,skills_list");
         env.send("tools-room", "tools-user", "/agent minimal");
 
         AgentRuntimeScope scope =
@@ -151,7 +151,7 @@ public class AgentMechanismTest {
                         .resolveEnabledTools("MEMORY:tools-room:tools-user", scope)
                         .toString();
 
-        assertThat(names).containsExactly("file_read", "skills_list");
+        assertThat(names).containsExactly("read_file", "skills_list");
         assertThat(joinedTools).contains("SolonClawFileReadWriteSkill", "SkillsListTool");
         assertThat(joinedTools).doesNotContain("ShellSkill", "WebsearchTool", "TodoTools");
     }

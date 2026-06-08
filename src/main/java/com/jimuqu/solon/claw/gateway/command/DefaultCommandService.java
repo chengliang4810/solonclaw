@@ -80,7 +80,7 @@ import java.util.Set;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
-/** 默认 slash 命令实现，统一承接 Jimuqu 风格的会话控制命令。 */
+/** 提供默认命令相关业务能力，封装调用方不需要感知的运行细节。 */
 public class DefaultCommandService implements CommandService {
     /** 会话仓储。 */
     private final SessionRepository sessionRepository;
@@ -94,6 +94,7 @@ public class DefaultCommandService implements CommandService {
     /** 定时任务仓储。 */
     private final CronJobRepository cronJobRepository;
 
+    /** 注入定时任务任务服务，用于调用对应业务能力。 */
     private final CronJobService cronJobService;
 
     /** 对话编排器。 */
@@ -114,6 +115,7 @@ public class DefaultCommandService implements CommandService {
     /** checkpoint 服务。 */
     private final CheckpointService checkpointService;
 
+    /** 注入技能中心服务，用于调用对应业务能力。 */
     private final SkillHubService skillHubService;
 
     /** 应用配置。 */
@@ -128,24 +130,81 @@ public class DefaultCommandService implements CommandService {
     /** 运行时设置服务。 */
     private final RuntimeSettingsService runtimeSettingsService;
 
+    /** 保存展示设置服务集合，维持调用顺序或去重语义。 */
     private final DisplaySettingsService displaySettingsService;
+
+    /** 注入应用更新服务，用于调用对应业务能力。 */
     private final AppUpdateService appUpdateService;
+
+    /** 注入dangerous命令审批服务，用于调用对应业务能力。 */
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
+
+    /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 注入Agent角色配置服务，用于调用对应业务能力。 */
     private final AgentProfileService agentProfileService;
+
+    /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
+
+    /** 注入控制台MCP服务，用于调用对应业务能力。 */
     private final DashboardMcpService dashboardMcpService;
+
+    /** 注入目标服务，用于调用对应业务能力。 */
     private final GoalService goalService;
+
+    /** 注入会话Artifact服务，用于调用对应业务能力。 */
     private final SessionArtifactService sessionArtifactService;
+
+    /** 注入斜杠命令Confirm服务，用于调用对应业务能力。 */
     private final SlashConfirmService slashConfirmService;
+
+    /** 保存定时任务调度器执行组件，负责调度异步或定时任务。 */
     private final DefaultCronScheduler cronScheduler;
+
+    /** 记录默认命令中的消息网关重启Coordinator。 */
     private final GatewayRestartCoordinator gatewayRestartCoordinator;
+
+    /** 注入控制台技能维护服务，用于调用对应业务能力。 */
     private final DashboardCuratorService dashboardCuratorService;
+
+    /** 注入控制台技能服务，用于调用对应业务能力。 */
     private final DashboardSkillsService dashboardSkillsService;
+
+    /** 注入浏览器运行时服务，用于调用对应业务能力。 */
     private final BrowserRuntimeService browserRuntimeService;
+
+    /** 保存插件Commands映射，便于按键快速查询。 */
     private final Map<String, CommandHandler> pluginCommands;
+
+    /** 记录默认命令中的插件管理器。 */
     private final AgentPluginManager pluginManager;
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -191,6 +250,31 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -238,6 +322,32 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -287,6 +397,33 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -338,6 +475,34 @@ public class DefaultCommandService implements CommandService {
                 new SessionArtifactService());
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -391,6 +556,35 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -446,6 +640,36 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -503,6 +727,37 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -562,6 +817,38 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -626,6 +913,39 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     * @param pluginManager 插件Manager参数。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -691,6 +1011,40 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     * @param pluginManager 插件Manager参数。
+     * @param dashboardCuratorService dashboardCurator服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -757,6 +1111,41 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     * @param pluginManager 插件Manager参数。
+     * @param dashboardCuratorService dashboardCurator服务依赖。
+     * @param dashboardSkillsService dashboard技能服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -824,6 +1213,42 @@ public class DefaultCommandService implements CommandService {
                 null);
     }
 
+    /**
+     * 创建默认命令服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     * @param pluginManager 插件Manager参数。
+     * @param dashboardCuratorService dashboardCurator服务依赖。
+     * @param dashboardSkillsService dashboard技能服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     */
     public DefaultCommandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -912,7 +1337,7 @@ public class DefaultCommandService implements CommandService {
                         StrUtil.nullToEmpty(commandName).trim().toLowerCase());
     }
 
-    /** 处理单条 slash 命令。 */
+    /** 执行单条斜杠命令命令相关逻辑。 */
     @Override
     public GatewayReply handle(GatewayMessage message, String commandLine) throws Exception {
         String withoutSlash = commandLine.substring(1).trim();
@@ -1340,7 +1765,7 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_ROLLBACK.equals(command)) {
-            if (StrUtil.isBlank(args)) {
+            if (StrUtil.isBlank(args) || isCheckpointListCommand(args)) {
                 return GatewayReply.ok(formatCheckpointList(message.sourceKey()));
             }
             if ("status".equalsIgnoreCase(args)) {
@@ -1379,7 +1804,7 @@ public class DefaultCommandService implements CommandService {
                         checkpointService.rollback(recent.get(index - 1).getCheckpointId());
                 return GatewayReply.ok("已按列表序号回滚到 checkpoint：" + restored.getCheckpointId());
             } catch (NumberFormatException ignored) {
-                // fall through
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
             return GatewayReply.ok(
                     "已回滚到指定 checkpoint：" + checkpointService.rollback(args).getCheckpointId());
@@ -1408,6 +1833,14 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.ok(helpText());
     }
 
+    /**
+     * 执行handle相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param commandLine 命令行参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回handle结果。
+     */
     @Override
     public GatewayReply handle(
             GatewayMessage message, String commandLine, ConversationEventSink eventSink)
@@ -1471,6 +1904,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行文本元数据相关逻辑。
+     *
+     * @param reply 回复参数。
+     * @param key 配置键或映射键。
+     * @return 返回text元数据结果。
+     */
     private String textMetadata(GatewayReply reply, String key) {
         if (reply == null || reply.getRuntimeMetadata() == null) {
             return "";
@@ -1479,6 +1919,12 @@ public class DefaultCommandService implements CommandService {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 停止当前组件并释放运行状态。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回Stop结果。
+     */
     private GatewayReply handleStop(GatewayMessage message) throws Exception {
         AgentRunStopResult stopResult =
                 agentRunControlService == null
@@ -1513,6 +1959,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行重启相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回重启结果。
+     */
     private GatewayReply handleRestart(GatewayMessage message) throws Exception {
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         int activeRuns =
@@ -1555,6 +2007,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 写入重启Requester元数据。
+     *
+     * @param reply 回复参数。
+     * @param routing routing 参数。
+     */
     private void putRestartRequesterMetadata(
             GatewayReply reply, GatewayRestartCoordinator.RequesterRouting routing) {
         if (reply == null || routing == null || reply.getRuntimeMetadata() == null) {
@@ -1578,6 +2036,13 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 执行Yolo相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Yolo结果。
+     */
     private GatewayReply handleYolo(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
@@ -1609,6 +2074,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行目标相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Goal结果。
+     */
     private GatewayReply handleGoal(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         String raw = StrUtil.nullToEmpty(args).trim();
@@ -1669,6 +2141,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行Recap相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Recap结果。
+     */
     private GatewayReply handleRecap(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         GatewayReply reply =
@@ -1679,6 +2158,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行Sessions相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回Sessions结果。
+     */
     private GatewayReply handleSessions(String args) throws Exception {
         String query = StrUtil.nullToEmpty(args).trim();
         List<SessionRecord> records =
@@ -1697,6 +2182,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行过滤器RecentSessions相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回filter Recent Sessions结果。
+     */
     private List<SessionRecord> filterRecentSessions(String query, int limit) throws Exception {
         List<SessionRecord> records = sessionRepository.listRecent(50);
         List<SessionRecord> result = new ArrayList<SessionRecord>();
@@ -1714,6 +2206,13 @@ public class DefaultCommandService implements CommandService {
         return result;
     }
 
+    /**
+     * 执行会话Matches相关逻辑。
+     *
+     * @param record 记录参数。
+     * @param query 查询参数。
+     * @return 返回会话Matches结果。
+     */
     private boolean sessionMatches(SessionRecord record, String query) {
         if (record == null || StrUtil.isBlank(query)) {
             return false;
@@ -1724,12 +2223,26 @@ public class DefaultCommandService implements CommandService {
                 || containsIgnoreCase(record.getSourceKey(), query);
     }
 
+    /**
+     * 判断是否包含忽略Case。
+     *
+     * @param text 待处理文本。
+     * @param query 查询参数。
+     * @return 返回contains忽略Case结果。
+     */
     private boolean containsIgnoreCase(String text, String query) {
         return StrUtil.nullToEmpty(text)
                 .toLowerCase(java.util.Locale.ROOT)
                 .contains(StrUtil.nullToEmpty(query).toLowerCase(java.util.Locale.ROOT));
     }
 
+    /**
+     * 格式化Sessions。
+     *
+     * @param records records 参数。
+     * @param query 查询参数。
+     * @return 返回Sessions结果。
+     */
     private String formatSessions(List<SessionRecord> records, String query) {
         if (records == null || records.isEmpty()) {
             return StrUtil.isBlank(query) ? "没有找到可浏览的会话。" : "没有找到匹配的会话：" + query;
@@ -1758,6 +2271,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行Whoami相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回Whoami结果。
+     */
     private GatewayReply handleWhoami(GatewayMessage message) throws Exception {
         boolean admin = gatewayAuthorizationService.isAdmin(message);
         boolean authorized = gatewayAuthorizationService.isAuthorized(message);
@@ -1783,6 +2302,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行Commands相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回Commands结果。
+     */
     private GatewayReply handleCommands(String args) {
         int page = Math.max(1, parsePositiveInt(args, 1));
         int pageSize = 30;
@@ -1826,6 +2351,11 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行洞察相关逻辑。
+     *
+     * @return 返回洞察结果。
+     */
     private GatewayReply handleInsights() throws Exception {
         int sessionTotal = sessionRepository == null ? 0 : sessionRepository.countAll();
         List<String> skillNames =
@@ -1860,6 +2390,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 解析Resume Target。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param rawReference 原始引用参数。
+     * @return 返回解析后的Resume Target。
+     */
     private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference)
             throws Exception {
         String reference = normalizeResumeReference(rawReference);
@@ -1898,6 +2435,12 @@ public class DefaultCommandService implements CommandService {
         return ResumeLookup.error("未找到对应会话、分支或标题：" + reference);
     }
 
+    /**
+     * 规范化Resume Reference。
+     *
+     * @param rawReference 原始引用参数。
+     * @return 返回Resume Reference结果。
+     */
     private String normalizeResumeReference(String rawReference) {
         String value = StrUtil.nullToEmpty(rawReference).trim();
         if (value.length() >= 2) {
@@ -1912,6 +2455,12 @@ public class DefaultCommandService implements CommandService {
         return value;
     }
 
+    /**
+     * 格式化Resume Reply。
+     *
+     * @param session 会话参数。
+     * @return 返回Resume Reply结果。
+     */
     private String formatResumeReply(SessionRecord session) throws Exception {
         StringBuilder buffer = new StringBuilder();
         buffer.append("已恢复会话：").append(session.getSessionId());
@@ -1936,32 +2485,71 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /** 承载ResumeLookup相关状态和辅助逻辑。 */
     private static class ResumeLookup {
+        /** 记录ResumeLookup中的会话。 */
         private final SessionRecord session;
+
+        /** 记录ResumeLookup中的消息。 */
         private final String message;
 
+        /**
+         * 创建Resume Lookup实例，并注入运行所需依赖。
+         *
+         * @param session 会话参数。
+         * @param message 平台消息或错误消息。
+         */
         private ResumeLookup(SessionRecord session, String message) {
             this.session = session;
             this.message = message;
         }
 
+        /**
+         * 执行found相关逻辑。
+         *
+         * @param session 会话参数。
+         * @return 返回found结果。
+         */
         static ResumeLookup found(SessionRecord session) {
             return new ResumeLookup(session, "");
         }
 
+        /**
+         * 执行错误相关逻辑。
+         *
+         * @param message 平台消息或错误消息。
+         * @return 返回error结果。
+         */
         static ResumeLookup error(String message) {
             return new ResumeLookup(null, message);
         }
 
+        /**
+         * 读取会话。
+         *
+         * @return 返回读取到的会话。
+         */
         SessionRecord getSession() {
             return session;
         }
 
+        /**
+         * 读取消息。
+         *
+         * @return 返回读取到的消息。
+         */
         String getMessage() {
             return message;
         }
     }
 
+    /**
+     * 执行Trajectory相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Trajectory结果。
+     */
     private GatewayReply handleTrajectory(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         String raw = StrUtil.nullToEmpty(args).trim();
@@ -1992,6 +2580,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 判断是否包含TrajectoryFailedFlag。
+     *
+     * @param raw 原始输入值。
+     * @return 返回contains Trajectory Failed Flag结果。
+     */
     private boolean containsTrajectoryFailedFlag(String raw) {
         String[] parts = StrUtil.nullToEmpty(raw).trim().split("\\s+");
         for (String part : parts) {
@@ -2002,6 +2596,12 @@ public class DefaultCommandService implements CommandService {
         return false;
     }
 
+    /**
+     * 剥离TrajectorySaveFlags。
+     *
+     * @param raw 原始输入值。
+     * @return 返回strip Trajectory Save Flags结果。
+     */
     private String stripTrajectorySaveFlags(String raw) {
         String[] parts = StrUtil.nullToEmpty(raw).trim().split("\\s+");
         List<String> kept = new ArrayList<String>();
@@ -2017,6 +2617,13 @@ public class DefaultCommandService implements CommandService {
         return String.join(" ", kept).trim();
     }
 
+    /**
+     * 解析Positive Int。
+     *
+     * @param raw 原始输入值。
+     * @param defaultValue 默认值参数。
+     * @return 返回解析后的Positive Int。
+     */
     private int parsePositiveInt(String raw, int defaultValue) {
         String text = StrUtil.nullToEmpty(raw).trim();
         if (StrUtil.isBlank(text)) {
@@ -2029,6 +2636,13 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 记录Slash命令。
+     *
+     * @param message 平台消息或错误消息。
+     * @param command 待执行或解析的命令文本。
+     * @param args 工具或命令参数。
+     */
     private void recordSlashCommand(GatewayMessage message, String command, String args) {
         if (agentRunRepository == null || message == null || !isTrackedSlash(command)) {
             return;
@@ -2062,6 +2676,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 判断是否Tracked Slash。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 如果Tracked Slash满足条件则返回 true，否则返回 false。
+     */
     private boolean isTrackedSlash(String command) {
         return GatewayCommandConstants.COMMAND_NEW.equals(command)
                 || GatewayCommandConstants.COMMAND_RETRY.equals(command)
@@ -2074,11 +2694,24 @@ public class DefaultCommandService implements CommandService {
                 || GatewayCommandConstants.COMMAND_ROLLBACK.equals(command);
     }
 
+    /**
+     * 判断是否压缩命令。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 如果压缩命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isCompressionCommand(String command) {
         return GatewayCommandConstants.COMMAND_COMPRESS.equals(command)
                 || GatewayCommandConstants.COMMAND_COMPACT.equals(command);
     }
 
+    /**
+     * 执行标题相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回标题结果。
+     */
     private GatewayReply handleTitle(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         String raw = StrUtil.nullToEmpty(args).trim();
@@ -2114,6 +2747,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 规范化会话标题。
+     *
+     * @param raw 原始输入值。
+     * @return 返回会话标题结果。
+     */
     private String normalizeSessionTitle(String raw) {
         String title = normalizeResumeReference(raw);
         title = title.replace('\r', ' ').replace('\n', ' ').trim();
@@ -2126,6 +2765,13 @@ public class DefaultCommandService implements CommandService {
         return title.substring(0, CompressionConstants.MAX_TITLE_LENGTH) + "...";
     }
 
+    /**
+     * 执行ReloadMCP相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Reload MCP结果。
+     */
     private GatewayReply handleReloadMcp(GatewayMessage message, String args) throws Exception {
         String action = firstToken(args);
         if (StrUtil.isBlank(action)) {
@@ -2152,6 +2798,14 @@ public class DefaultCommandService implements CommandService {
         return executeReloadMcp(message, "always".equalsIgnoreCase(action));
     }
 
+    /**
+     * 执行斜杠命令ConfirmChoice相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @param defaultChoice 默认Choice参数。
+     * @return 返回Slash Confirm Choice结果。
+     */
     private GatewayReply handleSlashConfirmChoice(
             GatewayMessage message, String args, String defaultChoice) throws Exception {
         SlashConfirmService.PendingConfirm pending =
@@ -2208,6 +2862,12 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error("Unsupported slash confirm command: /" + pending.getCommand());
     }
 
+    /**
+     * 执行斜杠命令Confirmtoken相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @return 返回slash Confirm token结果。
+     */
     private String[] slashConfirmTokens(String raw) {
         String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw)).trim();
         if (StrUtil.isBlank(value)) {
@@ -2216,15 +2876,33 @@ public class DefaultCommandService implements CommandService {
         return value.split("\\s+");
     }
 
+    /**
+     * 判断是否Slash Confirm标识token。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Slash Confirm标识token满足条件则返回 true，否则返回 false。
+     */
     private boolean isSlashConfirmIdToken(String value) {
         String token = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         return token.length() == 32 && token.matches("[0-9a-fA-F]+");
     }
 
+    /**
+     * 判断是否存在Pending Slash Confirm。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 如果Pending Slash Confirm满足条件则返回 true，否则返回 false。
+     */
     private boolean hasPendingSlashConfirm(GatewayMessage message) {
         return message != null && slashConfirmService.getPending(message.sourceKey()) != null;
     }
 
+    /**
+     * 执行斜杠命令Confirm状态相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回Slash Confirm状态。
+     */
     private GatewayReply handleSlashConfirmStatus(GatewayMessage message) {
         SlashConfirmService.PendingConfirm pending =
                 message == null ? null : slashConfirmService.getPending(message.sourceKey());
@@ -2238,6 +2916,12 @@ public class DefaultCommandService implements CommandService {
                         + formatSlashConfirmPrompt(pending));
     }
 
+    /**
+     * 判断是否存在Pending Dangerous审批。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 如果Pending Dangerous审批满足条件则返回 true，否则返回 false。
+     */
     private boolean hasPendingDangerousApproval(GatewayMessage message) {
         if (message == null) {
             return false;
@@ -2255,6 +2939,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 规范化Slash Confirm Choice。
+     *
+     * @param raw 原始输入值。
+     * @return 返回Slash Confirm Choice结果。
+     */
     private String normalizeSlashConfirmChoice(String raw) {
         String value =
                 SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw)).trim().toLowerCase();
@@ -2275,14 +2965,30 @@ public class DefaultCommandService implements CommandService {
         return null;
     }
 
+    /**
+     * 执行reloadMCPConfirm提示词相关逻辑。
+     *
+     * @return 返回reload MCP Confirm提示词结果。
+     */
     private String reloadMcpConfirmPrompt() {
         return "⚠️ /reload-mcp 会重新加载 MCP 工具并让下一轮模型请求重新发送完整工具 schema。";
     }
 
+    /**
+     * 执行回滚ClearConfirm提示词相关逻辑。
+     *
+     * @return 返回回滚Clear Confirm提示词结果。
+     */
     private String rollbackClearConfirmPrompt() {
         return "⚠️ /rollback clear 会删除当前来源的全部 checkpoint 历史。";
     }
 
+    /**
+     * 格式化Slash Confirm提示词。
+     *
+     * @param confirm confirm 参数。
+     * @return 返回Slash Confirm提示词结果。
+     */
     private String formatSlashConfirmPrompt(SlashConfirmService.PendingConfirm confirm) {
         StringBuilder buffer = new StringBuilder();
         buffer.append(SecretRedactor.redact(confirm.getPrompt(), 1000))
@@ -2297,6 +3003,13 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行Reload MCP。
+     *
+     * @param message 平台消息或错误消息。
+     * @param savedAlways savedAlways 参数。
+     * @return 返回Reload MCP结果。
+     */
     private GatewayReply executeReloadMcp(GatewayMessage message, boolean savedAlways)
             throws Exception {
         if (dashboardMcpService == null) {
@@ -2316,6 +3029,12 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.ok(buffer.toString());
     }
 
+    /**
+     * 追加Reload MCP历史Notice。
+     *
+     * @param message 平台消息或错误消息。
+     * @param result 结果响应或执行结果。
+     */
     private void appendReloadMcpHistoryNotice(
             GatewayMessage message, DashboardMcpService.McpReloadResult result) {
         if (message == null || result == null) {
@@ -2337,10 +3056,18 @@ public class DefaultCommandService implements CommandService {
             session.setUpdatedAt(System.currentTimeMillis());
             sessionRepository.save(session);
         } catch (Exception ignored) {
-            // Reload should succeed even if the best-effort history note cannot be saved.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
     }
 
+    /**
+     * 执行reloadMCP历史Notice相关逻辑。
+     *
+     * @param changed服务端 changed服务端 参数。
+     * @param unchanged服务端 unchanged服务端 参数。
+     * @param toolCount 工具Count参数。
+     * @return 返回reload MCP历史Notice结果。
+     */
     private String reloadMcpHistoryNotice(
             List<String> changedServers, List<String> unchangedServers, int toolCount) {
         StringBuilder buffer = new StringBuilder();
@@ -2360,6 +3087,11 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行persistMCPReloadConfirm相关逻辑。
+     *
+     * @param confirmRequired confirmRequired 参数。
+     */
     private void persistMcpReloadConfirm(boolean confirmRequired) {
         appConfig.getApprovals().setMcpReloadConfirm(confirmRequired);
         if (runtimeSettingsService != null) {
@@ -2371,7 +3103,7 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
-    /** 处理工具开关命令。 */
+    /** 执行工具开关命令相关逻辑。 */
     private GatewayReply handleTools(GatewayMessage message, String args) {
         String[] parts = args.split("\\s+");
         if (parts.length == 0
@@ -2401,6 +3133,11 @@ public class DefaultCommandService implements CommandService {
                 "用法：" + GatewayCommandConstants.SLASH_TOOLS + " [list|enable|disable] [name...]");
     }
 
+    /**
+     * 执行Toolsets相关逻辑。
+     *
+     * @return 返回Toolsets结果。
+     */
     private GatewayReply handleToolsets() {
         if (dashboardSkillsService == null) {
             return GatewayReply.error("工具集命令当前运行时未启用。");
@@ -2413,6 +3150,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 格式化Toolsets。
+     *
+     * @param toolsets toolsets 参数。
+     * @return 返回Toolsets结果。
+     */
     @SuppressWarnings("unchecked")
     private String formatToolsets(List<Map<String, Object>> toolsets) {
         StringBuilder buffer = new StringBuilder();
@@ -2435,6 +3178,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行浏览器相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回浏览器结果。
+     */
     private GatewayReply handleBrowser(String args) {
         if (browserRuntimeService == null) {
             return GatewayReply.error("浏览器命令当前运行时未启用。");
@@ -2470,6 +3219,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行浏览器回复相关逻辑。
+     *
+     * @param result 结果响应或执行结果。
+     * @param successMessage success消息参数。
+     * @return 返回浏览器Reply结果。
+     */
     private GatewayReply browserReply(
             BrowserRuntimeService.BrowserResult result, String successMessage) {
         if (result == null) {
@@ -2491,6 +3247,11 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.ok(buffer.toString());
     }
 
+    /**
+     * 格式化浏览器状态。
+     *
+     * @return 返回浏览器状态。
+     */
     private String formatBrowserStatus() {
         return "浏览器运行时："
                 + "\nactive_sessions="
@@ -2499,12 +3260,22 @@ public class DefaultCommandService implements CommandService {
                 + browserUsage();
     }
 
+    /**
+     * 执行浏览器用量相关逻辑。
+     *
+     * @return 返回浏览器用量结果。
+     */
     private String browserUsage() {
         return "用法："
                 + GatewayCommandConstants.SLASH_BROWSER
                 + " [status|connect|disconnect <session-id>]";
     }
 
+    /**
+     * 执行Debug相关逻辑。
+     *
+     * @return 返回Debug结果。
+     */
     private GatewayReply handleDebug() throws Exception {
         DebugSummary summary = debugSummary();
         GatewayReply reply = GatewayReply.ok(formatDebugSummary(summary));
@@ -2524,6 +3295,11 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行debug摘要相关逻辑。
+     *
+     * @return 返回debug Summary结果。
+     */
     private DebugSummary debugSummary() throws Exception {
         DebugSummary summary = new DebugSummary();
         summary.runtimeHome = "runtime://";
@@ -2559,6 +3335,12 @@ public class DefaultCommandService implements CommandService {
         return summary;
     }
 
+    /**
+     * 格式化Debug Summary。
+     *
+     * @param summary 摘要参数。
+     * @return 返回Debug Summary结果。
+     */
     private String formatDebugSummary(DebugSummary summary) {
         return "调试诊断："
                 + "\nruntime_home="
@@ -2585,24 +3367,49 @@ public class DefaultCommandService implements CommandService {
                 + debugUsage();
     }
 
+    /**
+     * 执行debug用量相关逻辑。
+     *
+     * @return 返回debug用量结果。
+     */
     private String debugUsage() {
         return "用法：" + GatewayCommandConstants.SLASH_DEBUG + " [status]";
     }
 
+    /** 承载Debug摘要相关状态和辅助逻辑。 */
     private static class DebugSummary {
+        /** 记录Debug摘要中的运行时主渠道。 */
         private String runtimeHome;
+
+        /** 记录Debug摘要中的提供方次数。 */
         private int providerCount;
+
+        /** 记录Debug摘要中的渠道次数。 */
         private int channelCount;
+
+        /** 标记是否启用渠道次数。 */
         private int enabledChannelCount;
+
+        /** 记录Debug摘要中的connected渠道次数。 */
         private int connectedChannelCount;
+
+        /** 记录Debug摘要中的工具次数。 */
         private int toolCount;
+
+        /** 记录Debug摘要中的会话次数。 */
         private int sessionCount;
+
+        /** 记录Debug摘要中的MCP状态。 */
         private String mcpStatus;
+
+        /** 记录Debug摘要中的approvals模式。 */
         private String approvalsMode;
+
+        /** 记录Debug摘要中的安全ProbesPassed。 */
         private String securityProbesPassed;
     }
 
-    /** 处理技能命令。 */
+    /** 执行技能命令相关逻辑。 */
     private GatewayReply handleSkills(GatewayMessage message, String args) throws Exception {
         String[] parts = args.split("\\s+", 2);
         String action =
@@ -2691,6 +3498,11 @@ public class DefaultCommandService implements CommandService {
                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload] ...");
     }
 
+    /**
+     * 执行Reload技能相关逻辑。
+     *
+     * @return 返回Reload技能结果。
+     */
     private GatewayReply handleReloadSkills() throws Exception {
         List<String> names = new ArrayList<String>(localSkillService.listSkillNames());
         Collections.sort(names);
@@ -2706,6 +3518,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行技能维护相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回技能维护结果。
+     */
     private GatewayReply handleCurator(String args) throws Exception {
         if (dashboardCuratorService == null) {
             return GatewayReply.error("技能后台维护命令当前运行时未启用。");
@@ -2753,6 +3571,12 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 格式化技能维护状态。
+     *
+     * @param status 状态参数。
+     * @return 返回技能维护状态。
+     */
     private String formatCuratorStatus(Map<String, Object> status) throws Exception {
         int reports = countList(dashboardCuratorService.list(20).get("reports"));
         int improvements = countList(dashboardCuratorService.improvements(20).get("improvements"));
@@ -2773,6 +3597,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化技能维护运行。
+     *
+     * @param report report 参数。
+     * @return 返回技能维护运行结果。
+     */
     @SuppressWarnings("unchecked")
     private String formatCuratorRun(Map<String, Object> report) {
         List<Map<String, Object>> items =
@@ -2790,6 +3620,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化技能维护Reports。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回技能维护Reports结果。
+     */
     @SuppressWarnings("unchecked")
     private String formatCuratorReports(Map<String, Object> result) {
         List<Map<String, Object>> reports =
@@ -2816,6 +3652,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化技能维护Improvements。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回技能维护Improvements结果。
+     */
     @SuppressWarnings("unchecked")
     private String formatCuratorImprovements(Map<String, Object> result) {
         List<Map<String, Object>> improvements =
@@ -2842,6 +3684,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 追加技能维护Items。
+     *
+     * @param buffer buffer 参数。
+     * @param items items 参数。
+     */
     private void appendCuratorItems(StringBuilder buffer, List<Map<String, Object>> items) {
         for (Map<String, Object> item : items) {
             buffer.append('\n')
@@ -2854,20 +3702,43 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 执行技能维护用量相关逻辑。
+     *
+     * @return 返回技能维护用量结果。
+     */
     private String curatorUsage() {
         return "用法："
                 + GatewayCommandConstants.SLASH_CURATOR
                 + " [status|list|improvements|run|pause|resume]";
     }
 
+    /**
+     * 执行次数列表相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回次数List结果。
+     */
     private int countList(Object value) {
         return value instanceof List ? ((List<?>) value).size() : 0;
     }
 
+    /**
+     * 执行bool相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回bool结果。
+     */
     private String bool(Object value) {
         return Boolean.TRUE.equals(value) ? "true" : "false";
     }
 
+    /**
+     * 格式化Nullable时间戳。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回Nullable时间戳结果。
+     */
     private String formatNullableTimestamp(Object value) {
         long millis = 0L;
         if (value instanceof Number) {
@@ -2882,6 +3753,11 @@ public class DefaultCommandService implements CommandService {
         return millis <= 0L ? "-" : formatTimestamp(millis);
     }
 
+    /**
+     * 执行Plugins相关逻辑。
+     *
+     * @return 返回Plugins结果。
+     */
     private GatewayReply handlePlugins() {
         List<AgentPluginManifest> plugins =
                 pluginManager == null
@@ -2957,7 +3833,7 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
-    /** 处理人格命令。 */
+    /** 执行人格命令相关逻辑。 */
     private GatewayReply handlePersonality(String args) throws Exception {
         Map<String, AppConfig.PersonalityConfig> personalities =
                 appConfig.getAgent().getPersonalities();
@@ -3004,7 +3880,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.ok("已切换人格为：" + matchedName + "，将从下一条消息开始生效。");
     }
 
-    /** 处理定时任务命令。 */
+    /** 执行定时任务命令相关逻辑。 */
     private GatewayReply handleCron(GatewayMessage message, String args) throws Exception {
         boolean overview = StrUtil.isBlank(args);
         String[] parts = args.split("\\s+", 2);
@@ -3060,7 +3936,10 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(formatCronNext(message.sourceKey(), options.all, limit));
         }
 
-        if ("guide".equals(action) || "tutorial".equals(action) || "capabilities".equals(action)) {
+        if ("guide".equals(action)
+                || "tutorial".equals(action)
+                || "capabilities".equals(action)
+                || "policy".equals(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             Map<String, Object> guide = cronJobService.guide();
             return GatewayReply.ok(options.json ? ONode.serialize(guide) : formatCronGuide(guide));
@@ -3195,6 +4074,13 @@ public class DefaultCommandService implements CommandService {
                         + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
     }
 
+    /**
+     * 执行定时任务运行Trigger类型相关逻辑。
+     *
+     * @param options options 参数。
+     * @param fallback 兜底参数。
+     * @return 返回定时任务运行Trigger类型结果。
+     */
     private String cronRunTriggerType(CronFlagOptions options, String fallback) {
         String value =
                 options == null
@@ -3213,10 +4099,23 @@ public class DefaultCommandService implements CommandService {
         return normalized;
     }
 
+    /**
+     * 规范化定时任务Trigger类型。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallback 兜底参数。
+     * @return 返回定时任务Trigger类型结果。
+     */
     private String normalizeCronTriggerType(String value, String fallback) {
         return cronJobService.normalizeTriggerType(value, fallback);
     }
 
+    /**
+     * 格式化定时任务Guide。
+     *
+     * @param guide guide标识或键值。
+     * @return 返回定时任务Guide结果。
+     */
     private String formatCronGuide(Map<String, Object> guide) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("Cron 自动化指南");
@@ -3243,6 +4142,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 追加Guide Map。
+     *
+     * @param buffer buffer 参数。
+     * @param value 待规范化或校验的原始值。
+     */
     private void appendGuideMap(StringBuilder buffer, Object value) {
         if (!(value instanceof Map)) {
             buffer.append(' ').append(String.valueOf(value));
@@ -3258,6 +4163,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 追加Guide List Lines。
+     *
+     * @param buffer buffer 参数。
+     * @param value 待规范化或校验的原始值。
+     */
     private void appendGuideListLines(StringBuilder buffer, Object value) {
         if (!(value instanceof Iterable)) {
             buffer.append('\n').append("- ").append(String.valueOf(value));
@@ -3268,6 +4179,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 执行joinGuide映射Keys相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回join Guide Map Keys结果。
+     */
     private String joinGuideMapKeys(Object value) {
         if (!(value instanceof Map)) {
             return String.valueOf(value);
@@ -3282,6 +4199,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行joinGuide列表相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回join Guide List结果。
+     */
     private String joinGuideList(Object value) {
         if (!(value instanceof Iterable)) {
             return String.valueOf(value);
@@ -3296,6 +4219,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行joinGuide值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回join Guide Value结果。
+     */
     private String joinGuideValue(Object value) {
         if (value instanceof Iterable) {
             return joinGuideList(value);
@@ -3306,6 +4235,12 @@ public class DefaultCommandService implements CommandService {
         return String.valueOf(value);
     }
 
+    /**
+     * 执行定时任务Overview相关逻辑。
+     *
+     * @param listText 列表文本参数。
+     * @return 返回定时任务Overview结果。
+     */
     private String cronOverview(String listText) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("Cron 定时任务\n")
@@ -3350,6 +4285,13 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化定时任务状态。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param all all 参数。
+     * @return 返回定时任务状态。
+     */
     private String formatCronStatus(String sourceKey, boolean all) throws Exception {
         List<CronJobRecord> jobs = cronJobService.listAll(true);
         long now = System.currentTimeMillis();
@@ -3436,6 +4378,14 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化定时任务Next。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param all all 参数。
+     * @param limit 最大返回数量。
+     * @return 返回定时任务Next结果。
+     */
     private String formatCronNext(String sourceKey, boolean all, int limit) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
         List<CronJobRecord> jobs = cronJobService.listAll(true);
@@ -3450,6 +4400,13 @@ public class DefaultCommandService implements CommandService {
         Collections.sort(
                 upcoming,
                 new Comparator<CronJobRecord>() {
+                    /**
+                     * 比较两个对象的排序位置。
+                     *
+                     * @param left 左侧比较对象。
+                     * @param right 右侧比较对象。
+                     * @return 返回compare结果。
+                     */
                     @Override
                     public int compare(CronJobRecord left, CronJobRecord right) {
                         long delta = left.getNextRunAt() - right.getNextRunAt();
@@ -3497,6 +4454,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行定时任务状态相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回定时任务状态。
+     */
     private String cronState(CronJobRecord job) {
         if (job == null) {
             return "scheduled";
@@ -3510,6 +4473,12 @@ public class DefaultCommandService implements CommandService {
         return "scheduled";
     }
 
+    /**
+     * 追加RecentProblem。
+     *
+     * @param records records 参数。
+     * @param job job 参数。
+     */
     private void addRecentProblem(List<CronJobRecord> records, CronJobRecord job) {
         if (job == null || records.contains(job) || records.size() >= 5) {
             return;
@@ -3517,6 +4486,13 @@ public class DefaultCommandService implements CommandService {
         records.add(job);
     }
 
+    /**
+     * 格式化定时任务历史。
+     *
+     * @param jobId job标识。
+     * @param runs runs 参数。
+     * @return 返回定时任务历史结果。
+     */
     private String formatCronHistory(String jobId, List<CronJobRunRecord> runs) {
         if (runs == null || runs.isEmpty()) {
             return "定时任务 " + jobId + " 暂无执行历史。";
@@ -3553,10 +4529,23 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 生成安全展示用的定时任务文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe定时任务Text结果。
+     */
     private String safeCronText(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 格式化定时任务Detail。
+     *
+     * @param job job 参数。
+     * @return 返回定时任务Detail结果。
+     */
     private String formatCronDetail(CronJobRecord job) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("Cron 任务详情：").append(job.getJobId()).append('\n');
@@ -3581,6 +4570,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化定时任务List。
+     *
+     * @param jobs jobs 参数。
+     * @return 返回定时任务List结果。
+     */
     private String formatCronList(List<CronJobRecord> jobs) {
         if (jobs == null || jobs.isEmpty()) {
             return "当前没有定时任务。";
@@ -3665,6 +4660,13 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 追加定时任务List Iterable。
+     *
+     * @param buffer buffer 参数。
+     * @param label label 参数。
+     * @param values 待规范化或校验的原始值集合。
+     */
     private void appendCronListIterable(StringBuilder buffer, String label, Object values) {
         if (!(values instanceof Iterable)) {
             return;
@@ -3675,6 +4677,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 格式化定时任务Repeat。
+     *
+     * @param job job 参数。
+     * @return 返回定时任务Repeat结果。
+     */
     private String formatCronRepeat(CronJobRecord job) {
         if (job.getRepeatTimes() <= 0) {
             return "∞";
@@ -3682,6 +4690,13 @@ public class DefaultCommandService implements CommandService {
         return job.getRepeatCompleted() + "/" + job.getRepeatTimes();
     }
 
+    /**
+     * 执行joinIterable相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param delimiter delimiter 参数。
+     * @return 返回join Iterable结果。
+     */
     private String joinIterable(Iterable<?> values, String delimiter) {
         StringBuilder buffer = new StringBuilder();
         for (Object value : values) {
@@ -3697,6 +4712,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 解析定时任务Create。
+     *
+     * @param tail tail 参数。
+     * @return 返回解析后的定时任务Create。
+     */
     private Map<String, Object> parseCronCreate(String tail) {
         if (StrUtil.isBlank(tail)) {
             return null;
@@ -3730,6 +4751,12 @@ public class DefaultCommandService implements CommandService {
         return body;
     }
 
+    /**
+     * 执行定时任务Origin相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回定时任务Origin结果。
+     */
     private Map<String, Object> cronOrigin(GatewayMessage message) {
         String[] sourceParts = SourceKeySupport.split(message.sourceKey());
         Map<String, Object> origin = new LinkedHashMap<String, Object>();
@@ -3742,6 +4769,12 @@ public class DefaultCommandService implements CommandService {
         return origin;
     }
 
+    /**
+     * 解析定时任务Edit。
+     *
+     * @param tail tail 参数。
+     * @return 返回解析后的定时任务Edit。
+     */
     @SuppressWarnings("unchecked")
     private CronEditRequest parseCronEdit(String tail) throws Exception {
         if (StrUtil.isBlank(tail)) {
@@ -3805,6 +4838,13 @@ public class DefaultCommandService implements CommandService {
         return new CronEditRequest(jobId, body);
     }
 
+    /**
+     * 解析定时任务Options。
+     *
+     * @param fields fields 参数。
+     * @param start start 参数。
+     * @return 返回解析后的定时任务Options。
+     */
     private Map<String, Object> parseCronOptions(String[] fields, int start) {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         for (int i = start; i < fields.length; i++) {
@@ -3909,6 +4949,12 @@ public class DefaultCommandService implements CommandService {
         return body;
     }
 
+    /**
+     * 追加定时任务Flag Options。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param options options 参数。
+     */
     private void appendCronFlagOptions(Map<String, Object> body, CronFlagOptions options) {
         putIfNotBlank(body, "deliver", options.deliver);
         putCronStringOption(body, "deliver_chat_id", options.deliverChatId);
@@ -3977,6 +5023,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 解析定时任务Flags。
+     *
+     * @param tokens token参数。
+     * @return 返回解析后的定时任务Flags。
+     */
     private CronFlagOptions parseCronFlags(List<String> tokens) {
         CronFlagOptions options = new CronFlagOptions();
         for (int i = 0; i < tokens.size(); i++) {
@@ -4087,6 +5139,12 @@ public class DefaultCommandService implements CommandService {
         return options;
     }
 
+    /**
+     * 拆分命令Line。
+     *
+     * @param raw 原始输入值。
+     * @return 返回命令Line结果。
+     */
     private List<String> splitCommandLine(String raw) {
         List<String> tokens = new ArrayList<String>();
         StringBuilder current = new StringBuilder();
@@ -4142,6 +5200,12 @@ public class DefaultCommandService implements CommandService {
         return tokens;
     }
 
+    /**
+     * 规范化List。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回List结果。
+     */
     private List<String> normalizeList(List<String> values) {
         List<String> result = new ArrayList<String>();
         for (String value : values) {
@@ -4155,6 +5219,13 @@ public class DefaultCommandService implements CommandService {
         return result;
     }
 
+    /**
+     * 执行join相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param delimiter delimiter 参数。
+     * @return 返回join结果。
+     */
     private String join(List<String> values, String delimiter) {
         StringBuilder buffer = new StringBuilder();
         for (String value : values) {
@@ -4166,6 +5237,13 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行joinTail相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param start start 参数。
+     * @return 返回join Tail结果。
+     */
     private String joinTail(List<String> values, int start) {
         if (values == null || start >= values.size()) {
             return "";
@@ -4180,26 +5258,40 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 写入If Not Blank。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void putIfNotBlank(Map<String, Object> body, String key, String value) {
         if (StrUtil.isNotBlank(value)) {
             body.put(key, value.trim());
         }
     }
 
+    /**
+     * 写入定时任务String Option。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     private void putCronStringOption(Map<String, Object> body, String key, String value) {
         if (value != null) {
             body.put(key, value.trim());
         }
     }
 
-    /** 处理 pairing 相关命令。 */
+    /** 执行pairing相关命令相关逻辑。 */
     private GatewayReply handlePairing(GatewayMessage message, String args) throws Exception {
         String[] parts = args.split("\\s+");
         if (parts.length == 0 || StrUtil.isBlank(parts[0])) {
             return GatewayReply.error(
                     "用法："
                             + GatewayCommandConstants.SLASH_PAIRING
-                            + " [claim-admin|pending|approve|revoke|approved] ...");
+                            + " [claim-admin|list|pending|approve|revoke|approved|clear-pending] ...");
         }
         String action = parts[0].trim().toLowerCase();
 
@@ -4212,6 +5304,9 @@ public class DefaultCommandService implements CommandService {
             targetPlatform = PlatformType.fromName(parts[1]);
         }
 
+        if (GatewayCommandConstants.ACTION_LIST.equals(action)) {
+            return gatewayAuthorizationService.pairingList(message, targetPlatform);
+        }
         if (GatewayCommandConstants.ACTION_PENDING.equals(action)) {
             return gatewayAuthorizationService.pairingPending(message, targetPlatform);
         }
@@ -4236,13 +5331,23 @@ public class DefaultCommandService implements CommandService {
             }
             return gatewayAuthorizationService.pairingRevoke(message, targetPlatform, parts[2]);
         }
+        if ("clear-pending".equals(action) || "clear_pending".equals(action)) {
+            return gatewayAuthorizationService.pairingClearPending(message, targetPlatform);
+        }
 
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_PAIRING
-                        + " [claim-admin|pending|approve|revoke|approved] ...");
+                        + " [claim-admin|list|pending|approve|revoke|approved|clear-pending] ...");
     }
 
+    /**
+     * 执行DangerousApprove相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Dangerous Approve结果。
+     */
     private GatewayReply handleDangerousApprove(GatewayMessage message, String args)
             throws Exception {
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
@@ -4280,6 +5385,12 @@ public class DefaultCommandService implements CommandService {
         return conversationOrchestrator.resumePending(message.sourceKey());
     }
 
+    /**
+     * 判断是否Approve全部命令。
+     *
+     * @param normalizedArgs normalizedArgs 参数。
+     * @return 如果Approve全部命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isApproveAllCommand(String normalizedArgs) {
         if (StrUtil.isBlank(normalizedArgs)) {
             return false;
@@ -4288,6 +5399,14 @@ public class DefaultCommandService implements CommandService {
         return "all".equals(first);
     }
 
+    /**
+     * 执行approve全部DangerousCommands相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param agentSession Agent会话参数。
+     * @param args 工具或命令参数。
+     * @return 返回approve全部Dangerous Commands结果。
+     */
     private GatewayReply approveAllDangerousCommands(
             GatewayMessage message, SqliteAgentSession agentSession, String args) throws Exception {
         ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(cleanApprovalCommandArgs(args));
@@ -4304,6 +5423,12 @@ public class DefaultCommandService implements CommandService {
         return conversationOrchestrator.resumePending(message.sourceKey());
     }
 
+    /**
+     * 格式化审批List。
+     *
+     * @param agentSession Agent会话参数。
+     * @return 返回审批List结果。
+     */
     private String formatApprovalList(SqliteAgentSession agentSession) {
         java.util.List<DangerousCommandApprovalService.PendingApproval> pendingApprovals =
                 dangerousCommandApprovalService.listPendingApprovals(agentSession);
@@ -4346,10 +5471,23 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 生成安全展示用的审批预览。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe审批Preview结果。
+     */
     private String safeApprovalPreview(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 执行审批Scopes相关逻辑。
+     *
+     * @param pending 待恢复参数。
+     * @return 返回审批Scopes结果。
+     */
     private String approvalScopes(DangerousCommandApprovalService.PendingApproval pending) {
         if (pending != null && pending.isPermanentApprovalAllowed()) {
             return "once,session,always";
@@ -4357,6 +5495,12 @@ public class DefaultCommandService implements CommandService {
         return "once,session";
     }
 
+    /**
+     * 执行expiresInSeconds相关逻辑。
+     *
+     * @param expiresAt expiresAt 参数。
+     * @return 返回expires In Seconds结果。
+     */
     private long expiresInSeconds(long expiresAt) {
         if (expiresAt <= 0L) {
             return 0L;
@@ -4365,10 +5509,23 @@ public class DefaultCommandService implements CommandService {
         return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
     }
 
+    /**
+     * 判断是否Expired。
+     *
+     * @param expiresAt expiresAt 参数。
+     * @return 如果Expired满足条件则返回 true，否则返回 false。
+     */
     private boolean isExpired(long expiresAt) {
         return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
     }
 
+    /**
+     * 清理Approvals。
+     *
+     * @param agentSession Agent会话参数。
+     * @param normalizedArgs normalizedArgs 参数。
+     * @return 返回Approvals结果。
+     */
     private GatewayReply clearApprovals(SqliteAgentSession agentSession, String normalizedArgs)
             throws Exception {
         String[] parts = normalizedArgs.split("\\s+", 3);
@@ -4389,11 +5546,24 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error("用法：/approve clear session|always|all");
     }
 
+    /**
+     * 执行select待恢复审批相关逻辑。
+     *
+     * @param agentSession Agent会话参数。
+     * @param selector 浏览器元素选择器。
+     * @return 返回select Pending审批结果。
+     */
     private DangerousCommandApprovalService.PendingApproval selectPendingApproval(
             SqliteAgentSession agentSession, String selector) {
         return dangerousCommandApprovalService.selectPendingApproval(agentSession, selector);
     }
 
+    /**
+     * 解析审批命令参数。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回解析后的审批命令参数。
+     */
     private ApprovalCommandArgs parseApprovalCommandArgs(String args) {
         String[] parts = StrUtil.nullToEmpty(args).trim().split("\\s+");
         ApprovalCommandArgs parsed = new ApprovalCommandArgs();
@@ -4418,6 +5588,13 @@ public class DefaultCommandService implements CommandService {
         return parsed;
     }
 
+    /**
+     * 执行DangerousDeny相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Dangerous Deny结果。
+     */
     private GatewayReply handleDangerousDeny(GatewayMessage message, String args) throws Exception {
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session == null) {
@@ -4451,27 +5628,58 @@ public class DefaultCommandService implements CommandService {
         return conversationOrchestrator.resumePending(message.sourceKey());
     }
 
+    /** 承载审批命令参数相关状态和辅助逻辑。 */
     private static class ApprovalCommandArgs {
+        /** 记录审批命令参数中的选择器。 */
         private String selector;
+
+        /** 注入范围，用于调用对应业务能力。 */
         private DangerousCommandApprovalService.ApprovalScope scope;
 
+        /**
+         * 读取Selector。
+         *
+         * @return 返回读取到的Selector。
+         */
         public String getSelector() {
             return selector;
         }
 
+        /**
+         * 写入Selector。
+         *
+         * @param selector 浏览器元素选择器。
+         */
         public void setSelector(String selector) {
             this.selector = selector;
         }
 
+        /**
+         * 读取范围。
+         *
+         * @return 返回读取到的范围。
+         */
         public DangerousCommandApprovalService.ApprovalScope getScope() {
             return scope;
         }
 
+        /**
+         * 写入范围。
+         *
+         * @param scope scope 参数。
+         */
         public void setScope(DangerousCommandApprovalService.ApprovalScope scope) {
             this.scope = scope;
         }
     }
 
+    /**
+     * 执行推理相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Reasoning结果。
+     */
     private GatewayReply handleReasoning(GatewayMessage message, String args) throws Exception {
         String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
@@ -4514,6 +5722,12 @@ public class DefaultCommandService implements CommandService {
                 "用法：" + GatewayCommandConstants.SLASH_REASONING + " [level|reset|show|hide]");
     }
 
+    /**
+     * 判断是否Reasoning Effort级别。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Reasoning Effort级别满足条件则返回 true，否则返回 false。
+     */
     private boolean isReasoningEffortLevel(String value) {
         return "none".equals(value)
                 || "minimal".equals(value)
@@ -4523,6 +5737,12 @@ public class DefaultCommandService implements CommandService {
                 || "xhigh".equals(value);
     }
 
+    /**
+     * 执行生效推理Effort相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回生效Reasoning Effort结果。
+     */
     private String effectiveReasoningEffort(SessionRecord session) {
         String override =
                 session == null
@@ -4533,6 +5753,13 @@ public class DefaultCommandService implements CommandService {
                 "default");
     }
 
+    /**
+     * 执行Fast相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param args 工具或命令参数。
+     * @return 返回Fast结果。
+     */
     private GatewayReply handleFast(SessionRecord session, String args) throws Exception {
         String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
         if (StrUtil.isBlank(normalized) || "status".equals(normalized)) {
@@ -4554,6 +5781,12 @@ public class DefaultCommandService implements CommandService {
                 "用法：" + GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]");
     }
 
+    /**
+     * 格式化Fast状态。
+     *
+     * @param session 会话参数。
+     * @return 返回Fast状态。
+     */
     private String formatFastStatus(SessionRecord session) {
         return "fast_mode="
                 + fastModeName(session)
@@ -4564,14 +5797,32 @@ public class DefaultCommandService implements CommandService {
                 + " [fast|normal|status]";
     }
 
+    /**
+     * 执行fast模式名称相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回fast模式名称结果。
+     */
     private String fastModeName(SessionRecord session) {
         return isPriorityServiceTier(session) ? "fast" : "normal";
     }
 
+    /**
+     * 执行服务Tier名称相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回服务Tier名称结果。
+     */
     private String serviceTierName(SessionRecord session) {
         return isPriorityServiceTier(session) ? "priority" : "default";
     }
 
+    /**
+     * 判断是否Priority服务Tier。
+     *
+     * @param session 会话参数。
+     * @return 如果Priority服务Tier满足条件则返回 true，否则返回 false。
+     */
     private boolean isPriorityServiceTier(SessionRecord session) {
         return session != null
                 && "priority"
@@ -4579,6 +5830,13 @@ public class DefaultCommandService implements CommandService {
                                 StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
     }
 
+    /**
+     * 执行Busy相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @param sourceKey 渠道来源键。
+     * @return 返回Busy结果。
+     */
     private GatewayReply handleBusy(String args, String sourceKey) {
         String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
         if (StrUtil.isBlank(normalized) || "status".equals(normalized)) {
@@ -4598,6 +5856,13 @@ public class DefaultCommandService implements CommandService {
                         + " [status|queue|steer|interrupt|reject]");
     }
 
+    /**
+     * 执行队列相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Queue结果。
+     */
     private GatewayReply handleQueue(GatewayMessage message, String args) throws Exception {
         if (StrUtil.isBlank(args)) {
             return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_QUEUE + " <prompt>");
@@ -4622,6 +5887,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行Steer相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回Steer结果。
+     */
     private GatewayReply handleSteer(GatewayMessage message, String args) throws Exception {
         if (StrUtil.isBlank(args)) {
             return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_STEER + " <prompt>");
@@ -4647,6 +5919,13 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 克隆用户消息。
+     *
+     * @param source 来源参数。
+     * @param text 待处理文本。
+     * @return 返回clone用户消息结果。
+     */
     private GatewayMessage cloneUserMessage(GatewayMessage source, String text) {
         GatewayMessage copy =
                 new GatewayMessage(
@@ -4661,6 +5940,11 @@ public class DefaultCommandService implements CommandService {
         return copy;
     }
 
+    /**
+     * 执行persistBusy策略相关逻辑。
+     *
+     * @param policy 策略参数。
+     */
     private void persistBusyPolicy(String policy) {
         if (runtimeSettingsService != null) {
             runtimeSettingsService.setConfigValue("task.busyPolicy", policy);
@@ -4669,6 +5953,12 @@ public class DefaultCommandService implements CommandService {
         appConfig.getTask().setBusyPolicy(policy);
     }
 
+    /**
+     * 格式化Busy状态。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回Busy状态。
+     */
     private String formatBusyStatus(String sourceKey) {
         String policy = StrUtil.blankToDefault(appConfig.getTask().getBusyPolicy(), "queue");
         SessionRecord session = findBoundSessionQuietly(sourceKey);
@@ -4708,6 +5998,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 查找绑定会话Quietly。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回绑定会话Quietly结果。
+     */
     private SessionRecord findBoundSessionQuietly(String sourceKey) {
         try {
             return sessionRepository.getBoundSession(sourceKey);
@@ -4716,6 +6012,13 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 执行次数排队MessagesQuietly相关逻辑。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param session 会话参数。
+     * @return 返回次数Queued Messages Quietly结果。
+     */
     private int countQueuedMessagesQuietly(String sourceKey, SessionRecord session) {
         if (agentRunRepository == null
                 || session == null
@@ -4729,11 +6032,23 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 执行值OrDash相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回value Or Dash结果。
+     */
     private String valueOrDash(Object value) {
         String text = value == null ? "" : String.valueOf(value);
         return StrUtil.blankToDefault(text, "-");
     }
 
+    /**
+     * 格式化Busy策略Description。
+     *
+     * @param policy 策略参数。
+     * @return 返回Busy策略Description结果。
+     */
     private String formatBusyPolicyDescription(String policy) {
         if ("steer".equals(policy)) {
             return "steer：运行中收到的新消息会作为 steer 指令注入当前 run。";
@@ -4747,6 +6062,11 @@ public class DefaultCommandService implements CommandService {
         return "queue：运行中收到的新消息会进入队列，当前 run 结束后自动执行。";
     }
 
+    /**
+     * 格式化Busy策略Options。
+     *
+     * @return 返回Busy策略Options结果。
+     */
     private String formatBusyPolicyOptions() {
         return "queue：运行中收到的新消息会进入队列，当前 run 结束后自动执行。\n"
                 + "steer：运行中收到的新消息会作为 steer 指令注入当前 run。\n"
@@ -4754,10 +6074,22 @@ public class DefaultCommandService implements CommandService {
                 + "reject：运行中收到的新消息会被拒绝，需等待或手动停止当前 run。";
     }
 
+    /**
+     * 清理审批命令参数。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回clean审批命令参数结果。
+     */
     private String cleanApprovalCommandArgs(String args) {
         return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(args)).trim();
     }
 
+    /**
+     * 解析审批范围。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回解析后的审批范围。
+     */
     private DangerousCommandApprovalService.ApprovalScope parseApprovalScope(String args) {
         String normalized = cleanApprovalCommandArgs(args).toLowerCase();
         if ("always".equals(normalized)
@@ -4780,6 +6112,13 @@ public class DefaultCommandService implements CommandService {
         return session;
     }
 
+    /**
+     * 发送Direct回复。
+     *
+     * @param reply 回复参数。
+     * @param eventSink 事件Sink参数。
+     * @param fallbackSessionId 兜底会话标识。
+     */
     private void emitDirectReply(
             GatewayReply reply, ConversationEventSink eventSink, String fallbackSessionId) {
         if (eventSink == null || eventSink == ConversationEventSink.noop() || reply == null) {
@@ -4798,6 +6137,12 @@ public class DefaultCommandService implements CommandService {
         eventSink.onRunCompleted(sessionId, "", null);
     }
 
+    /**
+     * 格式化检查点List。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回检查点List结果。
+     */
     private String formatCheckpointList(String sourceKey) throws Exception {
         List<CheckpointRecord> checkpoints = checkpointService.listRecent(sourceKey, 10);
         if (checkpoints.isEmpty()) {
@@ -4827,6 +6172,11 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 执行当前Personality名称相关逻辑。
+     *
+     * @return 返回当前Personality名称结果。
+     */
     private String currentPersonalityName() {
         try {
             String value = globalSettingRepository.get(AgentSettingConstants.ACTIVE_PERSONALITY);
@@ -4836,6 +6186,12 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 解析模型命令。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回解析后的模型命令。
+     */
     private ModelCommandInput parseModelCommand(String args) {
         String[] tokens = args.trim().split("\\s+");
         ModelCommandInput result = new ModelCommandInput();
@@ -4867,13 +6223,27 @@ public class DefaultCommandService implements CommandService {
         return result;
     }
 
+    /** 承载模型命令输入相关状态和辅助逻辑。 */
     private static class ModelCommandInput {
+        /** 是否启用global。 */
         private boolean global;
+
+        /** 是否启用clear。 */
         private boolean clear;
+
+        /** 记录模型命令输入中的提供方。 */
         private String provider;
+
+        /** 记录模型命令输入中的模型。 */
         private String model;
     }
 
+    /**
+     * 执行来源库相关逻辑。
+     *
+     * @param target target 参数。
+     * @return 返回Tap结果。
+     */
     private String handleTap(String target) throws Exception {
         String action = firstToken(target);
         if (StrUtil.isBlank(action)
@@ -4911,6 +6281,12 @@ public class DefaultCommandService implements CommandService {
         throw new IllegalStateException("Unsupported tap action: " + action);
     }
 
+    /**
+     * 格式化Browse。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回Browse结果。
+     */
     private String formatBrowse(SkillBrowseResult result) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("skills hub browse page ")
@@ -4936,6 +6312,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString().trim();
     }
 
+    /**
+     * 格式化搜索。
+     *
+     * @param result 结果响应或执行结果。
+     * @return 返回搜索结果。
+     */
     private String formatSearch(SkillBrowseResult result) {
         StringBuilder buffer = new StringBuilder();
         for (SkillMeta item : result.getItems()) {
@@ -4955,6 +6337,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.length() == 0 ? "未找到匹配技能。" : buffer.toString();
     }
 
+    /**
+     * 格式化中心Install Records。
+     *
+     * @param records records 参数。
+     * @return 返回中心Install Records结果。
+     */
     private String formatHubInstallRecords(List<HubInstallRecord> records) {
         if (records == null || records.isEmpty()) {
             return "没有技能变更。";
@@ -4981,6 +6369,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化审计。
+     *
+     * @param results results响应或执行结果。
+     * @return 返回审计结果。
+     */
     private String formatAudit(List<ScanResult> results) {
         if (results == null || results.isEmpty()) {
             return "没有可审计的 hub 技能。";
@@ -4999,10 +6393,25 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 判断是否存在Flag。
+     *
+     * @param raw 原始输入值。
+     * @param flag flag 参数。
+     * @return 如果Flag满足条件则返回 true，否则返回 false。
+     */
     private boolean hasFlag(String raw, String flag) {
         return (" " + StrUtil.nullToEmpty(raw) + " ").contains(" " + flag + " ");
     }
 
+    /**
+     * 解析Option。
+     *
+     * @param raw 原始输入值。
+     * @param option 选项参数。
+     * @param defaultValue 默认值参数。
+     * @return 返回解析后的Option。
+     */
     private String parseOption(String raw, String option, String defaultValue) {
         String[] parts = StrUtil.nullToEmpty(raw).split("\\s+");
         for (int i = 0; i < parts.length - 1; i++) {
@@ -5013,6 +6422,14 @@ public class DefaultCommandService implements CommandService {
         return defaultValue;
     }
 
+    /**
+     * 解析Int Option。
+     *
+     * @param raw 原始输入值。
+     * @param option 选项参数。
+     * @param defaultValue 默认值参数。
+     * @return 返回解析后的Int Option。
+     */
     private int parseIntOption(String raw, String option, int defaultValue) {
         try {
             return Integer.parseInt(parseOption(raw, option, String.valueOf(defaultValue)));
@@ -5021,6 +6438,13 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 剥离Options。
+     *
+     * @param raw 原始输入值。
+     * @param optionNames 选项Names参数。
+     * @return 返回strip Options结果。
+     */
     private String stripOptions(String raw, String... optionNames) {
         String[] parts = StrUtil.nullToEmpty(raw).split("\\s+");
         List<String> kept = new ArrayList<String>();
@@ -5042,6 +6466,12 @@ public class DefaultCommandService implements CommandService {
         return String.join(" ", kept).trim();
     }
 
+    /**
+     * 执行firsttoken相关逻辑。
+     *
+     * @param raw 原始输入值。
+     * @return 返回first token结果。
+     */
     private String firstToken(String raw) {
         String[] parts = StrUtil.nullToEmpty(raw).trim().split("\\s+", 2);
         return parts.length == 0 ? "" : parts[0];
@@ -5055,6 +6485,11 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /**
+     * 执行help文本相关逻辑。
+     *
+     * @return 返回help Text结果。
+     */
     private String helpText() {
         return String.join(
                 "\n",
@@ -5199,15 +6634,34 @@ public class DefaultCommandService implements CommandService {
                         registryHelpLine("subgoal")));
     }
 
+    /**
+     * 执行注册表Help行相关逻辑。
+     *
+     * @param commandName 命令名称参数。
+     * @return 返回注册表Help Line结果。
+     */
     private String registryHelpLine(String commandName) {
         CommandDescriptor descriptor = CommandRegistry.get(commandName);
         return helpLine(descriptor.slashName(), descriptor.getDescription());
     }
 
+    /**
+     * 执行help行相关逻辑。
+     *
+     * @param usage 用量参数。
+     * @param description 描述参数。
+     * @return 返回help Line结果。
+     */
     private String helpLine(String usage, String description) {
         return usage + " - " + description;
     }
 
+    /**
+     * 格式化用量。
+     *
+     * @param session 会话参数。
+     * @return 返回用量结果。
+     */
     private String formatUsage(SessionRecord session) {
         RuntimeSettingsService.ResolvedModel resolved =
                 runtimeSettingsService.resolveEffectiveModel(session);
@@ -5268,6 +6722,12 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString();
     }
 
+    /**
+     * 格式化检查点状态。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回检查点状态。
+     */
     private String formatCheckpointStatus(String sourceKey) throws Exception {
         Map<String, Object> status = checkpointService.status(sourceKey);
         return "checkpoint_count="
@@ -5284,6 +6744,12 @@ public class DefaultCommandService implements CommandService {
                 + formatTimestamp(asLong(status.get("latest_created_at")));
     }
 
+    /**
+     * 格式化检查点Prune。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回检查点Prune结果。
+     */
     private String formatCheckpointPrune(String sourceKey) throws Exception {
         Map<String, Object> result = checkpointService.prune(sourceKey);
         return "已清理 checkpoint store。"
@@ -5297,6 +6763,12 @@ public class DefaultCommandService implements CommandService {
                 + result.get("checkpoint_count");
     }
 
+    /**
+     * 格式化检查点Clear。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回检查点Clear结果。
+     */
     private String formatCheckpointClear(String sourceKey) throws Exception {
         Map<String, Object> result = checkpointService.clear(sourceKey);
         return "已删除当前来源的全部 checkpoint。"
@@ -5308,11 +6780,34 @@ public class DefaultCommandService implements CommandService {
                 + result.get("checkpoint_count");
     }
 
+    /**
+     * 判断是否检查点Clear命令。
+     *
+     * @param args 工具或命令参数。
+     * @return 如果检查点Clear命令满足条件则返回 true，否则返回 false。
+     */
     private boolean isCheckpointClearCommand(String args) {
         String first = firstToken(args);
         return "clear".equalsIgnoreCase(first) || "clear-all".equalsIgnoreCase(first);
     }
 
+    /**
+     * 判断是否为 checkpoint 列表别名，保持 CLI、TUI 和消息网关的 rollback 语义一致。
+     *
+     * @param args 工具或命令参数。
+     * @return list 或 ls 返回 true。
+     */
+    private boolean isCheckpointListCommand(String args) {
+        String first = firstToken(args);
+        return "list".equalsIgnoreCase(first) || "ls".equalsIgnoreCase(first);
+    }
+
+    /**
+     * 判断是否存在Clear检查点Confirmation。
+     *
+     * @param args 工具或命令参数。
+     * @return 如果Clear检查点Confirmation满足条件则返回 true，否则返回 false。
+     */
     private boolean hasClearCheckpointConfirmation(String args) {
         List<String> tokens = splitCommandLine(args);
         for (String token : tokens) {
@@ -5325,6 +6820,12 @@ public class DefaultCommandService implements CommandService {
         return false;
     }
 
+    /**
+     * 格式化时间戳。
+     *
+     * @param timestamp 请求携带的时间戳。
+     * @return 返回时间戳结果。
+     */
     private String formatTimestamp(long timestamp) {
         if (timestamp <= 0) {
             return "never";
@@ -5332,6 +6833,12 @@ public class DefaultCommandService implements CommandService {
         return DateUtil.formatDateTime(new java.util.Date(timestamp));
     }
 
+    /**
+     * 格式化Bytes。
+     *
+     * @param bytes 字节参数。
+     * @return 返回Bytes结果。
+     */
     private String formatBytes(long bytes) {
         if (bytes < 1024L) {
             return bytes + " B";
@@ -5347,6 +6854,12 @@ public class DefaultCommandService implements CommandService {
                 java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
@@ -5358,10 +6871,23 @@ public class DefaultCommandService implements CommandService {
         }
     }
 
+    /**
+     * 生成安全展示用的Identifier。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Identifier结果。
+     */
     private String safeIdentifier(String value) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 400);
     }
 
+    /**
+     * 解析Goal Max Turns。
+     *
+     * @param raw 原始输入值。
+     * @param defaultValue 默认值参数。
+     * @return 返回解析后的Goal Max Turns。
+     */
     private int parseGoalMaxTurns(String raw, int defaultValue) {
         String[] tokens = StrUtil.nullToEmpty(raw).split("\\s+");
         for (int i = 0; i < tokens.length; i++) {
@@ -5377,6 +6903,12 @@ public class DefaultCommandService implements CommandService {
         return defaultValue;
     }
 
+    /**
+     * 剥离目标Options。
+     *
+     * @param raw 原始输入值。
+     * @return 返回strip Goal Options结果。
+     */
     private String stripGoalOptions(String raw) {
         String[] tokens = StrUtil.nullToEmpty(raw).trim().split("\\s+");
         StringBuilder buffer = new StringBuilder();
@@ -5394,56 +6926,152 @@ public class DefaultCommandService implements CommandService {
         return buffer.toString().trim();
     }
 
+    /** 承载定时任务FlagOptions相关状态和辅助逻辑。 */
     private static class CronFlagOptions {
+        /** 记录定时任务FlagOptions中的名称。 */
         private String name;
+
+        /** 记录定时任务FlagOptions中的deliver。 */
         private String deliver;
+
+        /** 记录定时任务FlagOptions中的deliver聊天标识。 */
         private String deliverChatId;
+
+        /** 记录定时任务FlagOptions中的deliverThread标识。 */
         private String deliverThreadId;
+
+        /** 是否启用clearDeliver聊天标识。 */
         private boolean clearDeliverChatId;
+
+        /** 是否启用clearDeliverThread标识。 */
         private boolean clearDeliverThreadId;
+
+        /** 记录定时任务FlagOptions中的repeat。 */
         private Integer repeat;
+
+        /** 是否启用clearRepeat。 */
         private boolean clearRepeat;
+
+        /** 记录定时任务FlagOptions中的限制。 */
         private Integer limit;
+
+        /** 记录定时任务FlagOptions中的原因。 */
         private String reason;
+
+        /** 记录定时任务FlagOptions中的trigger类型。 */
         private String triggerType;
+
+        /** 保存技能集合，维持调用顺序或去重语义。 */
         private final List<String> skills = new ArrayList<String>();
+
+        /** 保存add技能集合，维持调用顺序或去重语义。 */
         private final List<String> addSkills = new ArrayList<String>();
+
+        /** 保存remove技能集合，维持调用顺序或去重语义。 */
         private final List<String> removeSkills = new ArrayList<String>();
+
+        /** 是否启用clear技能。 */
         private boolean clearSkills;
+
+        /** 是否启用全部。 */
         private boolean all;
+
+        /** 记录定时任务FlagOptions中的提示词。 */
         private String prompt;
+
+        /** 记录定时任务FlagOptions中的调度。 */
         private String schedule;
+
+        /** 记录定时任务FlagOptions中的script。 */
         private String script;
+
+        /** 记录定时任务FlagOptions中的workdir。 */
         private String workdir;
+
+        /** 记录定时任务FlagOptions中的上下文From。 */
         private String contextFrom;
+
+        /** 记录定时任务FlagOptions中的dependsOn。 */
         private String dependsOn;
+
+        /** 标记是否启用Toolsets。 */
         private String enabledToolsets;
+
+        /** 记录定时任务FlagOptions中的模型。 */
         private String model;
+
+        /** 记录定时任务FlagOptions中的提供方。 */
         private String provider;
+
+        /** 记录定时任务FlagOptions中的基础URL。 */
         private String baseUrl;
+
+        /** 记录定时任务FlagOptions中的状态。 */
         private String status;
+
+        /** 记录定时任务FlagOptions中的状态。 */
         private String state;
+
+        /** 记录定时任务FlagOptions中的paused原因。 */
         private String pausedReason;
+
+        /** 是否启用clear模型。 */
         private boolean clearModel;
+
+        /** 是否启用clear提供方。 */
         private boolean clearProvider;
+
+        /** 是否启用clear基础URL。 */
         private boolean clearBaseUrl;
+
+        /** 是否启用clearScript。 */
         private boolean clearScript;
+
+        /** 是否启用clearWorkdir。 */
         private boolean clearWorkdir;
+
+        /** 是否启用clear上下文From。 */
         private boolean clearContextFrom;
+
+        /** 是否启用clearDependsOn。 */
         private boolean clearDependsOn;
+
+        /** 是否启用clearToolsets。 */
         private boolean clearToolsets;
+
+        /** 是否启用noAgent。 */
         private boolean noAgent;
+
+        /** 是否启用Agent。 */
         private boolean agent;
+
+        /** 是否启用wrap响应。 */
         private boolean wrapResponse;
+
+        /** 是否启用原始。 */
         private boolean raw;
+
+        /** 是否启用JSON。 */
         private boolean json;
+
+        /** 保存positionals集合，维持调用顺序或去重语义。 */
         private final List<String> positionals = new ArrayList<String>();
     }
 
+    /** 承载定时任务Edit请求相关状态和辅助逻辑。 */
     private static class CronEditRequest {
+        /** 记录定时任务Edit请求中的任务标识。 */
         private final String jobId;
+
+        /** 保存正文映射，便于按键快速查询。 */
         private final Map<String, Object> body;
 
+        /**
+         * 创建定时任务Edit请求实例，并注入运行所需依赖。
+         *
+         * @param jobId job标识。
+         * @param body 请求体或消息正文内容。
+         */
         private CronEditRequest(String jobId, Map<String, Object> body) {
             this.jobId = jobId;
             this.body = body;

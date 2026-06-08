@@ -2,13 +2,15 @@ package com.jimuqu.solon.claw.goal;
 
 import cn.hutool.core.util.StrUtil;
 
-/**
- * Fail-open local judge used until an auxiliary Solon AI judge is configured.
- *
- * <p>Jimuqu keeps progress moving when the judge is unavailable. This heuristic mirrors that
- * invariant: only explicit completion/blocking language marks the goal done; otherwise continue.
- */
+/** 承载Heuristic目标Judge相关状态和辅助逻辑。 */
 public class HeuristicGoalJudge implements GoalJudge {
+    /**
+     * 执行judge相关逻辑。
+     *
+     * @param goal 目标参数。
+     * @param lastResponse last响应响应或执行结果。
+     * @return 返回judge结果。
+     */
     @Override
     public GoalVerdict judge(String goal, String lastResponse) {
         if (StrUtil.isBlank(goal)) {

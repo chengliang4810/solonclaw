@@ -28,10 +28,22 @@ import org.noear.snack4.ONode;
 
 /** 默认技能导入服务。 */
 public class DefaultSkillImportService implements SkillImportService {
+    /** 记录默认技能导入中的技能目录。 */
     private final File skillsDir;
+
+    /** 注入技能保护服务，用于调用对应业务能力。 */
     private final SkillGuardService skillGuardService;
+
+    /** 记录默认技能导入中的状态Store。 */
     private final SkillHubStateStore stateStore;
 
+    /**
+     * 创建默认技能导入服务实例，并注入运行所需依赖。
+     *
+     * @param skillsDir 文件或目录路径参数。
+     * @param skillGuardService 技能防护服务依赖。
+     * @param stateStore 状态Store参数。
+     */
     public DefaultSkillImportService(
             File skillsDir, SkillGuardService skillGuardService, SkillHubStateStore stateStore) {
         this.skillsDir = skillsDir;
@@ -39,6 +51,12 @@ public class DefaultSkillImportService implements SkillImportService {
         this.stateStore = stateStore;
     }
 
+    /**
+     * 执行待恢复Imports相关逻辑。
+     *
+     * @param force force 参数。
+     * @return 返回Pending Imports结果。
+     */
     @Override
     public SkillImportResult processPendingImports(boolean force) throws Exception {
         SkillImportResult result = new SkillImportResult();
@@ -79,6 +97,15 @@ public class DefaultSkillImportService implements SkillImportService {
         return result;
     }
 
+    /**
+     * 安装包。
+     *
+     * @param bundle bundle 参数。
+     * @param category 分类参数。
+     * @param force force 参数。
+     * @param sourceArtifact 来源Artifact参数。
+     * @return 返回install包结果。
+     */
     @Override
     public HubInstallRecord installBundle(
             SkillBundle bundle, String category, boolean force, File sourceArtifact)
@@ -158,6 +185,12 @@ public class DefaultSkillImportService implements SkillImportService {
         return record;
     }
 
+    /**
+     * 执行detectBundlesFrom文件相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回detect Bundles From文件结果。
+     */
     private List<SkillBundle> detectBundlesFromFile(File file) throws Exception {
         if ("zip".equalsIgnoreCase(FileUtil.extName(file))) {
             SkillBundle bundle = bundleFromZip(file);
@@ -174,6 +207,12 @@ public class DefaultSkillImportService implements SkillImportService {
         return Collections.emptyList();
     }
 
+    /**
+     * 执行detectBundlesFrom目录相关逻辑。
+     *
+     * @param dir 文件或目录路径参数。
+     * @return 返回detect Bundles From Directory结果。
+     */
     private List<SkillBundle> detectBundlesFromDirectory(File dir) throws Exception {
         List<SkillBundle> bundles = new ArrayList<SkillBundle>();
         File marketplace = FileUtil.file(dir, ".claude-plugin", "marketplace.json");
@@ -219,6 +258,12 @@ public class DefaultSkillImportService implements SkillImportService {
         return bundles;
     }
 
+    /**
+     * 执行包FromZip相关逻辑。
+     *
+     * @param zipFile 文件或目录路径参数。
+     * @return 返回包From Zip结果。
+     */
     private SkillBundle bundleFromZip(File zipFile) throws Exception {
         byte[] bytes = FileUtil.readBytes(zipFile);
         ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(bytes));
@@ -274,6 +319,12 @@ public class DefaultSkillImportService implements SkillImportService {
         }
     }
 
+    /**
+     * 执行包FromJSON文件相关逻辑。
+     *
+     * @param jsonFile 文件或目录路径参数。
+     * @return 返回包From JSON文件结果。
+     */
     private SkillBundle bundleFromJsonFile(File jsonFile) {
         ONode node = ONode.ofJson(FileUtil.readUtf8String(jsonFile));
         if (looksLikeLobeHub(node)) {
@@ -303,6 +354,13 @@ public class DefaultSkillImportService implements SkillImportService {
         }
     }
 
+    /**
+     * 执行bundlesFrom技能市场Repo相关逻辑。
+     *
+     * @param repoDir 文件或目录路径参数。
+     * @param marketplaceFile 文件或目录路径参数。
+     * @return 返回bundles From技能市场Repo结果。
+     */
     private List<SkillBundle> bundlesFromMarketplaceRepo(File repoDir, File marketplaceFile) {
         List<SkillBundle> bundles = new ArrayList<SkillBundle>();
         ONode node = ONode.ofJson(FileUtil.readUtf8String(marketplaceFile));
@@ -327,6 +385,13 @@ public class DefaultSkillImportService implements SkillImportService {
         return bundles;
     }
 
+    /**
+     * 执行bundlesFromWellKnown索引相关逻辑。
+     *
+     * @param baseDir 文件或目录路径参数。
+     * @param indexFile 文件或目录路径参数。
+     * @return 返回bundles From Well Known Index结果。
+     */
     private List<SkillBundle> bundlesFromWellKnownIndex(File baseDir, File indexFile) {
         List<SkillBundle> bundles = new ArrayList<SkillBundle>();
         ONode index = ONode.ofJson(FileUtil.readUtf8String(indexFile));
@@ -350,6 +415,12 @@ public class DefaultSkillImportService implements SkillImportService {
         return bundles;
     }
 
+    /**
+     * 执行包FromNested技能相关逻辑。
+     *
+     * @param dir 文件或目录路径参数。
+     * @return 返回包From Nested技能结果。
+     */
     private SkillBundle bundleFromNestedSkill(File dir) {
         File[] children = dir.listFiles();
         if (children == null || children.length != 1 || !children[0].isDirectory()) {
@@ -358,6 +429,14 @@ public class DefaultSkillImportService implements SkillImportService {
         return bundleFromNestedDirectory(children[0], "community", dir.getName());
     }
 
+    /**
+     * 执行包FromNested目录相关逻辑。
+     *
+     * @param skillDir 文件或目录路径参数。
+     * @param source 来源参数。
+     * @param identifier identifier标识或键值。
+     * @return 返回包From Nested Directory结果。
+     */
     private SkillBundle bundleFromNestedDirectory(File skillDir, String source, String identifier) {
         File skillFile = FileUtil.file(skillDir, "SKILL.md");
         if (!skillFile.exists()) {
@@ -383,10 +462,22 @@ public class DefaultSkillImportService implements SkillImportService {
         return bundle;
     }
 
+    /**
+     * 判断是否规范技能Dir。
+     *
+     * @param dir 文件或目录路径参数。
+     * @return 如果规范技能Dir满足条件则返回 true，否则返回 false。
+     */
     private boolean isCanonicalSkillDir(File dir) {
         return FileUtil.file(dir, "SKILL.md").exists();
     }
 
+    /**
+     * 判断是否规范Category Dir。
+     *
+     * @param dir 文件或目录路径参数。
+     * @return 如果规范Category Dir满足条件则返回 true，否则返回 false。
+     */
     private boolean isCanonicalCategoryDir(File dir) {
         File[] children = dir.listFiles();
         if (children == null || children.length == 0) {
@@ -406,6 +497,12 @@ public class DefaultSkillImportService implements SkillImportService {
         return hasSkillChildren;
     }
 
+    /**
+     * 执行回滚Install相关逻辑。
+     *
+     * @param installDir 文件或目录路径参数。
+     * @param backupDir 文件或目录路径参数。
+     */
     private void rollbackInstall(File installDir, File backupDir) {
         if (installDir != null && installDir.exists()) {
             FileUtil.del(installDir);
@@ -416,6 +513,12 @@ public class DefaultSkillImportService implements SkillImportService {
         }
     }
 
+    /**
+     * 执行archiveOriginal相关逻辑。
+     *
+     * @param sourceArtifact 来源Artifact参数。
+     * @param prefix prefix 参数。
+     */
     private void archiveOriginal(File sourceArtifact, String prefix) {
         if (sourceArtifact == null || !sourceArtifact.exists()) {
             return;
@@ -435,6 +538,13 @@ public class DefaultSkillImportService implements SkillImportService {
         FileUtil.move(sourceArtifact, target, true);
     }
 
+    /**
+     * 解析Category。
+     *
+     * @param explicitCategory explicitCategory 参数。
+     * @param bundle bundle 参数。
+     * @return 返回解析后的Category。
+     */
     private String resolveCategory(String explicitCategory, SkillBundle bundle) {
         if (StrUtil.isNotBlank(explicitCategory)) {
             return SkillBundlePathSupport.normalizeCategoryName(explicitCategory);
@@ -456,6 +566,12 @@ public class DefaultSkillImportService implements SkillImportService {
         return null;
     }
 
+    /**
+     * 判断是否具有Lobe中心特征。
+     *
+     * @param node 节点参数。
+     * @return 返回looks Like Lobe中心结果。
+     */
     private boolean looksLikeLobeHub(ONode node) {
         return node.get("config").get("systemRole").isValue()
                 || node.get("meta").get("title").isValue()

@@ -21,17 +21,34 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Session todo tool. */
+/** 提供Todo工具能力，供 Agent 运行时按安全策略调用。 */
 @RequiredArgsConstructor
 public class TodoTools {
+    /** 状态待恢复的统一常量值。 */
     private static final String STATUS_PENDING = "pending";
+
+    /** 状态INPROGRESS的统一常量值。 */
     private static final String STATUS_IN_PROGRESS = "in_progress";
+
+    /** 状态COMPLETED的统一常量值。 */
     private static final String STATUS_COMPLETED = "completed";
+
+    /** 状态CANCELLED的统一常量值。 */
     private static final String STATUS_CANCELLED = "cancelled";
 
+    /** 注入应用配置，用于Todo。 */
     private final AppConfig appConfig;
+
+    /** 记录Todo中的来源键。 */
     private final String sourceKey;
 
+    /**
+     * 执行todo相关逻辑。
+     *
+     * @param todos todos 参数。
+     * @param merge merge 参数。
+     * @return 返回todo结果。
+     */
     @ToolMapping(
             name = "todo",
             description =
@@ -60,6 +77,12 @@ public class TodoTools {
         return response(items);
     }
 
+    /**
+     * 执行replace相关逻辑。
+     *
+     * @param todos todos 参数。
+     * @return 返回replace结果。
+     */
     private List<TodoItem> replace(List<TodoItem> todos) {
         List<TodoItem> items = new ArrayList<TodoItem>();
         for (TodoItem item : dedupeById(todos)) {
@@ -68,6 +91,13 @@ public class TodoTools {
         return items;
     }
 
+    /**
+     * 执行merge相关逻辑。
+     *
+     * @param current current 参数。
+     * @param todos todos 参数。
+     * @return 返回merge结果。
+     */
     private List<TodoItem> merge(List<TodoItem> current, List<TodoItem> todos) {
         Map<String, TodoItem> existing = new LinkedHashMap<String, TodoItem>();
         for (TodoItem item : current) {
@@ -106,6 +136,12 @@ public class TodoTools {
         return rebuilt;
     }
 
+    /**
+     * 执行dedupe根据标识相关逻辑。
+     *
+     * @param todos todos 参数。
+     * @return 返回dedupe根据标识。
+     */
     private List<TodoItem> dedupeById(List<TodoItem> todos) {
         Map<String, Integer> lastIndex = new LinkedHashMap<String, Integer>();
         for (int i = 0; i < todos.size(); i++) {
@@ -123,6 +159,12 @@ public class TodoTools {
         return result;
     }
 
+    /**
+     * 执行validate相关逻辑。
+     *
+     * @param item item 参数。
+     * @return 返回validate结果。
+     */
     private TodoItem validate(TodoItem item) {
         TodoItem result = new TodoItem();
         String id = StrUtil.nullToEmpty(item == null ? null : item.getId()).trim();
@@ -133,6 +175,12 @@ public class TodoTools {
         return result;
     }
 
+    /**
+     * 规范化状态。
+     *
+     * @param status 状态参数。
+     * @return 返回状态。
+     */
     private String normalizeStatus(String status) {
         String normalized = StrUtil.nullToEmpty(status).trim().toLowerCase();
         if (STATUS_PENDING.equals(normalized)
@@ -144,6 +192,11 @@ public class TodoTools {
         return STATUS_PENDING;
     }
 
+    /**
+     * 读取Items。
+     *
+     * @return 返回读取到的Items。
+     */
     private List<TodoItem> readItems() {
         File file = todoFile();
         if (!file.exists()) {
@@ -168,12 +221,23 @@ public class TodoTools {
         }
     }
 
+    /**
+     * 写入Items。
+     *
+     * @param items items 参数。
+     */
     private void writeItems(List<TodoItem> items) {
         File file = todoFile();
         FileUtil.mkParentDirs(file);
         FileUtil.writeUtf8String(ONode.serialize(items), file);
     }
 
+    /**
+     * 执行响应相关逻辑。
+     *
+     * @param items items 参数。
+     * @return 返回响应结果。
+     */
     private String response(List<TodoItem> items) {
         int pending = 0;
         int inProgress = 0;
@@ -205,6 +269,12 @@ public class TodoTools {
                 .toJson();
     }
 
+    /**
+     * 执行redactedItems相关逻辑。
+     *
+     * @param items items 参数。
+     * @return 返回redacted Items结果。
+     */
     private List<TodoItem> redactedItems(List<TodoItem> items) {
         List<TodoItem> safe = new ArrayList<TodoItem>();
         for (TodoItem item : items) {
@@ -216,6 +286,12 @@ public class TodoTools {
         return safe;
     }
 
+    /**
+     * 执行copy相关逻辑。
+     *
+     * @param item item 参数。
+     * @return 返回copy结果。
+     */
     private TodoItem copy(TodoItem item) {
         TodoItem copy = new TodoItem();
         copy.setId(item.getId());
@@ -224,21 +300,30 @@ public class TodoTools {
         return copy;
     }
 
+    /**
+     * 执行todo文件相关逻辑。
+     *
+     * @return 返回todo文件结果。
+     */
     private File todoFile() {
         String name = "todo-" + HashUtil.apHash(StrUtil.nullToEmpty(sourceKey)) + ".json";
         return FileUtil.file(appConfig.getRuntime().getCacheDir(), name);
     }
 
+    /** 承载TodoItem相关状态和辅助逻辑。 */
     @Getter
     @Setter
     @NoArgsConstructor
     public static class TodoItem {
+        /** 记录TodoItem中的标识。 */
         @Param(description = "Unique task id chosen by the agent.")
         private String id;
 
+        /** 记录TodoItem中的content。 */
         @Param(description = "Task description.")
         private String content;
 
+        /** 记录TodoItem中的状态。 */
         @Param(description = "Task status: pending, in_progress, completed, or cancelled.")
         private String status;
     }

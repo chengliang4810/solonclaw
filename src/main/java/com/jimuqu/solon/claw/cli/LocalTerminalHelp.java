@@ -1,19 +1,49 @@
 package com.jimuqu.solon.claw.cli;
 
-/** Local CLI/TUI commands handled before normal slash command dispatch. */
+/** 承载本地终端Help相关状态和辅助逻辑。 */
 public final class LocalTerminalHelp {
+    /** 创建本地终端Help实例。 */
     private LocalTerminalHelp() {}
 
+    /**
+     * 判断是否Help。
+     *
+     * @param input 输入参数。
+     * @return 如果Help满足条件则返回 true，否则返回 false。
+     */
     public static boolean isHelp(String input) {
         String value = input == null ? "" : input.trim();
         return "/help".equalsIgnoreCase(value) || "/?".equalsIgnoreCase(value);
     }
 
+    /**
+     * 执行文本相关逻辑。
+     *
+     * @return 返回text结果。
+     */
     public static String text() {
         return "本地终端命令：\n"
                 + "/copy - 复制上一条回复到终端剪贴板\n"
+                + "/setup [model|gateway] - 查看初始化、模型和国内消息渠道配置引导\n"
+                + "/setup --quick|--reset|--non-interactive - 快速检查、重置或输出脚本化初始化引导\n"
+                + "/setup terminal|tools|agent|tts - 查看终端、工具、Agent 和语音服务初始化引导\n"
+                + "/setup gateway <channel> --enabled true ... - 写入国内消息渠道初始化配置\n"
+                + "/config path|env-path|show|edit|check|migrate|set <key> <value> - 查看或写入 runtime/config.yml\n"
+                + "/doctor [--fix|--ack <id>] - 汇总模型、配置和国内消息渠道自检\n"
+                + "/status - 查看本地运行、模型和渠道状态\n"
+                + "/version - 查看当前版本和部署形态\n"
+                + "/logout - 清理本地登录态\n"
+                + "/gateway status|list|run|start|stop|restart - 查看或操作单实例消息网关入口\n"
+                + "/gateway install|uninstall|migrate-legacy - 查看单实例部署下的服务安装裁剪说明\n"
+                + "/pairing list|pending|approved|approve|revoke|clear-pending - 管理渠道 pairing 授权\n"
+                + "/model set --provider <key> --base-url <url> --api-key <key> --model <model> --dialect <dialect> - 配置默认模型提供方\n"
+                + "/fallback list|add|remove|clear - 管理主模型故障时的 fallback provider 链路\n"
+                + "/mcp list|add|test - 查看 MCP 配置入口、Dashboard 引导和 reload-mcp 刷新方式\n"
+                + "/postinstall、/login、/auth、/fallback、/secrets、/proxy、/mcp、/migrate、/send - 查看对应本地配置或裁剪说明\n"
+                + "/hooks、/dump、/backup、/checkpoints、/import、/bundles、/memory、/dashboard、/logs、/prompt-size - 查看保留管理入口的本地说明\n"
                 + "/models 或 /model pick - 列出可选模型；/model pick <编号> 切换\n"
                 + "/sessions [关键词] - 浏览或搜索最近会话；/session pick <编号> 恢复\n"
+                + "/sessions stats|export|delete|prune|rename - 统计、导出、删除、裁剪或重命名历史会话\n"
                 + "/history [条数] - 预览当前终端会话的最近历史\n"
                 + "/title [clear|新标题] - 查看、设置或清空当前会话标题\n"
                 + "/goal [status|pause|resume|clear|目标 --max N] - 管理跨轮长目标循环\n"

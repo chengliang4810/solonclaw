@@ -8,23 +8,44 @@ import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
-/** Replaces oversized tool observations with a persisted-result envelope. */
+/** 承载工具结果StorageInterceptor相关状态和辅助逻辑。 */
 public class ToolResultStorageInterceptor implements ReActInterceptor {
+    /** EXTRA工具CALL标识PREFIX的统一常量值。 */
     private static final String EXTRA_TOOL_CALL_ID_PREFIX =
             "solonclaw.tool_result_storage.tool_call_id.";
 
+    /** 注入storage服务，用于调用对应业务能力。 */
     private final ToolResultStorageService storageService;
+
+    /** 记录工具结果StorageInterceptor中的运行标识。 */
     private final String runId;
 
+    /**
+     * 创建工具结果Storage Interceptor实例，并注入运行所需依赖。
+     *
+     * @param storageService storage服务依赖。
+     */
     public ToolResultStorageInterceptor(ToolResultStorageService storageService) {
         this(storageService, null);
     }
 
+    /**
+     * 创建工具结果Storage Interceptor实例，并注入运行所需依赖。
+     *
+     * @param storageService storage服务依赖。
+     * @param runId 运行标识。
+     */
     public ToolResultStorageInterceptor(ToolResultStorageService storageService, String runId) {
         this.storageService = storageService;
         this.runId = runId;
     }
 
+    /**
+     * 响应原因事件。
+     *
+     * @param trace trace 参数。
+     * @param message 平台消息或错误消息。
+     */
     @Override
     public void onReason(ReActTrace trace, AssistantMessage message) {
         if (storageService != null) {
@@ -33,6 +54,14 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
         captureToolCallIds(trace, message);
     }
 
+    /**
+     * 响应观察结果事件。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @param result 结果响应或执行结果。
+     * @param durationMs durationMs 参数。
+     */
     @Override
     public void onObservation(ReActTrace trace, String toolName, String result, long durationMs) {
         if (storageService == null || trace == null) {
@@ -53,6 +82,12 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
         trace.setLastObservation(stored.getObservation());
     }
 
+    /**
+     * 执行capture工具Call标识相关逻辑。
+     *
+     * @param trace trace 参数。
+     * @param message 平台消息或错误消息。
+     */
     private void captureToolCallIds(ReActTrace trace, AssistantMessage message) {
         if (trace == null || message == null || message.getToolCalls() == null) {
             return;
@@ -68,6 +103,13 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
         }
     }
 
+    /**
+     * 解析工具Call标识。
+     *
+     * @param trace trace 参数。
+     * @param toolName 工具名称。
+     * @return 返回解析后的工具Call标识。
+     */
     private String resolveToolCallId(ReActTrace trace, String toolName) {
         int completed = Math.max(0, trace.getToolCallCount());
         String captured = trace.getExtraAs(EXTRA_TOOL_CALL_ID_PREFIX + key(toolName, completed));
@@ -80,6 +122,13 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
         return toolName + "-" + completed + "-" + IdSupport.newId();
     }
 
+    /**
+     * 执行键相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param index 索引参数。
+     * @return 返回键结果。
+     */
     private String key(String toolName, int index) {
         return StrUtil.blankToDefault(toolName, "unknown") + "." + Math.max(0, index);
     }

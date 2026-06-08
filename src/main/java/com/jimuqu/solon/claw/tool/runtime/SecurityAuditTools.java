@@ -26,14 +26,30 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Jimuqu read-only security audit tool. */
+/** 提供安全审计工具能力，供 Agent 运行时按安全策略调用。 */
 public class SecurityAuditTools {
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 注入审批服务，用于调用对应业务能力。 */
     private final DangerousCommandApprovalService approvalService;
+
+    /** 注入tirith安全服务，用于调用对应业务能力。 */
     private final TirithSecurityService tirithSecurityService;
+
+    /** 注入工具结果Storage服务，用于调用对应业务能力。 */
     private final ToolResultStorageService toolResultStorageService;
+
+    /** 注入应用配置，用于安全审计。 */
     private final AppConfig appConfig;
 
+    /**
+     * 创建安全审计工具实例，并注入运行所需依赖。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     */
     public SecurityAuditTools(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
@@ -41,6 +57,14 @@ public class SecurityAuditTools {
         this(securityPolicyService, approvalService, tirithSecurityService, null);
     }
 
+    /**
+     * 创建安全审计工具实例，并注入运行所需依赖。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param appConfig 应用运行配置。
+     */
     public SecurityAuditTools(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
@@ -49,6 +73,15 @@ public class SecurityAuditTools {
         this(securityPolicyService, approvalService, tirithSecurityService, null, appConfig);
     }
 
+    /**
+     * 创建安全审计工具实例，并注入运行所需依赖。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param appConfig 应用运行配置。
+     */
     public SecurityAuditTools(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
@@ -62,6 +95,18 @@ public class SecurityAuditTools {
         this.appConfig = appConfig;
     }
 
+    /**
+     * 执行审计相关逻辑。
+     *
+     * @param action 操作参数。
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @param url 待校验或访问的 URL。
+     * @param path 文件或目录路径。
+     * @param writeLike 写入Like参数。
+     * @param argsJson argsJSON参数。
+     * @return 返回审计结果。
+     */
     @ToolMapping(
             name = "security_audit",
             description = "只读安全审计。action 支持 command、url、path、tool_args、policy/status；不会执行命令或访问目标。")
@@ -97,6 +142,12 @@ public class SecurityAuditTools {
         return ONode.serialize(result.toMap());
     }
 
+    /**
+     * 执行审计策略相关逻辑。
+     *
+     * @param mode 模式参数。
+     * @return 返回审计策略结果。
+     */
     private AuditResult auditPolicy(String mode) {
         String action = "status".equals(mode) ? "status" : "policy";
         AuditResult result = new AuditResult(action);
@@ -427,6 +478,13 @@ public class SecurityAuditTools {
         return result;
     }
 
+    /**
+     * 执行审计命令相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param command 待执行或解析的命令文本。
+     * @return 返回审计命令结果。
+     */
     private AuditResult auditCommand(String toolName, String command) {
         String effectiveTool = canonicalCommandAuditTool(toolName);
         AuditResult result = new AuditResult("command");
@@ -536,6 +594,12 @@ public class SecurityAuditTools {
         return result;
     }
 
+    /**
+     * 执行审计URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回审计URL结果。
+     */
     private AuditResult auditUrl(String url) {
         AuditResult result = new AuditResult("url");
         result.url = SecretRedactor.maskUrl(StrUtil.nullToEmpty(url).trim());
@@ -560,6 +624,13 @@ public class SecurityAuditTools {
         return result;
     }
 
+    /**
+     * 执行审计路径相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @param writeLike 写入Like参数。
+     * @return 返回审计路径。
+     */
     private AuditResult auditPath(String path, boolean writeLike) {
         AuditResult result = new AuditResult("path");
         result.path = pathReference(path);
@@ -586,6 +657,12 @@ public class SecurityAuditTools {
         return result;
     }
 
+    /**
+     * 执行路径引用相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回路径Reference结果。
+     */
     private String pathReference(String path) {
         String text = StrUtil.nullToEmpty(path).trim();
         if (StrUtil.isBlank(text)) {
@@ -598,6 +675,13 @@ public class SecurityAuditTools {
         return "path://" + SecretRedactor.redact(name, 200);
     }
 
+    /**
+     * 执行审计工具参数相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @param argsJson argsJSON参数。
+     * @return 返回审计工具参数结果。
+     */
     @SuppressWarnings("unchecked")
     private AuditResult auditToolArgs(String toolName, String argsJson) {
         String effectiveTool =
@@ -670,6 +754,12 @@ public class SecurityAuditTools {
         return result;
     }
 
+    /**
+     * 执行文件策略Finding消息相关逻辑。
+     *
+     * @param fileVerdict 文件或目录路径参数。
+     * @return 返回文件策略Finding消息结果。
+     */
     private String filePolicyFindingMessage(SecurityPolicyService.FileVerdict fileVerdict) {
         if (fileVerdict == null) {
             return "文件安全策略阻断：[REDACTED_PATH]";
@@ -677,6 +767,13 @@ public class SecurityAuditTools {
         return StrUtil.blankToDefault(fileVerdict.getMessage(), "文件安全策略阻断") + ": [REDACTED_PATH]";
     }
 
+    /**
+     * 应用命令Policies。
+     *
+     * @param result 结果响应或执行结果。
+     * @param effectiveTool effective工具参数。
+     * @param command 待执行或解析的命令文本。
+     */
     private void applyCommandPolicies(AuditResult result, String effectiveTool, String command) {
         AuditResult commandResult = auditCommand(effectiveTool, command);
         result.commandPreview = commandResult.commandPreview;
@@ -693,12 +790,25 @@ public class SecurityAuditTools {
         result.escalate(commandResult.decision);
     }
 
+    /**
+     * 执行命令Like参数相关逻辑。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回命令Like参数结果。
+     */
     private List<String> commandLikeArguments(Map<String, Object> args) {
         List<String> commands = new ArrayList<String>();
         collectCommandLikeArguments(args, commands, false);
         return commands;
     }
 
+    /**
+     * 收集命令Like参数。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param commands commands 参数。
+     * @param commandValue 命令值参数。
+     */
     @SuppressWarnings("unchecked")
     private void collectCommandLikeArguments(
             Object value, List<String> commands, boolean commandValue) {
@@ -753,6 +863,12 @@ public class SecurityAuditTools {
         }
     }
 
+    /**
+     * 执行命令值To字符串相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回命令Value To String结果。
+     */
     private String commandValueToString(Object value) {
         if (value == null) {
             return null;
@@ -795,6 +911,12 @@ public class SecurityAuditTools {
         return null;
     }
 
+    /**
+     * 追加命令Part。
+     *
+     * @param buffer buffer 参数。
+     * @param value 待规范化或校验的原始值。
+     */
     private void appendCommandPart(StringBuilder buffer, Object value) {
         if (value == null) {
             return;
@@ -820,6 +942,12 @@ public class SecurityAuditTools {
         }
     }
 
+    /**
+     * 执行规范命令审计工具相关逻辑。
+     *
+     * @param toolName 工具名称。
+     * @return 返回规范命令审计工具结果。
+     */
     private String canonicalCommandAuditTool(String toolName) {
         String normalized =
                 StrUtil.blankToDefault(toolName, ToolNameConstants.EXECUTE_SHELL).trim();
@@ -844,6 +972,12 @@ public class SecurityAuditTools {
         return normalized;
     }
 
+    /**
+     * 追加Tirith。
+     *
+     * @param result 结果响应或执行结果。
+     * @param scan scan 参数。
+     */
     private void addTirith(AuditResult result, TirithSecurityService.ScanResult scan) {
         if (scan == null) {
             return;
@@ -881,30 +1015,83 @@ public class SecurityAuditTools {
         }
     }
 
+    /** 表示审计结果，携带调用方后续判断所需信息。 */
     private static class AuditResult {
+        /** 记录审计中的action。 */
         private final String action;
+
+        /** 是否启用success。 */
         private boolean success = true;
+
+        /** 记录审计中的决策。 */
         private String decision = "allow";
+
+        /** 记录审计中的摘要。 */
         private String summary = "";
+
+        /** 记录审计中的工具名称。 */
         private String toolName;
+
+        /** 记录审计中的命令预览。 */
         private String commandPreview;
+
+        /** 记录审计中的URL。 */
         private String url;
+
+        /** 记录审计中的路径。 */
         private String path;
+
+        /** 是否启用写入Like。 */
         private Boolean writeLike;
+
+        /** 记录审计中的tirithAction。 */
         private String tirithAction;
+
+        /** 保存策略映射，便于按键快速查询。 */
         private Map<String, Object> policy;
+
+        /** 保存findings映射，便于按键快速查询。 */
         private final List<Map<String, Object>> findings = new ArrayList<Map<String, Object>>();
+
+        /** 是否启用blocking。 */
         private boolean blocking;
+
+        /** 是否启用审批Required。 */
         private boolean approvalRequired;
 
+        /**
+         * 创建审计结果实例，并注入运行所需依赖。
+         *
+         * @param action 操作参数。
+         */
         private AuditResult(String action) {
             this.action = action;
         }
 
+        /**
+         * 追加Finding。
+         *
+         * @param source 来源参数。
+         * @param ruleId rule标识。
+         * @param severity severity 参数。
+         * @param message 平台消息或错误消息。
+         */
         private void addFinding(String source, String ruleId, String severity, String message) {
             addFinding(source, ruleId, severity, message, severity, false, false, "");
         }
 
+        /**
+         * 追加Finding。
+         *
+         * @param source 来源参数。
+         * @param ruleId rule标识。
+         * @param severity severity 参数。
+         * @param message 平台消息或错误消息。
+         * @param findingDecision finding决策参数。
+         * @param finding块ing finding块ing 参数。
+         * @param findingApprovalRequired finding审批Required参数。
+         * @param suggestedAction suggestedAction 参数。
+         */
         private void addFinding(
                 String source,
                 String ruleId,
@@ -934,6 +1121,11 @@ public class SecurityAuditTools {
             findings.add(finding);
         }
 
+        /**
+         * 创建需要人工升级处理的审批决策。
+         *
+         * @param candidate candidate标识或键值。
+         */
         private void escalate(String candidate) {
             if ("block".equals(candidate)) {
                 decision = "block";
@@ -942,6 +1134,7 @@ public class SecurityAuditTools {
             }
         }
 
+        /** 执行finish相关逻辑。 */
         private void finish() {
             if (StrUtil.isBlank(summary)) {
                 if (findings.isEmpty()) {
@@ -952,6 +1145,11 @@ public class SecurityAuditTools {
             }
         }
 
+        /**
+         * 转换为Map。
+         *
+         * @return 返回转换后的Map。
+         */
         private Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("success", Boolean.valueOf(success));
@@ -986,16 +1184,34 @@ public class SecurityAuditTools {
         }
     }
 
+    /**
+     * 执行大小相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回大小结果。
+     */
     private static int size(List<?> values) {
         return values == null ? 0 : values.size();
     }
 
+    /**
+     * 追加Surface。
+     *
+     * @param surfaces surfaces 参数。
+     * @param name 名称参数。
+     * @param enabled 启用状态开关值。
+     */
     private static void addSurface(List<String> surfaces, String name, boolean enabled) {
         if (enabled) {
             surfaces.add(name);
         }
     }
 
+    /**
+     * 读取Only审计策略Summary。
+     *
+     * @return 返回读取到的Only审计策略Summary。
+     */
     public static Map<String, Object> readOnlyAuditPolicySummary() {
         Map<String, Object> policy = new LinkedHashMap<String, Object>();
         policy.put("toolName", "security_audit");
@@ -1017,6 +1233,7 @@ public class SecurityAuditTools {
         return policy;
     }
 
+    /** 命令参数KEYS的统一常量值。 */
     private static final Set<String> COMMAND_ARGUMENT_KEYS =
             Collections.unmodifiableSet(
                     new HashSet<String>(
@@ -1029,6 +1246,12 @@ public class SecurityAuditTools {
                                     "shell",
                                     "shell_command")));
 
+    /**
+     * 规范化审批模式。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回审批模式结果。
+     */
     private static String normalizeApprovalMode(String value) {
         String mode = StrUtil.blankToDefault(value, "on").trim().toLowerCase(Locale.ROOT);
         if ("false".equals(mode)) {
@@ -1043,6 +1266,12 @@ public class SecurityAuditTools {
         return "on";
     }
 
+    /**
+     * 规范化定时任务审批模式。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回定时任务审批模式结果。
+     */
     private static String normalizeCronApprovalMode(String value) {
         String mode = StrUtil.blankToDefault(value, "approval").trim().toLowerCase(Locale.ROOT);
         if ("approve".equals(mode) || "allow".equals(mode) || "yes".equals(mode)) {
@@ -1067,6 +1296,11 @@ public class SecurityAuditTools {
         return "approval";
     }
 
+    /**
+     * 执行兜底定时任务审批模式相关逻辑。
+     *
+     * @return 返回兜底定时任务审批模式结果。
+     */
     private String fallbackCronApprovalMode() {
         if (appConfig == null) {
             return "approval";

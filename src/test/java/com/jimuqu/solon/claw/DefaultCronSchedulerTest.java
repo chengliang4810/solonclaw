@@ -143,10 +143,59 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastOutput()).contains("disk ok");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("Cronjob Response: watchdog")
+                .contains("定时任务响应：watchdog")
                 .contains("(job_id: " + job.getJobId() + ")")
                 .contains("disk ok")
-                .contains("To stop or manage this job");
+                .contains("如需停止或管理此任务，请直接发送新的消息")
+                .contains("stop reminder watchdog")
+                .doesNotContain("Cronjob Response")
+                .doesNotContain("To stop or manage this job");
+    }
+
+    @Test
+    void shouldSanitizeCronManagementCommandExampleInDeliveryWrapper() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("admin-dm", "admin-user", "hello");
+        env.send("admin-dm", "admin-user", "/pairing claim-admin");
+        env.gatewayService.handle(
+                env.message("home-room", "admin-user", "group", "Home", "Admin", "/sethome"));
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "quoted.py");
+        FileUtil.writeString("print('quoted ok')", script, StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "成都\"天气\n早报");
+        body.put("schedule", "30m");
+        body.put("script", "quoted.py");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "origin");
+        Map<String, Object> origin = new LinkedHashMap<String, Object>();
+        origin.put("platform", "MEMORY");
+        origin.put("chat_id", "home-room");
+        body.put("origin", origin);
+        CronJobRecord job = service.create("MEMORY:admin-dm:admin-user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        String text = env.memoryChannelAdapter.getLastRequest().getText();
+        assertThat(text)
+                .contains("如需停止或管理此任务，请直接发送新的消息")
+                .contains("stop reminder 成都'天气 早报")
+                .doesNotContain("stop reminder 成都\"天气\n早报");
     }
 
     @Test
@@ -281,20 +330,20 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("error");
         assertThat(updated.getLastError())
-                .contains("Cron script exited 3")
+                .contains("定时任务脚本退出码 3")
                 .contains("partial output")
                 .contains("oops")
                 .contains("***")
                 .doesNotContain(leakedToken);
         assertThat(updated.getLastDeliveryError()).isNull();
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("Cron watchdog 'broken-watchdog' script failed")
-                .contains("Cron script exited 3")
+                .contains("定时任务监控 'broken-watchdog' 脚本执行失败")
+                .contains("定时任务脚本退出码 3")
                 .contains("partial output")
                 .contains("oops")
                 .contains("***")
                 .doesNotContain(leakedToken)
-                .contains("Time:");
+                .contains("时间：");
         assertThat(env.cronJobRepository.listRuns(job.getJobId(), 5)).hasSize(1);
         assertThat(env.cronJobRepository.listRuns(job.getJobId(), 5).get(0).getError())
                 .contains("***")
@@ -333,14 +382,14 @@ public class DefaultCronSchedulerTest {
                                 scheduler.runNow("idle-job");
                             }
                         })
-                .hasMessageContaining("Cron job 'idle-job' idle")
-                .hasMessageContaining("last activity: model test-provider/test-model");
+                .hasMessageContaining("定时任务 'idle-job' 已空闲")
+                .hasMessageContaining("最后活动：model test-provider/test-model");
 
         assertThat(controlService.stoppedSourceKey).isEqualTo("CRON:idle-job");
         assertThat(orchestrator.interrupted.get()).isTrue();
         assertThat(env.cronJobRepository.findById("idle-job").getLastStatus()).isEqualTo("error");
         assertThat(env.cronJobRepository.findById("idle-job").getLastError())
-                .contains("Cron job 'idle-job' idle");
+                .contains("定时任务 'idle-job' 已空闲");
     }
 
     @Test
@@ -465,7 +514,7 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("echo:[IMPORTANT: You are running as a scheduled cron job.")
+                .contains("echo:[IMPORTANT: 你正在以定时任务身份运行。")
                 .contains("raw prompt")
                 .doesNotContain("Cronjob Response");
     }
@@ -973,7 +1022,7 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastOutput()).isEqualTo("agent saw script error");
         assertThat(orchestrator.userMessage)
-                .contains("## Script Output")
+                .contains("## 脚本输出")
                 .contains("checked")
                 .contains("{\"wakeAgent\": false}")
                 .contains("Use the script output.");
@@ -1226,7 +1275,7 @@ public class DefaultCronSchedulerTest {
         assertThat(runs).hasSize(1);
         CronJobRunRecord run = runs.get(0);
         assertThat(run.getStatus()).isEqualTo("ok");
-        assertThat(run.getDeliveryError()).contains("1/2 delivery target");
+        assertThat(run.getDeliveryError()).contains("1/2 个投递目标失败");
         assertThat(run.getDeliveryResultJson()).contains("\"total\":2");
         assertThat(run.getDeliveryResultJson()).contains("\"delivered\":1");
         assertThat(run.getDeliveryResultJson()).contains("\"failed\":1");
@@ -1356,15 +1405,15 @@ public class DefaultCronSchedulerTest {
 
         CronJobRecord updated = env.cronJobRepository.findById("job-empty-response");
         assertThat(updated.getLastStatus()).isEqualTo("error");
-        assertThat(updated.getLastError()).contains("Agent completed but produced empty response");
-        assertThat(updated.getLastOutput()).contains("(No response generated)");
+        assertThat(updated.getLastError()).contains("Agent 已完成但未生成回复");
+        assertThat(updated.getLastOutput()).contains("未生成回复");
         assertThat(updated.getLastDeliveryError()).isNull();
         assertThat(env.memoryChannelAdapter.getRequests()).isEmpty();
         assertThat(env.cronJobRepository.listRuns("job-empty-response", 5)).hasSize(1);
         assertThat(env.cronJobRepository.listRuns("job-empty-response", 5).get(0).getStatus())
                 .isEqualTo("error");
         assertThat(env.cronJobRepository.listRuns("job-empty-response", 5).get(0).getError())
-                .contains("empty response");
+                .contains("未生成回复");
     }
 
     @Test
@@ -1390,8 +1439,8 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastOutput()).contains("model abort");
         assertThat(updated.getLastDeliveryError()).isNull();
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("Cronjob Response: job-agent-error")
-                .contains("Cron job 'job-agent-error' failed:")
+                .contains("定时任务响应：job-agent-error")
+                .contains("定时任务 'job-agent-error' 执行失败")
                 .contains("model abort");
         assertThat(env.cronJobRepository.listRuns("job-agent-error", 5)).hasSize(1);
         assertThat(env.cronJobRepository.listRuns("job-agent-error", 5).get(0).getStatus())
@@ -1440,7 +1489,7 @@ public class DefaultCronSchedulerTest {
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("error");
-        assertThat(updated.getLastError()).contains("Cron script").contains("dangerous command");
+        assertThat(updated.getLastError()).contains("定时任务脚本").contains("危险命令模式");
     }
 
     @Test
@@ -1589,7 +1638,7 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastStatus()).isEqualTo("error");
         assertThat(updated.getLastError())
                 .contains("BLOCKED (hardline)")
-                .contains("Non-allowlisted hardline commands cannot run from cron");
+                .contains("未进入允许名单的硬阻断命令不能从定时任务运行");
     }
 
     @Test
@@ -1634,7 +1683,7 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastError())
                 .contains("BLOCKED (lifecycle)")
                 .contains("restart-loop")
-                .contains("Gateway lifecycle");
+                .contains("网关生命周期");
     }
 
     @Test
@@ -1718,9 +1767,9 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastError()).isNull();
         assertThat(updated.getLastOutput()).contains("agent saw script error");
         assertThat(orchestrator.userMessage)
-                .contains("## Script Error")
-                .contains("The data-collection script failed")
-                .contains("Cron script exited 1")
+                .contains("## 脚本错误")
+                .contains("数据采集脚本执行失败")
+                .contains("定时任务脚本退出码 1")
                 .contains("missing dependency")
                 .contains("Report status.");
     }
@@ -2056,7 +2105,7 @@ public class DefaultCronSchedulerTest {
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("error");
-        assertThat(updated.getLastError()).contains("Cron script not found under runtime/scripts");
+        assertThat(updated.getLastError()).contains("定时任务脚本不在 runtime/scripts 下");
         assertThat(updated.getLastOutput()).doesNotContain("escaped");
     }
 
@@ -2089,7 +2138,7 @@ public class DefaultCronSchedulerTest {
                         null);
         Map<?, ?> created = (Map<?, ?>) ONode.ofJson(createdJson).toData();
         String jobId = String.valueOf(created.get("job_id"));
-        assertThat(created.get("message")).isEqualTo("Cron job 'tool-job' created.");
+        assertThat(created.get("message")).isEqualTo("定时任务 'tool-job' 已创建。");
         assertThat(created.get("schedule")).isEqualTo("30m");
         assertThat(created.get("repeat")).isEqualTo("forever");
         assertThat(((Map<?, ?>) created.get("job")).get("wrap_response")).isEqualTo(Boolean.FALSE);
@@ -2491,8 +2540,8 @@ public class DefaultCronSchedulerTest {
                                                 null, null, null, null, null, null, null, null,
                                                 null, null, null))
                                 .toData();
-        assertThat(showAlias.get("summary").toString()).contains("Cron job details");
-        assertThat(detailAlias.get("summary").toString()).contains("Cron job details");
+        assertThat(showAlias.get("summary").toString()).contains("定时任务详情");
+        assertThat(detailAlias.get("summary").toString()).contains("定时任务详情");
 
         Map<?, ?> defaultList =
                 (Map<?, ?>)
@@ -2572,9 +2621,9 @@ public class DefaultCronSchedulerTest {
                                                 null, null, null))
                                 .toData();
         assertThat(triggered.get("triggered")).isEqualTo(Boolean.TRUE);
-        assertThat(triggered.get("trigger_message").toString()).contains("next scheduler tick");
+        assertThat(triggered.get("trigger_message").toString()).contains("下一次调度 tick");
         assertThat(triggered.get("next_run_at")).isNotNull();
-        assertThat(triggered.get("summary").toString()).contains("queued for immediate run");
+        assertThat(triggered.get("summary").toString()).contains("立即运行队列");
 
         Map<?, ?> removed =
                 (Map<?, ?>)
@@ -2584,7 +2633,7 @@ public class DefaultCronSchedulerTest {
                                                 null, null, null, null, null, null, null, null,
                                                 null, null, null))
                                 .toData();
-        assertThat(removed.get("message")).isEqualTo("Cron job 'tool-job' removed.");
+        assertThat(removed.get("message")).isEqualTo("定时任务 'tool-job' 已删除。");
         assertThat(((Map<?, ?>) removed.get("removed_job")).get("schedule")).isEqualTo("30m");
 
         Map<?, ?> missingJob =
@@ -2699,7 +2748,7 @@ public class DefaultCronSchedulerTest {
                                                 null))
                                 .toData();
         assertThat(emptyUpdate.get("success")).isEqualTo(Boolean.FALSE);
-        assertThat(emptyUpdate.get("error")).isEqualTo("No updates provided.");
+        assertThat(emptyUpdate.get("error")).isEqualTo("未提供任何更新内容。");
     }
 
     @Test
@@ -3161,7 +3210,7 @@ public class DefaultCronSchedulerTest {
                                                 Integer.valueOf(1)))
                                 .toData();
 
-        assertThat(next.get("summary")).isEqualTo("Listed upcoming cron jobs");
+        assertThat(next.get("summary")).isEqualTo("已列出即将运行的定时任务");
         assertThat(next.get("count")).isEqualTo(Integer.valueOf(1));
         assertThat(next.get("limit")).isEqualTo(Integer.valueOf(1));
         List<?> nextJobs = (List<?>) next.get("jobs");
@@ -3416,8 +3465,8 @@ public class DefaultCronSchedulerTest {
                 .contains("resume/enable/start")
                 .contains("remove/delete/rm")
                 .contains("run/run_now/trigger/retry/rerun")
-                .contains("never guess job IDs")
-                .contains("Cron jobs should not recursively schedule more cron jobs");
+                .contains("禁止猜测 job_id")
+                .contains("定时任务不应递归创建新的定时任务");
         assertThat(paramDescription(method, "job_id")).contains("先 list 再使用");
         assertThat(paramDescription(method, "deliver")).contains("省略时自动投递回当前来源");
         assertThat(paramDescription(method, "deliver_chat_id")).contains("投递会话 ID");
@@ -3538,7 +3587,7 @@ public class DefaultCronSchedulerTest {
         assertThat(String.valueOf(delivery.get("wrapFlags")))
                 .contains("--raw")
                 .contains("--no-wrap-response");
-        assertThat(String.valueOf(delivery.get("wrapResponsePolicy"))).contains("raw output");
+        assertThat(String.valueOf(delivery.get("wrapResponsePolicy"))).contains("原始输出");
         assertThat(String.valueOf(delivery.get("supportedPlatforms")))
                 .contains("FEISHU")
                 .contains("DINGTALK")
@@ -3546,7 +3595,7 @@ public class DefaultCronSchedulerTest {
                 .contains("YUANBAO");
         assertThat(String.valueOf(delivery.get("targetModes")))
                 .contains("platform:chat_id:thread_id")
-                .contains("multiple targets");
+                .contains("多个目标");
         assertThat(skillBinding.get("singleSkillSupported")).isEqualTo(Boolean.TRUE);
         assertThat(skillBinding.get("multipleSkillsSupported")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(skillBinding.get("replaceFlags"))).contains("--skills a,b");
@@ -4003,10 +4052,10 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         assertThat(gateway.userMessage)
-                .startsWith("[IMPORTANT: You are running as a scheduled cron job.")
-                .contains("final response will be automatically delivered")
-                .contains("do not call send_message")
-                .contains("respond with exactly \"[SILENT]\"")
+                .startsWith("[IMPORTANT: 你正在以定时任务身份运行。")
+                .contains("最终回复会自动投递给用户")
+                .contains("不要调用 send_message")
+                .contains("只回复 \"[SILENT]\"")
                 .contains("Summarize the daily status.");
         assertThat(gateway.toolObjectsText).doesNotContain("MessagingTools");
         assertThat(gateway.systemPrompt).doesNotContain("send_message");
@@ -4486,17 +4535,17 @@ public class DefaultCronSchedulerTest {
                                 scheduler.runNow(job.getJobId());
                             }
                         })
-                .hasMessageContaining("BLOCKED: Cron assembled prompt");
+                .hasMessageContaining("BLOCKED: 定时任务组装提示词");
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(orchestrator.userMessage).isNull();
         assertThat(updated.getLastStatus()).isEqualTo("error");
         assertThat(updated.getLastError())
-                .contains("BLOCKED: Cron assembled prompt")
+                .contains("BLOCKED: 定时任务组装提示词")
                 .contains("prompt_injection");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("Status:** BLOCKED")
-                .contains("assembled prompt")
+                .contains("状态：** BLOCKED")
+                .contains("组装后的提示词")
                 .contains("prompt_injection");
     }
 
@@ -4539,7 +4588,7 @@ public class DefaultCronSchedulerTest {
                                 scheduler.runNow(job.getJobId());
                             }
                         })
-                .hasMessageContaining("BLOCKED: Cron assembled prompt");
+                .hasMessageContaining("BLOCKED: 定时任务组装提示词");
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(orchestrator.userMessage).isNull();
@@ -5059,25 +5108,8 @@ public class DefaultCronSchedulerTest {
 
     private String cronjobList(CronjobTools tools) throws Exception {
         return tools.cronjob(
-                "list",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
+                "list", null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
     }
 
     private String paramDescription(Method method, String name) {

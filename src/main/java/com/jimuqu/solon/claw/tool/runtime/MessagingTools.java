@@ -22,32 +22,65 @@ import org.noear.solon.annotation.Param;
 /** MessagingTools 实现。 */
 @RequiredArgsConstructor
 public class MessagingTools {
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 记录Messaging中的来源键。 */
     private final String sourceKey;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入应用配置，用于Messaging。 */
     private final AppConfig appConfig;
 
-    @ToolMapping(
-            name = "send_message",
-            description =
-                    "Send a text message with optional local media attachments to a target platform and chat. If platform or chatId is empty, send back to the current source.")
+    /**
+     * 发送消息。
+     *
+     * @param platform 平台参数。
+     * @param chatId 聊天标识。
+     * @param threadId thread标识。
+     * @param text 待处理文本。
+     * @param mediaPaths 文件或目录路径参数。
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回消息结果。
+     */
     public String sendMessage(
-            @Param(name = "platform", description = "目标平台名", required = false) String platform,
-            @Param(name = "chatId", description = "目标聊天 ID", required = false) String chatId,
-            @Param(name = "threadId", description = "目标线程或话题 ID", required = false) String threadId,
-            @Param(name = "text", description = "要发送的文本") String text,
-            @Param(
-                            name = "mediaPaths",
-                            description =
-                                    "可选本地附件路径数组；优先传 PDF/文件工具返回的路径或文件名。文件必须位于 runtime/cache 下，或是 runtime 根目录直接生成的安全附件文件。",
-                            required = false)
-                    List<String> mediaPaths,
-            @Param(
-                            name = "channelExtrasJson",
-                            description = "可选渠道扩展 JSON；例如钉钉 AI card 所需参数",
-                            required = false)
-                    String channelExtrasJson)
+            String platform,
+            String chatId,
+            String threadId,
+            String text,
+            List<String> mediaPaths,
+            String channelExtrasJson)
             throws Exception {
+        return dispatchMessage(null, platform, chatId, threadId, text, mediaPaths, channelExtrasJson);
+    }
+
+    /**
+     * 发送消息或列出可用目标。
+     *
+     * @param action 操作：send/list。
+     * @param platform 平台参数。
+     * @param chatId 聊天标识。
+     * @param threadId thread标识。
+     * @param text 待处理文本。
+     * @param mediaPaths 文件或目录路径参数。
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回消息结果。
+     */
+    private String dispatchMessage(
+            String action,
+            String platform,
+            String chatId,
+            String threadId,
+            String text,
+            List<String> mediaPaths,
+            String channelExtrasJson)
+            throws Exception {
+        String normalizedAction = StrUtil.blankToDefault(action, "send").trim().toLowerCase();
+        if ("list".equals(normalizedAction) || "targets".equals(normalizedAction)) {
+            return listTargets();
+        }
         String[] parts = SourceKeySupport.split(sourceKey);
         if (StrUtil.isBlank(parts[0]) || StrUtil.isBlank(parts[1])) {
             return error("invalid sourceKey");
@@ -107,6 +140,42 @@ public class MessagingTools {
                 .toJson();
     }
 
+    /**
+     * 列出可用消息目标。
+     *
+     * @return 返回目标列表。
+     */
+    @ToolMapping(
+            name = "send_message",
+            description =
+                    "Send a message or list available targets. Use action='list' before sending to a non-current target.")
+    public String sendMessage(
+            @Param(name = "action", required = false, description = "send/list") String action,
+            @Param(name = "platform", description = "目标平台名", required = false) String platform,
+            @Param(name = "chatId", description = "目标聊天 ID", required = false) String chatId,
+            @Param(name = "threadId", description = "目标线程或话题 ID", required = false) String threadId,
+            @Param(name = "text", description = "要发送的文本", required = false) String text,
+            @Param(
+                            name = "mediaPaths",
+                            description = "可选本地附件路径数组。",
+                            required = false)
+                    List<String> mediaPaths,
+            @Param(name = "channelExtrasJson", description = "可选渠道扩展 JSON", required = false)
+                    String channelExtrasJson)
+            throws Exception {
+        return dispatchMessage(action, platform, chatId, threadId, text, mediaPaths, channelExtrasJson);
+    }
+
+    /**
+     * 发送消息。
+     *
+     * @param platform 平台参数。
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     * @param mediaPaths 文件或目录路径参数。
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回消息结果。
+     */
     public String sendMessage(
             String platform,
             String chatId,
@@ -114,17 +183,65 @@ public class MessagingTools {
             List<String> mediaPaths,
             String channelExtrasJson)
             throws Exception {
-        return sendMessage(platform, chatId, null, text, mediaPaths, channelExtrasJson);
+        return dispatchMessage(null, platform, chatId, null, text, mediaPaths, channelExtrasJson);
     }
 
+    /**
+     * 列出当前来源和默认回发目标。
+     *
+     * @return 返回结构化目标信息。
+     */
+    private String listTargets() {
+        String[] parts = SourceKeySupport.split(sourceKey);
+        Map<String, Object> current = new LinkedHashMap<String, Object>();
+        current.put("sourceKey", safeResult(sourceKey, 400));
+        current.put("platform", safeResult(parts[0], 100));
+        current.put("chatId", safeResult(parts[1], 400));
+        current.put("userId", safeResult(parts[2], 400));
+        current.put("threadId", safeResult(parts[3], 400));
+        Map<String, Object> target = new LinkedHashMap<String, Object>();
+        target.put("label", "current_source");
+        target.put("platform", safeResult(parts[0], 100));
+        target.put("chatId", safeResult(parts[1], 400));
+        target.put("threadId", safeResult(parts[3], 400));
+        List<Map<String, Object>> targets = new ArrayList<Map<String, Object>>();
+        targets.add(target);
+        return ToolResultEnvelope.ok("Available message targets")
+                .data("current", current)
+                .data("targets", targets)
+                .data("explicitTargetsAllowed", Boolean.FALSE)
+                .metadata("sourceKey", safeResult(sourceKey, 400))
+                .toJson();
+    }
+
+    /**
+     * 执行错误相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回error结果。
+     */
     private String error(String message) {
         return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
     }
 
+    /**
+     * 生成安全展示用的结果。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe结果。
+     */
     private String safeResult(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 解析附件。
+     *
+     * @param platform 平台参数。
+     * @param mediaPaths 文件或目录路径参数。
+     * @return 返回解析后的附件。
+     */
     private List<MessageAttachment> resolveAttachments(
             PlatformType platform, List<String> mediaPaths) {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
@@ -144,6 +261,12 @@ public class MessagingTools {
         return attachments;
     }
 
+    /**
+     * 解析附件文件。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 返回解析后的附件文件。
+     */
     private File resolveAttachmentFile(String rawPath) {
         File direct = new File(rawPath);
         if (direct.isFile()) {
@@ -165,6 +288,12 @@ public class MessagingTools {
         return direct.isAbsolute() ? direct : workspaceFile;
     }
 
+    /**
+     * 执行兜底Candidates相关逻辑。
+     *
+     * @param fileName 文件或目录路径参数。
+     * @return 返回兜底Candidates结果。
+     */
     private List<File> fallbackCandidates(String fileName) {
         List<File> candidates = new ArrayList<File>();
         if (appConfig != null && appConfig.getRuntime() != null) {
@@ -178,6 +307,12 @@ public class MessagingTools {
         return candidates;
     }
 
+    /**
+     * 解析渠道Extras。
+     *
+     * @param channelExtrasJson 渠道ExtrasJSON参数。
+     * @return 返回解析后的渠道Extras。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseChannelExtras(String channelExtrasJson) {
         if (StrUtil.isBlank(channelExtrasJson)) {

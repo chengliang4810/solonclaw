@@ -31,20 +31,37 @@ import org.noear.solon.ai.skills.web.WebfetchTool;
 import org.noear.solon.ai.skills.web.WebsearchTool;
 import org.noear.solon.annotation.Param;
 
-/** Solon AI web tools wrapped with Jimuqu URL and website policy checks. */
+/** 提供Solon项目Web工具能力，供 Agent 运行时按安全策略调用。 */
 public class SolonClawWebTools {
+    /** BRAVEFREEBACKEND的统一常量值。 */
     private static final String BRAVE_FREE_BACKEND = "brave-free";
+
+    /** DDGSBACKEND的统一常量值。 */
     private static final String DDGS_BACKEND = "ddgs";
+
+    /** BRAVE搜索ENDPO整型的统一常量值。 */
     private static final String BRAVE_SEARCH_ENDPOINT =
             "https://api.search.brave.com/res/v1/web/search";
+
+    /** DDGS搜索ENDPO整型的统一常量值。 */
     private static final String DDGS_SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
+
+    /** DDGS结果LINK正则的统一常量值。 */
     private static final Pattern DDGS_RESULT_LINK_PATTERN =
             Pattern.compile(
                     "(?is)<a\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__a[^'\"]*['\"][^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>");
+
+    /** DDGSSNIPPET正则的统一常量值。 */
     private static final Pattern DDGS_SNIPPET_PATTERN =
             Pattern.compile(
                     "(?is)<a\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__snippet[^'\"]*['\"][^>]*>(.*?)</a>|<div\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__snippet[^'\"]*['\"][^>]*>(.*?)</div>");
 
+    /**
+     * 执行阻断消息相关逻辑。
+     *
+     * @param verdict 判定参数。
+     * @return 返回blocked消息结果。
+     */
     private static String blockedMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
                 + verdict.getMessage()
@@ -53,6 +70,13 @@ public class SolonClawWebTools {
                 + "\n请换用公开、可信且符合网站访问策略的地址。";
     }
 
+    /**
+     * 执行check相关逻辑。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     */
     private static void check(
             SecurityPolicyService securityPolicyService,
             String toolName,
@@ -67,6 +91,12 @@ public class SolonClawWebTools {
         }
     }
 
+    /**
+     * 检查URL。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param url 待校验或访问的 URL。
+     */
     private static void checkUrl(SecurityPolicyService securityPolicyService, String url) {
         if (securityPolicyService == null || StrUtil.isBlank(url)) {
             return;
@@ -77,6 +107,12 @@ public class SolonClawWebTools {
         }
     }
 
+    /**
+     * 检查Final Document Urls。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param document document 参数。
+     */
     private static void checkFinalDocumentUrls(
             SecurityPolicyService securityPolicyService, Document document) {
         if (document == null) {
@@ -96,6 +132,12 @@ public class SolonClawWebTools {
         }
     }
 
+    /**
+     * 检查Returned Urls。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param value 待规范化或校验的原始值。
+     */
     private static void checkReturnedUrls(
             SecurityPolicyService securityPolicyService, Object value) {
         if (securityPolicyService == null || value == null) {
@@ -105,6 +147,13 @@ public class SolonClawWebTools {
         checkReturnedUrls(securityPolicyService, value, visited);
     }
 
+    /**
+     * 检查Returned Urls。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param value 待规范化或校验的原始值。
+     * @param visited visited 参数。
+     */
     private static void checkReturnedUrls(
             SecurityPolicyService securityPolicyService, Object value, Set<Object> visited) {
         if (value == null || visited.contains(value)) {
@@ -151,6 +200,12 @@ public class SolonClawWebTools {
         }
     }
 
+    /**
+     * 检查Returned Text Urls。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param text 待处理文本。
+     */
     private static void checkReturnedTextUrls(
             SecurityPolicyService securityPolicyService, String text) {
         if (securityPolicyService == null) {
@@ -161,20 +216,43 @@ public class SolonClawWebTools {
         }
     }
 
+    /** 提供Safe Webfetch工具能力，供 Agent 运行时按安全策略调用。 */
     public static class SafeWebfetchTool {
+        /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
+
+        /** 记录安全Webfetch中的委托。 */
         private final WebfetchTool delegate;
 
+        /**
+         * 创建Safe Webfetch工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         */
         public SafeWebfetchTool(SecurityPolicyService securityPolicyService) {
             this(securityPolicyService, WebfetchTool.getInstance());
         }
 
+        /**
+         * 创建Safe Webfetch工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param delegate 委派参数。
+         */
         public SafeWebfetchTool(
                 SecurityPolicyService securityPolicyService, WebfetchTool delegate) {
             this.securityPolicyService = securityPolicyService;
             this.delegate = delegate;
         }
 
+        /**
+         * 执行webfetch相关逻辑。
+         *
+         * @param url 待校验或访问的 URL。
+         * @param format 格式参数。
+         * @param timeoutSeconds 超时时间，单位为秒。
+         * @return 返回webfetch结果。
+         */
         @ToolMapping(name = "webfetch", description = "从 URL 获取网页内容。返回格式支持 markdown, text 或 html。")
         public Document webfetch(
                 @Param(name = "url", description = "目标网页的完整 URL（必须包含 http:// 或 https://）")
@@ -195,23 +273,86 @@ public class SolonClawWebTools {
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
         }
+
+        /**
+         * 参考风格Web提取工具名。
+         *
+         * @param urls 目标URL列表。
+         * @param format 返回格式。
+         * @param timeoutSeconds 超时时间。
+         * @return 返回提取结果。
+         */
+        @ToolMapping(name = "web_extract", description = "Extract content from a URL or URL list.")
+        public Document webExtract(
+                @Param(name = "urls", description = "URL or list of URLs to extract") Object urls,
+                @Param(name = "format", required = false, defaultValue = "markdown") String format,
+                @Param(name = "timeout", required = false) Integer timeoutSeconds)
+                throws Exception {
+            String url = firstUrl(urls);
+            return webfetch(url, format, timeoutSeconds);
+        }
+
+        /**
+         * 解析首个URL。
+         *
+         * @param urls URL输入。
+         * @return 返回URL。
+         */
+        private String firstUrl(Object urls) {
+            if (urls instanceof Iterable) {
+                java.util.Iterator<?> iterator = ((Iterable<?>) urls).iterator();
+                return iterator.hasNext()
+                        ? StrUtil.nullToEmpty(String.valueOf(iterator.next())).trim()
+                        : "";
+            }
+            if (urls != null && urls.getClass().isArray() && java.lang.reflect.Array.getLength(urls) > 0) {
+                return StrUtil.nullToEmpty(String.valueOf(java.lang.reflect.Array.get(urls, 0))).trim();
+            }
+            return urls == null ? "" : StrUtil.nullToEmpty(String.valueOf(urls)).trim();
+        }
     }
 
+    /** 提供Safe Websearch工具能力，供 Agent 运行时按安全策略调用。 */
     public static class SafeWebsearchTool {
+        /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
+
+        /** 记录安全Websearch中的委托。 */
         private final WebsearchTool delegate;
+
+        /** 注入应用配置，用于安全Websearch。 */
         private final AppConfig appConfig;
+
+        /** 保存Web搜索Providers集合，维持调用顺序或去重语义。 */
         private List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> webSearchProviders;
 
+        /**
+         * 创建Safe Websearch工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         */
         public SafeWebsearchTool(SecurityPolicyService securityPolicyService) {
             this(securityPolicyService, WebsearchTool.getInstance(), null);
         }
 
+        /**
+         * 创建Safe Websearch工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param delegate 委派参数。
+         */
         public SafeWebsearchTool(
                 SecurityPolicyService securityPolicyService, WebsearchTool delegate) {
             this(securityPolicyService, delegate, null);
         }
 
+        /**
+         * 创建Safe Websearch工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param delegate 委派参数。
+         * @param appConfig 应用运行配置。
+         */
         public SafeWebsearchTool(
                 SecurityPolicyService securityPolicyService,
                 WebsearchTool delegate,
@@ -221,11 +362,26 @@ public class SolonClawWebTools {
             this.appConfig = appConfig;
         }
 
+        /**
+         * 写入Web搜索Providers。
+         *
+         * @param providers 能力提供方列表。
+         */
         public void setWebSearchProviders(
                 List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> providers) {
             this.webSearchProviders = providers;
         }
 
+        /**
+         * 执行websearch相关逻辑。
+         *
+         * @param query 查询参数。
+         * @param numResults numResults响应或执行结果。
+         * @param livecrawl livecrawl 参数。
+         * @param type 类型参数。
+         * @param contextMaxCharacters 上下文MaxCharacters上下文。
+         * @return 返回websearch结果。
+         */
         @ToolMapping(name = "websearch", description = "执行实时web搜索")
         public Document websearch(
                 @Param(name = "query", description = "查询关键字") String query,
@@ -280,6 +436,29 @@ public class SolonClawWebTools {
             return safeDocument(document);
         }
 
+        /**
+         * 参考风格Web搜索工具名。
+         *
+         * @param query 查询参数。
+         * @param limit 最大结果数量。
+         * @return 返回搜索结果。
+         */
+        @ToolMapping(name = "web_search", description = "Search the web.")
+        public Document webSearch(
+                @Param(name = "query", description = "Search query") String query,
+                @Param(name = "limit", required = false, defaultValue = "5") Integer limit)
+                throws Exception {
+            return websearch(query, limit, "fallback", "auto", Integer.valueOf(10000));
+        }
+
+        /**
+         * 执行try插件提供方相关逻辑。
+         *
+         * @param backend backend 参数。
+         * @param query 查询参数。
+         * @param limit 最大返回数量。
+         * @return 返回try插件提供方结果。
+         */
         private Document tryPluginProvider(String backend, String query, int limit) {
             if (webSearchProviders == null
                     || webSearchProviders.isEmpty()
@@ -297,6 +476,14 @@ public class SolonClawWebTools {
             return null;
         }
 
+        /**
+         * 转换为提供方Document。
+         *
+         * @param results results响应或执行结果。
+         * @param query 查询参数。
+         * @param backend backend 参数。
+         * @return 返回转换后的提供方Document。
+         */
         private Document toProviderDocument(
                 List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult> results,
                 String query,
@@ -320,6 +507,11 @@ public class SolonClawWebTools {
             return new Document(ONode.serialize(result)).title("Web search: " + query);
         }
 
+        /**
+         * 执行normalized搜索Backend相关逻辑。
+         *
+         * @return 返回normalized搜索Backend结果。
+         */
         private String normalizedSearchBackend() {
             if (appConfig == null || appConfig.getWeb() == null) {
                 return "";
@@ -330,6 +522,13 @@ public class SolonClawWebTools {
                     .toLowerCase(Locale.ROOT);
         }
 
+        /**
+         * 执行brave搜索相关逻辑。
+         *
+         * @param query 查询参数。
+         * @param numResults numResults响应或执行结果。
+         * @return 返回brave搜索结果。
+         */
         private Document braveSearch(String query, Integer numResults) {
             String apiKey = resolveBraveSearchApiKey();
             if (!SecretValueGuard.hasUsableSecret(apiKey, 8)) {
@@ -376,6 +575,13 @@ public class SolonClawWebTools {
             return new Document(ONode.serialize(result)).title("Web search: " + query);
         }
 
+        /**
+         * 执行ddgs搜索相关逻辑。
+         *
+         * @param query 查询参数。
+         * @param numResults numResults响应或执行结果。
+         * @return 返回ddgs搜索结果。
+         */
         private Document ddgsSearch(String query, Integer numResults) {
             int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
             checkSearchEndpoint(DDGS_SEARCH_ENDPOINT);
@@ -390,6 +596,13 @@ public class SolonClawWebTools {
             return new Document(ONode.serialize(result)).title("Web search: " + query);
         }
 
+        /**
+         * 解析Ddgs Results。
+         *
+         * @param body 请求体或消息正文内容。
+         * @param limit 最大返回数量。
+         * @return 返回解析后的Ddgs Results。
+         */
         private List<Map<String, Object>> parseDdgsResults(String body, int limit) {
             String html = StrUtil.nullToEmpty(body);
             Matcher linkMatcher = DDGS_RESULT_LINK_PATTERN.matcher(html);
@@ -411,6 +624,12 @@ public class SolonClawWebTools {
             return web;
         }
 
+        /**
+         * 执行nextDdgsSnippet相关逻辑。
+         *
+         * @param snippetMatcher snippetMatcher 参数。
+         * @return 返回next Ddgs Snippet结果。
+         */
         private String nextDdgsSnippet(Matcher snippetMatcher) {
             if (snippetMatcher == null || !snippetMatcher.find()) {
                 return "";
@@ -422,6 +641,12 @@ public class SolonClawWebTools {
             return cleanHtmlText(value);
         }
 
+        /**
+         * 规范化Ddgs URL。
+         *
+         * @param rawUrl 待校验或访问的地址参数。
+         * @return 返回Ddgs URL结果。
+         */
         private String normalizeDdgsUrl(String rawUrl) {
             String value = HtmlUtil.unescape(StrUtil.nullToEmpty(rawUrl)).trim();
             if (value.startsWith("//")) {
@@ -443,12 +668,24 @@ public class SolonClawWebTools {
             return value;
         }
 
+        /**
+         * 清理Html文本。
+         *
+         * @param rawHtml 原始Html参数。
+         * @return 返回clean Html Text结果。
+         */
         private String cleanHtmlText(String rawHtml) {
             String text = HtmlUtil.cleanHtmlTag(StrUtil.nullToEmpty(rawHtml));
             text = HtmlUtil.unescape(text);
             return text.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
         }
 
+        /**
+         * 执行cast映射相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回cast Map结果。
+         */
         @SuppressWarnings("unchecked")
         private Map<String, Object> castMap(Object value) {
             if (value instanceof Map) {
@@ -457,14 +694,33 @@ public class SolonClawWebTools {
             return Collections.emptyMap();
         }
 
+        /**
+         * 将输入对象转换为去除首尾空白的字符串。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回string Value结果。
+         */
         private String stringValue(Object value) {
             return value == null ? "" : String.valueOf(value);
         }
 
+        /**
+         * 检查搜索Endpoint。
+         *
+         * @param url 待校验或访问的 URL。
+         */
         protected void checkSearchEndpoint(String url) {
             checkUrl(securityPolicyService, url);
         }
 
+        /**
+         * 执行Brave搜索请求。
+         *
+         * @param query 查询参数。
+         * @param limit 最大返回数量。
+         * @param apiKey api键标识或键值。
+         * @return 返回Brave搜索请求结果。
+         */
         protected String executeBraveSearchRequest(String query, int limit, String apiKey) {
             HttpResponse response =
                     HttpRequest.get(BRAVE_SEARCH_ENDPOINT)
@@ -485,6 +741,13 @@ public class SolonClawWebTools {
             return body;
         }
 
+        /**
+         * 执行Ddgs搜索请求。
+         *
+         * @param query 查询参数。
+         * @param limit 最大返回数量。
+         * @return 返回Ddgs搜索请求结果。
+         */
         protected String executeDdgsSearchRequest(String query, int limit) {
             HttpResponse response =
                     HttpRequest.get(DDGS_SEARCH_ENDPOINT)
@@ -506,6 +769,11 @@ public class SolonClawWebTools {
             return body;
         }
 
+        /**
+         * 解析Brave搜索Api键。
+         *
+         * @return 返回解析后的Brave搜索Api键。
+         */
         private String resolveBraveSearchApiKey() {
             String configured =
                     appConfig == null || appConfig.getWeb() == null
@@ -515,20 +783,42 @@ public class SolonClawWebTools {
         }
     }
 
+    /** 提供Safe Code搜索工具能力，供 Agent 运行时按安全策略调用。 */
     public static class SafeCodeSearchTool {
+        /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
+
+        /** 记录安全Code搜索中的委托。 */
         private final CodeSearchTool delegate;
 
+        /**
+         * 创建Safe Code搜索工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         */
         public SafeCodeSearchTool(SecurityPolicyService securityPolicyService) {
             this(securityPolicyService, CodeSearchTool.getInstance());
         }
 
+        /**
+         * 创建Safe Code搜索工具实例，并注入运行所需依赖。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param delegate 委派参数。
+         */
         public SafeCodeSearchTool(
                 SecurityPolicyService securityPolicyService, CodeSearchTool delegate) {
             this.securityPolicyService = securityPolicyService;
             this.delegate = delegate;
         }
 
+        /**
+         * 执行codesearch相关逻辑。
+         *
+         * @param query 查询参数。
+         * @param tokensNum tokenNum参数。
+         * @return 返回codesearch结果。
+         */
         @ToolMapping(
                 name = "codesearch",
                 description = "使用 Exa Code API 搜索并获取任何编程任务的相关上下文。适用于框架、库、SDK、API 和代码模式查询。")
@@ -551,6 +841,12 @@ public class SolonClawWebTools {
         }
     }
 
+    /**
+     * 生成安全展示用的Document。
+     *
+     * @param document document 参数。
+     * @return 返回safe Document结果。
+     */
     private static Document safeDocument(Document document) {
         if (document == null) {
             return null;
@@ -565,6 +861,12 @@ public class SolonClawWebTools {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的元数据。
+     *
+     * @param metadata 元数据参数。
+     * @return 返回safe元数据结果。
+     */
     private static Map<String, Object> safeMetadata(Map<String, Object> metadata) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
         if (metadata == null || metadata.isEmpty()) {
@@ -578,6 +880,12 @@ public class SolonClawWebTools {
         return safe;
     }
 
+    /**
+     * 生成安全展示用的值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe Value结果。
+     */
     private static Object safeValue(Object value) {
         if (value == null) {
             return null;
@@ -626,10 +934,22 @@ public class SolonClawWebTools {
         return value;
     }
 
+    /**
+     * 判断是否Empty Structured Value。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Empty Structured Value满足条件则返回 true，否则返回 false。
+     */
     private static boolean isEmptyStructuredValue(Object value) {
         return value instanceof Map && ((Map<?, ?>) value).isEmpty();
     }
 
+    /**
+     * 执行structuredPojo值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回structured Pojo Value结果。
+     */
     private static Object structuredPojoValue(Object value) {
         if (!shouldStructurePojo(value)) {
             return value;
@@ -641,6 +961,12 @@ public class SolonClawWebTools {
         }
     }
 
+    /**
+     * 判断是否需要Structure Pojo。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Structure Pojo满足条件则返回 true，否则返回 false。
+     */
     private static boolean shouldStructurePojo(Object value) {
         if (value == null
                 || value instanceof CharSequence

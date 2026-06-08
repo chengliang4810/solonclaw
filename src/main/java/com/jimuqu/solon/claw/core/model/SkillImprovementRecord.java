@@ -9,14 +9,33 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class SkillImprovementRecord {
+    /** 记录技能Improvement中的improvement标识。 */
     private String improvementId;
+
+    /** 记录技能Improvement中的会话标识。 */
     private String sessionId;
+
+    /** 记录技能Improvement中的运行标识。 */
     private String runId;
+
+    /** 记录技能Improvement中的技能名称。 */
     private String skillName;
+
+    /** 记录技能Improvement中的action。 */
     private String action;
+
+    /** 记录技能Improvement中的摘要。 */
     private String summary;
+
+    /** 记录技能Improvement中的changedFilesJSON。 */
     private String changedFilesJson;
+
+    /** 记录技能Improvement中的evidenceJSON。 */
     private String evidenceJson;
+
+    /** 是否启用needsReview。 */
     private boolean needsReview;
+
+    /** 记录技能Improvement中的创建时间。 */
     private long createdAt;
 }

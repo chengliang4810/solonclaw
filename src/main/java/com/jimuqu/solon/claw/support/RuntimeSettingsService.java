@@ -21,6 +21,7 @@ import java.util.Map;
 
 /** 运行时设置读取与修改服务。 */
 public class RuntimeSettingsService {
+    /** 配置键WHITE列表的统一常量值。 */
     private static final List<String> CONFIG_KEY_WHITELIST =
             Arrays.asList(
                     "model.providerKey",
@@ -129,6 +130,7 @@ public class RuntimeSettingsService {
                     "solonclaw.terminal.foregroundRetryBaseDelaySeconds",
                     "solonclaw.terminal.processWaitTimeoutSeconds");
 
+    /** 渠道键SUFFIXWHITE列表的统一常量值。 */
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =
             Arrays.asList(
                     ".enabled",
@@ -171,15 +173,42 @@ public class RuntimeSettingsService {
                     ".botUserId",
                     ".botName");
 
+    /** 注入应用配置，用于运行时设置。 */
     private final AppConfig appConfig;
+
+    /** 保存global设置仓储集合，维持调用顺序或去重语义。 */
     private final GlobalSettingRepository globalSettingRepository;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 注入控制台配置服务，用于调用对应业务能力。 */
     private final DashboardConfigService dashboardConfigService;
+
+    /** 注入控制台运行时配置服务，用于调用对应业务能力。 */
     private final DashboardRuntimeConfigService dashboardRuntimeConfigService;
+
+    /** 注入应用版本服务，用于调用对应业务能力。 */
     private final AppVersionService appVersionService;
+
+    /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
+
+    /** 注入控制台提供方服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.web.DashboardProviderService dashboardProviderService;
 
+    /**
+     * 创建运行时设置服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param dashboardConfigService dashboard配置Service配置对象。
+     * @param dashboardRuntimeConfigService dashboard运行时配置Service配置对象。
+     * @param appVersionService 应用版本服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param dashboardProviderService dashboard提供方Service标识或键值。
+     */
     public RuntimeSettingsService(
             AppConfig appConfig,
             GlobalSettingRepository globalSettingRepository,
@@ -199,10 +228,23 @@ public class RuntimeSettingsService {
         this.dashboardProviderService = dashboardProviderService;
     }
 
+    /**
+     * 解析生效模型。
+     *
+     * @param session 会话参数。
+     * @return 返回解析后的生效模型。
+     */
     public ResolvedModel resolveEffectiveModel(SessionRecord session) {
         return resolveEffectiveModel(session, null);
     }
 
+    /**
+     * 解析生效模型。
+     *
+     * @param session 会话参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回解析后的生效模型。
+     */
     public ResolvedModel resolveEffectiveModel(
             SessionRecord session, AgentRuntimeScope agentScope) {
         String override =
@@ -217,11 +259,28 @@ public class RuntimeSettingsService {
                 override.length() > 0);
     }
 
+    /**
+     * 构建Agent运行时提示词。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param session 会话参数。
+     * @param enabledToolNames 启用状态工具Names开关值。
+     * @return 返回创建好的Agent运行时提示词。
+     */
     public String buildAgentRuntimePrompt(
             String sourceKey, SessionRecord session, List<String> enabledToolNames) {
         return buildAgentRuntimePrompt(sourceKey, session, enabledToolNames, null);
     }
 
+    /**
+     * 构建Agent运行时提示词。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param session 会话参数。
+     * @param enabledToolNames 启用状态工具Names开关值。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回创建好的Agent运行时提示词。
+     */
     public String buildAgentRuntimePrompt(
             String sourceKey,
             SessionRecord session,
@@ -244,7 +303,7 @@ public class RuntimeSettingsService {
                                 + ")");
             }
         } catch (Exception ignored) {
-            // best effort
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
 
         String activePersonality = "default";
@@ -257,7 +316,7 @@ public class RuntimeSettingsService {
                 activePersonality = stored.trim();
             }
         } catch (Exception ignored) {
-            // best effort
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
 
         StringBuilder buffer = new StringBuilder();
@@ -342,6 +401,12 @@ public class RuntimeSettingsService {
         return buffer.toString();
     }
 
+    /**
+     * 执行describe模型相关逻辑。
+     *
+     * @param session 会话参数。
+     * @return 返回describe模型结果。
+     */
     public String describeModel(SessionRecord session) {
         ResolvedModel resolved = resolveEffectiveModel(session);
         StringBuilder buffer = new StringBuilder();
@@ -377,10 +442,22 @@ public class RuntimeSettingsService {
         return buffer.toString().trim();
     }
 
+    /**
+     * 写入Global模型。
+     *
+     * @param provider 模型或能力提供方。
+     * @param model 模型名称。
+     */
     public void setGlobalModel(String provider, String model) {
         dashboardProviderService.updateDefaultModel(provider, model);
     }
 
+    /**
+     * 读取配置Value。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回读取到的配置Value。
+     */
     public Object getConfigValue(String key) {
         ensureConfigKeyAllowed(key);
         Object value = readAppConfigValue(key);
@@ -394,6 +471,12 @@ public class RuntimeSettingsService {
         return readNested(dashboardConfigService.getConfig(), key);
     }
 
+    /**
+     * 写入配置Value。
+     *
+     * @param key 配置键或映射键。
+     * @param rawValue 原始值参数。
+     */
     public void setConfigValue(String key, String rawValue) {
         ensureConfigKeyAllowed(key);
         if (isSecretConfigKey(key)) {
@@ -403,11 +486,22 @@ public class RuntimeSettingsService {
                 key, parseValueForKey(key, rawValue), shouldReconnectChannelsForConfigKey(key));
     }
 
+    /**
+     * 写入密钥Value。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     */
     public void setSecretValue(String key, String value) {
         dashboardRuntimeConfigService.updateSecret(
                 key, value, shouldReconnectChannelsForRuntimeKey(key));
     }
 
+    /**
+     * 确保配置键Allowed。
+     *
+     * @param key 配置键或映射键。
+     */
     private void ensureConfigKeyAllowed(String key) {
         if (CONFIG_KEY_WHITELIST.contains(key)) {
             return;
@@ -428,6 +522,13 @@ public class RuntimeSettingsService {
         throw new IllegalArgumentException("Unsupported config key: " + key);
     }
 
+    /**
+     * 解析Value For键。
+     *
+     * @param key 配置键或映射键。
+     * @param rawValue 原始值参数。
+     * @return 返回解析后的Value For键。
+     */
     private Object parseValueForKey(String key, String rawValue) {
         String value = rawValue == null ? "" : rawValue.trim();
         if (key.endsWith(".enabled")
@@ -544,6 +645,13 @@ public class RuntimeSettingsService {
         return value;
     }
 
+    /**
+     * 读取Nested。
+     *
+     * @param root root 参数。
+     * @param key 配置键或映射键。
+     * @return 返回读取到的Nested。
+     */
     @SuppressWarnings("unchecked")
     private Object readNested(Map<String, Object> root, String key) {
         String[] parts = key.split("\\.");
@@ -557,6 +665,12 @@ public class RuntimeSettingsService {
         return current;
     }
 
+    /**
+     * 读取App配置Value。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回读取到的App配置Value。
+     */
     private Object readAppConfigValue(String key) {
         if (key == null) {
             return null;
@@ -591,6 +705,12 @@ public class RuntimeSettingsService {
         return null;
     }
 
+    /**
+     * 执行join相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回join结果。
+     */
     private String join(List<String> values) {
         if (values == null || values.isEmpty()) {
             return "";
@@ -608,6 +728,12 @@ public class RuntimeSettingsService {
         return buffer.toString();
     }
 
+    /**
+     * 追加Shell Guidance。
+     *
+     * @param buffer buffer 参数。
+     * @param enabledToolNames 启用状态工具Names开关值。
+     */
     private void appendShellGuidance(StringBuilder buffer, List<String> enabledToolNames) {
         if (enabledToolNames == null
                 || !enabledToolNames.contains(ToolNameConstants.EXECUTE_SHELL)) {
@@ -623,24 +749,55 @@ public class RuntimeSettingsService {
         }
     }
 
+    /**
+     * 执行persist配置值相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @param value 待规范化或校验的原始值。
+     * @param reconnectChannels reconnectChannels 参数。
+     */
     private void persistConfigValue(String key, Object value, boolean reconnectChannels) {
         Map<String, Object> updates = new LinkedHashMap<String, Object>();
         updates.put(canonicalDashboardConfigKey(key), value);
         dashboardConfigService.savePartialFlat(updates, reconnectChannels);
     }
 
+    /**
+     * 执行规范控制台配置键相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     * @return 返回规范控制台配置键结果。
+     */
     private String canonicalDashboardConfigKey(String key) {
         return key;
     }
 
+    /**
+     * 判断是否需要Reconnect Channels For配置键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Reconnect Channels For配置键满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldReconnectChannelsForConfigKey(String key) {
         return key != null && (key.startsWith("channels.") || key.startsWith("gateway.injection"));
     }
 
+    /**
+     * 判断是否需要Reconnect Channels For运行时键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Reconnect Channels For运行时键满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldReconnectChannelsForRuntimeKey(String key) {
         return key != null && key.startsWith("solonclaw.channels.");
     }
 
+    /**
+     * 判断是否密钥配置键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果密钥配置键满足条件则返回 true，否则返回 false。
+     */
     public boolean isSecretConfigKey(String key) {
         if (key == null) {
             return false;
@@ -666,12 +823,28 @@ public class RuntimeSettingsService {
                 || lower.endsWith(".token");
     }
 
+    /** 承载Resolved模型相关状态和辅助逻辑。 */
     public static class ResolvedModel {
+        /** 记录Resolved模型中的提供方。 */
         private final String provider;
+
+        /** 记录Resolved模型中的协议方言。 */
         private final String dialect;
+
+        /** 记录Resolved模型中的模型。 */
         private final String model;
+
+        /** 是否启用会话Override。 */
         private final boolean sessionOverride;
 
+        /**
+         * 创建Resolved模型实例，并注入运行所需依赖。
+         *
+         * @param provider 模型或能力提供方。
+         * @param dialect dialect 参数。
+         * @param model 模型名称。
+         * @param sessionOverride 会话Override标识或键值。
+         */
         public ResolvedModel(
                 String provider, String dialect, String model, boolean sessionOverride) {
             this.provider = provider;
@@ -680,18 +853,38 @@ public class RuntimeSettingsService {
             this.sessionOverride = sessionOverride;
         }
 
+        /**
+         * 读取提供方。
+         *
+         * @return 返回读取到的提供方。
+         */
         public String getProvider() {
             return provider;
         }
 
+        /**
+         * 读取模型。
+         *
+         * @return 返回读取到的模型。
+         */
         public String getModel() {
             return model;
         }
 
+        /**
+         * 读取协议方言。
+         *
+         * @return 返回读取到的协议方言。
+         */
         public String getDialect() {
             return dialect;
         }
 
+        /**
+         * 判断是否会话Override。
+         *
+         * @return 如果会话Override满足条件则返回 true，否则返回 false。
+         */
         public boolean isSessionOverride() {
             return sessionOverride;
         }

@@ -17,10 +17,18 @@ import lombok.RequiredArgsConstructor;
 /** SqliteGatewayPolicyRepository 实现。 */
 @RequiredArgsConstructor
 public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
+    /** 管理员CLAIMCODE的统一常量值。 */
     public static final String ADMIN_CLAIM_CODE = "__ADMIN_CLAIM__";
 
+    /** 记录SQLite消息网关策略中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 读取主渠道渠道。
+     *
+     * @param platform 平台参数。
+     * @return 返回读取到的主渠道渠道。
+     */
     public HomeChannelRecord getHomeChannel(PlatformType platform) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -40,6 +48,11 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 列出主渠道Channels。
+     *
+     * @return 返回主渠道Channels列表。
+     */
     public List<HomeChannelRecord> listHomeChannels() throws Exception {
         List<HomeChannelRecord> records = new ArrayList<HomeChannelRecord>();
         Connection connection = database.openConnection();
@@ -62,6 +75,11 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return records;
     }
 
+    /**
+     * 保存主渠道渠道。
+     *
+     * @param record 记录参数。
+     */
     public void saveHomeChannel(HomeChannelRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -80,6 +98,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 读取平台管理员。
+     *
+     * @param platform 平台参数。
+     * @return 返回读取到的平台管理员。
+     */
     public PlatformAdminRecord getPlatformAdmin(PlatformType platform) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -99,6 +123,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 创建平台管理员If Absent。
+     *
+     * @param record 记录参数。
+     * @return 返回创建好的平台管理员If Absent。
+     */
     public boolean createPlatformAdminIfAbsent(PlatformAdminRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -118,6 +148,13 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 读取Approved用户。
+     *
+     * @param platform 平台参数。
+     * @param userId 用户标识。
+     * @return 返回读取到的Approved用户。
+     */
     public ApprovedUserRecord getApprovedUser(PlatformType platform, String userId)
             throws Exception {
         Connection connection = database.openConnection();
@@ -139,6 +176,11 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 保存Approved用户。
+     *
+     * @param record 记录参数。
+     */
     public void saveApprovedUser(ApprovedUserRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -157,6 +199,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 执行revokeApproved用户相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @param userId 用户标识。
+     */
     public void revokeApprovedUser(PlatformType platform, String userId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -172,6 +220,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 列出Approved Users。
+     *
+     * @param platform 平台参数。
+     * @return 返回Approved Users列表。
+     */
     public List<ApprovedUserRecord> listApprovedUsers(PlatformType platform) throws Exception {
         List<ApprovedUserRecord> list = new ArrayList<ApprovedUserRecord>();
         Connection connection = database.openConnection();
@@ -195,6 +249,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return list;
     }
 
+    /**
+     * 执行次数ApprovedUsers相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @return 返回次数Approved Users结果。
+     */
     public int countApprovedUsers(PlatformType platform) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -214,6 +274,13 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 读取配对请求。
+     *
+     * @param platform 平台参数。
+     * @param code code 参数。
+     * @return 返回读取到的配对请求。
+     */
     public PairingRequestRecord getPairingRequest(PlatformType platform, String code)
             throws Exception {
         Connection connection = database.openConnection();
@@ -235,10 +302,23 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 读取管理员Claim请求。
+     *
+     * @param platform 平台参数。
+     * @return 返回读取到的管理员Claim请求。
+     */
     public PairingRequestRecord getAdminClaimRequest(PlatformType platform) throws Exception {
         return getPairingRequest(platform, ADMIN_CLAIM_CODE);
     }
 
+    /**
+     * 读取Latest用户配对请求。
+     *
+     * @param platform 平台参数。
+     * @param userId 用户标识。
+     * @return 返回读取到的Latest用户配对请求。
+     */
     public PairingRequestRecord getLatestUserPairingRequest(PlatformType platform, String userId)
             throws Exception {
         Connection connection = database.openConnection();
@@ -261,6 +341,11 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 保存配对请求。
+     *
+     * @param record 记录参数。
+     */
     public void savePairingRequest(PairingRequestRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -281,6 +366,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 创建管理员Claim请求If Absent。
+     *
+     * @param record 记录参数。
+     * @return 返回创建好的管理员Claim请求If Absent。
+     */
     public boolean createAdminClaimRequestIfAbsent(PairingRequestRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -304,6 +395,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 删除配对请求。
+     *
+     * @param platform 平台参数。
+     * @param code code 参数。
+     */
     public void deletePairingRequest(PlatformType platform, String code) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -319,6 +416,32 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 删除待处理配对请求，保留管理员认领请求。
+     *
+     * @param platform 平台参数。
+     */
+    public void deletePendingPairingRequests(PlatformType platform) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "delete from pairing_requests where platform = ? and code <> ?");
+            statement.setString(1, key(platform));
+            statement.setString(2, ADMIN_CLAIM_CODE);
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
+     * 删除Expired配对Requests。
+     *
+     * @param platform 平台参数。
+     * @param nowEpochMillis nowEpochMillis 参数。
+     */
     public void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis)
             throws Exception {
         Connection connection = database.openConnection();
@@ -335,6 +458,13 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 列出配对Requests。
+     *
+     * @param platform 平台参数。
+     * @param includeAdminClaim includeAdminClaim 参数。
+     * @return 返回配对Requests列表。
+     */
     public List<PairingRequestRecord> listPairingRequests(
             PlatformType platform, boolean includeAdminClaim) throws Exception {
         List<PairingRequestRecord> list = new ArrayList<PairingRequestRecord>();
@@ -364,6 +494,13 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return list;
     }
 
+    /**
+     * 读取配对频率限制。
+     *
+     * @param platform 平台参数。
+     * @param userId 用户标识。
+     * @return 返回读取到的配对频率限制。
+     */
     public PairingRateLimitRecord getPairingRateLimit(PlatformType platform, String userId)
             throws Exception {
         Connection connection = database.openConnection();
@@ -385,6 +522,11 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 保存配对频率限制。
+     *
+     * @param record 记录参数。
+     */
     public void savePairingRateLimit(PairingRateLimitRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -403,10 +545,22 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /**
+     * 执行键相关逻辑。
+     *
+     * @param platform 平台参数。
+     * @return 返回键结果。
+     */
     private String key(PlatformType platform) {
         return platform == null ? "UNKNOWN" : platform.name();
     }
 
+    /**
+     * 执行map主渠道相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map主渠道结果。
+     */
     private HomeChannelRecord mapHome(ResultSet resultSet) throws Exception {
         HomeChannelRecord record = new HomeChannelRecord();
         record.setPlatform(PlatformType.fromName(resultSet.getString("platform")));
@@ -417,6 +571,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return record;
     }
 
+    /**
+     * 执行mapApproved相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map Approved结果。
+     */
     private ApprovedUserRecord mapApproved(ResultSet resultSet) throws Exception {
         ApprovedUserRecord record = new ApprovedUserRecord();
         record.setPlatform(PlatformType.fromName(resultSet.getString("platform")));
@@ -427,6 +587,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return record;
     }
 
+    /**
+     * 执行map配对相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map配对结果。
+     */
     private PairingRequestRecord mapPairing(ResultSet resultSet) throws Exception {
         PairingRequestRecord record = new PairingRequestRecord();
         record.setPlatform(PlatformType.fromName(resultSet.getString("platform")));
@@ -439,6 +605,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return record;
     }
 
+    /**
+     * 执行map管理员相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map管理员结果。
+     */
     private PlatformAdminRecord mapAdmin(ResultSet resultSet) throws Exception {
         PlatformAdminRecord record = new PlatformAdminRecord();
         record.setPlatform(PlatformType.fromName(resultSet.getString("platform")));
@@ -449,6 +621,12 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return record;
     }
 
+    /**
+     * 执行map频率限制相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map频率限制结果。
+     */
     private PairingRateLimitRecord mapRateLimit(ResultSet resultSet) throws Exception {
         PairingRateLimitRecord record = new PairingRateLimitRecord();
         record.setPlatform(PlatformType.fromName(resultSet.getString("platform")));

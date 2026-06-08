@@ -3,22 +3,48 @@ package com.jimuqu.solon.claw.engine;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 
-/** Shared rough token estimator for context budget checks. */
+/** 承载上下文tokenEstimator相关状态和辅助逻辑。 */
 final class ContextTokenEstimator {
+    /** 数据URIMARKER的统一常量值。 */
     private static final String DATA_URI_MARKER = "[inline-media]";
+
+    /** 图片MARKER的统一常量值。 */
     private static final String IMAGE_MARKER = "[image]";
+
+    /** 图片附件token成本的统一常量值。 */
     private static final int IMAGE_ATTACHMENT_TOKEN_COST = 256;
 
+    /** 创建上下文token Estimator实例。 */
     private ContextTokenEstimator() {}
 
+    /**
+     * 执行estimate相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @return 返回estimate结果。
+     */
     static int estimate(String content) {
         return estimate(content, true, false);
     }
 
+    /**
+     * 估算For Budget。
+     *
+     * @param content 待处理内容。
+     * @return 返回For Budget结果。
+     */
     static int estimateForBudget(String content) {
         return estimate(content, false, true);
     }
 
+    /**
+     * 执行estimate相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param roundAsciiUp roundAsciiUp 参数。
+     * @param minimumAsciiToken minimumAsciitoken参数。
+     * @return 返回estimate结果。
+     */
     private static int estimate(String content, boolean roundAsciiUp, boolean minimumAsciiToken) {
         if (StrUtil.isBlank(content)) {
             return 0;
@@ -47,6 +73,12 @@ final class ContextTokenEstimator {
         return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(1, (int) estimated);
     }
 
+    /**
+     * 脱敏Inline Data Uris。
+     *
+     * @param content 待处理内容。
+     * @return 返回Inline Data Uris结果。
+     */
     private static String maskInlineDataUris(String content) {
         StringBuilder buffer = null;
         int scanFrom = 0;
@@ -82,6 +114,12 @@ final class ContextTokenEstimator {
         return buffer.toString();
     }
 
+    /**
+     * 脱敏图片Placeholders。
+     *
+     * @param content 待处理内容。
+     * @return 返回图片Placeholders结果。
+     */
     private static ImageTokenEstimate maskImagePlaceholders(String content) {
         if (StrUtil.isBlank(content)) {
             return new ImageTokenEstimate(content, 0);
@@ -106,6 +144,13 @@ final class ContextTokenEstimator {
         return new ImageTokenEstimate(buffer.toString(), imageCount);
     }
 
+    /**
+     * 执行索引Of图片Marker相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param fromIndex from索引参数。
+     * @return 返回index Of图片Marker结果。
+     */
     private static int indexOfImageMarker(String content, int fromIndex) {
         for (int i = fromIndex; i < content.length(); i++) {
             if (startsWithIgnoreCase(content, i, "MEDIA:")) {
@@ -121,16 +166,33 @@ final class ContextTokenEstimator {
         return -1;
     }
 
+    /** 承载图片tokenEstimate相关状态和辅助逻辑。 */
     private static final class ImageTokenEstimate {
+        /** 记录图片tokenEstimate中的文本。 */
         private final String text;
+
+        /** 记录图片tokenEstimate中的图片次数。 */
         private final int imageCount;
 
+        /**
+         * 创建图片token Estimate实例，并注入运行所需依赖。
+         *
+         * @param text 待处理文本。
+         * @param imageCount 图片Count参数。
+         */
         private ImageTokenEstimate(String text, int imageCount) {
             this.text = text;
             this.imageCount = imageCount;
         }
     }
 
+    /**
+     * 执行索引Of数据URIPrefix相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param fromIndex from索引参数。
+     * @return 返回index Of Data URI Prefix结果。
+     */
     private static int indexOfDataUriPrefix(String content, int fromIndex) {
         for (int i = fromIndex; i <= content.length() - 11; i++) {
             if (startsWithIgnoreCase(content, i, "data:image/")
@@ -142,6 +204,14 @@ final class ContextTokenEstimator {
         return -1;
     }
 
+    /**
+     * 判断是否以忽略Case开头。
+     *
+     * @param content 待处理内容。
+     * @param offset 分页偏移量。
+     * @param prefix prefix 参数。
+     * @return 返回starts With忽略Case结果。
+     */
     private static boolean startsWithIgnoreCase(String content, int offset, String prefix) {
         if (offset < 0 || offset + prefix.length() > content.length()) {
             return false;
@@ -149,6 +219,13 @@ final class ContextTokenEstimator {
         return content.regionMatches(true, offset, prefix, 0, prefix.length());
     }
 
+    /**
+     * 查找Base64 End。
+     *
+     * @param content 待处理内容。
+     * @param fromIndex from索引参数。
+     * @return 返回Base64 End结果。
+     */
     private static int findBase64End(String content, int fromIndex) {
         int i = fromIndex;
         while (i < content.length()) {

@@ -44,8 +44,7 @@ public class DingTalkProcessingEmotionTest {
 
         assertThat(adapter.calls())
                 .containsExactly(
-                        "reply:open-cid-2:msg-2:🤔Thinking",
-                        "recall:open-cid-2:msg-2:🤔Thinking");
+                        "reply:open-cid-2:msg-2:🤔Thinking", "recall:open-cid-2:msg-2:🤔Thinking");
     }
 
     @Test
@@ -90,7 +89,8 @@ public class DingTalkProcessingEmotionTest {
         appConfig.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
         appConfig.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
         appConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        appConfig.getRuntime()
+        appConfig
+                .getRuntime()
                 .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
         appConfig.getChannels().getDingtalk().setEnabled(true);
         appConfig.getChannels().getDingtalk().setClientId("app-key");

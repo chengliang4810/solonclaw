@@ -20,6 +20,34 @@ import org.junit.jupiter.api.Test;
 
 public class MessagingToolsAttachmentTest {
     @Test
+    void shouldListSendMessageTargetsWithCanonicalAction() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1:thread-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        String result =
+                tools.sendMessage(
+                        "list",
+                        null,
+                        null,
+                        null,
+                        null,
+                        Collections.<String>emptyList(),
+                        null);
+
+        Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
+        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("targets").toString()).contains("current_source").contains("chat-1");
+        assertThat(payload.get("current").toString()).contains("thread-1");
+        assertThat(payload.get("explicitTargetsAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(env.memoryChannelAdapter.getLastRequest()).isNull();
+    }
+
+    @Test
     void shouldSkipSendMessageToCronAutoDeliveryTarget() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MessagingTools tools =

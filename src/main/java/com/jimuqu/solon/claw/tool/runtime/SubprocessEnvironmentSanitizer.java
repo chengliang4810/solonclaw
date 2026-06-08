@@ -13,11 +13,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** Subprocess environment filtering for local tools. */
+/** 承载子进程Environment清理器相关状态和辅助逻辑。 */
 public final class SubprocessEnvironmentSanitizer {
+    /** FORCEPREFIX的统一常量值。 */
     public static final String FORCE_PREFIX = "_SOLONCLAW_FORCE_";
 
+    /** 环境变量名称正则的统一常量值。 */
     private static final Pattern ENV_NAME_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+
+    /** 安全环境变量前缀列表的统一常量值。 */
     private static final String[] SAFE_ENV_PREFIXES =
             new String[] {
                 "PATH",
@@ -42,20 +46,39 @@ public final class SubprocessEnvironmentSanitizer {
                 "COMSPEC",
                 "PATHEXT"
             };
+
+    /** 安全上下文环境变量名称列表的统一常量值。 */
     private static final String[] SAFE_CONTEXT_ENV_NAMES = new String[] {"SOLONCLAW_PROFILE"};
+
+    /** 密钥环境变量SUBSTRINGS的统一常量值。 */
     private static final String[] SECRET_ENV_SUBSTRINGS =
             new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
+
+    /** SANEPOSIX路径的统一常量值。 */
     private static final String SANE_POSIX_PATH =
             "/opt/homebrew/bin:/opt/homebrew/sbin:"
                     + "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+
+    /** 提供方环境变量BLOCK列表的统一常量值。 */
     private static final Set<String> PROVIDER_ENV_BLOCKLIST = providerEnvBlocklist();
+
+    /** 配置环境变量PASSTHROUGHBLOCK列表的统一常量值。 */
     private static final Set<String> CONFIG_ENV_PASSTHROUGH_BLOCKLIST =
             configEnvPassthroughBlocklist();
+
+    /** 技能环境变量PASSTHROUGH的统一常量值。 */
     private static final ThreadLocal<Set<String>> SKILL_ENV_PASSTHROUGH =
             new ThreadLocal<Set<String>>();
 
+    /** 创建子进程Environment清理器实例。 */
     private SubprocessEnvironmentSanitizer() {}
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回策略Summary结果。
+     */
     public static Map<String, Object> policySummary(AppConfig appConfig) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("enabled", Boolean.TRUE);
@@ -91,6 +114,11 @@ public final class SubprocessEnvironmentSanitizer {
         return summary;
     }
 
+    /**
+     * 执行决策Categories相关逻辑。
+     *
+     * @return 返回decision Categories结果。
+     */
     public static List<Map<String, Object>> decisionCategories() {
         List<Map<String, Object>> categories = new ArrayList<Map<String, Object>>();
         categories.add(category("decision", "force"));
@@ -113,11 +141,26 @@ public final class SubprocessEnvironmentSanitizer {
         return categories;
     }
 
+    /**
+     * 执行probeDecisions相关逻辑。
+     *
+     * @param env 环境变量参数。
+     * @param appConfig 应用运行配置。
+     * @return 返回probe Decisions结果。
+     */
     public static List<Map<String, Object>> probeDecisions(
             Map<String, String> env, AppConfig appConfig) {
         return probeDecisions(env, appConfig, false);
     }
 
+    /**
+     * 执行probeDecisions相关逻辑。
+     *
+     * @param env 环境变量参数。
+     * @param appConfig 应用运行配置。
+     * @param redactNames redactNames 参数。
+     * @return 返回probe Decisions结果。
+     */
     public static List<Map<String, Object>> probeDecisions(
             Map<String, String> env, AppConfig appConfig, boolean redactNames) {
         List<Map<String, Object>> decisions = new ArrayList<Map<String, Object>>();
@@ -132,10 +175,25 @@ public final class SubprocessEnvironmentSanitizer {
         return decisions;
     }
 
+    /**
+     * 执行probe决策相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param appConfig 应用运行配置。
+     * @return 返回probe Decision结果。
+     */
     public static Map<String, Object> probeDecision(String name, AppConfig appConfig) {
         return probeDecision(name, appConfig, false);
     }
 
+    /**
+     * 执行probe决策相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param appConfig 应用运行配置。
+     * @param redactNames redactNames 参数。
+     * @return 返回probe Decision结果。
+     */
     public static Map<String, Object> probeDecision(
             String name, AppConfig appConfig, boolean redactNames) {
         Set<String> passthrough = envPassthrough(appConfig);
@@ -143,6 +201,15 @@ public final class SubprocessEnvironmentSanitizer {
         return probeDecision(name, appConfig, passthrough, redactNames);
     }
 
+    /**
+     * 执行probe决策相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param appConfig 应用运行配置。
+     * @param passthrough passthrough 参数。
+     * @param redactNames redactNames 参数。
+     * @return 返回probe Decision结果。
+     */
     private static Map<String, Object> probeDecision(
             String name, AppConfig appConfig, Set<String> passthrough, boolean redactNames) {
         String rawName = StrUtil.nullToEmpty(name);
@@ -232,6 +299,13 @@ public final class SubprocessEnvironmentSanitizer {
         return result;
     }
 
+    /**
+     * 执行category相关逻辑。
+     *
+     * @param dimension dimension 参数。
+     * @param value 待规范化或校验的原始值。
+     * @return 返回category结果。
+     */
     private static Map<String, Object> category(String dimension, String value) {
         Map<String, Object> category = new LinkedHashMap<String, Object>();
         category.put("dimension", dimension);
@@ -239,10 +313,21 @@ public final class SubprocessEnvironmentSanitizer {
         return category;
     }
 
+    /**
+     * 执行清理相关逻辑。
+     *
+     * @param env 环境变量参数。
+     */
     public static void sanitize(Map<String, String> env) {
         sanitize(env, null);
     }
 
+    /**
+     * 执行清理相关逻辑。
+     *
+     * @param env 环境变量参数。
+     * @param appConfig 应用运行配置。
+     */
     public static void sanitize(Map<String, String> env, AppConfig appConfig) {
         if (env == null) {
             return;
@@ -275,6 +360,12 @@ public final class SubprocessEnvironmentSanitizer {
         }
     }
 
+    /**
+     * 判断是否Safe Env名称。
+     *
+     * @param name 名称参数。
+     * @return 如果Safe Env名称满足条件则返回 true，否则返回 false。
+     */
     public static boolean isSafeEnvName(String name) {
         String value = StrUtil.nullToEmpty(name);
         String upper = value.toUpperCase(Locale.ROOT);
@@ -291,6 +382,12 @@ public final class SubprocessEnvironmentSanitizer {
         return false;
     }
 
+    /**
+     * 判断是否密钥Env名称。
+     *
+     * @param name 名称参数。
+     * @return 如果密钥Env名称满足条件则返回 true，否则返回 false。
+     */
     public static boolean isSecretEnvName(String name) {
         String upper = StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT);
         for (String marker : SECRET_ENV_SUBSTRINGS) {
@@ -301,10 +398,22 @@ public final class SubprocessEnvironmentSanitizer {
         return false;
     }
 
+    /**
+     * 判断是否提供方Env 块ed。
+     *
+     * @param name 名称参数。
+     * @return 如果提供方Env 块ed满足条件则返回 true，否则返回 false。
+     */
     public static boolean isProviderEnvBlocked(String name) {
         return PROVIDER_ENV_BLOCKLIST.contains(StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * 判断是否High Risk Env名称。
+     *
+     * @param name 名称参数。
+     * @return 如果High Risk Env名称满足条件则返回 true，否则返回 false。
+     */
     public static boolean isHighRiskEnvName(String name) {
         String normalized = normalizeEnvName(name);
         return normalized != null
@@ -313,6 +422,12 @@ public final class SubprocessEnvironmentSanitizer {
                         || isSecretEnvName(normalized));
     }
 
+    /**
+     * 校验Configured Env Passthrough。
+     *
+     * @param names names 参数。
+     * @param configKey 配置键标识或键值。
+     */
     public static void validateConfiguredEnvPassthrough(List<String> names, String configKey) {
         if (names == null || names.isEmpty()) {
             return;
@@ -338,11 +453,23 @@ public final class SubprocessEnvironmentSanitizer {
         }
     }
 
+    /**
+     * 判断是否Configured Env Passthrough 块ed。
+     *
+     * @param normalizedName normalized名称参数。
+     * @return 如果Configured Env Passthrough 块ed满足条件则返回 true，否则返回 false。
+     */
     private static boolean isConfiguredEnvPassthroughBlocked(String normalizedName) {
         return PROVIDER_ENV_BLOCKLIST.contains(normalizedName)
                 || CONFIG_ENV_PASSTHROUGH_BLOCKLIST.contains(normalizedName);
     }
 
+    /**
+     * 执行with技能EnvironmentPassthrough相关逻辑。
+     *
+     * @param names names 参数。
+     * @return 返回with技能Environment Passthrough结果。
+     */
     public static AutoCloseable withSkillEnvironmentPassthrough(List<String> names) {
         final Set<String> previous = SKILL_ENV_PASSTHROUGH.get();
         Set<String> next = previous == null ? new HashSet<String>() : new HashSet<String>(previous);
@@ -360,6 +487,7 @@ public final class SubprocessEnvironmentSanitizer {
             SKILL_ENV_PASSTHROUGH.set(next);
         }
         return new AutoCloseable() {
+            /** 关闭当前组件持有的运行资源。 */
             @Override
             public void close() {
                 if (previous == null || previous.isEmpty()) {
@@ -371,6 +499,11 @@ public final class SubprocessEnvironmentSanitizer {
         };
     }
 
+    /**
+     * 注册技能Environment Passthrough。
+     *
+     * @param names names 参数。
+     */
     public static void registerSkillEnvironmentPassthrough(List<String> names) {
         if (names == null || names.isEmpty()) {
             return;
@@ -390,10 +523,18 @@ public final class SubprocessEnvironmentSanitizer {
         }
     }
 
+    /** 清理技能Environment Passthrough。 */
     public static void clearSkillEnvironmentPassthrough() {
         SKILL_ENV_PASSTHROUGH.remove();
     }
 
+    /**
+     * 判断是否Env Passthrough。
+     *
+     * @param name 名称参数。
+     * @param passthrough passthrough 参数。
+     * @return 如果Env Passthrough满足条件则返回 true，否则返回 false。
+     */
     private static boolean isEnvPassthrough(String name, Set<String> passthrough) {
         if (passthrough == null || passthrough.isEmpty()) {
             return false;
@@ -402,6 +543,12 @@ public final class SubprocessEnvironmentSanitizer {
         return normalized != null && passthrough.contains(normalized);
     }
 
+    /**
+     * 执行环境变量Passthrough相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回env Passthrough结果。
+     */
     private static Set<String> envPassthrough(AppConfig appConfig) {
         Set<String> values = new HashSet<String>();
         if (appConfig == null || appConfig.getTerminal() == null) {
@@ -420,6 +567,11 @@ public final class SubprocessEnvironmentSanitizer {
         return values;
     }
 
+    /**
+     * 执行当前技能EnvironmentPassthrough相关逻辑。
+     *
+     * @return 返回当前技能Environment Passthrough结果。
+     */
     private static Set<String> currentSkillEnvironmentPassthrough() {
         Set<String> values = SKILL_ENV_PASSTHROUGH.get();
         if (values == null || values.isEmpty()) {
@@ -428,6 +580,12 @@ public final class SubprocessEnvironmentSanitizer {
         return new HashSet<String>(values);
     }
 
+    /**
+     * 规范化Env名称。
+     *
+     * @param name 名称参数。
+     * @return 返回Env名称结果。
+     */
     private static String normalizeEnvName(String name) {
         String value = StrUtil.nullToEmpty(name).trim();
         if (StrUtil.isBlank(value) || !ENV_NAME_PATTERN.matcher(value).matches()) {
@@ -436,6 +594,13 @@ public final class SubprocessEnvironmentSanitizer {
         return value.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 执行路径WithSane兜底相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @param windows Windows参数。
+     * @return 返回路径With Sane兜底结果。
+     */
     static String pathWithSaneFallback(String path, boolean windows) {
         if (windows) {
             return path;
@@ -453,6 +618,13 @@ public final class SubprocessEnvironmentSanitizer {
         return value + ":" + SANE_POSIX_PATH;
     }
 
+    /**
+     * 生成安全展示用的Probe文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param redactNames redactNames 参数。
+     * @return 返回safe Probe Text结果。
+     */
     private static String safeProbeText(String value, boolean redactNames) {
         String clean = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         if (!redactNames) {
@@ -461,6 +633,12 @@ public final class SubprocessEnvironmentSanitizer {
         return SecretRedactor.redactTokensOnly(clean, 200);
     }
 
+    /**
+     * 执行forced名称相关逻辑。
+     *
+     * @param name 名称参数。
+     * @return 返回forced名称结果。
+     */
     private static String forcedName(String name) {
         String value = StrUtil.nullToEmpty(name);
         if (value.startsWith(FORCE_PREFIX) && value.length() > FORCE_PREFIX.length()) {
@@ -469,10 +647,20 @@ public final class SubprocessEnvironmentSanitizer {
         return null;
     }
 
+    /**
+     * 判断是否Windows。
+     *
+     * @return 如果Windows满足条件则返回 true，否则返回 false。
+     */
     private static boolean isWindows() {
         return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
     }
 
+    /**
+     * 执行配置环境变量Passthrough块list相关逻辑。
+     *
+     * @return 返回配置Env Passthrough 块list结果。
+     */
     private static Set<String> configEnvPassthroughBlocklist() {
         Set<String> values = new HashSet<String>();
         String[] names =
@@ -502,6 +690,11 @@ public final class SubprocessEnvironmentSanitizer {
         return values;
     }
 
+    /**
+     * 执行提供方环境变量块list相关逻辑。
+     *
+     * @return 返回提供方Env 块list结果。
+     */
     private static Set<String> providerEnvBlocklist() {
         Set<String> values = new HashSet<String>();
         String[] names =

@@ -126,6 +126,7 @@ public class TestEnvironment {
     public final AgentRunControlService agentRunControlService;
     public final AgentProfileService agentProfileService;
     public final AgentRuntimeService agentRuntimeService;
+    public final RuntimeSettingsService runtimeSettingsService;
     public final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
     public final SqliteDatabase sqliteDatabase;
     public final CommandService commandService;
@@ -445,6 +446,7 @@ public class TestEnvironment {
                 agentRunSupervisor,
                 agentProfileService,
                 agentRuntimeService,
+                runtimeSettingsService,
                 refreshService,
                 database,
                 commandService,

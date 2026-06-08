@@ -15,6 +15,13 @@ import org.noear.solon.annotation.Param;
 
 /** 澄清工具。 */
 public class ClarifyTools implements ToolProvider {
+    /**
+     * 执行clarify相关逻辑。
+     *
+     * @param question question 参数。
+     * @param options options 参数。
+     * @return 返回clarify结果。
+     */
     @ToolMapping(name = "clarify", description = "Ask a clarification question with fixed options.")
     public Map<String, Object> clarify(
             @Param(name = "question", description = "要澄清的问题", required = true) String question,
@@ -26,6 +33,11 @@ public class ClarifyTools implements ToolProvider {
         return result;
     }
 
+    /**
+     * 读取工具。
+     *
+     * @return 返回读取到的工具。
+     */
     @Override
     public Collection<FunctionTool> getTools() {
         List<FunctionTool> tools = new ArrayList<FunctionTool>();
@@ -41,10 +53,22 @@ public class ClarifyTools implements ToolProvider {
         return tools;
     }
 
+    /**
+     * 执行stringArg相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Arg结果。
+     */
     private String stringArg(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 执行arrayArg相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回array Arg结果。
+     */
     private String[] arrayArg(Object value) {
         if (value == null) {
             return null;

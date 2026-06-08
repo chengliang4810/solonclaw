@@ -43,20 +43,33 @@ import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
 import org.noear.solon.ai.util.ParamDesc;
 
-/** Runtime MCP connector and dynamic tool discovery service. */
+/** 提供MCP运行时相关业务能力，封装调用方不需要感知的运行细节。 */
 public class McpRuntimeService implements Closeable {
+    /** 默认连接超时毫秒数的统一常量值。 */
     private static final long DEFAULT_CONNECT_TIMEOUT_MILLIS = 60000L;
+
+    /** 默认工具超时毫秒数的统一常量值。 */
     private static final long DEFAULT_TOOL_TIMEOUT_MILLIS = 120000L;
+
+    /** 空对象结构的统一常量值。 */
     private static final String EMPTY_OBJECT_SCHEMA =
             "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
+
+    /** 读取资源结构的统一常量值。 */
     private static final String READ_RESOURCE_SCHEMA =
             "{\"type\":\"object\",\"properties\":{\"uri\":{\"type\":\"string\",\"description\":\"MCP resource URI to read.\"}},\"required\":[\"uri\"],\"additionalProperties\":false}";
+
+    /** 获取提示词结构的统一常量值。 */
     private static final String GET_PROMPT_SCHEMA =
             "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"MCP prompt name to fetch.\"},\"arguments\":{\"type\":\"object\",\"description\":\"Prompt arguments.\",\"additionalProperties\":true}},\"required\":[\"name\"],\"additionalProperties\":false}";
+
+    /** 支持的传输协议的统一常量值。 */
     private static final List<String> SUPPORTED_TRANSPORTS =
             Collections.unmodifiableList(
                     java.util.Arrays.asList(
                             "stdio", "http", "streamable", "streamable_stateless", "sse"));
+
+    /** 认证错误标记列表的统一常量值。 */
     private static final List<String> AUTH_ERROR_MARKERS =
             Collections.unmodifiableList(
                     java.util.Arrays.asList(
@@ -67,6 +80,8 @@ public class McpRuntimeService implements Closeable {
                             "token expired",
                             "requires re-auth",
                             "requires reauth"));
+
+    /** 路径类参数键的统一常量值。 */
     private static final List<String> PATHISH_ARGUMENT_KEYS =
             Collections.unmodifiableList(
                     java.util.Arrays.asList(
@@ -86,21 +101,47 @@ public class McpRuntimeService implements Closeable {
                             "*_file",
                             "*path"));
 
+    /** 注入应用配置，用于MCP运行时。 */
     private final AppConfig appConfig;
+
+    /** 记录MCP运行时中的数据库。 */
     private final SqliteDatabase database;
+
+    /** 记录MCP运行时中的提供方工厂。 */
     private final McpClientProviderFactory providerFactory;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 保存providers映射，便于按键快速查询。 */
     private final ConcurrentMap<String, McpClientProvider> providers =
             new ConcurrentHashMap<String, McpClientProvider>();
+
+    /** 保存discovery执行器执行组件，负责调度异步或定时任务。 */
     private final ExecutorService discoveryExecutor =
             BoundedExecutorFactory.fixed("mcp-discovery", 1, 32);
+
+    /** 保存工具Call执行器执行组件，负责调度异步或定时任务。 */
     private final ExecutorService toolCallExecutor =
             BoundedExecutorFactory.fixed("mcp-tool-call", 4, 64);
 
+    /**
+     * 创建MCP运行时服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param database database 参数。
+     */
     public McpRuntimeService(AppConfig appConfig, SqliteDatabase database) {
         this(appConfig, database, null, null);
     }
 
+    /**
+     * 创建MCP运行时服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param database database 参数。
+     * @param providerFactory MCP 客户端提供方工厂。
+     */
     public McpRuntimeService(
             AppConfig appConfig,
             SqliteDatabase database,
@@ -108,6 +149,14 @@ public class McpRuntimeService implements Closeable {
         this(appConfig, database, providerFactory, null);
     }
 
+    /**
+     * 创建MCP运行时服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param database database 参数。
+     * @param providerFactory MCP 客户端提供方工厂。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public McpRuntimeService(
             AppConfig appConfig,
             SqliteDatabase database,
@@ -125,6 +174,12 @@ public class McpRuntimeService implements Closeable {
                         : providerFactory;
     }
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @param appConfig 应用运行配置。
+     * @return 返回策略Summary结果。
+     */
     public static Map<String, Object> policySummary(AppConfig appConfig) {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put(
@@ -174,6 +229,11 @@ public class McpRuntimeService implements Closeable {
         return summary;
     }
 
+    /**
+     * 解析启用工具Providers。
+     *
+     * @return 返回解析后的启用工具Providers。
+     */
     public List<ToolProvider> resolveEnabledToolProviders() {
         if (!appConfig.getMcp().isEnabled()) {
             return Collections.emptyList();
@@ -190,6 +250,12 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回connect结果。
+     */
     public McpToolRefreshResult connect(String serverId) throws Exception {
         try {
             McpServerConfig config = loadServer(serverId);
@@ -202,6 +268,12 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 重新加载目标服务端配置与工具清单。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回reload结果。
+     */
     public McpToolRefreshResult reload(String serverId) throws Exception {
         closeProvider(serverId);
         try {
@@ -212,10 +284,22 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 连接异步。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回connect Async结果。
+     */
     public CompletableFuture<McpToolRefreshResult> connectAsync(String serverId) {
         return submitDiscovery(
                 serverId,
                 new DiscoveryCallable() {
+                    /**
+                     * 执行回调调用并返回结果。
+                     *
+                     * @param targetServerId target服务端标识。
+                     * @return 返回call结果。
+                     */
                     @Override
                     public McpToolRefreshResult call(String targetServerId) throws Exception {
                         return connect(targetServerId);
@@ -223,10 +307,22 @@ public class McpRuntimeService implements Closeable {
                 });
     }
 
+    /**
+     * 异步重新加载目标服务端配置与工具清单。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回reload Async结果。
+     */
     public CompletableFuture<McpToolRefreshResult> reloadAsync(String serverId) {
         return submitDiscovery(
                 serverId,
                 new DiscoveryCallable() {
+                    /**
+                     * 执行回调调用并返回结果。
+                     *
+                     * @param targetServerId target服务端标识。
+                     * @return 返回call结果。
+                     */
                     @Override
                     public McpToolRefreshResult call(String targetServerId) throws Exception {
                         return reload(targetServerId);
@@ -234,11 +330,24 @@ public class McpRuntimeService implements Closeable {
                 });
     }
 
+    /**
+     * 刷新在线工具Async。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param baselineInitial baselineInitial 参数。
+     * @return 返回在线工具Async结果。
+     */
     public CompletableFuture<McpToolRefreshResult> refreshLiveToolsAsync(
             String serverId, final boolean baselineInitial) {
         return submitDiscovery(
                 serverId,
                 new DiscoveryCallable() {
+                    /**
+                     * 执行回调调用并返回结果。
+                     *
+                     * @param targetServerId target服务端标识。
+                     * @return 返回call结果。
+                     */
                     @Override
                     public McpToolRefreshResult call(String targetServerId) throws Exception {
                         return refreshLiveTools(targetServerId, baselineInitial);
@@ -246,6 +355,12 @@ public class McpRuntimeService implements Closeable {
                 });
     }
 
+    /**
+     * 刷新全部启用 在线工具Async。
+     *
+     * @param baselineInitial baselineInitial 参数。
+     * @return 返回全部启用 在线工具Async结果。
+     */
     public CompletableFuture<List<McpToolRefreshResult>> refreshAllEnabledLiveToolsAsync(
             final boolean baselineInitial) {
         final List<McpServerConfig> configs = enabledServers();
@@ -260,6 +375,7 @@ public class McpRuntimeService implements Closeable {
         try {
             discoveryExecutor.submit(
                     new Runnable() {
+                        /** 执行异步任务主体。 */
                         @Override
                         public void run() {
                             List<McpToolRefreshResult> result =
@@ -284,6 +400,13 @@ public class McpRuntimeService implements Closeable {
         return future;
     }
 
+    /**
+     * 刷新在线工具。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param baselineInitial baselineInitial 参数。
+     * @return 返回在线工具结果。
+     */
     public McpToolRefreshResult refreshLiveTools(String serverId, boolean baselineInitial)
             throws Exception {
         try {
@@ -298,6 +421,15 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 刷新Persisted工具。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param baselineInitial baselineInitial 参数。
+     * @param status 状态参数。
+     * @param lastError last错误参数。
+     * @return 返回Persisted工具结果。
+     */
     public McpToolRefreshResult refreshPersistedTools(
             String serverId, boolean baselineInitial, String status, String lastError)
             throws Exception {
@@ -310,6 +442,12 @@ public class McpRuntimeService implements Closeable {
                 lastError);
     }
 
+    /**
+     * 执行persist工具Changed相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param tools tools 参数。
+     */
     public void persistToolsChanged(String serverId, List<McpSchema.Tool> tools) {
         try {
             McpServerConfig config = loadServer(serverId);
@@ -324,6 +462,7 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /** 启动Initial Discovery Async。 */
     public void startInitialDiscoveryAsync() {
         if (appConfig == null || appConfig.getMcp() == null || !appConfig.getMcp().isEnabled()) {
             return;
@@ -331,17 +470,19 @@ public class McpRuntimeService implements Closeable {
         refreshAllEnabledLiveToolsAsync(true);
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
         close();
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     @Override
     public void close() {
         for (McpClientProvider provider : providers.values()) {
             try {
                 provider.close();
             } catch (Exception ignored) {
-                // Best effort shutdown.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
         providers.clear();
@@ -349,6 +490,13 @@ public class McpRuntimeService implements Closeable {
         toolCallExecutor.shutdownNow();
     }
 
+    /**
+     * 提交Discovery。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param callable callable 参数。
+     * @return 返回submit Discovery结果。
+     */
     private CompletableFuture<McpToolRefreshResult> submitDiscovery(
             final String serverId, final DiscoveryCallable callable) {
         final CompletableFuture<McpToolRefreshResult> future =
@@ -356,6 +504,7 @@ public class McpRuntimeService implements Closeable {
         try {
             discoveryExecutor.submit(
                     new Runnable() {
+                        /** 执行异步任务主体。 */
                         @Override
                         public void run() {
                             try {
@@ -373,10 +522,22 @@ public class McpRuntimeService implements Closeable {
         return future;
     }
 
+    /**
+     * 记录Discovery Error。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param error 错误参数。
+     */
     private void recordDiscoveryError(String serverId, Throwable error) {
         updateStatus(serverId, "error", safeError(error), null, false);
     }
 
+    /**
+     * 执行提供方For相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @return 返回提供方For结果。
+     */
     private McpClientProvider providerFor(McpServerConfig config) {
         McpClientProvider current = providers.get(config.getServerId());
         if (current != null) {
@@ -392,6 +553,11 @@ public class McpRuntimeService implements Closeable {
         return created;
     }
 
+    /**
+     * 执行assert安全提供方Endpoint相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     */
     private void assertSafeProviderEndpoint(McpServerConfig config) {
         String transport = StrUtil.nullToEmpty(config.getTransport()).trim();
         if ("stdio".equalsIgnoreCase(transport) || StrUtil.isBlank(config.getEndpoint())) {
@@ -408,17 +574,27 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 关闭提供方。
+     *
+     * @param serverId MCP 服务端标识。
+     */
     private void closeProvider(String serverId) {
         McpClientProvider provider = providers.remove(serverId);
         if (provider != null) {
             try {
                 provider.close();
             } catch (Exception ignored) {
-                // Best effort reconnect.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
     }
 
+    /**
+     * 执行启用状态服务端相关逻辑。
+     *
+     * @return 返回enabled 服务端结果。
+     */
     private List<McpServerConfig> enabledServers() {
         List<McpServerConfig> result = new ArrayList<McpServerConfig>();
         Connection connection = null;
@@ -444,6 +620,12 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 加载Server。
+     *
+     * @param serverId MCP 服务端标识。
+     * @return 返回Server结果。
+     */
     private McpServerConfig loadServer(String serverId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -465,6 +647,12 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 执行map配置相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map配置。
+     */
     private McpServerConfig mapConfig(ResultSet resultSet) throws Exception {
         McpServerConfig config = new McpServerConfig();
         config.setServerId(resultSet.getString("server_id"));
@@ -498,6 +686,16 @@ public class McpRuntimeService implements Closeable {
         return config;
     }
 
+    /**
+     * 执行persist工具Snapshot相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param toolsJson toolsJSON参数。
+     * @param baselineInitial baselineInitial 参数。
+     * @param status 状态参数。
+     * @param lastError last错误参数。
+     * @return 返回persist工具Snapshot结果。
+     */
     private McpToolRefreshResult persistToolSnapshot(
             String serverId,
             String toolsJson,
@@ -527,6 +725,15 @@ public class McpRuntimeService implements Closeable {
                 lastError);
     }
 
+    /**
+     * 更新状态。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param status 状态参数。
+     * @param lastError last错误参数。
+     * @param toolsJson toolsJSON参数。
+     * @param toolsChanged toolsChanged 参数。
+     */
     private void updateStatus(
             String serverId,
             String status,
@@ -563,12 +770,19 @@ public class McpRuntimeService implements Closeable {
             statement.executeUpdate();
             statement.close();
         } catch (Exception ignored) {
-            // Status updates are diagnostic; tool execution should surface its own error.
+            // 保留此处实现约束，避免后续维护时破坏既有行为。
         } finally {
             close(connection);
         }
     }
 
+    /**
+     * 执行工具Snapshot相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param tools tools 参数。
+     * @return 返回工具Snapshot结果。
+     */
     private List<Map<String, Object>> toolsSnapshot(
             String serverId, Collection<FunctionTool> tools) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -589,6 +803,13 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 执行MCP工具Snapshot相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param tools tools 参数。
+     * @return 返回MCP工具Snapshot结果。
+     */
     private List<Map<String, Object>> mcpToolsSnapshot(
             McpServerConfig config, List<McpSchema.Tool> tools) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -611,6 +832,13 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 执行filtered工具相关逻辑。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param remoteTools remoteTools 参数。
+     * @return 返回filtered工具结果。
+     */
     private List<FunctionTool> filteredTools(
             McpServerConfig config, Collection<FunctionTool> remoteTools) {
         List<FunctionTool> result = new ArrayList<FunctionTool>();
@@ -625,6 +853,13 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 判断是否需要Register工具。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param toolName 工具名称。
+     * @return 如果Register工具满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldRegisterTool(McpServerConfig config, String toolName) {
         McpToolOptions options = config.getToolOptions();
         if (!options.getInclude().isEmpty()) {
@@ -636,6 +871,12 @@ public class McpRuntimeService implements Closeable {
         return true;
     }
 
+    /**
+     * 解析Headers。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @return 返回解析后的Headers。
+     */
     private Map<String, String> resolveHeaders(McpServerConfig config) {
         Map<String, String> result = new LinkedHashMap<String, String>();
         Map<String, Object> auth = config.getAuth();
@@ -654,6 +895,13 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 判断是否存在Header。
+     *
+     * @param headers headers 参数。
+     * @param name 名称参数。
+     * @return 如果Header满足条件则返回 true，否则返回 false。
+     */
     private boolean hasHeader(Map<String, String> headers, String name) {
         for (String key : headers.keySet()) {
             if (key != null && key.equalsIgnoreCase(name)) {
@@ -663,6 +911,12 @@ public class McpRuntimeService implements Closeable {
         return false;
     }
 
+    /**
+     * 解析Env。
+     *
+     * @param auth 鉴权参数。
+     * @return 返回解析后的Env。
+     */
     private Map<String, String> resolveEnv(Map<String, Object> auth) {
         Map<String, String> result = new LinkedHashMap<String, String>();
         Object env = firstPresent(auth, "env", "environment");
@@ -676,6 +930,12 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 解析工具Options。
+     *
+     * @param auth 鉴权参数。
+     * @return 返回解析后的工具Options。
+     */
     @SuppressWarnings("unchecked")
     private McpToolOptions resolveToolOptions(Map<String, Object> auth) {
         McpToolOptions options = new McpToolOptions();
@@ -706,6 +966,12 @@ public class McpRuntimeService implements Closeable {
         return options;
     }
 
+    /**
+     * 解析名称Set。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回解析后的名称Set。
+     */
     private Set<String> parseNameSet(Object value) {
         LinkedHashSet<String> result = new LinkedHashSet<String>();
         if (value == null) {
@@ -735,6 +1001,12 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 追加名称。
+     *
+     * @param result 结果响应或执行结果。
+     * @param value 待规范化或校验的原始值。
+     */
     private void addName(Set<String> result, Object value) {
         String text = value == null ? "" : String.valueOf(value).trim();
         if (StrUtil.isNotBlank(text)) {
@@ -742,6 +1014,13 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 执行as布尔值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallback 兜底参数。
+     * @return 返回as Boolean结果。
+     */
     private boolean asBoolean(Object value, boolean fallback) {
         if (value == null) {
             return fallback;
@@ -756,6 +1035,12 @@ public class McpRuntimeService implements Closeable {
         return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
     }
 
+    /**
+     * 解析String List。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的String List。
+     */
     @SuppressWarnings("unchecked")
     private List<String> parseStringList(String json) {
         Object parsed = parse(json);
@@ -772,6 +1057,12 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 解析Map。
+     *
+     * @param json JSON参数。
+     * @return 返回解析后的Map。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseMap(String json) {
         Object parsed = parse(json);
@@ -781,6 +1072,12 @@ public class McpRuntimeService implements Closeable {
         return new LinkedHashMap<String, Object>();
     }
 
+    /**
+     * 执行解析相关逻辑。
+     *
+     * @param json JSON参数。
+     * @return 返回parse结果。
+     */
     private Object parse(String json) {
         if (StrUtil.isBlank(json)) {
             return null;
@@ -792,10 +1089,22 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 执行JSON相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回JSON结果。
+     */
     private String json(Object value) {
         return value == null ? null : ONode.serialize(value);
     }
 
+    /**
+     * 脱敏For工具结果。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回For工具结果。
+     */
     @SuppressWarnings("unchecked")
     private Object redactForToolResult(Object value) {
         if (value instanceof String) {
@@ -823,6 +1132,12 @@ public class McpRuntimeService implements Closeable {
         return value;
     }
 
+    /**
+     * 为敏感键构造脱敏后的展示值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回redacted Sensitive Value结果。
+     */
     private Object redactedSensitiveValue(Object value) {
         if (value == null) {
             return null;
@@ -833,6 +1148,12 @@ public class McpRuntimeService implements Closeable {
         return "***";
     }
 
+    /**
+     * 判断是否Sensitive结果键。
+     *
+     * @param key 配置键或映射键。
+     * @return 如果Sensitive结果键满足条件则返回 true，否则返回 false。
+     */
     private boolean isSensitiveResultKey(String key) {
         if (key == null) {
             return false;
@@ -856,14 +1177,33 @@ public class McpRuntimeService implements Closeable {
                 || normalized.endsWith("_api_key");
     }
 
+    /**
+     * 生成安全展示用的工具结果JSON。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe工具结果JSON结果。
+     */
     private String safeToolResultJson(Object value) {
         return json(redactForToolResult(value));
     }
 
+    /**
+     * 清理输入结构。
+     *
+     * @param inputSchema 输入Schema参数。
+     * @return 返回输入结构结果。
+     */
     private String sanitizeInputSchema(String inputSchema) {
         return SolonClawToolSchemaSanitizer.sanitizeSchemaJson(inputSchema);
     }
 
+    /**
+     * 执行firstPresent相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Present结果。
+     */
     private Object firstPresent(Map<String, Object> map, String... keys) {
         if (map == null) {
             return null;
@@ -876,11 +1216,25 @@ public class McpRuntimeService implements Closeable {
         return null;
     }
 
+    /**
+     * 执行first文本相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Text结果。
+     */
     private String firstText(Map<String, Object> map, String... keys) {
         Object value = firstPresent(map, keys);
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 读取Seconds。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallbackMillis 兜底Millis参数。
+     * @return 返回读取到的Seconds。
+     */
     private long readSeconds(Object value, long fallbackMillis) {
         if (value == null) {
             return fallbackMillis;
@@ -892,6 +1246,13 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 读取Long。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param fallback 兜底参数。
+     * @return 返回读取到的Long。
+     */
     private long readLong(Object value, long fallback) {
         if (value == null) {
             return fallback;
@@ -903,6 +1264,12 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 执行哈希相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回hash结果。
+     */
     private String hash(String value) {
         if (StrUtil.isBlank(value)) {
             return "";
@@ -920,6 +1287,12 @@ public class McpRuntimeService implements Closeable {
         }
     }
 
+    /**
+     * 执行次数工具相关逻辑。
+     *
+     * @param toolsJson toolsJSON参数。
+     * @return 返回次数工具结果。
+     */
     private int countTools(String toolsJson) {
         Object parsed = parse(toolsJson);
         if (parsed instanceof List) {
@@ -928,6 +1301,12 @@ public class McpRuntimeService implements Closeable {
         return StrUtil.isBlank(toolsJson) ? 0 : 1;
     }
 
+    /**
+     * 执行工具Names相关逻辑。
+     *
+     * @param toolsJson toolsJSON参数。
+     * @return 返回工具Names结果。
+     */
     @SuppressWarnings("unchecked")
     private List<String> toolNames(String toolsJson) {
         Object parsed = parse(toolsJson);
@@ -949,6 +1328,13 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 执行difference相关逻辑。
+     *
+     * @param left 左侧比较对象。
+     * @param right 右侧比较对象。
+     * @return 返回difference结果。
+     */
     private List<String> difference(List<String> left, List<String> right) {
         List<String> result = new ArrayList<String>();
         List<String> safeRight = right == null ? Collections.<String>emptyList() : right;
@@ -963,10 +1349,22 @@ public class McpRuntimeService implements Closeable {
         return result;
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable e) {
         return SecretRedactor.redact(diagnosticError(e), 500);
     }
 
+    /**
+     * 执行诊断错误相关逻辑。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回诊断Error结果。
+     */
     private static String diagnosticError(Throwable e) {
         if (e == null) {
             return "";
@@ -978,10 +1376,23 @@ public class McpRuntimeService implements Closeable {
         return e.getClass().getSimpleName();
     }
 
+    /**
+     * 执行prefixed名称相关逻辑。
+     *
+     * @param serverId MCP 服务端标识。
+     * @param toolName 工具名称。
+     * @return 返回prefixed名称结果。
+     */
     private static String prefixedName(String serverId, String toolName) {
         return "mcp_" + sanitizeName(serverId) + "_" + sanitizeName(toolName);
     }
 
+    /**
+     * 清理名称。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回名称结果。
+     */
     private static String sanitizeName(String value) {
         String text = StrUtil.nullToEmpty(value).trim().toLowerCase(Locale.ROOT);
         String sanitized = text.replaceAll("[^a-z0-9_-]+", "_").replaceAll("_+", "_");
@@ -994,232 +1405,532 @@ public class McpRuntimeService implements Closeable {
         return StrUtil.blankToDefault(sanitized, "tool");
     }
 
+    /**
+     * 关闭当前组件持有的运行资源。
+     *
+     * @param connection 连接参数。
+     */
     private void close(Connection connection) {
         if (connection != null) {
             try {
                 connection.close();
             } catch (Exception ignored) {
-                // Ignore close failures.
+                // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
     }
 
+    /** 承载MCP服务端配置并集中创建运行组件。 */
     public static class McpServerConfig {
+        /** 记录MCP服务端中的服务端标识。 */
         private String serverId;
+
+        /** 记录MCP服务端中的名称。 */
         private String name;
+
+        /** 记录MCP服务端中的transport。 */
         private String transport;
+
+        /** 记录MCP服务端中的endpoint。 */
         private String endpoint;
+
+        /** 记录MCP服务端中的命令。 */
         private String command;
+
+        /** 保存参数集合，维持调用顺序或去重语义。 */
         private List<String> args = new ArrayList<String>();
+
+        /** 保存认证映射，便于按键快速查询。 */
         private Map<String, Object> auth = new LinkedHashMap<String, Object>();
+
+        /** 保存oauth映射，便于按键快速查询。 */
         private Map<String, Object> oauth = new LinkedHashMap<String, Object>();
+
+        /** 保存capabilities映射，便于按键快速查询。 */
         private Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+
+        /** 保存headers映射，便于按键快速查询。 */
         private Map<String, String> headers = new LinkedHashMap<String, String>();
+
+        /** 保存环境变量映射，便于按键快速查询。 */
         private Map<String, String> env = new LinkedHashMap<String, String>();
+
+        /** 记录MCP服务端中的工具Options。 */
         private McpToolOptions toolOptions = new McpToolOptions();
+
+        /** 记录MCP服务端中的access token。 */
         private String accessToken;
+
+        /** 记录MCP服务端中的工具JSON。 */
         private String toolsJson;
+
+        /** 记录MCP服务端中的最近一次工具哈希。 */
         private String lastToolsHash;
+
+        /** 标记该配置项或记录是否处于启用状态。 */
         private boolean enabled;
+
+        /** 记录MCP服务端中的connectTimeoutMillis。 */
         private long connectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
+
+        /** 记录MCP服务端中的工具TimeoutMillis。 */
         private long toolTimeoutMillis = DEFAULT_TOOL_TIMEOUT_MILLIS;
 
+        /**
+         * 读取Server标识。
+         *
+         * @return 返回读取到的Server标识。
+         */
         public String getServerId() {
             return serverId;
         }
 
+        /**
+         * 写入Server标识。
+         *
+         * @param serverId MCP 服务端标识。
+         */
         public void setServerId(String serverId) {
             this.serverId = serverId;
         }
 
+        /**
+         * 读取名称。
+         *
+         * @return 返回读取到的名称。
+         */
         public String getName() {
             return name;
         }
 
+        /**
+         * 写入名称。
+         *
+         * @param name 名称参数。
+         */
         public void setName(String name) {
             this.name = name;
         }
 
+        /**
+         * 读取Transport。
+         *
+         * @return 返回读取到的Transport。
+         */
         public String getTransport() {
             return transport;
         }
 
+        /**
+         * 写入Transport。
+         *
+         * @param transport transport 参数。
+         */
         public void setTransport(String transport) {
             this.transport = transport;
         }
 
+        /**
+         * 读取Endpoint。
+         *
+         * @return 返回读取到的Endpoint。
+         */
         public String getEndpoint() {
             return endpoint;
         }
 
+        /**
+         * 写入Endpoint。
+         *
+         * @param endpoint endpoint 参数。
+         */
         public void setEndpoint(String endpoint) {
             this.endpoint = endpoint;
         }
 
+        /**
+         * 读取命令。
+         *
+         * @return 返回读取到的命令。
+         */
         public String getCommand() {
             return command;
         }
 
+        /**
+         * 写入命令。
+         *
+         * @param command 待执行或解析的命令文本。
+         */
         public void setCommand(String command) {
             this.command = command;
         }
 
+        /**
+         * 读取参数。
+         *
+         * @return 返回读取到的参数。
+         */
         public List<String> getArgs() {
             return args;
         }
 
+        /**
+         * 写入参数。
+         *
+         * @param args 工具或命令参数。
+         */
         public void setArgs(List<String> args) {
             this.args = args == null ? new ArrayList<String>() : args;
         }
 
+        /**
+         * 读取认证。
+         *
+         * @return 返回读取到的认证。
+         */
         public Map<String, Object> getAuth() {
             return auth;
         }
 
+        /**
+         * 写入认证。
+         *
+         * @param auth 鉴权参数。
+         */
         public void setAuth(Map<String, Object> auth) {
             this.auth = auth == null ? new LinkedHashMap<String, Object>() : auth;
         }
 
+        /**
+         * 读取Oauth。
+         *
+         * @return 返回读取到的Oauth。
+         */
         public Map<String, Object> getOauth() {
             return oauth;
         }
 
+        /**
+         * 写入Oauth。
+         *
+         * @param oauth oauth 参数。
+         */
         public void setOauth(Map<String, Object> oauth) {
             this.oauth = oauth == null ? new LinkedHashMap<String, Object>() : oauth;
         }
 
+        /**
+         * 读取Capabilities。
+         *
+         * @return 返回读取到的Capabilities。
+         */
         public Map<String, Object> getCapabilities() {
             return capabilities;
         }
 
+        /**
+         * 写入Capabilities。
+         *
+         * @param capabilities capabilities 参数。
+         */
         public void setCapabilities(Map<String, Object> capabilities) {
             this.capabilities =
                     capabilities == null ? new LinkedHashMap<String, Object>() : capabilities;
         }
 
+        /**
+         * 读取Headers。
+         *
+         * @return 返回读取到的Headers。
+         */
         public Map<String, String> getHeaders() {
             return headers;
         }
 
+        /**
+         * 写入Headers。
+         *
+         * @param headers headers 参数。
+         */
         public void setHeaders(Map<String, String> headers) {
             this.headers = headers == null ? new LinkedHashMap<String, String>() : headers;
         }
 
+        /**
+         * 读取Env。
+         *
+         * @return 返回读取到的Env。
+         */
         public Map<String, String> getEnv() {
             return env;
         }
 
+        /**
+         * 写入Env。
+         *
+         * @param env 环境变量参数。
+         */
         public void setEnv(Map<String, String> env) {
             this.env = env == null ? new LinkedHashMap<String, String>() : env;
         }
 
+        /**
+         * 读取工具Options。
+         *
+         * @return 返回读取到的工具Options。
+         */
         public McpToolOptions getToolOptions() {
             return toolOptions;
         }
 
+        /**
+         * 写入工具Options。
+         *
+         * @param toolOptions 工具Options参数。
+         */
         public void setToolOptions(McpToolOptions toolOptions) {
             this.toolOptions = toolOptions == null ? new McpToolOptions() : toolOptions;
         }
 
+        /**
+         * 读取access token。
+         *
+         * @return 返回读取到的access token。
+         */
         public String getAccessToken() {
             return accessToken;
         }
 
+        /**
+         * 写入access token。
+         *
+         * @param accessToken access token参数。
+         */
         public void setAccessToken(String accessToken) {
             this.accessToken = accessToken;
         }
 
+        /**
+         * 读取工具JSON。
+         *
+         * @return 返回读取到的工具JSON。
+         */
         public String getToolsJson() {
             return toolsJson;
         }
 
+        /**
+         * 写入工具JSON。
+         *
+         * @param toolsJson toolsJSON参数。
+         */
         public void setToolsJson(String toolsJson) {
             this.toolsJson = toolsJson;
         }
 
+        /**
+         * 读取Last工具Hash。
+         *
+         * @return 返回读取到的Last工具Hash。
+         */
         public String getLastToolsHash() {
             return lastToolsHash;
         }
 
+        /**
+         * 写入Last工具Hash。
+         *
+         * @param lastToolsHash lastTools哈希参数。
+         */
         public void setLastToolsHash(String lastToolsHash) {
             this.lastToolsHash = lastToolsHash;
         }
 
+        /**
+         * 判断是否启用。
+         *
+         * @return 如果启用满足条件则返回 true，否则返回 false。
+         */
         public boolean isEnabled() {
             return enabled;
         }
 
+        /**
+         * 写入启用。
+         *
+         * @param enabled 启用状态开关值。
+         */
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
         }
 
+        /**
+         * 读取Connect Timeout Millis。
+         *
+         * @return 返回读取到的Connect Timeout Millis。
+         */
         public long getConnectTimeoutMillis() {
             return connectTimeoutMillis;
         }
 
+        /**
+         * 写入Connect Timeout Millis。
+         *
+         * @param connectTimeoutMillis connectTimeoutMillis 参数。
+         */
         public void setConnectTimeoutMillis(long connectTimeoutMillis) {
             this.connectTimeoutMillis = connectTimeoutMillis;
         }
 
+        /**
+         * 读取工具Timeout Millis。
+         *
+         * @return 返回读取到的工具Timeout Millis。
+         */
         public long getToolTimeoutMillis() {
             return toolTimeoutMillis;
         }
 
+        /**
+         * 写入工具Timeout Millis。
+         *
+         * @param toolTimeoutMillis 工具TimeoutMillis参数。
+         */
         public void setToolTimeoutMillis(long toolTimeoutMillis) {
             this.toolTimeoutMillis = toolTimeoutMillis;
         }
     }
 
+    /** 承载MCP工具Options相关状态和辅助逻辑。 */
     public static class McpToolOptions {
+        /** 保存include集合，维持调用顺序或去重语义。 */
         private Set<String> include = new LinkedHashSet<String>();
+
+        /** 保存exclude集合，维持调用顺序或去重语义。 */
         private Set<String> exclude = new LinkedHashSet<String>();
+
+        /** 是否启用resources启用状态。 */
         private boolean resourcesEnabled = true;
+
+        /** 是否启用prompts启用状态。 */
         private boolean promptsEnabled = true;
 
+        /**
+         * 读取Include。
+         *
+         * @return 返回读取到的Include。
+         */
         public Set<String> getInclude() {
             return include;
         }
 
+        /**
+         * 写入Include。
+         *
+         * @param include include 参数。
+         */
         public void setInclude(Set<String> include) {
             this.include = include == null ? new LinkedHashSet<String>() : include;
         }
 
+        /**
+         * 读取Exclude。
+         *
+         * @return 返回读取到的Exclude。
+         */
         public Set<String> getExclude() {
             return exclude;
         }
 
+        /**
+         * 写入Exclude。
+         *
+         * @param exclude exclude 参数。
+         */
         public void setExclude(Set<String> exclude) {
             this.exclude = exclude == null ? new LinkedHashSet<String>() : exclude;
         }
 
+        /**
+         * 判断是否Resources 启用。
+         *
+         * @return 如果Resources 启用满足条件则返回 true，否则返回 false。
+         */
         public boolean isResourcesEnabled() {
             return resourcesEnabled;
         }
 
+        /**
+         * 写入Resources 启用。
+         *
+         * @param resources启用 resources启用状态开关值。
+         */
         public void setResourcesEnabled(boolean resourcesEnabled) {
             this.resourcesEnabled = resourcesEnabled;
         }
 
+        /**
+         * 判断是否Prompts 启用。
+         *
+         * @return 如果Prompts 启用满足条件则返回 true，否则返回 false。
+         */
         public boolean isPromptsEnabled() {
             return promptsEnabled;
         }
 
+        /**
+         * 写入Prompts 启用。
+         *
+         * @param prompts启用 prompts启用状态开关值。
+         */
         public void setPromptsEnabled(boolean promptsEnabled) {
             this.promptsEnabled = promptsEnabled;
         }
     }
 
+    /** 表示MCP工具刷新结果，携带调用方后续判断所需信息。 */
     public static class McpToolRefreshResult {
+        /** 记录MCP工具刷新中的服务端标识。 */
         private final String serverId;
+
+        /** 记录MCP工具刷新中的next哈希。 */
         private final String nextHash;
+
+        /** 是否启用工具Changed。 */
         private final boolean toolsChanged;
+
+        /** 记录MCP工具刷新中的previous工具次数。 */
         private final int previousToolCount;
+
+        /** 记录MCP工具刷新中的工具次数。 */
         private final int toolCount;
+
+        /** 保存added工具集合，维持调用顺序或去重语义。 */
         private final List<String> addedTools;
+
+        /** 保存removed工具集合，维持调用顺序或去重语义。 */
         private final List<String> removedTools;
+
+        /** 记录MCP工具刷新中的状态。 */
         private final String status;
+
+        /** 记录MCP工具刷新中的错误。 */
         private final String error;
 
+        /**
+         * 创建MCP工具刷新结果实例，并注入运行所需依赖。
+         *
+         * @param serverId MCP 服务端标识。
+         * @param nextHash next哈希参数。
+         * @param toolsChanged toolsChanged 参数。
+         * @param previousToolCount previous工具Count参数。
+         * @param toolCount 工具Count参数。
+         * @param addedTools addedTools 参数。
+         * @param removedTools removedTools 参数。
+         * @param status 状态参数。
+         * @param error 错误参数。
+         */
         public McpToolRefreshResult(
                 String serverId,
                 String nextHash,
@@ -1247,51 +1958,110 @@ public class McpRuntimeService implements Closeable {
             this.error = error;
         }
 
+        /**
+         * 读取Server标识。
+         *
+         * @return 返回读取到的Server标识。
+         */
         public String getServerId() {
             return serverId;
         }
 
+        /**
+         * 读取Next Hash。
+         *
+         * @return 返回读取到的Next Hash。
+         */
         public String getNextHash() {
             return nextHash;
         }
 
+        /**
+         * 判断是否工具Changed。
+         *
+         * @return 如果工具Changed满足条件则返回 true，否则返回 false。
+         */
         public boolean isToolsChanged() {
             return toolsChanged;
         }
 
+        /**
+         * 读取Previous工具次数。
+         *
+         * @return 返回读取到的Previous工具次数。
+         */
         public int getPreviousToolCount() {
             return previousToolCount;
         }
 
+        /**
+         * 读取工具次数。
+         *
+         * @return 返回读取到的工具次数。
+         */
         public int getToolCount() {
             return toolCount;
         }
 
+        /**
+         * 读取Added工具。
+         *
+         * @return 返回读取到的Added工具。
+         */
         public List<String> getAddedTools() {
             return addedTools;
         }
 
+        /**
+         * 读取Removed工具。
+         *
+         * @return 返回读取到的Removed工具。
+         */
         public List<String> getRemovedTools() {
             return removedTools;
         }
 
+        /**
+         * 读取状态。
+         *
+         * @return 返回读取到的状态。
+         */
         public String getStatus() {
             return status;
         }
 
+        /**
+         * 读取Error。
+         *
+         * @return 返回读取到的Error。
+         */
         public String getError() {
             return error;
         }
     }
 
+    /** 提供Prefixed MCP工具能力的扩展入口，屏蔽具体实现差异。 */
     private class PrefixedMcpToolProvider implements ToolProvider {
+        /** 记录PrefixedMCP工具中的配置。 */
         private final McpServerConfig config;
+
+        /** 记录PrefixedMCP工具中的提供方。 */
         private McpClientProvider provider;
 
+        /**
+         * 创建Prefixed MCP工具提供方实例，并注入运行所需依赖。
+         *
+         * @param config 当前模块使用的配置对象。
+         */
         private PrefixedMcpToolProvider(McpServerConfig config) {
             this.config = config;
         }
 
+        /**
+         * 读取工具。
+         *
+         * @return 返回读取到的工具。
+         */
         @Override
         public Collection<FunctionTool> getTools() {
             McpClientProvider activeProvider = ensureProvider();
@@ -1328,6 +2098,11 @@ public class McpRuntimeService implements Closeable {
             return result;
         }
 
+        /**
+         * 确保提供方。
+         *
+         * @return 返回提供方结果。
+         */
         private McpClientProvider ensureProvider() {
             if (provider == null) {
                 provider = providerFor(config);
@@ -1335,16 +2110,32 @@ public class McpRuntimeService implements Closeable {
             return provider;
         }
 
+        /**
+         * 判断是否支持ResourcesUtility。
+         *
+         * @return 返回supports Resources Utility结果。
+         */
         private boolean supportsResourcesUtility() {
             return config.getToolOptions().isResourcesEnabled()
                     && advertisedCapabilityEnabled("resources");
         }
 
+        /**
+         * 判断是否支持PromptsUtility。
+         *
+         * @return 返回supports Prompts Utility结果。
+         */
         private boolean supportsPromptsUtility() {
             return config.getToolOptions().isPromptsEnabled()
                     && advertisedCapabilityEnabled("prompts");
         }
 
+        /**
+         * 执行advertisedCapability启用状态相关逻辑。
+         *
+         * @param name 名称参数。
+         * @return 返回advertised Capability 启用结果。
+         */
         private boolean advertisedCapabilityEnabled(String name) {
             Map<String, Object> capabilities = config.getCapabilities();
             if (capabilities == null || capabilities.isEmpty()) {
@@ -1380,6 +2171,11 @@ public class McpRuntimeService implements Closeable {
             return asBoolean(capability, false);
         }
 
+        /**
+         * 列出Resources工具。
+         *
+         * @return 返回Resources工具列表。
+         */
         private FunctionTool listResourcesTool() {
             FunctionToolDesc desc =
                     new FunctionToolDesc(prefixedName(config.getServerId(), "list_resources"));
@@ -1396,6 +2192,11 @@ public class McpRuntimeService implements Closeable {
             return desc;
         }
 
+        /**
+         * 读取Resource工具。
+         *
+         * @return 返回读取到的Resource工具。
+         */
         private FunctionTool readResourceTool() {
             FunctionToolDesc desc =
                     new FunctionToolDesc(prefixedName(config.getServerId(), "read_resource"));
@@ -1409,6 +2210,11 @@ public class McpRuntimeService implements Closeable {
             return desc;
         }
 
+        /**
+         * 列出Prompts工具。
+         *
+         * @return 返回Prompts工具列表。
+         */
         private FunctionTool listPromptsTool() {
             FunctionToolDesc desc =
                     new FunctionToolDesc(prefixedName(config.getServerId(), "list_prompts"));
@@ -1422,6 +2228,11 @@ public class McpRuntimeService implements Closeable {
             return desc;
         }
 
+        /**
+         * 读取提示词工具。
+         *
+         * @return 返回读取到的提示词工具。
+         */
         private FunctionTool getPromptTool() {
             FunctionToolDesc desc =
                     new FunctionToolDesc(prefixedName(config.getServerId(), "get_prompt"));
@@ -1439,10 +2250,21 @@ public class McpRuntimeService implements Closeable {
             return desc;
         }
 
+        /**
+         * 列出Resources JSON。
+         *
+         * @return 返回Resources JSON列表。
+         */
         private String listResourcesJson() {
             return callWithRecovery(
                     "list_resources",
                     new RecoverableCall<String>() {
+                        /**
+                         * 执行回调调用并返回结果。
+                         *
+                         * @param activeProvider active提供方标识或键值。
+                         * @return 返回call结果。
+                         */
                         @Override
                         public String call(McpClientProvider activeProvider) {
                             List<Map<String, Object>> resources =
@@ -1457,6 +2279,13 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
+        /**
+         * 追加Resource Maps。
+         *
+         * @param result 结果响应或执行结果。
+         * @param resources resources 参数。
+         * @param template template 参数。
+         */
         private void appendResourceMaps(
                 List<Map<String, Object>> result,
                 Collection<FunctionResource> resources,
@@ -1479,6 +2308,12 @@ public class McpRuntimeService implements Closeable {
             }
         }
 
+        /**
+         * 读取Resource JSON。
+         *
+         * @param uri 待校验或访问的地址参数。
+         * @return 返回读取到的Resource JSON。
+         */
         private String readResourceJson(String uri) throws Throwable {
             if (StrUtil.isBlank(uri)) {
                 throw new IllegalArgumentException("MCP resource uri is required.");
@@ -1487,6 +2322,12 @@ public class McpRuntimeService implements Closeable {
             return callWithRecovery(
                     "read_resource",
                     new RecoverableCall<String>() {
+                        /**
+                         * 执行回调调用并返回结果。
+                         *
+                         * @param activeProvider active提供方标识或键值。
+                         * @return 返回call结果。
+                         */
                         @Override
                         public String call(McpClientProvider activeProvider) throws Throwable {
                             ResourcePack pack = activeProvider.readResource(uri);
@@ -1514,10 +2355,21 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
+        /**
+         * 列出Prompts JSON。
+         *
+         * @return 返回Prompts JSON列表。
+         */
         private String listPromptsJson() {
             return callWithRecovery(
                     "list_prompts",
                     new RecoverableCall<String>() {
+                        /**
+                         * 执行回调调用并返回结果。
+                         *
+                         * @param activeProvider active提供方标识或键值。
+                         * @return 返回call结果。
+                         */
                         @Override
                         public String call(McpClientProvider activeProvider) {
                             Collection<FunctionPrompt> prompts = activeProvider.getPrompts();
@@ -1543,6 +2395,13 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
+        /**
+         * 读取提示词JSON。
+         *
+         * @param name 名称参数。
+         * @param args 工具或命令参数。
+         * @return 返回读取到的提示词JSON。
+         */
         private String getPromptJson(final String name, final Map<String, Object> args) {
             if (StrUtil.isBlank(name)) {
                 throw new IllegalArgumentException("MCP prompt name is required.");
@@ -1550,6 +2409,12 @@ public class McpRuntimeService implements Closeable {
             return callWithRecovery(
                     "get_prompt",
                     new RecoverableCall<String>() {
+                        /**
+                         * 执行回调调用并返回结果。
+                         *
+                         * @param activeProvider active提供方标识或键值。
+                         * @return 返回call结果。
+                         */
                         @Override
                         public String call(McpClientProvider activeProvider) throws Throwable {
                             Prompt prompt = activeProvider.getPrompt(name, args);
@@ -1581,11 +2446,24 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
+        /**
+         * 调用Remote工具With恢复。
+         *
+         * @param remoteToolName remote工具名称参数。
+         * @param args 工具或命令参数。
+         * @return 返回call Remote工具With Recovery结果。
+         */
         private Object callRemoteToolWithRecovery(
                 final String remoteToolName, final Map<String, Object> args) {
             return callWithRecovery(
                     remoteToolName,
                     new RecoverableCall<Object>() {
+                        /**
+                         * 执行回调调用并返回结果。
+                         *
+                         * @param activeProvider active提供方标识或键值。
+                         * @return 返回call结果。
+                         */
                         @Override
                         public Object call(McpClientProvider activeProvider) throws Throwable {
                             FunctionTool tool = findRemoteTool(activeProvider, remoteToolName);
@@ -1598,6 +2476,13 @@ public class McpRuntimeService implements Closeable {
                     });
         }
 
+        /**
+         * 查找Remote工具。
+         *
+         * @param activeProvider active提供方标识或键值。
+         * @param remoteToolName remote工具名称参数。
+         * @return 返回Remote工具结果。
+         */
         private FunctionTool findRemoteTool(
                 McpClientProvider activeProvider, String remoteToolName) {
             Collection<FunctionTool> tools = filteredTools(config, activeProvider.getTools());
@@ -1612,6 +2497,13 @@ public class McpRuntimeService implements Closeable {
             return null;
         }
 
+        /**
+         * 执行coerceNumeric参数相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @param inputSchema 输入Schema参数。
+         * @return 返回coerce Numeric参数结果。
+         */
         @SuppressWarnings("unchecked")
         private Map<String, Object> coerceNumericArgs(
                 Map<String, Object> args, String inputSchema) {
@@ -1648,6 +2540,13 @@ public class McpRuntimeService implements Closeable {
             return result;
         }
 
+        /**
+         * 执行coerceNumber相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @param property property 参数。
+         * @return 返回coerce Number结果。
+         */
         private Object coerceNumber(Object value, Map<String, Object> property) {
             if (value == null || value instanceof Boolean || property == null) {
                 return value;
@@ -1675,6 +2574,13 @@ public class McpRuntimeService implements Closeable {
             return Double.valueOf(bounded);
         }
 
+        /**
+         * 判断是否Numeric结构。
+         *
+         * @param property property 参数。
+         * @param expectedType expected类型参数。
+         * @return 如果Numeric结构满足条件则返回 true，否则返回 false。
+         */
         private boolean isNumericSchema(Map<String, Object> property, String expectedType) {
             Object type = property.get("type");
             if (type instanceof Iterable) {
@@ -1688,6 +2594,12 @@ public class McpRuntimeService implements Closeable {
             return expectedType.equals(String.valueOf(type));
         }
 
+        /**
+         * 解析Double。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @return 返回解析后的Double。
+         */
         private Double parseDouble(Object value) {
             if (value instanceof Number) {
                 double parsed = ((Number) value).doubleValue();
@@ -1711,6 +2623,13 @@ public class McpRuntimeService implements Closeable {
             }
         }
 
+        /**
+         * 执行clamp相关逻辑。
+         *
+         * @param value 待规范化或校验的原始值。
+         * @param property property 参数。
+         * @return 返回clamp结果。
+         */
         private double clamp(double value, Map<String, Object> property) {
             Double minimum = parseDouble(property.get("minimum"));
             Double maximum = parseDouble(property.get("maximum"));
@@ -1724,6 +2643,13 @@ public class McpRuntimeService implements Closeable {
             return result;
         }
 
+        /**
+         * 调用With恢复。
+         *
+         * @param operation operation 参数。
+         * @param call call 参数。
+         * @return 返回call With Recovery结果。
+         */
         private <T> T callWithRecovery(String operation, RecoverableCall<T> call) {
             McpClientProvider activeProvider = ensureProvider();
             try {
@@ -1752,6 +2678,14 @@ public class McpRuntimeService implements Closeable {
             throw new IllegalStateException("unreachable");
         }
 
+        /**
+         * 调用WithTimeout。
+         *
+         * @param operation operation 参数。
+         * @param call call 参数。
+         * @param activeProvider active提供方标识或键值。
+         * @return 返回call With Timeout结果。
+         */
         private <T> T callWithTimeout(
                 final String operation,
                 final RecoverableCall<T> call,
@@ -1762,6 +2696,11 @@ public class McpRuntimeService implements Closeable {
             Future<T> future =
                     toolCallExecutor.submit(
                             new Callable<T>() {
+                                /**
+                                 * 执行回调调用并返回结果。
+                                 *
+                                 * @return 返回call结果。
+                                 */
                                 @Override
                                 public T call() throws Exception {
                                     try {
@@ -1805,10 +2744,21 @@ public class McpRuntimeService implements Closeable {
             }
         }
 
+        /**
+         * 格式化Seconds。
+         *
+         * @param millis millis 参数。
+         * @return 返回Seconds结果。
+         */
         private String formatSeconds(long millis) {
             return String.format(Locale.ROOT, "%.1f", Double.valueOf(millis / 1000.0D));
         }
 
+        /**
+         * 执行reconnect提供方相关逻辑。
+         *
+         * @return 返回reconnect提供方结果。
+         */
         private McpClientProvider reconnectProvider() {
             closeProvider(config.getServerId());
             McpServerConfig latest;
@@ -1821,6 +2771,12 @@ public class McpRuntimeService implements Closeable {
             return provider;
         }
 
+        /**
+         * 判断是否认证Error。
+         *
+         * @param error 错误参数。
+         * @return 如果认证Error满足条件则返回 true，否则返回 false。
+         */
         private boolean isAuthError(Throwable error) {
             Throwable current = error;
             while (current != null) {
@@ -1842,6 +2798,12 @@ public class McpRuntimeService implements Closeable {
             return false;
         }
 
+        /**
+         * 判断是否Recoverable Transport Error。
+         *
+         * @param error 错误参数。
+         * @return 如果Recoverable Transport Error满足条件则返回 true，否则返回 false。
+         */
         private boolean isRecoverableTransportError(Throwable error) {
             Throwable current = error;
             while (current != null) {
@@ -1869,6 +2831,13 @@ public class McpRuntimeService implements Closeable {
             return false;
         }
 
+        /**
+         * 执行认证FailureJSON相关逻辑。
+         *
+         * @param operation operation 参数。
+         * @param error 错误参数。
+         * @return 返回认证Failure JSON结果。
+         */
         private String authFailureJson(String operation, Throwable error) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("success", Boolean.FALSE);
@@ -1887,6 +2856,11 @@ public class McpRuntimeService implements Closeable {
             return json(result);
         }
 
+        /**
+         * 执行throwUnchecked相关逻辑。
+         *
+         * @param error 错误参数。
+         */
         private void throwUnchecked(Throwable error) {
             if (error instanceof RuntimeException) {
                 if (StrUtil.isBlank(error.getMessage())) {
@@ -1901,6 +2875,12 @@ public class McpRuntimeService implements Closeable {
             throw new IllegalStateException(error);
         }
 
+        /**
+         * 执行提示词参数相关逻辑。
+         *
+         * @param params params 参数。
+         * @return 返回提示词参数结果。
+         */
         private List<Map<String, Object>> promptArguments(Collection<ParamDesc> params) {
             List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
             if (params == null) {
@@ -1918,16 +2898,34 @@ public class McpRuntimeService implements Closeable {
             return result;
         }
 
+        /**
+         * 执行firstArg文本相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @param key 配置键或映射键。
+         * @return 返回first Arg Text结果。
+         */
         private String firstArgText(Map<String, Object> args, String key) {
             Object value = args == null ? null : args.get(key);
             return value == null ? "" : String.valueOf(value).trim();
         }
 
+        /**
+         * 执行assert安全Remote工具相关逻辑。
+         *
+         * @param remoteToolName remote工具名称参数。
+         * @param args 工具或命令参数。
+         */
         private void assertSafeRemoteTool(String remoteToolName, Map<String, Object> args) {
             assertSafeUrls(remoteToolName, args);
             assertSafePaths(remoteToolName, args);
         }
 
+        /**
+         * 执行assert安全资源URI相关逻辑。
+         *
+         * @param uri 待校验或访问的地址参数。
+         */
         private void assertSafeResourceUri(String uri) {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("uri", uri);
@@ -1936,6 +2934,12 @@ public class McpRuntimeService implements Closeable {
             assertSafePaths("read_resource", args);
         }
 
+        /**
+         * 执行assert安全Urls相关逻辑。
+         *
+         * @param remoteToolName remote工具名称参数。
+         * @param args 工具或命令参数。
+         */
         private void assertSafeUrls(String remoteToolName, Map<String, Object> args) {
             if (securityPolicyService == null || args == null || args.isEmpty()) {
                 return;
@@ -1956,6 +2960,12 @@ public class McpRuntimeService implements Closeable {
             }
         }
 
+        /**
+         * 执行assert安全Paths相关逻辑。
+         *
+         * @param remoteToolName remote工具名称参数。
+         * @param args 工具或命令参数。
+         */
         private void assertSafePaths(String remoteToolName, Map<String, Object> args) {
             if (securityPolicyService == null || args == null || args.isEmpty()) {
                 return;
@@ -1975,6 +2985,13 @@ public class McpRuntimeService implements Closeable {
             }
         }
 
+        /**
+         * 执行firstArg映射相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @param keys 候选键列表。
+         * @return 返回first Arg Map结果。
+         */
         @SuppressWarnings("unchecked")
         private Map<String, Object> firstArgMap(Map<String, Object> args, String... keys) {
             if (args == null) {
@@ -1989,21 +3006,46 @@ public class McpRuntimeService implements Closeable {
             return Collections.emptyMap();
         }
 
+        /**
+         * 转换为String。
+         *
+         * @return 返回转换后的String。
+         */
         @Override
         public String toString() {
             return "McpToolProvider(" + config.getServerId() + ")";
         }
     }
 
+    /** 定义Recoverable Call的抽象契约，供不同运行时实现保持一致行为。 */
     private interface RecoverableCall<T> {
+        /**
+         * 执行回调调用并返回结果。
+         *
+         * @param provider 模型或能力提供方。
+         * @return 返回call结果。
+         */
         T call(McpClientProvider provider) throws Throwable;
     }
 
+    /** 定义Discovery Callable的抽象契约，供不同运行时实现保持一致行为。 */
     private interface DiscoveryCallable {
+        /**
+         * 执行回调调用并返回结果。
+         *
+         * @param serverId MCP 服务端标识。
+         * @return 返回call结果。
+         */
         McpToolRefreshResult call(String serverId) throws Exception;
     }
 
+    /** 表示MCP工具Call异常，用于向上层传递可识别的失败原因。 */
     private static class McpToolCallException extends Exception {
+        /**
+         * 创建MCP工具Call Exception实例，并注入运行所需依赖。
+         *
+         * @param cause cause 参数。
+         */
         private McpToolCallException(Throwable cause) {
             super(cause);
         }

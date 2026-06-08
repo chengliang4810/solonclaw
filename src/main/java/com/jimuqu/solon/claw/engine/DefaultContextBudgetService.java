@@ -8,12 +8,27 @@ import com.jimuqu.solon.claw.core.service.ContextBudgetService;
 
 /** 默认上下文预算估算服务。 */
 public class DefaultContextBudgetService implements ContextBudgetService {
+    /** 注入应用配置，用于默认上下文预算。 */
     private final AppConfig appConfig;
 
+    /**
+     * 创建默认上下文Budget服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public DefaultContextBudgetService(AppConfig appConfig) {
         this.appConfig = appConfig;
     }
 
+    /**
+     * 执行decide相关逻辑。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param resolved resolved 参数。
+     * @return 返回decide结果。
+     */
     @Override
     public ContextBudgetDecision decide(
             SessionRecord session,
@@ -40,6 +55,12 @@ public class DefaultContextBudgetService implements ContextBudgetService {
         return decision;
     }
 
+    /**
+     * 执行estimate相关逻辑。
+     *
+     * @param text 待处理文本。
+     * @return 返回estimate结果。
+     */
     private int estimate(String text) {
         if (StrUtil.isBlank(text)) {
             return 0;

@@ -73,7 +73,7 @@ public class AppConfig {
     /** 网关通用授权配置。 */
     private GatewayConfig gateway = new GatewayConfig();
 
-    /** Dashboard and API access configuration. */
+    /** 记录应用中的控制台。 */
     private DashboardConfig dashboard = new DashboardConfig();
 
     /** Agent 运行配置。 */
@@ -97,10 +97,10 @@ public class AppConfig {
     /** Web 工具配置。 */
     private WebConfig web = new WebConfig();
 
-    /** Usage pricing configuration. */
+    /** 记录应用中的价格。 */
     private PricingConfig pricing = new PricingConfig();
 
-    /** Plugin discovery and activation configuration. */
+    /** 记录应用中的plugins。 */
     private PluginConfig plugins = new PluginConfig();
 
     /** 审批/确认策略配置。 */
@@ -1720,6 +1720,11 @@ public class AppConfig {
                 .setIntervalMinutes(other.getAgent().getHeartbeat().getIntervalMinutes());
     }
 
+    /**
+     * 复制运行时。
+     *
+     * @param other 待比较对象。
+     */
     private void copyRuntime(RuntimeConfig other) {
         this.runtime.setHome(other.getHome());
         this.runtime.setContextDir(other.getContextDir());
@@ -1730,6 +1735,11 @@ public class AppConfig {
         this.runtime.setLogsDir(other.getLogsDir());
     }
 
+    /**
+     * 复制大模型。
+     *
+     * @param other 待比较对象。
+     */
     private void copyLlm(LlmConfig other) {
         this.llm.setProvider(other.getProvider());
         this.llm.setDialect(other.getDialect());
@@ -1746,6 +1756,11 @@ public class AppConfig {
         this.llm.getPromptCache().setLayout(other.getPromptCache().getLayout());
     }
 
+    /**
+     * 复制Providers。
+     *
+     * @param other 待比较对象。
+     */
     private void copyProviders(Map<String, ProviderConfig> other) {
         this.providers = new LinkedHashMap<String, ProviderConfig>();
         if (other == null) {
@@ -1768,6 +1783,12 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 复制提供方展示Fields。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     */
     private void copyProviderDisplayFields(ProviderConfig source, ProviderConfig target) {
         target.setGroupId(source.getGroupId());
         target.setGroupLabel(source.getGroupLabel());
@@ -1775,6 +1796,11 @@ public class AppConfig {
         target.setDisplayDescription(source.getDisplayDescription());
     }
 
+    /**
+     * 复制模型。
+     *
+     * @param other 待比较对象。
+     */
     private void copyModel(ModelConfig other) {
         this.model = new ModelConfig();
         if (other == null) {
@@ -1784,6 +1810,11 @@ public class AppConfig {
         this.model.setDefault(other.getDefault());
     }
 
+    /**
+     * 复制兜底Providers。
+     *
+     * @param other 待比较对象。
+     */
     private void copyFallbackProviders(List<FallbackProviderConfig> other) {
         this.fallbackProviders = new ArrayList<FallbackProviderConfig>();
         if (other == null) {
@@ -1800,6 +1831,11 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 复制调度器。
+     *
+     * @param other 待比较对象。
+     */
     private void copyScheduler(SchedulerConfig other) {
         this.scheduler.setEnabled(other.isEnabled());
         this.scheduler.setTickSeconds(other.getTickSeconds());
@@ -1810,6 +1846,11 @@ public class AppConfig {
         this.scheduler.setEnabledToolsets(new ArrayList<String>(other.getEnabledToolsets()));
     }
 
+    /**
+     * 复制压缩。
+     *
+     * @param other 待比较对象。
+     */
     private void copyCompression(CompressionConfig other) {
         this.compression.setEnabled(other.isEnabled());
         this.compression.setThresholdPercent(other.getThresholdPercent());
@@ -1818,12 +1859,22 @@ public class AppConfig {
         this.compression.setTailRatio(other.getTailRatio());
     }
 
+    /**
+     * 复制Learning。
+     *
+     * @param other 待比较对象。
+     */
     private void copyLearning(LearningConfig other) {
         this.learning.setEnabled(other.isEnabled());
         this.learning.setToolCallThreshold(other.getToolCallThreshold());
         this.learning.setAuxiliaryTimeoutSeconds(other.getAuxiliaryTimeoutSeconds());
     }
 
+    /**
+     * 复制技能维护。
+     *
+     * @param other 待比较对象。
+     */
     private void copyCurator(CuratorConfig other) {
         this.curator.setEnabled(other.isEnabled());
         this.curator.setIntervalHours(other.getIntervalHours());
@@ -1832,6 +1883,11 @@ public class AppConfig {
         this.curator.setArchiveAfterDays(other.getArchiveAfterDays());
     }
 
+    /**
+     * 复制技能。
+     *
+     * @param other 待比较对象。
+     */
     private void copySkills(SkillsConfig other) {
         this.skills.setExternalDirs(new ArrayList<String>(other.getExternalDirs()));
         this.skills.setTemplateVars(other.isTemplateVars());
@@ -1839,6 +1895,11 @@ public class AppConfig {
         this.skills.setInlineShellTimeoutSeconds(other.getInlineShellTimeoutSeconds());
     }
 
+    /**
+     * 复制回滚。
+     *
+     * @param other 待比较对象。
+     */
     private void copyRollback(RollbackConfig other) {
         this.rollback.setEnabled(other.isEnabled());
         this.rollback.setMaxCheckpointsPerSource(other.getMaxCheckpointsPerSource());
@@ -1846,6 +1907,11 @@ public class AppConfig {
         this.rollback.setExcludePatterns(new ArrayList<String>(other.getExcludePatterns()));
     }
 
+    /**
+     * 复制展示。
+     *
+     * @param other 待比较对象。
+     */
     private void copyDisplay(DisplayConfig other) {
         this.display.setToolProgress(other.getToolProgress());
         this.display.setShowReasoning(other.isShowReasoning());
@@ -1858,6 +1924,11 @@ public class AppConfig {
                 .setFields(new ArrayList<String>(other.getRuntimeFooter().getFields()));
     }
 
+    /**
+     * 复制ReAct。
+     *
+     * @param other 待比较对象。
+     */
     private void copyReact(ReActConfig other) {
         this.react.setMaxSteps(other.getMaxSteps());
         this.react.setRetryMax(other.getRetryMax());
@@ -1878,12 +1949,22 @@ public class AppConfig {
         this.react.setToolLoopNoProgressBlockAfter(other.getToolLoopNoProgressBlockAfter());
     }
 
+    /**
+     * 复制Trace。
+     *
+     * @param other 待比较对象。
+     */
     private void copyTrace(TraceConfig other) {
         this.trace.setRetentionDays(other.getRetentionDays());
         this.trace.setMaxAttempts(other.getMaxAttempts());
         this.trace.setToolPreviewLength(other.getToolPreviewLength());
     }
 
+    /**
+     * 复制任务。
+     *
+     * @param other 待比较对象。
+     */
     private void copyTask(TaskConfig other) {
         this.task.setBusyPolicy(other.getBusyPolicy());
         this.task.setRestartDrainTimeoutSeconds(other.getRestartDrainTimeoutSeconds());
@@ -1897,6 +1978,11 @@ public class AppConfig {
         this.task.setMediaCacheTtlHours(other.getMediaCacheTtlHours());
     }
 
+    /**
+     * 复制终端。
+     *
+     * @param other 待比较对象。
+     */
     private void copyTerminal(TerminalConfig other) {
         this.terminal.setCredentialFiles(new ArrayList<String>(other.getCredentialFiles()));
         this.terminal.setEnvPassthrough(new ArrayList<String>(other.getEnvPassthrough()));
@@ -1911,6 +1997,11 @@ public class AppConfig {
         this.terminal.setProcessWaitTimeoutSeconds(other.getProcessWaitTimeoutSeconds());
     }
 
+    /**
+     * 复制安全。
+     *
+     * @param other 待比较对象。
+     */
     private void copySecurity(SecurityConfig other) {
         this.security.setAllowPrivateUrls(other.isAllowPrivateUrls());
         this.security.setRewriteBrowserLoopbackUrls(other.isRewriteBrowserLoopbackUrls());
@@ -1935,15 +2026,30 @@ public class AppConfig {
                         new ArrayList<String>(other.getWebsiteBlocklist().getSharedFiles()));
     }
 
+    /**
+     * 复制Web。
+     *
+     * @param other 待比较对象。
+     */
     private void copyWeb(WebConfig other) {
         this.web.setSearchBackend(other.getSearchBackend());
         this.web.setBraveSearchApiKey(other.getBraveSearchApiKey());
     }
 
+    /**
+     * 复制价格。
+     *
+     * @param other 待比较对象。
+     */
     private void copyPricing(PricingConfig other) {
         this.pricing.setPrices(new ArrayList<ModelPrice>(other.getPrices()));
     }
 
+    /**
+     * 复制Approvals。
+     *
+     * @param other 待比较对象。
+     */
     private void copyApprovals(ApprovalsConfig other) {
         this.approvals.setMode(other.getMode());
         this.approvals.setCronMode(other.getCronMode());
@@ -1953,6 +2059,11 @@ public class AppConfig {
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
     }
 
+    /**
+     * 复制MCP。
+     *
+     * @param other 待比较对象。
+     */
     private void copyMcp(McpConfig other) {
         this.mcp.setEnabled(other.isEnabled());
         if (other.getOauth() != null) {
@@ -1963,6 +2074,12 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 复制渠道。
+     *
+     * @param target target 参数。
+     * @param source 来源参数。
+     */
     private void copyChannel(ChannelConfig target, ChannelConfig source) {
         target.setEnabled(source.isEnabled());
         target.setAppId(source.getAppId());
@@ -2007,6 +2124,12 @@ public class AppConfig {
         target.setMarkdownSupport(source.isMarkdownSupport());
     }
 
+    /**
+     * 克隆Personalities。
+     *
+     * @param source 来源参数。
+     * @return 返回clone Personalities结果。
+     */
     private Map<String, PersonalityConfig> clonePersonalities(
             Map<String, PersonalityConfig> source) {
         Map<String, PersonalityConfig> result = new LinkedHashMap<String, PersonalityConfig>();
@@ -2026,6 +2149,12 @@ public class AppConfig {
         return result;
     }
 
+    /**
+     * 克隆群组Allow映射。
+     *
+     * @param source 来源参数。
+     * @return 返回clone群组Allow Map结果。
+     */
     private Map<String, List<String>> cloneGroupAllowMap(Map<String, List<String>> source) {
         Map<String, List<String>> result = new LinkedHashMap<String, List<String>>();
         if (source == null) {
@@ -2141,6 +2270,13 @@ public class AppConfig {
         return Boolean.valueOf(parseBooleanText(raw, false));
     }
 
+    /**
+     * 解析Boolean Text。
+     *
+     * @param raw 原始输入值。
+     * @param fallback 兜底参数。
+     * @return 返回解析后的Boolean Text。
+     */
     private static boolean parseBooleanText(String raw, boolean fallback) {
         if (raw == null) {
             return fallback;
@@ -2166,10 +2302,24 @@ public class AppConfig {
         return fallback;
     }
 
+    /**
+     * 执行正数Int相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回positive Int结果。
+     */
     private static int positiveInt(int value, int defaultValue) {
         return value > 0 ? value : defaultValue;
     }
 
+    /**
+     * 执行nonNegativeInt相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回non Negative Int结果。
+     */
     private static int nonNegativeInt(int value, int defaultValue) {
         return value >= 0 ? value : defaultValue;
     }
@@ -2179,6 +2329,13 @@ public class AppConfig {
         return fallback;
     }
 
+    /**
+     * 执行nonNegativeFiniteDouble相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param defaultValue 默认值参数。
+     * @return 返回non Negative Finite Double结果。
+     */
     private static double nonNegativeFiniteDouble(double value, double defaultValue) {
         return Double.isFinite(value) && value >= 0.0D ? value : defaultValue;
     }
@@ -2188,6 +2345,11 @@ public class AppConfig {
         return splitObjectList(fallback);
     }
 
+    /**
+     * 执行默认HardlineAllowlist相关逻辑。
+     *
+     * @return 返回默认Hardline Allowlist结果。
+     */
     private static List<String> defaultHardlineAllowlist() {
         return Arrays.asList("hardline_shutdown", "hardline_windows_shutdown");
     }
@@ -2204,6 +2366,12 @@ public class AppConfig {
         return GatewayBehaviorConstants.UNAUTHORIZED_DM_BEHAVIOR_PAIR;
     }
 
+    /**
+     * 规范化审批模式。
+     *
+     * @param raw 原始输入值。
+     * @return 返回审批模式结果。
+     */
     private static String normalizeApprovalMode(String raw) {
         String value = StrUtil.blankToDefault(raw, "on").trim().toLowerCase();
         if ("false".equals(value)) {
@@ -2218,6 +2386,12 @@ public class AppConfig {
         return "on";
     }
 
+    /**
+     * 规范化防护模式。
+     *
+     * @param raw 原始输入值。
+     * @return 返回防护模式结果。
+     */
     private static String normalizeGuardrailMode(String raw) {
         String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
         if ("false".equals(value)
@@ -2243,6 +2417,12 @@ public class AppConfig {
         return "approval";
     }
 
+    /**
+     * 规范化防护定时任务模式。
+     *
+     * @param raw 原始输入值。
+     * @return 返回防护定时任务模式结果。
+     */
     private static String normalizeGuardrailCronMode(String raw) {
         String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
         if ("approve".equals(value) || "allow".equals(value) || "yes".equals(value)) {
@@ -2252,6 +2432,12 @@ public class AppConfig {
         return "smart".equals(mode) ? "approval" : mode;
     }
 
+    /**
+     * 规范化防护定时任务范围。
+     *
+     * @param raw 原始输入值。
+     * @return 返回防护定时任务范围结果。
+     */
     private static String normalizeGuardrailCronScope(String raw) {
         String value = StrUtil.blankToDefault(raw, "job").trim().toLowerCase();
         if ("global".equals(value) || "always".equals(value) || "permanent".equals(value)) {
@@ -2279,6 +2465,12 @@ public class AppConfig {
         return "strict";
     }
 
+    /**
+     * 执行防护审批模式相关逻辑。
+     *
+     * @param guardrailMode 护栏模式参数。
+     * @return 返回防护审批模式结果。
+     */
     private static String guardrailApprovalMode(String guardrailMode) {
         String mode = normalizeGuardrailMode(guardrailMode);
         if ("bypass".equals(mode)) {
@@ -2386,6 +2578,14 @@ public class AppConfig {
         return result;
     }
 
+    /**
+     * 应用价格配置装配。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param structuredOverrides structuredOverrides标识或键值。
+     */
     @SuppressWarnings("unchecked")
     private static void applyPricingConfiguration(
             AppConfig config,
@@ -2412,6 +2612,14 @@ public class AppConfig {
         config.getPricing().setPrices(prices);
     }
 
+    /**
+     * 应用插件配置装配。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param structuredOverrides structuredOverrides标识或键值。
+     */
     @SuppressWarnings("unchecked")
     private static void applyPluginConfiguration(
             AppConfig config,
@@ -2447,6 +2655,12 @@ public class AppConfig {
         config.getPlugins().setDisabled(resolveList(disabled));
     }
 
+    /**
+     * 解析模型Prices。
+     *
+     * @param raw 原始输入值。
+     * @return 返回解析后的模型Prices。
+     */
     @SuppressWarnings("unchecked")
     private static List<ModelPrice> parseModelPrices(Object raw) {
         List<ModelPrice> prices = new ArrayList<ModelPrice>();
@@ -2519,11 +2733,25 @@ public class AppConfig {
         return prices;
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param map 待读取的映射对象。
+     * @param key 配置键或映射键。
+     * @return 返回string Value结果。
+     */
     private static String stringValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
         return value == null ? null : String.valueOf(value).trim();
     }
 
+    /**
+     * 执行first字符串值相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first String Value结果。
+     */
     private static String firstStringValue(Map<String, Object> map, String... keys) {
         if (keys == null) {
             return null;
@@ -2537,6 +2765,14 @@ public class AppConfig {
         return null;
     }
 
+    /**
+     * 应用模型token价格。
+     *
+     * @param price 价格参数。
+     * @param field field 参数。
+     * @param costPerMillion 成本PerMillion参数。
+     * @param microsPerToken microsPertoken参数。
+     */
     private static void applyModelTokenPrice(
             ModelPrice price, String field, String costPerMillion, Long microsPerToken) {
         if (StrUtil.isNotBlank(costPerMillion)) {
@@ -2569,11 +2805,25 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 将输入对象转换为长整型数值。
+     *
+     * @param map 待读取的映射对象。
+     * @param key 配置键或映射键。
+     * @return 返回long Value结果。
+     */
     private static long longValue(Map<String, Object> map, String key) {
         Long value = presentLongValue(map, key);
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 执行present长整型值相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param key 配置键或映射键。
+     * @return 返回present Long Value结果。
+     */
     private static Long presentLongValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
         if (value == null) {
@@ -2586,11 +2836,25 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 执行first长整型值相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Long Value结果。
+     */
     private static long firstLongValue(Map<String, Object> map, String... keys) {
         Long value = firstPresentLongValue(map, keys);
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 执行firstPresent长整型值相关逻辑。
+     *
+     * @param map 待读取的映射对象。
+     * @param keys 候选键列表。
+     * @return 返回first Present Long Value结果。
+     */
     private static Long firstPresentLongValue(Map<String, Object> map, String... keys) {
         if (keys == null) {
             return null;
@@ -2777,6 +3041,15 @@ public class AppConfig {
         return new File(base, file.getPath());
     }
 
+    /**
+     * 读取String。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param key 配置键或映射键。
+     * @param defaultValue 默认值参数。
+     * @return 返回读取到的String。
+     */
     private static String readString(
             Props props, Map<String, Object> overrides, String key, String defaultValue) {
         Object override = overrides.get(key);
@@ -2786,6 +3059,15 @@ public class AppConfig {
         return props.get(key, defaultValue);
     }
 
+    /**
+     * 读取原始。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param key 配置键或映射键。
+     * @param defaultValue 默认值参数。
+     * @return 返回读取到的原始。
+     */
     private static Object readRaw(
             Props props, Map<String, Object> overrides, String key, Object defaultValue) {
         if (overrides.containsKey(key)) {
@@ -2795,6 +3077,15 @@ public class AppConfig {
         return value == null ? defaultValue : value;
     }
 
+    /**
+     * 读取Int。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param key 配置键或映射键。
+     * @param defaultValue 默认值参数。
+     * @return 返回读取到的Int。
+     */
     private static int readInt(
             Props props, Map<String, Object> overrides, String key, int defaultValue) {
         Object override = overrides.get(key);
@@ -2808,6 +3099,15 @@ public class AppConfig {
         return props.getInt(key, defaultValue);
     }
 
+    /**
+     * 读取Double。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param key 配置键或映射键。
+     * @param defaultValue 默认值参数。
+     * @return 返回读取到的Double。
+     */
     private static double readDouble(
             Props props, Map<String, Object> overrides, String key, double defaultValue) {
         Object override = overrides.get(key);
@@ -2821,6 +3121,15 @@ public class AppConfig {
         return props.getDouble(key, defaultValue);
     }
 
+    /**
+     * 读取Boolean。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param key 配置键或映射键。
+     * @param defaultValue 默认值参数。
+     * @return 返回读取到的Boolean。
+     */
     private static boolean readBoolean(
             Props props, Map<String, Object> overrides, String key, boolean defaultValue) {
         Object override = overrides.get(key);
@@ -2833,6 +3142,13 @@ public class AppConfig {
         return props.getBool(key, defaultValue);
     }
 
+    /**
+     * 读取Allow私聊Urls。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @return 返回读取到的Allow私聊Urls。
+     */
     private static boolean readAllowPrivateUrls(Props props, Map<String, Object> overrides) {
         String env = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_ALLOW_PRIVATE_URLS")).trim();
         if (env.length() > 0) {
@@ -2841,11 +3157,26 @@ public class AppConfig {
         return readBoolean(props, overrides, "security.allowPrivateUrls", true);
     }
 
+    /**
+     * 读取浏览器Loopback Rewrite 启用。
+     *
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @return 返回读取到的浏览器Loopback Rewrite 启用。
+     */
     private static boolean readBrowserLoopbackRewriteEnabled(
             Props props, Map<String, Object> overrides) {
         return readBoolean(props, overrides, "solonclaw.browser.rewriteLoopbackUrls", false);
     }
 
+    /**
+     * 应用提供方配置装配。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param props props 参数。
+     * @param overrides overrides标识或键值。
+     * @param structuredOverrides structuredOverrides标识或键值。
+     */
     private static void applyProviderConfiguration(
             AppConfig config,
             Props props,
@@ -2880,6 +3211,13 @@ public class AppConfig {
         config.getLlm().setModel(effectiveModel);
     }
 
+    /**
+     * 解析Providers。
+     *
+     * @param rawProviders 原始Providers标识或键值。
+     * @param props props 参数。
+     * @return 返回解析后的Providers。
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, ProviderConfig> parseProviders(Object rawProviders, Props props) {
         Map<String, ProviderConfig> providers = new LinkedHashMap<String, ProviderConfig>();
@@ -2917,6 +3255,12 @@ public class AppConfig {
         return providers;
     }
 
+    /**
+     * 克隆提供方。
+     *
+     * @param source 来源参数。
+     * @return 返回clone提供方结果。
+     */
     private static ProviderConfig cloneProvider(ProviderConfig source) {
         ProviderConfig copy = new ProviderConfig();
         if (source != null) {
@@ -2934,6 +3278,14 @@ public class AppConfig {
         return copy;
     }
 
+    /**
+     * 应用提供方布尔值。
+     *
+     * @param rawProvider 原始提供方标识或键值。
+     * @param key 配置键或映射键。
+     * @param provider 模型或能力提供方。
+     * @param field field 参数。
+     */
     private static void applyProviderBoolean(
             Map<Object, Object> rawProvider, String key, ProviderConfig provider, String field) {
         if (!rawProvider.containsKey(key)) {
@@ -2945,6 +3297,14 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 应用提供方字符串。
+     *
+     * @param rawProvider 原始提供方标识或键值。
+     * @param key 配置键或映射键。
+     * @param provider 模型或能力提供方。
+     * @param field field 参数。
+     */
     private static void applyProviderString(
             Map<Object, Object> rawProvider, String key, ProviderConfig provider, String field) {
         if (!rawProvider.containsKey(key)) {
@@ -2972,6 +3332,13 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 解析模型配置。
+     *
+     * @param rawModel 原始模型参数。
+     * @param props props 参数。
+     * @return 返回解析后的模型配置。
+     */
     @SuppressWarnings("unchecked")
     private static ModelConfig parseModelConfig(Object rawModel, Props props) {
         ModelConfig modelConfig = new ModelConfig();
@@ -2995,6 +3362,12 @@ public class AppConfig {
         return modelConfig;
     }
 
+    /**
+     * 解析兜底Providers。
+     *
+     * @param rawFallbackProviders 原始兜底Providers标识或键值。
+     * @return 返回解析后的兜底Providers。
+     */
     @SuppressWarnings("unchecked")
     private static List<FallbackProviderConfig> parseFallbackProviders(
             Object rawFallbackProviders) {
@@ -3019,6 +3392,12 @@ public class AppConfig {
         return result;
     }
 
+    /**
+     * 加载默认提供方。
+     *
+     * @param props props 参数。
+     * @return 返回默认提供方结果。
+     */
     private static ProviderConfig loadDefaultProvider(Props props) {
         String dialect =
                 StrUtil.blankToDefault(
@@ -3044,6 +3423,13 @@ public class AppConfig {
         return provider;
     }
 
+    /**
+     * 校验提供方配置装配。
+     *
+     * @param providers 能力提供方列表。
+     * @param modelConfig 模型配置对象。
+     * @param fallbackChain 兜底Chain参数。
+     */
     private static void validateProviderConfiguration(
             Map<String, ProviderConfig> providers,
             ModelConfig modelConfig,
@@ -3111,6 +3497,13 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 读取Nested String。
+     *
+     * @param map 待读取的映射对象。
+     * @param key 配置键或映射键。
+     * @return 返回读取到的Nested String。
+     */
     private static String readNestedString(Map<Object, Object> map, String key) {
         if (map == null || key == null) {
             return "";
@@ -3119,6 +3512,12 @@ public class AppConfig {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
+    /**
+     * 加载Structured Overrides。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     * @return 返回Structured Overrides结果。
+     */
     private static Map<String, Object> loadStructuredOverrides(File runtimeHome) {
         File configFile = new File(runtimeHome, "config.yml");
         if (!configFile.exists()) {
@@ -3136,6 +3535,12 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 清理Structured Map。
+     *
+     * @param raw 原始输入值。
+     * @return 返回Structured Map结果。
+     */
     private static Map<String, Object> sanitizeStructuredMap(Map<?, ?> raw) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         for (Map.Entry<?, ?> entry : raw.entrySet()) {
@@ -3155,6 +3560,12 @@ public class AppConfig {
         return result;
     }
 
+    /**
+     * 清理Structured List。
+     *
+     * @param raw 原始输入值。
+     * @return 返回Structured List结果。
+     */
     private static List<Object> sanitizeStructuredList(List<?> raw) {
         List<Object> result = new ArrayList<Object>();
         for (Object item : raw) {
@@ -3169,6 +3580,12 @@ public class AppConfig {
         return result;
     }
 
+    /**
+     * 加载Flat Overrides。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     * @return 返回Flat Overrides结果。
+     */
     private static Map<String, Object> loadFlatOverrides(File runtimeHome) {
         File configFile = new File(runtimeHome, "config.yml");
         if (!configFile.exists()) {
@@ -3189,6 +3606,13 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 执行flatten相关逻辑。
+     *
+     * @param prefix prefix 参数。
+     * @param input 输入参数。
+     * @param output 命令执行输出文本。
+     */
     private static void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
         for (Map.Entry<?, ?> entry : input.entrySet()) {
             if (entry.getKey() == null) {
@@ -3207,6 +3631,13 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 执行asAbsolute静态资源相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @param base 基础参数。
+     * @return 返回as Absolute静态资源结果。
+     */
     private static File asAbsoluteStatic(File file, File base) {
         if (file.isAbsolute()) {
             return file;
@@ -3214,10 +3645,21 @@ public class AppConfig {
         return new File(base, file.getPath());
     }
 
+    /**
+     * 解析Initial运行时主渠道。
+     *
+     * @param props props 参数。
+     * @return 返回解析后的Initial运行时主渠道。
+     */
     private static String resolveInitialRuntimeHome(Props props) {
         return props.get("solonclaw.runtime.home", RuntimePathConstants.RUNTIME_HOME);
     }
 
+    /**
+     * 执行initialize运行时配置IfMissing相关逻辑。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     */
     private static void initializeRuntimeConfigIfMissing(File runtimeHome) {
         File configFile = new File(runtimeHome, RuntimePathConstants.CONFIG_FILE_NAME);
         if (configFile.exists()) {
@@ -3232,6 +3674,11 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 执行默认运行时配置Content相关逻辑。
+     *
+     * @return 返回默认运行时配置Content结果。
+     */
     private static String defaultRuntimeConfigContent() {
         return "# SolonClaw 最小运行配置。\n"
                 + "# 启动时自动创建；可通过 Dashboard 或直接编辑本文件继续完善。\n"
@@ -3254,6 +3701,11 @@ public class AppConfig {
                 + "    accessToken: \"admin\"\n";
     }
 
+    /**
+     * 执行同步运行时配置Example相关逻辑。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     */
     private static void syncRuntimeConfigExample(String runtimeHome) {
         try (InputStream stream =
                 AppConfig.class
@@ -3273,6 +3725,13 @@ public class AppConfig {
         }
     }
 
+    /**
+     * 执行运行时Child路径相关逻辑。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     * @param childName child名称参数。
+     * @return 返回运行时Child路径。
+     */
     private static String runtimeChildPath(String runtimeHome, String childName) {
         return new File(
                         StrUtil.blankToDefault(runtimeHome, RuntimePathConstants.RUNTIME_HOME),
@@ -3280,6 +3739,14 @@ public class AppConfig {
                 .getPath();
     }
 
+    /**
+     * 执行运行时Child路径相关逻辑。
+     *
+     * @param runtimeHome 运行时主渠道参数。
+     * @param childName child名称参数。
+     * @param fileName 文件或目录路径参数。
+     * @return 返回运行时Child路径。
+     */
     private static String runtimeChildPath(String runtimeHome, String childName, String fileName) {
         return new File(runtimeChildPath(runtimeHome, childName), fileName).getPath();
     }
@@ -3355,8 +3822,13 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class PromptCacheConfig {
+        /** 标记该配置项或记录是否处于启用状态。 */
         private boolean enabled;
+
+        /** 记录提示词缓存中的ttl。 */
         private String ttl = "5m";
+
+        /** 记录提示词缓存中的layout。 */
         private String layout = "system_and_3";
     }
 
@@ -3365,15 +3837,34 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ProviderConfig {
+        /** 记录提供方中的名称。 */
         private String name;
+
+        /** 记录提供方中的基础URL。 */
         private String baseUrl;
+
+        /** 记录提供方中的api键。 */
         private String apiKey;
+
+        /** 记录提供方中的默认模型。 */
         private String defaultModel;
+
+        /** 记录提供方中的协议方言。 */
         private String dialect;
+
+        /** 是否启用supportsVision。 */
         private Boolean supportsVision;
+
+        /** 记录提供方中的群组标识。 */
         private String groupId;
+
+        /** 记录提供方中的群组Label。 */
         private String groupLabel;
+
+        /** 记录提供方中的群组描述。 */
         private String groupDescription;
+
+        /** 记录提供方中的展示描述。 */
         private String displayDescription;
     }
 
@@ -3382,13 +3873,26 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ModelConfig {
+        /** 记录模型中的提供方键。 */
         private String providerKey;
+
+        /** 记录模型中的默认模型。 */
         private String defaultModel;
 
+        /**
+         * 读取默认。
+         *
+         * @return 返回读取到的默认。
+         */
         public String getDefault() {
             return defaultModel;
         }
 
+        /**
+         * 写入默认。
+         *
+         * @param defaultModel 默认模型参数。
+         */
         public void setDefault(String defaultModel) {
             this.defaultModel = defaultModel;
         }
@@ -3399,7 +3903,10 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class FallbackProviderConfig {
+        /** 记录兜底提供方中的提供方。 */
         private String provider;
+
+        /** 记录兜底提供方中的模型。 */
         private String model;
     }
 
@@ -3693,6 +4200,7 @@ public class AppConfig {
         private int toolLoopNoProgressBlockAfter = 5;
     }
 
+    /** 承载Trace配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3707,6 +4215,7 @@ public class AppConfig {
         private int toolPreviewLength = 1200;
     }
 
+    /** 承载任务配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3742,6 +4251,7 @@ public class AppConfig {
         private int mediaCacheTtlHours = 168;
     }
 
+    /** 承载终端配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3777,25 +4287,28 @@ public class AppConfig {
         private int processWaitTimeoutSeconds = 180;
     }
 
+    /** 承载价格配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
     public static class PricingConfig {
-        /** Per-token model prices in micros. Empty list keeps usage unpriced. */
+        /** 保存prices集合，维持调用顺序或去重语义。 */
         private List<ModelPrice> prices = new ArrayList<ModelPrice>();
     }
 
+    /** 承载插件配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
     public static class PluginConfig {
-        /** Plugins that may be loaded even when manifest autoload is disabled. */
+        /** 保存启用状态集合，维持调用顺序或去重语义。 */
         private List<String> enabled = new ArrayList<String>();
 
-        /** Plugins that must be skipped regardless of manifest settings. */
+        /** 保存disabled集合，维持调用顺序或去重语义。 */
         private List<String> disabled = new ArrayList<String>();
     }
 
+    /** 承载安全配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3843,6 +4356,7 @@ public class AppConfig {
         private WebsiteBlocklistConfig websiteBlocklist = new WebsiteBlocklistConfig();
     }
 
+    /** 承载网站块list配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3857,6 +4371,7 @@ public class AppConfig {
         private List<String> sharedFiles = new ArrayList<String>();
     }
 
+    /** 承载Web配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3868,6 +4383,7 @@ public class AppConfig {
         private String braveSearchApiKey;
     }
 
+    /** 承载Approvals配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -3891,6 +4407,7 @@ public class AppConfig {
         private boolean mcpReloadConfirm = true;
     }
 
+    /** 承载MCP配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -4128,16 +4645,16 @@ public class AppConfig {
         /** 是否允许所有用户访问。 */
         private boolean allowAllUsers;
 
-        /** HTTP gateway injection HMAC secret. */
+        /** 记录消息网关中的injection密钥。 */
         private String injectionSecret;
 
-        /** Maximum accepted gateway injection body size. */
+        /** 记录消息网关中的injectionMax正文字节。 */
         private int injectionMaxBodyBytes = 65536;
 
-        /** Replay window in seconds for signed gateway injection requests. */
+        /** 记录消息网关中的injectionReplay窗口Seconds。 */
         private int injectionReplayWindowSeconds = 300;
 
-        /** Whether short silence narration should be dropped before channel delivery. */
+        /** 是否启用过滤器SilenceNarration。 */
         private boolean filterSilenceNarration = true;
 
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
@@ -4159,18 +4676,18 @@ public class AppConfig {
         private boolean approvalRequired = false;
     }
 
-    /** Dashboard and API access configuration. */
+    /** 承载控制台配置并集中创建运行组件。 */
     @Getter
     @Setter
     @NoArgsConstructor
     public static class DashboardConfig {
-        /** Shared bearer token for dashboard pages and API requests. */
+        /** 记录控制台中的access token。 */
         private String accessToken;
 
-        /** HTTP host Solon is explicitly bound to. Empty means framework default. */
+        /** 记录控制台中的bind主机。 */
         private String bindHost;
 
-        /** HTTP port Solon is explicitly bound to. */
+        /** 记录控制台中的bind端口。 */
         private int bindPort = 8080;
     }
 }

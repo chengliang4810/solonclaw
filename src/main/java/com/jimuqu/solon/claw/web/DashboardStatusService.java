@@ -27,15 +27,39 @@ import java.util.TimeZone;
 
 /** Dashboard 状态聚合服务。 */
 public class DashboardStatusService {
+    /** 注入应用配置，用于控制台状态。 */
     private final AppConfig appConfig;
+
+    /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
+
+    /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
+
+    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
+
+    /** 注入应用版本服务，用于调用对应业务能力。 */
     private final AppVersionService appVersionService;
+
+    /** 注入应用更新服务，用于调用对应业务能力。 */
     private final AppUpdateService appUpdateService;
+
+    /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
 
+    /**
+     * 创建控制台状态服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param appVersionService 应用版本服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     */
     public DashboardStatusService(
             AppConfig appConfig,
             SessionRepository sessionRepository,
@@ -54,10 +78,21 @@ public class DashboardStatusService {
         this.llmProviderService = llmProviderService;
     }
 
+    /**
+     * 读取状态。
+     *
+     * @return 返回读取到的状态。
+     */
     public Map<String, Object> getStatus() throws Exception {
         return getStatus(true);
     }
 
+    /**
+     * 读取状态。
+     *
+     * @param detailed detailed 参数。
+     * @return 返回读取到的状态。
+     */
     public Map<String, Object> getStatus(boolean detailed) throws Exception {
         RuntimeStatusSnapshot snapshot = buildRuntimeStatusSnapshot(detailed);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -102,6 +137,11 @@ public class DashboardStatusService {
         return result;
     }
 
+    /**
+     * 读取健康检查运行时Snapshot。
+     *
+     * @return 返回读取到的健康检查运行时Snapshot。
+     */
     public Map<String, Object> getHealthRuntimeSnapshot() throws Exception {
         RuntimeStatusSnapshot snapshot = buildRuntimeStatusSnapshot(false);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -117,10 +157,21 @@ public class DashboardStatusService {
         return result;
     }
 
+    /**
+     * 读取模型Info。
+     *
+     * @return 返回读取到的模型Info。
+     */
     public Map<String, Object> getModelInfo() {
         return getModelInfo(true);
     }
 
+    /**
+     * 读取模型Info。
+     *
+     * @param detailed detailed 参数。
+     * @return 返回读取到的模型Info。
+     */
     public Map<String, Object> getModelInfo(boolean detailed) {
         LlmProviderService.ResolvedProvider resolved =
                 llmProviderService.resolveEffectiveProvider(null);
@@ -160,6 +211,12 @@ public class DashboardStatusService {
         return result;
     }
 
+    /**
+     * 构建运行时状态Snapshot。
+     *
+     * @param detailed detailed 参数。
+     * @return 返回创建好的运行时状态Snapshot。
+     */
     private RuntimeStatusSnapshot buildRuntimeStatusSnapshot(boolean detailed) throws Exception {
         gatewayRuntimeRefreshService.refreshIfNeeded();
         List<SessionRecord> recentSessions = sessionRepository.listRecent(20);
@@ -244,6 +301,11 @@ public class DashboardStatusService {
         return snapshot;
     }
 
+    /**
+     * 构建运行时Capabilities Snapshot。
+     *
+     * @return 返回创建好的运行时Capabilities Snapshot。
+     */
     private Map<String, Object> buildRuntimeCapabilitiesSnapshot() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("schema_version", Integer.valueOf(1));
@@ -264,6 +326,13 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 构建运行时状态Snapshot。
+     *
+     * @param snapshot snapshot 参数。
+     * @param detailed detailed 参数。
+     * @return 返回创建好的运行时状态Snapshot。
+     */
     private Map<String, Object> buildRuntimeStatusSnapshot(
             RuntimeStatusSnapshot snapshot, boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
@@ -285,6 +354,11 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行supportedChannels相关逻辑。
+     *
+     * @return 返回supported Channels结果。
+     */
     private List<String> supportedChannels() {
         List<String> channels = new ArrayList<String>();
         for (PlatformType platform : PlatformType.values()) {
@@ -296,6 +370,11 @@ public class DashboardStatusService {
         return channels;
     }
 
+    /**
+     * 执行运行时配置Capabilities相关逻辑。
+     *
+     * @return 返回运行时配置Capabilities结果。
+     */
     private Map<String, Object> runtimeConfigCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("runtime_config_file", Boolean.TRUE);
@@ -306,6 +385,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行诊断Capabilities相关逻辑。
+     *
+     * @return 返回诊断Capabilities结果。
+     */
     private Map<String, Object> diagnosticsCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("health_detailed", Boolean.TRUE);
@@ -317,6 +401,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行定时任务Capabilities相关逻辑。
+     *
+     * @return 返回定时任务Capabilities结果。
+     */
     private Map<String, Object> cronCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("enabled", Boolean.valueOf(appConfig.getScheduler().isEnabled()));
@@ -327,6 +416,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行技能Capabilities相关逻辑。
+     *
+     * @return 返回技能Capabilities结果。
+     */
     private Map<String, Object> skillsCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("runtime_dir", Boolean.TRUE);
@@ -337,6 +431,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行记忆Capabilities相关逻辑。
+     *
+     * @return 返回记忆Capabilities结果。
+     */
     private Map<String, Object> memoryCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("context_files", Boolean.TRUE);
@@ -349,6 +448,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行工具SafetyCapabilities相关逻辑。
+     *
+     * @return 返回工具Safety Capabilities结果。
+     */
     private Map<String, Object> toolSafetyCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("dangerous_command_approval", Boolean.TRUE);
@@ -367,6 +471,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行multimodalCapabilities相关逻辑。
+     *
+     * @return 返回multimodal Capabilities结果。
+     */
     private Map<String, Object> multimodalCapabilities() {
         LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
         ModelMetadata metadata = resolved == null ? null : currentModelMetadata(resolved);
@@ -379,6 +488,11 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行价格Capabilities相关逻辑。
+     *
+     * @return 返回价格Capabilities结果。
+     */
     private Map<String, Object> pricingCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("usage_events", Boolean.TRUE);
@@ -392,6 +506,12 @@ public class DashboardStatusService {
         return capabilities;
     }
 
+    /**
+     * 执行消息网关运行时状态相关逻辑。
+     *
+     * @param snapshot snapshot 参数。
+     * @return 返回消息网关运行时状态。
+     */
     private Map<String, Object> gatewayRuntimeStatus(RuntimeStatusSnapshot snapshot) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("state", snapshot.gatewayState);
@@ -404,6 +524,12 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行运行时配置状态相关逻辑。
+     *
+     * @param detailed detailed 参数。
+     * @return 返回运行时配置状态。
+     */
     private Map<String, Object> runtimeConfigStatus(boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("config_version", Integer.valueOf(configVersion()));
@@ -421,6 +547,12 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行诊断状态相关逻辑。
+     *
+     * @param snapshot snapshot 参数。
+     * @return 返回诊断状态。
+     */
     private Map<String, Object> diagnosticsStatus(RuntimeStatusSnapshot snapshot) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("state", snapshot.anyFatal ? "degraded" : "ok");
@@ -432,6 +564,11 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行定时任务状态相关逻辑。
+     *
+     * @return 返回定时任务状态。
+     */
     private Map<String, Object> cronStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("enabled", Boolean.valueOf(appConfig.getScheduler().isEnabled()));
@@ -446,6 +583,11 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行定时任务审批模式相关逻辑。
+     *
+     * @return 返回定时任务审批模式结果。
+     */
     private String cronApprovalMode() {
         return appConfig.getSecurity() == null
                 ? "approval"
@@ -453,12 +595,23 @@ public class DashboardStatusService {
                         appConfig.getSecurity().getGuardrailCronMode(), "approval");
     }
 
+    /**
+     * 执行防护模式相关逻辑。
+     *
+     * @return 返回防护模式结果。
+     */
     private String guardrailMode() {
         return appConfig.getSecurity() == null
                 ? "approval"
                 : StrUtil.blankToDefault(appConfig.getSecurity().getGuardrailMode(), "approval");
     }
 
+    /**
+     * 执行技能状态相关逻辑。
+     *
+     * @param detailed detailed 参数。
+     * @return 返回技能状态。
+     */
     private Map<String, Object> skillsStatus(boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("template_vars", Boolean.valueOf(appConfig.getSkills().isTemplateVars()));
@@ -476,6 +629,12 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行记忆状态相关逻辑。
+     *
+     * @param detailed detailed 参数。
+     * @return 返回记忆状态。
+     */
     private Map<String, Object> memoryStatus(boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("learning_enabled", Boolean.valueOf(appConfig.getLearning().isEnabled()));
@@ -494,6 +653,11 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行工具Safety状态相关逻辑。
+     *
+     * @return 返回工具Safety状态。
+     */
     private Map<String, Object> toolSafetyStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("approval_mode", safeText(guardrailMode(), 80));
@@ -520,6 +684,11 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行multimodal状态相关逻辑。
+     *
+     * @return 返回multimodal状态。
+     */
     private Map<String, Object> multimodalStatus() {
         LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
         ModelMetadata metadata = resolved == null ? null : currentModelMetadata(resolved);
@@ -538,6 +707,12 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行multimodal模型输入Capabilities相关逻辑。
+     *
+     * @param metadata 元数据参数。
+     * @return 返回multimodal模型输入Capabilities结果。
+     */
     private Map<String, Object> multimodalModelInputCapabilities(ModelMetadata metadata) {
         Map<String, Object> input = new LinkedHashMap<String, Object>();
         input.put("vision", Boolean.valueOf(metadata != null && metadata.isSupportsVision()));
@@ -551,6 +726,11 @@ public class DashboardStatusService {
         return input;
     }
 
+    /**
+     * 执行价格状态相关逻辑。
+     *
+     * @return 返回价格状态。
+     */
     private Map<String, Object> pricingStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("builtin_price_count", Integer.valueOf(PriceCatalog.builtinDefaults().size()));
@@ -564,6 +744,11 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行运行时模型状态相关逻辑。
+     *
+     * @return 返回运行时模型状态。
+     */
     private Map<String, Object> runtimeModelStatus() {
         LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
         Map<String, Object> status = new LinkedHashMap<String, Object>();
@@ -578,16 +763,31 @@ public class DashboardStatusService {
         return status;
     }
 
+    /**
+     * 执行已配置价格次数相关逻辑。
+     *
+     * @return 返回configured价格次数结果。
+     */
     private int configuredPriceCount() {
         return appConfig.getPricing() == null || appConfig.getPricing().getPrices() == null
                 ? 0
                 : appConfig.getPricing().getPrices().size();
     }
 
+    /**
+     * 执行生效价格次数相关逻辑。
+     *
+     * @return 返回生效价格次数结果。
+     */
     private int effectivePriceCount() {
         return PriceCatalog.forConfig(appConfig).size();
     }
 
+    /**
+     * 执行当前模型价格相关逻辑。
+     *
+     * @return 返回当前模型价格结果。
+     */
     private com.jimuqu.solon.claw.pricing.ModelPrice currentModelPrice() {
         LlmProviderService.ResolvedProvider resolved = safeResolvedProvider();
         if (resolved == null) {
@@ -597,6 +797,11 @@ public class DashboardStatusService {
                 .find(resolved.getProviderKey(), resolved.getModel());
     }
 
+    /**
+     * 生成安全展示用的Resolved提供方。
+     *
+     * @return 返回safe Resolved提供方结果。
+     */
     private LlmProviderService.ResolvedProvider safeResolvedProvider() {
         try {
             return llmProviderService.resolveEffectiveProvider(null);
@@ -605,6 +810,12 @@ public class DashboardStatusService {
         }
     }
 
+    /**
+     * 执行当前模型元数据相关逻辑。
+     *
+     * @param resolved resolved 参数。
+     * @return 返回当前模型元数据结果。
+     */
     private ModelMetadata currentModelMetadata(LlmProviderService.ResolvedProvider resolved) {
         AppConfig.ProviderConfig provider = appConfig.getProviders().get(resolved.getProviderKey());
         AppConfig.ProviderConfig effective = new AppConfig.ProviderConfig();
@@ -621,12 +832,22 @@ public class DashboardStatusService {
         return new ModelMetadataService(appConfig).resolve(resolved.getProviderKey(), effective);
     }
 
+    /**
+     * 执行运行时配置刷新状态相关逻辑。
+     *
+     * @return 返回运行时配置刷新状态。
+     */
     private Map<String, Object> runtimeConfigRefreshStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("last_failure", gatewayRuntimeRefreshService.lastFailureSnapshot());
         return status;
     }
 
+    /**
+     * 生成安全展示用的兜底Providers。
+     *
+     * @return 返回safe兜底Providers结果。
+     */
     private List<Map<String, Object>> safeFallbackProviders() {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         if (appConfig.getFallbackProviders() == null) {
@@ -644,6 +865,12 @@ public class DashboardStatusService {
         return items;
     }
 
+    /**
+     * 执行公开详情相关逻辑。
+     *
+     * @param status 状态参数。
+     * @return 返回公开Detail结果。
+     */
     private String publicDetail(ChannelStatus status) {
         if (!status.isEnabled()) {
             return "disabled";
@@ -651,6 +878,11 @@ public class DashboardStatusService {
         return status.isConnected() ? "connected" : "disconnected";
     }
 
+    /**
+     * 解析Pid。
+     *
+     * @return 返回解析后的Pid。
+     */
     private Integer parsePid() {
         try {
             String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
@@ -662,6 +894,12 @@ public class DashboardStatusService {
         }
     }
 
+    /**
+     * 执行firstFatal详情相关逻辑。
+     *
+     * @param statuses statuses 参数。
+     * @return 返回first Fatal Detail结果。
+     */
     private String firstFatalDetail(List<ChannelStatus> statuses) {
         for (ChannelStatus status : statuses) {
             if (status.isEnabled()
@@ -674,6 +912,12 @@ public class DashboardStatusService {
         return null;
     }
 
+    /**
+     * 执行运行时引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回运行时Reference结果。
+     */
     private String runtimeReference(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
         if (StrUtil.isBlank(text)) {
@@ -698,6 +942,12 @@ public class DashboardStatusService {
         return externalPathReference(text);
     }
 
+    /**
+     * 执行外部路径引用相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回外部路径Reference结果。
+     */
     private String externalPathReference(String value) {
         String name = new File(StrUtil.nullToEmpty(value)).getName();
         if (StrUtil.isBlank(name)) {
@@ -706,6 +956,12 @@ public class DashboardStatusService {
         return "path://" + redact(name, 200);
     }
 
+    /**
+     * 执行normalized相关逻辑。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回normalized结果。
+     */
     private String normalized(File file) {
         String path = file.getAbsolutePath();
         if (File.separatorChar == '\\') {
@@ -714,14 +970,33 @@ public class DashboardStatusService {
         return path;
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redact结果。
+     */
     private String redact(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
     }
 
+    /**
+     * 生成安全展示用的文本。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回safe Text结果。
+     */
     private String safeText(String value, int maxLength) {
         return StrUtil.nullToEmpty(SecretRedactor.redact(value, maxLength));
     }
 
+    /**
+     * 执行配置版本相关逻辑。
+     *
+     * @return 返回配置版本结果。
+     */
     private int configVersion() {
         java.io.File file = new java.io.File(appConfig.getRuntime().getConfigFile());
         if (!file.exists()) {
@@ -730,19 +1005,38 @@ public class DashboardStatusService {
         return (int) (file.lastModified() / 1000L);
     }
 
+    /**
+     * 执行isoNow相关逻辑。
+     *
+     * @return 返回iso Now结果。
+     */
     private String isoNow() {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         format.setTimeZone(TimeZone.getDefault());
         return format.format(new Date());
     }
 
+    /** 承载运行时状态快照相关状态和辅助逻辑。 */
     private static class RuntimeStatusSnapshot {
+        /** 记录运行时状态快照中的activeSessions。 */
         private int activeSessions;
+
+        /** 是否启用anyConnected。 */
         private boolean anyConnected;
+
+        /** 是否启用anyFatal。 */
         private boolean anyFatal;
+
+        /** 记录运行时状态快照中的firstFatal详情。 */
         private String firstFatalDetail;
+
+        /** 记录运行时状态快照中的消息网关状态。 */
         private String gatewayState;
+
+        /** 保存平台States映射，便于按键快速查询。 */
         private Map<String, Object> platformStates;
+
+        /** 记录运行时状态快照中的更新时间。 */
         private String updatedAt;
     }
 }

@@ -16,16 +16,37 @@ import org.slf4j.LoggerFactory;
 
 /** 插件生命周期管理：发现、编译、加载、卸载。 */
 public class AgentPluginManager {
+    /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(AgentPluginManager.class);
 
+    /** 记录Agent插件中的钩子注册表。 */
     private final AgentHookRegistry hookRegistry;
+
+    /** 保存loadedPlugins映射，便于按键快速查询。 */
     private final Map<String, LoadedPlugin> loadedPlugins = new ConcurrentHashMap<>();
+
+    /** 记录Agent插件中的用户Plugins目录。 */
     private final Path userPluginsDir;
+
+    /** 标记是否启用Plugins。 */
     private final Set<String> enabledPlugins;
+
+    /** 标记是否禁用Plugins。 */
     private final Set<String> disabledPlugins;
+
+    /** 是否启用loadBundledPlugins。 */
     private final boolean loadBundledPlugins;
+
+    /** 保存诊断集合，维持调用顺序或去重语义。 */
     private final List<PluginLoadDiagnostic> diagnostics = new ArrayList<>();
 
+    /**
+     * 创建Agent插件管理器实例，并注入运行所需依赖。
+     *
+     * @param hookRegistry 钩子注册表依赖组件。
+     * @param enabledPlugins 启用状态Plugins开关值。
+     * @param disabledPlugins disabledPlugins 参数。
+     */
     public AgentPluginManager(
             AgentHookRegistry hookRegistry,
             Set<String> enabledPlugins,
@@ -38,6 +59,14 @@ public class AgentPluginManager {
                 true);
     }
 
+    /**
+     * 创建Agent插件管理器实例，并注入运行所需依赖。
+     *
+     * @param hookRegistry 钩子注册表依赖组件。
+     * @param enabledPlugins 启用状态Plugins开关值。
+     * @param disabledPlugins disabledPlugins 参数。
+     * @param pluginRoot 插件Root参数。
+     */
     public AgentPluginManager(
             AgentHookRegistry hookRegistry,
             Set<String> enabledPlugins,
@@ -46,6 +75,15 @@ public class AgentPluginManager {
         this(hookRegistry, enabledPlugins, disabledPlugins, pluginRoot, false);
     }
 
+    /**
+     * 创建Agent插件管理器实例，并注入运行所需依赖。
+     *
+     * @param hookRegistry 钩子注册表依赖组件。
+     * @param enabledPlugins 启用状态Plugins开关值。
+     * @param disabledPlugins disabledPlugins 参数。
+     * @param pluginRoot 插件Root参数。
+     * @param loadBundledPlugins loadBundledPlugins 参数。
+     */
     public AgentPluginManager(
             AgentHookRegistry hookRegistry,
             Set<String> enabledPlugins,
@@ -59,10 +97,20 @@ public class AgentPluginManager {
         this.loadBundledPlugins = loadBundledPlugins;
     }
 
+    /**
+     * 读取钩子注册表。
+     *
+     * @return 返回读取到的钩子注册表。
+     */
     public AgentHookRegistry getHookRegistry() {
         return hookRegistry;
     }
 
+    /**
+     * 执行discoverAndLoad相关逻辑。
+     *
+     * @param sink sink 参数。
+     */
     public void discoverAndLoad(PluginRegistrationSink sink) {
         diagnostics.clear();
         List<AgentPluginManifest> manifests = new ArrayList<>();
@@ -128,6 +176,11 @@ public class AgentPluginManager {
         log.info("Loaded {} plugin(s)", loadedPlugins.size());
     }
 
+    /**
+     * 执行discoverBundled相关逻辑。
+     *
+     * @param manifests manifests 参数。
+     */
     private void discoverBundled(List<AgentPluginManifest> manifests) {
         try {
             ClassLoader cl = Thread.currentThread().getContextClassLoader();
@@ -142,6 +195,11 @@ public class AgentPluginManager {
         }
     }
 
+    /**
+     * 执行discover用户Plugins相关逻辑。
+     *
+     * @param manifests manifests 参数。
+     */
     private void discoverUserPlugins(List<AgentPluginManifest> manifests) {
         if (!Files.isDirectory(userPluginsDir)) {
             return;
@@ -149,6 +207,13 @@ public class AgentPluginManager {
         scanDirectory(userPluginsDir, "user", manifests);
     }
 
+    /**
+     * 执行scan目录相关逻辑。
+     *
+     * @param dir 文件或目录路径参数。
+     * @param source 来源参数。
+     * @param manifests manifests 参数。
+     */
     private void scanDirectory(Path dir, String source, List<AgentPluginManifest> manifests) {
         try (Stream<Path> children = Files.list(dir)) {
             children.filter(Files::isDirectory)
@@ -181,6 +246,14 @@ public class AgentPluginManager {
         }
     }
 
+    /**
+     * 解析Manifest。
+     *
+     * @param manifestFile 文件或目录路径参数。
+     * @param pluginDir 文件或目录路径参数。
+     * @param source 来源参数。
+     * @return 返回解析后的Manifest。
+     */
     private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
             throws IOException {
         String content = Files.readString(manifestFile);
@@ -201,6 +274,12 @@ public class AgentPluginManager {
         return manifest;
     }
 
+    /**
+     * 解析Simple YAML。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的Simple YAML。
+     */
     private Map<String, String> parseSimpleYaml(String content) {
         Map<String, String> map = new LinkedHashMap<>();
         for (String line : content.split("\n")) {
@@ -219,6 +298,13 @@ public class AgentPluginManager {
         return map;
     }
 
+    /**
+     * 解析String List。
+     *
+     * @param content 待处理内容。
+     * @param key 配置键或映射键。
+     * @return 返回解析后的String List。
+     */
     private List<String> parseStringList(String content, String key) {
         List<String> values = new ArrayList<>();
         boolean inList = false;
@@ -239,6 +325,12 @@ public class AgentPluginManager {
         return values;
     }
 
+    /**
+     * 解析Env Requirements。
+     *
+     * @param content 待处理内容。
+     * @return 返回解析后的Env Requirements。
+     */
     private List<AgentPluginManifest.EnvRequirement> parseEnvRequirements(String content) {
         List<AgentPluginManifest.EnvRequirement> requirements = new ArrayList<>();
         AgentPluginManifest.EnvRequirement current = null;
@@ -268,6 +360,12 @@ public class AgentPluginManager {
         return requirements;
     }
 
+    /**
+     * 写入Env Field。
+     *
+     * @param requirement requirement 参数。
+     * @param raw 原始输入值。
+     */
     private void setEnvField(AgentPluginManifest.EnvRequirement requirement, String raw) {
         int colon = raw.indexOf(':');
         if (colon <= 0) {
@@ -284,6 +382,12 @@ public class AgentPluginManager {
         }
     }
 
+    /**
+     * 执行unquote相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回unquote结果。
+     */
     private String unquote(String value) {
         if (value == null) {
             return null;
@@ -295,6 +399,12 @@ public class AgentPluginManager {
         return value;
     }
 
+    /**
+     * 加载插件。
+     *
+     * @param manifest manifest 参数。
+     * @param sink sink 参数。
+     */
     private void loadPlugin(AgentPluginManifest manifest, PluginRegistrationSink sink) {
         Path dir = manifest.getDirectory();
         try {
@@ -376,6 +486,13 @@ public class AgentPluginManager {
         }
     }
 
+    /**
+     * 执行来源Class名称相关逻辑。
+     *
+     * @param javaFile 文件或目录路径参数。
+     * @param source 来源参数。
+     * @return 返回来源Class名称结果。
+     */
     private String sourceClassName(Path javaFile, String source) {
         String simpleName = javaFile.getFileName().toString().replace(".java", "");
         String packageName = null;
@@ -389,6 +506,11 @@ public class AgentPluginManager {
         return StrUtil.isBlank(packageName) ? simpleName : packageName + "." + simpleName;
     }
 
+    /**
+     * 列出Plugins。
+     *
+     * @return 返回Plugins列表。
+     */
     public List<AgentPluginManifest> listPlugins() {
         return loadedPlugins.values().stream()
                 .map(LoadedPlugin::getManifest)
@@ -396,10 +518,21 @@ public class AgentPluginManager {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 执行诊断相关逻辑。
+     *
+     * @return 返回诊断结果。
+     */
     public List<PluginLoadDiagnostic> diagnostics() {
         return Collections.unmodifiableList(diagnostics);
     }
 
+    /**
+     * 执行firstMissing环境变量相关逻辑。
+     *
+     * @param manifest manifest 参数。
+     * @return 返回first Missing Env结果。
+     */
     private String firstMissingEnv(AgentPluginManifest manifest) {
         for (AgentPluginManifest.EnvRequirement requirement : manifest.getRequiresEnv()) {
             if (requirement == null || StrUtil.isBlank(requirement.getName())) {
@@ -412,16 +545,36 @@ public class AgentPluginManager {
         return null;
     }
 
+    /**
+     * 执行诊断相关逻辑。
+     *
+     * @param manifest manifest 参数。
+     * @param status 状态参数。
+     * @param reason 原因参数。
+     * @param message 平台消息或错误消息。
+     * @return 返回诊断结果。
+     */
     private PluginLoadDiagnostic diagnostic(
             AgentPluginManifest manifest, PluginLoadStatus status, String reason, String message) {
         return new PluginLoadDiagnostic(
                 manifest == null ? null : manifest.getName(), status, reason, safeMessage(message));
     }
 
+    /**
+     * 生成安全展示用的消息。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回safe消息结果。
+     */
     private String safeMessage(String message) {
         return SecretRedactor.redact(StrUtil.nullToDefault(message, ""), 1000);
     }
 
+    /**
+     * 重新加载目标服务端配置与工具清单。
+     *
+     * @param name 名称参数。
+     */
     public void reload(String name) {
         LoadedPlugin existing = loadedPlugins.remove(name);
         if (existing != null) {
@@ -429,6 +582,7 @@ public class AgentPluginManager {
         }
     }
 
+    /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
         for (LoadedPlugin lp : loadedPlugins.values()) {
             try {
@@ -444,6 +598,12 @@ public class AgentPluginManager {
         hookRegistry.clear();
     }
 
+    /**
+     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
+     *
+     * @param error 错误参数。
+     * @return 返回safe Error结果。
+     */
     private String safeError(Throwable error) {
         if (error == null) {
             return "unknown error";
@@ -454,11 +614,24 @@ public class AgentPluginManager {
         return SecretRedactor.redact(value, 1000);
     }
 
+    /** 承载Loaded插件相关状态和辅助逻辑。 */
     private static class LoadedPlugin {
+        /** 记录Loaded插件中的manifest。 */
         private final AgentPluginManifest manifest;
+
+        /** 记录Loaded插件中的插件。 */
         private final AgentPlugin plugin;
+
+        /** 记录Loaded插件中的上下文。 */
         private final DefaultAgentPluginContext context;
 
+        /**
+         * 创建Loaded插件实例，并注入运行所需依赖。
+         *
+         * @param manifest manifest 参数。
+         * @param plugin 插件参数。
+         * @param context 当前请求或运行上下文。
+         */
         LoadedPlugin(
                 AgentPluginManifest manifest,
                 AgentPlugin plugin,
@@ -468,36 +641,77 @@ public class AgentPluginManager {
             this.context = context;
         }
 
+        /**
+         * 读取Manifest。
+         *
+         * @return 返回读取到的Manifest。
+         */
         AgentPluginManifest getManifest() {
             return manifest;
         }
 
+        /**
+         * 读取插件。
+         *
+         * @return 返回读取到的插件。
+         */
         AgentPlugin getPlugin() {
             return plugin;
         }
     }
 
+    /** 承载ConflictAware接收端相关状态和辅助逻辑。 */
     private class ConflictAwareSink implements PluginRegistrationSink {
+        /** 记录ConflictAware接收端中的manifest。 */
         private final AgentPluginManifest manifest;
+
+        /** 记录ConflictAware接收端中的委托。 */
         private final PluginRegistrationSink delegate;
+
+        /** 保存插件工具集合，维持调用顺序或去重语义。 */
         private final Set<String> pluginTools = new LinkedHashSet<>();
+
+        /** 保存插件Commands集合，维持调用顺序或去重语义。 */
         private final Set<String> pluginCommands = new LinkedHashSet<>();
 
+        /**
+         * 创建Conflict Aware接收端实例，并注入运行所需依赖。
+         *
+         * @param manifest manifest 参数。
+         * @param delegate 委派参数。
+         */
         ConflictAwareSink(AgentPluginManifest manifest, PluginRegistrationSink delegate) {
             this.manifest = manifest;
             this.delegate = delegate;
         }
 
+        /**
+         * 判断是否存在工具。
+         *
+         * @param name 名称参数。
+         * @return 如果工具满足条件则返回 true，否则返回 false。
+         */
         @Override
         public boolean hasTool(String name) {
             return delegate.hasTool(name) || pluginTools.contains(name);
         }
 
+        /**
+         * 判断是否存在命令。
+         *
+         * @param name 名称参数。
+         * @return 如果命令满足条件则返回 true，否则返回 false。
+         */
         @Override
         public boolean hasCommand(String name) {
             return delegate.hasCommand(name) || pluginCommands.contains(name);
         }
 
+        /**
+         * 响应工具Registered事件。
+         *
+         * @param registration registration 参数。
+         */
         @Override
         public void onToolRegistered(ToolRegistration registration) {
             String name = registration == null ? null : registration.getName();
@@ -515,6 +729,13 @@ public class AgentPluginManager {
             delegate.onToolRegistered(registration);
         }
 
+        /**
+         * 响应命令Registered事件。
+         *
+         * @param name 名称参数。
+         * @param handler handler 参数。
+         * @param description 描述参数。
+         */
         @Override
         public void onCommandRegistered(String name, CommandHandler handler, String description) {
             if (StrUtil.isBlank(name) || hasCommand(name)) {
@@ -531,48 +752,88 @@ public class AgentPluginManager {
             delegate.onCommandRegistered(name, handler, description);
         }
 
+        /**
+         * 响应Web搜索提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onWebSearchProviderRegistered(
                 com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider) {
             delegate.onWebSearchProviderRegistered(provider);
         }
 
+        /**
+         * 响应图片Gen提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onImageGenProviderRegistered(
                 com.jimuqu.solon.claw.plugin.provider.ImageGenProvider provider) {
             delegate.onImageGenProviderRegistered(provider);
         }
 
+        /**
+         * 响应VideoGen提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onVideoGenProviderRegistered(
                 com.jimuqu.solon.claw.plugin.provider.VideoGenProvider provider) {
             delegate.onVideoGenProviderRegistered(provider);
         }
 
+        /**
+         * 响应浏览器提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onBrowserProviderRegistered(
                 com.jimuqu.solon.claw.plugin.provider.BrowserProvider provider) {
             delegate.onBrowserProviderRegistered(provider);
         }
 
+        /**
+         * 响应语音提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onSpeechProviderRegistered(
                 com.jimuqu.solon.claw.plugin.provider.SpeechProvider provider) {
             delegate.onSpeechProviderRegistered(provider);
         }
 
+        /**
+         * 响应转写提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onTranscriptionProviderRegistered(
                 com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider provider) {
             delegate.onTranscriptionProviderRegistered(provider);
         }
 
+        /**
+         * 响应记忆提供方Registered事件。
+         *
+         * @param provider 模型或能力提供方。
+         */
         @Override
         public void onMemoryProviderRegistered(
                 com.jimuqu.solon.claw.core.service.MemoryProvider provider) {
             delegate.onMemoryProviderRegistered(provider);
         }
 
+        /**
+         * 响应平台Registered事件。
+         *
+         * @param registration registration 参数。
+         */
         @Override
         public void onPlatformRegistered(PlatformRegistration registration) {
             delegate.onPlatformRegistered(registration);

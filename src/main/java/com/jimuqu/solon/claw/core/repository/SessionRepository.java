@@ -29,7 +29,13 @@ public interface SessionRepository {
     /** 通过来源键和分支名查询会话。 */
     SessionRecord findBySourceAndBranch(String sourceKey, String branchName) throws Exception;
 
-    /** 按 Jimuqu /resume 引用查询候选会话：唯一 ID 前缀或精确标题。 */
+    /**
+     * 查找Resume Candidates。
+     *
+     * @param reference 引用参数。
+     * @param limit 最大返回数量。
+     * @return 返回Resume Candidates结果。
+     */
     List<SessionRecord> findResumeCandidates(String reference, int limit) throws Exception;
 
     /** 保存会话。 */
@@ -194,12 +200,23 @@ public interface SessionRepository {
     /** 清除所有使用指定 Agent 的会话激活状态。 */
     void clearActiveAgentName(String agentName) throws Exception;
 
-    /** 更新 Jimuqu /goal 长目标循环状态。 */
+    /**
+     * 写入Goal状态。
+     *
+     * @param sessionId 当前会话标识。
+     * @param goalStateJson 目标状态JSON参数。
+     */
     void setGoalState(String sessionId, String goalStateJson) throws Exception;
 
     /** 更新最近一次学习闭环执行时间，不覆盖会话正文或运行态字段。 */
     void setLastLearningAt(String sessionId, long lastLearningAt) throws Exception;
 
+    /**
+     * 判断是否Not Blank。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 如果Not Blank满足条件则返回 true，否则返回 false。
+     */
     default boolean isNotBlank(String value) {
         return value != null && value.trim().length() > 0;
     }

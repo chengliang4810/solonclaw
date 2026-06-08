@@ -22,14 +22,38 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
-/** scheduler bean configuration. */
+/** 承载调度器配置并集中创建运行组件。 */
 @Configuration
 public class SchedulerConfiguration {
+    /**
+     * 执行定时任务任务服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @return 返回定时任务任务服务结果。
+     */
     @Bean
     public CronJobService cronJobService(AppConfig appConfig, CronJobRepository cronJobRepository) {
         return new CronJobService(appConfig, cronJobRepository);
     }
 
+    /**
+     * 执行默认定时任务调度器相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @return 返回默认定时任务调度器结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public DefaultCronScheduler defaultCronScheduler(
             AppConfig appConfig,
@@ -62,6 +86,16 @@ public class SchedulerConfiguration {
         return scheduler;
     }
 
+    /**
+     * 执行心跳调度器相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param personaWorkspaceService persona工作区服务依赖。
+     * @return 返回心跳调度器结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public HeartbeatScheduler heartbeatScheduler(
             AppConfig appConfig,
@@ -80,6 +114,14 @@ public class SchedulerConfiguration {
         return scheduler;
     }
 
+    /**
+     * 执行技能技能维护调度器相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param skillCuratorService 技能Curator服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @return 返回技能技能维护调度器结果。
+     */
     @Bean(destroyMethod = "shutdown")
     public SkillCuratorScheduler skillCuratorScheduler(
             AppConfig appConfig,
@@ -91,6 +133,14 @@ public class SchedulerConfiguration {
         return scheduler;
     }
 
+    /**
+     * 执行stale运行恢复Bootstrap相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param agentRunSupervisor Agent运行Supervisor参数。
+     * @param pendingSessionRecoveryService 待恢复会话恢复服务依赖。
+     * @return 返回stale运行Recovery Bootstrap结果。
+     */
     @Bean
     public Object staleRunRecoveryBootstrap(
             AppConfig appConfig,
@@ -102,6 +152,14 @@ public class SchedulerConfiguration {
         return new Object();
     }
 
+    /**
+     * 执行待恢复会话恢复服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @return 返回pending会话Recovery服务结果。
+     */
     @Bean
     public PendingSessionRecoveryService pendingSessionRecoveryService(
             AppConfig appConfig,

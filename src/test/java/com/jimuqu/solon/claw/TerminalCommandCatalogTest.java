@@ -19,6 +19,72 @@ public class TerminalCommandCatalogTest {
                         "/retry",
                         "/undo",
                         "/model",
+                        "/model set",
+                        "/setup",
+                        "/setup --quick",
+                        "/setup --reset",
+                        "/setup --non-interactive",
+                        "/setup gateway feishu",
+                        "/config",
+                        "/config env-path",
+                        "/config edit",
+                        "/config migrate",
+                        "/doctor",
+                        "/doctor --fix",
+                        "/doctor --ack",
+                        "/version",
+                        "/logout",
+                        "/gateway status",
+                        "/gateway list",
+                        "/gateway run",
+                        "/gateway start",
+                        "/gateway stop",
+                        "/gateway restart",
+                        "/gateway install",
+                        "/gateway uninstall",
+                        "/gateway migrate-legacy",
+                        "/pairing list",
+                        "/pairing clear-pending",
+                        "/postinstall",
+                        "/login",
+                        "/auth",
+                        "/fallback",
+                        "/fallback list",
+                        "/fallback add",
+                        "/fallback remove",
+                        "/fallback clear",
+                        "/secrets",
+                        "/proxy",
+                        "/mcp",
+                        "/mcp list",
+                        "/mcp add",
+                        "/mcp test",
+                        "/migrate",
+                        "/send",
+                        "/hooks",
+                        "/hooks list",
+                        "/dump",
+                        "/backup",
+                        "/checkpoints",
+                        "/checkpoints list",
+                        "/import",
+                        "/bundles",
+                        "/bundles list",
+                        "/memory",
+                        "/memory status",
+                        "/dashboard",
+                        "/dashboard start",
+                        "/logs",
+                        "/prompt-size",
+                        "/setup terminal",
+                        "/setup tools",
+                        "/setup agent",
+                        "/setup tts",
+                        "/sessions stats",
+                        "/sessions export",
+                        "/sessions delete",
+                        "/sessions prune",
+                        "/sessions rename",
                         "/whoami",
                         "/commands",
                         "/insights",
@@ -71,6 +137,16 @@ public class TerminalCommandCatalogTest {
         CommandDescriptor model = CommandRegistry.get("model");
         assertThat(model.getAliases()).contains("provider");
         assertThat(CommandRegistry.resolve("/provider").getName()).isEqualTo("model");
+
+        CommandDescriptor setup = CommandRegistry.get("setup");
+        assertThat(setup).isNotNull();
+        assertThat(setup.getCategory()).isEqualTo("configuration");
+        assertThat(CommandRegistry.resolve("/setup").getName()).isEqualTo("setup");
+
+        CommandDescriptor config = CommandRegistry.get("config");
+        assertThat(config).isNotNull();
+        assertThat(config.getCategory()).isEqualTo("configuration");
+        assertThat(CommandRegistry.resolve("/config").getName()).isEqualTo("config");
 
         CommandDescriptor platforms = CommandRegistry.get("platforms");
         assertThat(platforms.getAliases()).contains("gateway");

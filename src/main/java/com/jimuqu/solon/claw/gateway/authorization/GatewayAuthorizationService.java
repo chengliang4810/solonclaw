@@ -245,6 +245,66 @@ public class GatewayAuthorizationService {
         return GatewayReply.ok(buffer.toString());
     }
 
+    /** 查看待审批与已批准 pairing 用户汇总。 */
+    public GatewayReply pairingList(GatewayMessage message, PlatformType targetPlatform)
+            throws Exception {
+        if (!isAdminForPlatform(message, targetPlatform)) {
+            return GatewayReply.error("只有平台管理员可以查看 pairing 列表。");
+        }
+        if (!isDm(message)) {
+            return GatewayReply.error("pairing 管理命令必须在私聊中执行。");
+        }
+
+        repository.deleteExpiredPairingRequests(targetPlatform, System.currentTimeMillis());
+        List<PairingRequestRecord> pending = repository.listPairingRequests(targetPlatform, false);
+        List<ApprovedUserRecord> approved = repository.listApprovedUsers(targetPlatform);
+        String platformName = targetPlatform.name().toLowerCase();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(platformName).append(" 待处理 pairing：");
+        if (pending.isEmpty()) {
+            buffer.append("无");
+        } else {
+            for (PairingRequestRecord record : pending) {
+                buffer.append('\n')
+                        .append("- ")
+                        .append(record.getCode())
+                        .append(" -> ")
+                        .append(blankToDefault(record.getUserName(), record.getUserId()))
+                        .append(" [")
+                        .append(record.getUserId())
+                        .append("]");
+            }
+        }
+        buffer.append('\n').append(platformName).append(" 已批准用户：");
+        if (approved.isEmpty()) {
+            buffer.append("无");
+        } else {
+            for (ApprovedUserRecord record : approved) {
+                buffer.append('\n')
+                        .append("- ")
+                        .append(blankToDefault(record.getUserName(), record.getUserId()))
+                        .append(" [")
+                        .append(record.getUserId())
+                        .append("]");
+            }
+        }
+        return GatewayReply.ok(buffer.toString());
+    }
+
+    /** 清理平台待处理 pairing 请求，不影响已批准用户和管理员认领。 */
+    public GatewayReply pairingClearPending(GatewayMessage message, PlatformType targetPlatform)
+            throws Exception {
+        if (!isAdminForPlatform(message, targetPlatform)) {
+            return GatewayReply.error("只有平台管理员可以清理待处理 pairing 请求。");
+        }
+        if (!isDm(message)) {
+            return GatewayReply.error("pairing 管理命令必须在私聊中执行。");
+        }
+
+        repository.deletePendingPairingRequests(targetPlatform);
+        return GatewayReply.ok(targetPlatform.name().toLowerCase() + " 平台待处理 pairing 请求已清理。");
+    }
+
     /** 批准 pairing code。 */
     public GatewayReply pairingApprove(
             GatewayMessage message, PlatformType targetPlatform, String code) throws Exception {
@@ -542,6 +602,12 @@ public class GatewayAuthorizationService {
         return StrUtil.blankToDefault(value, defaultValue);
     }
 
+    /**
+     * 将空白字符串归一为空值。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回blank To Null结果。
+     */
     private String blankToNull(String value) {
         return StrUtil.blankToDefault(value, null);
     }

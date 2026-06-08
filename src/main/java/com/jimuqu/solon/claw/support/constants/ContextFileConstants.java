@@ -11,25 +11,58 @@ import java.util.Map;
 
 /** 人格工作区上下文文件常量。 */
 public final class ContextFileConstants {
+    /** 键AGENTS的统一常量值。 */
     public static final String KEY_AGENTS = "agents";
+
+    /** 键SOUL的统一常量值。 */
     public static final String KEY_SOUL = "soul";
+
+    /** 键身份的统一常量值。 */
     public static final String KEY_IDENTITY = "identity";
+
+    /** 键用户的统一常量值。 */
     public static final String KEY_USER = "user";
+
+    /** 键工具的统一常量值。 */
     public static final String KEY_TOOLS = "tools";
+
+    /** 键心跳的统一常量值。 */
     public static final String KEY_HEARTBEAT = "heartbeat";
+
+    /** 键记忆的统一常量值。 */
     public static final String KEY_MEMORY = "memory";
+
+    /** 键记忆TODAY的统一常量值。 */
     public static final String KEY_MEMORY_TODAY = "memory_today";
 
+    /** 文件AGENTS的统一常量值。 */
     public static final String FILE_AGENTS = "AGENTS.md";
+
+    /** 文件SOUL的统一常量值。 */
     public static final String FILE_SOUL = "SOUL.md";
+
+    /** 文件身份的统一常量值。 */
     public static final String FILE_IDENTITY = "IDENTITY.md";
+
+    /** 文件用户的统一常量值。 */
     public static final String FILE_USER = "USER.md";
+
+    /** 文件工具的统一常量值。 */
     public static final String FILE_TOOLS = "TOOLS.md";
+
+    /** 文件心跳的统一常量值。 */
     public static final String FILE_HEARTBEAT = "HEARTBEAT.md";
+
+    /** 文件记忆的统一常量值。 */
     public static final String FILE_MEMORY = "MEMORY.md";
+
+    /** 记忆目录的统一常量值。 */
     public static final String MEMORY_DIR = "memory";
 
+    /** FILES根据键的统一常量值。 */
     private static final Map<String, String> FILES_BY_KEY;
+
+    /** ORDEREDKEYS的统一常量值。 */
     private static final List<String> ORDERED_KEYS;
 
     static {
@@ -47,6 +80,7 @@ public final class ContextFileConstants {
         ORDERED_KEYS = Collections.unmodifiableList(ordered);
     }
 
+    /** 创建上下文文件Constants实例。 */
     private ContextFileConstants() {}
 
     /** 返回受控文件 key 顺序。 */
@@ -78,6 +112,12 @@ public final class ContextFileConstants {
         return StrUtil.nullToEmpty(key).trim().toLowerCase();
     }
 
+    /**
+     * 执行daily记忆Relative路径相关逻辑。
+     *
+     * @param date date 参数。
+     * @return 返回daily记忆Relative路径。
+     */
     public static String dailyMemoryRelativePath(LocalDate date) {
         return MEMORY_DIR + "/" + date.format(DateTimeFormatter.ISO_LOCAL_DATE) + ".md";
     }

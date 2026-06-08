@@ -9,7 +9,12 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class InstallDecision {
+    /** 是否启用allowed。 */
     private boolean allowed;
+
+    /** 是否启用requiresConfirmation。 */
     private boolean requiresConfirmation;
+
+    /** 记录Install中的原因。 */
     private String reason;
 }

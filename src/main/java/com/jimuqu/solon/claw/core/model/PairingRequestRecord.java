@@ -13,7 +13,7 @@ public class PairingRequestRecord {
     /** 所属平台。 */
     private PlatformType platform;
 
-    /** pairing code。 */
+    /** 记录配对请求中的code。 */
     private String code;
 
     /** 申请用户 ID。 */

@@ -13,10 +13,14 @@ import org.noear.snack4.ONode;
 
 /** Agent 运行时 tools / skills 选择策略。 */
 public final class AgentRuntimePolicy {
+    /** KNOWN工具名称列表的统一常量值。 */
     private static final List<String> KNOWN_TOOL_NAMES =
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
@@ -62,8 +66,16 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.SECURITY_AUDIT,
                     ToolNameConstants.CLARIFY);
 
+    /** 创建Agent运行时策略实例。 */
     private AgentRuntimePolicy() {}
 
+    /**
+     * 解析Allowed工具。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param allToolNames all工具Names参数。
+     * @return 返回解析后的Allowed工具。
+     */
     public static List<String> resolveAllowedTools(
             AgentRuntimeScope agentScope, List<String> allToolNames) {
         if (agentScope == null) {
@@ -91,6 +103,12 @@ public final class AgentRuntimePolicy {
         return allowed;
     }
 
+    /**
+     * 执行expand工具Selectors相关逻辑。
+     *
+     * @param selectors selectors 参数。
+     * @return 返回expand工具Selectors结果。
+     */
     public static LinkedHashSet<String> expandToolSelectors(List<String> selectors) {
         LinkedHashSet<String> expanded = new LinkedHashSet<String>();
         if (selectors == null) {
@@ -102,6 +120,13 @@ public final class AgentRuntimePolicy {
         return expanded;
     }
 
+    /**
+     * 判断是否工具Allowed。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param toolName 工具名称。
+     * @return 如果工具Allowed满足条件则返回 true，否则返回 false。
+     */
     public static boolean isToolAllowed(AgentRuntimeScope agentScope, String toolName) {
         if (agentScope == null) {
             return true;
@@ -120,6 +145,13 @@ public final class AgentRuntimePolicy {
         return expanded.contains(toolName);
     }
 
+    /**
+     * 判断是否技能Allowed。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param descriptor descriptor 参数。
+     * @return 如果技能Allowed满足条件则返回 true，否则返回 false。
+     */
     public static boolean isSkillAllowed(AgentRuntimeScope agentScope, SkillDescriptor descriptor) {
         if (descriptor == null || agentScope == null || agentScope.isDefaultAgentName()) {
             return true;
@@ -132,6 +164,12 @@ public final class AgentRuntimePolicy {
                 || allowed.contains(descriptor.getName());
     }
 
+    /**
+     * 解析Allowed技能。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回解析后的Allowed技能。
+     */
     public static Set<String> resolveAllowedSkills(AgentRuntimeScope agentScope) {
         LinkedHashSet<String> allowed = new LinkedHashSet<String>();
         if (agentScope == null || agentScope.isDefaultAgentName()) {
@@ -145,6 +183,12 @@ public final class AgentRuntimePolicy {
         return allowed;
     }
 
+    /**
+     * 解析String List。
+     *
+     * @param raw 原始输入值。
+     * @return 返回解析后的String List。
+     */
     public static List<String> parseStringList(String raw) {
         List<String> result = new ArrayList<String>();
         String value = StrUtil.nullToEmpty(raw).trim();
@@ -165,13 +209,19 @@ public final class AgentRuntimePolicy {
                 return result;
             }
         } catch (Exception ignored) {
-            // Fall back to comma-separated input for slash-command compatibility.
+            // 为了兼容对话内斜杠命令，这里回退解析逗号分隔输入。
         }
 
         addCsv(result, value);
         return result;
     }
 
+    /**
+     * 追加字符串。
+     *
+     * @param result 结果响应或执行结果。
+     * @param item item 参数。
+     */
     private static void addString(List<String> result, Object item) {
         String text = item == null ? "" : String.valueOf(item).trim();
         if (StrUtil.isNotBlank(text)) {
@@ -179,6 +229,12 @@ public final class AgentRuntimePolicy {
         }
     }
 
+    /**
+     * 追加CSV。
+     *
+     * @param result 结果响应或执行结果。
+     * @param csv csv 参数。
+     */
     private static void addCsv(List<String> result, String csv) {
         for (String item : StrUtil.nullToEmpty(csv).split("\\s*,\\s*")) {
             if (StrUtil.isNotBlank(item)) {
@@ -187,6 +243,12 @@ public final class AgentRuntimePolicy {
         }
     }
 
+    /**
+     * 追加工具Or群组。
+     *
+     * @param output 命令执行输出文本。
+     * @param value 待规范化或校验的原始值。
+     */
     private static void addToolOrGroup(LinkedHashSet<String> output, String value) {
         String name = StrUtil.nullToEmpty(value).trim();
         if (StrUtil.isBlank(name)) {
@@ -200,6 +262,9 @@ public final class AgentRuntimePolicy {
         if ("file".equals(key) || "files".equals(key)) {
             output.add(ToolNameConstants.FILE_READ);
             output.add(ToolNameConstants.FILE_WRITE);
+            output.add(ToolNameConstants.READ_FILE);
+            output.add(ToolNameConstants.WRITE_FILE);
+            output.add(ToolNameConstants.SEARCH_FILES);
             output.add(ToolNameConstants.FILE_LIST);
             output.add(ToolNameConstants.FILE_DELETE);
             output.add(ToolNameConstants.PATCH);
@@ -244,6 +309,8 @@ public final class AgentRuntimePolicy {
         if ("web".equals(key) || "search".equals(key)) {
             output.add(ToolNameConstants.WEBSEARCH);
             output.add(ToolNameConstants.WEBFETCH);
+            output.add("web_search");
+            output.add("web_extract");
             output.add(ToolNameConstants.CODESEARCH);
             return;
         }

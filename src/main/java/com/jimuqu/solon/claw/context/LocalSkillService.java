@@ -35,7 +35,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
-/** 本地技能目录服务，支持 Jimuqu 风格分类目录与渐进披露读取。 */
+/** 提供本地技能相关业务能力，封装调用方不需要感知的运行细节。 */
 public class LocalSkillService implements SkillCatalogService {
     /** 技能名允许字符。 */
     private static final String VALID_NAME_PATTERN = "^[a-z0-9][a-z0-9._-]*$";
@@ -47,6 +47,7 @@ public class LocalSkillService implements SkillCatalogService {
     /** inline shell 片段，形如 !`date +%s`。 */
     private static final Pattern INLINE_SHELL_PATTERN = Pattern.compile("!`([^`\\n]+)`");
 
+    /** 内联终端最大输出的统一常量值。 */
     private static final int INLINE_SHELL_MAX_OUTPUT = 4000;
 
     /** 应用配置。 */
@@ -69,6 +70,14 @@ public class LocalSkillService implements SkillCatalogService {
         this(appConfig, preferenceStore, null, null);
     }
 
+    /**
+     * 创建本地技能服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param skillImportService 技能Import服务依赖。
+     * @param hubStateStore 技能中心状态存储依赖。
+     */
     public LocalSkillService(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -86,6 +95,11 @@ public class LocalSkillService implements SkillCatalogService {
         FileUtil.mkdir(appConfig.getRuntime().getSkillsDir());
     }
 
+    /**
+     * 列出技能Names。
+     *
+     * @return 返回技能Names列表。
+     */
     public List<String> listSkillNames() {
         try {
             processPendingImportsQuietly();
@@ -100,6 +114,12 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param skillName 技能名称参数。
+     * @return 返回inspect结果。
+     */
     public String inspect(String skillName) {
         try {
             processPendingImportsQuietly();
@@ -125,12 +145,25 @@ public class LocalSkillService implements SkillCatalogService {
         return isVisible(sourceKey, skillName);
     }
 
+    /**
+     * 列出技能。
+     *
+     * @param category 分类参数。
+     * @return 返回技能列表。
+     */
     @Override
     public List<SkillDescriptor> listSkills(String category) throws Exception {
         processPendingImportsQuietly();
         return filterCategory(listConfiguredSkills(null), category);
     }
 
+    /**
+     * 列出技能。
+     *
+     * @param category 分类参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回技能列表。
+     */
     public List<SkillDescriptor> listSkills(String category, AgentRuntimeScope agentScope)
             throws Exception {
         processPendingImportsQuietly();
@@ -151,10 +184,26 @@ public class LocalSkillService implements SkillCatalogService {
         return filterCategory(skills, category);
     }
 
+    /**
+     * 列出技能From根用户。
+     *
+     * @param root root 参数。
+     * @param category 分类参数。
+     * @return 返回技能From根用户列表。
+     */
     private List<SkillDescriptor> listSkillsFromRoot(File root, String category) throws Exception {
         return listSkillsFromRoot(root, category, "local", "agent-created");
     }
 
+    /**
+     * 列出技能From根用户。
+     *
+     * @param root root 参数。
+     * @param category 分类参数。
+     * @param source 来源参数。
+     * @param trustLevel trustLevel 参数。
+     * @return 返回技能From根用户列表。
+     */
     private List<SkillDescriptor> listSkillsFromRoot(
             File root, String category, String source, String trustLevel) throws Exception {
         if (!root.exists()) {
@@ -178,6 +227,12 @@ public class LocalSkillService implements SkillCatalogService {
         return filtered;
     }
 
+    /**
+     * 列出Configured技能。
+     *
+     * @param category 分类参数。
+     * @return 返回Configured技能列表。
+     */
     private List<SkillDescriptor> listConfiguredSkills(String category) throws Exception {
         List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
         addUniqueSkills(
@@ -191,6 +246,12 @@ public class LocalSkillService implements SkillCatalogService {
         return filterCategory(skills, category);
     }
 
+    /**
+     * 追加Unique技能。
+     *
+     * @param target target 参数。
+     * @param incoming 入站消息参数。
+     */
     private void addUniqueSkills(List<SkillDescriptor> target, List<SkillDescriptor> incoming) {
         for (SkillDescriptor descriptor : incoming) {
             boolean exists = false;
@@ -206,6 +267,13 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 执行过滤器Category相关逻辑。
+     *
+     * @param skills 技能参数。
+     * @param category 分类参数。
+     * @return 返回filter Category结果。
+     */
     private List<SkillDescriptor> filterCategory(List<SkillDescriptor> skills, String category) {
         if (StrUtil.isBlank(category)) {
             return skills;
@@ -219,8 +287,20 @@ public class LocalSkillService implements SkillCatalogService {
         return filtered;
     }
 
+    /**
+     * 执行技能Comparator相关逻辑。
+     *
+     * @return 返回技能Comparator结果。
+     */
     private Comparator<SkillDescriptor> skillComparator() {
         return new Comparator<SkillDescriptor>() {
+            /**
+             * 比较两个对象的排序位置。
+             *
+             * @param left 左侧比较对象。
+             * @param right 右侧比较对象。
+             * @return 返回compare结果。
+             */
             @Override
             public int compare(SkillDescriptor left, SkillDescriptor right) {
                 String leftCategory = StrUtil.nullToDefault(left.getCategory(), "");
@@ -234,22 +314,56 @@ public class LocalSkillService implements SkillCatalogService {
         };
     }
 
+    /**
+     * 读取技能内容并组装展示视图。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @return 返回视图技能结果。
+     */
     @Override
     public SkillView viewSkill(String nameOrPath, String filePath) throws Exception {
         return viewSkill(nameOrPath, filePath, null);
     }
 
+    /**
+     * 读取技能内容并组装展示视图。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回视图技能结果。
+     */
     public SkillView viewSkill(String nameOrPath, String filePath, AgentRuntimeScope agentScope)
             throws Exception {
         return viewSkill(nameOrPath, filePath, agentScope, null);
     }
 
+    /**
+     * 读取技能内容并组装展示视图。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param sessionId 当前会话标识。
+     * @return 返回视图技能结果。
+     */
     public SkillView viewSkill(
             String nameOrPath, String filePath, AgentRuntimeScope agentScope, String sessionId)
             throws Exception {
         return loadSkillView(nameOrPath, filePath, agentScope, sessionId, true);
     }
 
+    /**
+     * 加载技能视图。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param sessionId 当前会话标识。
+     * @param preprocess 是否执行技能内容预处理。
+     * @return 返回技能视图。
+     */
     private SkillView loadSkillView(
             String nameOrPath,
             String filePath,
@@ -282,12 +396,26 @@ public class LocalSkillService implements SkillCatalogService {
         return view;
     }
 
+    /**
+     * 判断是否需要Preprocess技能Content。
+     *
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @return 如果Preprocess技能Content满足条件则返回 true，否则返回 false。
+     */
     private boolean shouldPreprocessSkillContent(String filePath) {
         String normalized = StrUtil.nullToEmpty(filePath).trim().replace('\\', '/');
         return StrUtil.isBlank(normalized)
                 || SkillConstants.SKILL_FILE_NAME.equalsIgnoreCase(normalized);
     }
 
+    /**
+     * 执行preprocess技能Content相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param descriptor descriptor 参数。
+     * @param sessionId 当前会话标识。
+     * @return 返回preprocess技能Content结果。
+     */
     private String preprocessSkillContent(
             String content, SkillDescriptor descriptor, String sessionId) {
         if (StrUtil.isEmpty(content)) {
@@ -303,6 +431,14 @@ public class LocalSkillService implements SkillCatalogService {
         return processed;
     }
 
+    /**
+     * 执行substituteTemplateVars相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param descriptor descriptor 参数。
+     * @param sessionId 当前会话标识。
+     * @return 返回substitute Template Vars结果。
+     */
     private String substituteTemplateVars(
             String content, SkillDescriptor descriptor, String sessionId) {
         final String skillDir = canonicalSkillDir(descriptor);
@@ -327,6 +463,13 @@ public class LocalSkillService implements SkillCatalogService {
         return buffer.toString();
     }
 
+    /**
+     * 执行expand内联终端相关逻辑。
+     *
+     * @param content 待处理内容。
+     * @param descriptor descriptor 参数。
+     * @return 返回expand Inline Shell结果。
+     */
     private String expandInlineShell(String content, SkillDescriptor descriptor) {
         if (!content.contains("!`")) {
             return content;
@@ -342,6 +485,13 @@ public class LocalSkillService implements SkillCatalogService {
         return buffer.toString();
     }
 
+    /**
+     * 运行Inline Shell。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param descriptor descriptor 参数。
+     * @return 返回Inline Shell结果。
+     */
     private String runInlineShell(String command, SkillDescriptor descriptor) {
         int timeoutSeconds = Math.max(1, appConfig.getSkills().getInlineShellTimeoutSeconds());
         Process process = null;
@@ -387,6 +537,12 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 执行流文本相关逻辑。
+     *
+     * @param inputStream 输入流参数。
+     * @return 返回stream Text结果。
+     */
     private String streamText(java.io.InputStream inputStream) throws Exception {
         if (inputStream == null) {
             return "";
@@ -396,6 +552,12 @@ public class LocalSkillService implements SkillCatalogService {
                 .replaceAll("\\r?\\n$", "");
     }
 
+    /**
+     * 执行规范技能目录相关逻辑。
+     *
+     * @param descriptor descriptor 参数。
+     * @return 返回规范技能Dir结果。
+     */
     private String canonicalSkillDir(SkillDescriptor descriptor) {
         try {
             return FileUtil.file(descriptor.getSkillDir()).getCanonicalPath();
@@ -404,6 +566,12 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 执行bump用量相关逻辑。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param kind kind 参数。
+     */
     public synchronized void bumpUsage(String nameOrPath, String kind) {
         try {
             SkillDescriptor descriptor = findDescriptor(nameOrPath);
@@ -431,15 +599,28 @@ public class LocalSkillService implements SkillCatalogService {
             FileUtil.mkParentDirs(stateFile);
             FileUtil.writeUtf8String(ONode.serialize(state), stateFile);
         } catch (Exception ignored) {
-            // Usage counters are advisory for curator decisions and must not break skill loading.
+            // 技能用量计数只服务于后台维护决策，不能影响正常技能加载。
         }
     }
 
+    /**
+     * 渲染技能索引提示词。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回render技能Index提示词结果。
+     */
     @Override
     public String renderSkillIndexPrompt(String sourceKey) throws Exception {
         return renderSkillIndexPrompt(sourceKey, null);
     }
 
+    /**
+     * 渲染技能索引提示词。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回render技能Index提示词结果。
+     */
     public String renderSkillIndexPrompt(String sourceKey, AgentRuntimeScope agentScope)
             throws Exception {
         processPendingImportsQuietly();
@@ -486,11 +667,25 @@ public class LocalSkillService implements SkillCatalogService {
         return buffer.toString();
     }
 
+    /**
+     * 判断是否Visible。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param canonicalName canonical名称参数。
+     * @return 如果Visible满足条件则返回 true，否则返回 false。
+     */
     @Override
     public boolean isVisible(String sourceKey, String canonicalName) throws Exception {
         return preferenceStore.isSkillEnabled(sourceKey, canonicalName);
     }
 
+    /**
+     * 写入Visible。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param canonicalName canonical名称参数。
+     * @param visible visible 参数。
+     */
     @Override
     public void setVisible(String sourceKey, String canonicalName, boolean visible)
             throws Exception {
@@ -636,6 +831,15 @@ public class LocalSkillService implements SkillCatalogService {
         return buildDescriptor(skillDir, category, "local", "agent-created");
     }
 
+    /**
+     * 构建描述符。
+     *
+     * @param skillDir 文件或目录路径参数。
+     * @param category 分类参数。
+     * @param defaultSource 默认来源参数。
+     * @param defaultTrustLevel 默认TrustLevel参数。
+     * @return 返回创建好的描述符。
+     */
     private SkillDescriptor buildDescriptor(
             File skillDir, String category, String defaultSource, String defaultTrustLevel) {
         File skillFile = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
@@ -686,6 +890,13 @@ public class LocalSkillService implements SkillCatalogService {
         return findDescriptor(nameOrPath, null);
     }
 
+    /**
+     * 查找描述符。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回描述符结果。
+     */
     private SkillDescriptor findDescriptor(String nameOrPath, AgentRuntimeScope agentScope)
             throws Exception {
         for (SkillDescriptor descriptor : listSkills(null, agentScope)) {
@@ -697,6 +908,13 @@ public class LocalSkillService implements SkillCatalogService {
         return null;
     }
 
+    /**
+     * 执行过滤器Agent技能相关逻辑。
+     *
+     * @param skills 技能参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回filter Agent技能结果。
+     */
     private List<SkillDescriptor> filterAgentSkills(
             List<SkillDescriptor> skills, AgentRuntimeScope agentScope) {
         if (AgentRuntimePolicy.resolveAllowedSkills(agentScope).isEmpty()) {
@@ -770,6 +988,11 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 确保Writable。
+     *
+     * @param descriptor descriptor 参数。
+     */
     @SuppressWarnings("unchecked")
     private void ensureWritable(SkillDescriptor descriptor) {
         if (descriptor == null) {
@@ -794,6 +1017,12 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 执行as布尔值相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Boolean结果。
+     */
     private boolean asBoolean(Object value) {
         if (value instanceof Boolean) {
             return ((Boolean) value).booleanValue();
@@ -802,6 +1031,12 @@ public class LocalSkillService implements SkillCatalogService {
         return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
     }
 
+    /**
+     * 读取Map。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回读取到的Map。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> readMap(File file) {
         if (file == null || !file.isFile()) {
@@ -817,6 +1052,12 @@ public class LocalSkillService implements SkillCatalogService {
         return new LinkedHashMap<String, Object>();
     }
 
+    /**
+     * 执行as长整型相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回as Long结果。
+     */
     private long asLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
@@ -880,6 +1121,13 @@ public class LocalSkillService implements SkillCatalogService {
         return target;
     }
 
+    /**
+     * 生成安全展示用的技能文件路径。
+     *
+     * @param descriptor descriptor 参数。
+     * @param target target 参数。
+     * @return 返回safe技能文件路径。
+     */
     private String safeSkillFilePath(SkillDescriptor descriptor, File target) {
         String value = target == null ? "" : target.getName();
         try {
@@ -941,6 +1189,12 @@ public class LocalSkillService implements SkillCatalogService {
         validateSupportFilePath(filePath, false);
     }
 
+    /**
+     * 校验辅助文件路径。
+     *
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @param writeLike 写入Like参数。
+     */
     private void validateSupportFilePath(String filePath, boolean writeLike) {
         if (StrUtil.isBlank(filePath) || filePath.contains("..")) {
             throw new IllegalStateException("Invalid skill file path: " + filePath);
@@ -956,6 +1210,13 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 查找中心记录。
+     *
+     * @param category 分类参数。
+     * @param name 名称参数。
+     * @return 返回中心记录结果。
+     */
     private HubInstallRecord findHubRecord(String category, String name) {
         String installPath = StrUtil.isBlank(category) ? name : category + "/" + name;
         for (HubInstallRecord record : hubStateStore.listInstalled()) {
@@ -966,6 +1227,7 @@ public class LocalSkillService implements SkillCatalogService {
         return null;
     }
 
+    /** 执行待恢复ImportsQuietly相关逻辑。 */
     private void processPendingImportsQuietly() {
         if (skillImportService == null) {
             return;
@@ -973,10 +1235,18 @@ public class LocalSkillService implements SkillCatalogService {
         try {
             skillImportService.processPendingImports(false);
         } catch (Exception ignored) {
-            // auto import failure should not break normal skills usage
+            // 自动导入失败不能影响正常技能使用。
         }
     }
 
+    /**
+     * 判断是否运行时Visible。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param descriptor descriptor 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 如果运行时Visible满足条件则返回 true，否则返回 false。
+     */
     private boolean isRuntimeVisible(
             String sourceKey, SkillDescriptor descriptor, AgentRuntimeScope agentScope) {
         if (SkillSetupState.UNSUPPORTED.name().equals(descriptor.getSetupState())) {
@@ -999,6 +1269,14 @@ public class LocalSkillService implements SkillCatalogService {
         return true;
     }
 
+    /**
+     * 检查Requires工具。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param tools tools 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回Requires工具结果。
+     */
     private boolean checkRequiresTools(
             String sourceKey, List<String> tools, AgentRuntimeScope agentScope) {
         if (tools.isEmpty()) {
@@ -1012,6 +1290,14 @@ public class LocalSkillService implements SkillCatalogService {
         return true;
     }
 
+    /**
+     * 检查Requires Toolsets。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolsets toolsets 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回Requires Toolsets结果。
+     */
     private boolean checkRequiresToolsets(
             String sourceKey, List<String> toolsets, AgentRuntimeScope agentScope) {
         if (toolsets.isEmpty()) {
@@ -1025,6 +1311,14 @@ public class LocalSkillService implements SkillCatalogService {
         return true;
     }
 
+    /**
+     * 检查兜底工具。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param tools tools 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回兜底工具结果。
+     */
     private boolean checkFallbackTools(
             String sourceKey, List<String> tools, AgentRuntimeScope agentScope) {
         if (tools.isEmpty()) {
@@ -1038,6 +1332,14 @@ public class LocalSkillService implements SkillCatalogService {
         return true;
     }
 
+    /**
+     * 检查兜底Toolsets。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolsets toolsets 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回兜底Toolsets结果。
+     */
     private boolean checkFallbackToolsets(
             String sourceKey, List<String> toolsets, AgentRuntimeScope agentScope) {
         if (toolsets.isEmpty()) {
@@ -1051,6 +1353,14 @@ public class LocalSkillService implements SkillCatalogService {
         return true;
     }
 
+    /**
+     * 判断是否Any工具启用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param tools tools 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 如果Any工具启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isAnyToolEnabled(
             String sourceKey, List<String> tools, AgentRuntimeScope agentScope) {
         if (tools.isEmpty()) {
@@ -1064,10 +1374,25 @@ public class LocalSkillService implements SkillCatalogService {
         return false;
     }
 
+    /**
+     * 判断是否工具启用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolName 工具名称。
+     * @return 如果工具启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isToolEnabled(String sourceKey, String toolName) {
         return isToolEnabled(sourceKey, toolName, null);
     }
 
+    /**
+     * 判断是否工具启用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolName 工具名称。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 如果工具启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isToolEnabled(String sourceKey, String toolName, AgentRuntimeScope agentScope) {
         if (!AgentRuntimePolicy.isToolAllowed(agentScope, toolName)) {
             return false;
@@ -1079,11 +1404,19 @@ public class LocalSkillService implements SkillCatalogService {
         }
     }
 
+    /**
+     * 执行工具NamesFor工具集相关逻辑。
+     *
+     * @param toolset 工具集参数。
+     * @return 返回工具Names For Toolset结果。
+     */
     private List<String> toolNamesForToolset(String toolset) {
         if ("web".equalsIgnoreCase(toolset)) {
             return java.util.Arrays.asList(
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    "web_search",
+                    "web_extract",
                     ToolNameConstants.CODESEARCH);
         }
         if ("gateway".equalsIgnoreCase(toolset) || "tool_gateway".equalsIgnoreCase(toolset)) {
@@ -1099,6 +1432,9 @@ public class LocalSkillService implements SkillCatalogService {
                     ToolNameConstants.GET_CURRENT_TIME,
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH);
@@ -1138,6 +1474,12 @@ public class LocalSkillService implements SkillCatalogService {
         return java.util.Collections.emptyList();
     }
 
+    /**
+     * 执行descriptor行相关逻辑。
+     *
+     * @param descriptor descriptor 参数。
+     * @return 返回descriptor Line结果。
+     */
     private String descriptorLine(SkillDescriptor descriptor) {
         StringBuilder buffer =
                 new StringBuilder(StrUtil.nullToDefault(descriptor.getDescription(), ""));

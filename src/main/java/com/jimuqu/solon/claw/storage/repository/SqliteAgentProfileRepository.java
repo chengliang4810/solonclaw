@@ -9,10 +9,18 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
+/** 负责SQLite Agent角色配置数据的持久化读写，隔离底层存储实现。 */
 @RequiredArgsConstructor
 public class SqliteAgentProfileRepository implements AgentProfileRepository {
+    /** 记录SQLiteAgent角色配置中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 执行save，服务于SQLiteAgent角色配置主流程相关逻辑。
+     *
+     * @param profile 文件或目录路径参数。
+     * @return 返回save结果。
+     */
     @Override
     public AgentProfile save(AgentProfile profile) throws Exception {
         Connection connection = database.openConnection();
@@ -41,6 +49,12 @@ public class SqliteAgentProfileRepository implements AgentProfileRepository {
         }
     }
 
+    /**
+     * 根据名称查找对应数据。
+     *
+     * @param agentName Agent名称参数。
+     * @return 返回按名称查找得到的结果。
+     */
     @Override
     public AgentProfile findByName(String agentName) throws Exception {
         Connection connection = database.openConnection();
@@ -61,6 +75,11 @@ public class SqliteAgentProfileRepository implements AgentProfileRepository {
         }
     }
 
+    /**
+     * 列出全部。
+     *
+     * @return 返回全部列表。
+     */
     @Override
     public List<AgentProfile> listAll() throws Exception {
         List<AgentProfile> profiles = new ArrayList<AgentProfile>();
@@ -84,6 +103,11 @@ public class SqliteAgentProfileRepository implements AgentProfileRepository {
         return profiles;
     }
 
+    /**
+     * 根据名称删除对应数据。
+     *
+     * @param agentName Agent名称参数。
+     */
     @Override
     public void deleteByName(String agentName) throws Exception {
         Connection connection = database.openConnection();
@@ -98,6 +122,12 @@ public class SqliteAgentProfileRepository implements AgentProfileRepository {
         }
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param rs rs 参数。
+     * @return 返回map结果。
+     */
     private AgentProfile map(ResultSet rs) throws Exception {
         AgentProfile profile = new AgentProfile();
         profile.setAgentName(rs.getString("agent_name"));

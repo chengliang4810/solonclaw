@@ -14,8 +14,15 @@ import lombok.RequiredArgsConstructor;
 /** SqliteCronJobRepository 实现。 */
 @RequiredArgsConstructor
 public class SqliteCronJobRepository implements CronJobRepository {
+    /** 记录SQLite定时任务任务中的数据库。 */
     private final SqliteDatabase database;
 
+    /**
+     * 执行save，服务于SQLite定时任务任务主流程相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回save结果。
+     */
     public CronJobRecord save(CronJobRecord job) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -63,6 +70,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 根据标识查找对应数据。
+     *
+     * @param jobId job标识。
+     * @return 返回按标识查找得到的结果。
+     */
     public CronJobRecord findById(String jobId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -85,6 +98,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return null;
     }
 
+    /**
+     * 列出根据来源。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回根据来源列表。
+     */
     public List<CronJobRecord> listBySource(String sourceKey) throws Exception {
         List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
         Connection connection = database.openConnection();
@@ -109,6 +128,11 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return jobs;
     }
 
+    /**
+     * 列出全部。
+     *
+     * @return 返回全部列表。
+     */
     @Override
     public List<CronJobRecord> listAll() throws Exception {
         List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
@@ -131,6 +155,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return jobs;
     }
 
+    /**
+     * 列出Due。
+     *
+     * @param nowEpochMillis nowEpochMillis 参数。
+     * @return 返回Due列表。
+     */
     public List<CronJobRecord> listDue(long nowEpochMillis) throws Exception {
         List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
         Connection connection = database.openConnection();
@@ -155,6 +185,11 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return jobs;
     }
 
+    /**
+     * 执行delete，服务于SQLite定时任务任务主流程相关逻辑。
+     *
+     * @param jobId job标识。
+     */
     public void delete(String jobId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -168,6 +203,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 更新状态。
+     *
+     * @param jobId job标识。
+     * @param status 状态参数。
+     */
     public void updateStatus(String jobId, String status) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -186,12 +227,25 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 执行更新相关逻辑。
+     *
+     * @param job job 参数。
+     * @return 返回更新结果。
+     */
     @Override
     public CronJobRecord update(CronJobRecord job) throws Exception {
         job.setUpdatedAt(System.currentTimeMillis());
         return save(job);
     }
 
+    /**
+     * 标记运行。
+     *
+     * @param jobId job标识。
+     * @param lastRunAt last运行At参数。
+     * @param nextRunAt next运行At参数。
+     */
     public void markRun(String jobId, long lastRunAt, long nextRunAt) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -209,6 +263,18 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 标记运行结果。
+     *
+     * @param jobId job标识。
+     * @param lastRunAt last运行At参数。
+     * @param nextRunAt next运行At参数。
+     * @param status 状态参数。
+     * @param error 错误参数。
+     * @param output 命令执行输出文本。
+     * @param repeatCompleted repeatCompleted 参数。
+     * @param nextStatus next状态参数。
+     */
     @Override
     public void markRunResult(
             String jobId,
@@ -241,6 +307,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 标记投递Error。
+     *
+     * @param jobId job标识。
+     * @param error 错误参数。
+     */
     @Override
     public void markDeliveryError(String jobId, String error) throws Exception {
         Connection connection = database.openConnection();
@@ -258,6 +330,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 保存运行。
+     *
+     * @param run 运行参数。
+     * @return 返回运行结果。
+     */
     @Override
     public CronJobRunRecord saveRun(CronJobRunRecord run) throws Exception {
         Connection connection = database.openConnection();
@@ -286,6 +364,13 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    /**
+     * 列出运行。
+     *
+     * @param jobId job标识。
+     * @param limit 最大返回数量。
+     * @return 返回运行列表。
+     */
     @Override
     public List<CronJobRunRecord> listRuns(String jobId, int limit) throws Exception {
         List<CronJobRunRecord> runs = new ArrayList<CronJobRunRecord>();
@@ -312,6 +397,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return runs;
     }
 
+    /**
+     * 执行map相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map结果。
+     */
     private CronJobRecord map(ResultSet resultSet) throws Exception {
         CronJobRecord record = new CronJobRecord();
         record.setJobId(resultSet.getString("job_id"));
@@ -350,6 +441,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return record;
     }
 
+    /**
+     * 执行map运行相关逻辑。
+     *
+     * @param resultSet 结果Set响应或执行结果。
+     * @return 返回map运行结果。
+     */
     private CronJobRunRecord mapRun(ResultSet resultSet) throws Exception {
         CronJobRunRecord record = new CronJobRunRecord();
         record.setRunId(resultSet.getString("run_id"));
@@ -368,6 +465,13 @@ public class SqliteCronJobRepository implements CronJobRepository {
         return record;
     }
 
+    /**
+     * 脱敏文本中的密钥、令牌和敏感路径。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回redact结果。
+     */
     private String redact(String value, int maxLength) {
         return value == null ? null : SecretRedactor.redact(value, maxLength);
     }

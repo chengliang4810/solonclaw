@@ -12,12 +12,25 @@ import java.util.Map;
 
 /** 仓库内 optional-skills 来源。 */
 public class OfficialSkillSource implements SkillSource {
+    /** 记录官方技能来源中的repo根用户。 */
     private final File repoRoot;
 
+    /**
+     * 创建官方技能来源实例，并注入运行所需依赖。
+     *
+     * @param repoRoot repoRoot 参数。
+     */
     public OfficialSkillSource(File repoRoot) {
         this.repoRoot = repoRoot;
     }
 
+    /**
+     * 执行搜索相关逻辑。
+     *
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @return 返回搜索结果。
+     */
     @Override
     public List<SkillMeta> search(String query, int limit) {
         List<SkillMeta> results = new ArrayList<SkillMeta>();
@@ -62,6 +75,12 @@ public class OfficialSkillSource implements SkillSource {
         return results;
     }
 
+    /**
+     * 执行fetch相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回fetch结果。
+     */
     @Override
     public SkillBundle fetch(String identifier) {
         String normalized = normalizeIdentifier(identifier);
@@ -86,6 +105,12 @@ public class OfficialSkillSource implements SkillSource {
         return bundle.getFiles().containsKey("SKILL.md") ? bundle : null;
     }
 
+    /**
+     * 执行inspect相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回inspect结果。
+     */
     @Override
     public SkillMeta inspect(String identifier) {
         SkillBundle bundle = fetch(identifier);
@@ -104,16 +129,33 @@ public class OfficialSkillSource implements SkillSource {
         return meta;
     }
 
+    /**
+     * 执行来源标识相关逻辑。
+     *
+     * @return 返回来源标识。
+     */
     @Override
     public String sourceId() {
         return "official";
     }
 
+    /**
+     * 执行trust级别For相关逻辑。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回trust级别For结果。
+     */
     @Override
     public String trustLevelFor(String identifier) {
         return "builtin";
     }
 
+    /**
+     * 规范化Identifier。
+     *
+     * @param identifier identifier标识或键值。
+     * @return 返回Identifier结果。
+     */
     private String normalizeIdentifier(String identifier) {
         if (identifier.startsWith("official/")) {
             return identifier.substring("official/".length());

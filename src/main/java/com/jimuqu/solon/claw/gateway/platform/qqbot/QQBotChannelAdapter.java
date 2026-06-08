@@ -40,27 +40,66 @@ import org.noear.snack4.ONode;
 
 /** QQBot 官方 API v2 适配器。当前覆盖文本、媒体传输与附件感知主链。 */
 public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** tokenURL的统一常量值。 */
     private static final String TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken";
+
+    /** 默认APIDOMAIN的统一常量值。 */
     private static final String DEFAULT_API_DOMAIN = "https://api.sgroup.qq.com";
+
+    /** JSON的统一常量值。 */
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+
+    /** 投递模式更新提示词的统一常量值。 */
     public static final String DELIVERY_MODE_UPDATE_PROMPT = "update_prompt";
+
+    /** 更新响应文件名称的统一常量值。 */
     public static final String UPDATE_RESPONSE_FILE_NAME = ".update_response";
 
+    /** 记录QQ机器人渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
+
+    /** 注入应用配置，用于QQ机器人渠道。 */
     private final AppConfig appConfig;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录QQ机器人渠道中的client。 */
     private final OkHttpClient client;
+
+    /** 记录QQ机器人渠道中的Web套接字。 */
     private volatile WebSocket webSocket;
+
+    /** 记录QQ机器人渠道中的access token。 */
     private volatile String accessToken;
+
+    /** 记录QQ机器人渠道中的access tokenExpire时间。 */
     private volatile long accessTokenExpireAt;
+
+    /** 保存callback执行器执行组件，负责调度异步或定时任务。 */
     private ExecutorService callbackExecutor;
 
+    /**
+     * 创建QQ机器人渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public QQBotChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
         this(null, config, attachmentCacheService, null);
     }
 
+    /**
+     * 创建QQ机器人渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public QQBotChannelAdapter(
             AppConfig.ChannelConfig config,
             AttachmentCacheService attachmentCacheService,
@@ -68,6 +107,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         this(null, config, attachmentCacheService, securityPolicyService);
     }
 
+    /**
+     * 创建QQ机器人渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public QQBotChannelAdapter(
             AppConfig appConfig,
             AppConfig.ChannelConfig config,
@@ -96,6 +143,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @return 返回connect结果。
+     */
     @Override
     public boolean connect() {
         if (!isEnabled()) {
@@ -154,6 +206,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
         if (webSocket != null) {
@@ -168,6 +221,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         setDetail("disconnected");
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param request 当前请求对象。
+     */
     @Override
     public void send(DeliveryRequest request) throws Exception {
         if (StrUtil.isBlank(request.getChatId())) {
@@ -195,10 +253,25 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 构建Text Body。
+     *
+     * @param text 待处理文本。
+     * @param replyTo 回复To参数。
+     * @return 返回创建好的Text Body。
+     */
     private ONode buildTextBody(String text, String replyTo) {
         return buildTextBody(text, replyTo, null);
     }
 
+    /**
+     * 构建Text Body。
+     *
+     * @param text 待处理文本。
+     * @param replyTo 回复To参数。
+     * @param keyboard 键盘参数。
+     * @return 返回创建好的Text Body。
+     */
     protected ONode buildTextBody(String text, String replyTo, ONode keyboard) {
         ONode body =
                 new ONode()
@@ -218,6 +291,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return body;
     }
 
+    /**
+     * 判断是否审批Card请求。
+     *
+     * @param request 当前请求对象。
+     * @return 如果审批Card请求满足条件则返回 true，否则返回 false。
+     */
     private boolean isApprovalCardRequest(DeliveryRequest request) {
         return DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD.equalsIgnoreCase(
                 stringValue(
@@ -226,6 +305,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 : request.getChannelExtras().get("mode")));
     }
 
+    /**
+     * 判断是否更新提示词请求。
+     *
+     * @param request 当前请求对象。
+     * @return 如果更新提示词请求满足条件则返回 true，否则返回 false。
+     */
     private boolean isUpdatePromptRequest(DeliveryRequest request) {
         return DELIVERY_MODE_UPDATE_PROMPT.equalsIgnoreCase(
                 stringValue(
@@ -234,6 +319,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 : request.getChannelExtras().get("mode")));
     }
 
+    /**
+     * 发送Dangerous审批Keyboard。
+     *
+     * @param request 当前请求对象。
+     */
     private void sendDangerousApprovalKeyboard(DeliveryRequest request) throws Exception {
         if ("guild".equalsIgnoreCase(request.getChatType())) {
             throw new IllegalArgumentException("QQBot guild chats do not support inline keyboards");
@@ -241,6 +331,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         postJson(resolveMessagePath(request), buildApprovalKeyboardBody(request).toJson());
     }
 
+    /**
+     * 发送更新提示词Keyboard。
+     *
+     * @param request 当前请求对象。
+     */
     private void sendUpdatePromptKeyboard(DeliveryRequest request) throws Exception {
         if ("guild".equalsIgnoreCase(request.getChatType())) {
             throw new IllegalArgumentException("QQBot guild chats do not support inline keyboards");
@@ -248,6 +343,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         postJson(resolveMessagePath(request), buildUpdatePromptKeyboardBody(request).toJson());
     }
 
+    /**
+     * 构建审批Keyboard Body。
+     *
+     * @param request 当前请求对象。
+     * @return 返回创建好的审批Keyboard Body。
+     */
     protected ONode buildApprovalKeyboardBody(DeliveryRequest request) {
         Map<String, Object> extras =
                 request.getChannelExtras() == null
@@ -261,6 +362,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return buildTextBody(text, request.getThreadId(), keyboard);
     }
 
+    /**
+     * 构建更新提示词Keyboard Body。
+     *
+     * @param request 当前请求对象。
+     * @return 返回创建好的更新提示词Keyboard Body。
+     */
     protected ONode buildUpdatePromptKeyboardBody(DeliveryRequest request) {
         Map<String, Object> extras =
                 request.getChannelExtras() == null
@@ -281,6 +388,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return buildTextBody(text.toString(), request.getThreadId(), keyboard);
     }
 
+    /**
+     * 构建审批Text。
+     *
+     * @param request 当前请求对象。
+     * @param extras extras 参数。
+     * @return 返回创建好的审批Text。
+     */
     private String buildApprovalText(DeliveryRequest request, Map<String, Object> extras) {
         if (StrUtil.isNotBlank(request.getText())) {
             return approvalCardText(request.getText(), 3000);
@@ -301,21 +415,46 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return buffer.toString();
     }
 
+    /**
+     * 执行审批卡片文本相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回审批Card Text结果。
+     */
     private String approvalCardText(Object value, int maxLength) {
         return SecretRedactor.redact(
                 TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
     }
 
+    /**
+     * 执行审批卡片选择器相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回审批Card Selector结果。
+     */
     private String approvalCardSelector(Object value) {
         String selector = DangerousCommandApprovalService.safeApprovalSelectorToken(value);
         return selector == null ? "" : selector;
     }
 
+    /**
+     * 执行审批卡片AllowAlways相关逻辑。
+     *
+     * @param extras extras 参数。
+     * @return 返回审批Card Allow Always结果。
+     */
     private boolean approvalCardAllowAlways(Map<String, Object> extras) {
         Object value = extras == null ? null : extras.get("approvalAllowAlways");
         return value == null || Boolean.parseBoolean(stringValue(value));
     }
 
+    /**
+     * 发送附件。
+     *
+     * @param request 当前请求对象。
+     * @param attachment 附件参数。
+     */
     private void sendAttachment(DeliveryRequest request, MessageAttachment attachment)
             throws Exception {
         File file = new File(attachment.getLocalPath());
@@ -360,6 +499,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         postJson(resolveMessagePath(request), body.toJson());
     }
 
+    /**
+     * 解析消息路径。
+     *
+     * @param request 当前请求对象。
+     * @return 返回解析后的消息路径。
+     */
     private String resolveMessagePath(DeliveryRequest request) {
         if (GatewayBehaviorConstants.CHAT_TYPE_GROUP.equalsIgnoreCase(request.getChatType())) {
             return "/v2/groups/" + request.getChatId() + "/messages";
@@ -370,6 +515,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "/v2/users/" + request.getChatId() + "/messages";
     }
 
+    /**
+     * 解析Upload路径。
+     *
+     * @param request 当前请求对象。
+     * @return 返回解析后的Upload路径。
+     */
     private String resolveUploadPath(DeliveryRequest request) {
         if (GatewayBehaviorConstants.CHAT_TYPE_GROUP.equalsIgnoreCase(request.getChatType())) {
             return "/v2/groups/" + request.getChatId() + "/files";
@@ -377,6 +528,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "/v2/users/" + request.getChatId() + "/files";
     }
 
+    /**
+     * 执行apiDomain相关逻辑。
+     *
+     * @return 返回api Domain结果。
+     */
     private String apiDomain() {
         String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
         while (value.endsWith("/")) {
@@ -385,6 +541,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return value;
     }
 
+    /** 刷新access token If Necessary。 */
     private synchronized void refreshAccessTokenIfNecessary() throws Exception {
         long now = System.currentTimeMillis();
         if (StrUtil.isNotBlank(accessToken) && accessTokenExpireAt > now + 60000L) {
@@ -420,6 +577,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 拉取消息网关URL。
+     *
+     * @return 返回fetch消息网关URL结果。
+     */
     private String fetchGatewayUrl() {
         try {
             ONode node = getJson("/gateway");
@@ -434,6 +596,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 读取JSON。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回读取到的JSON。
+     */
     private ONode getJson(String path) throws Exception {
         String url = apiDomain() + path;
         assertSafeUrl(url, "QQBot API URL");
@@ -455,6 +623,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行postJSON相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @param body 请求体或消息正文内容。
+     * @return 返回post JSON结果。
+     */
     private ONode postJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
         assertSafeUrl(url, "QQBot API URL");
@@ -477,6 +652,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 写入JSON。
+     *
+     * @param path 文件或目录路径。
+     * @param body 请求体或消息正文内容。
+     * @return 返回JSON结果。
+     */
     private ONode putJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
         assertSafeUrl(url, "QQBot API URL");
@@ -499,6 +681,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 生成安全展示用的正文。
+     *
+     * @param response 当前响应对象。
+     * @return 返回safe Body结果。
+     */
     private String safeBody(Response response) throws Exception {
         if (response.body() == null) {
             return "";
@@ -506,14 +694,32 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
+    /**
+     * 生成安全展示用的HTTP错误正文。
+     *
+     * @param raw 原始输入值。
+     * @return 返回safe HTTP Error Body结果。
+     */
     private String safeHttpErrorBody(String raw) {
         return SecretRedactor.redact(raw, 1000);
     }
 
+    /**
+     * 生成安全展示用的JSON。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe JSON结果。
+     */
     private String safeJson(ONode value) {
         return safeHttpErrorBody(value == null ? "" : value.toJson());
     }
 
+    /**
+     * 执行assert安全URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param purpose purpose 参数。
+     */
     private void assertSafeUrl(String url, String purpose) {
         if (securityPolicyService == null) {
             return;
@@ -529,7 +735,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 承载列表ener相关状态和辅助逻辑。 */
     private class Listener extends WebSocketListener {
+        /**
+         * 响应Open事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param response 当前响应对象。
+         */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
             setConnected(true);
@@ -537,16 +750,35 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("websocket connected");
         }
 
+        /**
+         * 响应消息事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param text 待处理文本。
+         */
         @Override
         public void onMessage(WebSocket webSocket, String text) {
             dispatchInbound(text);
         }
 
+        /**
+         * 响应消息事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param bytes 字节参数。
+         */
         @Override
         public void onMessage(WebSocket webSocket, ByteString bytes) {
             dispatchInbound(bytes.utf8());
         }
 
+        /**
+         * 响应Failure事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param t t 参数。
+         * @param response 当前响应对象。
+         */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             QQBotChannelAdapter.this.webSocket = null;
@@ -556,6 +788,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("websocket disconnected");
         }
 
+        /**
+         * 响应Closed事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param code code 参数。
+         * @param reason 原因参数。
+         */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
             QQBotChannelAdapter.this.webSocket = null;
@@ -565,12 +804,18 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 分发入站。
+     *
+     * @param raw 原始输入值。
+     */
     protected void dispatchInbound(final String raw) {
         if (callbackExecutor == null || inboundMessageHandler() == null || StrUtil.isBlank(raw)) {
             return;
         }
         callbackExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         acknowledgeInteractionIfNecessary(raw);
@@ -590,6 +835,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 转换为消息网关消息。
+     *
+     * @param raw 原始输入值。
+     * @return 返回转换后的消息网关消息。
+     */
     protected GatewayMessage toGatewayMessage(String raw) {
         ONode root = ONode.ofJson(raw);
         String eventType = StrUtil.nullToEmpty(root.get("t").getString()).toLowerCase();
@@ -644,6 +895,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 执行Quoted上下文相关逻辑。
+     *
+     * @param data 数据参数。
+     * @return 返回Quoted上下文结果。
+     */
     private QuotedContext processQuotedContext(ONode data) {
         QuotedContext empty = new QuotedContext();
         if (data == null || data.isNull()) {
@@ -698,6 +955,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return new QuotedContext(quote.toString(), attachments);
     }
 
+    /**
+     * 提取附件。
+     *
+     * @param data 数据参数。
+     * @param fromQuote fromQuote 参数。
+     * @param transcribedText transcribed文本参数。
+     * @return 返回附件结果。
+     */
     private List<MessageAttachment> extractAttachments(
             ONode data, boolean fromQuote, String transcribedText) {
         List<MessageAttachment> result = new ArrayList<MessageAttachment>();
@@ -712,6 +977,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return result;
     }
 
+    /**
+     * 收集附件Nodes。
+     *
+     * @param node 节点参数。
+     * @param result 结果响应或执行结果。
+     * @param fromQuote fromQuote 参数。
+     * @param fallbackTranscribedText 兜底Transcribed文本参数。
+     */
     private void collectAttachmentNodes(
             ONode node,
             List<MessageAttachment> result,
@@ -769,6 +1042,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 合并Quote Into。
+     *
+     * @param text 待处理文本。
+     * @param quote块 quote阻断参数。
+     * @return 返回Quote Into结果。
+     */
     private String mergeQuoteInto(String text, String quoteBlock) {
         if (StrUtil.isBlank(quoteBlock)) {
             return StrUtil.nullToEmpty(text).trim();
@@ -779,6 +1059,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return quoteBlock.trim() + "\n\n" + text.trim();
     }
 
+    /**
+     * 判断是否包含图片。
+     *
+     * @param attachments attachments 参数。
+     * @return 返回contains图片结果。
+     */
     private boolean containsImage(List<MessageAttachment> attachments) {
         if (attachments == null) {
             return false;
@@ -791,6 +1077,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 执行acknowledgeInteractionIfNecessary相关逻辑。
+     *
+     * @param raw 原始输入值。
+     */
     private void acknowledgeInteractionIfNecessary(String raw) {
         try {
             ONode root = ONode.ofJson(raw);
@@ -812,6 +1103,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 转换为Interaction消息网关消息。
+     *
+     * @param root root 参数。
+     * @return 返回转换后的Interaction消息网关消息。
+     */
     protected GatewayMessage toInteractionGatewayMessage(ONode root) {
         ONode data = root.get("d");
         if (data == null || data.isNull()) {
@@ -866,6 +1163,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 解析Interaction Chat类型。
+     *
+     * @param data 数据参数。
+     * @return 返回解析后的Interaction Chat类型。
+     */
     private String resolveInteractionChatType(ONode data) {
         String scene = StrUtil.nullToEmpty(data.get("scene").getString()).toLowerCase();
         if ("group".equals(scene) || StrUtil.isNotBlank(data.get("group_openid").getString())) {
@@ -884,6 +1187,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return GatewayBehaviorConstants.CHAT_TYPE_DM;
     }
 
+    /**
+     * 写入更新响应。
+     *
+     * @param answer answer 参数。
+     */
     protected void writeUpdateResponse(String answer) {
         String normalized =
                 QQBotKeyboardSupport.updatePromptAnswerFromButtonData(
@@ -914,6 +1222,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 更新响应文件。
+     *
+     * @return 返回响应文件结果。
+     */
     protected File updateResponseFile() {
         String home =
                 appConfig == null || appConfig.getRuntime() == null
@@ -922,6 +1235,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return new File(home, UPDATE_RESPONSE_FILE_NAME).getAbsoluteFile();
     }
 
+    /**
+     * 判断是否允许入站。
+     *
+     * @param chatType 聊天类型参数。
+     * @param chatId 聊天标识。
+     * @param userId 用户标识。
+     * @return 如果入站满足条件则返回 true，否则返回 false。
+     */
     private boolean allowInbound(String chatType, String chatId, String userId) {
         if (config.isAllowAllUsers()) {
             return true;
@@ -949,6 +1270,17 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 || contains(config.getAllowedUsers(), userId);
     }
 
+    /**
+     * 执行缓存Remote附件相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param kind kind 参数。
+     * @param fileName 文件或目录路径参数。
+     * @param mimeType MIME 类型参数。
+     * @param fromQuote fromQuote 参数。
+     * @param transcribedText transcribed文本参数。
+     * @return 返回缓存Remote附件结果。
+     */
     protected MessageAttachment cacheRemoteAttachment(
             String url,
             String kind,
@@ -970,14 +1302,25 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 download.getData());
     }
 
+    /** 承载Quoted上下文相关状态和辅助逻辑。 */
     private static class QuotedContext {
+        /** 记录Quoted上下文中的quote阻断。 */
         private final String quoteBlock;
+
+        /** 保存附件集合，维持调用顺序或去重语义。 */
         private final List<MessageAttachment> attachments;
 
+        /** 创建Quoted上下文实例。 */
         private QuotedContext() {
             this("", new ArrayList<MessageAttachment>());
         }
 
+        /**
+         * 创建Quoted上下文实例，并注入运行所需依赖。
+         *
+         * @param quote块 quote阻断参数。
+         * @param attachments attachments 参数。
+         */
         private QuotedContext(String quoteBlock, List<MessageAttachment> attachments) {
             this.quoteBlock = StrUtil.nullToEmpty(quoteBlock).trim();
             this.attachments =
@@ -986,15 +1329,32 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                             : new ArrayList<MessageAttachment>(attachments);
         }
 
+        /**
+         * 读取Quote 块。
+         *
+         * @return 返回读取到的Quote 块。
+         */
         private String getQuoteBlock() {
             return quoteBlock;
         }
 
+        /**
+         * 读取附件。
+         *
+         * @return 返回读取到的附件。
+         */
         private List<MessageAttachment> getAttachments() {
             return attachments;
         }
     }
 
+    /**
+     * 执行contains相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param target target 参数。
+     * @return 返回contains结果。
+     */
     private boolean contains(List<String> values, String target) {
         if (values == null || target == null) {
             return false;
@@ -1008,6 +1368,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 执行firstNon空白值相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @return 返回first Non Blank结果。
+     */
     private String firstNonBlank(String... values) {
         if (values == null) {
             return "";
@@ -1020,6 +1386,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "";
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }

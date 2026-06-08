@@ -29,36 +29,89 @@ import org.noear.snack4.ONode;
 
 /** WeComChannelAdapter 实现。 */
 public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 默认WSURL的统一常量值。 */
     private static final String DEFAULT_WS_URL = "wss://openws.work.weixin.qq.com";
+
+    /** 应用CMD回调的统一常量值。 */
     private static final String APP_CMD_CALLBACK = "aibot_msg_callback";
+
+    /** 应用CMDSEND的统一常量值。 */
     private static final String APP_CMD_SEND = "aibot_send_msg";
+
+    /** 应用CMD响应的统一常量值。 */
     private static final String APP_CMD_RESPONSE = "aibot_respond_msg";
+
+    /** 应用CMD上传媒体INIT的统一常量值。 */
     private static final String APP_CMD_UPLOAD_MEDIA_INIT = "aibot_upload_media_init";
+
+    /** 应用CMD上传媒体分片的统一常量值。 */
     private static final String APP_CMD_UPLOAD_MEDIA_CHUNK = "aibot_upload_media_chunk";
+
+    /** 应用CMD上传媒体FINISH的统一常量值。 */
     private static final String APP_CMD_UPLOAD_MEDIA_FINISH = "aibot_upload_media_finish";
+
+    /** 上传分片大小的统一常量值。 */
     private static final int UPLOAD_CHUNK_SIZE = 512 * 1024;
+
+    /** 图片最大字节的统一常量值。 */
     private static final int IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+    /** VIDEO最大字节的统一常量值。 */
     private static final int VIDEO_MAX_BYTES = 10 * 1024 * 1024;
+
+    /** 语音最大字节的统一常量值。 */
     private static final int VOICE_MAX_BYTES = 2 * 1024 * 1024;
+
+    /** 文件最大字节的统一常量值。 */
     private static final int FILE_MAX_BYTES = 20 * 1024 * 1024;
+
+    /** 回复REQ标识TTLMILLIS的统一常量值。 */
     private static final long REPLY_REQ_ID_TTL_MILLIS = 5L * 60L * 1000L;
 
+    /** 记录WeCom渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 记录WeCom渠道中的client。 */
     private final OkHttpClient client;
+
+    /** 保存待恢复Responses映射，便于按键快速查询。 */
     private final ConcurrentMap<String, CompletableFuture<ONode>> pendingResponses =
             new ConcurrentHashMap<String, CompletableFuture<ONode>>();
+
+    /** 保存回复Req标识映射，便于按键快速查询。 */
     private final ConcurrentMap<String, TimedReqId> replyReqIds =
             new ConcurrentHashMap<String, TimedReqId>();
+
+    /** 记录WeCom渠道中的Web套接字。 */
     private volatile WebSocket webSocket;
+
+    /** 保存callback执行器执行组件，负责调度异步或定时任务。 */
     private ExecutorService callbackExecutor;
 
+    /**
+     * 创建We Com渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public WeComChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
         this(config, attachmentCacheService, null);
     }
 
+    /**
+     * 创建We Com渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public WeComChannelAdapter(
             AppConfig.ChannelConfig config,
             AttachmentCacheService attachmentCacheService,
@@ -78,6 +131,11 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @return 返回connect结果。
+     */
     @Override
     public boolean connect() {
         if (!isEnabled()) {
@@ -149,6 +207,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
         if (webSocket != null) {
@@ -163,6 +222,11 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         setDetail("disconnected");
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param request 当前请求对象。
+     */
     @Override
     public void send(DeliveryRequest request) {
         if (StrUtil.isBlank(request.getChatId())) {
@@ -183,6 +247,14 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行请求相关逻辑。
+     *
+     * @param cmd cmd 参数。
+     * @param body 请求体或消息正文内容。
+     * @param timeoutSeconds 超时时间，单位为秒。
+     * @return 返回请求结果。
+     */
     private ONode request(String cmd, ONode body, int timeoutSeconds) {
         if (webSocket == null) {
             throw new IllegalStateException("WeCom websocket is not connected");
@@ -213,15 +285,29 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 承载列表ener相关状态和辅助逻辑。 */
     @RequiredArgsConstructor
     private class Listener extends WebSocketListener {
+        /** 记录列表ener中的openLatch。 */
         private final CountDownLatch openLatch;
 
+        /**
+         * 响应Open事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param response 当前响应对象。
+         */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
             openLatch.countDown();
         }
 
+        /**
+         * 响应消息事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param text 待处理文本。
+         */
         @Override
         public void onMessage(WebSocket webSocket, String text) {
             ONode node = ONode.ofJson(text);
@@ -241,6 +327,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         }
 
+        /**
+         * 响应Failure事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param t t 参数。
+         * @param response 当前响应对象。
+         */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             failPending(t == null ? new IllegalStateException("WeCom websocket failure") : t);
@@ -256,6 +349,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                     safeError(t));
         }
 
+        /**
+         * 响应Closed事件。
+         *
+         * @param webSocket Web套接字参数。
+         * @param code code 参数。
+         * @param reason 原因参数。
+         */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
             failPending(
@@ -267,12 +367,18 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行入站相关逻辑。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     */
     private void handleInbound(final ONode payload) {
         if (callbackExecutor == null || inboundMessageHandler() == null) {
             return;
         }
         callbackExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     public void run() {
                         try {
                             GatewayMessage message = toGatewayMessage(payload);
@@ -289,6 +395,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 转换为消息网关消息。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回转换后的消息网关消息。
+     */
     private GatewayMessage toGatewayMessage(ONode payload) throws Exception {
         ONode body = payload.get("body");
         String msgId = body.get("msgid").getString();
@@ -318,6 +430,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 提取Text。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回Text结果。
+     */
     private String extractText(ONode body) {
         String msgType = body.get("msgtype").getString();
         if ("text".equalsIgnoreCase(msgType)) {
@@ -345,6 +463,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "";
     }
 
+    /**
+     * 提取附件。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param fromQuote fromQuote 参数。
+     * @return 返回附件结果。
+     */
     private List<MessageAttachment> extractAttachments(ONode body, boolean fromQuote)
             throws Exception {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
@@ -376,6 +501,14 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return attachments;
     }
 
+    /**
+     * 追加附件。
+     *
+     * @param attachments attachments 参数。
+     * @param kind kind 参数。
+     * @param payload 待签名或解析的载荷内容。
+     * @param fromQuote fromQuote 参数。
+     */
     private void addAttachment(
             List<MessageAttachment> attachments, String kind, ONode payload, boolean fromQuote)
             throws Exception {
@@ -409,10 +542,23 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                         data));
     }
 
+    /**
+     * 执行download字节相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param maxBytes max字节参数。
+     * @return 返回download Bytes结果。
+     */
     private byte[] downloadBytes(String url, long maxBytes) throws Exception {
         return BoundedAttachmentIO.downloadOkHttp(client, url, maxBytes, securityPolicyService);
     }
 
+    /**
+     * 执行assert安全URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param purpose purpose 参数。
+     */
     private void assertSafeUrl(String url, String purpose) {
         if (securityPolicyService == null) {
             return;
@@ -428,6 +574,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送附件。
+     *
+     * @param chatId 聊天标识。
+     * @param attachment 附件参数。
+     * @param replyToMessageId 回复To消息标识。
+     */
     private void sendAttachment(
             String chatId, MessageAttachment attachment, String replyToMessageId) {
         File file = new File(attachment.getLocalPath());
@@ -454,6 +607,14 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送Text消息。
+     *
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     * @param replyToMessageId 回复To消息标识。
+     * @return 返回Text消息结果。
+     */
     private ONode sendTextMessage(String chatId, String text, String replyToMessageId) {
         ONode body =
                 new ONode()
@@ -466,6 +627,16 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return sendByMode(body, chatId, replyToMessageId, "markdown", 15);
     }
 
+    /**
+     * 发送根据模式。
+     *
+     * @param body 请求体或消息正文内容。
+     * @param chatId 聊天标识。
+     * @param replyToMessageId 回复To消息标识。
+     * @param description 描述参数。
+     * @param timeoutSeconds 超时时间，单位为秒。
+     * @return 返回根据模式结果。
+     */
     private ONode sendByMode(
             ONode body,
             String chatId,
@@ -486,6 +657,15 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return request(APP_CMD_SEND, body, timeoutSeconds);
     }
 
+    /**
+     * 执行请求With回复Req标识相关逻辑。
+     *
+     * @param cmd cmd 参数。
+     * @param replyReqId 回复Req标识。
+     * @param body 请求体或消息正文内容。
+     * @param timeoutSeconds 超时时间，单位为秒。
+     * @return 返回请求With Reply Req标识。
+     */
     private ONode requestWithReplyReqId(
             String cmd, String replyReqId, ONode body, int timeoutSeconds) {
         if (webSocket == null) {
@@ -513,6 +693,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行载荷Req标识相关逻辑。
+     *
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回payload Req标识。
+     */
     private String payloadReqId(ONode payload) {
         String reqId = payload.get("headers").get("req_id").getString();
         if (StrUtil.isBlank(reqId)) {
@@ -521,6 +707,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return reqId;
     }
 
+    /**
+     * 执行remember回复Req标识相关逻辑。
+     *
+     * @param messageId 消息标识。
+     * @param reqId req标识。
+     */
     private void rememberReplyReqId(String messageId, String reqId) {
         cleanupReplyReqIds();
         String normalizedMessageId = StrUtil.nullToEmpty(messageId).trim();
@@ -538,6 +730,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行回复Req标识For消息相关逻辑。
+     *
+     * @param messageId 消息标识。
+     * @return 返回reply Req标识For消息结果。
+     */
     private String replyReqIdForMessage(String messageId) {
         cleanupReplyReqIds();
         String normalized = StrUtil.nullToEmpty(messageId).trim();
@@ -552,6 +750,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return value.reqId;
     }
 
+    /** 执行cleanup回复Req标识相关逻辑。 */
     private void cleanupReplyReqIds() {
         long now = System.currentTimeMillis();
         for (Map.Entry<String, TimedReqId> entry : replyReqIds.entrySet()) {
@@ -562,6 +761,11 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行fail待恢复相关逻辑。
+     *
+     * @param throwable 捕获到的异常。
+     */
     private void failPending(Throwable throwable) {
         for (CompletableFuture<ONode> future : pendingResponses.values()) {
             future.completeExceptionally(throwable);
@@ -569,6 +773,14 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         pendingResponses.clear();
     }
 
+    /**
+     * 判断是否允许Chat。
+     *
+     * @param chatType 聊天类型参数。
+     * @param chatId 聊天标识。
+     * @param userId 用户标识。
+     * @return 如果Chat满足条件则返回 true，否则返回 false。
+     */
     private boolean allowChat(String chatType, String chatId, String userId) {
         if (config.isAllowAllUsers()) {
             return true;
@@ -601,6 +813,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return true;
     }
 
+    /**
+     * 判断是否允许群组Sender。
+     *
+     * @param chatId 聊天标识。
+     * @param userId 用户标识。
+     * @return 如果群组Sender满足条件则返回 true，否则返回 false。
+     */
     private boolean allowGroupSender(String chatId, String userId) {
         Map<String, List<String>> allowMap = config.getGroupMemberAllowedUsers();
         if (allowMap == null || allowMap.isEmpty()) {
@@ -616,6 +835,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return contains(entries, userId);
     }
 
+    /**
+     * 执行contains相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param target target 参数。
+     * @return 返回contains结果。
+     */
     private boolean contains(List<String> values, String target) {
         if (values == null || target == null) {
             return false;
@@ -634,6 +860,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 查找Quote Node。
+     *
+     * @param body 请求体或消息正文内容。
+     * @return 返回Quote Node结果。
+     */
     private ONode findQuoteNode(ONode body) {
         for (String key : new String[] {"quote", "quoted", "quote_msg", "reference"}) {
             ONode node = body.get(key);
@@ -644,6 +876,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return null;
     }
 
+    /**
+     * 解析出站媒体类型。
+     *
+     * @param attachment 附件参数。
+     * @param sizeBytes size字节参数。
+     * @return 返回解析后的出站媒体类型。
+     */
     private String resolveOutboundMediaType(MessageAttachment attachment, int sizeBytes) {
         String kind =
                 AttachmentCacheService.normalizeKind(
@@ -672,6 +911,14 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "file";
     }
 
+    /**
+     * 执行upload媒体字节相关逻辑。
+     *
+     * @param data 数据参数。
+     * @param mediaType 媒体类型参数。
+     * @param fileName 文件或目录路径参数。
+     * @return 返回upload媒体Bytes结果。
+     */
     private String uploadMediaBytes(byte[] data, String mediaType, String fileName) {
         if (data.length == 0) {
             throw new IllegalArgumentException("WeCom attachment is empty");
@@ -722,10 +969,23 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return mediaId;
     }
 
+    /**
+     * 生成安全展示用的JSON。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe JSON结果。
+     */
     private String safeJson(ONode value) {
         return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
+    /**
+     * 执行decrypt文件字节相关逻辑。
+     *
+     * @param encryptedData encrypted数据参数。
+     * @param aesKeyBase64 aes键Base64参数。
+     * @return 返回decrypt文件Bytes结果。
+     */
     private byte[] decryptFileBytes(byte[] encryptedData, String aesKeyBase64) throws Exception {
         byte[] key = Base64.getDecoder().decode(aesKeyBase64);
         SecretKeySpec secretKeySpec = new SecretKeySpec(key, "AES");
@@ -735,15 +995,30 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return cipher.doFinal(encryptedData);
     }
 
+    /** 承载TimedReq标识相关状态和辅助逻辑。 */
     private static class TimedReqId {
+        /** 记录TimedReq标识中的req标识。 */
         private final String reqId;
+
+        /** 记录TimedReq标识中的expires时间。 */
         private final long expiresAt;
 
+        /**
+         * 创建Timed Req标识实例，并注入运行所需依赖。
+         *
+         * @param reqId req标识。
+         * @param expiresAt expiresAt 参数。
+         */
         private TimedReqId(String reqId, long expiresAt) {
             this.reqId = reqId;
             this.expiresAt = expiresAt;
         }
 
+        /**
+         * 判断是否Expired。
+         *
+         * @return 如果Expired满足条件则返回 true，否则返回 false。
+         */
         private boolean isExpired() {
             return expiresAt <= System.currentTimeMillis();
         }

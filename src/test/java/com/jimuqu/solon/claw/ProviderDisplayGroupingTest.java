@@ -199,6 +199,54 @@ public class ProviderDisplayGroupingTest {
                 .isEqualTo("https://api.moonshot.ai/v1/models");
     }
 
+    @Test
+    void shouldExposeProviderProfilesWithAuthCatalogPricingParametersAndRouting() {
+        AppConfig config = config();
+        config.getProviders().get("default").setDefaultModel("gpt-4o-mini");
+        config.getProviders().get("default").setApiKey("sk-provider-profile-test");
+        config.getLlm().setTemperature(0.2D);
+        config.getLlm().setMaxTokens(2048);
+        config.getLlm().setReasoningEffort("high");
+        config.getLlm().getPromptCache().setEnabled(true);
+        AppConfig.FallbackProviderConfig fallback = new AppConfig.FallbackProviderConfig();
+        fallback.setProvider("backup");
+        fallback.setModel("gpt-backup");
+        config.getFallbackProviders().add(fallback);
+
+        DashboardProviderService service =
+                new DashboardProviderService(config, null, new LlmProviderService(config));
+
+        Map<String, Object> result = service.listProviders();
+        List<?> profiles = (List<?>) result.get("providerProfiles");
+        Map<?, ?> defaultProfile = findProfile(profiles, "default");
+        Map<?, ?> backupProfile = findProfile(profiles, "backup");
+
+        assertThat(profiles).hasSize(3);
+        assertThat(((Map<?, ?>) defaultProfile.get("authentication")).get("configured"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(((Map<?, ?>) defaultProfile.get("catalog")).get("model_list_url"))
+                .isEqualTo("https://api.openai.com/v1/models");
+        assertThat(((Map<?, ?>) defaultProfile.get("capabilities")).get("tool_calling"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(((Map<?, ?>) defaultProfile.get("parameters")).get("reasoning_effort"))
+                .isEqualTo("high");
+        assertThat(((Map<?, ?>) defaultProfile.get("pricing")).get("input")).isEqualTo("$0.15");
+        assertThat(((Map<?, ?>) defaultProfile.get("routing")).get("role")).isEqualTo("primary");
+        assertThat(((Map<?, ?>) backupProfile.get("routing")).get("role")).isEqualTo("fallback");
+        assertThat(((Map<?, ?>) backupProfile.get("routing")).get("fallback_order"))
+                .isEqualTo(Integer.valueOf(0));
+    }
+
+    private Map<?, ?> findProfile(List<?> profiles, String provider) {
+        for (Object item : profiles) {
+            Map<?, ?> row = (Map<?, ?>) item;
+            if (provider.equals(row.get("provider"))) {
+                return row;
+            }
+        }
+        throw new AssertionError("profile not found: " + provider);
+    }
+
     private AppConfig config() {
         AppConfig config = new AppConfig();
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();

@@ -4068,6 +4068,46 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldRunCodeExecutionSandboxProbeWithDefaultPythonCommand() {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/dashboard-code-sandbox-default-python").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+
+        Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
+        Map<String, Object> probes = (Map<String, Object>) security.get("probes");
+        List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
+        Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
+        assertThat(codeExecutionSandbox.get("passed"))
+                .as("code execution sandbox probe: %s", codeExecutionSandbox)
+                .isEqualTo(Boolean.TRUE);
+        assertThat(codeExecutionSandbox.get("skipped")).isNull();
+        assertThat(String.valueOf(codeExecutionSandbox))
+                .doesNotContain("Cannot run program \"python\"")
+                .doesNotContain("sk-dashboardcodesandboxprobe12345");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldMatchSudoRewriteDiagnosticsForExplicitEmptyPassword() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("");

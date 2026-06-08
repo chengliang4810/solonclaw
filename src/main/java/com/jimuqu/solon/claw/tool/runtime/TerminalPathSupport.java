@@ -4,14 +4,28 @@ import cn.hutool.core.util.StrUtil;
 import java.io.File;
 import java.util.Locale;
 
-/** Shared terminal path helpers for foreground and managed background commands. */
+/** 封装终端路径辅助逻辑，降低主流程中的重复实现。 */
 final class TerminalPathSupport {
+    /** 创建终端路径辅助实例。 */
     private TerminalPathSupport() {}
 
+    /**
+     * 转换为进程Cwd。
+     *
+     * @param cwd 工作目录参数。
+     * @return 返回转换后的进程Cwd。
+     */
     static String toProcessCwd(String cwd) {
         return toProcessCwd(cwd, isWindows());
     }
 
+    /**
+     * 转换为进程Cwd。
+     *
+     * @param cwd 工作目录参数。
+     * @param windows Windows参数。
+     * @return 返回转换后的进程Cwd。
+     */
     static String toProcessCwd(String cwd, boolean windows) {
         String value = StrUtil.nullToEmpty(cwd);
         if (!windows || value.length() < 2) {
@@ -36,16 +50,31 @@ final class TerminalPathSupport {
         return converted.toString();
     }
 
+    /**
+     * 解析Safe Cwd。
+     *
+     * @param cwd 工作目录参数。
+     * @param fallback 兜底参数。
+     * @return 返回解析后的Safe Cwd。
+     */
     static File resolveSafeCwd(String cwd, File fallback) {
         return resolveSafeCwd(cwd, fallback, isWindows());
     }
 
+    /**
+     * 解析Safe Cwd。
+     *
+     * @param cwd 工作目录参数。
+     * @param fallback 兜底参数。
+     * @param windows Windows参数。
+     * @return 返回解析后的Safe Cwd。
+     */
     static File resolveSafeCwd(String cwd, File fallback, boolean windows) {
         File fallbackDir = fallback == null ? new File(".") : fallback;
         if (StrUtil.isBlank(cwd)) {
             return fallbackDir.getAbsoluteFile();
         }
-        // UNC paths are unreachable on non-Windows; fall back immediately.
+        // 非 Windows 环境无法访问 UNC 路径，直接回退到默认工作目录。
         if (!windows && cwd.startsWith("\\\\")) {
             return fallbackDir.getAbsoluteFile();
         }
@@ -67,10 +96,21 @@ final class TerminalPathSupport {
         return fallbackDir.getAbsoluteFile();
     }
 
+    /**
+     * 判断是否Windows。
+     *
+     * @return 如果Windows满足条件则返回 true，否则返回 false。
+     */
     static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
+    /**
+     * 判断是否Ascii Letter。
+     *
+     * @param ch ch 参数。
+     * @return 如果Ascii Letter满足条件则返回 true，否则返回 false。
+     */
     private static boolean isAsciiLetter(char ch) {
         return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
     }

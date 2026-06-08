@@ -38,58 +38,154 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import org.noear.snack4.ONode;
 
 /** WeiXinChannelAdapter 实现。 */
 public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 默认基础URL的统一常量值。 */
     private static final String DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
+
+    /** 默认CDN基础URL的统一常量值。 */
     private static final String DEFAULT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
+
+    /** SENDENDPO整型的统一常量值。 */
     private static final String SEND_ENDPOINT = "ilink/bot/sendmessage";
+
+    /** GETUPDATESENDPO整型的统一常量值。 */
     private static final String GET_UPDATES_ENDPOINT = "ilink/bot/getupdates";
+
+    /** SENDTYPINGENDPO整型的统一常量值。 */
     private static final String SEND_TYPING_ENDPOINT = "ilink/bot/sendtyping";
+
+    /** GET配置ENDPO整型的统一常量值。 */
     private static final String GET_CONFIG_ENDPOINT = "ilink/bot/getconfig";
+
+    /** GET上传URLENDPO整型的统一常量值。 */
     private static final String GET_UPLOAD_URL_ENDPOINT = "ilink/bot/getuploadurl";
+
+    /** 上下文token键的统一常量值。 */
     private static final String CONTEXT_TOKEN_KEY = "context_token";
+
+    /** 同步BUF键的统一常量值。 */
     private static final String SYNC_BUF_KEY = "sync_buf";
+
+    /** LONGPOLLTIMEOUTMS的统一常量值。 */
     private static final int LONG_POLL_TIMEOUT_MS = 35_000;
+
+    /** 配置TIMEOUTMS的统一常量值。 */
     private static final int CONFIG_TIMEOUT_MS = 10_000;
+
+    /** 消息DEDUPTTLMILLIS的统一常量值。 */
     private static final int MESSAGE_DEDUP_TTL_MILLIS = 5 * 60 * 1000;
+
+    /** 消息DEDUP最大ENTRIES的统一常量值。 */
     private static final int MESSAGE_DEDUP_MAX_ENTRIES = 512;
+
+    /** 最大HTTPREDIRECTS的统一常量值。 */
     private static final int MAX_HTTP_REDIRECTS = 5;
 
+    /** MSG类型机器人的统一常量值。 */
     private static final int MSG_TYPE_BOT = 2;
-    private static final int MSG_STATE_FINISH = 2;
-    private static final int ITEM_TEXT = 1;
-    private static final int ITEM_IMAGE = 2;
-    private static final int ITEM_FILE = 4;
-    private static final int ITEM_VIDEO = 5;
-    private static final int MEDIA_IMAGE = 1;
-    private static final int MEDIA_VIDEO = 2;
-    private static final int MEDIA_FILE = 3;
-    private static final int TYPING_START = 1;
-    private static final int TYPING_STOP = 2;
-    private static final int MAX_TEXT_CHUNK_LENGTH = 2000;
-    private static final int INBOUND_TEXT_SPLIT_THRESHOLD = 1800;
 
+    /** MSG状态FINISH的统一常量值。 */
+    private static final int MSG_STATE_FINISH = 2;
+
+    /** ITEM文本的统一常量值。 */
+    private static final int ITEM_TEXT = 1;
+
+    /** ITEM图片的统一常量值。 */
+    private static final int ITEM_IMAGE = 2;
+
+    /** ITEM文件的统一常量值。 */
+    private static final int ITEM_FILE = 4;
+
+    /** ITEMVIDEO的统一常量值。 */
+    private static final int ITEM_VIDEO = 5;
+
+    /** 媒体图片的统一常量值。 */
+    private static final int MEDIA_IMAGE = 1;
+
+    /** 媒体VIDEO的统一常量值。 */
+    private static final int MEDIA_VIDEO = 2;
+
+    /** 媒体文件的统一常量值。 */
+    private static final int MEDIA_FILE = 3;
+
+    /** TYPINGSTART的统一常量值。 */
+    private static final int TYPING_START = 1;
+
+    /** TYPINGSTOP的统一常量值。 */
+    private static final int TYPING_STOP = 2;
+
+    /** 最大文本分片LENGTH的统一常量值。 */
+    private static final int MAX_TEXT_CHUNK_LENGTH = 2000;
+
+    /** 微信文本普通长行的复制友好折行宽度。 */
+    private static final int WEIXIN_COPY_LINE_WIDTH = 120;
+
+    /** 为多分片序号预留的长度，避免序号追加后超过平台限制。 */
+    private static final int CHUNK_INDICATOR_RESERVE = 10;
+
+    /** 入站文本SPLITTHRESHOLD的统一常量值。 */
+    private static final int INBOUND_TEXT_SPLIT_THRESHOLD = 1800;
+    private static final String FENCE_CLOSE = "\n```";
+    private static final Pattern FENCE_PATTERN = Pattern.compile("^```([^\\n`]*)\\s*$");
+    private static final Pattern HEADER_PATTERN = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
+    private static final Pattern TABLE_RULE_PATTERN =
+            Pattern.compile("^\\s*\\|?(?:\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?\\s*$");
+    private static final Pattern BOLD_ONLY_PATTERN = Pattern.compile("^\\*\\*[^*]+\\*\\*$");
+    private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^\\d+\\.\\s.*");
+
+    /** 记录WeiXin渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
+
+    /** 保存渠道状态仓储依赖，用于访问持久化数据。 */
     private final ChannelStateRepository channelStateRepository;
+
+    /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
+
+    /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 保存recent消息标识映射，便于按键快速查询。 */
     private final ConcurrentMap<String, Long> recentMessageIds =
             new ConcurrentHashMap<String, Long>();
+
+    /** 保存typingTickets映射，便于按键快速查询。 */
     private final ConcurrentMap<String, TypingTicketState> typingTickets =
             new ConcurrentHashMap<String, TypingTicketState>();
+
+    /** 保存待恢复文本Batches映射，便于按键快速查询。 */
     private final ConcurrentMap<String, PendingTextBatch> pendingTextBatches =
             new ConcurrentHashMap<String, PendingTextBatch>();
+
+    /** 保存待恢复文本BatchTasks映射，便于按键快速查询。 */
     private final ConcurrentMap<String, ScheduledFuture<?>> pendingTextBatchTasks =
             new ConcurrentHashMap<String, ScheduledFuture<?>>();
+
+    /** 保存poll执行器执行组件，负责调度异步或定时任务。 */
     private volatile ExecutorService pollExecutor;
+
+    /** 保存入站执行器执行组件，负责调度异步或定时任务。 */
     private volatile ExecutorService inboundExecutor;
+
+    /** 保存text Batch执行器执行组件，负责调度异步或定时任务。 */
     private volatile ScheduledExecutorService textBatchExecutor;
+
+    /** 是否启用polling。 */
     private volatile boolean polling;
 
+    /**
+     * 创建Wei Xin渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param channelStateRepository 渠道状态仓储依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     */
     public WeiXinChannelAdapter(
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
@@ -97,6 +193,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         this(config, channelStateRepository, attachmentCacheService, null);
     }
 
+    /**
+     * 创建Wei Xin渠道适配器实例，并注入运行所需依赖。
+     *
+     * @param config 当前模块使用的配置对象。
+     * @param channelStateRepository 渠道状态仓储依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public WeiXinChannelAdapter(
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
@@ -112,6 +216,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
+    /**
+     * 建立当前组件需要的连接。
+     *
+     * @return 返回connect结果。
+     */
     @Override
     public boolean connect() {
         if (!isEnabled()) {
@@ -151,6 +260,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return true;
     }
 
+    /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
         polling = false;
@@ -172,6 +282,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         setDetail("disconnected");
     }
 
+    /**
+     * 发送当前请求对应的消息。
+     *
+     * @param request 当前请求对象。
+     */
     @Override
     public void send(DeliveryRequest request) {
         if (StrUtil.isBlank(request.getChatId())) {
@@ -189,6 +304,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送Text。
+     *
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     */
     private void sendText(String chatId, String text) {
         List<String> chunks = splitTextForDelivery(text);
         for (int i = 0; i < chunks.size(); i++) {
@@ -199,6 +320,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送Text Chunk。
+     *
+     * @param chatId 聊天标识。
+     * @param text 待处理文本。
+     */
     private void sendTextChunk(String chatId, String text) {
         int attempts = Math.max(1, config.getSendChunkRetries() + 1);
         for (int attempt = 1; attempt <= attempts; attempt++) {
@@ -237,91 +364,537 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 将出站文本统一为 LF 换行，保持与微信 iLink 文本字段兼容。 */
     private static String normalizeOutboundTextForWeixin(String text) {
-        return StrUtil.nullToEmpty(text)
-                .replace("\r\n", "\n")
-                .replace('\r', '\n')
-                .replace("\n", "\r\n");
+        return StrUtil.nullToEmpty(text).replace("\r\n", "\n").replace('\r', '\n');
     }
 
+    /** 先执行微信展示友好的文本格式化，再按微信消息长度和结构拆分。 */
     private List<String> splitTextForDelivery(String text) {
+        String formatted = formatTextForDelivery(text);
+        boolean splitPerLine = config != null && config.isSplitMultilineMessages();
+        return splitFormattedTextForDelivery(formatted, MAX_TEXT_CHUNK_LENGTH, splitPerLine);
+    }
+
+    /** 对微信出站文本执行 Markdown 块清理和长行折行。 */
+    private static String formatTextForDelivery(String text) {
+        return wrapCopyFriendlyLinesForWeixin(normalizeMarkdownBlocks(text));
+    }
+
+    /** 压缩 Markdown 块之间的多余空行，同时保留代码块内部内容。 */
+    private static String normalizeMarkdownBlocks(String text) {
+        String[] lines = normalizeOutboundTextForWeixin(text).split("\n", -1);
+        ArrayList<String> result = new ArrayList<String>();
+        boolean inCodeBlock = false;
+        int blankRun = 0;
+        for (String rawLine : lines) {
+            String line = rstrip(rawLine);
+            if (FENCE_PATTERN.matcher(line.trim()).matches()) {
+                inCodeBlock = !inCodeBlock;
+                result.add(line);
+                blankRun = 0;
+                continue;
+            }
+
+            if (inCodeBlock) {
+                result.add(line);
+                continue;
+            }
+
+            if (line.trim().length() == 0) {
+                blankRun++;
+                if (blankRun <= 1) {
+                    result.add("");
+                }
+                continue;
+            }
+
+            blankRun = 0;
+            result.add(line);
+        }
+        return joinLines(result).trim();
+    }
+
+    /** 对普通长行做 120 字以内折行，避免微信客户端复制困难。 */
+    private static String wrapCopyFriendlyLinesForWeixin(String content) {
+        if (StrUtil.isBlank(content)) {
+            return StrUtil.nullToEmpty(content);
+        }
+        ArrayList<String> wrapped = new ArrayList<String>();
+        boolean inCodeBlock = false;
+        String[] lines = content.split("\n", -1);
+        for (String rawLine : lines) {
+            String line = rstrip(rawLine);
+            String stripped = line.trim();
+            if (FENCE_PATTERN.matcher(stripped).matches()) {
+                inCodeBlock = !inCodeBlock;
+                wrapped.add(line);
+                continue;
+            }
+            if (inCodeBlock
+                    || codePointLength(line) <= WEIXIN_COPY_LINE_WIDTH
+                    || stripped.length() == 0
+                    || stripped.startsWith("|")
+                    || TABLE_RULE_PATTERN.matcher(stripped).matches()) {
+                wrapped.add(line);
+                continue;
+            }
+            wrapped.addAll(wrapPlainLine(line, WEIXIN_COPY_LINE_WIDTH));
+        }
+        return joinLines(wrapped).trim();
+    }
+
+    /** 按空白折行普通文本，不拆分超长单词。 */
+    private static List<String> wrapPlainLine(String line, int width) {
+        ArrayList<String> wrapped = new ArrayList<String>();
+        String trimmed = line.trim();
+        if (trimmed.length() == 0) {
+            return wrapped;
+        }
+        StringBuilder current = new StringBuilder();
+        int index = 0;
+        while (index < trimmed.length()) {
+            int wordStart = index;
+            while (wordStart < trimmed.length()
+                    && Character.isWhitespace(trimmed.charAt(wordStart))) {
+                wordStart++;
+            }
+            int wordEnd = wordStart;
+            while (wordEnd < trimmed.length()
+                    && !Character.isWhitespace(trimmed.charAt(wordEnd))) {
+                wordEnd++;
+            }
+            String separator = trimmed.substring(index, wordStart);
+            String word = trimmed.substring(wordStart, wordEnd);
+            if (word.length() == 0) {
+                break;
+            }
+            String candidate =
+                    current.length() == 0 ? word : current.toString() + separator + word;
+            if (current.length() > 0 && codePointLength(candidate) > width) {
+                wrapped.add(rstrip(current.toString()));
+                current.setLength(0);
+                current.append(word);
+            } else {
+                current.setLength(0);
+                current.append(candidate);
+            }
+            index = wordEnd;
+        }
+        if (current.length() > 0) {
+            wrapped.add(rstrip(current.toString()));
+        }
+        if (wrapped.isEmpty()) {
+            wrapped.add(line);
+        }
+        return wrapped;
+    }
+
+    /** 按参考实现的紧凑模式或逐行模式拆分已格式化的微信文本。 */
+    private List<String> splitFormattedTextForDelivery(
+            String content, int maxLength, boolean splitPerLine) {
         ArrayList<String> chunks = new ArrayList<String>();
-        String normalized = StrUtil.nullToEmpty(text).trim();
+        String normalized = StrUtil.nullToEmpty(content);
         if (normalized.length() == 0) {
             return chunks;
         }
-        if (!config.isSplitMultilineMessages() && normalized.length() <= MAX_TEXT_CHUNK_LENGTH) {
+        if (splitPerLine) {
+            if (codePointLength(normalized) <= maxLength && normalized.indexOf('\n') < 0) {
+                chunks.add(normalized);
+                return chunks;
+            }
+            for (String unit : splitDeliveryUnitsForWeixin(normalized)) {
+                if (codePointLength(unit) <= maxLength) {
+                    chunks.add(unit);
+                } else {
+                    chunks.addAll(packMarkdownBlocksForWeixin(unit, maxLength));
+                }
+            }
+            return chunks.isEmpty() ? singleChunk(normalized) : chunks;
+        }
+
+        if (codePointLength(normalized) <= maxLength) {
+            if (shouldSplitShortChatBlockForWeixin(normalized)) {
+                chunks.addAll(splitDeliveryUnitsForWeixin(normalized));
+                return chunks;
+            }
             chunks.add(normalized);
             return chunks;
         }
-        if (config.isSplitMultilineMessages()
-                && normalized.indexOf('\n') >= 0
-                && normalized.length() <= MAX_TEXT_CHUNK_LENGTH) {
-            String[] lines = normalized.split("\\R");
-            for (String line : lines) {
-                String trimmed = line == null ? "" : line.trim();
-                if (trimmed.length() > 0) {
-                    chunks.add(trimmed);
+        chunks.addAll(packMarkdownBlocksForWeixin(normalized, maxLength));
+        return chunks.isEmpty() ? singleChunk(normalized) : chunks;
+    }
+
+    /** 将格式化文本切成 Markdown 顶层块，尽量保持代码块完整。 */
+    private static List<String> splitMarkdownBlocks(String content) {
+        ArrayList<String> blocks = new ArrayList<String>();
+        String[] lines = StrUtil.nullToEmpty(content).split("\n", -1);
+        ArrayList<String> current = new ArrayList<String>();
+        boolean inCodeBlock = false;
+        for (String rawLine : lines) {
+            String line = rstrip(rawLine);
+            if (FENCE_PATTERN.matcher(line.trim()).matches()) {
+                if (!inCodeBlock && !current.isEmpty()) {
+                    blocks.add(joinLines(current).trim());
+                    current.clear();
                 }
+                current.add(line);
+                inCodeBlock = !inCodeBlock;
+                if (!inCodeBlock) {
+                    blocks.add(joinLines(current).trim());
+                    current.clear();
+                }
+                continue;
             }
-            if (!chunks.isEmpty()) {
-                return chunks;
+            if (inCodeBlock) {
+                current.add(line);
+                continue;
             }
+            if (line.trim().length() == 0) {
+                if (!current.isEmpty()) {
+                    blocks.add(joinLines(current).trim());
+                    current.clear();
+                }
+                continue;
+            }
+            current.add(line);
+        }
+        if (!current.isEmpty()) {
+            blocks.add(joinLines(current).trim());
+        }
+        ArrayList<String> nonBlank = new ArrayList<String>();
+        for (String block : blocks) {
+            if (StrUtil.isNotBlank(block)) {
+                nonBlank.add(block);
+            }
+        }
+        return nonBlank;
+    }
+
+    /** 将顶层文本块拆成微信气泡友好的投递单元。 */
+    private static List<String> splitDeliveryUnitsForWeixin(String content) {
+        ArrayList<String> units = new ArrayList<String>();
+        for (String block : splitMarkdownBlocks(content)) {
+            String[] blockLines = block.split("\n", -1);
+            if (blockLines.length > 0 && FENCE_PATTERN.matcher(blockLines[0].trim()).matches()) {
+                units.add(block);
+                continue;
+            }
+            ArrayList<String> current = new ArrayList<String>();
+            for (String rawLine : blockLines) {
+                String line = rstrip(rawLine);
+                if (line.trim().length() == 0) {
+                    if (!current.isEmpty()) {
+                        units.add(joinLines(current).trim());
+                        current.clear();
+                    }
+                    continue;
+                }
+                boolean continuation =
+                        !current.isEmpty()
+                                && (rawLine.startsWith(" ") || rawLine.startsWith("\t"));
+                if (continuation) {
+                    current.add(line);
+                    continue;
+                }
+                if (!current.isEmpty()) {
+                    units.add(joinLines(current).trim());
+                }
+                current.clear();
+                current.add(line);
+            }
+            if (!current.isEmpty()) {
+                units.add(joinLines(current).trim());
+            }
+        }
+        ArrayList<String> nonBlank = new ArrayList<String>();
+        for (String unit : units) {
+            if (StrUtil.isNotBlank(unit)) {
+                nonBlank.add(unit);
+            }
+        }
+        return nonBlank;
+    }
+
+    /** 判断短多行文本是否更适合按聊天气泡拆分。 */
+    private static boolean shouldSplitShortChatBlockForWeixin(String block) {
+        ArrayList<String> lines = new ArrayList<String>();
+        for (String line : StrUtil.nullToEmpty(block).split("\n", -1)) {
+            if (StrUtil.isNotBlank(line)) {
+                lines.add(line);
+            }
+        }
+        if (lines.size() < 2 || lines.size() > 6) {
+            return false;
+        }
+        if (looksLikeHeadingLineForWeixin(lines.get(0))) {
+            return false;
+        }
+        for (String line : lines) {
+            if (!looksLikeChattyLineForWeixin(line)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 判断一行文本是否像独立的聊天短句。 */
+    private static boolean looksLikeChattyLineForWeixin(String line) {
+        String stripped = StrUtil.nullToEmpty(line).trim();
+        if (stripped.length() == 0 || codePointLength(stripped) > 48) {
+            return false;
+        }
+        if (line.startsWith(" ") || line.startsWith("\t")) {
+            return false;
+        }
+        if (stripped.startsWith(">")
+                || stripped.startsWith("-")
+                || stripped.startsWith("*")
+                || stripped.startsWith("【")
+                || stripped.startsWith("#")
+                || stripped.startsWith("|")) {
+            return false;
+        }
+        return !TABLE_RULE_PATTERN.matcher(stripped).matches()
+                && !BOLD_ONLY_PATTERN.matcher(stripped).matches()
+                && !NUMBERED_LINE_PATTERN.matcher(stripped).matches();
+    }
+
+    /** 判断一行文本是否像标题，标题后续内容不拆成多个气泡。 */
+    private static boolean looksLikeHeadingLineForWeixin(String line) {
+        String stripped = StrUtil.nullToEmpty(line).trim();
+        if (stripped.length() == 0) {
+            return false;
+        }
+        return HEADER_PATTERN.matcher(stripped).matches()
+                || (codePointLength(stripped) <= 24
+                        && (stripped.endsWith(":") || stripped.endsWith("：")));
+    }
+
+    /** 按 Markdown 块打包超长文本，尽量不打断完整结构。 */
+    private static List<String> packMarkdownBlocksForWeixin(String content, int maxLength) {
+        ArrayList<String> packed = new ArrayList<String>();
+        if (codePointLength(content) <= maxLength) {
+            packed.add(content);
+            return packed;
         }
 
-        String[] paragraphs = normalized.split("\\n\\s*\\n");
-        StringBuilder current = new StringBuilder();
-        for (String paragraph : paragraphs) {
-            String trimmed = paragraph == null ? "" : paragraph.trim();
-            if (trimmed.length() == 0) {
+        String current = "";
+        for (String block : splitMarkdownBlocks(content)) {
+            String candidate = current.length() == 0 ? block : current + "\n\n" + block;
+            if (codePointLength(candidate) <= maxLength) {
+                current = candidate;
                 continue;
             }
-            if (trimmed.length() > MAX_TEXT_CHUNK_LENGTH) {
-                appendChunk(chunks, current);
-                splitHard(trimmed, chunks);
-                continue;
+            if (current.length() > 0) {
+                packed.add(current);
+                current = "";
             }
-            String candidate =
-                    current.length() == 0 ? trimmed : current.toString() + "\n\n" + trimmed;
-            if (candidate.length() > MAX_TEXT_CHUNK_LENGTH) {
-                appendChunk(chunks, current);
-                current.append(trimmed);
+            if (codePointLength(block) <= maxLength) {
+                current = block;
             } else {
-                if (current.length() > 0) {
-                    current.append("\n\n");
-                }
-                current.append(trimmed);
+                packed.addAll(truncateMessageForWeixin(block, maxLength));
             }
         }
-        appendChunk(chunks, current);
-        if (chunks.isEmpty()) {
-            splitHard(normalized, chunks);
+        if (current.length() > 0) {
+            packed.add(current);
+        }
+        return packed;
+    }
+
+    /** 按参考平台基类规则拆分超长块，保留代码围栏并追加分片序号。 */
+    private static List<String> truncateMessageForWeixin(String content, int maxLength) {
+        if (codePointLength(content) <= maxLength) {
+            return singleChunk(content);
+        }
+        ArrayList<String> chunks = new ArrayList<String>();
+        String remaining = content;
+        String carryLanguage = null;
+        while (remaining.length() > 0) {
+            String prefix = carryLanguage == null ? "" : "```" + carryLanguage + "\n";
+            int headroom =
+                    maxLength
+                            - CHUNK_INDICATOR_RESERVE
+                            - codePointLength(prefix)
+                            - codePointLength(FENCE_CLOSE);
+            if (headroom < 1) {
+                headroom = Math.max(1, maxLength / 2);
+            }
+            if (codePointLength(prefix) + codePointLength(remaining)
+                    <= maxLength - CHUNK_INDICATOR_RESERVE) {
+                chunks.add(prefix + remaining);
+                break;
+            }
+
+            String region = leftCodePoints(remaining, headroom);
+            int halfIndex = charIndexForCodePointOffset(region, Math.max(0, headroom / 2));
+            int splitAt = region.lastIndexOf('\n');
+            if (splitAt < halfIndex) {
+                splitAt = region.lastIndexOf(' ');
+            }
+            if (splitAt < 1) {
+                splitAt = region.length();
+            }
+
+            String candidate = remaining.substring(0, splitAt);
+            int backtickCount = countOccurrences(candidate, "`") - countOccurrences(candidate, "\\`");
+            if (backtickCount % 2 == 1) {
+                int lastBacktick = candidate.lastIndexOf('`');
+                while (lastBacktick > 0 && candidate.charAt(lastBacktick - 1) == '\\') {
+                    lastBacktick = candidate.lastIndexOf('`', lastBacktick - 1);
+                }
+                if (lastBacktick > 0) {
+                    int safeSplit = candidate.lastIndexOf(' ', lastBacktick);
+                    int newlineSplit = candidate.lastIndexOf('\n', lastBacktick);
+                    safeSplit = Math.max(safeSplit, newlineSplit);
+                    if (safeSplit > halfIndex) {
+                        splitAt = safeSplit;
+                    }
+                }
+            }
+
+            String chunkBody = remaining.substring(0, splitAt);
+            remaining = lstrip(remaining.substring(splitAt));
+            String fullChunk = prefix + chunkBody;
+
+            boolean inCode = carryLanguage != null;
+            String language = carryLanguage == null ? "" : carryLanguage;
+            String[] lines = chunkBody.split("\n", -1);
+            for (String line : lines) {
+                String stripped = line.trim();
+                if (stripped.startsWith("```")) {
+                    if (inCode) {
+                        inCode = false;
+                        language = "";
+                    } else {
+                        inCode = true;
+                        String tag = stripped.substring(3).trim();
+                        language = firstToken(tag);
+                    }
+                }
+            }
+            if (inCode) {
+                fullChunk += FENCE_CLOSE;
+                carryLanguage = language;
+            } else {
+                carryLanguage = null;
+            }
+            chunks.add(fullChunk);
+        }
+
+        if (chunks.size() > 1) {
+            int total = chunks.size();
+            for (int i = 0; i < total; i++) {
+                chunks.set(i, chunks.get(i) + " (" + (i + 1) + "/" + total + ")");
+            }
         }
         return chunks;
     }
 
-    private void appendChunk(List<String> chunks, StringBuilder current) {
-        if (current.length() == 0) {
-            return;
-        }
-        chunks.add(current.toString());
-        current.setLength(0);
+    /** 返回字符串的 Unicode code point 数，匹配参考实现的 Python len 行为。 */
+    private static int codePointLength(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        return value.codePointCount(0, value.length());
     }
 
-    private void splitHard(String text, List<String> chunks) {
+    /** 按 code point 数截取左侧内容，避免把代理对字符切开。 */
+    private static String leftCodePoints(String text, int count) {
+        String value = StrUtil.nullToEmpty(text);
+        int safeCount = Math.max(0, Math.min(count, codePointLength(value)));
+        return value.substring(0, value.offsetByCodePoints(0, safeCount));
+    }
+
+    /** 将 code point 偏移转换为 Java 字符下标。 */
+    private static int charIndexForCodePointOffset(String text, int count) {
+        String value = StrUtil.nullToEmpty(text);
+        int safeCount = Math.max(0, Math.min(count, codePointLength(value)));
+        return value.offsetByCodePoints(0, safeCount);
+    }
+
+    /** 统计固定子串出现次数，按参考实现用于反引号保护的简单计数规则处理。 */
+    private static int countOccurrences(String text, String needle) {
+        if (StrUtil.isEmpty(needle)) {
+            return 0;
+        }
+        int count = 0;
         int start = 0;
-        while (start < text.length()) {
-            int end = Math.min(start + MAX_TEXT_CHUNK_LENGTH, text.length());
-            chunks.add(text.substring(start, end));
-            start = end;
+        while (start <= text.length()) {
+            int index = text.indexOf(needle, start);
+            if (index < 0) {
+                break;
+            }
+            count++;
+            start = index + needle.length();
         }
+        return count;
     }
 
+    /** 去掉左侧空白，模拟参考拆分后 remaining.lstrip() 的行为。 */
+    private static String lstrip(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        int start = 0;
+        while (start < value.length() && Character.isWhitespace(value.charAt(start))) {
+            start++;
+        }
+        return value.substring(start);
+    }
+
+    /** 提取代码围栏语言标签的首个 token。 */
+    private static String firstToken(String text) {
+        String value = StrUtil.nullToEmpty(text).trim();
+        if (value.length() == 0) {
+            return "";
+        }
+        String[] tokens = value.split("\\s+", 2);
+        return tokens[0];
+    }
+
+    /** 生成只有一个元素的列表，作为空拆分结果的兜底。 */
+    private static List<String> singleChunk(String text) {
+        ArrayList<String> chunks = new ArrayList<String>();
+        chunks.add(text);
+        return chunks;
+    }
+
+    /** 拼接行集合为 LF 文本。 */
+    private static String joinLines(List<String> lines) {
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) {
+                buffer.append('\n');
+            }
+            buffer.append(lines.get(i));
+        }
+        return buffer.toString();
+    }
+
+    /** 去掉右侧空白，保留左侧缩进用于列表续行判断。 */
+    private static String rstrip(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        int end = value.length();
+        while (end > 0 && Character.isWhitespace(value.charAt(end - 1))) {
+            end--;
+        }
+        return value.substring(0, end);
+    }
+
+    /**
+     * 生成安全展示用的消息。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回safe消息结果。
+     */
     private String safeMessage(Exception e) {
         String message = e.getMessage();
         return StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
     }
 
+    /**
+     * 发送附件。
+     *
+     * @param chatId 聊天标识。
+     * @param attachment 附件参数。
+     */
     private void sendAttachment(String chatId, MessageAttachment attachment) {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
@@ -380,6 +953,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         ensureSuccess(sendResponse, "Weixin media send failed");
     }
 
+    /**
+     * 执行基础消息相关逻辑。
+     *
+     * @param chatId 聊天标识。
+     * @return 返回base消息结果。
+     */
     private ONode baseMessage(String chatId) {
         ONode message = new ONode();
         message.asObject();
@@ -392,6 +971,17 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message;
     }
 
+    /**
+     * 构建媒体Item。
+     *
+     * @param mediaType 媒体类型参数。
+     * @param attachment 附件参数。
+     * @param plaintextSize plaintextSize 参数。
+     * @param ciphertextSize ciphertextSize 参数。
+     * @param encryptedParam encryptedParam 参数。
+     * @param aesKey aes键标识或键值。
+     * @return 返回创建好的媒体Item。
+     */
     private ONode buildMediaItem(
             int mediaType,
             MessageAttachment attachment,
@@ -451,10 +1041,24 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return item;
     }
 
+    /**
+     * 执行apiPost相关逻辑。
+     *
+     * @param endpoint endpoint 参数。
+     * @param payload 待签名或解析的载荷内容。
+     * @return 返回api Post结果。
+     */
     private ONode apiPost(String endpoint, ONode payload) {
         return apiPost(endpoint, payload, LONG_POLL_TIMEOUT_MS + 5_000);
     }
 
+    /**
+     * 解析Upload URL。
+     *
+     * @param uploadInfo uploadInfo 参数。
+     * @param fileKey 文件或目录路径参数。
+     * @return 返回解析后的Upload URL。
+     */
     private String resolveUploadUrl(ONode uploadInfo, String fileKey) {
         String uploadFullUrl = uploadInfo.get("upload_full_url").getString();
         if (StrUtil.isNotBlank(uploadFullUrl)) {
@@ -475,6 +1079,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 + cn.hutool.core.net.URLEncodeUtil.encodeAll(fileKey);
     }
 
+    /**
+     * 执行uploadCiphertext相关逻辑。
+     *
+     * @param uploadUrl 待校验或访问的地址参数。
+     * @param ciphertext ciphertext 参数。
+     * @return 返回upload Ciphertext结果。
+     */
     private String uploadCiphertext(String uploadUrl, byte[] ciphertext) {
         HttpResponse response = executeBinaryPost(uploadUrl, ciphertext, uploadUrl, 0);
         try {
@@ -493,6 +1104,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行encryptAesEcb相关逻辑。
+     *
+     * @param plaintext plaintext 参数。
+     * @param key 配置键或映射键。
+     * @return 返回encrypt Aes Ecb结果。
+     */
     private byte[] encryptAesEcb(byte[] plaintext, byte[] key) {
         try {
             Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
@@ -503,6 +1121,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 确保Success。
+     *
+     * @param node 节点参数。
+     * @param defaultMessage 默认消息参数。
+     */
     private void ensureSuccess(ONode node, String defaultMessage) {
         int errCode = node.get("errcode").getInt(0);
         int ret = node.get("ret").getInt(0);
@@ -511,6 +1135,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 加载上下文token。
+     *
+     * @param chatId 聊天标识。
+     * @return 返回上下文token结果。
+     */
     private String loadContextToken(String chatId) {
         try {
             return channelStateRepository.get(
@@ -520,11 +1150,18 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行文件名称Of相关逻辑。
+     *
+     * @param attachment 附件参数。
+     * @return 返回文件名称Of结果。
+     */
     private String fileNameOf(MessageAttachment attachment) {
         return StrUtil.blankToDefault(
                 attachment.getOriginalName(), new File(attachment.getLocalPath()).getName());
     }
 
+    /** 启动Polling。 */
     private void startPolling() {
         if (polling) {
             return;
@@ -533,6 +1170,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         pollExecutor = Executors.newSingleThreadExecutor();
         pollExecutor.submit(
                 new Runnable() {
+                    /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         pollLoop();
@@ -540,6 +1178,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 });
     }
 
+    /**
+     * 确保入站执行器。
+     *
+     * @return 返回入站执行器结果。
+     */
     private synchronized ExecutorService ensureInboundExecutor() {
         if (inboundExecutor == null
                 || inboundExecutor.isShutdown()
@@ -549,6 +1192,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return inboundExecutor;
     }
 
+    /** 执行poll循环相关逻辑。 */
     private void pollLoop() {
         String syncBuf = loadSyncBuf();
         while (polling && !Thread.currentThread().isInterrupted()) {
@@ -592,6 +1236,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行入站消息相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     */
     private void processInboundMessage(ONode message) {
         String senderId = message.get("from_user_id").getString();
         if (StrUtil.isBlank(senderId) || senderId.equals(config.getAccountId())) {
@@ -647,6 +1296,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
     }
 
+    /**
+     * 执行enqueue文本Batch相关逻辑。
+     *
+     * @param gatewayMessage 网关消息参数。
+     * @param chatType 聊天类型参数。
+     * @param chatId 聊天标识。
+     * @param contextToken 上下文token上下文。
+     */
     private void enqueueTextBatch(
             GatewayMessage gatewayMessage, String chatType, String chatId, String contextToken) {
         final String key =
@@ -675,6 +1332,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 ensureTextBatchExecutor()
                         .schedule(
                                 new Runnable() {
+                                    /** 执行异步任务主体。 */
                                     @Override
                                     public void run() {
                                         flushTextBatch(key);
@@ -685,6 +1343,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         pendingTextBatchTasks.put(key, future);
     }
 
+    /**
+     * 确保Text Batch执行器。
+     *
+     * @return 返回Text Batch执行器结果。
+     */
     private synchronized ScheduledExecutorService ensureTextBatchExecutor() {
         if (textBatchExecutor == null
                 || textBatchExecutor.isShutdown()
@@ -694,6 +1357,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return textBatchExecutor;
     }
 
+    /**
+     * 执行flush文本Batch相关逻辑。
+     *
+     * @param key 配置键或映射键。
+     */
     private void flushTextBatch(String key) {
         pendingTextBatchTasks.remove(key);
         PendingTextBatch batch = pendingTextBatches.remove(key);
@@ -704,6 +1372,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         dispatchInboundMessage(message, batch.chatType, batch.chatId, batch.contextToken);
     }
 
+    /**
+     * 分发入站消息。
+     *
+     * @param gatewayMessage 网关消息参数。
+     * @param chatType 聊天类型参数。
+     * @param chatId 聊天标识。
+     * @param contextToken 上下文token上下文。
+     */
     private void dispatchInboundMessage(
             final GatewayMessage gatewayMessage,
             final String chatType,
@@ -713,6 +1389,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             ensureInboundExecutor()
                     .submit(
                             new Runnable() {
+                                /** 执行异步任务主体。 */
                                 @Override
                                 public void run() {
                                     try {
@@ -741,6 +1418,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 提取入站Text。
+     *
+     * @param itemList item列表参数。
+     * @return 返回入站Text结果。
+     */
     private String extractInboundText(ONode itemList) {
         for (int i = 0; i < itemList.size(); i++) {
             ONode item = itemList.get(i);
@@ -766,6 +1449,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return "";
     }
 
+    /**
+     * 收集媒体。
+     *
+     * @param item item 参数。
+     * @param attachments attachments 参数。
+     * @param fromQuote fromQuote 参数。
+     */
     private void collectMedia(ONode item, List<MessageAttachment> attachments, boolean fromQuote) {
         int type = item.get("type").getInt();
         try {
@@ -825,6 +1515,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行download附件相关逻辑。
+     *
+     * @param kind kind 参数。
+     * @param payload 待签名或解析的载荷内容。
+     * @param fallbackName 兜底名称参数。
+     * @param fallbackMime 兜底MIME参数。
+     * @param fromQuote fromQuote 参数。
+     * @return 返回download附件结果。
+     */
     private MessageAttachment downloadAttachment(
             String kind,
             ONode payload,
@@ -859,6 +1559,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 raw);
     }
 
+    /**
+     * 解析入站URL。
+     *
+     * @param encryptedQuery encrypted查询参数。
+     * @param fullUrl 待校验或访问的地址参数。
+     * @return 返回解析后的入站URL。
+     */
     private String resolveInboundUrl(String encryptedQuery, String fullUrl) {
         if (StrUtil.isNotBlank(encryptedQuery)) {
             String cdnBaseUrl =
@@ -874,11 +1581,24 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         throw new IllegalStateException("Weixin media item missing download url");
     }
 
+    /**
+     * 执行download字节相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回download Bytes结果。
+     */
     private byte[] downloadBytes(String url) {
         return BoundedAttachmentIO.downloadHutool(
                 url, 60000, BoundedAttachmentIO.DEFAULT_MAX_BYTES, securityPolicyService);
     }
 
+    /**
+     * 解析Aes键。
+     *
+     * @param hexAesKey hexAes键标识或键值。
+     * @param encodedAesKey encodedAes键标识或键值。
+     * @return 返回解析后的Aes键。
+     */
     private byte[] parseAesKey(String hexAesKey, String encodedAesKey) {
         if (StrUtil.isNotBlank(hexAesKey)) {
             return HexUtil.decodeHex(hexAesKey);
@@ -897,6 +1617,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return null;
     }
 
+    /**
+     * 执行decryptAesEcb相关逻辑。
+     *
+     * @param ciphertext ciphertext 参数。
+     * @param key 配置键或映射键。
+     * @return 返回decrypt Aes Ecb结果。
+     */
     private byte[] decryptAesEcb(byte[] ciphertext, byte[] key) {
         try {
             Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
@@ -907,6 +1634,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行guess聊天Target相关逻辑。
+     *
+     * @param message 平台消息或错误消息。
+     * @return 返回guess Chat Target结果。
+     */
     private ChatTarget guessChatTarget(ONode message) {
         String roomId = message.get("room_id").getString();
         if (StrUtil.isBlank(roomId)) {
@@ -929,6 +1662,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return new ChatTarget("dm", message.get("from_user_id").getString());
     }
 
+    /**
+     * 判断是否允许Dm。
+     *
+     * @param userId 用户标识。
+     * @return 如果Dm满足条件则返回 true，否则返回 false。
+     */
     private boolean allowDm(String userId) {
         if (config.isAllowAllUsers()) {
             return true;
@@ -946,6 +1685,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return true;
     }
 
+    /**
+     * 判断是否允许群组。
+     *
+     * @param chatId 聊天标识。
+     * @return 如果群组满足条件则返回 true，否则返回 false。
+     */
     private boolean allowGroup(String chatId) {
         if (config.isAllowAllUsers()) {
             return true;
@@ -964,6 +1709,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return true;
     }
 
+    /**
+     * 执行contains相关逻辑。
+     *
+     * @param values 待规范化或校验的原始值集合。
+     * @param target target 参数。
+     * @return 返回contains结果。
+     */
     private boolean contains(List<String> values, String target) {
         if (values == null || target == null) {
             return false;
@@ -974,6 +1726,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return values.contains(target);
     }
 
+    /**
+     * 执行maybeFetchTypingTicket相关逻辑。
+     *
+     * @param userId 用户标识。
+     * @param contextToken 上下文token上下文。
+     */
     private void maybeFetchTypingTicket(String userId, String contextToken) {
         TypingTicketState existing = typingTickets.get(userId);
         if (existing != null && existing.isValid()) {
@@ -1003,6 +1761,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 发送Typing。
+     *
+     * @param userId 用户标识。
+     * @param status 状态参数。
+     */
     private void sendTyping(String userId, int status) {
         TypingTicketState state = typingTickets.get(userId);
         if (state == null || !state.isValid()) {
@@ -1025,6 +1789,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 判断是否Duplicate。
+     *
+     * @param messageId 消息标识。
+     * @return 如果Duplicate满足条件则返回 true，否则返回 false。
+     */
     private boolean isDuplicate(String messageId) {
         if (StrUtil.isBlank(messageId)) {
             return false;
@@ -1039,6 +1809,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return false;
     }
 
+    /**
+     * 判断是否Duplicate Text。
+     *
+     * @param senderId sender标识。
+     * @param text 待处理文本。
+     * @return 如果Duplicate Text满足条件则返回 true，否则返回 false。
+     */
     private boolean isDuplicateText(String senderId, String text) {
         if (StrUtil.isBlank(senderId) || StrUtil.isBlank(text)) {
             return false;
@@ -1046,10 +1823,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return isDuplicate("content:" + senderId + ":" + DigestUtil.md5Hex(text));
     }
 
+    /** 执行pruneRecent消息标识相关逻辑。 */
     private void pruneRecentMessageIds() {
         pruneRecentMessageIds(System.currentTimeMillis());
     }
 
+    /**
+     * 执行pruneRecent消息标识相关逻辑。
+     *
+     * @param now 当前时间戳。
+     */
     private void pruneRecentMessageIds(long now) {
         for (java.util.Map.Entry<String, Long> entry : recentMessageIds.entrySet()) {
             if (now - entry.getValue() >= MESSAGE_DEDUP_TTL_MILLIS) {
@@ -1058,6 +1841,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 执行pruneRecent消息标识ToMaxEntries相关逻辑。 */
     private void pruneRecentMessageIdsToMaxEntries() {
         while (recentMessageIds.size() > MESSAGE_DEDUP_MAX_ENTRIES) {
             java.util.Map.Entry<String, Long> oldest = null;
@@ -1072,6 +1856,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 保存Sync Buf。
+     *
+     * @param syncBuf 同步Buf参数。
+     */
     private void saveSyncBuf(String syncBuf) {
         try {
             channelStateRepository.put(
@@ -1080,6 +1869,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 加载Sync Buf。
+     *
+     * @return 返回Sync Buf结果。
+     */
     private String loadSyncBuf() {
         try {
             return StrUtil.nullToEmpty(
@@ -1090,6 +1884,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 保存上下文token。
+     *
+     * @param chatId 聊天标识。
+     * @param contextToken 上下文token上下文。
+     */
     private void saveContextToken(String chatId, String contextToken) {
         try {
             channelStateRepository.put(
@@ -1101,6 +1901,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行sleepQuietly相关逻辑。
+     *
+     * @param seconds seconds 参数。
+     */
     private void sleepQuietly(int seconds) {
         try {
             TimeUnit.SECONDS.sleep(seconds);
@@ -1109,6 +1914,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行sleepQuietlyMillis相关逻辑。
+     *
+     * @param millis millis 参数。
+     */
     private void sleepQuietlyMillis(long millis) {
         try {
             TimeUnit.MILLISECONDS.sleep(millis);
@@ -1117,6 +1927,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行apiPost相关逻辑。
+     *
+     * @param endpoint endpoint 参数。
+     * @param payload 待签名或解析的载荷内容。
+     * @param timeoutMs timeoutMs 参数。
+     * @return 返回api Post结果。
+     */
     private ONode apiPost(String endpoint, ONode payload, int timeoutMs) {
         String baseUrl = resolveBaseUrl(endpoint);
         payload.set("base_info", new ONode().set("channel_version", "2.2.0").asObject());
@@ -1132,6 +1950,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 解析Base URL。
+     *
+     * @param endpoint endpoint 参数。
+     * @return 返回解析后的Base URL。
+     */
     private String resolveBaseUrl(String endpoint) {
         String configured =
                 StrUtil.blankToDefault(config.getBaseUrl(), DEFAULT_BASE_URL).replaceAll("/+$", "");
@@ -1147,6 +1971,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return configured;
     }
 
+    /**
+     * 执行Api Post。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param body 请求体或消息正文内容。
+     * @param timeoutMs timeoutMs 参数。
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回Api Post结果。
+     */
     private HttpResponse executeApiPost(
             String url, String body, int timeoutMs, String initialUrl, int redirectCount) {
         assertSafeUrl(url, "Weixin API URL");
@@ -1184,6 +2018,15 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行Binary Post。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param body 请求体或消息正文内容。
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param redirectCount 文件或目录路径参数。
+     * @return 返回Binary Post结果。
+     */
     private HttpResponse executeBinaryPost(
             String url, byte[] body, String initialUrl, int redirectCount) {
         assertSafeUrl(url, "Weixin CDN upload URL");
@@ -1212,6 +2055,15 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 解析Redirect。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param response 当前响应对象。
+     * @param redirectCount 文件或目录路径参数。
+     * @param purpose purpose 参数。
+     * @return 返回解析后的Redirect。
+     */
     private String resolveRedirect(
             String url, HttpResponse response, int redirectCount, String purpose) {
         if (redirectCount >= MAX_HTTP_REDIRECTS) {
@@ -1233,6 +2085,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行assert安全URL相关逻辑。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param purpose purpose 参数。
+     */
     private void assertSafeUrl(String url, String purpose) {
         if (securityPolicyService == null) {
             return;
@@ -1248,10 +2106,22 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 生成安全展示用的JSON。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回safe JSON结果。
+     */
     private String safeJson(ONode value) {
         return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
+    /**
+     * 规范化Base URL。
+     *
+     * @param baseUrl 待校验或访问的地址参数。
+     * @return 返回Base URL结果。
+     */
     private String normalizeBaseUrl(String baseUrl) {
         String value = StrUtil.nullToEmpty(baseUrl).trim();
         while (value.endsWith("/")) {
@@ -1260,10 +2130,23 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return value;
     }
 
+    /**
+     * 判断是否Redirect。
+     *
+     * @param status 状态参数。
+     * @return 如果Redirect满足条件则返回 true，否则返回 false。
+     */
     private boolean isRedirect(int status) {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
+    /**
+     * 执行sameOrigin相关逻辑。
+     *
+     * @param initialUrl 待校验或访问的地址参数。
+     * @param url 待校验或访问的 URL。
+     * @return 返回same Origin结果。
+     */
     private boolean sameOrigin(String initialUrl, String url) {
         try {
             URI initial = URI.create(initialUrl);
@@ -1276,6 +2159,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /**
+     * 执行生效端口相关逻辑。
+     *
+     * @param uri 待校验或访问的地址参数。
+     * @return 返回生效Port结果。
+     */
     private int effectivePort(URI uri) {
         if (uri.getPort() >= 0) {
             return uri.getPort();
@@ -1289,37 +2178,80 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return -1;
     }
 
+    /** 承载聊天Target相关状态和辅助逻辑。 */
     private static class ChatTarget {
+        /** 记录聊天Target中的聊天类型。 */
         private final String chatType;
+
+        /** 记录聊天Target中的聊天标识。 */
         private final String chatId;
 
+        /**
+         * 创建Chat Target实例，并注入运行所需依赖。
+         *
+         * @param chatType 聊天类型参数。
+         * @param chatId 聊天标识。
+         */
         private ChatTarget(String chatType, String chatId) {
             this.chatType = chatType;
             this.chatId = chatId;
         }
     }
 
+    /** 表示TypingTicket数据，在服务、仓储和接口之间传递。 */
     private static class TypingTicketState {
+        /** 记录TypingTicket中的ticket。 */
         private final String ticket;
+
+        /** 记录TypingTicket中的expires时间。 */
         private final long expiresAt;
 
+        /**
+         * 创建Typing Ticket状态实例，并注入运行所需依赖。
+         *
+         * @param ticket ticket 参数。
+         * @param expiresAt expiresAt 参数。
+         */
         private TypingTicketState(String ticket, long expiresAt) {
             this.ticket = ticket;
             this.expiresAt = expiresAt;
         }
 
+        /**
+         * 判断是否Valid。
+         *
+         * @return 如果Valid满足条件则返回 true，否则返回 false。
+         */
         private boolean isValid() {
             return ticket != null && ticket.length() > 0 && expiresAt > System.currentTimeMillis();
         }
     }
 
+    /** 承载待恢复文本Batch相关状态和辅助逻辑。 */
     private static class PendingTextBatch {
+        /** 记录待恢复文本Batch中的消息。 */
         private final GatewayMessage message;
+
+        /** 记录待恢复文本Batch中的聊天类型。 */
         private String chatType;
+
+        /** 记录待恢复文本Batch中的聊天标识。 */
         private String chatId;
+
+        /** 记录待恢复文本Batch中的上下文token。 */
         private String contextToken;
+
+        /** 记录待恢复文本Batch中的最近一次分片Length。 */
         private int lastChunkLength;
 
+        /**
+         * 创建Pending Text Batch实例，并注入运行所需依赖。
+         *
+         * @param message 平台消息或错误消息。
+         * @param chatType 聊天类型参数。
+         * @param chatId 聊天标识。
+         * @param contextToken 上下文token上下文。
+         */
         private PendingTextBatch(
                 GatewayMessage message, String chatType, String chatId, String contextToken) {
             this.message = message;
@@ -1329,6 +2261,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             this.lastChunkLength = StrUtil.length(message.getText());
         }
 
+        /**
+         * 执行append相关逻辑。
+         *
+         * @param nextMessage next消息参数。
+         * @param nextChatType next聊天类型参数。
+         * @param nextChatId next聊天标识。
+         * @param nextContextToken next上下文token上下文。
+         */
         private void append(
                 GatewayMessage nextMessage,
                 String nextChatType,
@@ -1349,6 +2289,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             this.lastChunkLength = StrUtil.length(nextText);
         }
 
+        /**
+         * 执行delayMillis相关逻辑。
+         *
+         * @param config 当前模块使用的配置对象。
+         * @return 返回delay Millis结果。
+         */
         private long delayMillis(AppConfig.ChannelConfig config) {
             double seconds =
                     lastChunkLength >= INBOUND_TEXT_SPLIT_THRESHOLD
@@ -1360,6 +2306,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             return Math.max(0L, Math.round(seconds * 1000D));
         }
 
+        /**
+         * 转换为消息网关消息。
+         *
+         * @return 返回转换后的消息网关消息。
+         */
         private GatewayMessage toGatewayMessage() {
             return message;
         }

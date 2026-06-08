@@ -15,19 +15,31 @@ import java.util.Map;
 import org.noear.snack4.ONode;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * Skill bundle loader and manager. Bundles are YAML/JSON files that define a set of skills to load
- * together.
- */
+/** 承载技能包Loader相关状态和辅助逻辑。 */
 public class SkillBundleLoader {
+    /** 记录技能包Loader中的bundles目录。 */
     private final File bundlesDir;
+
+    /** 保存cachedBundles集合，维持调用顺序或去重语义。 */
     private volatile List<SkillBundle> cachedBundles;
+
+    /** 记录技能包Loader中的cached最近一次Touched时间。 */
     private volatile long cachedLastTouchedAt = Long.MIN_VALUE;
 
+    /**
+     * 创建技能包Loader实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public SkillBundleLoader(AppConfig appConfig) {
         this.bundlesDir = new File(appConfig.getRuntime().getSkillsDir(), "bundles");
     }
 
+    /**
+     * 列出Bundles。
+     *
+     * @return 返回Bundles列表。
+     */
     public List<SkillBundle> listBundles() {
         long lastTouchedAt = lastTouchedAt();
         List<SkillBundle> cached = cachedBundles;
@@ -37,6 +49,11 @@ public class SkillBundleLoader {
         return reload();
     }
 
+    /**
+     * 重新加载目标服务端配置与工具清单。
+     *
+     * @return 返回reload结果。
+     */
     public synchronized List<SkillBundle> reload() {
         List<SkillBundle> bundles = new ArrayList<SkillBundle>();
         Map<String, SkillBundle> bySlug = new LinkedHashMap<String, SkillBundle>();
@@ -60,6 +77,12 @@ public class SkillBundleLoader {
         return new ArrayList<SkillBundle>(bundles);
     }
 
+    /**
+     * 读取包。
+     *
+     * @param name 名称参数。
+     * @return 返回读取到的包。
+     */
     public SkillBundle getBundle(String name) {
         String slug = slugify(name);
         if (StrUtil.isBlank(slug)) {
@@ -73,6 +96,11 @@ public class SkillBundleLoader {
         return null;
     }
 
+    /**
+     * 保存包。
+     *
+     * @param bundle bundle 参数。
+     */
     public synchronized void saveBundle(SkillBundle bundle) {
         FileUtil.mkdir(bundlesDir);
         String slug = slugify(bundle == null ? null : bundle.getName());
@@ -94,6 +122,12 @@ public class SkillBundleLoader {
         invalidateCache();
     }
 
+    /**
+     * 删除包。
+     *
+     * @param name 名称参数。
+     * @return 返回包结果。
+     */
     public synchronized boolean deleteBundle(String name) {
         File file = findBundleFile(name);
         if (file != null && file.isFile()) {
@@ -104,6 +138,11 @@ public class SkillBundleLoader {
         return false;
     }
 
+    /**
+     * 执行摘要相关逻辑。
+     *
+     * @return 返回summary结果。
+     */
     public Map<String, Object> summary() {
         List<SkillBundle> bundles = listBundles();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -121,6 +160,12 @@ public class SkillBundleLoader {
         return result;
     }
 
+    /**
+     * 查找包文件。
+     *
+     * @param name 名称参数。
+     * @return 返回包文件结果。
+     */
     private File findBundleFile(String name) {
         String slug = slugify(name);
         if (StrUtil.isBlank(slug)) {
@@ -147,6 +192,12 @@ public class SkillBundleLoader {
         return null;
     }
 
+    /**
+     * 加载包。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回包结果。
+     */
     @SuppressWarnings("unchecked")
     private SkillBundle loadBundle(File file) {
         try {
@@ -187,6 +238,11 @@ public class SkillBundleLoader {
         }
     }
 
+    /**
+     * 执行包Files相关逻辑。
+     *
+     * @return 返回包Files结果。
+     */
     private File[] bundleFiles() {
         if (!bundlesDir.isDirectory()) {
             return null;
@@ -198,6 +254,13 @@ public class SkillBundleLoader {
             Arrays.sort(
                     files,
                     new Comparator<File>() {
+                        /**
+                         * 比较两个对象的排序位置。
+                         *
+                         * @param left 左侧比较对象。
+                         * @param right 右侧比较对象。
+                         * @return 返回compare结果。
+                         */
                         @Override
                         public int compare(File left, File right) {
                             int compare = left.getName().compareToIgnoreCase(right.getName());
@@ -211,10 +274,23 @@ public class SkillBundleLoader {
         return files;
     }
 
+    /**
+     * 判断是否包文件名称。
+     *
+     * @param name 名称参数。
+     * @return 如果包文件名称满足条件则返回 true，否则返回 false。
+     */
     private boolean isBundleFileName(String name) {
         return name.endsWith(".json") || name.endsWith(".yml") || name.endsWith(".yaml");
     }
 
+    /**
+     * 解析包Content。
+     *
+     * @param file 文件或目录路径参数。
+     * @param content 待处理内容。
+     * @return 返回解析后的包Content。
+     */
     private Object parseBundleContent(File file, String content) {
         String name = file.getName().toLowerCase();
         if (name.endsWith(".yml") || name.endsWith(".yaml")) {
@@ -223,10 +299,21 @@ public class SkillBundleLoader {
         return ONode.deserialize(content, Object.class);
     }
 
+    /**
+     * 执行lastTouched时间相关逻辑。
+     *
+     * @return 返回last Touched时间结果。
+     */
     private long lastTouchedAt() {
         return lastTouchedAt(bundleFiles());
     }
 
+    /**
+     * 执行lastTouched时间相关逻辑。
+     *
+     * @param files 文件或目录路径参数。
+     * @return 返回last Touched时间结果。
+     */
     private long lastTouchedAt(File[] files) {
         long latest = bundlesDir.exists() ? bundlesDir.lastModified() : 0L;
         if (files == null || files.length == 0) {
@@ -238,6 +325,12 @@ public class SkillBundleLoader {
         return latest;
     }
 
+    /**
+     * 执行slugify相关逻辑。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回slugify结果。
+     */
     private String slugify(String value) {
         String text = StrUtil.nullToEmpty(value).trim().toLowerCase().replace('_', '-');
         StringBuilder builder = new StringBuilder();
@@ -262,10 +355,17 @@ public class SkillBundleLoader {
         return builder.toString();
     }
 
+    /**
+     * 将输入对象转换为去除首尾空白的字符串。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回string Value结果。
+     */
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    /** 执行invalidate缓存相关逻辑。 */
     private void invalidateCache() {
         cachedBundles = null;
         cachedLastTouchedAt = Long.MIN_VALUE;

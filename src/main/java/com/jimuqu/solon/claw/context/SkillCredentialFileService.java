@@ -14,9 +14,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Validation for skill-declared credential files. */
+/** 提供技能凭据文件相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SkillCredentialFileService {
+    /** 默认CONTAINER基础的统一常量值。 */
     private static final String DEFAULT_CONTAINER_BASE = "/root/.solon-claw";
+
+    /** 缓存MOUNTDIRS的统一常量值。 */
     private static final List<CacheMountDirectory> CACHE_MOUNT_DIRS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -28,12 +31,26 @@ public class SkillCredentialFileService {
                             new CacheMountDirectory("pdf"),
                             new CacheMountDirectory("tool-results")));
 
+    /** 注入应用配置，用于技能凭据文件。 */
     private final AppConfig appConfig;
+
+    /** 记录技能凭据文件中的运行时主渠道。 */
     private final File runtimeHome;
+
+    /** 记录技能凭据文件中的技能目录。 */
     private final File skillsDir;
+
+    /** 记录技能凭据文件中的缓存目录。 */
     private final File cacheDir;
+
+    /** 记录技能凭据文件中的技能目录Resolver。 */
     private final SkillDirectoryResolver skillDirectoryResolver;
 
+    /**
+     * 创建技能凭据文件服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     */
     public SkillCredentialFileService(AppConfig appConfig) {
         this.appConfig = appConfig;
         this.skillDirectoryResolver = new SkillDirectoryResolver(appConfig);
@@ -58,14 +75,31 @@ public class SkillCredentialFileService {
         this.cacheDir = FileUtil.file(cache).getAbsoluteFile();
     }
 
+    /**
+     * 执行plan相关逻辑。
+     *
+     * @param rawEntries 原始Entries参数。
+     * @return 返回plan结果。
+     */
     public CredentialFilePlan plan(Object rawEntries) {
         return plan(rawEntries, DEFAULT_CONTAINER_BASE);
     }
 
+    /**
+     * 执行配置Plan相关逻辑。
+     *
+     * @return 返回配置Plan结果。
+     */
     public CredentialFilePlan configPlan() {
         return configPlan(DEFAULT_CONTAINER_BASE);
     }
 
+    /**
+     * 执行配置Plan相关逻辑。
+     *
+     * @param containerBase container基础参数。
+     * @return 返回配置Plan结果。
+     */
     public CredentialFilePlan configPlan(String containerBase) {
         List<String> credentialFiles =
                 appConfig == null || appConfig.getTerminal() == null
@@ -74,10 +108,21 @@ public class SkillCredentialFileService {
         return plan(new ArrayList<Object>(credentialFiles), containerBase);
     }
 
+    /**
+     * 执行sandboxMountPlan相关逻辑。
+     *
+     * @return 返回sandbox Mount Plan结果。
+     */
     public SandboxMountPlan sandboxMountPlan() {
         return sandboxMountPlan(DEFAULT_CONTAINER_BASE);
     }
 
+    /**
+     * 执行sandboxMountPlan相关逻辑。
+     *
+     * @param containerBase container基础参数。
+     * @return 返回sandbox Mount Plan结果。
+     */
     public SandboxMountPlan sandboxMountPlan(String containerBase) {
         String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
         SandboxMountPlan plan = new SandboxMountPlan();
@@ -87,6 +132,11 @@ public class SkillCredentialFileService {
         return plan;
     }
 
+    /**
+     * 构建当前策略配置摘要。
+     *
+     * @return 返回策略Summary结果。
+     */
     public Map<String, Object> policySummary() {
         CredentialFilePlan credentialPlan = configPlan(DEFAULT_CONTAINER_BASE);
         SandboxMountPlan sandboxPlan = sandboxMountPlan(DEFAULT_CONTAINER_BASE);
@@ -123,6 +173,12 @@ public class SkillCredentialFileService {
         return summary;
     }
 
+    /**
+     * 执行技能目录Mounts相关逻辑。
+     *
+     * @param containerBase container基础参数。
+     * @return 返回技能Directory Mounts结果。
+     */
     public List<DirectoryMount> skillsDirectoryMounts(String containerBase) {
         String base =
                 stripTrailingSlash(
@@ -143,10 +199,21 @@ public class SkillCredentialFileService {
         return mounts;
     }
 
+    /**
+     * 执行iter技能Files相关逻辑。
+     *
+     * @return 返回iter技能Files结果。
+     */
     public List<FileMount> iterSkillsFiles() {
         return iterSkillsFiles(DEFAULT_CONTAINER_BASE);
     }
 
+    /**
+     * 执行iter技能Files相关逻辑。
+     *
+     * @param containerBase container基础参数。
+     * @return 返回iter技能Files结果。
+     */
     public List<FileMount> iterSkillsFiles(String containerBase) {
         String base =
                 stripTrailingSlash(
@@ -167,10 +234,21 @@ public class SkillCredentialFileService {
         return files;
     }
 
+    /**
+     * 执行缓存目录Mounts相关逻辑。
+     *
+     * @return 返回缓存Directory Mounts结果。
+     */
     public List<DirectoryMount> cacheDirectoryMounts() {
         return cacheDirectoryMounts(DEFAULT_CONTAINER_BASE);
     }
 
+    /**
+     * 执行缓存目录Mounts相关逻辑。
+     *
+     * @param containerBase container基础参数。
+     * @return 返回缓存Directory Mounts结果。
+     */
     public List<DirectoryMount> cacheDirectoryMounts(String containerBase) {
         String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
         List<DirectoryMount> mounts = new ArrayList<DirectoryMount>();
@@ -188,10 +266,21 @@ public class SkillCredentialFileService {
         return mounts;
     }
 
+    /**
+     * 执行iter缓存Files相关逻辑。
+     *
+     * @return 返回iter缓存Files结果。
+     */
     public List<FileMount> iterCacheFiles() {
         return iterCacheFiles(DEFAULT_CONTAINER_BASE);
     }
 
+    /**
+     * 执行iter缓存Files相关逻辑。
+     *
+     * @param containerBase container基础参数。
+     * @return 返回iter缓存Files结果。
+     */
     public List<FileMount> iterCacheFiles(String containerBase) {
         String base =
                 stripTrailingSlash(
@@ -208,6 +297,13 @@ public class SkillCredentialFileService {
         return files;
     }
 
+    /**
+     * 执行plan相关逻辑。
+     *
+     * @param rawEntries 原始Entries参数。
+     * @param containerBase container基础参数。
+     * @return 返回plan结果。
+     */
     public CredentialFilePlan plan(Object rawEntries, String containerBase) {
         List<Object> entries = normalizeEntries(rawEntries);
         CredentialFilePlan plan = new CredentialFilePlan();
@@ -233,6 +329,13 @@ public class SkillCredentialFileService {
         return plan;
     }
 
+    /**
+     * 解析运行时需要的目标对象。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @param containerBase container基础参数。
+     * @return 返回resolve结果。
+     */
     private CredentialFileMount resolve(String rawPath, String containerBase) {
         String relativePath = normalizeRelativeText(rawPath);
         if (StrUtil.isBlank(relativePath)) {
@@ -268,6 +371,13 @@ public class SkillCredentialFileService {
         }
     }
 
+    /**
+     * 执行symlink安全技能目录相关逻辑。
+     *
+     * @param source 来源参数。
+     * @param safeName 安全名称参数。
+     * @return 返回symlink Safe技能Dir结果。
+     */
     private File symlinkSafeSkillsDir(File source, String safeName) {
         if (!containsSymlink(source)) {
             return source;
@@ -280,10 +390,21 @@ public class SkillCredentialFileService {
         return safeDir;
     }
 
+    /**
+     * 执行外部技能Dirs相关逻辑。
+     *
+     * @return 返回外部技能Dirs结果。
+     */
     private List<File> externalSkillsDirs() {
         return skillDirectoryResolver.externalSkillsDirs();
     }
 
+    /**
+     * 判断是否包含Symlink。
+     *
+     * @param root root 参数。
+     * @return 返回contains Symlink结果。
+     */
     private boolean containsSymlink(File root) {
         if (root == null) {
             return false;
@@ -306,6 +427,12 @@ public class SkillCredentialFileService {
         return false;
     }
 
+    /**
+     * 复制Tree Skipping Symlinks。
+     *
+     * @param source 来源参数。
+     * @param target target 参数。
+     */
     private void copyTreeSkippingSymlinks(File source, File target) {
         if (source == null || !source.exists() || isSymbolicLink(source)) {
             return;
@@ -327,6 +454,14 @@ public class SkillCredentialFileService {
         }
     }
 
+    /**
+     * 收集Files。
+     *
+     * @param root root 参数。
+     * @param current current 参数。
+     * @param containerRoot containerRoot 参数。
+     * @param files 文件或目录路径参数。
+     */
     private void collectFiles(
             File root, File current, String containerRoot, List<FileMount> files) {
         if (current == null || !current.exists() || isSymbolicLink(current)) {
@@ -352,6 +487,13 @@ public class SkillCredentialFileService {
         }
     }
 
+    /**
+     * 执行relative路径相关逻辑。
+     *
+     * @param root root 参数。
+     * @param file 文件或目录路径参数。
+     * @return 返回relative路径。
+     */
     private String relativePath(File root, File file) {
         try {
             Path rootPath = root.toPath().toAbsolutePath().normalize();
@@ -362,10 +504,22 @@ public class SkillCredentialFileService {
         }
     }
 
+    /**
+     * 解析缓存Directory。
+     *
+     * @param directory 文件或目录路径参数。
+     * @return 返回解析后的缓存Directory。
+     */
     private File resolveCacheDirectory(CacheMountDirectory directory) {
         return new File(cacheDir, directory.containerName);
     }
 
+    /**
+     * 判断是否Symbolic Link。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 如果Symbolic Link满足条件则返回 true，否则返回 false。
+     */
     private boolean isSymbolicLink(File file) {
         try {
             Path path = file.toPath();
@@ -375,6 +529,12 @@ public class SkillCredentialFileService {
         }
     }
 
+    /**
+     * 剥离Trailing斜杠命令。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回strip Trailing Slash结果。
+     */
     private String stripTrailingSlash(String value) {
         String text = StrUtil.blankToDefault(value, DEFAULT_CONTAINER_BASE);
         while (text.endsWith("/") && text.length() > 1) {
@@ -383,6 +543,13 @@ public class SkillCredentialFileService {
         return text;
     }
 
+    /**
+     * 判断是否Inside。
+     *
+     * @param child child 参数。
+     * @param parent parent 参数。
+     * @return 如果Inside满足条件则返回 true，否则返回 false。
+     */
     private boolean isInside(File child, File parent) {
         String childPath = child.getAbsolutePath();
         String parentPath = parent.getAbsolutePath();
@@ -395,6 +562,12 @@ public class SkillCredentialFileService {
         return childPath.startsWith(parentPath);
     }
 
+    /**
+     * 判断是否存在Traversal。
+     *
+     * @param relativePath 文件或目录路径参数。
+     * @return 如果Traversal满足条件则返回 true，否则返回 false。
+     */
     private boolean hasTraversal(String relativePath) {
         String normalized = relativePath.replace('\\', '/');
         return normalized.equals("..")
@@ -403,12 +576,24 @@ public class SkillCredentialFileService {
                 || normalized.contains("/../");
     }
 
+    /**
+     * 判断是否Absolute路径。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 如果Absolute路径满足条件则返回 true，否则返回 false。
+     */
     private boolean isAbsolutePath(String rawPath) {
         return new File(rawPath).isAbsolute()
                 || rawPath.startsWith("/")
                 || rawPath.startsWith("\\");
     }
 
+    /**
+     * 规范化Relative Text。
+     *
+     * @param rawPath 文件或目录路径参数。
+     * @return 返回Relative Text结果。
+     */
     private String normalizeRelativeText(String rawPath) {
         String value = StrUtil.nullToEmpty(rawPath).trim();
         while (value.startsWith("/") || value.startsWith("\\")) {
@@ -417,6 +602,12 @@ public class SkillCredentialFileService {
         return value;
     }
 
+    /**
+     * 判断是否包含控制Character。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @return 返回contains Control Character结果。
+     */
     private boolean containsControlCharacter(String value) {
         if (value == null) {
             return false;
@@ -429,6 +620,11 @@ public class SkillCredentialFileService {
         return false;
     }
 
+    /**
+     * 执行配置凭据文件次数相关逻辑。
+     *
+     * @return 返回配置凭据文件次数结果。
+     */
     private int configCredentialFileCount() {
         if (appConfig == null
                 || appConfig.getTerminal() == null
@@ -438,6 +634,11 @@ public class SkillCredentialFileService {
         return appConfig.getTerminal().getCredentialFiles().size();
     }
 
+    /**
+     * 执行缓存Mount目录Names相关逻辑。
+     *
+     * @return 返回缓存Mount Directory Names结果。
+     */
     private List<String> cacheMountDirectoryNames() {
         List<String> names = new ArrayList<String>();
         for (CacheMountDirectory directory : CACHE_MOUNT_DIRS) {
@@ -446,6 +647,12 @@ public class SkillCredentialFileService {
         return names;
     }
 
+    /**
+     * 规范化Entries。
+     *
+     * @param rawEntries 原始Entries参数。
+     * @return 返回Entries结果。
+     */
     @SuppressWarnings("unchecked")
     private List<Object> normalizeEntries(Object rawEntries) {
         if (rawEntries == null) {
@@ -459,6 +666,12 @@ public class SkillCredentialFileService {
         return result;
     }
 
+    /**
+     * 执行relative路径相关逻辑。
+     *
+     * @param entry entry 参数。
+     * @return 返回relative路径。
+     */
     private String relativePath(Object entry) {
         if (entry == null) {
             return "";
@@ -471,31 +684,64 @@ public class SkillCredentialFileService {
         return String.valueOf(entry).trim();
     }
 
+    /** 承载缓存Mount目录相关状态和辅助逻辑。 */
     private static class CacheMountDirectory {
+        /** 记录缓存Mount目录中的container名称。 */
         private final String containerName;
 
+        /**
+         * 创建缓存Mount Directory实例，并注入运行所需依赖。
+         *
+         * @param containerName container名称参数。
+         */
         private CacheMountDirectory(String containerName) {
             this.containerName = containerName;
         }
     }
 
+    /** 承载凭据文件Plan相关状态和辅助逻辑。 */
     public static class CredentialFilePlan {
+        /** 保存mounts集合，维持调用顺序或去重语义。 */
         private final List<CredentialFileMount> mounts = new ArrayList<CredentialFileMount>();
+
+        /** 保存missing集合，维持调用顺序或去重语义。 */
         private final List<String> missing = new ArrayList<String>();
+
+        /** 保存拒绝集合，维持调用顺序或去重语义。 */
         private final List<CredentialFileMount> rejected = new ArrayList<CredentialFileMount>();
 
+        /**
+         * 读取Mounts。
+         *
+         * @return 返回读取到的Mounts。
+         */
         public List<CredentialFileMount> getMounts() {
             return mounts;
         }
 
+        /**
+         * 读取Missing。
+         *
+         * @return 返回读取到的Missing。
+         */
         public List<String> getMissing() {
             return missing;
         }
 
+        /**
+         * 读取拒绝。
+         *
+         * @return 返回读取到的拒绝。
+         */
         public List<CredentialFileMount> getRejected() {
             return rejected;
         }
 
+        /**
+         * 转换为元数据。
+         *
+         * @return 返回转换后的元数据。
+         */
         public Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             List<Map<String, Object>> mountMaps = new ArrayList<Map<String, Object>>();
@@ -513,24 +759,50 @@ public class SkillCredentialFileService {
         }
     }
 
+    /** 承载SandboxMountPlan相关状态和辅助逻辑。 */
     public static class SandboxMountPlan {
+        /** 保存凭据Files集合，维持调用顺序或去重语义。 */
         private final List<CredentialFileMount> credentialFiles =
                 new ArrayList<CredentialFileMount>();
+
+        /** 保存技能Directories集合，维持调用顺序或去重语义。 */
         private final List<DirectoryMount> skillsDirectories = new ArrayList<DirectoryMount>();
+
+        /** 保存缓存Directories集合，维持调用顺序或去重语义。 */
         private final List<DirectoryMount> cacheDirectories = new ArrayList<DirectoryMount>();
 
+        /**
+         * 读取凭据Files。
+         *
+         * @return 返回读取到的凭据Files。
+         */
         public List<CredentialFileMount> getCredentialFiles() {
             return credentialFiles;
         }
 
+        /**
+         * 读取技能Directories。
+         *
+         * @return 返回读取到的技能Directories。
+         */
         public List<DirectoryMount> getSkillsDirectories() {
             return skillsDirectories;
         }
 
+        /**
+         * 读取缓存Directories。
+         *
+         * @return 返回读取到的缓存Directories。
+         */
         public List<DirectoryMount> getCacheDirectories() {
             return cacheDirectories;
         }
 
+        /**
+         * 转换为元数据。
+         *
+         * @return 返回转换后的元数据。
+         */
         public Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             List<Map<String, Object>> credentialMaps = new ArrayList<Map<String, Object>>();
@@ -552,23 +824,48 @@ public class SkillCredentialFileService {
         }
     }
 
+    /** 承载目录Mount相关状态和辅助逻辑。 */
     public static class DirectoryMount {
+        /** 记录目录Mount中的主机路径。 */
         private final String hostPath;
+
+        /** 记录目录Mount中的container路径。 */
         private final String containerPath;
 
+        /**
+         * 创建Directory Mount实例，并注入运行所需依赖。
+         *
+         * @param hostPath 文件或目录路径参数。
+         * @param containerPath 文件或目录路径参数。
+         */
         public DirectoryMount(String hostPath, String containerPath) {
             this.hostPath = hostPath;
             this.containerPath = containerPath;
         }
 
+        /**
+         * 读取Host路径。
+         *
+         * @return 返回读取到的Host路径。
+         */
         public String getHostPath() {
             return hostPath;
         }
 
+        /**
+         * 读取Container路径。
+         *
+         * @return 返回读取到的Container路径。
+         */
         public String getContainerPath() {
             return containerPath;
         }
 
+        /**
+         * 转换为元数据。
+         *
+         * @return 返回转换后的元数据。
+         */
         private Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("container_path", containerPath);
@@ -576,23 +873,48 @@ public class SkillCredentialFileService {
         }
     }
 
+    /** 承载文件Mount相关状态和辅助逻辑。 */
     public static class FileMount {
+        /** 记录文件Mount中的主机路径。 */
         private final String hostPath;
+
+        /** 记录文件Mount中的container路径。 */
         private final String containerPath;
 
+        /**
+         * 创建文件Mount实例，并注入运行所需依赖。
+         *
+         * @param hostPath 文件或目录路径参数。
+         * @param containerPath 文件或目录路径参数。
+         */
         public FileMount(String hostPath, String containerPath) {
             this.hostPath = hostPath;
             this.containerPath = containerPath;
         }
 
+        /**
+         * 读取Host路径。
+         *
+         * @return 返回读取到的Host路径。
+         */
         public String getHostPath() {
             return hostPath;
         }
 
+        /**
+         * 读取Container路径。
+         *
+         * @return 返回读取到的Container路径。
+         */
         public String getContainerPath() {
             return containerPath;
         }
 
+        /**
+         * 转换为元数据。
+         *
+         * @return 返回转换后的元数据。
+         */
         private Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("container_path", containerPath);
@@ -600,13 +922,31 @@ public class SkillCredentialFileService {
         }
     }
 
+    /** 承载凭据文件Mount相关状态和辅助逻辑。 */
     public static class CredentialFileMount {
+        /** 记录凭据文件Mount中的relative路径。 */
         private String relativePath;
+
+        /** 记录凭据文件Mount中的主机路径。 */
         private String hostPath;
+
+        /** 记录凭据文件Mount中的container路径。 */
         private String containerPath;
+
+        /** 记录凭据文件Mount中的状态。 */
         private String status;
+
+        /** 记录凭据文件Mount中的原因。 */
         private String reason;
 
+        /**
+         * 执行registered相关逻辑。
+         *
+         * @param relativePath 文件或目录路径参数。
+         * @param hostPath 文件或目录路径参数。
+         * @param containerPath 文件或目录路径参数。
+         * @return 返回registered结果。
+         */
         private static CredentialFileMount registered(
                 String relativePath, String hostPath, String containerPath) {
             CredentialFileMount mount = new CredentialFileMount();
@@ -617,6 +957,12 @@ public class SkillCredentialFileService {
             return mount;
         }
 
+        /**
+         * 执行missing相关逻辑。
+         *
+         * @param relativePath 文件或目录路径参数。
+         * @return 返回missing结果。
+         */
         private static CredentialFileMount missing(String relativePath) {
             CredentialFileMount mount = new CredentialFileMount();
             mount.relativePath = relativePath;
@@ -625,6 +971,13 @@ public class SkillCredentialFileService {
             return mount;
         }
 
+        /**
+         * 执行拒绝相关逻辑。
+         *
+         * @param relativePath 文件或目录路径参数。
+         * @param reason 原因参数。
+         * @return 返回拒绝结果。
+         */
         private static CredentialFileMount rejected(String relativePath, String reason) {
             CredentialFileMount mount = new CredentialFileMount();
             mount.relativePath = relativePath;
@@ -633,30 +986,65 @@ public class SkillCredentialFileService {
             return mount;
         }
 
+        /**
+         * 判断是否Registered。
+         *
+         * @return 如果Registered满足条件则返回 true，否则返回 false。
+         */
         public boolean isRegistered() {
             return "registered".equals(status);
         }
 
+        /**
+         * 读取Relative路径。
+         *
+         * @return 返回读取到的Relative路径。
+         */
         public String getRelativePath() {
             return relativePath;
         }
 
+        /**
+         * 读取Host路径。
+         *
+         * @return 返回读取到的Host路径。
+         */
         public String getHostPath() {
             return hostPath;
         }
 
+        /**
+         * 读取Container路径。
+         *
+         * @return 返回读取到的Container路径。
+         */
         public String getContainerPath() {
             return containerPath;
         }
 
+        /**
+         * 读取状态。
+         *
+         * @return 返回读取到的状态。
+         */
         public String getStatus() {
             return status;
         }
 
+        /**
+         * 读取Reason。
+         *
+         * @return 返回读取到的Reason。
+         */
         public String getReason() {
             return reason;
         }
 
+        /**
+         * 转换为元数据。
+         *
+         * @return 返回转换后的元数据。
+         */
         private Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put(

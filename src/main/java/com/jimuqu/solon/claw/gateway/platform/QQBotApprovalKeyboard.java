@@ -5,11 +5,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * QQBot approval keyboard builder. Generates inline keyboard markup for tool approval/denial in
- * QQBot messages.
- */
+/** 承载QQ机器人审批键盘相关状态和辅助逻辑。 */
 public class QQBotApprovalKeyboard {
+    /**
+     * 构建审批Keyboard。
+     *
+     * @param approvalId 审批标识。
+     * @param toolName 工具名称。
+     * @return 返回创建好的审批Keyboard。
+     */
     public static Map<String, Object> buildApprovalKeyboard(String approvalId, String toolName) {
         Map<String, Object> keyboard = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
@@ -32,6 +36,13 @@ public class QQBotApprovalKeyboard {
         return keyboard;
     }
 
+    /**
+     * 构建Confirm Keyboard。
+     *
+     * @param actionId action标识。
+     * @param label label 参数。
+     * @return 返回创建好的Confirm Keyboard。
+     */
     public static Map<String, Object> buildConfirmKeyboard(String actionId, String label) {
         Map<String, Object> keyboard = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
@@ -47,10 +58,22 @@ public class QQBotApprovalKeyboard {
         return keyboard;
     }
 
+    /**
+     * 判断是否审批Callback。
+     *
+     * @param data 数据参数。
+     * @return 如果审批Callback满足条件则返回 true，否则返回 false。
+     */
     public static boolean isApprovalCallback(String data) {
         return data != null && (data.startsWith("approve_") || data.startsWith("deny_"));
     }
 
+    /**
+     * 提取审批标识。
+     *
+     * @param data 数据参数。
+     * @return 返回审批标识。
+     */
     public static String extractApprovalId(String data) {
         if (data == null) {
             return null;
@@ -70,10 +93,24 @@ public class QQBotApprovalKeyboard {
         return null;
     }
 
+    /**
+     * 判断是否Approved。
+     *
+     * @param data 数据参数。
+     * @return 如果Approved满足条件则返回 true，否则返回 false。
+     */
     public static boolean isApproved(String data) {
         return data != null && data.startsWith("approve");
     }
 
+    /**
+     * 执行button相关逻辑。
+     *
+     * @param id 标识。
+     * @param label label 参数。
+     * @param style style 参数。
+     * @return 返回button结果。
+     */
     private static Map<String, Object> button(String id, String label, int style) {
         Map<String, Object> btn = new LinkedHashMap<String, Object>();
         btn.put("id", id);
@@ -82,6 +119,13 @@ public class QQBotApprovalKeyboard {
         return btn;
     }
 
+    /**
+     * 渲染数据。
+     *
+     * @param label label 参数。
+     * @param style style 参数。
+     * @return 返回render Data结果。
+     */
     private static Map<String, Object> renderData(String label, int style) {
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("label", label);
@@ -89,6 +133,12 @@ public class QQBotApprovalKeyboard {
         return data;
     }
 
+    /**
+     * 执行action数据相关逻辑。
+     *
+     * @param id 标识。
+     * @return 返回action Data结果。
+     */
     private static Map<String, Object> actionData(String id) {
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("type", Integer.valueOf(2));

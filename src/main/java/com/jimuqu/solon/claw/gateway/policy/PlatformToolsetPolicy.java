@@ -22,6 +22,7 @@ import java.util.List;
  */
 public final class PlatformToolsetPolicy {
 
+    /** 创建平台Toolset策略实例。 */
     private PlatformToolsetPolicy() {}
 
     /**
@@ -81,6 +82,12 @@ public final class PlatformToolsetPolicy {
         return platformConfig != null && platformConfig.isApprovalRequired();
     }
 
+    /**
+     * 生成安全展示用的列表。
+     *
+     * @param list 列表参数。
+     * @return 返回safe List结果。
+     */
     private static List<String> safeList(List<String> list) {
         if (list == null) {
             return Collections.emptyList();

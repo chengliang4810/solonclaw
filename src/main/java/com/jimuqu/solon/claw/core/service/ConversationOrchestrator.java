@@ -5,19 +5,19 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 
 /** Agent 主循环调度接口。 */
 public interface ConversationOrchestrator {
-    /** 处理普通入站消息。 */
+    /** 执行普通入站消息相关逻辑。 */
     GatewayReply handleIncoming(GatewayMessage message) throws Exception;
 
-    /** 处理普通入站消息，并向事件接收器输出运行过程。 */
+    /** 执行普通入站消息，并向事件接收器输出运行过程相关逻辑。 */
     default GatewayReply handleIncoming(GatewayMessage message, ConversationEventSink eventSink)
             throws Exception {
         return handleIncoming(message);
     }
 
-    /** 处理定时任务触发的消息。 */
+    /** 执行定时任务触发的消息相关逻辑。 */
     GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception;
 
-    /** 处理定时任务触发的消息，并向事件接收器输出运行过程。 */
+    /** 执行定时任务触发的消息，并向事件接收器输出运行过程相关逻辑。 */
     default GatewayReply runScheduled(
             GatewayMessage syntheticMessage, ConversationEventSink eventSink) throws Exception {
         return runScheduled(syntheticMessage);

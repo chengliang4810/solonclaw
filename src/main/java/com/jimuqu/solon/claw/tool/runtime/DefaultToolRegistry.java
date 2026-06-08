@@ -49,6 +49,9 @@ public class DefaultToolRegistry implements ToolRegistry {
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
+                    ToolNameConstants.READ_FILE,
+                    ToolNameConstants.WRITE_FILE,
+                    ToolNameConstants.SEARCH_FILES,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
@@ -87,6 +90,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    "web_search",
+                    "web_extract",
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
@@ -160,6 +165,25 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 插件注册工具。 */
     private final List<ToolRegistration> pluginTools;
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -201,6 +225,26 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -243,6 +287,27 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -286,6 +351,28 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -330,6 +417,30 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -376,6 +487,29 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -421,6 +555,29 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param pluginTools 插件Tools参数。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -466,6 +623,31 @@ public class DefaultToolRegistry implements ToolRegistry {
                 pluginTools);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -513,6 +695,32 @@ public class DefaultToolRegistry implements ToolRegistry {
                 null);
     }
 
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param pluginTools 插件Tools参数。
+     */
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -569,6 +777,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                         : new ArrayList<ToolRegistration>(pluginTools);
     }
 
+    /**
+     * 列出工具Names。
+     *
+     * @return 返回工具Names列表。
+     */
     @Override
     public List<String> listToolNames() {
         List<String> result = new ArrayList<String>(TOOL_NAMES);
@@ -582,11 +795,24 @@ public class DefaultToolRegistry implements ToolRegistry {
         return result;
     }
 
+    /**
+     * 解析来源键在当前 Agent 范围下启用的工具对象。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回解析后的启用工具。
+     */
     @Override
     public List<Object> resolveEnabledTools(String sourceKey) {
         return resolveEnabledTools(sourceKey, null);
     }
 
+    /**
+     * 解析来源键在当前 Agent 范围下启用的工具对象。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回解析后的启用工具。
+     */
     @Override
     public List<Object> resolveEnabledTools(String sourceKey, AgentRuntimeScope agentScope) {
         List<Object> tools = new ArrayList<Object>();
@@ -657,6 +883,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         boolean fileSkillAdded = false;
         boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
+        boolean websearchToolAdded = false;
+        boolean webfetchToolAdded = false;
         List<Object> gatewayCandidates = new ArrayList<Object>();
 
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
@@ -699,7 +927,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             } else if (ToolNameConstants.CONFIG_REFRESH.equals(toolName)) {
                 tools.add(new ConfigTools.ConfigRefreshTool(configTools));
             } else if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {
-                // Added after direct tools are collected to avoid recursively wrapping itself.
+                // 在直接工具收集完成后再加入，避免递归包装自身。
             } else if (ToolNameConstants.MCP.equals(toolName)) {
                 if (mcpRuntimeService != null) {
                     tools.addAll(mcpRuntimeService.resolveEnabledToolProviders());
@@ -742,10 +970,16 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(agentTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
-            } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {
-                tools.add(websearchTool);
-            } else if (ToolNameConstants.WEBFETCH.equals(toolName)) {
-                tools.add(webfetchTool);
+            } else if (ToolNameConstants.WEBSEARCH.equals(toolName) || "web_search".equals(toolName)) {
+                if (!websearchToolAdded) {
+                    tools.add(websearchTool);
+                    websearchToolAdded = true;
+                }
+            } else if (ToolNameConstants.WEBFETCH.equals(toolName) || "web_extract".equals(toolName)) {
+                if (!webfetchToolAdded) {
+                    tools.add(webfetchTool);
+                    webfetchToolAdded = true;
+                }
             } else if (ToolNameConstants.CODESEARCH.equals(toolName)) {
                 tools.add(codeSearchTool);
             } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
@@ -775,6 +1009,13 @@ public class DefaultToolRegistry implements ToolRegistry {
         return tools;
     }
 
+    /**
+     * 判断是否消息网关启用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 如果消息网关启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isGatewayEnabled(String sourceKey, AgentRuntimeScope agentScope) {
         if (!AgentRuntimePolicy.isToolAllowed(agentScope, ToolNameConstants.TOOL_GATEWAY)) {
             return false;
@@ -786,6 +1027,12 @@ public class DefaultToolRegistry implements ToolRegistry {
         }
     }
 
+    /**
+     * 构建工具消息网关。
+     *
+     * @param candidates candidates标识或键值。
+     * @return 返回创建好的工具消息网关。
+     */
     private ToolGatewaySkill buildToolGateway(List<Object> candidates) {
         ToolGatewaySkill gateway =
                 new ToolGatewaySkill().dynamicThreshold(0).listThreshold(40).searchThreshold(100);
@@ -810,18 +1057,40 @@ public class DefaultToolRegistry implements ToolRegistry {
         return added ? gateway : null;
     }
 
+    /**
+     * 判断是否文件工具。
+     *
+     * @param toolName 工具名称。
+     * @return 如果文件工具满足条件则返回 true，否则返回 false。
+     */
     private boolean isFileTool(String toolName) {
         return ToolNameConstants.FILE_READ.equals(toolName)
                 || ToolNameConstants.FILE_WRITE.equals(toolName)
+                || ToolNameConstants.READ_FILE.equals(toolName)
+                || ToolNameConstants.WRITE_FILE.equals(toolName)
+                || ToolNameConstants.SEARCH_FILES.equals(toolName)
                 || ToolNameConstants.FILE_LIST.equals(toolName)
                 || ToolNameConstants.FILE_DELETE.equals(toolName);
     }
 
+    /**
+     * 解析来源键在当前 Agent 范围下启用的工具名称。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回解析后的启用工具Names。
+     */
     @Override
     public List<String> resolveEnabledToolNames(String sourceKey) {
         return resolveEnabledToolNames(sourceKey, null);
     }
 
+    /**
+     * 解析来源键在当前 Agent 范围下启用的工具名称。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回解析后的启用工具Names。
+     */
     @Override
     public List<String> resolveEnabledToolNames(String sourceKey, AgentRuntimeScope agentScope) {
         List<String> result = new ArrayList<String>();
@@ -839,6 +1108,12 @@ public class DefaultToolRegistry implements ToolRegistry {
         return result;
     }
 
+    /**
+     * 启用工具。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolNames 工具Names参数。
+     */
     @Override
     public void enableTools(String sourceKey, List<String> toolNames) {
         for (String toolName : toolNames) {
@@ -850,6 +1125,12 @@ public class DefaultToolRegistry implements ToolRegistry {
         }
     }
 
+    /**
+     * 禁用工具。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolNames 工具Names参数。
+     */
     @Override
     public void disableTools(String sourceKey, List<String> toolNames) {
         for (String toolName : toolNames) {
@@ -864,6 +1145,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 读取工具启用状态。 */
     private boolean isEnabled(String sourceKey, String toolName) {
         try {
+            if (isFileTool(toolName) && areCoreFileToolsDisabled(sourceKey)) {
+                return false;
+            }
             if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {
                 return preferenceStore.isToolEnabled(sourceKey, toolName, false);
             }
@@ -871,6 +1155,38 @@ public class DefaultToolRegistry implements ToolRegistry {
         } catch (SQLException e) {
             return false;
         }
+    }
+
+    /**
+     * 判断文件工具组是否已整体禁用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 如果文件工具组被整体禁用则返回 true。
+     */
+    private boolean areCoreFileToolsDisabled(String sourceKey) throws SQLException {
+        for (String fileToolName : coreFileToolNames()) {
+            if (!preferenceStore.hasScopedToolToggle(sourceKey, fileToolName)
+                    || preferenceStore.isToolEnabled(sourceKey, fileToolName)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 文件工具名集合。
+     *
+     * @return 返回文件工具名集合。
+     */
+    private List<String> coreFileToolNames() {
+        return Arrays.asList(
+                ToolNameConstants.FILE_READ,
+                ToolNameConstants.FILE_WRITE,
+                ToolNameConstants.READ_FILE,
+                ToolNameConstants.WRITE_FILE,
+                ToolNameConstants.SEARCH_FILES,
+                ToolNameConstants.FILE_LIST,
+                ToolNameConstants.FILE_DELETE);
     }
 
     /** 设置工具启用状态。 */
@@ -882,10 +1198,21 @@ public class DefaultToolRegistry implements ToolRegistry {
         }
     }
 
+    /**
+     * 执行默认Python命令相关逻辑。
+     *
+     * @return 返回默认Python命令结果。
+     */
     private String defaultPythonCommand() {
         return isWindows() ? "python" : "python3";
     }
 
+    /**
+     * 解析Work Dir。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回解析后的Work Dir。
+     */
     private String resolveWorkDir(AgentRuntimeScope agentScope) {
         if (agentScope != null && StrUtil.isNotBlank(agentScope.getWorkspaceDir())) {
             return agentScope.getWorkspaceDir();
@@ -893,14 +1220,31 @@ public class DefaultToolRegistry implements ToolRegistry {
         return appConfig.getRuntime().getHome();
     }
 
+    /**
+     * 判断是否Windows。
+     *
+     * @return 如果Windows满足条件则返回 true，否则返回 false。
+     */
     private boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
+    /**
+     * 解析进程注册表。
+     *
+     * @return 返回解析后的进程注册表。
+     */
     private ProcessRegistry resolveProcessRegistry() {
         return processRegistry == null ? new ProcessRegistry(appConfig) : processRegistry;
     }
 
+    /**
+     * 解析插件工具。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回解析后的插件工具。
+     */
     private List<FunctionTool> resolvePluginTools(String sourceKey, AgentRuntimeScope agentScope) {
         List<FunctionTool> result = new ArrayList<FunctionTool>();
         Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
@@ -930,6 +1274,11 @@ public class DefaultToolRegistry implements ToolRegistry {
         return result;
     }
 
+    /**
+     * 执行插件工具Names相关逻辑。
+     *
+     * @return 返回插件工具Names结果。
+     */
     private List<String> pluginToolNames() {
         List<String> result = new ArrayList<String>();
         Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
@@ -943,6 +1292,14 @@ public class DefaultToolRegistry implements ToolRegistry {
         return result;
     }
 
+    /**
+     * 判断是否插件工具Allowed。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param sourceKey 渠道来源键。
+     * @param toolName 工具名称。
+     * @return 如果插件工具Allowed满足条件则返回 true，否则返回 false。
+     */
     private boolean isPluginToolAllowed(
             AgentRuntimeScope agentScope, String sourceKey, String toolName) {
         if (isDelegateSourceKey(sourceKey) && !hasExplicitScopedToolToggle(sourceKey, toolName)) {
@@ -952,10 +1309,23 @@ public class DefaultToolRegistry implements ToolRegistry {
                 .contains(toolName);
     }
 
+    /**
+     * 判断是否委托来源键。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 如果委托来源键满足条件则返回 true，否则返回 false。
+     */
     private boolean isDelegateSourceKey(String sourceKey) {
         return StrUtil.nullToEmpty(sourceKey).contains(":delegate:");
     }
 
+    /**
+     * 判断是否存在Explicit Scoped工具Toggle。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param toolName 工具名称。
+     * @return 如果Explicit Scoped工具Toggle满足条件则返回 true，否则返回 false。
+     */
     private boolean hasExplicitScopedToolToggle(String sourceKey, String toolName) {
         try {
             return preferenceStore.hasScopedToolToggle(sourceKey, toolName);

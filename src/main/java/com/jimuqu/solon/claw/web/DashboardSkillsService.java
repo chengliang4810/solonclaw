@@ -16,15 +16,29 @@ import java.util.Map;
 
 /** Dashboard 技能与工具集展示服务。 */
 public class DashboardSkillsService {
+    /** 注入本地技能服务，用于调用对应业务能力。 */
     private final LocalSkillService localSkillService;
+
+    /** 记录控制台技能中的preferenceStore。 */
     private final SqlitePreferenceStore preferenceStore;
 
+    /**
+     * 创建控制台技能服务实例，并注入运行所需依赖。
+     *
+     * @param localSkillService 本地技能服务依赖。
+     * @param preferenceStore 本地偏好存储依赖。
+     */
     public DashboardSkillsService(
             LocalSkillService localSkillService, SqlitePreferenceStore preferenceStore) {
         this.localSkillService = localSkillService;
         this.preferenceStore = preferenceStore;
     }
 
+    /**
+     * 读取技能。
+     *
+     * @return 返回读取到的技能。
+     */
     public List<Map<String, Object>> getSkills() throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (SkillDescriptor descriptor : localSkillService.listSkills(null)) {
@@ -40,11 +54,25 @@ public class DashboardSkillsService {
         return result;
     }
 
+    /**
+     * 执行toggle技能相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param enabled 启用状态开关值。
+     * @return 返回toggle技能结果。
+     */
     public Map<String, Object> toggleSkill(String name, boolean enabled) throws Exception {
         preferenceStore.setSkillEnabledGlobal(name, enabled);
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
+    /**
+     * 读取技能内容并组装展示视图。
+     *
+     * @param name 名称参数。
+     * @param filePath 目标文件相对路径或绝对路径。
+     * @return 返回视图技能结果。
+     */
     public Map<String, Object> viewSkill(String name, String filePath) throws Exception {
         SkillView view = localSkillService.viewSkill(name, filePath);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -61,11 +89,22 @@ public class DashboardSkillsService {
         return result;
     }
 
+    /**
+     * 读取技能Files。
+     *
+     * @param name 名称参数。
+     * @return 返回读取到的技能Files。
+     */
     public List<Map<String, Object>> getSkillFiles(String name) throws Exception {
         SkillView view = localSkillService.viewSkill(name, null);
         return skillFiles(view.getDescriptor());
     }
 
+    /**
+     * 读取Toolsets。
+     *
+     * @return 返回读取到的Toolsets。
+     */
     public List<Map<String, Object>> getToolsets() {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         result.add(
@@ -82,6 +121,9 @@ public class DashboardSkillsService {
                                 ToolNameConstants.GET_CURRENT_TIME,
                                 ToolNameConstants.FILE_READ,
                                 ToolNameConstants.FILE_WRITE,
+                                ToolNameConstants.READ_FILE,
+                                ToolNameConstants.WRITE_FILE,
+                                ToolNameConstants.SEARCH_FILES,
                                 ToolNameConstants.FILE_LIST,
                                 ToolNameConstants.FILE_DELETE,
                                 ToolNameConstants.PATCH,
@@ -147,6 +189,15 @@ public class DashboardSkillsService {
         return result;
     }
 
+    /**
+     * 执行工具集相关逻辑。
+     *
+     * @param name 名称参数。
+     * @param label label 参数。
+     * @param description 描述参数。
+     * @param tools tools 参数。
+     * @return 返回toolset结果。
+     */
     private Map<String, Object> toolset(
             String name, String label, String description, List<String> tools) {
         boolean enabled = true;
@@ -164,6 +215,12 @@ public class DashboardSkillsService {
         return item;
     }
 
+    /**
+     * 执行技能Files相关逻辑。
+     *
+     * @param descriptor descriptor 参数。
+     * @return 返回技能Files结果。
+     */
     private List<Map<String, Object>> skillFiles(SkillDescriptor descriptor) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         result.add(skillFile(SkillConstants.SKILL_FILE_NAME));
@@ -173,6 +230,12 @@ public class DashboardSkillsService {
         return result;
     }
 
+    /**
+     * 执行技能文件相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回技能文件结果。
+     */
     private Map<String, Object> skillFile(String path) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("path", path);
@@ -181,6 +244,12 @@ public class DashboardSkillsService {
         return item;
     }
 
+    /**
+     * 执行文件名称相关逻辑。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回文件名称结果。
+     */
     private String fileName(String path) {
         if (path == null) {
             return "";
@@ -190,6 +259,12 @@ public class DashboardSkillsService {
         return index < 0 ? normalized : normalized.substring(index + 1);
     }
 
+    /**
+     * 判断是否技能启用。
+     *
+     * @param name 名称参数。
+     * @return 如果技能启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isSkillEnabled(String name) {
         try {
             return preferenceStore.isSkillEnabledGlobal(name);
@@ -198,6 +273,12 @@ public class DashboardSkillsService {
         }
     }
 
+    /**
+     * 判断是否工具启用。
+     *
+     * @param toolName 工具名称。
+     * @return 如果工具启用满足条件则返回 true，否则返回 false。
+     */
     private boolean isToolEnabled(String toolName) {
         try {
             return preferenceStore.isToolEnabledGlobal(toolName);
