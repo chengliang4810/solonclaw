@@ -72,24 +72,9 @@ http://127.0.0.1:8080
 docker compose up -d
 ```
 
-默认 Compose 会将本地 `./runtime` 挂载到容器内 `/app/runtime`，方便持久化运行数据。镜像内服务默认以非 root 用户 `solonclaw` 运行，UID/GID 为 `10000:10000`。如果从旧镜像或 root 容器迁移后看到 `/app/runtime is not writable`，先在服务器项目目录执行：
+默认 Compose 会将本地 `./runtime` 挂载到容器内 `/app/runtime`，方便持久化运行数据。镜像内服务默认以 root 用户运行，`/app/docker-entrypoint.sh` 会先确保运行态目录存在，再直接启动 `java -jar /app/solon-claw.jar`。镜像内已包含 `openssh-client`，容器内可以使用 `ssh`、`scp` 和 `sftp` 等基础远程连接命令。
 
-```bash
-sudo mkdir -p runtime
-sudo chown -R 10000:10000 runtime
-sudo chmod -R u+rwX runtime
-docker compose up -d
-```
-
-不要覆盖镜像 entrypoint 后直接以 root 启动 `java -jar /app/solon-claw.jar`。官方镜像的 `/app/docker-entrypoint.sh` 会先把进程降权到 `solonclaw` 用户，再启动服务；如果绕过这一步，程序会默认拒绝启动，避免在 `/app/runtime` 留下 root 拥有的状态文件。只有明确接受这个风险时，才设置 `SOLONCLAW_ALLOW_ROOT_GATEWAY=1`。
-
-如果你希望容器内用户匹配宿主机当前用户，也可以在启动前设置：
-
-```bash
-export SOLONCLAW_UID="$(id -u)"
-export SOLONCLAW_GID="$(id -g)"
-docker compose up -d
-```
+如果从旧的非 root 镜像迁移，不再需要把宿主机目录调整为固定 UID/GID；自定义部署脚本可以删除原有的用户映射处理。
 
 ## 配置
 
