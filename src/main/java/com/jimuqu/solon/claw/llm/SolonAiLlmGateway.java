@@ -427,7 +427,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param eventSink 事件Sink参数。
      * @param resume resume 参数。
      * @param resolved resolved 参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @return 返回Once结果。
      */
     @Override
@@ -492,7 +492,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     feedbackSink,
                                     eventSink,
                                     resume,
-                                    resolved);
+                                    resolved,
+                                    null);
                     if (hasVisibleContent(result.getAssistantMessage(), result.getRawResponse())) {
                         return result;
                     }
@@ -559,42 +560,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param eventSink 事件Sink参数。
      * @param resume resume 参数。
      * @param resolved resolved 参数。
-     * @return 返回Single结果。
-     */
-    protected LlmResult executeSingle(
-            SessionRecord session,
-            String systemPrompt,
-            String userMessage,
-            List<Object> toolObjects,
-            ConversationFeedbackSink feedbackSink,
-            ConversationEventSink eventSink,
-            boolean resume,
-            AppConfig.LlmConfig resolved)
-            throws Exception {
-        return executeSingle(
-                session,
-                systemPrompt,
-                userMessage,
-                toolObjects,
-                feedbackSink,
-                eventSink,
-                resume,
-                resolved,
-                null);
-    }
-
-    /**
-     * 执行Single。
-     *
-     * @param session 会话参数。
-     * @param systemPrompt 系统提示词参数。
-     * @param userMessage 用户消息参数。
-     * @param toolObjects 工具Objects参数。
-     * @param feedbackSink 反馈Sink参数。
-     * @param eventSink 事件Sink参数。
-     * @param resume resume 参数。
-     * @param resolved resolved 参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @return 返回Single结果。
      */
     protected LlmResult executeSingle(
@@ -644,7 +610,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param eventSink 事件Sink参数。
      * @param resume resume 参数。
      * @param resolved resolved 参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @return 返回大模型执行结果。
      */
     private LlmResult executeOwnedReActLoop(
@@ -696,13 +662,19 @@ public class SolonAiLlmGateway implements LlmGateway {
             for (int step = 1; step <= maxSteps; step++) {
                 trace.nextStep();
                 if (assistantMessage == null) {
+                    String effectivePrompt =
+                            resume || step > 1
+                                    ? null
+                                    : userPromptText(userMessage, runContext);
                     ChatRequestDesc requestDesc =
                             buildOwnedLoopRequest(
                                     chatModel,
                                     agentSession,
                                     systemPrompt,
                                     options,
-                                    resume || step > 1 ? null : userPrompt(userMessage, runContext, resolved));
+                                    effectivePrompt == null
+                                            ? null
+                                            : userPrompt(effectivePrompt, runContext, resolved));
                     for (ReActInterceptor interceptor : interceptors) {
                         interceptor.onModelStart(trace, requestDesc);
                     }
@@ -739,6 +711,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                             usageCollector,
                             true,
                             streamed,
+                            runContext,
                             streamedReasoningText);
                 }
                 if (calls == null || calls.isEmpty()) {
@@ -762,6 +735,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                             usageCollector,
                             false,
                             streamed,
+                            runContext,
                             streamedReasoningText);
                 }
                 for (ToolCall call : calls) {
@@ -791,6 +765,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 usageCollector,
                                 agentSession.isPending(),
                                 streamed,
+                                runContext,
                                 streamedReasoningText);
                     }
                 }
@@ -801,6 +776,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             for (ReActInterceptor interceptor : interceptors) {
                 interceptor.onAgentEnd(trace);
             }
+            restoreInjectedUserMessage(agentSession, runContext);
         }
 
         AssistantMessage maxStepsMessage =
@@ -816,6 +792,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 usageCollector,
                 false,
                 streamed,
+                runContext,
                 streamedReasoningText);
     }
 
@@ -1431,7 +1408,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param toolObjects 工具Objects参数。
      * @param userMessage 用户消息参数。
      * @param feedbackSink 反馈Sink参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @param usageCollector 用量Collector参数。
      * @return 返回Chat选项。
      */
@@ -1520,7 +1497,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param call 工具调用。
      * @param feedbackSink 反馈Sink参数。
      * @param eventSink 事件Sink参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @param interceptors 拦截器集合。
      */
     private void executeOwnedToolCall(
@@ -1630,6 +1607,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param usageCollector 用量Collector。
      * @param pending 是否挂起。
      * @param streamed 是否走过流式模型响应。
+     * @param runContext 运行上下文。
      * @param reasoningText 流式解析出的推理文本。
      * @return 返回结果。
      */
@@ -1642,8 +1620,10 @@ public class SolonAiLlmGateway implements LlmGateway {
             UsageCollector usageCollector,
             boolean pending,
             boolean streamed,
+            AgentRunContext runContext,
             String reasoningText)
             throws Exception {
+        restoreInjectedUserMessage(agentSession, runContext);
         LlmResult result = new LlmResult();
         result.setAssistantMessage(assistantMessage);
         result.setNdjson(ChatMessage.toNdjson(agentSession.getMessages()));
@@ -1661,6 +1641,46 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         logUsage(session, resolved, result);
         return result;
+    }
+
+    /**
+     * 构造本轮发给模型的用户文本，允许追加仅请求期可见的记忆召回上下文。
+     *
+     * @param userMessage 用户真实输入。
+     * @param runContext 运行上下文。
+     * @return 返回模型请求使用的用户文本。
+     */
+    private String userPromptText(String userMessage, AgentRunContext runContext) {
+        if (runContext == null || StrUtil.isBlank(runContext.getMemoryPrefetchContext())) {
+            return userMessage;
+        }
+        if (!StrUtil.equals(userMessage, runContext.getMemoryPrefetchUserMessage())) {
+            return userMessage;
+        }
+        String rawContext = runContext.getMemoryPrefetchContext();
+        String memoryContext =
+                MemoryContextBoundary.containsFence(rawContext)
+                        ? rawContext.trim()
+                        : MemoryContextBoundary.ensureContextBlock(rawContext);
+        if (StrUtil.isBlank(memoryContext)) {
+            return userMessage;
+        }
+        return StrUtil.nullToEmpty(userMessage) + "\n\n" + memoryContext;
+    }
+
+    /**
+     * 将模型请求期注入了记忆的用户消息恢复为原始输入，保证会话历史不保存内部上下文。
+     *
+     * @param agentSession 当前 SQLite 会话适配器。
+     * @param runContext 运行上下文。
+     */
+    private void restoreInjectedUserMessage(
+            SqliteAgentSession agentSession, AgentRunContext runContext) {
+        if (runContext == null || StrUtil.isBlank(runContext.getMemoryPrefetchContext())) {
+            return;
+        }
+        String expected = userPromptText(runContext.getMemoryPrefetchUserMessage(), runContext);
+        agentSession.replaceLastUserMessage(expected, runContext.getMemoryPrefetchUserMessage());
     }
 
     /**
@@ -2060,7 +2080,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * 执行用户提示词相关逻辑。
      *
      * @param userMessage 用户消息参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @param resolved resolved 参数。
      * @return 返回用户提示词结果。
      */
@@ -2080,7 +2100,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * 执行用户Content块s相关逻辑。
      *
      * @param userMessage 用户消息参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @param resolved resolved 参数。
      * @return 返回用户Content 块s结果。
      */
@@ -2377,7 +2397,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     /**
      * 解析工作区。
      *
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @return 返回解析后的工作区。
      */
     private String resolveWorkspace(AgentRunContext runContext) {
@@ -3201,7 +3221,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         /**
          * 创建Tracing Re Act Interceptor实例，并注入运行所需依赖。
          *
-         * @param runContext 运行上下文上下文。
+         * @param runContext 运行上下文。
          * @param previewLength 预览Length参数。
          * @param inlineLimitBytes 内联Limit字节参数。
          */

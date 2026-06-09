@@ -64,7 +64,10 @@ public class AgentRunSupervisorTest {
                         Collections.emptyList(),
                         ConversationFeedbackSink.noop(),
                         ConversationEventSink.noop(),
-                        false);
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
 
         assertThat(outcome.getFinalReply()).isEqualTo("backup ok");
         assertThat(outcome.getRunRecord().getStatus()).isEqualTo("success");
@@ -101,7 +104,10 @@ public class AgentRunSupervisorTest {
                         Collections.emptyList(),
                         ConversationFeedbackSink.noop(),
                         ConversationEventSink.noop(),
-                        false);
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
 
         assertThat(outcome.getRunRecord().getStatus()).isEqualTo("success");
         assertThat(compressionService.compressCount).isEqualTo(2);
@@ -267,7 +273,10 @@ public class AgentRunSupervisorTest {
                     Collections.emptyList(),
                     ConversationFeedbackSink.noop(),
                     ConversationEventSink.noop(),
-                    false);
+                    false,
+                    null,
+                    Collections.emptyList(),
+                    null);
         } catch (Exception expected) {
             // The assertions below inspect the persisted run surface.
         }
@@ -322,7 +331,10 @@ public class AgentRunSupervisorTest {
                     Collections.emptyList(),
                     ConversationFeedbackSink.noop(),
                     ConversationEventSink.noop(),
-                    false);
+                    false,
+                    null,
+                    Collections.emptyList(),
+                    null);
         } catch (Exception expected) {
             // The assertions below inspect the recovery failure log surface.
         } finally {
@@ -355,7 +367,10 @@ public class AgentRunSupervisorTest {
                                         Collections.emptyList(),
                                         ConversationFeedbackSink.noop(),
                                         ConversationEventSink.noop(),
-                                        false));
+                                        false,
+                                        null,
+                                        Collections.emptyList(),
+                                        null));
 
         assertThat(gateway.started.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(supervisor.stopAllRunningRuns("restart_timeout")).isEqualTo(1);
@@ -397,7 +412,10 @@ public class AgentRunSupervisorTest {
                         Collections.emptyList(),
                         ConversationFeedbackSink.noop(),
                         ConversationEventSink.noop(),
-                        false);
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
 
         SessionRecord updated = fixture.sessionRepository.findById(session.getSessionId());
         String persisted = updated.getNdjson();
@@ -435,7 +453,10 @@ public class AgentRunSupervisorTest {
                         Collections.emptyList(),
                         ConversationFeedbackSink.noop(),
                         ConversationEventSink.noop(),
-                        false);
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
 
         SessionRecord updated = fixture.sessionRepository.findById(session.getSessionId());
         String persisted = updated.getNdjson();

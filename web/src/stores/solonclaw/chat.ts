@@ -745,7 +745,7 @@ export const useChatStore = defineStore('chat', () => {
       // Build conversation history from past messages
       const sessionMsgs = getSessionMsgs(localSid)
       const history: ChatMessage[] = sessionMsgs
-        .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content.trim())
+        .filter(m => m.id !== userMsg.id && (m.role === 'user' || m.role === 'assistant') && m.content.trim())
         .map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content }))
 
       const uploadedAttachments = attachments && attachments.length > 0

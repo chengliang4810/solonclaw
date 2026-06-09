@@ -525,7 +525,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             feedbackSink,
                             eventSink,
                             true,
-                            agentScope);
+                            agentScope,
+                            Collections.emptyList(),
+                            null);
             String finalReply =
                     sanitizeFinalReply(
                             StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
@@ -779,6 +781,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
             invokeHook(AgentHookName.PRE_LLM_CALL, session.getSessionId(), effectiveUserText);
+            String memoryPrefetchContext = prefetchMemory(message.sourceKey(), effectiveUserText);
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
                             session,
@@ -789,7 +792,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             eventSink,
                             false,
                             agentScope,
-                            MessageAttachmentSupport.safeAttachments(message));
+                            MessageAttachmentSupport.safeAttachments(message),
+                            memoryPrefetchContext);
             shouldDrainQueue = true;
             String finalReply =
                     sanitizeFinalReply(
@@ -1138,6 +1142,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
         reply.getChannelExtras()
                 .putAll(dangerousCommandApprovalService.buildDeliveryExtras(platform, pending));
+    }
+
+    /**
+     * 预取本轮用户输入相关的长期记忆，只作为模型请求期上下文使用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param userMessage 用户消息参数。
+     * @return 返回预取到的临时记忆上下文。
+     */
+    private String prefetchMemory(String sourceKey, String userMessage) {
+        if (memoryManager == null || StrUtil.isBlank(userMessage)) {
+            return "";
+        }
+        try {
+            return StrUtil.nullToEmpty(memoryManager.prefetch(sourceKey, userMessage));
+        } catch (Exception e) {
+            log.warn("Memory prefetch failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            return "";
+        }
     }
 
     /**
