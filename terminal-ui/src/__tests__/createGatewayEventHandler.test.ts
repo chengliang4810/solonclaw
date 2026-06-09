@@ -668,7 +668,7 @@ describe('createGatewayEventHandler', () => {
     expect(appended).toHaveLength(1)
     expect(appended[0]).toMatchObject({
       kind: 'panel',
-      panelData: { title: 'Setup Required' },
+      panelData: { title: '需要先完成设置' },
       role: 'system'
     })
   })

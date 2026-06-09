@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 import FileTree from '@/components/solonclaw/files/FileTree.vue'
 import FileBreadcrumb from '@/components/solonclaw/files/FileBreadcrumb.vue'
@@ -13,6 +14,7 @@ import FileRenameModal from '@/components/solonclaw/files/FileRenameModal.vue'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const filesStore = useFilesStore()
+const { t } = useI18n()
 
 const contextMenuRef = ref<InstanceType<typeof FileContextMenu> | null>(null)
 const showUpload = ref(false)
@@ -49,20 +51,28 @@ onMounted(() => {
 
 <template>
   <div class="files-view">
-    <div class="files-tree-panel">
-      <FileTree />
-    </div>
-    <div class="files-main-panel">
-      <FileToolbar
-        @show-new-file="handleShowNewFile"
-        @show-new-folder="handleShowNewFolder"
-        @show-upload="showUpload = true"
-      />
-      <FileBreadcrumb />
-      <div class="files-content">
-        <FileEditor v-if="filesStore.editingFile" />
-        <FilePreview v-else-if="filesStore.previewFile" />
-        <FileList v-else @contextmenu-entry="handleContextMenu" />
+    <header class="page-header files-header">
+      <div>
+        <h2 class="header-title">{{ t('files.title') }}</h2>
+        <p class="header-subtitle">{{ t('files.description') }}</p>
+      </div>
+    </header>
+    <div class="files-shell">
+      <div class="files-tree-panel">
+        <FileTree />
+      </div>
+      <div class="files-main-panel">
+        <FileToolbar
+          @show-new-file="handleShowNewFile"
+          @show-new-folder="handleShowNewFolder"
+          @show-upload="showUpload = true"
+        />
+        <FileBreadcrumb />
+        <div class="files-content">
+          <FileEditor v-if="filesStore.editingFile" />
+          <FilePreview v-else-if="filesStore.previewFile" />
+          <FileList v-else @contextmenu-entry="handleContextMenu" />
+        </div>
       </div>
     </div>
     <FileContextMenu ref="contextMenuRef" @rename="handleRename" />
@@ -76,7 +86,18 @@ onMounted(() => {
 
 .files-view {
   display: flex;
-  height: 100%;
+  flex-direction: column;
+  height: calc(100 * var(--vh));
+}
+
+.files-header {
+  padding-bottom: 0;
+}
+
+.files-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -104,7 +125,7 @@ onMounted(() => {
 }
 
 @media (max-width: $breakpoint-mobile) {
-  .files-view {
+  .files-shell {
     flex-direction: column;
   }
 

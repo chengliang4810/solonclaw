@@ -18,7 +18,10 @@ onMounted(() => {
 <template>
   <div class="usage-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('usage.title') }}</h2>
+      <div>
+        <h2 class="header-title">{{ t('usage.title') }}</h2>
+        <p class="header-subtitle">{{ t('usage.description') }}</p>
+      </div>
       <NButton size="small" quaternary :loading="usageStore.isLoading" @click="usageStore.loadUsage()">
         {{ t('usage.refresh') }}
       </NButton>

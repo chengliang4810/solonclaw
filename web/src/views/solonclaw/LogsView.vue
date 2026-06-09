@@ -87,7 +87,10 @@ onMounted(async () => {
 <template>
   <div class="logs-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('logs.title') }}</h2>
+      <div>
+        <h2 class="header-title">{{ t('logs.title') }}</h2>
+        <p class="header-subtitle">{{ t('logs.description') }}</p>
+      </div>
       <div class="header-actions">
         <NSelect
           v-model:value="selectedLog"

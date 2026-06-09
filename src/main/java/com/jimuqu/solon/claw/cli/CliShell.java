@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.cli;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
@@ -7,6 +8,8 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
+import java.io.File;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
@@ -192,7 +195,7 @@ public class CliShell {
                         .terminal(terminal)
                         .appName("solon-claw")
                         .completer(new StringsCompleter(COMMANDS))
-                        .variable(LineReader.HISTORY_FILE, ".solonclaw-cli-history")
+                        .variable(LineReader.HISTORY_FILE, historyFile().toPath())
                         .build();
         TerminalShortcuts.install(reader);
         writer.println("Solon Claw CLI。输入 /help 查看命令，/exit 退出。");
@@ -236,6 +239,18 @@ public class CliShell {
                     });
         }
         return 0;
+    }
+
+    /** 解析 CLI 历史文件路径，避免输入历史直接落到仓库工作目录。 */
+    private File historyFile() {
+        String runtimeHome =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? RuntimePathConstants.RUNTIME_HOME
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME);
+        File historyDir = FileUtil.file(runtimeHome, "history");
+        FileUtil.mkdir(historyDir);
+        return FileUtil.file(historyDir, "cli.history");
     }
 
     /**

@@ -96,7 +96,7 @@ async function handleSaveFallbacks() {
       <template v-else>
         <div class="panel">
           <div class="panel-header">
-            <h4>{{ t('models.defaultBadge') }}</h4>
+            <h4>{{ t('models.defaultProviderSection') }}</h4>
           </div>
           <div class="field-grid">
             <NSelect

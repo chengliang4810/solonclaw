@@ -48,6 +48,12 @@ public class AgentRunContext {
     /** 保存用户附件集合，维持调用顺序或去重语义。 */
     private java.util.List<MessageAttachment> userAttachments;
 
+    /** 保存本轮召回的临时记忆上下文，仅用于模型请求，不写入会话历史。 */
+    private String memoryPrefetchContext;
+
+    /** 记录临时记忆对应的用户原文，避免恢复或内部提示词误用召回内容。 */
+    private String memoryPrefetchUserMessage;
+
     /**
      * 创建Agent运行上下文实例，并注入运行所需依赖。
      *
@@ -229,6 +235,35 @@ public class AgentRunContext {
         } else {
             this.userAttachments = new java.util.ArrayList<MessageAttachment>(userAttachments);
         }
+    }
+
+    /**
+     * 读取本轮临时记忆上下文。
+     *
+     * @return 返回只应在模型请求中使用的记忆召回文本。
+     */
+    public String getMemoryPrefetchContext() {
+        return memoryPrefetchContext;
+    }
+
+    /**
+     * 读取临时记忆关联的用户原文。
+     *
+     * @return 返回触发本轮记忆召回的用户输入。
+     */
+    public String getMemoryPrefetchUserMessage() {
+        return memoryPrefetchUserMessage;
+    }
+
+    /**
+     * 写入本轮临时记忆上下文。
+     *
+     * @param userMessage 触发召回的用户原文。
+     * @param memoryPrefetchContext 已召回的记忆上下文文本。
+     */
+    public void setMemoryPrefetchContext(String userMessage, String memoryPrefetchContext) {
+        this.memoryPrefetchUserMessage = userMessage;
+        this.memoryPrefetchContext = memoryPrefetchContext;
     }
 
     /**

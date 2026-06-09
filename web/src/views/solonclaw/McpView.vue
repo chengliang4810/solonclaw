@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NCheckbox,
@@ -36,6 +37,7 @@ import {
 
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
 const actionLoading = ref('')
@@ -107,7 +109,7 @@ async function load() {
       oauthStatus.value = null
     }
   } catch (err: any) {
-    message.error(err.message || '加载 MCP 配置失败')
+    message.error(err.message || t('mcp.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -163,11 +165,11 @@ async function saveServer() {
       transport: form.transport,
       endpoint: form.endpoint || undefined,
       command: form.command || undefined,
-      args: parseJsonField(form.argsText, '启动参数'),
-      auth: parseJsonField(form.authText, '鉴权配置'),
-      oauth: parseJsonField(form.oauthText, 'OAuth 配置'),
-      capabilities: parseJsonField(form.capabilitiesText, '能力配置'),
-      tools: parseJsonField(form.toolsText, '工具快照'),
+      args: parseJsonField(form.argsText, t('mcp.fields.commandArgs')),
+      auth: parseJsonField(form.authText, t('mcp.fields.authConfigJson')),
+      oauth: parseJsonField(form.oauthText, t('mcp.fields.oauthConfigJson')),
+      capabilities: parseJsonField(form.capabilitiesText, t('mcp.fields.capabilitiesJson')),
+      tools: parseJsonField(form.toolsText, t('mcp.fields.toolsSnapshot')),
       enabled: form.enabled,
     }
   } catch (err: any) {
@@ -180,9 +182,9 @@ async function saveServer() {
     selectedId.value = result?.server_id || form.serverId
     showServerModal.value = false
     await load()
-    message.success('MCP server 已保存')
+    message.success(t('mcp.serverSaved'))
   } catch (err: any) {
-    message.error(err.message || '保存失败')
+    message.error(err.message || t('common.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -196,7 +198,7 @@ function parseJsonField(text: string, label: string) {
   try {
     return JSON.parse(value)
   } catch {
-    throw new Error(`${label} 不是有效 JSON`)
+    throw new Error(t('mcp.invalidJson', { label }))
   }
 }
 
@@ -215,7 +217,7 @@ function toolName(tool: unknown) {
     return String(tool || '')
   }
   const item = tool as Record<string, unknown>
-  return String(item.prefixed_name || item.name || '未命名工具')
+  return String(item.prefixed_name || item.name || t('mcp.unnamedTool'))
 }
 
 function toolDescription(tool: unknown) {
@@ -254,9 +256,9 @@ async function runAction(name: string, fn: () => Promise<McpActionResult>) {
   try {
     lastAction.value = await fn()
     await load()
-    message.success('操作已完成')
+    message.success(t('mcp.actionCompleted'))
   } catch (err: any) {
-    message.error(err.message || '操作失败')
+    message.error(err.message || t('mcp.actionFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -267,9 +269,9 @@ async function reloadAllServers() {
   try {
     lastReloadAll.value = await reloadAllMcpServers()
     await load()
-    message.success('MCP server 已全部重载')
+    message.success(t('mcp.reloadAllCompleted'))
   } catch (err: any) {
-    message.error(err.message || '全量重载失败')
+    message.error(err.message || t('mcp.reloadAllFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -294,7 +296,7 @@ async function loadOAuthStatus() {
       : String(oauthStatus.value.scopes || oauth.scope || '')
     oauthForm.state = String(oauth.state || '')
   } catch (err: any) {
-    message.error(err.message || '读取 OAuth 状态失败')
+    message.error(err.message || t('mcp.oauthStatusLoadFailed'))
   } finally {
     oauthLoading.value = false
   }
@@ -317,9 +319,9 @@ async function startOAuth() {
     oauthBeginUrl.value = result.authorization_url
     oauthForm.state = result.state
     await loadOAuthStatus()
-    message.success('OAuth 授权链接已生成')
+    message.success(t('mcp.oauthLinkGenerated'))
   } catch (err: any) {
-    message.error(err.message || '启动 OAuth 失败')
+    message.error(err.message || t('mcp.oauthStartFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -339,9 +341,9 @@ async function finishOAuth() {
     oauthForm.code = ''
     oauthBeginUrl.value = ''
     await loadOAuthStatus()
-    message.success('OAuth 已完成')
+    message.success(t('mcp.oauthCompleted'))
   } catch (err: any) {
-    message.error(err.message || '完成 OAuth 失败')
+    message.error(err.message || t('mcp.oauthCompleteFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -356,9 +358,9 @@ async function runOAuthAction(name: string, fn: () => Promise<unknown>) {
     await fn()
     await loadOAuthStatus()
     await load()
-    message.success('OAuth 操作已完成')
+    message.success(t('mcp.oauthActionCompleted'))
   } catch (err: any) {
-    message.error(err.message || 'OAuth 操作失败')
+    message.error(err.message || t('mcp.oauthActionFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -366,24 +368,24 @@ async function runOAuthAction(name: string, fn: () => Promise<unknown>) {
 
 function confirmDelete(server: McpServer) {
   dialog.warning({
-    title: '删除 MCP server',
-    content: `确定删除 ${server.name || server.server_id} 吗？`,
-    positiveText: '删除',
-    negativeText: '取消',
+    title: t('mcp.deleteTitle'),
+    content: t('mcp.deleteConfirm', { name: server.name || server.server_id }),
+    positiveText: t('common.delete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       await deleteMcpServer(server.server_id)
       if (selectedId.value === server.server_id) {
         selectedId.value = ''
       }
       await load()
-      message.success('已删除')
+      message.success(t('common.deleted'))
     },
   })
 }
 
 async function copy(text: string) {
   await navigator.clipboard.writeText(text)
-  message.success('已复制')
+  message.success(t('common.copied'))
 }
 </script>
 
@@ -391,42 +393,42 @@ async function copy(text: string) {
   <div class="mcp-view">
     <header class="page-header">
       <div>
-        <h2 class="header-title">MCP</h2>
-        <div class="header-subtitle">Server 注册、工具变更和 OAuth</div>
+        <h2 class="header-title">{{ t('mcp.title') }}</h2>
+        <div class="header-subtitle">{{ t('mcp.description') }}</div>
       </div>
       <div class="header-actions">
         <NTag :type="enabled ? 'success' : 'default'" :bordered="false">
-          MCP {{ enabled ? '已启用' : '未启用' }}
+          {{ t(enabled ? 'mcp.enabled' : 'mcp.disabled') }}
         </NTag>
-        <NButton size="small" :loading="loading" @click="load">刷新</NButton>
-        <NButton size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">重载全部</NButton>
-        <NButton size="small" type="primary" @click="openCreate">新增 Server</NButton>
+        <NButton size="small" :loading="loading" @click="load">{{ t('mcp.refresh') }}</NButton>
+        <NButton size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">{{ t('mcp.reloadAll') }}</NButton>
+        <NButton size="small" type="primary" @click="openCreate">{{ t('mcp.create') }}</NButton>
       </div>
     </header>
 
     <section v-if="lastReloadAll" class="global-result">
       <div class="result-title">
-        全量重载
+        {{ t('mcp.reloadAllResultTitle') }}
         <NTag size="small" :type="lastReloadAll.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
-          {{ lastReloadAll.tool_changed_notification ? '工具有变更' : '工具未变更' }}
+          {{ t(lastReloadAll.tool_changed_notification ? 'mcp.toolsChanged' : 'mcp.toolsUnchanged') }}
         </NTag>
       </div>
       <div class="result-meta">
-        <span>server: {{ lastReloadAll.server_count }}</span>
-        <span>工具数: {{ lastReloadAll.tool_count }}</span>
-        <span>变更: {{ lastReloadAll.changed_count }}</span>
-        <span>未变更: {{ lastReloadAll.unchanged_count }}</span>
+        <span>{{ t('mcp.serverCount', { count: lastReloadAll.server_count }) }}</span>
+        <span>{{ t('mcp.toolCount', { count: lastReloadAll.tool_count }) }}</span>
+        <span>{{ t('mcp.changedCount', { count: lastReloadAll.changed_count }) }}</span>
+        <span>{{ t('mcp.unchangedCount', { count: lastReloadAll.unchanged_count }) }}</span>
       </div>
       <div v-if="lastReloadAll.changed_servers.length || lastReloadAll.unchanged_servers.length" class="tool-diff">
-        <span v-if="lastReloadAll.changed_servers.length">变更：{{ lastReloadAll.changed_servers.join(', ') }}</span>
-        <span v-if="lastReloadAll.unchanged_servers.length">未变更：{{ lastReloadAll.unchanged_servers.join(', ') }}</span>
+        <span v-if="lastReloadAll.changed_servers.length">{{ t('mcp.changedServers', { servers: lastReloadAll.changed_servers.join(', ') }) }}</span>
+        <span v-if="lastReloadAll.unchanged_servers.length">{{ t('mcp.unchangedServers', { servers: lastReloadAll.unchanged_servers.join(', ') }) }}</span>
       </div>
     </section>
 
     <NSpin :show="loading">
       <main class="mcp-layout">
         <section class="server-list">
-          <div v-if="servers.length === 0" class="empty-state">暂无 MCP server</div>
+          <div v-if="servers.length === 0" class="empty-state">{{ t('mcp.emptyServers') }}</div>
           <button
             v-for="server in servers"
             :key="server.server_id"
@@ -436,12 +438,12 @@ async function copy(text: string) {
           >
             <div class="server-card-head">
               <span class="server-name">{{ server.name || server.server_id }}</span>
-              <NTag size="small" :type="statusType(server.status)" :bordered="false">{{ server.status || 'unknown' }}</NTag>
+              <NTag size="small" :type="statusType(server.status)" :bordered="false">{{ server.status || t('common.unknown') }}</NTag>
             </div>
             <div class="server-meta">
               <span>{{ server.transport }}</span>
-              <span>{{ Array.isArray(server.tools) ? server.tools.length : 0 }} tools</span>
-              <span>{{ server.enabled ? '启用' : '停用' }}</span>
+              <span>{{ t('mcp.toolCountBadge', { count: Array.isArray(server.tools) ? server.tools.length : 0 }) }}</span>
+              <span>{{ t(server.enabled ? 'common.enabled' : 'common.disabled') }}</span>
             </div>
             <div v-if="server.last_error" class="server-error">{{ server.last_error }}</div>
           </button>
@@ -454,188 +456,188 @@ async function copy(text: string) {
               <div class="detail-id">{{ selectedServer.server_id }}</div>
             </div>
             <div class="detail-actions">
-              <NButton size="small" @click="openEdit(selectedServer)">编辑</NButton>
-              <NButton size="small" :loading="actionLoading === 'check'" @click="runAction('check', () => checkMcpServer(selectedServer!.server_id))">检测</NButton>
-              <NButton size="small" :loading="actionLoading === 'connect'" @click="runAction('connect', () => connectMcpServer(selectedServer!.server_id))">连接</NButton>
-              <NButton size="small" :loading="actionLoading === 'reload'" @click="runAction('reload', () => reloadMcpServer(selectedServer!.server_id))">重载</NButton>
-              <NButton size="small" :loading="actionLoading === 'tools'" @click="runAction('tools', () => refreshMcpTools(selectedServer!.server_id))">刷新工具</NButton>
-              <NButton size="small" type="error" ghost @click="confirmDelete(selectedServer)">删除</NButton>
+              <NButton size="small" @click="openEdit(selectedServer)">{{ t('common.edit') }}</NButton>
+              <NButton size="small" :loading="actionLoading === 'check'" @click="runAction('check', () => checkMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.check') }}</NButton>
+              <NButton size="small" :loading="actionLoading === 'connect'" @click="runAction('connect', () => connectMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.connect') }}</NButton>
+              <NButton size="small" :loading="actionLoading === 'reload'" @click="runAction('reload', () => reloadMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.reload') }}</NButton>
+              <NButton size="small" :loading="actionLoading === 'tools'" @click="runAction('tools', () => refreshMcpTools(selectedServer!.server_id))">{{ t('mcp.actions.refreshTools') }}</NButton>
+              <NButton size="small" type="error" ghost @click="confirmDelete(selectedServer)">{{ t('common.delete') }}</NButton>
             </div>
           </div>
 
           <div class="summary-grid">
             <div class="summary-item">
-              <span>Transport</span>
+              <span>{{ t('mcp.fields.transport') }}</span>
               <strong>{{ selectedServer.transport }}</strong>
             </div>
             <div class="summary-item">
-              <span>工具数</span>
+              <span>{{ t('mcp.fields.toolCount') }}</span>
               <strong>{{ tools.length }}</strong>
             </div>
             <div class="summary-item">
-              <span>上次检测</span>
+              <span>{{ t('mcp.fields.lastChecked') }}</span>
               <strong>{{ formatTime(selectedServer.last_checked_at) }}</strong>
             </div>
             <div class="summary-item">
-              <span>工具变更</span>
-              <strong>{{ selectedServer.last_tools_changed_at ? formatTime(selectedServer.last_tools_changed_at) : '未记录' }}</strong>
+              <span>{{ t('mcp.fields.toolsChangedAt') }}</span>
+              <strong>{{ selectedServer.last_tools_changed_at ? formatTime(selectedServer.last_tools_changed_at) : t('common.notRecorded') }}</strong>
             </div>
           </div>
 
           <div v-if="lastAction" class="action-result">
             <div class="result-title">
-              最近操作：{{ lastAction.action || 'check' }}
+              {{ t('mcp.recentAction', { action: lastAction.action || 'check' }) }}
               <NTag size="small" :type="lastAction.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
-                {{ lastAction.tool_changed_notification ? '工具有变更' : '工具未变更' }}
+                {{ t(lastAction.tool_changed_notification ? 'mcp.toolsChanged' : 'mcp.toolsUnchanged') }}
               </NTag>
             </div>
             <div class="result-meta">
-              <span>schema sanitizer: {{ lastAction.schema_sanitizer || '-' }}</span>
-              <span>hash: {{ lastAction.tools_hash || '-' }}</span>
-              <span>工具数: {{ lastAction.previous_tool_count ?? '-' }} -> {{ lastAction.current_tool_count ?? lastAction.tool_count ?? '-' }}</span>
+              <span>{{ t('mcp.schemaSanitizer', { value: lastAction.schema_sanitizer || '-' }) }}</span>
+              <span>{{ t('mcp.fields.toolsHash') }}：{{ lastAction.tools_hash || '-' }}</span>
+              <span>{{ t('mcp.toolCount', { count: `${lastAction.previous_tool_count ?? '-'} -> ${lastAction.current_tool_count ?? lastAction.tool_count ?? '-'}` }) }}</span>
             </div>
             <div v-if="lastAction.added_tools?.length || lastAction.removed_tools?.length" class="tool-diff">
-              <span v-if="lastAction.added_tools?.length">新增：{{ lastAction.added_tools.join(', ') }}</span>
-              <span v-if="lastAction.removed_tools?.length">移除：{{ lastAction.removed_tools.join(', ') }}</span>
+              <span v-if="lastAction.added_tools?.length">{{ t('mcp.addedTools', { tools: lastAction.added_tools.join(', ') }) }}</span>
+              <span v-if="lastAction.removed_tools?.length">{{ t('mcp.removedTools', { tools: lastAction.removed_tools.join(', ') }) }}</span>
             </div>
             <div v-if="lastAction.error" class="server-error">{{ lastAction.error }}</div>
           </div>
 
           <div class="detail-grid">
             <section class="panel">
-              <h4>连接目标</h4>
+              <h4>{{ t('mcp.connectionTarget') }}</h4>
               <dl>
-                <dt>Endpoint</dt>
+                <dt>{{ t('mcp.fields.endpoint') }}</dt>
                 <dd>{{ selectedServer.endpoint || '-' }}</dd>
-                <dt>Command</dt>
+                <dt>{{ t('mcp.fields.command') }}</dt>
                 <dd>{{ selectedServer.command || '-' }}</dd>
-                <dt>Args</dt>
+                <dt>{{ t('mcp.fields.commandArgs') }}</dt>
                 <dd><pre>{{ prettyJson(selectedServer.args) }}</pre></dd>
               </dl>
             </section>
 
             <section class="panel">
-              <h4>OAuth</h4>
+              <h4>{{ t('mcp.oauth.title') }}</h4>
               <NSpin :show="oauthLoading">
                 <div class="oauth-status">
-                  <NTag :type="statusType(oauthStatus?.status)" :bordered="false">{{ oauthStatus?.status || 'not_configured' }}</NTag>
-                  <span>{{ oauthStatus?.authenticated ? '已认证' : '未认证' }}</span>
-                  <span v-if="oauthStatus?.expires_at">到期：{{ formatTime(oauthStatus.expires_at) }}</span>
+                  <NTag :type="statusType(oauthStatus?.status)" :bordered="false">{{ oauthStatus?.status || t('common.notConfigured') }}</NTag>
+                  <span>{{ t(oauthStatus?.authenticated ? 'mcp.oauth.authenticated' : 'mcp.oauth.unauthenticated') }}</span>
+                  <span v-if="oauthStatus?.expires_at">{{ t('mcp.oauth.expiresAt', { time: formatTime(oauthStatus.expires_at) }) }}</span>
                 </div>
                 <div class="oauth-actions">
-                  <NButton size="tiny" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', () => refreshMcpOAuth(selectedServer!.server_id))">刷新令牌</NButton>
-                  <NButton size="tiny" :loading="actionLoading === 'oauth-401'" @click="runOAuthAction('oauth-401', () => handleMcpOAuth401(selectedServer!.server_id))">处理 401</NButton>
-                  <NButton size="tiny" type="error" ghost :loading="actionLoading === 'oauth-clear'" @click="runOAuthAction('oauth-clear', () => clearMcpOAuth(selectedServer!.server_id))">清除</NButton>
+                  <NButton size="tiny" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', () => refreshMcpOAuth(selectedServer!.server_id))">{{ t('mcp.oauth.refreshToken') }}</NButton>
+                  <NButton size="tiny" :loading="actionLoading === 'oauth-401'" @click="runOAuthAction('oauth-401', () => handleMcpOAuth401(selectedServer!.server_id))">{{ t('mcp.oauth.handle401') }}</NButton>
+                  <NButton size="tiny" type="error" ghost :loading="actionLoading === 'oauth-clear'" @click="runOAuthAction('oauth-clear', () => clearMcpOAuth(selectedServer!.server_id))">{{ t('common.clear') }}</NButton>
                 </div>
                 <NForm label-placement="top" class="oauth-form">
-                  <NFormItem label="Authorization endpoint">
-                    <NInput v-model:value="oauthForm.authorization_endpoint" size="small" placeholder="https://provider.example/authorize" />
+                  <NFormItem :label="t('mcp.oauth.authorizationEndpoint')">
+                    <NInput v-model:value="oauthForm.authorization_endpoint" size="small" :placeholder="t('mcp.oauth.authorizationEndpointPlaceholder')" />
                   </NFormItem>
-                  <NFormItem label="Token endpoint">
-                    <NInput v-model:value="oauthForm.token_endpoint" size="small" placeholder="https://provider.example/token" />
+                  <NFormItem :label="t('mcp.oauth.tokenEndpoint')">
+                    <NInput v-model:value="oauthForm.token_endpoint" size="small" :placeholder="t('mcp.oauth.tokenEndpointPlaceholder')" />
                   </NFormItem>
-                  <NFormItem label="Client ID">
+                  <NFormItem :label="t('mcp.oauth.clientId')">
                     <NInput v-model:value="oauthForm.client_id" size="small" />
                   </NFormItem>
-                  <NFormItem label="Client secret">
+                  <NFormItem :label="t('mcp.oauth.clientSecret')">
                     <NInput v-model:value="oauthForm.client_secret" size="small" type="password" show-password-on="click" />
                   </NFormItem>
-                  <NFormItem label="Redirect URI">
+                  <NFormItem :label="t('mcp.oauth.redirectUri')">
                     <NInput v-model:value="oauthForm.redirect_uri" size="small" />
                   </NFormItem>
-                  <NFormItem label="Scopes">
-                    <NInput v-model:value="oauthForm.scopes" size="small" placeholder="repo read:user" />
+                  <NFormItem :label="t('mcp.oauth.scopes')">
+                    <NInput v-model:value="oauthForm.scopes" size="small" :placeholder="t('mcp.oauth.scopesPlaceholder')" />
                   </NFormItem>
                   <div class="oauth-actions">
-                    <NButton size="small" type="primary" :loading="actionLoading === 'oauth-begin'" @click="startOAuth">生成授权链接</NButton>
-                    <NButton v-if="oauthBeginUrl" size="small" @click="copy(oauthBeginUrl)">复制授权链接</NButton>
+                    <NButton size="small" type="primary" :loading="actionLoading === 'oauth-begin'" @click="startOAuth">{{ t('mcp.oauth.generateLink') }}</NButton>
+                    <NButton v-if="oauthBeginUrl" size="small" @click="copy(oauthBeginUrl)">{{ t('mcp.oauth.copyLink') }}</NButton>
                   </div>
-                  <NFormItem label="Code">
+                  <NFormItem :label="t('mcp.oauth.code')">
                     <NInput v-model:value="oauthForm.code" size="small" />
                   </NFormItem>
-                  <NFormItem label="State">
+                  <NFormItem :label="t('mcp.oauth.state')">
                     <NInput v-model:value="oauthForm.state" size="small" />
                   </NFormItem>
-                  <NButton size="small" :loading="actionLoading === 'oauth-complete'" @click="finishOAuth">提交回调</NButton>
+                  <NButton size="small" :loading="actionLoading === 'oauth-complete'" @click="finishOAuth">{{ t('mcp.oauth.submitCallback') }}</NButton>
                 </NForm>
               </NSpin>
             </section>
 
             <section class="panel tools-panel">
-              <h4>工具快照</h4>
-              <div v-if="tools.length === 0" class="empty-state compact">暂无工具</div>
+              <h4>{{ t('mcp.toolsSnapshot') }}</h4>
+              <div v-if="tools.length === 0" class="empty-state compact">{{ t('mcp.emptyTools') }}</div>
               <div v-else class="tool-list">
                 <div v-for="tool in tools" :key="toolName(tool)" class="tool-item">
                   <strong>{{ toolName(tool) }}</strong>
-                  <span>{{ toolDescription(tool) || '无描述' }}</span>
+                  <span>{{ toolDescription(tool) || t('mcp.noDescription') }}</span>
                 </div>
               </div>
             </section>
 
             <section class="panel">
-              <h4>能力与安全</h4>
+              <h4>{{ t('mcp.capabilitiesAndSecurity') }}</h4>
               <dl>
-                <dt>Capabilities</dt>
+                <dt>{{ t('mcp.fields.capabilities') }}</dt>
                 <dd><pre>{{ prettyJson(selectedServer.capabilities) }}</pre></dd>
-                <dt>Last error</dt>
+                <dt>{{ t('mcp.fields.lastError') }}</dt>
                 <dd>{{ selectedServer.last_error || '-' }}</dd>
-                <dt>Tools hash</dt>
+                <dt>{{ t('mcp.fields.toolsHash') }}</dt>
                 <dd>{{ selectedServer.last_tools_hash || '-' }}</dd>
               </dl>
             </section>
           </div>
         </section>
 
-        <section v-else class="detail empty-detail">请选择或新增 MCP server</section>
+        <section v-else class="detail empty-detail">{{ t('mcp.emptyDetail') }}</section>
       </main>
     </NSpin>
 
-    <NModal v-model:show="showServerModal" preset="card" class="server-modal" :title="form.serverId ? '编辑 MCP server' : '新增 MCP server'">
+    <NModal v-model:show="showServerModal" preset="card" class="server-modal" :title="form.serverId ? t('mcp.editTitle') : t('mcp.createTitle')">
       <NForm label-placement="top">
         <div class="form-grid">
-          <NFormItem label="Server ID">
-            <NInput v-model:value="form.serverId" :disabled="!!form.serverId" placeholder="留空自动生成" />
+          <NFormItem :label="t('mcp.fields.serverId')">
+            <NInput v-model:value="form.serverId" :disabled="!!form.serverId" :placeholder="t('mcp.placeholders.autoServerId')" />
           </NFormItem>
-          <NFormItem label="名称" required>
-            <NInput v-model:value="form.name" placeholder="Local Docs" />
+          <NFormItem :label="t('mcp.fields.name')" required>
+            <NInput v-model:value="form.name" :placeholder="t('mcp.placeholders.name')" />
           </NFormItem>
-          <NFormItem label="Transport">
+          <NFormItem :label="t('mcp.fields.transport')">
             <NSelect v-model:value="form.transport" :options="transportOptions" />
           </NFormItem>
-          <NFormItem label="启用">
-            <NCheckbox v-model:checked="form.enabled">参与运行时工具发现</NCheckbox>
+          <NFormItem :label="t('common.enable')">
+            <NCheckbox v-model:checked="form.enabled">{{ t('mcp.participateInRuntimeDiscovery') }}</NCheckbox>
           </NFormItem>
         </div>
-        <NFormItem v-if="form.transport !== 'stdio'" label="Endpoint">
-          <NInput v-model:value="form.endpoint" placeholder="https://example.com/mcp" />
+        <NFormItem v-if="form.transport !== 'stdio'" :label="t('mcp.fields.endpoint')">
+          <NInput v-model:value="form.endpoint" :placeholder="t('mcp.placeholders.endpoint')" />
         </NFormItem>
-        <NFormItem v-if="form.transport === 'stdio'" label="Command">
-          <NInput v-model:value="form.command" placeholder="node" />
+        <NFormItem v-if="form.transport === 'stdio'" :label="t('mcp.fields.command')">
+          <NInput v-model:value="form.command" :placeholder="t('mcp.placeholders.command')" />
         </NFormItem>
-        <NFormItem label="Args JSON">
-          <NInput v-model:value="form.argsText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder='["server.js", "--stdio"]' />
+        <NFormItem :label="t('mcp.fields.commandArgsJson')">
+          <NInput v-model:value="form.argsText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" :placeholder="t('mcp.placeholders.commandArgsJson')" />
         </NFormItem>
         <div class="form-grid">
-          <NFormItem label="Auth JSON">
+          <NFormItem :label="t('mcp.fields.authConfigJson')">
             <NInput v-model:value="form.authText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
           </NFormItem>
-          <NFormItem label="OAuth JSON">
+          <NFormItem :label="t('mcp.fields.oauthConfigJson')">
             <NInput v-model:value="form.oauthText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
           </NFormItem>
         </div>
         <div class="form-grid">
-          <NFormItem label="Capabilities JSON">
+          <NFormItem :label="t('mcp.fields.capabilitiesJson')">
             <NInput v-model:value="form.capabilitiesText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
           </NFormItem>
-          <NFormItem label="Tools JSON">
-            <NInput v-model:value="form.toolsText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder='[{"name":"docs_search","description":"Search docs"}]' />
+          <NFormItem :label="t('mcp.toolsSnapshot')">
+            <NInput v-model:value="form.toolsText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" :placeholder="t('mcp.placeholders.toolsJson')" />
           </NFormItem>
         </div>
       </NForm>
       <template #footer>
         <div class="modal-actions">
-          <NButton @click="showServerModal = false">取消</NButton>
-          <NButton type="primary" :loading="saving" @click="saveServer">保存</NButton>
+          <NButton @click="showServerModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="saveServer">{{ t('common.save') }}</NButton>
         </div>
       </template>
     </NModal>

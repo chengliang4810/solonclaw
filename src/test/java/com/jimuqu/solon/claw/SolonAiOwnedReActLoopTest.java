@@ -1,8 +1,11 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -14,6 +17,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -61,7 +65,8 @@ public class SolonAiOwnedReActLoopTest {
                         ConversationFeedbackSink.noop(),
                         ConversationEventSink.noop(),
                         false,
-                        config.getLlm());
+                        config.getLlm(),
+                        null);
 
         assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("最终答复：工具结果：alpha");
         assertThat(model.calls).isEqualTo(2);
@@ -101,13 +106,186 @@ public class SolonAiOwnedReActLoopTest {
                         ConversationFeedbackSink.noop(),
                         eventSink,
                         false,
-                        config.getLlm());
+                        config.getLlm(),
+                        null);
 
         assertThat(result.isStreamed()).isTrue();
         assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("流式答复");
         assertThat(result.getReasoningText()).contains("流式思考");
         assertThat(eventSink.reasoningDeltas).contains("流式思考");
         assertThat(eventSink.assistantDeltas).contains("流式答复");
+    }
+
+    /** 校验自有循环请求会把已有会话历史和本轮用户输入一起发送给模型。 */
+    @Test
+    void shouldReplayStoredSessionHistoryInOwnedLoopRequest() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.HISTORY_FINAL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-history-session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("上一轮用户说喜欢中文"),
+                                ChatMessage.ofAssistant("上一轮助手已确认"))));
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "这轮要记得上次内容",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.requestContents).hasSize(1);
+        assertThat(model.requestContents.get(0))
+                .contains("上一轮用户说喜欢中文", "上一轮助手已确认", "这轮要记得上次内容");
+        assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
+                .contains("上一轮用户说喜欢中文", "上一轮助手已确认", "这轮要记得上次内容", "历史答复");
+    }
+
+    /** 校验召回记忆只进入模型请求，不进入最终持久化的会话 NDJSON。 */
+    @Test
+    void shouldInjectPrefetchedMemoryIntoRequestWithoutPersistingIt() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.TEXT_ACTION);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-memory-session");
+        AgentRunContext runContext =
+                new AgentRunContext(null, "run-memory", session.getSessionId(), session.getSourceKey());
+        runContext.setMemoryPrefetchContext("请调用工具", "召回记忆：称呼用户为亮哥");
+
+        FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+        echo.description("Echo one value.");
+        echo.doHandle(args -> "工具结果：" + args.get("value"));
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请调用工具",
+                        Collections.singletonList(echo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(model.requestContents).hasSize(2);
+        assertThat(model.requestContents.get(0))
+                .anyMatch(
+                        content ->
+                                content.contains(MemoryContextBoundary.OPEN_TAG)
+                                        && content.contains("召回记忆：称呼用户为亮哥"));
+        assertThat(model.requestContents.get(1))
+                .anyMatch(
+                        content ->
+                                content.contains(MemoryContextBoundary.OPEN_TAG)
+                                        && content.contains("召回记忆：称呼用户为亮哥"));
+        assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
+                .contains("请调用工具")
+                .noneMatch(
+                        content ->
+                                content.contains(MemoryContextBoundary.OPEN_TAG)
+                                        || content.contains("召回记忆：称呼用户为亮哥"));
+    }
+
+    /** 校验失败后的同轮重试仍复用已预取的记忆上下文。 */
+    @Test
+    void shouldKeepPrefetchedMemoryForRetryAfterFailedOwnedLoopAttempt() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-memory-retry-session");
+        AgentRunContext runContext =
+                new AgentRunContext(null, "run-memory-retry", session.getSessionId(), session.getSourceKey());
+        runContext.setMemoryPrefetchContext("重试问题", "召回记忆：失败后仍要称呼亮哥");
+
+        assertThatThrownBy(
+                        () ->
+                                invokeExecuteSingle(
+                                        gateway,
+                                        session,
+                                        "system",
+                                        "重试问题",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        ConversationEventSink.noop(),
+                                        false,
+                                        config.getLlm(),
+                                        runContext))
+                .hasRootCauseMessage("first attempt failed");
+
+        assertThat(runContext.getMemoryPrefetchContext()).contains("失败后仍要称呼亮哥");
+        assertThat(messageContents(MessageSupport.loadMessages(session.getNdjson())))
+                .contains("重试问题")
+                .noneMatch(content -> content.contains("失败后仍要称呼亮哥"));
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "重试问题",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(model.requestContents).hasSize(2);
+        assertThat(model.requestContents.get(0))
+                .anyMatch(content -> content.contains("失败后仍要称呼亮哥"));
+        assertThat(model.requestContents.get(1))
+                .anyMatch(content -> content.contains("失败后仍要称呼亮哥"));
+        assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
+                .contains("重试问题", "重试答复")
+                .noneMatch(content -> content.contains("失败后仍要称呼亮哥"));
+    }
+
+    /** 校验内部恢复提示词不会误用用户原问题对应的预取记忆。 */
+    @Test
+    void shouldSkipPrefetchedMemoryForDifferentInternalPrompt() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.HISTORY_FINAL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-memory-recovery-session");
+        AgentRunContext runContext =
+                new AgentRunContext(null, "run-memory-recovery", session.getSessionId(), session.getSourceKey());
+        runContext.setMemoryPrefetchContext("原始问题", "召回记忆：只应给原始问题使用");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "内部恢复提示",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(model.requestContents).hasSize(1);
+        assertThat(model.requestContents.get(0))
+                .contains("内部恢复提示")
+                .noneMatch(content -> content.contains("只应给原始问题使用"));
+        assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
+                .contains("内部恢复提示", "历史答复")
+                .noneMatch(content -> content.contains("只应给原始问题使用"));
     }
 
     private static AppConfig config() {
@@ -128,6 +306,21 @@ public class SolonAiOwnedReActLoopTest {
         return session;
     }
 
+    /**
+     * 通过反射调用受保护的单次执行入口。
+     *
+     * @param gateway 待测试的网关实例。
+     * @param session 当前会话记录。
+     * @param systemPrompt 系统提示词。
+     * @param userMessage 用户输入。
+     * @param tools 工具对象集合。
+     * @param feedbackSink 反馈输出。
+     * @param eventSink 事件输出。
+     * @param resume 是否恢复挂起会话。
+     * @param llmConfig 已解析模型配置。
+     * @param runContext 当前运行上下文。
+     * @return 返回模型执行结果。
+     */
     private static LlmResult invokeExecuteSingle(
             SolonAiLlmGateway gateway,
             SessionRecord session,
@@ -137,7 +330,8 @@ public class SolonAiOwnedReActLoopTest {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             boolean resume,
-            AppConfig.LlmConfig llmConfig)
+            AppConfig.LlmConfig llmConfig,
+            AgentRunContext runContext)
             throws Exception {
         Method executeSingle =
                 SolonAiLlmGateway.class.getDeclaredMethod(
@@ -163,7 +357,21 @@ public class SolonAiOwnedReActLoopTest {
                         eventSink,
                         resume,
                         llmConfig,
-                        null);
+                        runContext);
+    }
+
+    /**
+     * 提取消息内容列表，方便断言模型请求中携带的上下文。
+     *
+     * @param messages 消息列表。
+     * @return 返回消息文本内容列表。
+     */
+    private static List<String> messageContents(List<ChatMessage> messages) {
+        List<String> contents = new ArrayList<String>();
+        for (ChatMessage message : messages) {
+            contents.add(message == null ? "" : message.getContent());
+        }
+        return contents;
     }
 
     private static class RecordingEventSink implements ConversationEventSink {
@@ -205,11 +413,17 @@ public class SolonAiOwnedReActLoopTest {
 
     private enum FakeMode {
         TEXT_ACTION,
+        HISTORY_FINAL,
+        FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL
     }
 
     private static class FakeChatModel extends ChatModel {
         private final FakeMode mode;
+
+        /** 记录每次模型请求实际看到的消息内容快照。 */
+        private final List<List<String>> requestContents = new ArrayList<List<String>>();
+
         private int calls;
 
         private FakeChatModel(String model, FakeMode mode) {
@@ -276,9 +490,20 @@ public class SolonAiOwnedReActLoopTest {
                 session.addMessage(prompt);
             }
             model.calls++;
+            model.requestContents.add(messageContents(session.getMessages()));
+            if (model.mode == FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL && model.calls == 1) {
+                throw new IOException("first attempt failed");
+            }
             ToolMessage toolMessage = lastToolMessage(session.getMessages());
             AssistantMessage assistant;
-            if (toolMessage == null) {
+            if (model.mode == FakeMode.HISTORY_FINAL
+                    || model.mode == FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL) {
+                assistant =
+                        ChatMessage.ofAssistant(
+                                model.mode == FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL
+                                        ? "重试答复"
+                                        : "历史答复");
+            } else if (toolMessage == null) {
                 assistant =
                         ChatMessage.ofAssistant(
                                 "Thought: 需要调用工具\n"
@@ -301,6 +526,7 @@ public class SolonAiOwnedReActLoopTest {
                     session.addMessage(prompt);
                 }
                 model.calls++;
+                model.requestContents.add(messageContents(session.getMessages()));
                 AssistantMessage thinking = new AssistantMessage("流式思考", true);
                 AssistantMessage visible = ChatMessage.ofAssistant("流式答复");
                 session.addMessage(visible);

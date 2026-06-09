@@ -75,7 +75,7 @@ async function handleDelete() {
         <code class="info-value mono">{{ provider.base_url }}</code>
       </div>
       <div class="info-row">
-        <span class="info-label">{{ t('models.defaultModel') }}</span>
+        <span class="info-label">{{ t('models.providerDefaultModel') }}</span>
         <code class="info-value mono">{{ provider.models[0] || '—' }}</code>
       </div>
       <div class="info-row">

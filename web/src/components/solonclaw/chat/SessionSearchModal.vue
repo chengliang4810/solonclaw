@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { fetchSessions, searchSessions, type SessionSearchResult, type SessionSummary } from '@/api/solonclaw/sessions'
 import { useChatStore } from '@/stores/solonclaw/chat'
 import { useSessionSearch } from '@/composables/useSessionSearch'
+import { getSourceLabel } from '@/shared/session-display'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -42,19 +43,7 @@ const items = computed<SearchItem[]>(() => {
 })
 
 function formatSource(source: string): string {
-  const map: Record<string, string> = {
-    api_server: 'API Server',
-    cli: 'CLI',
-    telegram: 'Telegram',
-    discord: 'Discord',
-    slack: 'Slack',
-    matrix: 'Matrix',
-    whatsapp: 'WhatsApp',
-    signal: 'Signal',
-    cron: 'Cron',
-    weixin: 'WeChat',
-  }
-  return map[source] || source
+  return getSourceLabel(source)
 }
 
 function formatTime(ts?: number): string {

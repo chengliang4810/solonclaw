@@ -665,67 +665,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
-     * 执行异步任务主体。
-     *
-     * @param session 会话参数。
-     * @param systemPrompt 系统提示词参数。
-     * @param userMessage 用户消息参数。
-     * @param tools tools 参数。
-     * @param feedbackSink 反馈Sink参数。
-     * @param eventSink 事件Sink参数。
-     * @param resume resume 参数。
-     * @return 返回运行结果。
-     */
-    public AgentRunOutcome run(
-            SessionRecord session,
-            String systemPrompt,
-            String userMessage,
-            List<Object> tools,
-            ConversationFeedbackSink feedbackSink,
-            ConversationEventSink eventSink,
-            boolean resume)
-            throws Exception {
-        return run(
-                session, systemPrompt, userMessage, tools, feedbackSink, eventSink, resume, null);
-    }
-
-    /**
-     * 执行异步任务主体。
-     *
-     * @param session 会话参数。
-     * @param systemPrompt 系统提示词参数。
-     * @param userMessage 用户消息参数。
-     * @param tools tools 参数。
-     * @param feedbackSink 反馈Sink参数。
-     * @param eventSink 事件Sink参数。
-     * @param resume resume 参数。
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回运行结果。
-     */
-    public AgentRunOutcome run(
-            SessionRecord session,
-            String systemPrompt,
-            String userMessage,
-            List<Object> tools,
-            ConversationFeedbackSink feedbackSink,
-            ConversationEventSink eventSink,
-            boolean resume,
-            AgentRuntimeScope agentScope)
-            throws Exception {
-        return run(
-                session,
-                systemPrompt,
-                userMessage,
-                tools,
-                feedbackSink,
-                eventSink,
-                resume,
-                agentScope,
-                Collections.<MessageAttachment>emptyList());
-    }
-
-    /**
-     * 执行异步任务主体。
+     * 执行异步任务主体，并携带本轮临时记忆召回上下文。
      *
      * @param session 会话参数。
      * @param systemPrompt 系统提示词参数。
@@ -736,6 +676,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param resume resume 参数。
      * @param agentScope 当前运行冻结后的 Agent 范围。
      * @param userAttachments 用户Attachments参数。
+     * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
      * @return 返回运行结果。
      */
     public AgentRunOutcome run(
@@ -747,7 +688,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
             ConversationEventSink eventSink,
             boolean resume,
             AgentRuntimeScope agentScope,
-            List<MessageAttachment> userAttachments)
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext)
             throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
@@ -799,6 +741,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runContext.setParentRunId(runRecord.getParentRunId());
         runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
+        if (!resume && StrUtil.isNotBlank(memoryPrefetchContext)) {
+            runContext.setMemoryPrefetchContext(userMessage, memoryPrefetchContext);
+        }
         RunHandle runHandle =
                 registerRun(
                         session.getSourceKey(), runRecord.getRunId(), session.getSessionId(), now);
@@ -1091,7 +1036,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param systemPrompt 系统提示词参数。
      * @param userMessage 用户消息参数。
      * @param resolved resolved 参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @param eventSink 事件Sink参数。
      * @param runId 运行标识。
      * @return 返回压缩Before Attempt结果。
@@ -1183,7 +1128,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param resolved resolved 参数。
      * @param feedbackSink 反馈Sink参数。
      * @param eventSink 事件Sink参数。
-     * @param runContext 运行上下文上下文。
+     * @param runContext 运行上下文。
      * @return 返回recover结果。
      */
     private LlmResult recover(

@@ -70,7 +70,10 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
 <template>
   <div class="memory-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('memory.title') }}</h2>
+      <div>
+        <h2 class="header-title">{{ t('memory.title') }}</h2>
+        <p class="header-subtitle">{{ t('memory.description') }}</p>
+      </div>
       <div class="page-actions">
         <NButton size="small" quaternary @click="loadMemory">
           <template #icon>
@@ -100,7 +103,9 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
           <div class="memory-intro">
             <div class="memory-intro-title">{{ t('memory.myNotes') }}</div>
             <div class="memory-intro-desc">{{ t('memory.notesDescription') }}</div>
-            <div v-if="data?.memory_mtime" class="memory-intro-meta">{{ formatTime(data.memory_mtime) }}</div>
+            <div v-if="data?.memory_mtime" class="memory-intro-meta">
+              {{ t('memory.updatedAt', { time: formatTime(data.memory_mtime) }) }}
+            </div>
           </div>
 
           <div v-if="editingSection !== 'memory'" class="section-body">

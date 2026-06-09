@@ -65,7 +65,11 @@ onMounted(async () => {
       expand-on-click
       block-line
       @update:selected-keys="handleSelect"
-    />
+    >
+      <template #empty>
+        <div class="tree-empty">{{ t('files.emptyTree') }}</div>
+      </template>
+    </NTree>
   </div>
 </template>
 
@@ -90,5 +94,12 @@ onMounted(async () => {
   &:hover {
     background-color: rgba(var(--accent-primary-rgb), 0.06);
   }
+}
+
+.tree-empty {
+  padding: 10px 12px;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

@@ -26,6 +26,11 @@ function openCreateModal() {
   showModal.value = true
 }
 
+function jobLabel(path: string, fallback: string) {
+  const translated = t(path)
+  return translated === path ? fallback : translated
+}
+
 function openEditModal(jobId: string) {
   editingJob.value = jobId
   showModal.value = true
@@ -50,18 +55,45 @@ async function refreshSchedules() {
   ])
 }
 
+function splitToken(value: string): string[] {
+  return value
+    .split(/[_-]/g)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function humanizeToken(value: string): string {
+  const normalized = value.trim()
+  if (!normalized) return ''
+  const tokenLabel = jobLabel(`jobs.humanize.${normalized}`, '')
+  if (tokenLabel) return tokenLabel
+  const fieldLabel = jobLabel(`jobs.fieldHumanize.${normalized}`, '')
+  if (fieldLabel) return fieldLabel
+  const actionLabel = jobLabel(`jobs.actionHumanize.${normalized}`, '')
+  if (actionLabel) return actionLabel
+  const parts = splitToken(normalized)
+  const translated = parts.map(part =>
+    jobLabel(`jobs.humanize.${part}`, '') ||
+    jobLabel(`jobs.fieldHumanize.${part}`, '') ||
+    jobLabel(`jobs.actionHumanize.${part}`, '') ||
+    part,
+  )
+  return translated.join(' / ')
+}
+
 function listText(value?: string[]): string {
-  return value?.filter(Boolean).join('、') || '—'
+  return value?.filter(Boolean).map(item => humanizeToken(item)).join('、') || '—'
 }
 
 function mapKeys(value?: Record<string, unknown>): string {
-  return value ? Object.keys(value).join('、') : '—'
+  return value ? Object.keys(value).map(item => humanizeToken(item)).join('、') : '—'
 }
 
 function valueText(value: unknown): string {
-  if (Array.isArray(value)) return value.join('、')
-  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (Array.isArray(value)) return value.map(item => humanizeToken(String(item))).join('、')
+  if (typeof value === 'boolean') return value ? t('jobs.detail.yes') : t('jobs.detail.no')
   if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'string') return humanizeToken(value)
   return String(value)
 }
 
@@ -73,12 +105,12 @@ function valueList(value: unknown): string[] {
 
 function policyFlags(): string[] {
   const flags: string[] = []
-  if (policy.value?.sourceScopedList) flags.push('会话来源隔离')
-  if (policy.value?.freshSessionRuns) flags.push('独立会话运行')
-  if (policy.value?.runtime_isolation?.sourceBoundSessionRuns) flags.push('来源绑定运行')
-  if (policy.value?.runtime_isolation?.autoDeliveryContext) flags.push('自动投递上下文')
-  if (policy.value?.selfContainedPromptRequired) flags.push('提示词需自包含')
-  if (policy.value?.recursiveCronCreationDiscouraged) flags.push('避免递归创建任务')
+  if (policy.value?.sourceScopedList) flags.push(t('jobs.policyFlag.sourceScopedList'))
+  if (policy.value?.freshSessionRuns) flags.push(t('jobs.policyFlag.freshSessionRuns'))
+  if (policy.value?.runtime_isolation?.sourceBoundSessionRuns) flags.push(t('jobs.policyFlag.sourceBoundSessionRuns'))
+  if (policy.value?.runtime_isolation?.autoDeliveryContext) flags.push(t('jobs.policyFlag.autoDeliveryContext'))
+  if (policy.value?.selfContainedPromptRequired) flags.push(t('jobs.policyFlag.selfContainedPromptRequired'))
+  if (policy.value?.recursiveCronCreationDiscouraged) flags.push(t('jobs.policyFlag.recursiveCronCreationDiscouraged'))
   return flags
 }
 </script>
@@ -98,87 +130,87 @@ function policyFlags(): string[] {
     <section v-if="guide" class="guide-panel" :class="{ expanded: showGuide }">
       <div class="guide-summary">
         <div>
-          <div class="guide-title">Cron 自动化指南</div>
+          <div class="guide-title">{{ t('jobs.pageGuideTitle') }}</div>
           <div class="guide-objective">{{ guide.objective }}</div>
         </div>
         <div class="guide-meta">
           <span>{{ listText(guide.schedule_types) }}</span>
-          <span>{{ guide.editable_fields.length }} 个字段</span>
+          <span>{{ t('jobs.pageGuideMetaFields', { count: guide.editable_fields.length }) }}</span>
           <span>{{ mapKeys(guide.actions) }}</span>
         </div>
         <NButton size="small" quaternary @click="showGuide = !showGuide">
-          {{ showGuide ? '收起指南' : '展开指南' }}
+          {{ showGuide ? t('jobs.pageGuideCollapse') : t('jobs.pageGuideExpand') }}
         </NButton>
       </div>
       <div v-if="showGuide" class="guide-body">
         <div class="guide-grid">
           <section class="guide-block">
-            <span>投递策略</span>
+            <span>{{ t('jobs.guideDelivery') }}</span>
             <strong>{{ valueText(guide.delivery.targets) }}</strong>
             <p>{{ valueText(guide.delivery.multi_target) }}</p>
           </section>
           <section class="guide-block">
-            <span>技能绑定</span>
+            <span>{{ t('jobs.skills') }}</span>
             <strong>{{ valueText(guide.skill_binding.replace) }}</strong>
-            <p>追加：{{ valueText(guide.skill_binding.append) }} · 移除：{{ valueText(guide.skill_binding.remove) }}</p>
+            <p>{{ t('jobs.pageSkillMergeSummary', { append: valueText(guide.skill_binding.append), remove: valueText(guide.skill_binding.remove) }) }}</p>
           </section>
           <section class="guide-block">
-            <span>运行模式</span>
-            <strong>Agent / no-agent</strong>
+            <span>{{ t('jobs.detail.config') }}</span>
+            <strong>{{ t('jobs.pageRuntimeAgentMode') }}</strong>
             <p>{{ valueText(guide.runtime_modes.no_agent) }}</p>
           </section>
           <section class="guide-block">
-            <span>运行隔离</span>
+            <span>{{ t('jobs.pageRuntimeIsolation') }}</span>
             <strong>{{ valueText(guide.runtime_modes.session_binding) }}</strong>
-            <p>禁用工具集：{{ valueText(guide.runtime_modes.disabled_toolsets) }}</p>
+            <p>{{ t('jobs.pageRuntimeDisabledToolsets', { toolsets: valueText(guide.runtime_modes.disabled_toolsets) }) }}</p>
           </section>
           <section class="guide-block">
-            <span>安全策略</span>
+            <span>{{ t('jobs.pageSecurityPolicy') }}</span>
             <strong>{{ valueText(guide.security.prompt_scan) }}</strong>
             <p>{{ valueText(guide.security.script_validation) }}</p>
           </section>
         </div>
         <div v-if="policy" class="policy-grid">
           <section class="guide-block">
-            <span>动作语法</span>
+            <span>{{ t('jobs.pageActionSyntax') }}</span>
             <code v-for="syntax in Object.values(policy.action_syntax || {}).slice(0, 4)" :key="syntax">
               {{ syntax }}
             </code>
           </section>
           <section class="guide-block">
-            <span>可更新字段</span>
+            <span>{{ t('jobs.pageUpdatableFields') }}</span>
             <p>{{ valueText(policy.update_fields) }}</p>
           </section>
           <section class="guide-block">
-            <span>可清空字段</span>
+            <span>{{ t('jobs.pageClearableFields') }}</span>
             <p>{{ valueText(policy.clear_fields) }}</p>
           </section>
           <section class="guide-block">
-            <span>执行策略</span>
+            <span>{{ t('jobs.pageExecutionPolicy') }}</span>
             <p>{{ valueText(policyFlags()) }}</p>
-            <p>安全审批：{{ valueText(policy.execution?.dangerousCommandApprovalApplied) }} · 历史：{{ valueText(policy.execution?.historySupported) }}</p>
+            <p>{{ t('jobs.pageExecutionPolicySummary', { approval: valueText(policy.execution?.dangerousCommandApprovalApplied), history: valueText(policy.execution?.historySupported) }) }}</p>
           </section>
           <section class="guide-block">
-            <span>运行隔离</span>
-            <p>禁用工具集：{{ valueText(policy.runtime_isolation?.disabledToolsets) }}</p>
-            <p>超时：{{ valueText(policy.runtime_isolation?.inactivityTimeoutSeconds) }} 秒 · 本地投递仅入历史：{{ valueText(policy.runtime_isolation?.localDeliveryHistoryOnly) }}</p>
+            <span>{{ t('jobs.pageRuntimeIsolation') }}</span>
+            <p>{{ t('jobs.pageIsolationSummary', { toolsets: valueText(policy.runtime_isolation?.disabledToolsets) }) }}</p>
+            <p>{{ t('jobs.pageIsolationTimeout', { seconds: valueText(policy.runtime_isolation?.inactivityTimeoutSeconds), localOnly: valueText(policy.runtime_isolation?.localDeliveryHistoryOnly) }) }}</p>
           </section>
           <section class="guide-block">
-            <span>投递能力</span>
+            <span>{{ t('jobs.pageDeliveryCapabilities') }}</span>
             <p>{{ valueText(policy.delivery?.targetForms) }}</p>
             <p>{{ valueText(policy.delivery?.wrapFlags) }}</p>
           </section>
           <section class="guide-block">
-            <span>技能与依赖</span>
+            <span>{{ t('jobs.pageSkillsAndDeps') }}</span>
             <p>{{ valueText(policy.skill_binding?.appendFlags) }}</p>
             <p>{{ valueText(policy.skill_binding?.dependencyFlags) }}</p>
           </section>
           <section class="guide-block">
-            <span>调度能力</span>
+            <span>{{ t('jobs.pageScheduleCapabilities') }}</span>
             <p>{{ valueText(valueList(policy.schedule?.cronExpressionSupported).length ? valueList(policy.schedule?.cronExpressionSupported) : ['cron', 'interval', 'once']) }}</p>
           </section>
           <section class="guide-block">
-            <span>历史字段</span>
+            <span>{{ t('jobs.pageHistoryFields') }}</span>
             <p>{{ valueText(policy.history_fields) }}</p>
           </section>
         </div>
@@ -191,29 +223,29 @@ function policyFlags(): string[] {
     <section v-if="jobsStore.status" class="status-panel">
       <div class="status-grid">
         <div class="status-item">
-          <span>总任务</span>
+          <span>{{ t('jobs.pageTotal') }}</span>
           <strong>{{ jobsStore.status.total }}</strong>
         </div>
         <div class="status-item">
-          <span>活跃</span>
+          <span>{{ t('jobs.pageActive') }}</span>
           <strong>{{ jobsStore.status.active }}</strong>
         </div>
         <div class="status-item">
-          <span>暂停</span>
+          <span>{{ t('jobs.pagePaused') }}</span>
           <strong>{{ jobsStore.status.paused }}</strong>
         </div>
         <div class="status-item">
-          <span>完成</span>
+          <span>{{ t('jobs.pageCompleted') }}</span>
           <strong>{{ jobsStore.status.completed }}</strong>
         </div>
         <div class="status-item due" :class="{ hot: jobsStore.status.due > 0 }">
-          <span>到期</span>
+          <span>{{ t('jobs.pageDue') }}</span>
           <strong>{{ jobsStore.status.due }}</strong>
         </div>
       </div>
       <div class="status-side">
         <div class="status-list">
-          <span>最近失败</span>
+          <span>{{ t('jobs.pageRecentFailures') }}</span>
           <template v-if="jobsStore.status.recent_failures.length">
             <code v-for="failure in jobsStore.status.recent_failures.slice(0, 3)" :key="failure.job_id || failure.id || failure.name">
               {{ failure.name || failure.job_id || failure.id }} · {{ failure.last_error || failure.last_delivery_error || failure.last_status }}
@@ -222,7 +254,7 @@ function policyFlags(): string[] {
           <code v-else>—</code>
         </div>
         <div class="status-list">
-          <span>下次运行</span>
+          <span>{{ t('jobs.pageNextRuns') }}</span>
           <template v-if="jobsStore.status.next.length">
             <code v-for="job in jobsStore.status.next.slice(0, 3)" :key="job.id">
               {{ job.name }} · {{ job.next_run_at ? new Date(job.next_run_at).toLocaleString() : '—' }}
@@ -277,7 +309,7 @@ function policyFlags(): string[] {
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 8px;
 }
 
@@ -310,7 +342,7 @@ function policyFlags(): string[] {
 
 .status-side {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
 }
 
@@ -393,13 +425,13 @@ function policyFlags(): string[] {
 
 .guide-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
 }
 
 .policy-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
   margin-top: 10px;
 }
@@ -482,6 +514,45 @@ function policyFlags(): string[] {
   .guide-meta {
     justify-content: flex-start;
     max-width: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .status-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-summary {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .guide-meta {
+    justify-content: flex-start;
+    max-width: none;
+
+    span {
+      max-width: 100%;
+    }
+  }
+}
+
+@media (max-width: $breakpoint-mobile) {
+  .jobs-content {
+    padding: 12px;
+  }
+
+  .status-panel,
+  .guide-panel {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
+  .status-grid,
+  .status-side,
+  .guide-grid,
+  .policy-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

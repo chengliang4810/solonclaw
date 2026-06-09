@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
@@ -115,7 +116,8 @@ public class SolonAiLlmGatewayFailoverTest {
                 ConversationFeedbackSink feedbackSink,
                 ConversationEventSink eventSink,
                 boolean resume,
-                AppConfig.LlmConfig resolved)
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
                 throws Exception {
             attempts.add(resolved.getProvider() + ":" + resolved.getModel());
             if ("primary".equals(resolved.getProvider())) {

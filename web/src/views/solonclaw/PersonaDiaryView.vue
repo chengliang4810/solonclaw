@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from '@/components/solonclaw/chat/MarkdownRenderer.vue'
 import { fetchPersonaDiaries, fetchPersonaDiary, type PersonaDiaryEntry } from '@/api/solonclaw/persona'
 
+const { t } = useI18n()
 const diaries = ref<PersonaDiaryEntry[]>([])
 const loading = ref(false)
 const selectedPath = ref('')
@@ -50,16 +52,19 @@ onUnmounted(() => {
 <template>
   <div class="skills-view">
     <header class="page-header">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <h2 class="header-title">日记</h2>
-        <button v-if="!showSidebar" class="sidebar-toggle" @click="showSidebar = true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h2 class="header-title">{{ t('personaDiary.title') }}</h2>
+          <button v-if="!showSidebar" class="sidebar-toggle" @click="showSidebar = true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+        </div>
+        <p class="header-subtitle">{{ t('personaDiary.description') }}</p>
       </div>
     </header>
 
     <div class="skills-content">
-      <div v-if="loading && diaries.length === 0" class="skills-loading">加载中...</div>
+      <div v-if="loading && diaries.length === 0" class="skills-loading">{{ t('common.loading') }}</div>
       <div v-else class="skills-layout">
         <div class="mobile-backdrop" :class="{ active: showSidebar }" @click="showSidebar = false" />
         <div v-if="showSidebar" class="skills-sidebar">
@@ -80,10 +85,10 @@ onUnmounted(() => {
             <div class="detail-title">{{ selectedPath.split('/').pop()?.replace('.md', '') }}</div>
             <div class="detail-content">
               <MarkdownRenderer v-if="content.trim()" :content="content" />
-              <div v-else class="empty-detail">暂无内容</div>
+              <div v-else class="empty-detail">{{ t('personaDiary.emptyDay') }}</div>
             </div>
           </div>
-          <div v-else class="empty-detail">暂无日记</div>
+          <div v-else class="empty-detail">{{ t('personaDiary.emptyAll') }}</div>
         </div>
       </div>
     </div>

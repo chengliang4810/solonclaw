@@ -24,6 +24,11 @@ export interface ChannelQrStatusView {
 
 export function normalizeChannelQrStatus(res: Record<string, any>): ChannelQrStatusView {
   const statusMap: Record<string, ChannelQrStatus> = {
+    wait: 'wait',
+    scaned: 'scaned',
+    scaned_but_redirect: 'scaned_but_redirect',
+    expired: 'expired',
+    error: 'error',
     initializing: 'wait',
     pending: 'wait',
     scanned: 'scaned',
@@ -32,8 +37,9 @@ export function normalizeChannelQrStatus(res: Record<string, any>): ChannelQrSta
   }
   return {
     status: statusMap[res.status] || 'wait',
-    qrcode: res.ticket || '',
-    qrcode_url: res.qr_image_url || res.qr_code || res.qr_url || '',
+    qrcode: res.ticket || res.qrcode || res.qr_code || res.device_code || '',
+    qrcode_url:
+      res.qrcode_url || res.qr_image_url || res.qrcode_img_content || res.qr_url || res.qr_code || '',
     message: res.message || '',
     error_message: res.error_message || '',
     account_id: res.account_id,

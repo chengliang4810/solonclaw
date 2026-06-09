@@ -183,19 +183,23 @@ const activeGoalLabel = computed(() => {
   const goal = activeGoalState.value
   if (!goal) return ''
   const statusMap: Record<string, string> = {
-    active: '目标进行中',
-    paused: '目标暂停',
-    done: '目标完成',
+    active: t('chat.goalStatusActive'),
+    paused: t('chat.goalStatusPaused'),
+    done: t('chat.goalStatusDone'),
   }
-  const status = statusMap[goal.status] || `目标 ${goal.status}`
-  return `${status} ${goal.turns_used}/${goal.max_turns}`
+  const status = statusMap[goal.status] || t('chat.goalStatusUnknown', { status: goal.status })
+  return t('chat.goalProgress', {
+    status,
+    used: goal.turns_used,
+    max: goal.max_turns,
+  })
 })
 
 const activeGoalTitle = computed(() => {
   const goal = activeGoalState.value
   if (!goal) return ''
   const parts = [goal.goal]
-  if (goal.last_verdict) parts.push(`judge=${goal.last_verdict}`)
+  if (goal.last_verdict) parts.push(t('chat.goalJudge', { verdict: goal.last_verdict }))
   if (goal.last_reason) parts.push(goal.last_reason)
   if (goal.paused_reason) parts.push(goal.paused_reason)
   return parts.filter(Boolean).join('\n')
@@ -426,7 +430,7 @@ async function handleRenameConfirm() {
                   </template>
                 </NButton>
               </template>
-              暂停目标
+              {{ t('chat.pauseGoal') }}
             </NTooltip>
             <NTooltip v-if="activeGoalState.status === 'paused'" trigger="hover">
               <template #trigger>
@@ -438,7 +442,7 @@ async function handleRenameConfirm() {
                   </template>
                 </NButton>
               </template>
-              恢复目标
+              {{ t('chat.resumeGoal') }}
             </NTooltip>
             <NTooltip v-if="activeGoalState.status !== 'done'" trigger="hover">
               <template #trigger>
@@ -451,7 +455,7 @@ async function handleRenameConfirm() {
                   </template>
                 </NButton>
               </template>
-              清除目标
+              {{ t('chat.clearGoal') }}
             </NTooltip>
           </div>
         </div>

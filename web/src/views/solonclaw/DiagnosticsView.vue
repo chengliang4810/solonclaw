@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { NButton, NButtonGroup, NInput, NSelect, NSpin, NSwitch, NTag, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import {
   auditSecurity,
   fetchAlwaysApprovals,
@@ -26,6 +27,7 @@ import {
 } from '@/api/solonclaw/diagnostics'
 
 const message = useMessage()
+const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
 const loading = ref(false)
 const auditLoading = ref(false)
@@ -43,6 +45,9 @@ const alwaysApprovals = ref<AlwaysApproval[]>([])
 const alwaysApprovalMeta = ref<AlwaysApprovalsResult | null>(null)
 const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
 const slashConfirmMeta = ref<PendingSlashConfirmsResult | null>(null)
+function d(key: string, params?: Record<string, unknown>) {
+  return params ? t(`diagnostics.${key}`, params) : t(`diagnostics.${key}`)
+}
 const auditForm = ref({
   action: 'command',
   toolName: 'execute_shell',
@@ -120,391 +125,345 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const backgroundProcessPolicy = objectValue(terminal.background_process_policy)
   return [
     {
-      title: '审批规则',
+      title: d('detailGroups.approvalRules'),
       items: [
-        metric('命令审批模式', firstDefined(approvalPolicy.mode, securityApprovals.value.mode)),
-        metric('定时任务模式', firstDefined(approvalPolicy.cronMode, securityApprovals.value.cron_mode)),
-        metric('子代理自动审批', approvalPolicy.subagentAutoApprove),
-        metric('智能裁决已配置', approvalPolicy.smartJudgeConfigured),
-        metric('危险规则数', approvalPolicy.dangerousRuleCount),
-        metric('硬阻断规则数', approvalPolicy.hardlineRuleCount),
-        metric('终端守卫规则数', approvalPolicy.terminalGuardrailCount),
-        metric('URL 预检', approvalPolicy.urlPolicyPrechecked),
-        metric('私有地址预检', approvalPolicy.privateUrlPolicyPrechecked),
-        metric('凭据 URL 预检', approvalPolicy.credentialUrlPolicyPrechecked),
-        metric('网站策略预检', approvalPolicy.websitePolicyPrechecked),
-        metric('不安全 URL 绕过允许', approvalPolicy.unsafeUrlApprovalBypassAllowed, false),
+        metric('commandApprovalMode', firstDefined(approvalPolicy.mode, securityApprovals.value.mode)),
+        metric('scheduledJobMode', firstDefined(approvalPolicy.cronMode, securityApprovals.value.cron_mode)),
+        metric('subagentAutoApprove', approvalPolicy.subagentAutoApprove),
+        metric('smartJudgeConfigured', approvalPolicy.smartJudgeConfigured),
+        metric('dangerousRuleCount', approvalPolicy.dangerousRuleCount),
+        metric('hardlineRuleCount', approvalPolicy.hardlineRuleCount),
+        metric('terminalGuardrailCount', approvalPolicy.terminalGuardrailCount),
+        metric('urlPolicyPrechecked', approvalPolicy.urlPolicyPrechecked),
+        metric('privateUrlPolicyPrechecked', approvalPolicy.privateUrlPolicyPrechecked),
+        metric('credentialUrlPolicyPrechecked', approvalPolicy.credentialUrlPolicyPrechecked),
+        metric('websitePolicyPrechecked', approvalPolicy.websitePolicyPrechecked),
+        metric('unsafeUrlApprovalBypassAllowed', approvalPolicy.unsafeUrlApprovalBypassAllowed, false),
       ],
     },
     {
-      title: '硬阻断命令',
+      title: d('detailGroups.hardlineCommands'),
       items: [
-        metric('规则数', hardlinePolicy.ruleCount),
-        metric('覆盖工具', hardlinePolicy.coveredTools),
-        metric('阻断类别', hardlinePolicy.blockedCategories),
-        metric('元数据地址阻断', hardlinePolicy.metadataUrlBlocked),
-        metric('代码工具 Shell 提取', hardlinePolicy.codeToolShellExtractionCovered),
-        metric('Python Shell 提取', hardlinePolicy.pythonShellExtractionCovered),
-        metric('JavaScript 子进程提取', hardlinePolicy.javascriptChildProcessExtractionCovered),
-        metric('审批绕过允许', hardlinePolicy.approvalBypassAllowed, false),
-        metric('Slash 绕过允许', hardlinePolicy.slashApproveBypassAllowed, false),
-        metric('会话授权绕过允许', hardlinePolicy.sessionApprovalBypassAllowed, false),
-        metric('长期授权绕过允许', hardlinePolicy.alwaysApprovalBypassAllowed, false),
-        metric('自动模式绕过允许', hardlinePolicy.yoloBypassAllowed, false),
-        metric('智能审批绕过允许', hardlinePolicy.smartApprovalBypassAllowed, false),
-        metric('命令预览脱敏', hardlinePolicy.commandPreviewRedacted),
+        metric('ruleCount', hardlinePolicy.ruleCount),
+        metric('coveredTools', hardlinePolicy.coveredTools),
+        metric('blockedCategories', hardlinePolicy.blockedCategories),
+        metric('metadataUrlBlocked', hardlinePolicy.metadataUrlBlocked),
+        metric('codeToolShellExtractionCovered', hardlinePolicy.codeToolShellExtractionCovered),
+        metric('pythonShellExtractionCovered', hardlinePolicy.pythonShellExtractionCovered),
+        metric('javascriptChildProcessExtractionCovered', hardlinePolicy.javascriptChildProcessExtractionCovered),
+        metric('approvalBypassAllowed', hardlinePolicy.approvalBypassAllowed, false),
+        metric('slashApproveBypassAllowed', hardlinePolicy.slashApproveBypassAllowed, false),
+        metric('sessionApprovalBypassAllowed', hardlinePolicy.sessionApprovalBypassAllowed, false),
+        metric('alwaysApprovalBypassAllowed', hardlinePolicy.alwaysApprovalBypassAllowed, false),
+        metric('yoloBypassAllowed', hardlinePolicy.yoloBypassAllowed, false),
+        metric('smartApprovalBypassAllowed', hardlinePolicy.smartApprovalBypassAllowed, false),
+        metric('commandPreviewRedacted', hardlinePolicy.commandPreviewRedacted),
       ],
     },
     {
-      title: '自动化与子代理审批',
+      title: d('detailGroups.automationAndSubagents'),
       items: [
-        metric('定时任务默认决策', cronApprovalPolicy.defaultDecision),
-        metric('定时任务硬阻断', cronApprovalPolicy.hardlineAlwaysBlocked),
-        metric('运行前检查危险模式', cronApprovalPolicy.dangerousPatternCheckedBeforeRun),
-        metric('脚本内容检查', cronApprovalPolicy.scriptContentChecked),
-        metric('子代理默认决策', subagentApprovalPolicy.defaultDecision),
-        metric('子代理硬阻断预检', subagentApprovalPolicy.hardlinePrechecked),
-        metric('子代理文件预检', subagentApprovalPolicy.filePolicyPrechecked),
-        metric('子代理 URL 预检', subagentApprovalPolicy.urlPolicyPrechecked),
-        metric('子代理终端预检', subagentApprovalPolicy.terminalGuardrailPrechecked),
-        metric('被拒绝时创建待审批', subagentApprovalPolicy.pendingApprovalCreatedWhenDenied),
+        metric('cronDefaultDecision', cronApprovalPolicy.defaultDecision),
+        metric('cronHardlineAlwaysBlocked', cronApprovalPolicy.hardlineAlwaysBlocked),
+        metric('dangerousPatternCheckedBeforeRun', cronApprovalPolicy.dangerousPatternCheckedBeforeRun),
+        metric('scriptContentChecked', cronApprovalPolicy.scriptContentChecked),
+        metric('subagentDefaultDecision', subagentApprovalPolicy.defaultDecision),
+        metric('subagentHardlinePrechecked', subagentApprovalPolicy.hardlinePrechecked),
+        metric('subagentFilePolicyPrechecked', subagentApprovalPolicy.filePolicyPrechecked),
+        metric('subagentUrlPolicyPrechecked', subagentApprovalPolicy.urlPolicyPrechecked),
+        metric('subagentTerminalGuardrailPrechecked', subagentApprovalPolicy.terminalGuardrailPrechecked),
+        metric('pendingApprovalCreatedWhenDenied', subagentApprovalPolicy.pendingApprovalCreatedWhenDenied),
       ],
     },
     {
-      title: '智能与内容扫描审批',
+      title: d('detailGroups.smartAndContentScan'),
       items: [
-        metric('智能模式', smartApprovalPolicy.smartMode),
-        metric('智能审批生效', smartApprovalPolicy.active),
-        metric('裁决器已配置', smartApprovalPolicy.judgeConfigured),
-        metric('升级到人工审批', smartApprovalPolicy.escalateFallsBackToHumanApproval),
-        metric('裁决失败回退人工', smartApprovalPolicy.judgeFailureFallsBackToHumanApproval),
-        metric('内容扫描纳入裁决', smartApprovalPolicy.tirithFindingsIncluded),
-        metric('内容扫描器已配置', tirithApprovalPolicy.scannerConfigured),
-        metric('审批模式执行扫描', tirithApprovalPolicy.scanRunsInApprovalMode),
-        metric('扫描结果合并本地规则', tirithApprovalPolicy.combinedWithLocalDangerRules),
-        metric('长期授权允许', tirithApprovalPolicy.permanentApprovalAllowed),
+        metric('smartMode', smartApprovalPolicy.smartMode),
+        metric('smartApprovalActive', smartApprovalPolicy.active),
+        metric('judgeConfigured', smartApprovalPolicy.judgeConfigured),
+        metric('escalateFallsBackToHumanApproval', smartApprovalPolicy.escalateFallsBackToHumanApproval),
+        metric('judgeFailureFallsBackToHumanApproval', smartApprovalPolicy.judgeFailureFallsBackToHumanApproval),
+        metric('tirithFindingsIncluded', smartApprovalPolicy.tirithFindingsIncluded),
+        metric('scannerConfigured', tirithApprovalPolicy.scannerConfigured),
+        metric('scanRunsInApprovalMode', tirithApprovalPolicy.scanRunsInApprovalMode),
+        metric('combinedWithLocalDangerRules', tirithApprovalPolicy.combinedWithLocalDangerRules),
+        metric('permanentApprovalAllowed', tirithApprovalPolicy.permanentApprovalAllowed),
       ],
     },
     {
-      title: '审批生命周期',
+      title: d('detailGroups.approvalLifecycle'),
       items: [
-        metric('列表前清理过期项', approvalLifecyclePolicy.pendingListPrunedBeforeRead),
-        metric('选择器支持', approvalLifecyclePolicy.selectorSupported),
-        metric('拒绝不安全选择器', approvalLifecyclePolicy.unsafeSelectorRejected),
-        metric('批量拒绝安全选择器', approvalLifecyclePolicy.bulkRejectUsesSafeSelector),
-        metric('批准移除待审批', approvalLifecyclePolicy.approveRemovesPendingApproval),
-        metric('拒绝移除待审批', approvalLifecyclePolicy.rejectRemovesPendingApproval),
-        metric('会话快照更新', approvalLifecyclePolicy.sessionSnapshotUpdated),
-        metric('审批键脱敏', approvalLifecyclePolicy.approvalKeyRedacted),
+        metric('pendingListPrunedBeforeRead', approvalLifecyclePolicy.pendingListPrunedBeforeRead),
+        metric('selectorSupported', approvalLifecyclePolicy.selectorSupported),
+        metric('unsafeSelectorRejected', approvalLifecyclePolicy.unsafeSelectorRejected),
+        metric('bulkRejectUsesSafeSelector', approvalLifecyclePolicy.bulkRejectUsesSafeSelector),
+        metric('approveRemovesPendingApproval', approvalLifecyclePolicy.approveRemovesPendingApproval),
+        metric('rejectRemovesPendingApproval', approvalLifecyclePolicy.rejectRemovesPendingApproval),
+        metric('sessionSnapshotUpdated', approvalLifecyclePolicy.sessionSnapshotUpdated),
+        metric('approvalKeyRedacted', approvalLifecyclePolicy.approvalKeyRedacted),
       ],
     },
     {
-      title: 'Slash 与审批卡',
+      title: d('detailGroups.slashAndApprovalCards'),
       items: [
-        metric('Slash 队列', slashConfirmPolicy.pendingQueueSupported),
-        metric('待确认安全选择器', slashConfirmPolicy.pendingListUsesSafeSelector),
-        metric('待确认隐藏审批键', slashConfirmPolicy.pendingListHidesApprovalKey),
-        metric('确认元数据脱敏', slashConfirmPolicy.approvalMetadataRedacted),
-        metric('审批卡选择器', approvalCardPolicy.approvalIdSelectorSupported),
-        metric('审批卡阻断不安全选择器', approvalCardPolicy.unsafeSelectorRejected),
-        metric('审批卡命令脱敏', approvalCardPolicy.commandPreviewRedacted),
-        metric('原始命令不进扩展', approvalCardPolicy.rawCommandRedactedInExtras),
+        metric('pendingQueueSupported', slashConfirmPolicy.pendingQueueSupported),
+        metric('pendingListUsesSafeSelector', slashConfirmPolicy.pendingListUsesSafeSelector),
+        metric('pendingListHidesApprovalKey', slashConfirmPolicy.pendingListHidesApprovalKey),
+        metric('approvalMetadataRedacted', slashConfirmPolicy.approvalMetadataRedacted),
+        metric('approvalIdSelectorSupported', approvalCardPolicy.approvalIdSelectorSupported),
+        metric('approvalCardUnsafeSelectorRejected', approvalCardPolicy.unsafeSelectorRejected),
+        metric('approvalCardCommandPreviewRedacted', approvalCardPolicy.commandPreviewRedacted),
+        metric('rawCommandRedactedInExtras', approvalCardPolicy.rawCommandRedactedInExtras),
       ],
     },
     {
-      title: '审批审计与 MCP',
+      title: d('detailGroups.approvalAuditAndMcp'),
       items: [
-        metric('请求事件', approvalAuditPolicy.requestEvents),
-        metric('响应事件', approvalAuditPolicy.responseEvents),
-        metric('观察者失败隔离', approvalAuditPolicy.observerFailureIsolated),
-        metric('审计审批键脱敏', approvalAuditPolicy.approvalKeyRedacted),
-        metric('手动撤销审计', approvalAuditPolicy.manualRevocationAudited),
-        metric('MCP 重载需确认', mcpReloadPolicy.confirmRequired),
-        metric('确认由 Slash 承载', mcpReloadPolicy.slashConfirmBacked),
-        metric('OAuth URL 安全覆盖', mcpReloadPolicy.oauthUrlSafetyCovered),
+        metric('requestEvents', approvalAuditPolicy.requestEvents),
+        metric('responseEvents', approvalAuditPolicy.responseEvents),
+        metric('observerFailureIsolated', approvalAuditPolicy.observerFailureIsolated),
+        metric('auditApprovalKeyRedacted', approvalAuditPolicy.approvalKeyRedacted),
+        metric('manualRevocationAudited', approvalAuditPolicy.manualRevocationAudited),
+        metric('confirmRequired', mcpReloadPolicy.confirmRequired),
+        metric('slashConfirmBacked', mcpReloadPolicy.slashConfirmBacked),
+        metric('oauthUrlSafetyCovered', mcpReloadPolicy.oauthUrlSafetyCovered),
       ],
     },
     {
-      title: '只读审计工具',
+      title: d('detailGroups.readOnlyAuditTool'),
       items: [
-        metric('工具名', readOnlyAuditPolicy.toolName),
-        metric('不执行命令', readOnlyAuditPolicy.executesCommand, false),
-        metric('不打开网络连接', readOnlyAuditPolicy.opensNetworkConnection, false),
-        metric('不读取目标 URL', readOnlyAuditPolicy.readsTargetUrl, false),
-        metric('不写文件', readOnlyAuditPolicy.writesFile, false),
-        metric('不保存审计输入', readOnlyAuditPolicy.storesAuditInput, false),
-        metric('密文脱敏', readOnlyAuditPolicy.secretRedactionApplied),
-        metric('继承命令策略', readOnlyAuditPolicy.toolArgsCommandPolicyInherited),
-        metric('继承 URL 策略', readOnlyAuditPolicy.toolArgsUrlPolicyInherited),
-        metric('继承路径策略', readOnlyAuditPolicy.toolArgsPathPolicyInherited),
-        metric('JSON 错误脱敏', readOnlyAuditPolicy.toolArgsJsonParseErrorsRedacted),
-        metric('命令预览上限', readOnlyAuditPolicy.commandPreviewLimitChars),
-        metric('发现消息上限', readOnlyAuditPolicy.findingMessageLimitChars),
+        metric('toolName', readOnlyAuditPolicy.toolName),
+        metric('executesCommand', readOnlyAuditPolicy.executesCommand, false),
+        metric('opensNetworkConnection', readOnlyAuditPolicy.opensNetworkConnection, false),
+        metric('readsTargetUrl', readOnlyAuditPolicy.readsTargetUrl, false),
+        metric('writesFile', readOnlyAuditPolicy.writesFile, false),
+        metric('storesAuditInput', readOnlyAuditPolicy.storesAuditInput, false),
+        metric('secretRedactionApplied', readOnlyAuditPolicy.secretRedactionApplied),
+        metric('toolArgsCommandPolicyInherited', readOnlyAuditPolicy.toolArgsCommandPolicyInherited),
+        metric('toolArgsUrlPolicyInherited', readOnlyAuditPolicy.toolArgsUrlPolicyInherited),
+        metric('toolArgsPathPolicyInherited', readOnlyAuditPolicy.toolArgsPathPolicyInherited),
+        metric('toolArgsJsonParseErrorsRedacted', readOnlyAuditPolicy.toolArgsJsonParseErrorsRedacted),
+        metric('commandPreviewLimitChars', readOnlyAuditPolicy.commandPreviewLimitChars),
+        metric('findingMessageLimitChars', readOnlyAuditPolicy.findingMessageLimitChars),
       ],
     },
     {
-      title: 'Schema 与补丁解析',
+      title: d('detailGroups.schemaAndPatch'),
       items: [
-        metric('Schema 清洗启用', schemaSanitizerPolicy.enabled),
-        metric('输入 Schema 清洗', schemaSanitizerPolicy.inputSchemaSanitized),
-        metric('MCP 输入 Schema 清洗', schemaSanitizerPolicy.mcpInputSchemaSanitized),
-        metric('非法 Schema 默认对象', schemaSanitizerPolicy.invalidSchemaDefaultsToObject),
-        metric('顶层对象必需', schemaSanitizerPolicy.topLevelObjectRequired),
-        metric('required 裁剪', schemaSanitizerPolicy.requiredPrunedToKnownProperties),
-        metric('pattern/format 移除', schemaSanitizerPolicy.patternAndFormatStripped),
-        metric('补丁原子校验', patchParserPolicy.atomicValidationBeforeWrite),
-        metric('校验失败不部分写入', patchParserPolicy.noPartialWritesOnValidationFailure),
-        metric('重复匹配需显式 all', patchParserPolicy.replaceAllRequiresExplicitFlag),
-        metric('歧义块阻断', patchParserPolicy.ambiguousHunksBlocked),
-        metric('缺失块阻断', patchParserPolicy.missingHunksBlocked),
-        metric('补丁路径穿越阻断', patchParserPolicy.pathTraversalBlocked),
-        metric('补丁凭据预检', patchParserPolicy.credentialPolicyPrechecked),
+        metric('schemaSanitizerEnabled', schemaSanitizerPolicy.enabled),
+        metric('inputSchemaSanitized', schemaSanitizerPolicy.inputSchemaSanitized),
+        metric('mcpInputSchemaSanitized', schemaSanitizerPolicy.mcpInputSchemaSanitized),
+        metric('invalidSchemaDefaultsToObject', schemaSanitizerPolicy.invalidSchemaDefaultsToObject),
+        metric('topLevelObjectRequired', schemaSanitizerPolicy.topLevelObjectRequired),
+        metric('requiredPrunedToKnownProperties', schemaSanitizerPolicy.requiredPrunedToKnownProperties),
+        metric('patternAndFormatStripped', schemaSanitizerPolicy.patternAndFormatStripped),
+        metric('atomicValidationBeforeWrite', patchParserPolicy.atomicValidationBeforeWrite),
+        metric('noPartialWritesOnValidationFailure', patchParserPolicy.noPartialWritesOnValidationFailure),
+        metric('replaceAllRequiresExplicitFlag', patchParserPolicy.replaceAllRequiresExplicitFlag),
+        metric('ambiguousHunksBlocked', patchParserPolicy.ambiguousHunksBlocked),
+        metric('missingHunksBlocked', patchParserPolicy.missingHunksBlocked),
+        metric('pathTraversalBlocked', patchParserPolicy.pathTraversalBlocked),
+        metric('patchCredentialPolicyPrechecked', patchParserPolicy.credentialPolicyPrechecked),
       ],
     },
     {
-      title: 'MCP 安全',
+      title: d('detailGroups.mcpSecurity'),
       items: [
-        metric('远程端点 URL 安全', mcpRuntimePolicy.remoteEndpointUrlSafety),
-        metric('远程工具 URL 参数安全', mcpRuntimePolicy.remoteToolArgumentUrlSafety),
-        metric('远程工具路径参数安全', mcpRuntimePolicy.remoteToolArgumentPathSafety),
-        metric('资源 URI URL 安全', mcpRuntimePolicy.resourceUriUrlSafety),
-        metric('资源 URI 路径安全', mcpRuntimePolicy.resourceUriPathSafety),
-        metric('嵌套 URL 提取', mcpRuntimePolicy.nestedUrlExtraction),
-        metric('阻断 URL 脱敏', mcpRuntimePolicy.blockedUrlsMasked),
-        metric('阻断路径脱敏', mcpRuntimePolicy.blockedPathsRedacted),
-        metric('工具名加前缀', mcpRuntimePolicy.toolNamesPrefixed),
-        metric('工具变更持久通知', mcpRuntimePolicy.toolsChangeNotificationPersisted),
-        metric('OAuth 授权 URL 安全', mcpOAuthPolicy.authorizationEndpointUrlSafety),
-        metric('OAuth state 校验', mcpOAuthPolicy.stateValidationRequired),
-        metric('OAuth PKCE S256', mcpOAuthPolicy.pkceS256Required),
-        metric('访问令牌脱敏', mcpOAuthPolicy.accessTokenRedacted),
-        metric('包端点预检', mcpPackageSecurityPolicy.endpointUrlSafetyChecked),
-        metric('恶意包阻断保存', mcpPackageSecurityPolicy.malwareBlocksSaveAndCheck),
+        metric('remoteEndpointUrlSafety', mcpRuntimePolicy.remoteEndpointUrlSafety),
+        metric('remoteToolArgumentUrlSafety', mcpRuntimePolicy.remoteToolArgumentUrlSafety),
+        metric('remoteToolArgumentPathSafety', mcpRuntimePolicy.remoteToolArgumentPathSafety),
+        metric('resourceUriUrlSafety', mcpRuntimePolicy.resourceUriUrlSafety),
+        metric('resourceUriPathSafety', mcpRuntimePolicy.resourceUriPathSafety),
+        metric('nestedUrlExtraction', mcpRuntimePolicy.nestedUrlExtraction),
+        metric('blockedUrlsMasked', mcpRuntimePolicy.blockedUrlsMasked),
+        metric('blockedPathsRedacted', mcpRuntimePolicy.blockedPathsRedacted),
+        metric('toolNamesPrefixed', mcpRuntimePolicy.toolNamesPrefixed),
+        metric('toolsChangeNotificationPersisted', mcpRuntimePolicy.toolsChangeNotificationPersisted),
+        metric('authorizationEndpointUrlSafety', mcpOAuthPolicy.authorizationEndpointUrlSafety),
+        metric('stateValidationRequired', mcpOAuthPolicy.stateValidationRequired),
+        metric('pkceS256Required', mcpOAuthPolicy.pkceS256Required),
+        metric('accessTokenRedacted', mcpOAuthPolicy.accessTokenRedacted),
+        metric('endpointUrlSafetyChecked', mcpPackageSecurityPolicy.endpointUrlSafetyChecked),
+        metric('malwareBlocksSaveAndCheck', mcpPackageSecurityPolicy.malwareBlocksSaveAndCheck),
       ],
     },
     {
-      title: '附件安全',
+      title: d('detailGroups.attachmentSecurity'),
       items: [
-        metric('Hutool 下载守卫', attachmentDownloadPolicy.hutoolDownloadGuarded),
-        metric('OkHttp 下载守卫', attachmentDownloadPolicy.okHttpDownloadGuarded),
-        metric('初始 URL 检查', attachmentDownloadPolicy.initialUrlChecked),
-        metric('重定向 URL 预检', attachmentDownloadPolicy.redirectUrlCheckedBeforeFollow),
-        metric('跨站请求头阻断', attachmentDownloadPolicy.crossHostHeaderForwardingBlocked),
-        metric('阻断 URL 脱敏', attachmentDownloadPolicy.blockedUrlMasked),
-        metric('内容长度检查', attachmentDownloadPolicy.contentLengthChecked),
-        metric('流读取限额', attachmentDownloadPolicy.streamReadBounded),
-        metric('缓存字节限额', attachmentMediaCachePolicy.cacheBytesSizeChecked),
-        metric('原始文件名脱敏', attachmentMediaCachePolicy.safeOriginalNameSecretRedacted),
-        metric('媒体引用防穿越', attachmentMediaCachePolicy.mediaReferenceTraversalBlocked),
-        metric('宿主路径不返回', attachmentMediaCachePolicy.hostPathsNotReturnedInMediaReference),
-        metric('粘贴路径预检', attachmentTerminalPastePolicy.pathPolicyCheckedBeforeCache),
-        metric('凭据路径阻断', attachmentTerminalPastePolicy.credentialPathBlocked),
-        metric('阻断预览脱敏', attachmentTerminalPastePolicy.blockedPreviewRedacted),
-        metric('原始路径不进提示', attachmentTerminalPastePolicy.rawPathHiddenInPrompt),
+        metric('hutoolDownloadGuarded', attachmentDownloadPolicy.hutoolDownloadGuarded),
+        metric('okHttpDownloadGuarded', attachmentDownloadPolicy.okHttpDownloadGuarded),
+        metric('initialUrlChecked', attachmentDownloadPolicy.initialUrlChecked),
+        metric('redirectUrlCheckedBeforeFollow', attachmentDownloadPolicy.redirectUrlCheckedBeforeFollow),
+        metric('crossHostHeaderForwardingBlocked', attachmentDownloadPolicy.crossHostHeaderForwardingBlocked),
+        metric('blockedUrlMasked', attachmentDownloadPolicy.blockedUrlMasked),
+        metric('contentLengthChecked', attachmentDownloadPolicy.contentLengthChecked),
+        metric('streamReadBounded', attachmentDownloadPolicy.streamReadBounded),
+        metric('cacheBytesSizeChecked', attachmentMediaCachePolicy.cacheBytesSizeChecked),
+        metric('safeOriginalNameSecretRedacted', attachmentMediaCachePolicy.safeOriginalNameSecretRedacted),
+        metric('mediaReferenceTraversalBlocked', attachmentMediaCachePolicy.mediaReferenceTraversalBlocked),
+        metric('hostPathsNotReturnedInMediaReference', attachmentMediaCachePolicy.hostPathsNotReturnedInMediaReference),
+        metric('pathPolicyCheckedBeforeCache', attachmentTerminalPastePolicy.pathPolicyCheckedBeforeCache),
+        metric('credentialPathBlocked', attachmentTerminalPastePolicy.credentialPathBlocked),
+        metric('blockedPreviewRedacted', attachmentTerminalPastePolicy.blockedPreviewRedacted),
+        metric('rawPathHiddenInPrompt', attachmentTerminalPastePolicy.rawPathHiddenInPrompt),
       ],
     },
     {
-      title: 'URL 与私有地址',
+      title: d('detailGroups.urlAndPrivateAddresses'),
       items: [
-        metric('允许私有地址', firstDefined(privateUrlPolicy.allowPrivateUrls, urlPolicy.allowPrivateUrls, policy.allow_private_urls), true),
-        metric('固定阻断主机', urlPolicy.alwaysBlockedHostCount),
-        metric('固定阻断地址', urlPolicy.alwaysBlockedIpCount),
-        metric('敏感参数名', urlPolicy.sensitiveQueryNameCount),
-        metric('DNS 必检', firstDefined(privateUrlPolicy.dnsResolutionRequired, urlPolicy.dnsResolutionRequired)),
-        metric('Userinfo 阻断', urlPolicy.userinfoBlocked),
-        metric('敏感参数阻断', urlPolicy.sensitiveQueryBlocked),
-        metric('云元数据阻断', firstDefined(privateUrlPolicy.cloudMetadataAlwaysBlocked, urlPolicy.cloudMetadataBlocked)),
-        metric('Loopback 阻断', privateUrlPolicy.loopbackBlocked),
-        metric('链路本地阻断', privateUrlPolicy.linkLocalBlocked),
-        metric('站点本地阻断', privateUrlPolicy.siteLocalBlocked),
+        metric('allowPrivateUrls', firstDefined(privateUrlPolicy.allowPrivateUrls, urlPolicy.allowPrivateUrls, policy.allow_private_urls), true),
+        metric('alwaysBlockedHostCount', urlPolicy.alwaysBlockedHostCount),
+        metric('alwaysBlockedIpCount', urlPolicy.alwaysBlockedIpCount),
+        metric('sensitiveQueryNameCount', urlPolicy.sensitiveQueryNameCount),
+        metric('dnsResolutionRequired', firstDefined(privateUrlPolicy.dnsResolutionRequired, urlPolicy.dnsResolutionRequired)),
+        metric('userinfoBlocked', urlPolicy.userinfoBlocked),
+        metric('sensitiveQueryBlocked', urlPolicy.sensitiveQueryBlocked),
+        metric('cloudMetadataAlwaysBlocked', firstDefined(privateUrlPolicy.cloudMetadataAlwaysBlocked, urlPolicy.cloudMetadataBlocked)),
+        metric('loopbackBlocked', privateUrlPolicy.loopbackBlocked),
+        metric('linkLocalBlocked', privateUrlPolicy.linkLocalBlocked),
+        metric('siteLocalBlocked', privateUrlPolicy.siteLocalBlocked),
       ],
     },
     {
-      title: '网站策略',
+      title: d('detailGroups.websitePolicy'),
       items: [
-        metric('策略启用', firstDefined(websitePolicy.enabled, policy.website_blocklist_enabled)),
-        metric('内置域名规则', firstDefined(websitePolicy.configuredDomainCount, policy.website_blocklist_domain_count)),
-        metric('共享规则文件', firstDefined(websitePolicy.sharedFileCount, policy.website_blocklist_shared_file_count)),
-        metric('已加载文件', websitePolicy.loadedSharedFileCount),
-        metric('跳过文件', websitePolicy.skippedSharedFileCount, true, true),
-        metric('共享规则数', websitePolicy.sharedRuleCount),
-        metric('通配子域名', websitePolicy.wildcardSubdomainSupported),
-        metric('共享文件路径检查', websitePolicy.sharedFilePathSafetyChecked),
+        metric('websitePolicyEnabled', firstDefined(websitePolicy.enabled, policy.website_blocklist_enabled)),
+        metric('configuredDomainCount', firstDefined(websitePolicy.configuredDomainCount, policy.website_blocklist_domain_count)),
+        metric('sharedFileCount', firstDefined(websitePolicy.sharedFileCount, policy.website_blocklist_shared_file_count)),
+        metric('loadedSharedFileCount', websitePolicy.loadedSharedFileCount),
+        metric('skippedSharedFileCount', websitePolicy.skippedSharedFileCount, true, true),
+        metric('sharedRuleCount', websitePolicy.sharedRuleCount),
+        metric('wildcardSubdomainSupported', websitePolicy.wildcardSubdomainSupported),
+        metric('sharedFilePathSafetyChecked', websitePolicy.sharedFilePathSafetyChecked),
       ],
     },
     {
-      title: '路径与凭据',
+      title: d('detailGroups.pathAndCredentials'),
       items: [
-        metric('路径穿越阻断', pathPolicy.traversalBlocked),
-        metric('控制字符阻断', pathPolicy.controlCharactersBlocked),
-        metric('设备路径阻断', pathPolicy.devicePathBlocked),
-        metric('原始块设备写入阻断', pathPolicy.rawBlockDeviceWriteBlocked),
-        metric('写入精确拒绝', pathPolicy.writeDeniedExactPathCount),
-        metric('写入前缀拒绝', pathPolicy.writeDeniedPrefixCount),
-        metric('凭据目录段', credentialPolicy.directorySegmentCount),
-        metric('凭据文件名', credentialPolicy.fileNameCount),
-        metric('凭据后缀', credentialPolicy.pathSuffixCount),
-        metric('密钥扩展名', credentialPolicy.keyFileExtensionCount),
+        metric('traversalBlocked', pathPolicy.traversalBlocked),
+        metric('controlCharactersBlocked', pathPolicy.controlCharactersBlocked),
+        metric('devicePathBlocked', pathPolicy.devicePathBlocked),
+        metric('rawBlockDeviceWriteBlocked', pathPolicy.rawBlockDeviceWriteBlocked),
+        metric('writeDeniedExactPathCount', pathPolicy.writeDeniedExactPathCount),
+        metric('writeDeniedPrefixCount', pathPolicy.writeDeniedPrefixCount),
+        metric('directorySegmentCount', credentialPolicy.directorySegmentCount),
+        metric('fileNameCount', credentialPolicy.fileNameCount),
+        metric('pathSuffixCount', credentialPolicy.pathSuffixCount),
+        metric('keyFileExtensionCount', credentialPolicy.keyFileExtensionCount),
       ],
     },
     {
-      title: '工具参数与终端',
+      title: d('detailGroups.toolArgsAndTerminal'),
       items: [
-        metric('递归 URL 提取', toolArgsPolicy.recursiveUrlExtraction),
-        metric('返回内容 URL 检查', toolArgsPolicy.returnedContentUrlExtraction),
-        metric('递归路径提取', toolArgsPolicy.recursivePathExtraction),
-        metric('写入意图识别', toolArgsPolicy.writeIntentDetection),
-        metric('上传凭据阻断', toolArgsPolicy.networkUploadCredentialOnlyBlocked),
-        metric('终端密文脱敏', terminalOutputPolicy.secretRedactionApplied),
-        metric('输出截断提示', terminalOutputPolicy.truncationNoticeIncluded),
-        metric('最大内联字符', terminalOutputPolicy.maxInlineChars),
-        metric('进程登记表', backgroundProcessPolicy.processRegistryBacked),
-        metric('后台任务强制托管', backgroundProcessPolicy.managedBackgroundRequiredForLongRunningCommands),
+        metric('recursiveUrlExtraction', toolArgsPolicy.recursiveUrlExtraction),
+        metric('returnedContentUrlExtraction', toolArgsPolicy.returnedContentUrlExtraction),
+        metric('recursivePathExtraction', toolArgsPolicy.recursivePathExtraction),
+        metric('writeIntentDetection', toolArgsPolicy.writeIntentDetection),
+        metric('networkUploadCredentialOnlyBlocked', toolArgsPolicy.networkUploadCredentialOnlyBlocked),
+        metric('terminalSecretRedactionApplied', terminalOutputPolicy.secretRedactionApplied),
+        metric('truncationNoticeIncluded', terminalOutputPolicy.truncationNoticeIncluded),
+        metric('maxInlineChars', terminalOutputPolicy.maxInlineChars),
+        metric('processRegistryBacked', backgroundProcessPolicy.processRegistryBacked),
+        metric('managedBackgroundRequiredForLongRunningCommands', backgroundProcessPolicy.managedBackgroundRequiredForLongRunningCommands),
       ],
     },
     {
-      title: '终端硬守卫',
+      title: d('detailGroups.terminalHardGuardrails'),
       items: [
-        metric('后台 Shell 包装阻断', terminalGuardrailPolicy.backgroundShellWrappersBlocked),
-        metric('脱离会话启动阻断', terminalGuardrailPolicy.detachedSessionLaunchersBlocked),
-        metric('PowerShell 后台命令阻断', terminalGuardrailPolicy.powershellBackgroundCommandsBlocked),
-        metric('行内 & 阻断', terminalGuardrailPolicy.inlineAmpersandBlocked),
-        metric('末尾 & 阻断', terminalGuardrailPolicy.trailingAmpersandBlocked),
-        metric('长驻前台阻断', terminalGuardrailPolicy.longLivedForegroundBlocked),
-        metric('命令路径预检', terminalGuardrailPolicy.commandPathPrechecked),
-        metric('凭据路径预检', terminalGuardrailPolicy.credentialPathPrechecked),
-        metric('下载输出路径预检', terminalGuardrailPolicy.downloadOutputPathPrechecked),
-        metric('代理 URL 预检', terminalGuardrailPolicy.proxyUrlPrechecked),
-        metric('系统 DNS 命令预检', terminalGuardrailPolicy.systemDnsCommandPrechecked),
-        metric('系统代理命令预检', terminalGuardrailPolicy.systemProxyCommandPrechecked),
-        metric('Hosts/解析器路径预检', terminalGuardrailPolicy.hostsAndResolverPathPrechecked),
-        metric('受管后台进程必需', terminalGuardrailPolicy.managedBackgroundProcessRequired),
-        metric('进程登记表支撑', terminalGuardrailPolicy.processRegistryBacked),
-        metric('sudo 密码脱敏', terminalGuardrailPolicy.sudoPasswordRedacted),
+        metric('backgroundShellWrappersBlocked', terminalGuardrailPolicy.backgroundShellWrappersBlocked),
+        metric('detachedSessionLaunchersBlocked', terminalGuardrailPolicy.detachedSessionLaunchersBlocked),
+        metric('powershellBackgroundCommandsBlocked', terminalGuardrailPolicy.powershellBackgroundCommandsBlocked),
+        metric('inlineAmpersandBlocked', terminalGuardrailPolicy.inlineAmpersandBlocked),
+        metric('trailingAmpersandBlocked', terminalGuardrailPolicy.trailingAmpersandBlocked),
+        metric('longLivedForegroundBlocked', terminalGuardrailPolicy.longLivedForegroundBlocked),
+        metric('commandPathPrechecked', terminalGuardrailPolicy.commandPathPrechecked),
+        metric('credentialPathGuardrailPrechecked', terminalGuardrailPolicy.credentialPathPrechecked),
+        metric('downloadOutputPathPrechecked', terminalGuardrailPolicy.downloadOutputPathPrechecked),
+        metric('proxyUrlPrechecked', terminalGuardrailPolicy.proxyUrlPrechecked),
+        metric('systemDnsCommandPrechecked', terminalGuardrailPolicy.systemDnsCommandPrechecked),
+        metric('systemProxyCommandPrechecked', terminalGuardrailPolicy.systemProxyCommandPrechecked),
+        metric('hostsAndResolverPathPrechecked', terminalGuardrailPolicy.hostsAndResolverPathPrechecked),
+        metric('managedBackgroundProcessRequired', terminalGuardrailPolicy.managedBackgroundProcessRequired),
+        metric('guardrailProcessRegistryBacked', terminalGuardrailPolicy.processRegistryBacked),
+        metric('guardrailSudoPasswordRedacted', terminalGuardrailPolicy.sudoPasswordRedacted),
       ],
     },
     {
-      title: '凭据文件与结果存储',
+      title: d('detailGroups.credentialFilesAndResultStorage'),
       items: [
-        metric('配置凭据文件数', terminalCredentialFilePolicy.configCredentialFileCount),
-        metric('已配置挂载数', terminalCredentialFilePolicy.configuredMountCount),
-        metric('缺失文件未挂载', terminalCredentialFilePolicy.missingFilesNotMounted),
-        metric('宿主路径不进元数据', terminalCredentialFilePolicy.hostPathsOmittedFromMetadata),
-        metric('拒绝路径脱敏', terminalCredentialFilePolicy.rejectedPathsRedacted),
-        metric('sudo 改写已配置', sudoRewritePolicy.configured),
-        metric('sudo 密码脱敏', sudoRewritePolicy.passwordRedacted),
-        metric('sudo 密码走 stdin', sudoRewritePolicy.stdinPasswordInjection),
-        metric('结果存储已启用', toolResultStoragePolicy.enabled),
-        metric('超大结果持久化', toolResultStoragePolicy.oversizedResultsPersisted),
-        metric('结果引用返回', toolResultStoragePolicy.resultRefReturned),
-        metric('预览脱敏', toolResultStoragePolicy.previewRedacted),
-        metric('持久输出提示脱敏', toolResultStoragePolicy.persistedOutputRedacted),
-        metric('内联字节上限', toolResultStoragePolicy.inlineLimitBytes),
+        metric('configCredentialFileCount', terminalCredentialFilePolicy.configCredentialFileCount),
+        metric('configuredMountCount', terminalCredentialFilePolicy.configuredMountCount),
+        metric('missingFilesNotMounted', terminalCredentialFilePolicy.missingFilesNotMounted),
+        metric('hostPathsOmittedFromMetadata', terminalCredentialFilePolicy.hostPathsOmittedFromMetadata),
+        metric('rejectedPathsRedacted', terminalCredentialFilePolicy.rejectedPathsRedacted),
+        metric('sudoRewriteConfigured', sudoRewritePolicy.configured),
+        metric('sudoRewritePasswordRedacted', sudoRewritePolicy.passwordRedacted),
+        metric('stdinPasswordInjection', sudoRewritePolicy.stdinPasswordInjection),
+        metric('resultStorageEnabled', toolResultStoragePolicy.enabled),
+        metric('oversizedResultsPersisted', toolResultStoragePolicy.oversizedResultsPersisted),
+        metric('resultRefReturned', toolResultStoragePolicy.resultRefReturned),
+        metric('previewRedacted', toolResultStoragePolicy.previewRedacted),
+        metric('persistedOutputRedacted', toolResultStoragePolicy.persistedOutputRedacted),
+        metric('inlineLimitBytes', toolResultStoragePolicy.inlineLimitBytes),
       ],
     },
   ]
 })
 const coverageItems = [
-  { key: 'dangerousCommandApproval', label: '危险命令审批' },
-  { key: 'slashApprovalConfirm', label: 'Slash 确认' },
-  { key: 'smartApproval', label: '智能审批' },
-  { key: 'tirithSmartApproval', label: '内容扫描审批' },
-  { key: 'cronApprovalPolicy', label: '定时任务审批' },
-  { key: 'subagentApprovalPolicy', label: '子代理审批' },
-  { key: 'approvalAuditLog', label: '审批审计日志' },
-  { key: 'hardlineCommandBlocks', label: '硬阻断命令' },
-  { key: 'terminalGuardrails', label: '终端守卫' },
-  { key: 'sudoRewrite', label: 'sudo 改写' },
-  { key: 'backgroundProcessGuard', label: '后台进程保护' },
-  { key: 'urlSafety', label: 'URL 安全' },
-  { key: 'privateUrlPolicy', label: '私有地址策略' },
-  { key: 'websitePolicy', label: '网站策略' },
-  { key: 'credentialFilePolicy', label: '凭据文件' },
-  { key: 'credentialMountPolicy', label: '凭据挂载' },
-  { key: 'pathSecurity', label: '路径安全' },
-  { key: 'toolArgsSecurity', label: '工具参数安全' },
-  { key: 'toolReturnedContentUrlSafety', label: '工具返回 URL' },
-  { key: 'schemaSanitizer', label: '工具 Schema 清洗' },
-  { key: 'patchParser', label: '补丁解析保护' },
-  { key: 'subprocessEnvironmentSanitizer', label: '子进程环境清洗' },
-  { key: 'toolResultStorage', label: '工具结果存储' },
-  { key: 'codeExecutionGuardrails', label: '代码执行保护' },
-  { key: 'codeExecutionPolicyAuditable', label: '代码执行审计' },
-  { key: 'mcpUrlSafety', label: 'MCP URL 安全' },
-  { key: 'mcpReloadConfirmation', label: 'MCP 重载确认' },
-  { key: 'mcpToolChangeNotice', label: 'MCP 工具变更通知' },
-  { key: 'mcpRuntimePolicyAuditable', label: 'MCP 运行策略' },
-  { key: 'mcpPackageSecurity', label: 'MCP 包安全' },
-  { key: 'attachmentUrlSafety', label: '附件 URL 安全' },
-  { key: 'attachmentCachePathSafety', label: '附件缓存路径' },
-  { key: 'attachmentDisplayNameRedaction', label: '附件名称脱敏' },
-  { key: 'terminalAttachmentPathSafety', label: '终端附件路径' },
-  { key: 'terminalAttachmentPreviewRedaction', label: '终端附件预览脱敏' },
-  { key: 'terminalAttachmentResolvedNameRedaction', label: '终端附件名称脱敏' },
-  { key: 'tirithSecurity', label: '内容扫描' },
-  { key: 'readOnlyAuditTool', label: '只读审计工具' },
+  { key: 'dangerousCommandApproval', label: d('coverageItems.dangerousCommandApproval') },
+  { key: 'slashApprovalConfirm', label: d('coverageItems.slashApprovalConfirm') },
+  { key: 'smartApproval', label: d('coverageItems.smartApproval') },
+  { key: 'tirithSmartApproval', label: d('coverageItems.tirithSmartApproval') },
+  { key: 'cronApprovalPolicy', label: d('coverageItems.cronApprovalPolicy') },
+  { key: 'subagentApprovalPolicy', label: d('coverageItems.subagentApprovalPolicy') },
+  { key: 'approvalAuditLog', label: d('coverageItems.approvalAuditLog') },
+  { key: 'hardlineCommandBlocks', label: d('coverageItems.hardlineCommandBlocks') },
+  { key: 'terminalGuardrails', label: d('coverageItems.terminalGuardrails') },
+  { key: 'sudoRewrite', label: d('coverageItems.sudoRewrite') },
+  { key: 'backgroundProcessGuard', label: d('coverageItems.backgroundProcessGuard') },
+  { key: 'urlSafety', label: d('coverageItems.urlSafety') },
+  { key: 'privateUrlPolicy', label: d('coverageItems.privateUrlPolicy') },
+  { key: 'websitePolicy', label: d('coverageItems.websitePolicy') },
+  { key: 'credentialFilePolicy', label: d('coverageItems.credentialFilePolicy') },
+  { key: 'credentialMountPolicy', label: d('coverageItems.credentialMountPolicy') },
+  { key: 'pathSecurity', label: d('coverageItems.pathSecurity') },
+  { key: 'toolArgsSecurity', label: d('coverageItems.toolArgsSecurity') },
+  { key: 'toolReturnedContentUrlSafety', label: d('coverageItems.toolReturnedContentUrlSafety') },
+  { key: 'schemaSanitizer', label: d('coverageItems.schemaSanitizer') },
+  { key: 'patchParser', label: d('coverageItems.patchParser') },
+  { key: 'subprocessEnvironmentSanitizer', label: d('coverageItems.subprocessEnvironmentSanitizer') },
+  { key: 'toolResultStorage', label: d('coverageItems.toolResultStorage') },
+  { key: 'codeExecutionGuardrails', label: d('coverageItems.codeExecutionGuardrails') },
+  { key: 'codeExecutionPolicyAuditable', label: d('coverageItems.codeExecutionPolicyAuditable') },
+  { key: 'mcpUrlSafety', label: d('coverageItems.mcpUrlSafety') },
+  { key: 'mcpReloadConfirmation', label: d('coverageItems.mcpReloadConfirmation') },
+  { key: 'mcpToolChangeNotice', label: d('coverageItems.mcpToolChangeNotice') },
+  { key: 'mcpRuntimePolicyAuditable', label: d('coverageItems.mcpRuntimePolicyAuditable') },
+  { key: 'mcpPackageSecurity', label: d('coverageItems.mcpPackageSecurity') },
+  { key: 'attachmentUrlSafety', label: d('coverageItems.attachmentUrlSafety') },
+  { key: 'attachmentCachePathSafety', label: d('coverageItems.attachmentCachePathSafety') },
+  { key: 'attachmentDisplayNameRedaction', label: d('coverageItems.attachmentDisplayNameRedaction') },
+  { key: 'terminalAttachmentPathSafety', label: d('coverageItems.terminalAttachmentPathSafety') },
+  { key: 'terminalAttachmentPreviewRedaction', label: d('coverageItems.terminalAttachmentPreviewRedaction') },
+  { key: 'terminalAttachmentResolvedNameRedaction', label: d('coverageItems.terminalAttachmentResolvedNameRedaction') },
+  { key: 'tirithSecurity', label: d('coverageItems.tirithSecurity') },
+  { key: 'readOnlyAuditTool', label: d('coverageItems.readOnlyAuditTool') },
 ]
-const surfaceLabels: Record<string, string> = {
-  approval: '审批',
-  approvalLifecycle: '审批生命周期',
-  approvalAuditLog: '审批审计日志',
-  slashConfirm: 'Slash 确认',
-  smartApproval: '智能审批',
-  tirithSmartApproval: '内容扫描审批',
-  cronApprovalPolicy: '定时任务审批',
-  subagentApprovalPolicy: '子代理审批',
-  hardlineCommand: '硬阻断',
-  terminalGuardrails: '终端守卫',
-  sudoRewrite: 'sudo 改写',
-  backgroundProcess: '后台进程',
-  urlSafety: 'URL 安全',
-  privateUrlPolicy: '私有地址策略',
-  websitePolicy: '网站策略',
-  credentialFilePolicy: '凭据文件',
-  credentialMountPolicy: '凭据挂载',
-  pathSecurity: '路径安全',
-  toolArgsSecurity: '工具参数',
-  toolReturnedContentUrlSafety: '工具返回 URL',
-  schemaSanitizer: 'Schema 清洗',
-  patchParser: '补丁解析',
-  subprocessEnvironmentSanitizer: '子进程环境',
-  toolResultStorage: '工具结果存储',
-  codeExecution: '代码执行',
-  mcpRuntimePolicy: 'MCP 运行策略',
-  mcpOauthUrlSafety: 'MCP OAuth URL',
-  mcpOauthPolicy: 'MCP OAuth 策略',
-  mcpPackageSecurity: 'MCP 包安全',
-  mcpReloadConfirmation: 'MCP 重载确认',
-  mcpToolChangeNotice: 'MCP 工具变更',
-  attachmentPolicy: '附件策略',
-  terminalAttachmentPathSafety: '终端附件路径',
-  tirithSecurity: '内容扫描',
-  readOnlyAuditTool: '只读审计',
-  url: 'URL',
-  path_read: '路径读取',
-  path_write: '路径写入',
-  tool_args: '工具参数',
-  hardline_command: '硬阻断',
-  terminal_guardrail: '终端守卫',
-  approval_detection: '审批检测',
-  approval_selector: '审批选择器',
-  slash_confirm_selector: 'Slash 确认编号',
-}
 const auditActionOptions = [
-  { label: '命令', value: 'command' },
-  { label: 'URL', value: 'url' },
-  { label: '路径', value: 'path' },
-  { label: '工具参数', value: 'tool_args' },
-  { label: '策略状态', value: 'status' },
+  { label: d('auditActions.command'), value: 'command' },
+  { label: d('auditActions.url'), value: 'url' },
+  { label: d('auditActions.path'), value: 'path' },
+  { label: d('auditActions.toolArgs'), value: 'tool_args' },
+  { label: d('auditActions.status'), value: 'status' },
 ]
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 const pendingCount = computed(() => pendingApprovals.value.length)
 const pendingApprovalScanText = computed(() => {
   const meta = pendingApprovalMeta.value
-  if (!meta) return '扫描：-'
+  if (!meta) return d('pendingScanEmpty')
   const scanned = meta.scanned_sessions ?? 0
   const limit = meta.session_scan_limit ?? '-'
-  return `扫描：${scanned}/${limit} 个会话`
+  return d('pendingScanText', { scanned, limit })
 })
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
@@ -525,8 +484,8 @@ function firstDefined(...values: unknown[]) {
   return values.find((value) => value !== undefined && value !== null && value !== '')
 }
 
-function metric(label: string, value: unknown, goodWhenTrue = true, countWarning = false): SecurityMetric {
-  return { label, value, goodWhenTrue, countWarning }
+function metric(labelKey: string, value: unknown, goodWhenTrue = true, countWarning = false): SecurityMetric {
+  return { label: d(`detailMetrics.${labelKey}`), value, goodWhenTrue, countWarning }
 }
 
 function booleanTagType(value: unknown, goodWhenTrue = true) {
@@ -535,14 +494,14 @@ function booleanTagType(value: unknown, goodWhenTrue = true) {
 }
 
 function booleanText(value: unknown) {
-  return value === true ? '是' : '否'
+  return value === true ? d('booleanYes') : d('booleanNo')
 }
 
 function metricText(value: unknown) {
   if (value === true || value === false) return booleanText(value)
   if (value === undefined || value === null || value === '') return '-'
-  if (Array.isArray(value)) return `${value.length} 项`
-  if (typeof value === 'object') return '已配置'
+  if (Array.isArray(value)) return d('arrayCount', { count: value.length })
+  if (typeof value === 'object') return d('configuredValue')
   return String(value)
 }
 
@@ -563,16 +522,18 @@ function decisionType(decision: unknown) {
 }
 
 function findingActionText(action?: string) {
-  if (action === 'request_approval') return '需要审批'
-  if (action === 'change_command') return '修改命令'
-  if (action === 'change_path') return '修改路径'
-  if (action === 'change_url_or_policy') return '修改 URL 或策略'
-  if (action === 'use_managed_background_process') return '使用受管后台进程'
+  if (action === 'request_approval') return d('findingActions.requestApproval')
+  if (action === 'change_command') return d('findingActions.changeCommand')
+  if (action === 'change_path') return d('findingActions.changePath')
+  if (action === 'change_url_or_policy') return d('findingActions.changeUrlOrPolicy')
+  if (action === 'use_managed_background_process') return d('findingActions.useManagedBackgroundProcess')
   return action || ''
 }
 
 function surfaceLabel(surface: string) {
-  return surfaceLabels[surface] || surface
+  const key = `surfaceLabels.${surface}`
+  const translated = d(key)
+  return translated === key ? surface : translated
 }
 
 async function load() {
@@ -674,12 +635,12 @@ async function handleApproval(item: PendingApproval, action: 'approve' | 'deny',
       resume: true,
     })
     if (result.success) {
-      message.success(result.message || '审批状态已更新')
+      message.success(result.message || t('diagnostics.approvalStatusUpdated'))
       await loadApprovals()
       await loadHistory()
       return
     }
-    message.error(result.message || '审批状态更新失败')
+    message.error(result.message || t('diagnostics.approvalStatusUpdateFailed'))
   } finally {
     resolvingKey.value = ''
   }
@@ -696,12 +657,12 @@ async function handleRevokeAlways(item: AlwaysApproval) {
   try {
     const result = await revokeAlwaysApproval(approvalId)
     if (result.success) {
-      message.success(result.message || '长期授权已撤销')
+      message.success(result.message || t('diagnostics.alwaysApprovalRevoked'))
       const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadPolicyAudit(), loadAlwaysApprovals()])
       diagnostics.value = diagnosticsData
       return
     }
-    message.error(result.message || '长期授权撤销失败')
+    message.error(result.message || t('diagnostics.alwaysApprovalRevokeFailed'))
   } finally {
     revokingAlwaysKey.value = ''
   }
@@ -716,11 +677,11 @@ async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' |
       action,
     })
     if (result.success) {
-      message.success(result.message || '确认状态已更新')
+      message.success(result.message || t('diagnostics.slashConfirmUpdatable'))
       await loadSlashConfirms()
       return
     }
-    message.error(result.message || '确认状态更新失败')
+    message.error(result.message || t('diagnostics.slashConfirmUpdateFailed'))
   } finally {
     resolvingConfirmKey.value = ''
   }
@@ -736,9 +697,9 @@ function timeText(value?: number) {
 }
 
 function expiresText(item: { expired?: boolean; expires_in_seconds?: number; expires_at?: number }) {
-  if (item.expired) return '已过期'
+  if (item.expired) return t('diagnostics.expired')
   if (typeof item.expires_in_seconds === 'number') {
-    return `${item.expires_in_seconds} 秒`
+    return t('diagnostics.secondsRemaining', { count: item.expires_in_seconds })
   }
   return timeText(item.expires_at)
 }
@@ -752,8 +713,8 @@ function canApproveScope(item: PendingApproval, scope: string) {
 }
 
 function approvalSourceText(source: string) {
-  if (source === 'security_scan') return '安全扫描'
-  if (source === 'local_policy') return '本地规则'
+  if (source === 'security_scan') return t('diagnostics.sourceSecurityScan')
+  if (source === 'local_policy') return t('diagnostics.sourceLocalPolicy')
   return source || '-'
 }
 
@@ -766,13 +727,13 @@ function canConfirmAction(item: PendingSlashConfirm, action: string) {
 }
 
 function auditChoiceText(item: ApprovalAuditEvent) {
-  if (item.event_type === 'request') return '请求审批'
-  if (item.choice === 'deny') return '已拒绝'
-  if (item.choice === 'revoke') return '已撤销'
-  if (item.choice === 'timeout') return '已超时'
-  if (item.choice === 'session') return '本会话批准'
-  if (item.choice === 'always') return '长期批准'
-  if (item.choice === 'once') return '批准本次'
+  if (item.event_type === 'request') return t('diagnostics.choiceRequested')
+  if (item.choice === 'deny') return t('diagnostics.choiceDenied')
+  if (item.choice === 'revoke') return t('diagnostics.choiceRevoked')
+  if (item.choice === 'timeout') return t('diagnostics.choiceTimedOut')
+  if (item.choice === 'session') return t('diagnostics.approveSession')
+  if (item.choice === 'always') return t('diagnostics.approveAlways')
+  if (item.choice === 'once') return t('diagnostics.approveOnce')
   return item.choice || item.event_type || '-'
 }
 
@@ -789,43 +750,46 @@ onMounted(load)
 <template>
   <div class="diagnostics-view">
     <header class="page-header">
-      <h2 class="header-title">诊断</h2>
-      <NButton size="small" :loading="loading" @click="load">刷新</NButton>
+      <div>
+        <h2 class="header-title">{{ t('diagnostics.title') }}</h2>
+        <p class="header-subtitle">{{ t('diagnostics.description') }}</p>
+      </div>
+      <NButton size="small" :loading="loading" @click="load">{{ t('diagnostics.refresh') }}</NButton>
     </header>
     <NSpin :show="loading">
       <main class="diagnostics-grid">
         <section class="panel">
-          <h3>运行目录</h3>
+          <h3>{{ t('diagnostics.runtime') }}</h3>
           <pre>{{ diagnostics?.runtime }}</pre>
         </section>
         <section class="panel">
-          <h3>模型提供方</h3>
+          <h3>{{ t('diagnostics.providers') }}</h3>
           <pre>{{ diagnostics?.providers }}</pre>
         </section>
         <section class="panel">
-          <h3>渠道</h3>
+          <h3>{{ t('diagnostics.channels') }}</h3>
           <pre>{{ diagnostics?.channels }}</pre>
         </section>
         <section class="panel">
-          <h3>工具与 MCP</h3>
+          <h3>{{ t('diagnostics.toolsAndMcp') }}</h3>
           <pre>{{ diagnostics?.tools }}&#10;{{ diagnostics?.mcp }}</pre>
         </section>
         <section class="panel security-panel">
-          <h3>安全策略</h3>
+          <h3>{{ t('diagnostics.securityPolicy') }}</h3>
           <div class="security-groups">
             <div class="security-group">
-              <h4>审批</h4>
+              <h4>{{ t('diagnostics.approvalsGroup') }}</h4>
               <dl>
                 <div>
-                  <dt>命令审批</dt>
+                  <dt>{{ t('diagnostics.commandApproval') }}</dt>
                   <dd>{{ valueOf(securityApprovals, 'mode') }}</dd>
                 </div>
                 <div>
-                  <dt>定时任务审批</dt>
+                  <dt>{{ t('diagnostics.cronApproval') }}</dt>
                   <dd>{{ valueOf(securityApprovals, 'cron_mode') }}</dd>
                 </div>
                 <div>
-                  <dt>MCP 重载确认</dt>
+                  <dt>{{ t('diagnostics.mcpReloadConfirm') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityApprovals.mcp_reload_confirm)">
                       {{ booleanText(securityApprovals.mcp_reload_confirm) }}
@@ -833,16 +797,16 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>长期授权</dt>
+                  <dt>{{ t('diagnostics.alwaysApprovalCount') }}</dt>
                   <dd>{{ valueOf(securityApprovals, 'always_approval_count', 0) }}</dd>
                 </div>
               </dl>
             </div>
             <div class="security-group">
-              <h4>URL 与网站策略</h4>
+              <h4>{{ t('diagnostics.urlAndWebsitePolicy') }}</h4>
               <dl>
                 <div>
-                  <dt>允许私有地址</dt>
+                  <dt>{{ t('diagnostics.allowPrivateUrls') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityPolicy.allow_private_urls, true)">
                       {{ booleanText(securityPolicy.allow_private_urls) }}
@@ -850,7 +814,7 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>网站阻断表</dt>
+                  <dt>{{ t('diagnostics.websiteBlocklist') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityPolicy.website_blocklist_enabled)">
                       {{ booleanText(securityPolicy.website_blocklist_enabled) }}
@@ -858,28 +822,28 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>域名规则</dt>
+                  <dt>{{ t('diagnostics.domainRules') }}</dt>
                   <dd>{{ valueOf(securityPolicy, 'website_blocklist_domain_count', 0) }}</dd>
                 </div>
                 <div>
-                  <dt>共享规则文件</dt>
+                  <dt>{{ t('diagnostics.sharedRuleFiles') }}</dt>
                   <dd>{{ valueOf(securityPolicy, 'website_blocklist_shared_file_count', 0) }}</dd>
                 </div>
               </dl>
             </div>
             <div class="security-group">
-              <h4>终端守卫</h4>
+              <h4>{{ t('diagnostics.terminalGuardrails') }}</h4>
               <dl>
                 <div>
-                  <dt>凭据文件</dt>
+                  <dt>{{ t('diagnostics.credentialFiles') }}</dt>
                   <dd>{{ valueOf(securityTerminal, 'credential_file_count', 0) }}</dd>
                 </div>
                 <div>
-                  <dt>环境透传</dt>
+                  <dt>{{ t('diagnostics.envPassthrough') }}</dt>
                   <dd>{{ valueOf(securityTerminal, 'env_passthrough_count', 0) }}</dd>
                 </div>
                 <div>
-                  <dt>sudo 密码</dt>
+                  <dt>{{ t('diagnostics.sudoPassword') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityTerminal.sudo_password_configured)">
                       {{ booleanText(securityTerminal.sudo_password_configured) }}
@@ -887,7 +851,7 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>写入安全根</dt>
+                  <dt>{{ t('diagnostics.writeSafeRoot') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityTerminal.write_safe_root_configured)">
                       {{ booleanText(securityTerminal.write_safe_root_configured) }}
@@ -897,10 +861,10 @@ onMounted(load)
               </dl>
             </div>
             <div class="security-group">
-              <h4>内容扫描</h4>
+              <h4>{{ t('diagnostics.contentScan') }}</h4>
               <dl>
                 <div>
-                  <dt>扫描启用</dt>
+                  <dt>{{ t('diagnostics.scanEnabled') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityPolicy.tirith_enabled)">
                       {{ booleanText(securityPolicy.tirith_enabled) }}
@@ -908,7 +872,7 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>扫描器配置</dt>
+                  <dt>{{ t('diagnostics.scannerConfigured') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityPolicy.tirith_configured)">
                       {{ booleanText(securityPolicy.tirith_configured) }}
@@ -916,7 +880,7 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>失败放行</dt>
+                  <dt>{{ t('diagnostics.failOpen') }}</dt>
                   <dd>
                     <NTag size="small" :type="booleanTagType(securityPolicy.tirith_fail_open, false)">
                       {{ booleanText(securityPolicy.tirith_fail_open) }}
@@ -924,17 +888,17 @@ onMounted(load)
                   </dd>
                 </div>
                 <div>
-                  <dt>超时</dt>
-                  <dd>{{ valueOf(securityPolicy, 'tirith_timeout_seconds', 0) }} 秒</dd>
+                  <dt>{{ t('diagnostics.timeout') }}</dt>
+                  <dd>{{ valueOf(securityPolicy, 'tirith_timeout_seconds', 0) }} {{ t('diagnostics.secondsUnit') }}</dd>
                 </div>
               </dl>
             </div>
           </div>
           <div class="coverage-section">
             <div class="coverage-title">
-              <h4>覆盖面快照</h4>
+              <h4>{{ t('diagnostics.coverageSnapshot') }}</h4>
               <NTag size="small" :type="policyAuditResult?.success === false ? 'error' : 'success'" :bordered="false">
-                {{ policyAuditResult?.success === false ? '异常' : '只读' }}
+                {{ policyAuditResult?.success === false ? t('diagnostics.abnormal') : t('diagnostics.readonly') }}
               </NTag>
             </div>
             <div class="coverage-grid">
@@ -949,13 +913,13 @@ onMounted(load)
               <NTag v-for="surface in securitySurfaces" :key="surface" size="small" :bordered="false">
                 {{ surfaceLabel(surface) }}
               </NTag>
-              <span v-if="!securitySurfaces.length" class="surface-empty">暂无覆盖面数据</span>
+              <span v-if="!securitySurfaces.length" class="surface-empty">{{ t('diagnostics.noCoverageData') }}</span>
             </div>
           </div>
           <div class="policy-detail-section">
             <div class="coverage-title">
-              <h4>策略明细</h4>
-              <NTag size="small" :bordered="false">只读诊断</NTag>
+              <h4>{{ t('diagnostics.policyDetails') }}</h4>
+              <NTag size="small" :bordered="false">{{ t('diagnostics.readonlyDiagnostics') }}</NTag>
             </div>
             <div class="policy-detail-grid">
               <div v-for="group in securityDetailGroups" :key="group.title" class="policy-detail-group">
@@ -973,96 +937,96 @@ onMounted(load)
           </div>
           <div class="probe-section">
             <div class="coverage-title">
-              <h4>安全探针</h4>
+              <h4>{{ t('diagnostics.securityProbe') }}</h4>
               <NTag size="small" :type="securityProbePassed === false ? 'error' : 'success'" :bordered="false">
-                {{ securityProbePassed === false ? '存在异常' : '全部通过' }}
+                {{ securityProbePassed === false ? t('diagnostics.hasIssues') : t('diagnostics.allPassed') }}
               </NTag>
             </div>
             <p v-if="diagnostics?.security?.probes?.available === false" class="approval-note">
-              {{ diagnostics?.security?.probes?.message || '安全策略服务尚未启用。' }}
+              {{ diagnostics?.security?.probes?.message || t('diagnostics.serviceUnavailable') }}
             </p>
             <div v-else-if="securityProbes.length" class="probe-grid">
               <div v-for="probe in securityProbes" :key="probe.key || probe.label" class="probe-item">
                 <div class="probe-head">
                   <strong>{{ probe.label || probe.key }}</strong>
                   <NTag size="small" :type="probe.passed ? 'success' : 'error'" :bordered="false">
-                    {{ probe.skipped ? '跳过' : probe.passed ? '通过' : '异常' }}
+                    {{ probe.skipped ? t('diagnostics.skipped') : probe.passed ? t('diagnostics.passed') : t('diagnostics.abnormal') }}
                   </NTag>
                 </div>
                 <div class="probe-meta">
                   <span>{{ surfaceLabel(probe.surface || '') }}</span>
-                  <span>{{ probe.skipped ? '未检查' : probe.blocked ? '已阻断' : '已放行' }}</span>
+                  <span>{{ probe.skipped ? t('diagnostics.unchecked') : probe.blocked ? t('diagnostics.blocked') : t('diagnostics.allowed') }}</span>
                 </div>
                 <p>{{ probe.message || '-' }}</p>
                 <code>{{ probe.target || '-' }}</code>
               </div>
             </div>
-            <div v-else class="surface-empty">暂无安全探针数据</div>
+            <div v-else class="surface-empty">{{ t('diagnostics.noProbeData') }}</div>
           </div>
         </section>
         <section class="panel audit-panel">
-          <h3>安全审计</h3>
+          <h3>{{ t('diagnostics.audit') }}</h3>
           <div class="audit-layout">
             <div class="audit-form">
               <label>
-                <span>类型</span>
+                <span>{{ t('diagnostics.auditType') }}</span>
                 <NSelect v-model:value="auditForm.action" :options="auditActionOptions" size="small" />
               </label>
               <label v-if="auditForm.action === 'command' || auditForm.action === 'tool_args'">
-                <span>工具名</span>
-                <NInput v-model:value="auditForm.toolName" size="small" placeholder="execute_shell" />
+                <span>{{ t('diagnostics.auditToolName') }}</span>
+                <NInput v-model:value="auditForm.toolName" size="small" :placeholder="t('diagnostics.auditToolPlaceholder')" />
               </label>
               <label v-if="auditForm.action === 'command'">
-                <span>命令</span>
+                <span>{{ t('diagnostics.auditCommand') }}</span>
                 <NInput
                   v-model:value="auditForm.command"
                   type="textarea"
                   :autosize="{ minRows: 3, maxRows: 8 }"
-                  placeholder="输入待审计命令"
+                  :placeholder="t('diagnostics.auditCommandPlaceholder')"
                 />
               </label>
               <label v-if="auditForm.action === 'url'">
-                <span>URL</span>
-                <NInput v-model:value="auditForm.url" size="small" placeholder="https://example.com" />
+                <span>{{ t('diagnostics.auditUrl') }}</span>
+                <NInput v-model:value="auditForm.url" size="small" :placeholder="t('diagnostics.auditUrlPlaceholder')" />
               </label>
               <label v-if="auditForm.action === 'path'">
-                <span>路径</span>
-                <NInput v-model:value="auditForm.path" size="small" placeholder="runtime/config.yml" />
+                <span>{{ t('diagnostics.auditPath') }}</span>
+                <NInput v-model:value="auditForm.path" size="small" :placeholder="t('diagnostics.auditPathPlaceholder')" />
               </label>
               <label v-if="auditForm.action === 'path'" class="switch-row">
-                <span>按写入检查</span>
+                <span>{{ t('diagnostics.auditWriteLike') }}</span>
                 <NSwitch v-model:value="auditForm.writeLike" size="small" />
               </label>
               <label v-if="auditForm.action === 'tool_args'">
-                <span>参数 JSON</span>
+                <span>{{ t('diagnostics.auditArgsJson') }}</span>
                 <NInput
                   v-model:value="auditForm.argsJson"
                   type="textarea"
                   :autosize="{ minRows: 3, maxRows: 8 }"
-                  placeholder="{&quot;url&quot;:&quot;https://example.com&quot;}"
+                  :placeholder="t('diagnostics.auditArgsPlaceholder')"
                 />
               </label>
               <p v-if="auditForm.action === 'status'" class="approval-note">
-                只读取当前安全策略摘要，不执行命令、不访问 URL、不读取文件。
+                {{ t('diagnostics.auditStatusHint') }}
               </p>
-              <NButton size="small" type="primary" :loading="auditLoading" @click="runAudit">审计</NButton>
+              <NButton size="small" type="primary" :loading="auditLoading" @click="runAudit">{{ t('diagnostics.auditRun') }}</NButton>
             </div>
             <div class="audit-result">
               <div class="audit-summary">
                 <NTag size="small" :type="decisionType(auditResult?.decision)">
-                  {{ auditResult?.decision || '未审计' }}
+                  {{ auditResult?.decision || t('diagnostics.notAudited') }}
                 </NTag>
-                <NTag v-if="auditResult?.blocking" size="small" type="error" :bordered="false">已阻断</NTag>
-                <NTag v-if="auditResult?.approval_required" size="small" type="warning" :bordered="false">需要审批</NTag>
-                <span>{{ auditResult?.summary || '等待输入待审计内容' }}</span>
+                <NTag v-if="auditResult?.blocking" size="small" type="error" :bordered="false">{{ t('diagnostics.blocked') }}</NTag>
+                <NTag v-if="auditResult?.approval_required" size="small" type="warning" :bordered="false">{{ t('diagnostics.approvalRequired') }}</NTag>
+                <span>{{ auditResult?.summary || t('diagnostics.waitingAuditInput') }}</span>
               </div>
               <div v-if="auditFindings.length" class="finding-list">
                 <div v-for="(finding, index) in auditFindings" :key="index" class="finding-item">
                   <div class="finding-meta">
                     <NTag size="small" :bordered="false">{{ finding.source || 'policy' }}</NTag>
-                    <NTag v-if="finding.blocking" size="small" type="error" :bordered="false">阻断</NTag>
+                    <NTag v-if="finding.blocking" size="small" type="error" :bordered="false">{{ t('diagnostics.findingBlocked') }}</NTag>
                     <NTag v-else-if="finding.approval_required" size="small" type="warning" :bordered="false">
-                      审批
+                      {{ t('diagnostics.findingApproval') }}
                     </NTag>
                     <span>{{ finding.ruleId || '-' }}</span>
                     <span>{{ finding.severity || '-' }}</span>
@@ -1077,24 +1041,24 @@ onMounted(load)
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
-            <h3>待审批命令</h3>
+            <h3>{{ t('diagnostics.pendingApprovals') }}</h3>
             <div class="panel-actions">
               <NTag size="small" :type="pendingCount ? 'warning' : 'success'">{{ pendingCount }}</NTag>
               <NTag size="small" :type="pendingApprovalMeta?.session_scan_truncated ? 'warning' : 'default'">
                 {{ pendingApprovalScanText }}
               </NTag>
-              <NButton size="small" :loading="approvalsLoading" @click="loadApprovals">刷新</NButton>
+              <NButton size="small" :loading="approvalsLoading" @click="loadApprovals">{{ t('diagnostics.refresh') }}</NButton>
             </div>
           </div>
           <NSpin :show="approvalsLoading">
             <p v-if="pendingApprovalMeta?.available === false" class="approval-note">
-              {{ pendingApprovalMeta.message || '审批服务尚未启用。' }}
+              {{ pendingApprovalMeta.message || t('diagnostics.approvalServiceUnavailable') }}
             </p>
             <p v-else-if="pendingApprovalMeta?.session_scan_truncated" class="approval-note">
-              仅扫描最近 {{ pendingApprovalMeta.scanned_sessions || 0 }} 个会话，窗口外可能仍有待审批项。
+              {{ t('diagnostics.scanRecentSessions', { count: pendingApprovalMeta.scanned_sessions || 0 }) }}
             </p>
             <p v-else-if="pendingApprovalMeta?.truncated" class="approval-note">
-              当前只显示前 {{ pendingApprovalMeta.count || pendingCount }} 个待审批项。
+              {{ t('diagnostics.showingPendingItems', { count: pendingApprovalMeta.count || pendingCount }) }}
             </p>
             <div v-if="pendingApprovals.length" class="approval-list">
               <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.selector || item.approval_id || item.command_hash}`" class="approval-item">
@@ -1104,7 +1068,7 @@ onMounted(load)
                     <span>{{ item.tool_name || '-' }} · {{ item.source_ref || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.permanent_allowed ? 'default' : 'warning'">
-                    {{ item.permanent_allowed ? '可长期授权' : '仅本次/本会话' }}
+                    {{ item.permanent_allowed ? t('diagnostics.permanentAllowed') : t('diagnostics.onceOrSessionOnly') }}
                   </NTag>
                 </div>
                 <p class="approval-desc">{{ item.description || '-' }}</p>
@@ -1116,13 +1080,13 @@ onMounted(load)
                 </div>
                 <div class="approval-meta">
                   <span>{{ item.selector || item.approval_id || '-' }}</span>
-                  <span>创建：{{ timeText(item.created_at) }}</span>
-                  <span>过期：{{ timeText(item.expires_at) }}</span>
-                  <span :class="{ 'approval-expired': item.expired }">剩余：{{ expiresText(item) }}</span>
+                  <span>{{ t('diagnostics.createdAt', { time: timeText(item.created_at) }) }}</span>
+                  <span>{{ t('diagnostics.expiresAt', { time: timeText(item.expires_at) }) }}</span>
+                  <span :class="{ 'approval-expired': item.expired }">{{ t('diagnostics.remaining', { time: expiresText(item) }) }}</span>
                 </div>
                 <div v-if="item.scope_options?.length" class="approval-scopes">
                   <NTag v-for="scope in item.scope_options" :key="scope" size="small" :bordered="false">
-                    {{ scope === 'once' ? '本次' : scope === 'session' ? '本会话' : '长期' }}
+                    {{ scope === 'once' ? t('diagnostics.scopeOnce') : scope === 'session' ? t('diagnostics.scopeSession') : t('diagnostics.scopeAlways') }}
                   </NTag>
                 </div>
                 <p v-if="item.permanent_disabled_reason" class="approval-note">
@@ -1136,21 +1100,21 @@ onMounted(load)
                       :loading="approvalBusy(item, 'approve', 'once')"
                       @click="handleApproval(item, 'approve', 'once')"
                     >
-                      批准本次
+                      {{ t('diagnostics.approveOnce') }}
                     </NButton>
                     <NButton
                       :disabled="!canApproveScope(item, 'session')"
                       :loading="approvalBusy(item, 'approve', 'session')"
                       @click="handleApproval(item, 'approve', 'session')"
                     >
-                      本会话批准
+                      {{ t('diagnostics.approveSession') }}
                     </NButton>
                     <NButton
                       :disabled="!canApproveScope(item, 'always')"
                       :loading="approvalBusy(item, 'approve', 'always')"
                       @click="handleApproval(item, 'approve', 'always')"
                     >
-                      长期批准
+                      {{ t('diagnostics.approveAlways') }}
                     </NButton>
                   </NButtonGroup>
                   <NButton
@@ -1161,28 +1125,28 @@ onMounted(load)
                     :loading="approvalBusy(item, 'deny')"
                     @click="handleApproval(item, 'deny')"
                   >
-                    拒绝
+                    {{ t('diagnostics.deny') }}
                   </NButton>
                 </div>
               </article>
             </div>
-            <div v-else class="empty-state">暂无待审批命令</div>
+            <div v-else class="empty-state">{{ t('diagnostics.pendingApprovalsEmpty') }}</div>
           </NSpin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
-            <h3>审批历史</h3>
+            <h3>{{ t('diagnostics.approvalHistory') }}</h3>
             <div class="panel-actions">
               <NTag size="small">{{ historyCount }}</NTag>
-              <NButton size="small" :loading="historyLoading" @click="loadHistory">刷新</NButton>
+              <NButton size="small" :loading="historyLoading" @click="loadHistory">{{ t('diagnostics.refresh') }}</NButton>
             </div>
           </div>
           <NSpin :show="historyLoading">
             <p v-if="approvalHistoryMeta?.available === false" class="approval-note">
-              {{ approvalHistoryMeta.message || '审批历史服务尚未启用。' }}
+              {{ approvalHistoryMeta.message || t('diagnostics.approvalHistoryUnavailable') }}
             </p>
             <p v-else-if="approvalHistoryMeta?.truncated" class="approval-note">
-              当前只显示最近 {{ approvalHistoryMeta.count || historyCount }} 条审批历史。
+              {{ t('diagnostics.showingApprovalHistory', { count: approvalHistoryMeta.count || historyCount }) }}
             </p>
             <div v-if="approvalHistory.length" class="approval-list">
               <article v-for="item in approvalHistory" :key="item.event_id" class="approval-item">
@@ -1198,28 +1162,28 @@ onMounted(load)
                 <pre class="approval-command">{{ item.command_preview || '-' }}</pre>
                 <div class="approval-meta">
                   <span>{{ timeText(item.created_at) }}</span>
-                  <span v-if="item.approver">审批人：{{ item.approver }}</span>
+                  <span v-if="item.approver">{{ t('diagnostics.approver', { name: item.approver }) }}</span>
                   <span>{{ item.command_hash || '-' }}</span>
                 </div>
               </article>
             </div>
-            <div v-else class="empty-state">暂无审批历史</div>
+            <div v-else class="empty-state">{{ t('diagnostics.noApprovalHistory') }}</div>
           </NSpin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
-            <h3>长期授权</h3>
+            <h3>{{ t('diagnostics.alwaysApprovals') }}</h3>
             <div class="panel-actions">
               <NTag size="small" :type="alwaysCount ? 'warning' : 'success'">{{ alwaysCount }}</NTag>
-              <NButton size="small" :loading="alwaysLoading" @click="loadAlwaysApprovals">刷新</NButton>
+              <NButton size="small" :loading="alwaysLoading" @click="loadAlwaysApprovals">{{ t('diagnostics.refresh') }}</NButton>
             </div>
           </div>
           <NSpin :show="alwaysLoading">
             <p v-if="alwaysApprovalMeta?.available === false" class="approval-note">
-              {{ alwaysApprovalMeta.message || '审批服务尚未启用。' }}
+              {{ alwaysApprovalMeta.message || t('diagnostics.approvalServiceUnavailable') }}
             </p>
             <p v-else-if="alwaysApprovalMeta?.truncated" class="approval-note">
-              当前只显示前 {{ alwaysApprovalMeta.count || alwaysCount }} 个长期授权。
+              {{ t('diagnostics.showingAlwaysApprovals', { count: alwaysApprovalMeta.count || alwaysCount }) }}
             </p>
             <div v-if="alwaysApprovals.length" class="approval-list">
               <article v-for="item in alwaysApprovals" :key="item.approval_id || `${item.tool_name}:${item.pattern_key}`" class="approval-item">
@@ -1228,7 +1192,7 @@ onMounted(load)
                     <strong>{{ item.pattern_key || '-' }}</strong>
                     <span>{{ item.tool_name || '-' }}</span>
                   </div>
-                  <NTag size="small" type="warning">长期放行</NTag>
+                  <NTag size="small" type="warning">{{ t('diagnostics.alwaysAllowed') }}</NTag>
                 </div>
                 <pre class="approval-command">{{ item.pattern_key || '-' }}</pre>
                 <div class="approval-actions">
@@ -1240,28 +1204,28 @@ onMounted(load)
                     :disabled="!item.approval_id"
                     @click="handleRevokeAlways(item)"
                   >
-                    撤销
+                    {{ t('diagnostics.revoke') }}
                   </NButton>
                 </div>
               </article>
             </div>
-            <div v-else class="empty-state">暂无长期授权</div>
+            <div v-else class="empty-state">{{ t('diagnostics.noAlwaysApprovals') }}</div>
           </NSpin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
-            <h3>待确认 Slash 命令</h3>
+            <h3>{{ t('diagnostics.pendingSlashCommands') }}</h3>
             <div class="panel-actions">
               <NTag size="small" :type="slashConfirmCount ? 'warning' : 'success'">{{ slashConfirmCount }}</NTag>
-              <NButton size="small" :loading="confirmsLoading" @click="loadSlashConfirms">刷新</NButton>
+              <NButton size="small" :loading="confirmsLoading" @click="loadSlashConfirms">{{ t('diagnostics.refresh') }}</NButton>
             </div>
           </div>
           <NSpin :show="confirmsLoading">
             <p v-if="slashConfirmMeta?.available === false" class="approval-note">
-              {{ slashConfirmMeta.message || 'Slash 确认服务尚未启用。' }}
+              {{ slashConfirmMeta.message || t('diagnostics.slashServiceUnavailable') }}
             </p>
             <p v-else-if="slashConfirmMeta?.truncated" class="approval-note">
-              当前只显示前 {{ slashConfirmMeta.count || slashConfirmCount }} 个待确认 Slash 命令。
+              {{ t('diagnostics.showingPendingSlash', { count: slashConfirmMeta.count || slashConfirmCount }) }}
             </p>
             <div v-if="pendingSlashConfirms.length" class="approval-list">
               <article v-for="item in pendingSlashConfirms" :key="item.confirm_id" class="approval-item">
@@ -1271,15 +1235,15 @@ onMounted(load)
                     <span>{{ item.source_ref || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.allow_always ? 'default' : 'warning'">
-                    {{ item.allow_always ? '可永久确认' : '仅本次' }}
+                    {{ item.allow_always ? t('diagnostics.slashAllowAlways') : t('diagnostics.slashOnceOnly') }}
                   </NTag>
                 </div>
                 <p class="approval-desc">{{ item.prompt_preview || '-' }}</p>
                 <div class="approval-meta">
                   <span>{{ item.confirm_ref || '-' }}</span>
-                  <span>创建：{{ timeText(item.created_at) }}</span>
-                  <span>过期：{{ timeText(item.expires_at) }}</span>
-                  <span :class="{ 'approval-expired': item.expired }">剩余：{{ expiresText(item) }}</span>
+                  <span>{{ t('diagnostics.createdAt', { time: timeText(item.created_at) }) }}</span>
+                  <span>{{ t('diagnostics.expiresAt', { time: timeText(item.expires_at) }) }}</span>
+                  <span :class="{ 'approval-expired': item.expired }">{{ t('diagnostics.remaining', { time: expiresText(item) }) }}</span>
                 </div>
                 <div class="approval-actions">
                   <NButtonGroup size="small">
@@ -1289,14 +1253,14 @@ onMounted(load)
                       :loading="slashConfirmBusy(item, 'approve')"
                       @click="handleSlashConfirm(item, 'approve')"
                     >
-                      执行一次
+                      {{ t('diagnostics.executeOnce') }}
                     </NButton>
                     <NButton
                       :disabled="!canConfirmAction(item, 'always')"
                       :loading="slashConfirmBusy(item, 'always')"
                       @click="handleSlashConfirm(item, 'always')"
                     >
-                      永久确认
+                      {{ t('diagnostics.confirmAlways') }}
                     </NButton>
                   </NButtonGroup>
                   <NButton
@@ -1307,12 +1271,12 @@ onMounted(load)
                     :loading="slashConfirmBusy(item, 'deny')"
                     @click="handleSlashConfirm(item, 'deny')"
                   >
-                    取消
+                    {{ t('diagnostics.cancel') }}
                   </NButton>
                 </div>
               </article>
             </div>
-            <div v-else class="empty-state">暂无待确认 Slash 命令</div>
+            <div v-else class="empty-state">{{ t('diagnostics.noPendingSlash') }}</div>
           </NSpin>
         </section>
       </main>

@@ -7,10 +7,12 @@ import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.InetAddress;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -212,6 +214,29 @@ public class BrowserRuntimeServiceTests {
     }
 
     @Test
+    void shouldReleaseExpiredLeaseBeforeCreatingNextBrowserSession() throws Exception {
+        RecordingProvider provider = new RecordingProvider(true);
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        new AppConfig(),
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(new AppConfig()),
+                        1);
+
+        BrowserRuntimeService.BrowserResult first = service.create("task-1");
+        expireLease(service, first.getSessionId());
+
+        BrowserRuntimeService.BrowserResult second = service.create("task-2");
+
+        assertThat(first.isSuccess()).isTrue();
+        assertThat(second.isSuccess()).isTrue();
+        assertThat(second.getSessionId()).isNotEqualTo(first.getSessionId());
+        assertThat(provider.createCount.get()).isEqualTo(2);
+        assertThat(provider.closeCount.get()).isEqualTo(1);
+        assertThat(service.activeLeaseCount()).isEqualTo(1);
+    }
+
+    @Test
     void shouldRedactSessionOutput() {
         RecordingProvider provider =
                 new RecordingProvider(
@@ -340,5 +365,17 @@ public class BrowserRuntimeServiceTests {
             }
             return super.resolveHost(host);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void expireLease(BrowserRuntimeService service, String sessionId) throws Exception {
+        Field leasesField = BrowserRuntimeService.class.getDeclaredField("leases");
+        leasesField.setAccessible(true);
+        ConcurrentMap<String, Object> leases =
+                (ConcurrentMap<String, Object>) leasesField.get(service);
+        Object lease = leases.get(sessionId);
+        Field expiresAtField = lease.getClass().getDeclaredField("expiresAtMillis");
+        expiresAtField.setAccessible(true);
+        expiresAtField.setLong(lease, System.currentTimeMillis() - 1000L);
     }
 }

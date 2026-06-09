@@ -12,7 +12,9 @@ import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
+import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.flow.FlowContext;
 import org.noear.solon.flow.FlowContextInternal;
 
@@ -156,6 +158,45 @@ public class SqliteAgentSession implements AgentSession {
     @Override
     public FlowContext getContext() {
         return cache.getContext();
+    }
+
+    /**
+     * 将最近一条用户消息恢复为原始输入，避免模型请求期注入的内部上下文进入持久化会话。
+     *
+     * @param expectedInjectedContent 预期的注入后内容，用于避免误改历史用户消息。
+     * @param originalUserMessage 用户真实输入内容。
+     * @return 如果替换成功返回 true，否则返回 false。
+     */
+    public boolean replaceLastUserMessage(
+            String expectedInjectedContent, String originalUserMessage) {
+        if (StrUtil.isBlank(expectedInjectedContent)) {
+            return false;
+        }
+        List<ChatMessage> messages = cache.getMessages();
+        if (messages == null || messages.isEmpty()) {
+            return false;
+        }
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            if (message == null || message.getRole() != ChatRole.USER) {
+                continue;
+            }
+            if (!StrUtil.equals(message.getContent(), expectedInjectedContent)) {
+                return false;
+            }
+            if (message instanceof UserMessage && !((UserMessage) message).getBlocks().isEmpty()) {
+                messages.set(
+                        i,
+                        ChatMessage.ofUser(
+                                StrUtil.nullToEmpty(originalUserMessage),
+                                ((UserMessage) message).getBlocks()));
+            } else {
+                messages.set(i, ChatMessage.ofUser(StrUtil.nullToEmpty(originalUserMessage)));
+            }
+            syncRecord(false);
+            return true;
+        }
+        return false;
     }
 
     /**

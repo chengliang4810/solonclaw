@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NButton, NCheckbox, NForm, NFormItem, NInput, NModal, NSelect, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import { useAgentsStore } from '@/stores/solonclaw/agents'
 import { useChatStore } from '@/stores/solonclaw/chat'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { SolonClawAgent } from '@/api/solonclaw/agents'
+import {
+  formatAgentListInput,
+  previewAgentListInput,
+  serializeAgentListInput,
+} from '@/shared/agentLists'
 
 const agentsStore = useAgentsStore()
 const chatStore = useChatStore()
 const modelsStore = useModelsStore()
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 
 const showCreateModal = ref(false)
 const createName = ref('')
@@ -29,8 +36,8 @@ const form = reactive({
   role_prompt: '',
   default_model: '',
   memory: '',
-  allowed_tools_json: '[]',
-  skills_json: '[]',
+  allowed_tools_text: '',
+  skills_text: '',
   enabled: true,
 })
 
@@ -39,7 +46,7 @@ const isReadonly = computed(() => !!selectedAgent.value?.readonly)
 
 const modelOptions = computed(() => {
   const seen = new Set<string>()
-  const options = [{ label: '使用全局默认模型', value: '' }]
+  const options = [{ label: t('agents.globalDefaultModel'), value: '' }]
   for (const model of modelsStore.allModels) {
     if (!model.id || seen.has(model.id)) continue
     seen.add(model.id)
@@ -54,28 +61,15 @@ const modelOptions = computed(() => {
   return options
 })
 
-const toolOptions = computed(() => parseJsonList(form.allowed_tools_json).map(name => ({
+const toolOptions = computed(() => previewAgentListInput(form.allowed_tools_text).map(name => ({
   label: name,
   value: name,
 })))
 
-const skillOptions = computed(() => parseJsonList(form.skills_json).map(name => ({
+const skillOptions = computed(() => previewAgentListInput(form.skills_text).map(name => ({
   label: name,
   value: name,
 })))
-
-function parseJsonList(raw: string): string[] {
-  if (!raw?.trim()) return []
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      return parsed.map(item => String(item)).filter(Boolean)
-    }
-  } catch {
-    // keep invalid input visible in the textarea; chips are best-effort only
-  }
-  return []
-}
 
 function copyAgent(agent: SolonClawAgent | null) {
   form.display_name = agent?.display_name || agent?.name || ''
@@ -83,8 +77,8 @@ function copyAgent(agent: SolonClawAgent | null) {
   form.role_prompt = agent?.role_prompt || ''
   form.default_model = agent?.default_model || ''
   form.memory = agent?.memory || ''
-  form.allowed_tools_json = agent?.allowed_tools_json || '[]'
-  form.skills_json = agent?.skills_json || '[]'
+  form.allowed_tools_text = formatAgentListInput(agent?.allowed_tools_json)
+  form.skills_text = formatAgentListInput(agent?.skills_json)
   form.enabled = agent?.enabled !== false
 }
 
@@ -113,14 +107,16 @@ async function selectAgent(name: string) {
 async function saveAgent() {
   const agent = selectedAgent.value
   if (!agent || agent.readonly) {
-    message.warning('default 是内置 Agent，不支持编辑')
+    message.warning(t('agents.readonlyNoEdit'))
     return
   }
+  let allowedToolsJson = '[]'
+  let skillsJson = '[]'
   try {
-    JSON.parse(form.allowed_tools_json || '[]')
-    JSON.parse(form.skills_json || '[]')
+    allowedToolsJson = serializeAgentListInput(form.allowed_tools_text)
+    skillsJson = serializeAgentListInput(form.skills_text)
   } catch {
-    message.warning('工具和技能必须是 JSON 数组')
+    message.warning(t('agents.listInputInvalid'))
     return
   }
   try {
@@ -130,21 +126,21 @@ async function saveAgent() {
       role_prompt: form.role_prompt,
       default_model: form.default_model,
       memory: form.memory,
-      allowed_tools_json: form.allowed_tools_json,
-      skills_json: form.skills_json,
+      allowed_tools_json: allowedToolsJson,
+      skills_json: skillsJson,
       enabled: form.enabled,
     })
-    message.success('Agent 已保存')
+    message.success(t('agents.saveSuccess'))
     await agentsStore.fetchAgents(chatStore.activeSessionId)
     await selectAgent(agent.name)
   } catch (err: any) {
-    message.error(err?.message || '保存 Agent 失败')
+    message.error(err?.message || t('agents.saveFailed'))
   }
 }
 
 async function createAgent() {
   if (!createName.value.trim()) {
-    message.warning('请输入 Agent 名称')
+    message.warning(t('agents.createNameRequired'))
     return
   }
   try {
@@ -152,31 +148,31 @@ async function createAgent() {
       name: createName.value.trim(),
       role_prompt: createRole.value.trim(),
     })
-    message.success(`已创建 Agent：${created.name}`)
+    message.success(t('agents.createSuccess', { name: created.name }))
     showCreateModal.value = false
     createName.value = ''
     createRole.value = ''
     await selectAgent(created.name)
   } catch (err: any) {
-    message.error(err?.message || '创建 Agent 失败')
+    message.error(err?.message || t('agents.createFailed'))
   }
 }
 
 function confirmDelete() {
   const agent = selectedAgent.value
   if (!agent || agent.readonly) {
-    message.warning('default 是内置 Agent，不支持删除')
+    message.warning(t('agents.readonlyNoDelete'))
     return
   }
   dialog.warning({
-    title: '删除 Agent',
-    content: `确定删除 Agent「${agent.name}」吗？不会修改全局 config.yml。`,
-    positiveText: '删除',
-    negativeText: '取消',
+    title: t('agents.deleteTitle'),
+    content: t('agents.deleteConfirm', { name: agent.name }),
+    positiveText: t('common.delete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         await agentsStore.deleteAgent(agent.name)
-        message.success('Agent 已删除')
+        message.success(t('agents.deleteSuccess'))
         await agentsStore.fetchAgents(chatStore.activeSessionId)
         if (agentsStore.selectedAgentName) {
           await selectAgent(agentsStore.selectedAgentName)
@@ -184,7 +180,7 @@ function confirmDelete() {
           copyAgent(null)
         }
       } catch (err: any) {
-        message.error(err?.message || '删除 Agent 失败')
+        message.error(err?.message || t('agents.deleteFailed'))
       }
     },
   })
@@ -193,15 +189,15 @@ function confirmDelete() {
 async function activateSelected() {
   const agent = selectedAgent.value
   if (!agent || !chatStore.activeSessionId) {
-    message.warning('请先选择一个会话')
+    message.warning(t('agents.selectSessionFirst'))
     return
   }
   try {
     await agentsStore.activateAgent(agent.name, chatStore.activeSessionId)
-    message.success(`当前会话已切换到 Agent：${agent.name}`)
+    message.success(t('agents.activateSuccess', { name: agent.name }))
     await agentsStore.fetchAgents(chatStore.activeSessionId)
   } catch (err: any) {
-    message.error(err?.message || '切换 Agent 失败')
+    message.error(err?.message || t('agents.activateFailed'))
   }
 }
 
@@ -220,12 +216,12 @@ onMounted(load)
   <div class="agents-view">
     <header class="page-header">
       <div>
-        <h2 class="header-title">Agents</h2>
-        <p class="header-subtitle">定义可复用的角色、模型、工具、技能和记忆。Provider、渠道和全局配置仍共享。</p>
+        <h2 class="header-title">{{ t('agents.title') }}</h2>
+        <p class="header-subtitle">{{ t('agents.description') }}</p>
       </div>
       <div class="header-actions">
-        <NButton size="small" :loading="agentsStore.loading" @click="load">刷新</NButton>
-        <NButton type="primary" size="small" @click="showCreateModal = true">新建 Agent</NButton>
+        <NButton size="small" :loading="agentsStore.loading" @click="load">{{ t('agents.refresh') }}</NButton>
+        <NButton type="primary" size="small" @click="showCreateModal = true">{{ t('agents.create') }}</NButton>
       </div>
     </header>
 
@@ -240,82 +236,82 @@ onMounted(load)
         >
           <span class="agent-row-title">
             <strong>{{ agent.display_name || agent.name }}</strong>
-            <NTag v-if="agent.default_agent" size="tiny" :bordered="false">内置</NTag>
-            <NTag v-if="agent.active" size="tiny" type="success" :bordered="false">当前</NTag>
+            <NTag v-if="agent.default_agent" size="tiny" :bordered="false">{{ t('agents.builtin') }}</NTag>
+            <NTag v-if="agent.active" size="tiny" type="success" :bordered="false">{{ t('agents.current') }}</NTag>
           </span>
           <span class="agent-row-name">{{ agent.name }}</span>
-          <span class="agent-row-meta">{{ agent.default_model || '全局默认模型' }}</span>
+          <span class="agent-row-meta">{{ agent.default_model || t('agents.globalDefaultModel') }}</span>
         </button>
       </aside>
 
       <section class="agent-editor">
-        <div v-if="!selectedAgent" class="empty">请选择 Agent</div>
+        <div v-if="!selectedAgent" class="empty">{{ t('agents.empty') }}</div>
         <template v-else>
           <div class="editor-head">
             <div>
               <h3>{{ selectedAgent.display_name || selectedAgent.name }}</h3>
-              <p>{{ selectedAgent.readonly ? 'default 映射 runtime 根目录，只读展示。' : '这些设置只影响该命名 Agent，不会写入全局配置。' }}</p>
+              <p>{{ selectedAgent.readonly ? t('agents.readonlyHint') : t('agents.editableHint') }}</p>
             </div>
             <div class="editor-actions">
               <NButton size="small" :disabled="selectedAgent.active || !selectedAgent.enabled" :loading="agentsStore.activating" @click="activateSelected">
-                设为当前会话 Agent
+                {{ t('agents.activate') }}
               </NButton>
-              <NButton size="small" type="error" secondary :disabled="isReadonly" @click="confirmDelete">删除</NButton>
-              <NButton type="primary" size="small" :disabled="isReadonly" :loading="agentsStore.saving" @click="saveAgent">保存</NButton>
+              <NButton size="small" type="error" secondary :disabled="isReadonly" @click="confirmDelete">{{ t('common.delete') }}</NButton>
+              <NButton type="primary" size="small" :disabled="isReadonly" :loading="agentsStore.saving" @click="saveAgent">{{ t('common.save') }}</NButton>
             </div>
           </div>
 
           <NForm label-placement="top" class="agent-form">
             <div class="form-grid">
-              <NFormItem label="显示名称">
-                <NInput v-model:value="form.display_name" :disabled="isReadonly" placeholder="例如 代码助手" />
+              <NFormItem :label="t('agents.displayName')">
+                <NInput v-model:value="form.display_name" :disabled="isReadonly" :placeholder="t('agents.displayNamePlaceholder')" />
               </NFormItem>
-              <NFormItem label="默认模型">
+              <NFormItem :label="t('agents.defaultModel')">
                 <NSelect
                   v-model:value="form.default_model"
                   :options="modelOptions"
                   filterable
                   tag
                   :disabled="isReadonly"
-                  placeholder="使用全局默认模型"
+                  :placeholder="t('agents.globalDefaultModel')"
                 />
               </NFormItem>
             </div>
 
-            <NFormItem label="说明">
-              <NInput v-model:value="form.description" :disabled="isReadonly" placeholder="简短说明这个 Agent 的用途" />
+            <NFormItem :label="t('agents.descriptionLabel')">
+              <NInput v-model:value="form.description" :disabled="isReadonly" :placeholder="t('agents.descriptionPlaceholder')" />
             </NFormItem>
 
-            <NFormItem label="角色设定">
+            <NFormItem :label="t('agents.rolePrompt')">
               <NInput
                 v-model:value="form.role_prompt"
                 type="textarea"
                 :autosize="{ minRows: 7, maxRows: 14 }"
                 :disabled="isReadonly"
-                placeholder="写入这个 Agent 的角色、工作方式和边界"
+                :placeholder="t('agents.rolePromptPlaceholder')"
               />
             </NFormItem>
 
             <div class="form-grid">
-              <NFormItem label="工具 JSON">
+              <NFormItem :label="t('agents.allowedTools')">
                 <NInput
-                  v-model:value="form.allowed_tools_json"
+                  v-model:value="form.allowed_tools_text"
                   type="textarea"
                   :autosize="{ minRows: 4, maxRows: 8 }"
                   :disabled="isReadonly"
-                  placeholder='["read_file","write_file"]'
+                  :placeholder="t('agents.allowedToolsPlaceholder')"
                 />
                 <div v-if="toolOptions.length" class="chips">
                   <NTag v-for="tool in toolOptions" :key="tool.value" size="small" :bordered="false">{{ tool.label }}</NTag>
                 </div>
               </NFormItem>
-              <NFormItem label="技能 JSON">
+              <NFormItem :label="t('agents.skills')">
                 <NInput
-                  v-model:value="form.skills_json"
+                  v-model:value="form.skills_text"
                   type="textarea"
                   :autosize="{ minRows: 4, maxRows: 8 }"
                   :disabled="isReadonly"
-                  placeholder='["java","review"]'
+                  :placeholder="t('agents.skillsPlaceholder')"
                 />
                 <div v-if="skillOptions.length" class="chips">
                   <NTag v-for="skill in skillOptions" :key="skill.value" size="small" :bordered="false">{{ skill.label }}</NTag>
@@ -323,49 +319,49 @@ onMounted(load)
               </NFormItem>
             </div>
 
-            <NFormItem label="记忆">
+            <NFormItem :label="t('agents.memory')">
               <NInput
                 v-model:value="form.memory"
                 type="textarea"
                 :autosize="{ minRows: 5, maxRows: 10 }"
                 :disabled="isReadonly"
-                placeholder="记录这个 Agent 需要长期保留的偏好、背景和结论"
+                :placeholder="t('agents.memoryPlaceholder')"
               />
             </NFormItem>
 
-            <NFormItem v-if="!isReadonly" label="启用">
+            <NFormItem v-if="!isReadonly" :label="t('agents.enabled')">
               <NSwitch v-model:value="form.enabled" />
             </NFormItem>
-            <NCheckbox v-else :checked="true" disabled>default Agent 始终启用</NCheckbox>
+            <NCheckbox v-else :checked="true" disabled>{{ t('agents.builtinAlwaysEnabled') }}</NCheckbox>
           </NForm>
         </template>
       </section>
 
       <aside class="agent-status">
-        <h3>状态</h3>
+        <h3>{{ t('agents.statusTitle') }}</h3>
         <div class="status-row">
-          <span>当前会话</span>
-          <strong>{{ agentsStore.activeAgentName || 'default' }}</strong>
+          <span>{{ t('agents.currentSession') }}</span>
+          <strong>{{ agentsStore.activeAgentName || t('agents.defaultAgentName') }}</strong>
         </div>
         <div class="status-row">
-          <span>运行中任务</span>
+          <span>{{ t('agents.runningRuns') }}</span>
           <strong>{{ selectedAgent?.running_runs || 0 }}</strong>
         </div>
         <div class="status-row path-row">
-          <span>workspace</span>
+          <span>{{ t('agents.workspacePath') }}</span>
           <code>{{ selectedAgent?.workspace_path || '-' }}</code>
         </div>
         <div class="status-row path-row">
-          <span>skills</span>
+          <span>{{ t('agents.skillsPath') }}</span>
           <code>{{ selectedAgent?.skills_path || '-' }}</code>
         </div>
         <div class="status-row path-row">
-          <span>cache</span>
+          <span>{{ t('agents.cachePath') }}</span>
           <code>{{ selectedAgent?.cache_path || '-' }}</code>
         </div>
 
-        <h3>最近运行</h3>
-        <div v-if="!selectedAgent?.recent_runs?.length" class="empty small">暂无运行记录</div>
+        <h3>{{ t('agents.recentRuns') }}</h3>
+        <div v-if="!selectedAgent?.recent_runs?.length" class="empty small">{{ t('agents.noRecentRuns') }}</div>
         <div v-for="run in selectedAgent?.recent_runs || []" :key="run.run_id" class="run-row">
           <span class="run-status">{{ run.status }}</span>
           <span>{{ run.model || '-' }}</span>
@@ -377,26 +373,26 @@ onMounted(load)
     <NModal
       v-model:show="showCreateModal"
       preset="card"
-      title="新建 Agent"
+      :title="t('agents.createTitle')"
       :style="{ width: 'min(520px, calc(100vw - 32px))' }"
     >
       <NForm label-placement="top">
-        <NFormItem label="名称" required>
-          <NInput v-model:value="createName" placeholder="例如 coder，仅限字母、数字、点、下划线和短横线" />
+        <NFormItem :label="t('agents.name')" required>
+          <NInput v-model:value="createName" :placeholder="t('agents.namePlaceholder')" />
         </NFormItem>
-        <NFormItem label="角色设定">
+        <NFormItem :label="t('agents.rolePrompt')">
           <NInput
             v-model:value="createRole"
             type="textarea"
             :autosize="{ minRows: 4, maxRows: 8 }"
-            placeholder="留空则使用默认角色设定"
+            :placeholder="t('agents.rolePromptOptionalPlaceholder')"
           />
         </NFormItem>
       </NForm>
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="showCreateModal = false">取消</NButton>
-          <NButton type="primary" :loading="agentsStore.saving" @click="createAgent">创建</NButton>
+          <NButton @click="showCreateModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="agentsStore.saving" @click="createAgent">{{ t('common.create') }}</NButton>
         </div>
       </template>
     </NModal>
