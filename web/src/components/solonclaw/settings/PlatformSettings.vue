@@ -320,8 +320,8 @@ const platforms = [
           </div>
           <div v-if="qrStates.weixin.imageUrl" class="channel-qr-panel">
             <img class="channel-qr-image" :src="qrStates.weixin.imageUrl" :alt="t('platform.qrLogin')" />
-            <div class="channel-qr-caption">
-              {{ qrStates.weixin.status === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}
+            <div class="channel-qr-caption" :class="statusClass(qrStates.weixin.status)">
+              {{ qrStates.weixin.message || (qrStates.weixin.status === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint')) }}
             </div>
             <a
               v-if="/^https?:\/\//i.test(qrStates.weixin.url)"
