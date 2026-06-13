@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -157,6 +158,40 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getReasoningText()).contains("流式思考");
         assertThat(eventSink.reasoningDeltas).contains("流式思考");
         assertThat(eventSink.assistantDeltas).contains("流式答复");
+    }
+
+    @Test
+    void shouldSuppressVisibleToolPreambleUntilFinalAnswer() throws Exception {
+        AppConfig config = config();
+        config.getReact().setMaxSteps(3);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-tool-preamble-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> "authoritative content");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请分页读取文件并输出 JSON",
+                        Collections.singletonList(readFile),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(result.isStreamed()).isTrue();
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("{\"pass\":true}");
+        assertThat(eventSink.assistantDeltas).containsExactly("{\"pass\":true}");
+        assertThat(String.join("", eventSink.assistantDeltas)).doesNotContain("Need second read");
     }
 
     /** 校验自有循环请求会把已有会话历史和本轮用户输入一起发送给模型。 */
@@ -493,7 +528,8 @@ public class SolonAiOwnedReActLoopTest {
         LONG_TOOL_OUTPUT,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
-        STREAM_FINAL
+        STREAM_FINAL,
+        STREAM_VISIBLE_TOOL_PREAMBLE
     }
 
     private static class FakeChatModel extends ChatModel {
@@ -605,7 +641,8 @@ public class SolonAiOwnedReActLoopTest {
         @Override
         public Flux<ChatResponse> stream() {
             try {
-                if (model.mode != FakeMode.STREAM_FINAL) {
+                if (model.mode != FakeMode.STREAM_FINAL
+                        && model.mode != FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
                     return Flux.just(call());
                 }
                 if (prompt != null && !prompt.isEmpty()) {
@@ -613,6 +650,22 @@ public class SolonAiOwnedReActLoopTest {
                 }
                 model.calls++;
                 model.requestContents.add(messageContents(session.getMessages()));
+                if (model.mode == FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
+                    ToolMessage toolMessage = lastToolMessage(session.getMessages());
+                    if (toolMessage == null) {
+                        AssistantMessage visible = ChatMessage.ofAssistant("Need second read.");
+                        AssistantMessage aggregation =
+                                assistantWithToolCall(
+                                        "call_preamble_read",
+                                        "read_file",
+                                        "{\"path\":\"runtime/logs/page.json\"}");
+                        session.addMessage(aggregation);
+                        return Flux.just(new FakeResponse(model, options, visible, true, aggregation));
+                    }
+                    AssistantMessage finalJson = ChatMessage.ofAssistant("{\"pass\":true}");
+                    session.addMessage(finalJson);
+                    return Flux.just(new FakeResponse(model, options, finalJson, true));
+                }
                 AssistantMessage thinking = new AssistantMessage("流式思考", true);
                 AssistantMessage visible = ChatMessage.ofAssistant("流式答复");
                 session.addMessage(visible);
@@ -622,6 +675,24 @@ public class SolonAiOwnedReActLoopTest {
             } catch (IOException e) {
                 return Flux.error(e);
             }
+        }
+
+        private AssistantMessage assistantWithToolCall(
+                String callId, String name, String arguments) {
+            Map<String, Object> function = new LinkedHashMap<String, Object>();
+            function.put("name", name);
+            function.put("arguments", arguments);
+
+            Map<String, Object> rawCall = new LinkedHashMap<String, Object>();
+            rawCall.put("id", callId);
+            rawCall.put("type", "function");
+            rawCall.put("function", function);
+
+            List<Map> rawCalls = new ArrayList<Map>();
+            rawCalls.add(rawCall);
+            List<ToolCall> toolCalls = new ArrayList<ToolCall>();
+            toolCalls.add(new ToolCall("0", callId, name, arguments, null));
+            return new AssistantMessage("", false, null, rawCalls, toolCalls, null);
         }
 
         private ToolMessage lastToolMessage(List<ChatMessage> messages) {
@@ -643,13 +714,24 @@ public class SolonAiOwnedReActLoopTest {
         private final ChatOptions options;
         private final AssistantMessage message;
         private final boolean stream;
+        private final AssistantMessage aggregationMessage;
 
         private FakeResponse(
                 FakeChatModel model, ChatOptions options, AssistantMessage message, boolean stream) {
+            this(model, options, message, stream, message);
+        }
+
+        private FakeResponse(
+                FakeChatModel model,
+                ChatOptions options,
+                AssistantMessage message,
+                boolean stream,
+                AssistantMessage aggregationMessage) {
             this.model = model;
             this.options = options;
             this.message = message;
             this.stream = stream;
+            this.aggregationMessage = aggregationMessage;
         }
 
         @Override
@@ -704,12 +786,12 @@ public class SolonAiOwnedReActLoopTest {
 
         @Override
         public AssistantMessage getAggregationMessage() {
-            return message;
+            return aggregationMessage;
         }
 
         @Override
         public String getAggregationContent() {
-            return getContent();
+            return aggregationMessage == null ? getContent() : aggregationMessage.getContent();
         }
 
         @Override

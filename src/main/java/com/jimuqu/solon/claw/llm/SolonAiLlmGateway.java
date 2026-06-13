@@ -820,6 +820,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         final StringBuilder emittedText = new StringBuilder();
+        final StringBuilder bufferedVisibleText = new StringBuilder();
         final ChatResponse[] finalResponse = new ChatResponse[1];
         final ThinkingStreamSplitter thinkingSplitter = new ThinkingStreamSplitter();
         final MemoryContextBoundary.StreamingScrubber memoryScrubber =
@@ -832,6 +833,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     handleOwnedStreamChunk(
                                             chunk,
                                             emittedText,
+                                            bufferedVisibleText,
                                             thinkingSplitter,
                                             eventSink,
                                             feedbackSink,
@@ -848,18 +850,18 @@ public class SolonAiLlmGateway implements LlmGateway {
         emitThinking(
                 thinkingSplitter.flushPending(),
                 emittedText,
+                bufferedVisibleText,
                 eventSink,
                 feedbackSink,
                 memoryScrubber);
         String remainingVisible = memoryScrubber.flush();
         if (StrUtil.isNotBlank(remainingVisible)) {
-            emittedText.append(remainingVisible);
-            eventSink.onAssistantDelta(remainingVisible);
+            bufferedVisibleText.append(remainingVisible);
         }
 
         ChatResponse response = finalResponse[0];
         AssistantMessage assistantMessage = null;
-        String rawResponse = emittedText.toString();
+        String rawResponse = bufferedVisibleText.toString();
         if (response != null) {
             assistantMessage = response.getAggregationMessage();
             if (assistantMessage == null) {
@@ -875,6 +877,23 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         String finalText = MemoryContextBoundary.scrubVisibleText(extractText(assistantMessage));
+        if (assistantMessage.isToolCalls()) {
+            // 工具调用轮可能带有“我需要继续读取”等中间可见文本；这些文本不是最终答复，不能推给前端消息流。
+            return new OwnedModelResponse(
+                    response,
+                    assistantMessage,
+                    StrUtil.blankToDefault(finalText, rawResponse),
+                    true,
+                    thinkingSplitter.reasoningText());
+        }
+        if (emittedText.length() == 0 && bufferedVisibleText.length() > 0) {
+            // 确认本轮不是工具调用后，再把流式可见文本作为用户可见答复发出。
+            String buffered = MemoryContextBoundary.scrubVisibleText(bufferedVisibleText.toString());
+            if (StrUtil.isNotBlank(buffered)) {
+                emittedText.append(buffered);
+                eventSink.onAssistantDelta(buffered);
+            }
+        }
         String emitted = emittedText.toString();
         if (StrUtil.isNotBlank(finalText) && finalText.startsWith(emitted)) {
             String tail =
@@ -882,7 +901,10 @@ public class SolonAiLlmGateway implements LlmGateway {
             if (StrUtil.isNotBlank(tail)) {
                 eventSink.onAssistantDelta(tail);
             }
-        } else if (StrUtil.isNotBlank(finalText) && !StrUtil.equals(finalText, emitted)) {
+        } else if (StrUtil.isBlank(emitted)
+                && StrUtil.isNotBlank(finalText)
+                && !StrUtil.equals(finalText, emitted)) {
+            // 只有前面没有发送过可见分片时，才用聚合内容补一次；避免前端收到重复完整回复。
             eventSink.onAssistantDelta(finalText);
         }
 
@@ -899,6 +921,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      *
      * @param chunk 响应分片。
      * @param emittedText 已发送文本。
+     * @param bufferedVisibleText 待确认是否可展示的可见文本缓存。
      * @param thinkingSplitter 思考分离器。
      * @param eventSink eventSink参数。
      * @param feedbackSink feedbackSink参数。
@@ -908,6 +931,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private void handleOwnedStreamChunk(
             ChatResponse chunk,
             StringBuilder emittedText,
+            StringBuilder bufferedVisibleText,
             ThinkingStreamSplitter thinkingSplitter,
             ConversationEventSink eventSink,
             ConversationFeedbackSink feedbackSink,
@@ -928,6 +952,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         emitThinking(
                 thinkingSplitter.accept(delta, message.isThinking()),
                 emittedText,
+                bufferedVisibleText,
                 eventSink,
                 feedbackSink,
                 memoryScrubber);
@@ -1768,6 +1793,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      *
      * @param delta delta 参数。
      * @param emittedText emitted文本参数。
+     * @param bufferedVisibleText 待确认是否可展示的可见文本缓存。
      * @param eventSink 事件Sink参数。
      * @param feedbackSink 反馈Sink参数。
      * @param memoryScrubber 记忆Scrubber参数。
@@ -1775,6 +1801,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private void emitThinking(
             ThinkingStreamSplitter.Delta delta,
             StringBuilder emittedText,
+            StringBuilder bufferedVisibleText,
             ConversationEventSink eventSink,
             ConversationFeedbackSink feedbackSink,
             MemoryContextBoundary.StreamingScrubber memoryScrubber) {
@@ -1790,8 +1817,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (StrUtil.isNotBlank(delta.visible)) {
             String visible = memoryScrubber.feed(delta.visible);
             if (StrUtil.isNotBlank(visible)) {
-                emittedText.append(visible);
-                eventSink.onAssistantDelta(visible);
+                // 先缓存，等聚合消息确认没有工具调用后再发送，避免工具调用前缀污染最终消息流。
+                bufferedVisibleText.append(visible);
             }
         }
     }
