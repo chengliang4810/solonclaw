@@ -135,6 +135,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
             entry.setMatchPreview(buildPreview(representative, query));
             entry.setSnippet(entry.getMatchPreview());
             entry.setMessageId(findPreviewMessageId(representative, query));
+            entry.setScore(scoreMatch(representative, query));
             if (StrUtil.isBlank(query)) {
                 entry.setSummary(entry.getMatchPreview());
             } else {
@@ -523,6 +524,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private String findPreviewMessageId(SessionRecord session, String query) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return "compressed_summary";
+        }
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
@@ -599,6 +603,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private String buildPreview(SessionRecord session, String query) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return trimAroundMatch(session.getCompressedSummary(), normalizedQuery);
+        }
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
@@ -610,19 +617,56 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 return trimAroundMatch(content, normalizedQuery);
             }
         }
-        if (StrUtil.isNotBlank(session.getCompressedSummary())
-                && (normalizedQuery.length() == 0
-                        || session.getCompressedSummary()
-                                .toLowerCase(Locale.ROOT)
-                                .contains(normalizedQuery))) {
-            return trimAroundMatch(session.getCompressedSummary(), normalizedQuery);
-        }
         if (StrUtil.isNotBlank(session.getTitle())
                 && (normalizedQuery.length() == 0
                         || session.getTitle().toLowerCase(Locale.ROOT).contains(normalizedQuery))) {
             return trimAroundMatch(session.getTitle(), normalizedQuery);
         }
         return "";
+    }
+
+    /**
+     * 计算发现模式的可解释命中分值，避免压缩摘要召回只返回 score=0。
+     *
+     * @param session 会话记录。
+     * @param query 查询参数。
+     * @return 命中强度分值；0 表示未能确认直接命中。
+     */
+    private long scoreMatch(SessionRecord session, String query) throws Exception {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (session == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return 100L;
+        }
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        for (ChatMessage message : messages) {
+            String content = StrUtil.nullToEmpty(message.getContent()).trim();
+            if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
+                continue;
+            }
+            if (content.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+                return 80L;
+            }
+        }
+        if (containsIgnoreCase(session.getTitle(), normalizedQuery)) {
+            return 40L;
+        }
+        return 0L;
+    }
+
+    /**
+     * 判断压缩摘要是否直接承载检索词；命中时优先作为历史上下文锚点。
+     *
+     * @param session 会话记录。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 压缩摘要命中时返回 true。
+     */
+    private boolean compressedSummaryMatches(SessionRecord session, String normalizedQuery) {
+        return session != null
+                && normalizedQuery.length() > 0
+                && containsIgnoreCase(session.getCompressedSummary(), normalizedQuery);
     }
 
     /**

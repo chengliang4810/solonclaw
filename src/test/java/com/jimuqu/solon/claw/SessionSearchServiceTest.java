@@ -230,6 +230,38 @@ public class SessionSearchServiceTest {
         assertThat(entries.get(0).getMatchPreview())
                 .contains("web-loop-session-recovery-readback-20260613-1758");
         assertThat(entries.get(0).getMode()).isEqualTo("discovery");
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldPreferCompressedSummaryPreviewOverLaterDiagnosticMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-session-recovery-readback-20260613-1758";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-current-session");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current session");
+        current.setCompressedSummary("压缩摘要保留的真实历史 marker=" + marker + "，并记录 todo 读回成功。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("后续复盘再次提到 " + marker),
+                                ChatMessage.ofAssistant("这是后续诊断文本，不应抢占压缩摘要锚点"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 3);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview()).contains("压缩摘要保留的真实历史 marker");
+        assertThat(entries.get(0).getMatchPreview()).doesNotContain("后续复盘");
+        assertThat(entries.get(0).getSnippet()).contains(marker);
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
     }
 
     @Test
