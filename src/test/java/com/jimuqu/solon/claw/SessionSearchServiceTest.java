@@ -3,10 +3,12 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SessionSearchEntry;
 import com.jimuqu.solon.claw.core.model.SessionSearchQuery;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
+import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -584,6 +586,52 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldAvoidModelSummaryByDefaultForDiscoverySearch() throws Exception {
+        CountingLlmGateway llmGateway = new CountingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:fast-search:user");
+        session.setTitle("fast search session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("alpha performance-marker omega"))));
+        env.sessionRepository.save(session);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setQuery("performance-marker");
+        query.setLimit(3);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSummary()).contains("搜索主题：performance-marker");
+        assertThat(entries.get(0).getSummary()).contains("匹配片段：");
+        assertThat(llmGateway.chatCalls).isZero();
+    }
+
+    @Test
+    void shouldUseModelSummaryOnlyWhenExplicitlyRequested() throws Exception {
+        CountingLlmGateway llmGateway = new CountingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:summary-search:user");
+        session.setTitle("summary search session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("alpha explicit-summary-marker omega"))));
+        env.sessionRepository.save(session);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setQuery("explicit-summary-marker");
+        query.setSummarize(true);
+        query.setLimit(3);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSummary()).contains("echo:Search topic: explicit-summary-marker");
+        assertThat(llmGateway.chatCalls).isEqualTo(1);
+    }
+
+    @Test
     void shouldPassScrollParametersThroughSessionSearchTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-scroll:user");
@@ -687,6 +735,22 @@ public class SessionSearchServiceTest {
             entry.setToolName("tool-ghp_toolnamesecret12345");
             entry.setChannel("channel-ghp_channelsecret12345");
             return java.util.Collections.singletonList(entry);
+        }
+    }
+
+    private static class CountingLlmGateway extends FakeLlmGateway {
+        /** 记录会话搜索测试中模型摘要调用次数。 */
+        private int chatCalls;
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            chatCalls++;
+            return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
     }
 }

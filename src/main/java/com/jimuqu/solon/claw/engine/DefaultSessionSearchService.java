@@ -83,6 +83,20 @@ public class DefaultSessionSearchService implements SessionSearchService {
     @Override
     public List<SessionSearchEntry> search(String sourceKey, String query, int limit)
             throws Exception {
+        return search(sourceKey, query, limit, false);
+    }
+
+    /**
+     * 执行搜索相关逻辑，并按调用方要求决定是否额外调用模型生成聚焦总结。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param summarize 是否调用模型生成搜索聚焦总结；默认工具路径关闭以保证长会话检索延迟稳定。
+     * @return 返回搜索结果。
+     */
+    private List<SessionSearchEntry> search(
+            String sourceKey, String query, int limit, boolean summarize) throws Exception {
         int resolvedLimit = Math.max(1, Math.min(limit <= 0 ? DEFAULT_LIMIT : limit, MAX_LIMIT));
         SessionRecord currentSession =
                 StrUtil.isBlank(sourceKey) ? null : sessionRepository.getBoundSession(sourceKey);
@@ -138,10 +152,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
             entry.setScore(scoreMatch(representative, query));
             if (StrUtil.isBlank(query)) {
                 entry.setSummary(entry.getMatchPreview());
-            } else {
+            } else if (summarize) {
                 entry.setSummary(
                         buildSummary(
                                 currentSession, representative, query, entry.getMatchPreview()));
+            } else {
+                entry.setSummary(buildDeterministicSummary(representative, query, entry));
             }
             results.add(entry);
         }
@@ -167,7 +183,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return scroll(query);
         }
         List<SessionSearchEntry> entries =
-                search(query.getSourceKey(), query.getQuery(), query.getLimit());
+                search(query.getSourceKey(), query.getQuery(), query.getLimit(), query.isSummarize());
         List<SessionSearchEntry> filtered = new ArrayList<SessionSearchEntry>();
         for (SessionSearchEntry entry : entries) {
             if (StrUtil.isNotBlank(query.getSessionId())
@@ -406,6 +422,27 @@ public class DefaultSessionSearchService implements SessionSearchService {
         } catch (Exception e) {
             return StrUtil.blankToDefault(fallback, "No summary available");
         }
+    }
+
+    /**
+     * 构建无需模型调用的搜索摘要，避免会话搜索工具在长对话中因为额外总结模型调用而阻塞主循环。
+     *
+     * @param representative 命中的代表会话。
+     * @param query 查询参数。
+     * @param entry 已组装的搜索结果条目。
+     * @return 返回确定性搜索摘要。
+     */
+    private String buildDeterministicSummary(
+            SessionRecord representative, String query, SessionSearchEntry entry) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("搜索主题：").append(StrUtil.blankToDefault(query, "最近会话"));
+        buffer.append("\n命中会话：").append(resolveTitle(representative, representative));
+        if (StrUtil.isNotBlank(entry.getMessageId())) {
+            buffer.append("\n命中位置：").append(entry.getMessageId());
+        }
+        buffer.append("\n匹配片段：")
+                .append(StrUtil.blankToDefault(entry.getMatchPreview(), "未生成匹配片段"));
+        return trim(buffer.toString(), 1200);
     }
 
     /**
