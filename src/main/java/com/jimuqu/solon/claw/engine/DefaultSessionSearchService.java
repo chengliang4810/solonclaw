@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -108,10 +109,11 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         : sessionRepository.search(query.trim(), Math.max(10, resolvedLimit * 5));
 
         Map<String, SearchCandidate> grouped = new LinkedHashMap<String, SearchCandidate>();
-        // 当前绑定会话的压缩摘要可能尚未进入底层索引，先用精确命中补齐长期会话恢复路径。
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        // 当前绑定会话的压缩摘要可能尚未进入底层索引，仅对摘要命中走快速召回，避免后续复盘文本抢占原始目标会话。
         if (StrUtil.isNotBlank(query)
                 && currentSession != null
-                && sessionMatchesQuery(currentSession, query)) {
+                && compressedSummaryMatches(currentSession, normalizedQuery)) {
             grouped.put(currentRootId, new SearchCandidate(currentSession, currentSession));
         }
         for (SessionRecord candidate : raw) {
@@ -134,7 +136,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 }
                 grouped.put(rootId, new SearchCandidate(display, candidate));
             }
-            if (grouped.size() >= resolvedLimit) {
+            if (StrUtil.isBlank(query) && grouped.size() >= resolvedLimit) {
                 break;
             }
         }
@@ -167,7 +169,10 @@ public class DefaultSessionSearchService implements SessionSearchService {
             }
             results.add(entry);
         }
-        return results;
+        if (StrUtil.isNotBlank(query)) {
+            sortDiscoveryResults(results);
+        }
+        return limitResults(results, resolvedLimit);
     }
 
     /**
@@ -683,6 +688,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (compressedSummaryMatches(session, normalizedQuery)) {
             return 100L;
         }
+        if (containsIgnoreCase(session.getSessionId(), normalizedQuery)) {
+            return 95L;
+        }
+        if (containsIgnoreCase(session.getTitle(), normalizedQuery)) {
+            return 90L;
+        }
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         for (ChatMessage message : messages) {
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
@@ -693,10 +704,41 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 return 80L;
             }
         }
-        if (containsIgnoreCase(session.getTitle(), normalizedQuery)) {
-            return 40L;
-        }
         return 0L;
+    }
+
+    /**
+     * 对发现模式结果执行稳定排序，优先返回直接命中的原始会话，再用更新时间处理同分结果。
+     *
+     * @param results 待排序结果。
+     */
+    private void sortDiscoveryResults(List<SessionSearchEntry> results) {
+        Collections.sort(
+                results,
+                new Comparator<SessionSearchEntry>() {
+                    @Override
+                    public int compare(SessionSearchEntry left, SessionSearchEntry right) {
+                        int scoreCompare = Long.compare(right.getScore(), left.getScore());
+                        if (scoreCompare != 0) {
+                            return scoreCompare;
+                        }
+                        return Long.compare(right.getUpdatedAt(), left.getUpdatedAt());
+                    }
+                });
+    }
+
+    /**
+     * 按调用方请求的数量裁剪结果，保证工具参数 limit 是硬上限。
+     *
+     * @param results 原始结果列表。
+     * @param limit 最大返回数量。
+     * @return 返回裁剪后的结果。
+     */
+    private List<SessionSearchEntry> limitResults(List<SessionSearchEntry> results, int limit) {
+        if (results == null || results.size() <= limit) {
+            return results;
+        }
+        return new ArrayList<SessionSearchEntry>(results.subList(0, limit));
     }
 
     /**

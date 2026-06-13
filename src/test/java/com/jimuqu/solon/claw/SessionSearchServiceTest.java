@@ -308,6 +308,46 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRespectLimitAndPreferOriginalMarkerSessionOverCurrentReference()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-sse-start-once-20260613-0041";
+
+        SessionRecord original = env.sessionRepository.bindNewSession("MEMORY:sse-room:user");
+        original.setSessionId(marker);
+        original.setSourceKey("MEMORY:sse-room:user");
+        original.setTitle("长期回归 Loop SSE 启动事件验证，marker: " + marker);
+        original.setUpdatedAt(System.currentTimeMillis() - 60_000L);
+        original.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("启动事件 marker=" + marker),
+                                ChatMessage.ofAssistant("SSE_START_ONCE_OK"))));
+        env.sessionRepository.save(original);
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-todo-20260612-2234");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current");
+        current.setUpdatedAt(System.currentTimeMillis());
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("复盘上一轮 session_search 命中了 " + marker),
+                                ChatMessage.ofAssistant("当前会话只是引用历史 marker"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 1);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSessionId()).isEqualTo(marker);
+        assertThat(entries.get(0).getTitle()).contains(marker);
+        assertThat(entries.get(0).getScore()).isGreaterThan(80L);
+    }
+
+    @Test
     void shouldSearchRealRunRecordsWhenRunIdIsProvided() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-room:user");
