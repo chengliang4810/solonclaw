@@ -2892,6 +2892,54 @@ public class DefaultCronSchedulerTest {
         assertThat(emptyUpdate.get("error")).isEqualTo("未提供任何更新内容。");
     }
 
+    /** 固化 Web 长会话回归中验证过的 prompt 型任务默认行为，避免误判为 no_agent 脚本任务。 */
+    @Test
+    void shouldDefaultPromptCronjobToolCreateToAgentModeWhenNoAgentOmitted() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-feedback-room:user");
+
+        Map<?, ?> payload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-feedback-prompt",
+                                                "1m",
+                                                "WEB_LOOP_TOOL_FEEDBACK_CORRECTION_OK",
+                                                "origin",
+                                                null,
+                                                null,
+                                                Integer.valueOf(1),
+                                                null,
+                                                Boolean.TRUE,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+
+        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("no_agent")).isEqualTo(Boolean.FALSE);
+        assertThat(payload.get("script")).isNull();
+        Map<?, ?> jobView = (Map<?, ?>) payload.get("job");
+        assertThat(jobView.get("no_agent")).isEqualTo(Boolean.FALSE);
+        assertThat(jobView.get("script")).isNull();
+
+        CronJobRecord record =
+                env.cronJobRepository.findById(String.valueOf(payload.get("job_id")));
+        assertThat(record.isNoAgent()).isFalse();
+        assertThat(record.getScript()).isNull();
+        assertThat(record.getPrompt()).isEqualTo("WEB_LOOP_TOOL_FEEDBACK_CORRECTION_OK");
+    }
+
     @Test
     void shouldListCronJobsAcrossChannelSourcesFromTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
