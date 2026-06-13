@@ -108,6 +108,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         : sessionRepository.search(query.trim(), Math.max(10, resolvedLimit * 5));
 
         Map<String, SearchCandidate> grouped = new LinkedHashMap<String, SearchCandidate>();
+        // 当前绑定会话的压缩摘要可能尚未进入底层索引，先用精确命中补齐长期会话恢复路径。
+        if (StrUtil.isNotBlank(query)
+                && currentSession != null
+                && sessionMatchesQuery(currentSession, query)) {
+            grouped.put(currentRootId, new SearchCandidate(currentSession, currentSession));
+        }
         for (SessionRecord candidate : raw) {
             if (candidate == null) {
                 continue;

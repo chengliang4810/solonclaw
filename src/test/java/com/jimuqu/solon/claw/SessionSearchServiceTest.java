@@ -267,6 +267,47 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldPreferCurrentCompressedMarkerOverBroadFtsNoise()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-session-search-fastpath-recheck";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-compressed-current");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop compressed current");
+        current.setCompressedSummary("压缩摘要保留历史 marker=" + marker + "，用于恢复 session_search 快速路径复测。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的下一轮"),
+                                ChatMessage.ofAssistant("继续验证"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        for (int i = 0; i < 6; i++) {
+            SessionRecord noise =
+                    env.sessionRepository.bindNewSession("MEMORY:noise-room-" + i + ":user");
+            noise.setTitle("web loop session search fastpath noise " + i);
+            noise.setNdjson(
+                    MessageSupport.toNdjson(
+                            Arrays.asList(
+                                    ChatMessage.ofUser("web loop session search fastpath"),
+                                    ChatMessage.ofAssistant("只有拆词命中，没有完整 marker"))));
+            env.sessionRepository.save(noise);
+        }
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview()).contains(marker);
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
     void shouldSearchRealRunRecordsWhenRunIdIsProvided() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-room:user");
