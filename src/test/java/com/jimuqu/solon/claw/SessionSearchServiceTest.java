@@ -193,6 +193,46 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRecallCurrentSessionCompressedSummaryWhenQueryMatchesHistoricalMarker()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-current-session");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current session");
+        current.setCompressedSummary(
+                "长期回归 Loop 已压缩摘要，历史 marker=web-loop-session-recovery-readback-20260613-1758");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的新一轮问题"),
+                                ChatMessage.ofAssistant("继续执行下一步"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        SessionRecord previous = env.sessionRepository.bindNewSession("MEMORY:other-room:user");
+        previous.setTitle("unrelated older session");
+        previous.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("没有目标 marker 的历史会话"))));
+        env.sessionRepository.save(previous);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search(
+                        "MEMORY:long-loop:user",
+                        "web-loop-session-recovery-readback-20260613-1758",
+                        3);
+
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getSessionId)
+                .contains(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview())
+                .contains("web-loop-session-recovery-readback-20260613-1758");
+        assertThat(entries.get(0).getMode()).isEqualTo("discovery");
+    }
+
+    @Test
     void shouldSearchRealRunRecordsWhenRunIdIsProvided() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-room:user");

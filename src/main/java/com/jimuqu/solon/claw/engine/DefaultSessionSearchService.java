@@ -100,7 +100,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
             }
             String rootId = resolveRootId(candidate);
             if (StrUtil.isNotBlank(currentRootId) && currentRootId.equals(rootId)) {
-                continue;
+                if (StrUtil.isBlank(query) || !sessionMatchesQuery(candidate, query)) {
+                    continue;
+                }
             }
             if (!grouped.containsKey(rootId)) {
                 SessionRecord display = candidate;
@@ -433,6 +435,10 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private String formatConversation(SessionRecord session) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         StringBuilder buffer = new StringBuilder();
+        if (StrUtil.isNotBlank(session.getCompressedSummary())) {
+            buffer.append("Compressed summary: ")
+                    .append(trim(session.getCompressedSummary(), 1200));
+        }
         for (ChatMessage message : messages) {
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
             if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
@@ -532,6 +538,35 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     /**
+     * 判断会话自身是否命中检索词；非空检索允许召回当前会话里被压缩摘要承载的历史 marker。
+     *
+     * @param session 会话记录。
+     * @param query 查询参数。
+     * @return 命中时返回 true。
+     */
+    private boolean sessionMatchesQuery(SessionRecord session, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (session == null || normalizedQuery.length() == 0) {
+            return false;
+        }
+        return containsIgnoreCase(session.getNdjson(), normalizedQuery)
+                || containsIgnoreCase(session.getCompressedSummary(), normalizedQuery)
+                || containsIgnoreCase(session.getTitle(), normalizedQuery);
+    }
+
+    /**
+     * 判断文本是否包含已归一化的检索词。
+     *
+     * @param value 待搜索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 命中时返回 true。
+     */
+    private boolean containsIgnoreCase(String value, String normalizedQuery) {
+        return StrUtil.isNotBlank(value)
+                && value.toLowerCase(Locale.ROOT).contains(normalizedQuery);
+    }
+
+    /**
      * 解析消息标识。
      *
      * @param message 平台消息或错误消息。
@@ -574,6 +609,18 @@ public class DefaultSessionSearchService implements SessionSearchService {
                     || content.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
                 return trimAroundMatch(content, normalizedQuery);
             }
+        }
+        if (StrUtil.isNotBlank(session.getCompressedSummary())
+                && (normalizedQuery.length() == 0
+                        || session.getCompressedSummary()
+                                .toLowerCase(Locale.ROOT)
+                                .contains(normalizedQuery))) {
+            return trimAroundMatch(session.getCompressedSummary(), normalizedQuery);
+        }
+        if (StrUtil.isNotBlank(session.getTitle())
+                && (normalizedQuery.length() == 0
+                        || session.getTitle().toLowerCase(Locale.ROOT).contains(normalizedQuery))) {
+            return trimAroundMatch(session.getTitle(), normalizedQuery);
         }
         return "";
     }
