@@ -947,13 +947,16 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return 0L;
         }
         String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        if (!strictMarkerFragmentsSatisfied(normalizedValue, normalizedQuery)) {
+            return 0L;
+        }
         int matched = 0;
         for (String term : terms) {
             if (normalizedValue.contains(term.toLowerCase(Locale.ROOT))) {
                 matched++;
             }
         }
-        if (isStrictFragmentQuery(normalizedQuery) && matched < terms.size()) {
+        if (requiresStrictFragmentMatch(normalizedQuery, terms) && matched < terms.size()) {
             return 0L;
         }
         double ratio = matched / (double) terms.size();
@@ -975,6 +978,98 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 && query.indexOf(' ') < 0
                 && query.indexOf('\t') < 0
                 && query.indexOf('\n') < 0;
+    }
+
+    /**
+     * 判断查询是否包含需要完整命中的历史标识；这类查询常由 marker 加说明词组成，不能按公共词宽松召回。
+     *
+     * @param normalizedQuery 已转小写的查询词。
+     * @param terms 查询拆分出的词元。
+     * @return 需要所有词元全部命中时返回 true。
+     */
+    private boolean requiresStrictFragmentMatch(String normalizedQuery, List<String> terms) {
+        if (isStrictFragmentQuery(normalizedQuery)) {
+            return true;
+        }
+        if (terms == null) {
+            return false;
+        }
+        for (String term : terms) {
+            if (looksLikeHistoryMarkerTerm(term)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断词元是否像一次长期回归或任务历史 marker 的主体片段。
+     *
+     * @param term 查询词元。
+     * @return 像历史 marker 时返回 true。
+     */
+    private boolean looksLikeHistoryMarkerTerm(String term) {
+        String value = StrUtil.nullToEmpty(term).trim();
+        return value.indexOf('-') >= 0 && value.length() >= 24;
+    }
+
+    /**
+     * 长历史 marker 必须按原片段命中，避免 FTS 拆词召回的公共词污染搜索结果。
+     *
+     * @param normalizedValue 候选文本的小写形式。
+     * @param normalizedQuery 查询文本的小写形式。
+     * @return 所有长 marker 片段均满足命中要求时返回 true。
+     */
+    private boolean strictMarkerFragmentsSatisfied(String normalizedValue, String normalizedQuery) {
+        List<String> fragments = strictMarkerFragments(normalizedQuery);
+        if (fragments.isEmpty()) {
+            return true;
+        }
+        for (String fragment : fragments) {
+            if (!normalizedValue.contains(fragment)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 从查询中提取较长的连字符历史 marker 片段。
+     *
+     * @param normalizedQuery 查询文本的小写形式。
+     * @return 返回需要精确命中的 marker 片段。
+     */
+    private List<String> strictMarkerFragments(String normalizedQuery) {
+        List<String> fragments = new ArrayList<String>();
+        StringBuilder current = new StringBuilder();
+        String query = StrUtil.nullToEmpty(normalizedQuery).trim();
+        for (int i = 0; i < query.length(); i++) {
+            char ch = query.charAt(i);
+            if (ch == '-' || ch == '_' || Character.isLetterOrDigit(ch)) {
+                current.append(ch);
+            } else {
+                addStrictMarkerFragment(fragments, current);
+            }
+        }
+        addStrictMarkerFragment(fragments, current);
+        return fragments;
+    }
+
+    /**
+     * 追加需要严格匹配的 marker 片段。
+     *
+     * @param fragments 已收集片段。
+     * @param current 当前缓冲。
+     */
+    private void addStrictMarkerFragment(List<String> fragments, StringBuilder current) {
+        if (current.length() == 0) {
+            return;
+        }
+        String fragment = current.toString();
+        current.setLength(0);
+        if (fragment.indexOf('-') >= 0 && fragment.length() >= 24) {
+            fragments.add(fragment);
+        }
     }
 
     /**

@@ -371,6 +371,73 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldReturnEmptyWhenMarkerWithSuffixOnlyMatchesWeakFragments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-generated-write-search-nohit-20260613-2212";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setTitle("长期回归 Loop todo 连续性测试");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("长期回归 Loop 中复盘 write search 与 cron delivery"),
+                                ChatMessage.ofAssistant("这里没有完整 nohit marker"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        SessionRecord cronNoise =
+                env.sessionRepository.bindNewSession("MEMORY:cron-noise:user");
+        cronNoise.setTitle(
+                "[IMPORTANT: 你正在以定时任务身份运行。DELIVERY: 你的最终回复会自动投递给用户]");
+        cronNoise.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("web loop cron delivery runtime hint"),
+                                ChatMessage.ofAssistant("普通定时任务输出，不包含完整 marker"))));
+        env.sessionRepository.save(cronNoise);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).isEmpty();
+    }
+
+    @Test
+    void shouldFilterWeakCronSessionsWhenSearchingDeliveredMarker() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker =
+                "WEB_LOOP_DASHBOARD_ORIGIN_DELIVERY_OK web-loop-dashboard-origin-delivery-live-20260613-2206";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setTitle("长期回归 Loop todo 连续性测试");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofAssistant(
+                                        "cron 回投脚本输出文本：" + marker))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        SessionRecord cronNoise =
+                env.sessionRepository.bindNewSession("MEMORY:cron-noise:user");
+        cronNoise.setTitle(
+                "[IMPORTANT: 你正在以定时任务身份运行。DELIVERY: 你的最终回复会自动投递给用户]");
+        cronNoise.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("web loop dashboard origin delivery cron hint"),
+                                ChatMessage.ofAssistant("没有完整回投 marker 的定时任务会话"))));
+        env.sessionRepository.save(cronNoise);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
     void shouldDiscoverToolCallRecordsInOrdinarySessionSearch() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String marker = "web-loop-generated-write-search-k7m2x9p3";
