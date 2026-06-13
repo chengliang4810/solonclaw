@@ -348,6 +348,72 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldReturnEmptyWhenExactMarkerQueryOnlyMatchesWeakFragments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-generated-write-search-z9q8x7";
+
+        for (int i = 0; i < 3; i++) {
+            SessionRecord noise =
+                    env.sessionRepository.bindNewSession("MEMORY:weak-fragment-" + i + ":user");
+            noise.setTitle("web loop generated write search noise " + i);
+            noise.setNdjson(
+                    MessageSupport.toNdjson(
+                            Arrays.asList(
+                                    ChatMessage.ofUser(
+                                            "web loop generated write search without exact marker"))));
+            env.sessionRepository.save(noise);
+        }
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 3);
+
+        assertThat(entries).isEmpty();
+    }
+
+    @Test
+    void shouldDiscoverToolCallRecordsInOrdinarySessionSearch() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-generated-write-search-k7m2x9p3";
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        session.setTitle("long loop current");
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", session.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-write-search-marker");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:long-loop:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(session.getSessionId());
+        toolCall.setSourceKey("MEMORY:long-loop:user");
+        toolCall.setToolName("todo");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("{\"content\":\"验证同轮写入后可检索 " + marker + "\"}");
+        toolCall.setResultPreview("{\"success\":true,\"pending\":2}");
+        toolCall.setStartedAt(System.currentTimeMillis());
+        toolCall.setFinishedAt(toolCall.getStartedAt());
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 3);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getRunId()).isEqualTo(run.getRunId());
+        assertThat(entries.get(0).getToolName()).isEqualTo("todo");
+        assertThat(entries.get(0).getMatchPreview()).contains(marker);
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
     void shouldSearchRealRunRecordsWhenRunIdIsProvided() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-room:user");
