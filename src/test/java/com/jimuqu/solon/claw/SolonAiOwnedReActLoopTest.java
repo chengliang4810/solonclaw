@@ -87,6 +87,49 @@ public class SolonAiOwnedReActLoopTest {
     }
 
     @Test
+    void shouldPreserveOwnedLoopToolObservationBeyondUpstreamSanitizerDefault() throws Exception {
+        AppConfig config = config();
+        config.getTask().setToolOutputInlineLimit(12000);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.LONG_TOOL_OUTPUT);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-long-tool-output-session");
+        final String tailMarker = "LONG_OBSERVATION_TAIL_MARKER";
+
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> repeat("x", 2600) + tailMarker);
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请读取较长文件",
+                        Collections.singletonList(readFile),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.requestContents).hasSize(2);
+        assertThat(model.requestContents.get(1))
+                .anyMatch(
+                        content ->
+                                content.contains(tailMarker)
+                                        && !content.contains("Content Truncated due to length"));
+        assertThat(result.getAssistantMessage().getResultContent()).contains(tailMarker);
+        List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
+        ToolMessage toolMessage = lastToolMessage(messages);
+        assertThat(toolMessage).isNotNull();
+        assertThat(toolMessage.getContent())
+                .contains(tailMarker)
+                .doesNotContain("Content Truncated due to length");
+    }
+
+    @Test
     void shouldStreamOwnedLoopDeltasWhenEventSinkIsProvided() throws Exception {
         AppConfig config = config();
         config.getReact().setMaxSteps(2);
@@ -374,6 +417,40 @@ public class SolonAiOwnedReActLoopTest {
         return contents;
     }
 
+    /**
+     * 找到最近一次工具消息，用于验证自有循环持久化的 observation 内容。
+     *
+     * @param messages 会话消息列表。
+     * @return 返回最近一次工具消息；不存在时返回 null。
+     */
+    private static ToolMessage lastToolMessage(List<ChatMessage> messages) {
+        if (messages == null) {
+            return null;
+        }
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            if (message instanceof ToolMessage) {
+                return (ToolMessage) message;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 生成固定长度文本，避免测试依赖外部文件。
+     *
+     * @param value 单字符或短文本。
+     * @param count 重复次数。
+     * @return 返回重复后的文本。
+     */
+    private static String repeat(String value, int count) {
+        StringBuilder text = new StringBuilder(value.length() * Math.max(0, count));
+        for (int i = 0; i < count; i++) {
+            text.append(value);
+        }
+        return text.toString();
+    }
+
     private static class RecordingEventSink implements ConversationEventSink {
         private final List<String> assistantDeltas = new ArrayList<String>();
         private final List<String> reasoningDeltas = new ArrayList<String>();
@@ -413,6 +490,7 @@ public class SolonAiOwnedReActLoopTest {
 
     private enum FakeMode {
         TEXT_ACTION,
+        LONG_TOOL_OUTPUT,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL
@@ -504,11 +582,19 @@ public class SolonAiOwnedReActLoopTest {
                                         ? "重试答复"
                                         : "历史答复");
             } else if (toolMessage == null) {
-                assistant =
-                        ChatMessage.ofAssistant(
-                                "Thought: 需要调用工具\n"
-                                        + "Action: echo_tool\n"
-                                        + "Action Input: {\"value\":\"alpha\"}");
+                if (model.mode == FakeMode.LONG_TOOL_OUTPUT) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 需要读取长文件\n"
+                                            + "Action: read_file\n"
+                                            + "Action Input: {\"path\":\"runtime/logs/long-observation.json\"}");
+                } else {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 需要调用工具\n"
+                                            + "Action: echo_tool\n"
+                                            + "Action Input: {\"value\":\"alpha\"}");
+                }
             } else {
                 assistant = ChatMessage.ofAssistant("最终答复：" + toolMessage.getContent());
             }

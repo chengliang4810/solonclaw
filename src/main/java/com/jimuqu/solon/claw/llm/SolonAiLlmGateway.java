@@ -1421,7 +1421,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         ChatOptions options = ChatOptions.of().autoToolCall(false);
         options.toolContextPut("user_message", userMessage);
         options.interceptorAdd(new ToolRetryInterceptor());
-        options.interceptorAdd(new ToolSanitizerInterceptor());
+        options.interceptorAdd(new ToolSanitizerInterceptor(ownedToolSanitizerLimit()));
         if (dangerousCommandApprovalService != null) {
             options.interceptorAdd(dangerousCommandApprovalService.buildInterceptor());
         }
@@ -1456,6 +1456,20 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         addOwnedLoopTool(options, sanitizeToolObject(pdfSkill()), Prompt.of(StrUtil.nullToEmpty(userMessage)));
         return options;
+    }
+
+    /**
+     * 上游 ToolSanitizer 默认只保留 2000 字符；本项目由 ToolResultStorageService 负责工具输出的内联、
+     * 落盘与分页提示，因此这里放宽到本项目内联上限，避免 read_file 等结构化结果在进入存储策略前被截断。
+     *
+     * @return 返回自有 ReAct loop 的工具净化上限。
+     */
+    private int ownedToolSanitizerLimit() {
+        int inlineLimit =
+                appConfig == null || appConfig.getTask() == null
+                        ? 50000
+                        : appConfig.getTask().getToolOutputInlineLimit();
+        return Math.max(2000, inlineLimit);
     }
 
     /**
