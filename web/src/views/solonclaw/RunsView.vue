@@ -3,11 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { NButton, NSelect, NSpin } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
-import { fetchRunEvents, fetchSessionRuns, type AgentRun, type AgentRunEvent } from '@/api/solonclaw/runs'
+import { fetchRunDetail, fetchSessionRuns, type AgentRun, type AgentRunEvent, type ToolCall } from '@/api/solonclaw/runs'
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
 const events = ref<AgentRunEvent[]>([])
+const tools = ref<ToolCall[]>([])
 const checkpoints = ref<any[]>([])
 const tree = ref<any>(null)
 const selectedSessionId = ref('')
@@ -20,6 +21,8 @@ const sessionOptions = computed(() => sessions.value.map(session => ({
   label: session.title || session.preview || session.id,
   value: session.id,
 })))
+
+const selectedRun = computed(() => runs.value.find(run => run.run_id === selectedRunId.value))
 
 async function loadSessions() {
   sessions.value = await fetchSessions(undefined, 200)
@@ -41,15 +44,29 @@ async function loadSessionDetail() {
     tree.value = loadedTree
     checkpoints.value = loadedCheckpoints
     selectedRunId.value = loadedRuns[0]?.run_id || ''
-    events.value = selectedRunId.value ? await fetchRunEvents(selectedRunId.value) : []
+    if (selectedRunId.value) {
+      const detail = await fetchRunDetail(selectedRunId.value)
+      events.value = detail.events || []
+      tools.value = detail.tools || []
+    } else {
+      events.value = []
+      tools.value = []
+    }
   } finally {
     loading.value = false
   }
 }
 
-async function loadEvents(runId: string) {
+async function loadRunDetail(runId: string) {
   selectedRunId.value = runId
-  events.value = runId ? await fetchRunEvents(runId) : []
+  if (!runId) {
+    events.value = []
+    tools.value = []
+    return
+  }
+  const detail = await fetchRunDetail(runId)
+  events.value = detail.events || []
+  tools.value = detail.tools || []
 }
 
 async function handleRollback(id: string) {
@@ -82,6 +99,12 @@ function statusLabel(value?: string | null) {
   }
 }
 
+function booleanLabel(value?: boolean) {
+  if (value === true) return t('common.yes')
+  if (value === false) return t('common.no')
+  return '-'
+}
+
 onMounted(async () => {
   await loadSessions()
   await loadSessionDetail()
@@ -105,7 +128,7 @@ onMounted(async () => {
       <main class="runs-layout">
         <section class="panel">
           <h3>{{ t('runs.runList') }}</h3>
-          <button v-for="run in runs" :key="run.run_id" class="run-row" :class="{ active: run.run_id === selectedRunId }" @click="loadEvents(run.run_id)">
+          <button v-for="run in runs" :key="run.run_id" class="run-row" :class="{ active: run.run_id === selectedRunId }" @click="loadRunDetail(run.run_id)">
             <span class="run-status" :class="run.status">{{ statusLabel(run.status) }}</span>
             <span>{{ run.provider || '-' }}/{{ run.model || '-' }}</span>
             <span>{{ t('runs.attempts', { count: run.attempts }) }}</span>
@@ -116,6 +139,22 @@ onMounted(async () => {
         </section>
 
         <section class="panel">
+          <h3>{{ t('runs.runDetail') }}</h3>
+          <div v-if="selectedRun" class="run-detail">
+            <div class="detail-line">
+              <span>{{ t('runs.runId') }}</span>
+              <code>{{ selectedRun.run_id }}</code>
+            </div>
+            <div class="detail-line">
+              <span>{{ t('runs.sessionId') }}</span>
+              <code>{{ selectedRun.session_id }}</code>
+            </div>
+            <div class="detail-metrics">
+              <span>{{ t('runs.toolCount', { count: selectedRun.tool_call_count || tools.length }) }}</span>
+              <span>{{ t('runs.tokenCount', { count: selectedRun.total_tokens || 0 }) }}</span>
+            </div>
+          </div>
+
           <h3>{{ t('runs.events') }}</h3>
           <div v-for="event in events" :key="event.event_id" class="event-row">
             <span class="event-type">{{ event.event_type }}</span>
@@ -123,6 +162,36 @@ onMounted(async () => {
             <small>#{{ event.attempt_no }} · {{ time(event.created_at) }}</small>
           </div>
           <div v-if="events.length === 0" class="empty">{{ t('runs.noEvents') }}</div>
+
+          <h3 class="section-title">{{ t('runs.tools') }}</h3>
+          <div v-for="tool in tools" :key="tool.tool_call_id" class="tool-row">
+            <div class="tool-header">
+              <span class="event-type">{{ tool.tool_name }}</span>
+              <span class="run-status" :class="tool.status">{{ statusLabel(tool.status) }}</span>
+              <small>{{ tool.duration_ms }}ms</small>
+            </div>
+            <div class="detail-line">
+              <span>{{ t('runs.toolCallId') }}</span>
+              <code>{{ tool.tool_call_id }}</code>
+            </div>
+            <div class="audit-grid">
+              <span>{{ t('runs.readOnly') }}: {{ booleanLabel(tool.read_only) }}</span>
+              <span>{{ t('runs.sideEffecting') }}: {{ booleanLabel(tool.side_effecting) }}</span>
+              <span>{{ t('runs.interruptible') }}: {{ booleanLabel(tool.interruptible) }}</span>
+              <span>{{ t('runs.resultIndexable') }}: {{ booleanLabel(tool.result_indexable) }}</span>
+              <span>{{ t('runs.executionPolicy') }}: {{ tool.execution_policy || '-' }}</span>
+              <span>{{ t('runs.resultSizeBytes') }}: {{ tool.result_size_bytes ?? 0 }}</span>
+            </div>
+            <div class="preview-block">
+              <span>{{ t('runs.argsPreview') }}</span>
+              <pre>{{ tool.args_preview || '{}' }}</pre>
+            </div>
+            <div class="preview-block">
+              <span>{{ t('runs.resultPreview') }}</span>
+              <pre>{{ tool.result_preview || tool.error || '-' }}</pre>
+            </div>
+          </div>
+          <div v-if="selectedRunId && tools.length === 0" class="empty">{{ t('runs.noTools') }}</div>
         </section>
 
         <section class="panel side-panel">
@@ -188,8 +257,13 @@ h3 {
   font-size: 14px;
 }
 
+.section-title {
+  margin-top: 18px;
+}
+
 .run-row,
 .event-row,
+.tool-row,
 .mini-row {
   width: 100%;
   min-width: 0;
@@ -222,10 +296,78 @@ h3 {
 }
 
 .event-row,
+.tool-row,
 .mini-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.run-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 14px;
+  border: 1px solid rgba($border-color, 0.7);
+  border-radius: $radius-sm;
+  background: rgba($bg-secondary, 0.45);
+}
+
+.detail-line {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: $text-muted;
+}
+
+.detail-line code {
+  color: $text-primary;
+  font-family: $font-code;
+  overflow-wrap: anywhere;
+}
+
+.detail-metrics,
+.tool-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.detail-metrics span,
+.tool-header small {
+  color: $text-muted;
+}
+
+.audit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 6px;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.preview-block {
+  display: grid;
+  gap: 4px;
+  color: $text-muted;
+}
+
+.preview-block pre {
+  margin: 0;
+  padding: 8px;
+  max-height: 160px;
+  overflow: auto;
+  border-radius: $radius-sm;
+  background: rgba($bg-secondary, 0.72);
+  color: $text-primary;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .run-status,
