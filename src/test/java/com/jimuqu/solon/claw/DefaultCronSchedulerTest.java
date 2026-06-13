@@ -33,6 +33,7 @@ import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
@@ -57,8 +58,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.ai.chat.tool.FunctionToolDesc;
+import org.noear.solon.ai.chat.tool.MethodToolProvider;
 import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.annotation.Param;
 
@@ -140,6 +143,7 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getRepeatCompleted()).isEqualTo(1);
         assertThat(updated.getStatus()).isEqualTo("COMPLETED");
+        assertThat(updated.getNextRunAt()).isEqualTo(0L);
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastOutput()).contains("disk ok");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
@@ -150,6 +154,25 @@ public class DefaultCronSchedulerTest {
                 .contains("stop reminder watchdog")
                 .doesNotContain("Cronjob Response")
                 .doesNotContain("To stop or manage this job");
+    }
+
+    /** 验证完成态任务视图会隐藏历史残留的下一次运行时间。 */
+    @Test
+    void shouldHideCompletedJobStaleNextRunAtFromView() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronJobRecord job = job("job-completed-stale-next", "MEMORY:cron:user");
+        job.setCronExpr("30m");
+        job.setStatus("COMPLETED");
+        job.setNextRunAt(System.currentTimeMillis() + 600000L);
+        env.cronJobRepository.save(job);
+
+        Map<String, Object> view = service.toView(job);
+        Map<?, ?> schedule = (Map<?, ?>) view.get("schedule");
+
+        assertThat(view.get("state")).isEqualTo("completed");
+        assertThat(view.get("next_run_at")).isNull();
+        assertThat(schedule.get("run_at")).isNull();
     }
 
     @Test
@@ -691,6 +714,61 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldDeliverDashboardMemoryOriginToSessionWithoutChannelAdapter() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:dashboard:dashboard-cron-origin");
+        String sessionId = session.getSessionId();
+        String sourceKey = "MEMORY:dashboard:" + sessionId;
+        session.setSourceKey(sourceKey);
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource(sourceKey, sessionId);
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "dashboard-origin.py");
+        FileUtil.writeString("print('dashboard origin ok')", script, StandardCharsets.UTF_8);
+
+        CronJobRecord job = job("job-dashboard-origin", sourceKey);
+        job.setDeliverPlatform("origin");
+        job.setOriginJson(
+                "{\"platform\":\"MEMORY\",\"chat_id\":\"dashboard\",\"user_id\":\""
+                        + sessionId
+                        + "\"}");
+        job.setNoAgent(true);
+        job.setWrapResponse(false);
+        job.setScript(script.getName());
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        new RecordingDeliveryService(),
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        new AttachmentCacheService(env.appConfig),
+                        env.localSkillService,
+                        env.agentRunControlService,
+                        null,
+                        env.sessionRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastDeliveryError()).isNull();
+        assertThat(updated.getLastOutput()).contains("dashboard origin ok");
+
+        List<ChatMessage> messages =
+                MessageSupport.loadMessages(
+                        env.sessionRepository.findById(session.getSessionId()).getNdjson());
+        assertThat(messages).isNotEmpty();
+        assertThat(messages.get(messages.size() - 1).getContent())
+                .contains("dashboard origin ok");
+    }
+
+    @Test
     void shouldFallbackOriginDeliveryToConfiguredHomeChannelWhenSourceMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         HomeChannelRecord feishuHome = new HomeChannelRecord();
@@ -1141,10 +1219,12 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "inline_media.py");
-        String content =
+        String scriptContent =
                 "preview `MEDIA:\"" + attachment.getAbsolutePath().replace("\\", "\\\\") + "\"`";
         FileUtil.writeString(
-                "print('" + content.replace("'", "\\'") + "')", script, StandardCharsets.UTF_8);
+                "print('" + scriptContent.replace("'", "\\'") + "')",
+                script,
+                StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1170,7 +1250,8 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
-        assertThat(request.getText()).contains(content).contains("MEDIA:");
+        String visibleContent = "preview `MEDIA:\"" + attachment.getAbsolutePath() + "\"`";
+        assertThat(request.getText()).contains(visibleContent).contains("MEDIA:");
         assertThat(request.getAttachments()).isEmpty();
     }
 
@@ -2141,7 +2222,10 @@ public class DefaultCronSchedulerTest {
         assertThat(created.get("message")).isEqualTo("定时任务 'tool-job' 已创建。");
         assertThat(created.get("schedule")).isEqualTo("30m");
         assertThat(created.get("repeat")).isEqualTo("forever");
+        assertThat(created.get("wrap_response")).isEqualTo(Boolean.FALSE);
+        assertThat(created.get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("wrap_response")).isEqualTo(Boolean.FALSE);
+        assertThat(((Map<?, ?>) created.get("job")).get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("schedule")).isEqualTo("30m");
 
         Map<?, ?> deliveryPayload =
@@ -2179,6 +2263,43 @@ public class DefaultCronSchedulerTest {
         assertThat(deliveryJob.get("deliver_chat_id")).isEqualTo("chat-tool");
         assertThat(deliveryJob.get("deliver_thread_id")).isEqualTo("thread-tool");
 
+        Map<String, Object> localMode = new LinkedHashMap<String, Object>();
+        localMode.put("mode", "local");
+        Map<?, ?> localModePayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-local-mode-delivery",
+                                                "30m",
+                                                "local mode prompt",
+                                                localMode,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        String localModeJobId = String.valueOf(localModePayload.get("job_id"));
+        assertThat(localModePayload.get("deliver")).isEqualTo("local");
+        assertThat(((Map<?, ?>) localModePayload.get("job")).get("deliver")).isEqualTo("local");
+        assertThat(env.cronJobRepository.findById(localModeJobId).getDeliverPlatform())
+                .isEqualTo("local");
+
         Map<?, ?> clearedDeliveryPayload =
                 (Map<?, ?>)
                         ONode.ofJson(
@@ -2214,6 +2335,26 @@ public class DefaultCronSchedulerTest {
         tools.cronjob(
                 "remove",
                 deliveryJobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        tools.cronjob(
+                "remove",
+                localModeJobId,
                 null,
                 null,
                 null,
@@ -2876,7 +3017,7 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> updatedJob = (Map<?, ?>) updatePayload.get("job");
         assertThat(updatedJob.get("script")).isNull();
         assertThat(updatedJob.get("workdir")).isNull();
-        assertThat(updatedJob.get("no_agent")).isNull();
+        assertThat(updatedJob.get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(updatedJob.get("context_from")).isNull();
         assertThat(updatedJob.get("depends_on")).isNull();
         assertThat(updatedJob.get("enabled_toolsets")).isNull();
@@ -3466,9 +3607,13 @@ public class DefaultCronSchedulerTest {
                 .contains("remove/delete/rm")
                 .contains("run/run_now/trigger/retry/rerun")
                 .contains("禁止猜测 job_id")
-                .contains("定时任务不应递归创建新的定时任务");
+                .contains("定时任务不应递归创建新的定时任务")
+                .contains("no_agent")
+                .contains("必须在工具参数中显式传入对应布尔值")
+                .contains("仅设置 script 不会隐式启用 no_agent");
         assertThat(paramDescription(method, "job_id")).contains("先 list 再使用");
         assertThat(paramDescription(method, "deliver")).contains("省略时自动投递回当前来源");
+        assertThat(paramRequired(method, "deliver")).isFalse();
         assertThat(paramDescription(method, "deliver_chat_id")).contains("投递会话 ID");
         assertThat(paramDescription(method, "deliver_thread_id")).contains("投递线程 ID");
         assertThat(paramDescription(method, "include_disabled")).contains("默认包含");
@@ -3477,6 +3622,7 @@ public class DefaultCronSchedulerTest {
         assertThat(paramDescription(method, "no_agent"))
                 .contains("必须设置 script")
                 .contains("空 stdout 静默");
+        assertThat(paramRequired(method, "no_agent")).isFalse();
         assertThat(paramDescription(method, "context_from")).contains("update 传空数组清空");
         assertThat(paramDescription(method, "enabled_toolsets")).contains("update 传空数组清空");
         assertThat(paramDescription(method, "enabled")).contains("false 会暂停").contains("true 会恢复");
@@ -3486,6 +3632,34 @@ public class DefaultCronSchedulerTest {
                 .contains("completed");
         assertThat(paramDescription(method, "state")).contains("status 的别名");
         assertThat(paramDescription(method, "paused_reason")).contains("暂停原因");
+    }
+
+    @Test
+    void shouldExposeNoAgentAndWrapResponseInMethodToolProviderSchema() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:schema-room:user");
+
+        FunctionTool tool = cronjobFunctionTool(new MethodToolProvider(tools));
+        ONode schema = ONode.ofJson(tool.inputSchema());
+        ONode properties = schema.get("properties");
+
+        assertThat(properties.get("no_agent").get("type").getString()).isEqualTo("boolean");
+        assertThat(properties.get("wrap_response").get("type").getString()).isEqualTo("boolean");
+        assertThat(properties.get("script").get("type").getString()).isEqualTo("string");
+        assertThat(properties.get("no_agent").get("description").getString())
+                .contains("必须设置 script")
+                .contains("空 stdout 静默");
+        assertThat(properties.get("wrap_response").get("description").getString())
+                .contains("是否包装定时任务投递结果");
+
+        FunctionTool sanitized = com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool.wrap(tool);
+        ONode sanitizedSchema = ONode.ofJson(sanitized.inputSchema());
+        ONode sanitizedProperties = sanitizedSchema.get("properties");
+        assertThat(sanitizedProperties.get("no_agent").get("type").getString())
+                .isEqualTo("boolean");
+        assertThat(sanitizedProperties.get("wrap_response").get("type").getString())
+                .isEqualTo("boolean");
     }
 
     @Test
@@ -5106,6 +5280,15 @@ public class DefaultCronSchedulerTest {
         throw new IllegalStateException("cronjob tool method not found");
     }
 
+    private FunctionTool cronjobFunctionTool(ToolProvider provider) {
+        for (FunctionTool tool : provider.getTools()) {
+            if ("cronjob".equals(tool.name())) {
+                return tool;
+            }
+        }
+        throw new IllegalStateException("cronjob function tool not found");
+    }
+
     private String cronjobList(CronjobTools tools) throws Exception {
         return tools.cronjob(
                 "list", null, null, null, null, null, null, null, null, null, null, null, null,
@@ -5117,6 +5300,16 @@ public class DefaultCronSchedulerTest {
             Param annotation = parameter.getAnnotation(Param.class);
             if (annotation != null && name.equals(annotation.name())) {
                 return annotation.description();
+            }
+        }
+        throw new IllegalStateException("cronjob parameter not found: " + name);
+    }
+
+    private boolean paramRequired(Method method, String name) {
+        for (Parameter parameter : method.getParameters()) {
+            Param annotation = parameter.getAnnotation(Param.class);
+            if (annotation != null && name.equals(annotation.name())) {
+                return annotation.required();
             }
         }
         throw new IllegalStateException("cronjob parameter not found: " + name);

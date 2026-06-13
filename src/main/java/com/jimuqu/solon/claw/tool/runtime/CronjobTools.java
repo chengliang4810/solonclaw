@@ -69,7 +69,7 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。")
+                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、no_agent、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。用户明确要求 no_agent=true 或 wrap_response=false 时，必须在工具参数中显式传入对应布尔值；仅设置 script 不会隐式启用 no_agent。")
     public String cronjob(
             @Param(
                             name = "action",
@@ -89,7 +89,8 @@ public class CronjobTools {
             @Param(
                             name = "deliver",
                             description =
-                                    "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标")
+                                    "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标",
+                            required = false)
                     Object deliver,
             @Param(
                             name = "deliver_chat_id",
@@ -141,7 +142,8 @@ public class CronjobTools {
             @Param(
                             name = "no_agent",
                             description =
-                                    "是否跳过 Agent 直接投递脚本输出；true 时必须设置 script，非空 stdout 原样投递，空 stdout 静默，非零退出发送错误")
+                                    "是否跳过 Agent 直接投递脚本输出；true 时必须设置 script，非空 stdout 原样投递，空 stdout 静默，非零退出发送错误",
+                            required = false)
                     Boolean noAgent,
             @Param(
                             name = "context_from",
@@ -314,6 +316,9 @@ public class CronjobTools {
                         .data("schedule", job.getCronExpr())
                         .data("repeat", repeatDisplay(job))
                         .data("deliver", safeText(job.getDeliverPlatform()))
+                        .data("wrap_response", Boolean.valueOf(job.isWrapResponse()))
+                        .data("no_agent", Boolean.valueOf(job.isNoAgent()))
+                        .data("script", safeObjectText(view.get("script")))
                         .data("next_run_at", Long.valueOf(job.getNextRunAt()))
                         .data("job", view)
                         .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
@@ -1478,9 +1483,7 @@ public class CronjobTools {
         result.put("paused_reason", safeText(job.getPausedReason()));
         result.put("wrap_response", Boolean.valueOf(job.isWrapResponse()));
         put(result, "script", safeObjectText(base.get("script")));
-        if (job.isNoAgent()) {
-            result.put("no_agent", Boolean.TRUE);
-        }
+        result.put("no_agent", Boolean.valueOf(job.isNoAgent()));
         Object contextFrom = base.get("context_from");
         if (contextFrom instanceof Iterable && ((Iterable<?>) contextFrom).iterator().hasNext()) {
             Object safeContextFrom = safeValue(contextFrom);

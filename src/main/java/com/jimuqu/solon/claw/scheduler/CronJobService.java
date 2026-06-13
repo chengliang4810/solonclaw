@@ -618,9 +618,7 @@ public class CronJobService {
             schedule.put("minutes", CronSupport.intervalMinutes(record.getCronExpr()));
         } else if ("once".equals(scheduleKind)) {
             Long absoluteRunAt = CronSupport.absoluteRunAt(record.getCronExpr());
-            schedule.put(
-                    "run_at",
-                    absoluteRunAt == null ? Long.valueOf(record.getNextRunAt()) : absoluteRunAt);
+            schedule.put("run_at", visibleOnceRunAt(record, absoluteRunAt));
         } else {
             schedule.put("expr", record.getCronExpr());
         }
@@ -669,7 +667,7 @@ public class CronJobService {
                 record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
         result.put(
                 "next_run_at",
-                record.getNextRunAt() <= 0 ? null : Long.valueOf(record.getNextRunAt()));
+                visibleNextRunAt(record));
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeViewText(record.getLastError()));
         result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
@@ -1263,6 +1261,38 @@ public class CronJobService {
             return "completed";
         }
         return "scheduled";
+    }
+
+    /**
+     * 计算对外可见的下一次运行时间；完成态任务不再暴露历史残留时间，避免误判为待触发。
+     *
+     * @param record 定时任务记录。
+     * @return 可展示的下一次运行时间，完成或无后续触发时返回 null。
+     */
+    private Long visibleNextRunAt(CronJobRecord record) {
+        if (record == null
+                || STATUS_COMPLETED.equalsIgnoreCase(record.getStatus())
+                || record.getNextRunAt() <= 0L) {
+            return null;
+        }
+        return Long.valueOf(record.getNextRunAt());
+    }
+
+    /**
+     * 计算一次性任务的可见计划时间；完成态任务没有后续触发点，视图层统一隐藏。
+     *
+     * @param record 定时任务记录。
+     * @param absoluteRunAt ISO 时间表达式解析出的绝对运行时间。
+     * @return 可展示的一次性运行时间，完成态返回 null。
+     */
+    private Long visibleOnceRunAt(CronJobRecord record, Long absoluteRunAt) {
+        if (record == null || STATUS_COMPLETED.equalsIgnoreCase(record.getStatus())) {
+            return null;
+        }
+        if (absoluteRunAt != null) {
+            return absoluteRunAt;
+        }
+        return record.getNextRunAt() <= 0L ? null : Long.valueOf(record.getNextRunAt());
     }
 
     /**
@@ -2024,7 +2054,7 @@ public class CronJobService {
         if (value == null || value.isEmpty()) {
             return null;
         }
-        String platform = firstString(value, "platform", "type", "channel");
+        String platform = firstString(value, "platform", "type", "channel", "mode");
         String chatId = firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
         String threadId = firstString(value, "thread_id", "threadId", "message_id", "messageId");
         if (StrUtil.isBlank(platform)) {
