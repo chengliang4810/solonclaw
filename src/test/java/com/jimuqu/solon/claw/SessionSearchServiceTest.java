@@ -308,6 +308,45 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRecallCurrentCompressedSummaryWhenQueryContainsMultipleMarkers()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String latestMarker = "web-loop-todo-readonly-completed-recovery-20260614-0529";
+        String previousMarker = "web-loop-todo-summary-complete-20260614-0522";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-compressed-current");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop compressed current");
+        current.setCompressedSummary(
+                "长期回归 Loop 压缩摘要："
+                        + latestMarker
+                        + " 已只读确认三项 todo 全部 completed；"
+                        + previousMarker
+                        + " 已将 B/C 推进 completed，next_round_task 是执行 memory/session 接续切片。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的下一轮"),
+                                ChatMessage.ofAssistant("继续验证"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search(
+                        "MEMORY:long-loop:user",
+                        latestMarker + " " + previousMarker + " next_round_task",
+                        5);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview())
+                .contains(latestMarker, previousMarker, "next_round_task");
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
     void shouldRespectLimitAndPreferOriginalMarkerSessionOverCurrentReference()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

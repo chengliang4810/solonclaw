@@ -1142,16 +1142,22 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     /**
-     * 判断压缩摘要是否直接承载检索词；命中时优先作为历史上下文锚点。
+     * 判断压缩摘要是否承载检索词；历史 marker 可按严格片段命中，避免多 marker 查询因非连续文本漏召回。
      *
      * @param session 会话记录。
      * @param normalizedQuery 已转小写的查询词。
      * @return 压缩摘要命中时返回 true。
      */
     private boolean compressedSummaryMatches(SessionRecord session, String normalizedQuery) {
-        return session != null
-                && normalizedQuery.length() > 0
-                && containsIgnoreCase(session.getCompressedSummary(), normalizedQuery);
+        if (session == null || normalizedQuery.length() == 0) {
+            return false;
+        }
+        String summary = session.getCompressedSummary();
+        if (containsIgnoreCase(summary, normalizedQuery)) {
+            return true;
+        }
+        return !strictMarkerFragments(normalizedQuery).isEmpty()
+                && textMatchesQuery(summary, normalizedQuery);
     }
 
     /**
