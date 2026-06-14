@@ -17,6 +17,15 @@ import org.noear.solon.annotation.Param;
 /** SessionSearchTools 实现。 */
 @RequiredArgsConstructor
 public class SessionSearchTools {
+    /** discovery/browse 工具结果中标题的最大字符数，避免长标题重复挤占工具上下文。 */
+    private static final int COMPACT_TITLE_LIMIT = 80;
+
+    /** discovery/browse 工具结果中命中文本的最大字符数，确保 limit=5 时通常可直接内联。 */
+    private static final int COMPACT_TEXT_LIMIT = 280;
+
+    /** discovery/browse 工具结果中标识类字段的最大字符数，避免异常长 ID 影响输出预算。 */
+    private static final int COMPACT_ID_LIMIT = 160;
+
     /** 注入会话搜索服务，用于调用对应业务能力。 */
     private final SessionSearchService sessionSearchService;
 
@@ -76,7 +85,7 @@ public class SessionSearchTools {
             if (aroundMessageId != null && aroundMessageId.trim().length() > 0) {
                 return ONode.serialize(compactScrollResults(sessions));
             }
-            return ONode.serialize(sessions);
+            return ONode.serialize(compactDiscoveryResults(sessions));
         } catch (Exception e) {
             return ToolResultEnvelope.error(
                             SecretRedactor.redact(
@@ -86,6 +95,66 @@ public class SessionSearchTools {
                                     1000))
                     .toJson();
         }
+    }
+
+    /**
+     * 将 discovery/browse 模式结果压缩成单一文本字段，避免 title/summary/snippet/matchPreview 重复导致工具结果落盘。
+     *
+     * @param sessions discovery 或 browse 模式检索结果。
+     * @return 返回压缩后的结果。
+     */
+    private List<Map<String, Object>> compactDiscoveryResults(
+            List<SessionSearchEntry> sessions) {
+        List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
+        if (sessions == null) {
+            return results;
+        }
+        for (SessionSearchEntry session : sessions) {
+            if (session == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            putIfNotBlank(item, "mode", redact(session.getMode(), 50));
+            putIfNotBlank(
+                    item, "sessionId", compactRedact(session.getSessionId(), COMPACT_ID_LIMIT));
+            putIfNotBlank(item, "title", compactRedact(session.getTitle(), COMPACT_TITLE_LIMIT));
+            putIfNotBlank(
+                    item, "messageId", compactRedact(session.getMessageId(), COMPACT_ID_LIMIT));
+            putIfNotBlank(
+                    item,
+                    "platformMessageId",
+                    compactRedact(session.getPlatformMessageId(), COMPACT_ID_LIMIT));
+            putIfNotBlank(item, "runId", compactRedact(session.getRunId(), COMPACT_ID_LIMIT));
+            putIfNotBlank(
+                    item, "toolName", compactRedact(session.getToolName(), COMPACT_ID_LIMIT));
+            item.put("score", Long.valueOf(session.getScore()));
+            if (session.getUpdatedAt() > 0L) {
+                item.put("updatedAt", Long.valueOf(session.getUpdatedAt()));
+            }
+            putIfNotBlank(item, "text", compactDiscoveryText(session));
+            results.add(item);
+        }
+        return results;
+    }
+
+    /**
+     * 选择 discovery/browse 条目的代表文本，只保留一个脱敏字段给模型判断命中原因。
+     *
+     * @param session 检索结果条目。
+     * @return 返回压缩后的命中文本。
+     */
+    private String compactDiscoveryText(SessionSearchEntry session) {
+        String value = session.getMatchPreview();
+        if (value == null || value.length() == 0) {
+            value = session.getSnippet();
+        }
+        if (value == null || value.length() == 0) {
+            value = session.getSummary();
+        }
+        if (value == null || value.length() == 0) {
+            value = session.getTitle();
+        }
+        return compactRedact(value, COMPACT_TEXT_LIMIT);
     }
 
     /**
@@ -163,5 +232,33 @@ public class SessionSearchTools {
      */
     private String redact(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
+    }
+
+    /**
+     * 先脱敏再做硬长度裁剪，保证工具返回的高频文本字段不会因截断说明再次突破预算。
+     *
+     * @param value 待规范化或校验的原始值。
+     * @param maxLength 最大保留字符数。
+     * @return 返回压缩并脱敏后的文本。
+     */
+    private String compactRedact(String value, int maxLength) {
+        String redacted = redact(value, maxLength);
+        if (redacted == null || redacted.length() <= maxLength) {
+            return redacted;
+        }
+        return redacted.substring(0, Math.max(0, maxLength));
+    }
+
+    /**
+     * 仅在值非空时写入 JSON map，减少工具返回中无意义的空字段。
+     *
+     * @param item 目标 map。
+     * @param key 字段名。
+     * @param value 字段值。
+     */
+    private void putIfNotBlank(Map<String, Object> item, String key, String value) {
+        if (value != null && value.length() > 0) {
+            item.put(key, value);
+        }
     }
 }

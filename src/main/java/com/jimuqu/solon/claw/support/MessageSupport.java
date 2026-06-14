@@ -83,6 +83,7 @@ public final class MessageSupport {
         if (!preserveUnansweredToolCalls) {
             repairs += dropUnansweredAssistantToolCalls(messages);
         }
+        repairs += dropEmptyAssistantMessages(messages);
         repairs += mergeConsecutiveTextUsers(messages);
         return repairs;
     }
@@ -297,6 +298,75 @@ public final class MessageSupport {
                 keptRawCalls == null || keptRawCalls.isEmpty() ? null : keptRawCalls,
                 keptCalls == null || keptCalls.isEmpty() ? null : keptCalls,
                 assistant.getSearchResultsRaw());
+    }
+
+    /**
+     * 删除历史中没有可见正文、没有推理内容、也没有工具调用的 assistant 占位消息，避免兼容 OpenAI 协议的模型拒绝请求。
+     *
+     * <p>工具调用修复可能会把重复 assistant tool_call 剪成只剩 {@code <think>...</think>} 的内部思考消息；这类消息再次发送给模型时没有可见
+     * content，也没有 tool_calls，应当从历史上下文中移除。
+     *
+     * @param messages 会话消息列表。
+     * @return 返回删除数量。
+     */
+    private static int dropEmptyAssistantMessages(List<ChatMessage> messages) {
+        int repairs = 0;
+        List<ChatMessage> filtered = new ArrayList<ChatMessage>(messages.size());
+        for (ChatMessage message : messages) {
+            if (isEmptyAssistantMessage(message)) {
+                repairs++;
+                continue;
+            }
+            filtered.add(message);
+        }
+        if (repairs > 0) {
+            messages.clear();
+            messages.addAll(filtered);
+        }
+        return repairs;
+    }
+
+    /**
+     * 判断 assistant 消息是否没有任何可发送给模型的有效内容。
+     *
+     * @param message 待检查消息。
+     * @return 如果是空 assistant 占位消息则返回 true。
+     */
+    private static boolean isEmptyAssistantMessage(ChatMessage message) {
+        if (!(message instanceof AssistantMessage)) {
+            return false;
+        }
+        AssistantMessage assistant = (AssistantMessage) message;
+        if ((assistant.getToolCalls() != null && !assistant.getToolCalls().isEmpty())
+                || (assistant.getToolCallsRaw() != null
+                        && !assistant.getToolCallsRaw().isEmpty())) {
+            return false;
+        }
+        if (StrUtil.isNotBlank(assistant.getResultContent())) {
+            return false;
+        }
+        return StrUtil.isBlank(visibleAssistantContent(assistant.getContent()));
+    }
+
+    /**
+     * 提取 assistant 正文中可见给用户的部分，去掉模型历史里遗留的内部思考块。
+     *
+     * @param content assistant 原始正文。
+     * @return 返回去除 think 块后的可见正文。
+     */
+    private static String visibleAssistantContent(String content) {
+        String value = StrUtil.nullToEmpty(content);
+        int start = value.indexOf("<think>");
+        while (start >= 0) {
+            int end = value.indexOf("</think>", start + "<think>".length());
+            if (end < 0) {
+                value = value.substring(0, start);
+                break;
+            }
+            value = value.substring(0, start) + value.substring(end + "</think>".length());
+            start = value.indexOf("<think>");
+        }
+        return value.trim();
     }
 
     /**

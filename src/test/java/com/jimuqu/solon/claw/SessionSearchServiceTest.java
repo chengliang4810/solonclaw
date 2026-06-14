@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SessionSearchTools;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardSearchController;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -988,6 +989,51 @@ public class SessionSearchServiceTest {
         assertThat(response).doesNotContain("\"title\"");
     }
 
+    @Test
+    void shouldCompactDiscoveryResultsForSessionSearchTool() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new VerboseSessionSearchService(), "MEMORY:search-compact:user");
+
+        String response = tools.sessionSearch("marker", Integer.valueOf(5));
+        List<?> result = (List<?>) ONode.ofJson(response).toData();
+        Map<?, ?> first = (Map<?, ?>) result.get(0);
+
+        assertThat(result).hasSize(5);
+        assertThat(first.get("mode")).isEqualTo("discovery");
+        assertThat(first.get("sessionId")).isEqualTo("session-0");
+        assertThat(first.get("messageId")).isEqualTo("compressed_summary");
+        assertThat(first.get("runId")).isEqualTo("run-0");
+        assertThat(first.get("toolName")).isEqualTo("cronjob");
+        assertThat(String.valueOf(first.get("text")))
+                .contains("web-loop-post-compression-cron-inspect-20260614-2318")
+                .hasSizeLessThanOrEqualTo(280);
+        assertThat(response).doesNotContain("\"summary\"");
+        assertThat(response).doesNotContain("\"snippet\"");
+        assertThat(response).doesNotContain("\"matchPreview\"");
+        assertThat(response).doesNotContain("\"branchName\"");
+        assertThat(response).doesNotContain("summary filler");
+    }
+
+    @Test
+    void shouldKeepCompactDiscoveryResultsInlineUnderDefaultRegressionLimit() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new VerboseSessionSearchService(), "MEMORY:search-compact:user");
+        ToolResultStorageService storageService =
+                new ToolResultStorageService("target/session-search-tool-results", 4000, 1200);
+
+        String response = tools.sessionSearch("marker", Integer.valueOf(5));
+        ToolResultStorageService.StoredResult stored =
+                storageService.observe("session_search", response, "run-search-compact", "call-1");
+
+        assertThat(stored.isTruncated()).isFalse();
+        assertThat(stored.getResultRef()).isNull();
+        assertThat(stored.getObservation()).contains("compressed_summary");
+        assertThat(stored.getObservation())
+                .contains("web-loop-post-compression-cron-inspect-20260614-2318");
+    }
+
     private AssistantMessage assistantWithToolCall(String name, String arguments) {
         Map<String, Object> function = new LinkedHashMap<String, Object>();
         function.put("name", name);
@@ -1070,6 +1116,57 @@ public class SessionSearchServiceTest {
             entry.setToolName("tool-ghp_toolnamesecret12345");
             entry.setChannel("channel-ghp_channelsecret12345");
             return java.util.Collections.singletonList(entry);
+        }
+    }
+
+    private static class VerboseSessionSearchService implements SessionSearchService {
+        @Override
+        public List<SessionSearchEntry> search(String sourceKey, String query, int limit) {
+            SessionSearchQuery searchQuery = new SessionSearchQuery();
+            searchQuery.setSourceKey(sourceKey);
+            searchQuery.setQuery(query);
+            searchQuery.setLimit(limit);
+            return search(searchQuery);
+        }
+
+        @Override
+        public List<SessionSearchEntry> search(SessionSearchQuery query) {
+            int limit = query == null || query.getLimit() <= 0 ? 5 : query.getLimit();
+            List<SessionSearchEntry> entries = new ArrayList<SessionSearchEntry>();
+            for (int i = 0; i < limit; i++) {
+                SessionSearchEntry entry = new SessionSearchEntry();
+                entry.setMode("discovery");
+                entry.setSessionId("session-" + i);
+                entry.setBranchName("main");
+                entry.setTitle(
+                        "长期回归 Loop todo 连续性测试标题 "
+                                + i
+                                + " "
+                                + repeat("title filler ", 20));
+                entry.setUpdatedAt(1781453738490L - i);
+                entry.setMessageId(i == 0 ? "compressed_summary" : "message-" + i);
+                entry.setPlatformMessageId("platform-" + i);
+                entry.setRunId("run-" + i);
+                entry.setToolName(i == 0 ? "cronjob" : "todo");
+                entry.setScore(100L - i);
+                String preview =
+                        "外部对标仓库能力点：上下文压缩后的跨压缩边界会话检索，marker="
+                                + "web-loop-post-compression-cron-inspect-20260614-2318。"
+                                + repeat("preview filler ", 80);
+                entry.setMatchPreview(preview);
+                entry.setSnippet(preview + repeat("snippet filler ", 80));
+                entry.setSummary(preview + repeat("summary filler ", 120));
+                entries.add(entry);
+            }
+            return entries;
+        }
+
+        private static String repeat(String value, int count) {
+            StringBuilder buffer = new StringBuilder();
+            for (int i = 0; i < count; i++) {
+                buffer.append(value);
+            }
+            return buffer.toString();
         }
     }
 

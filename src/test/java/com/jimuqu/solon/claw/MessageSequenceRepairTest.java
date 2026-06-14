@@ -171,6 +171,85 @@ public class MessageSequenceRepairTest {
     }
 
     @Test
+    void shouldDropEmptyAssistantWithoutContentReasoningOrToolCalls() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("first"),
+                                ChatMessage.ofAssistant(""),
+                                ChatMessage.ofUser("second")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(2);
+        assertThat(messages).hasSize(1);
+        assertThat(messages.get(0).getRole()).isEqualTo(ChatRole.USER);
+        assertThat(messages.get(0).getContent()).isEqualTo("first\n\nsecond");
+    }
+
+    @Test
+    void shouldDropPureThinkingAssistantAfterToolCallPrune() {
+        AssistantMessage duplicateToolCall =
+                assistantWithToolCalls(
+                        "<think>\n\n只记录工具调用计划。</think>\n\n", "call_duplicated");
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                duplicateToolCall,
+                                assistantWithToolCalls(
+                                        "<think>\n\n只记录工具调用计划。</think>\n\n",
+                                        "call_duplicated"),
+                                ChatMessage.ofTool("done", "session_search", "call_duplicated"),
+                                ChatMessage.ofUser("continue")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(2);
+        assertThat(messages)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+        assertThat(((AssistantMessage) messages.get(1)).getToolCalls())
+                .extracting(ToolCall::getId)
+                .containsExactly("call_duplicated");
+    }
+
+    @Test
+    void shouldKeepAssistantWithThinkingAndVisibleContent() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("first"),
+                                ChatMessage.ofAssistant("<think>\n\n计划。</think>\n\n可见答复"),
+                                ChatMessage.ofUser("second")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(0);
+        assertThat(messages)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.USER);
+    }
+
+    @Test
+    void shouldKeepAssistantWithToolCallsEvenWhenVisibleContentIsEmpty() {
+        AssistantMessage assistant = assistantWithToolCall("call_1", "shell");
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                assistant,
+                                ChatMessage.ofTool("done", "shell", "call_1")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(0);
+        assertThat(messages)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL);
+    }
+
+    @Test
     void shouldNotMergeUserMessagesWithMetadataOrMultipleBlocks() {
         ChatMessage withMetadata =
                 ChatMessage.ofUser("first").addMetadata("attachment", "file.txt");
