@@ -581,6 +581,7 @@ public class DashboardCronService {
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeText(record.getLastError()));
         result.put("last_delivery_error", safeText(record.getLastDeliveryError()));
+        result.put("diagnostics", cronJobService.toView(record).get("diagnostics"));
         result.put("last_run_at", record.getLastRunAt() <= 0L ? null : iso(record.getLastRunAt()));
         return result;
     }

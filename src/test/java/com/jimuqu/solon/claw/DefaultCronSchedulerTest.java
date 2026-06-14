@@ -1511,6 +1511,27 @@ public class DefaultCronSchedulerTest {
                 .doesNotContain("\u202E");
     }
 
+    /** 验证定时任务详情能给脚本缺失失败返回可操作的诊断信息。 */
+    @Test
+    void shouldExposeMissingScriptDiagnosticInCronJobView() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobRecord job = job("job-missing-script-diagnostic", "MEMORY:cron-diagnostic:user");
+        job.setNoAgent(true);
+        job.setScript("missing-diagnostic.py");
+        job.setLastStatus("error");
+        job.setLastError("定时任务脚本不在 runtime/scripts 下或文件不存在：missing-diagnostic.py");
+        env.cronJobRepository.save(job);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> view = service.toView(job);
+
+        assertThat(String.valueOf(view.get("diagnostics")))
+                .contains("cron_script_missing")
+                .contains("runtime://scripts")
+                .contains("missing-diagnostic.py")
+                .contains("恢复脚本到 runtime/scripts");
+    }
+
     @Test
     void shouldMarkAgentCronEmptyResponseAsError() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -5121,6 +5142,30 @@ public class DefaultCronSchedulerTest {
         Map<String, Object> cleared = dashboardCronService.apiPatch(job.getJobId(), clear);
 
         assertThat(cleared.get("skills")).isEqualTo(java.util.Collections.emptyList());
+    }
+
+    /** 验证控制台状态接口能在最近失败任务中带出脚本缺失诊断。 */
+    @Test
+    void shouldExposeMissingScriptDiagnosticInDashboardCronStatus() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        DashboardCronService dashboardCronService = new DashboardCronService(service, null);
+        CronJobRecord job = job("dashboard-missing-script-diagnostic", "MEMORY:dashboard:cron");
+        job.setName("dashboard missing script diagnostic");
+        job.setStatus("COMPLETED");
+        job.setNoAgent(true);
+        job.setScript("dashboard-missing-script.py");
+        job.setLastStatus("error");
+        job.setLastError(
+                "定时任务脚本不在 runtime/scripts 下或文件不存在：dashboard-missing-script.py");
+        env.cronJobRepository.save(job);
+
+        Map<String, Object> status = dashboardCronService.status(true, 5);
+
+        assertThat(String.valueOf(status.get("recent_failures")))
+                .contains("cron_script_missing")
+                .contains("dashboard-missing-script.py")
+                .contains("runtime://scripts");
     }
 
     @Test

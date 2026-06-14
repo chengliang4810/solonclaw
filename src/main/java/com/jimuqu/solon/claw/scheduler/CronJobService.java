@@ -671,6 +671,7 @@ public class CronJobService {
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeViewText(record.getLastError()));
         result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
+        result.put("diagnostics", diagnostics(record));
         result.put("pending_trigger", safeViewText(record.getPendingTriggerType()));
         result.put("last_output", safeViewText(record.getLastOutput()));
         result.put(
@@ -1434,6 +1435,59 @@ public class CronJobService {
             return false;
         }
         return targetPath.startsWith(rootPath);
+    }
+
+    /**
+     * 生成定时任务诊断信息，帮助控制台把运行失败转换为可操作的修复提示。
+     *
+     * @param record 定时任务记录。
+     * @return 返回诊断信息列表。
+     */
+    private List<Map<String, Object>> diagnostics(CronJobRecord record) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        Map<String, Object> missingScript = missingScriptDiagnostic(record);
+        if (missingScript != null) {
+            result.add(missingScript);
+        }
+        return result;
+    }
+
+    /**
+     * 识别脚本缺失或越界错误，给出保持在 runtime/scripts 下的恢复建议。
+     *
+     * @param record 定时任务记录。
+     * @return 命中时返回诊断项，否则返回 null。
+     */
+    private Map<String, Object> missingScriptDiagnostic(CronJobRecord record) {
+        if (record == null || !record.isNoAgent() || StrUtil.isBlank(record.getScript())) {
+            return null;
+        }
+        String lastError = StrUtil.nullToEmpty(record.getLastError());
+        if (!isMissingCronScriptError(lastError)) {
+            return null;
+        }
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        String script = safeViewText(record.getScript());
+        item.put("code", "cron_script_missing");
+        item.put("level", "error");
+        item.put("message", "定时任务脚本缺失或不在 runtime/scripts 下");
+        item.put("script", script);
+        item.put("runtime_dir", "runtime://scripts");
+        item.put("suggestion", "请恢复脚本到 runtime/scripts 后重试，或编辑任务选择新的脚本。");
+        item.put("retryable_after_fix", Boolean.TRUE);
+        return item;
+    }
+
+    /**
+     * 判断错误是否属于定时任务脚本缺失或越界。
+     *
+     * @param error 错误文本。
+     * @return 如果是脚本缺失或越界错误则返回 true。
+     */
+    private boolean isMissingCronScriptError(String error) {
+        String value = StrUtil.nullToEmpty(error);
+        return value.startsWith("定时任务脚本不在 runtime/scripts 下")
+                || value.startsWith("Cron script not found under runtime/scripts");
     }
 
     /**
