@@ -2,6 +2,7 @@ import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { selectSessionId } from '@/shared/sessionSelection'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
@@ -443,7 +444,7 @@ export const useChatStore = defineStore('chat', () => {
     pollTimers.set(sid, timer)
   }
 
-  async function loadSessions() {
+  async function loadSessions(preferredSessionId?: string | null) {
     isLoadingSessions.value = true
     try {
       // 从会话维度缓存中恢复，实现 instant render
@@ -480,11 +481,7 @@ export const useChatStore = defineStore('chat', () => {
       sessions.value = [...localOnly, ...fresh]
       persistSessionsList()
 
-      // Restore last active session, fallback to most recent
-      const savedId = activeSessionId.value
-      const candidateId = savedId && sessions.value.some(s => s.id === savedId)
-        ? savedId
-        : sessions.value[0]?.id
+      const candidateId = selectSessionId(sessions.value, preferredSessionId, activeSessionId.value)
       const targetId = candidateId ? await resolveLatestDescendantId(candidateId) : candidateId
       if (targetId) {
         if (targetId === activeSessionId.value && activeSession.value && streamStates.value.has(targetId)) {

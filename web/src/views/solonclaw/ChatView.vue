@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { defineAsyncComponent, h, onMounted } from 'vue'
+import { defineAsyncComponent, h, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/solonclaw/app'
 import { useChatStore } from '@/stores/solonclaw/chat'
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
+const route = useRoute()
 const ChatPanel = defineAsyncComponent({
   loader: () => import('@/components/solonclaw/chat/ChatPanel.vue'),
   delay: 120,
@@ -29,14 +31,36 @@ const ChatPanel = defineAsyncComponent({
   },
 })
 
+function requestedSessionId(): string | null {
+  const raw = route.query.sessionId ?? route.query.session_id
+  if (Array.isArray(raw)) return raw[0] || null
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null
+}
+
 onMounted(async () => {
   appStore.loadModels()
+  const sessionId = requestedSessionId()
   if (!chatStore.sessionsLoaded) {
-    chatStore.loadSessions()
+    await chatStore.loadSessions(sessionId)
+  } else if (sessionId && sessionId !== chatStore.activeSessionId) {
+    await chatStore.switchSession(sessionId)
   } else if (!chatStore.isRunActive) {
     chatStore.refreshActiveSession()
   }
 })
+
+watch(
+  () => [route.query.sessionId, route.query.session_id],
+  async () => {
+    const sessionId = requestedSessionId()
+    if (!sessionId || sessionId === chatStore.activeSessionId) return
+    if (!chatStore.sessionsLoaded) {
+      await chatStore.loadSessions(sessionId)
+      return
+    }
+    await chatStore.switchSession(sessionId)
+  },
+)
 </script>
 
 <template>
