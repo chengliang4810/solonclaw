@@ -2964,6 +2964,42 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExposeCronjobListStatusSummaryBeforeLongJobPreview() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:list-summary-room:user");
+
+        CronJobRecord due = job("list-summary-due", "MEMORY:list-summary-room:user");
+        due.setName("due job");
+        env.cronJobRepository.save(due);
+
+        CronJobRecord paused = job("list-summary-paused", "MEMORY:list-summary-room:user");
+        paused.setName("paused job");
+        paused.setStatus("PAUSED");
+        env.cronJobRepository.save(paused);
+
+        CronJobRecord completed = job("list-summary-completed", "MEMORY:list-summary-room:user");
+        completed.setName("completed job");
+        completed.setStatus("COMPLETED");
+        env.cronJobRepository.save(completed);
+
+        Map<?, ?> listed = (Map<?, ?>) ONode.ofJson(cronjobList(tools)).toData();
+
+        assertThat(listed.get("count")).isEqualTo(Integer.valueOf(3));
+        assertThat(listed.get("total")).isEqualTo(Integer.valueOf(3));
+        assertThat(listed.get("active")).isEqualTo(Integer.valueOf(1));
+        assertThat(listed.get("paused")).isEqualTo(Integer.valueOf(1));
+        assertThat(listed.get("completed")).isEqualTo(Integer.valueOf(1));
+        assertThat(listed.get("due")).isEqualTo(Integer.valueOf(1));
+        Map<?, ?> status = (Map<?, ?>) listed.get("status");
+        assertThat(status.get("total")).isEqualTo(Integer.valueOf(3));
+        assertThat(status.get("active")).isEqualTo(Integer.valueOf(1));
+        assertThat(status.get("due")).isEqualTo(Integer.valueOf(1));
+        assertThat(String.valueOf(listed.get("preview")))
+                .startsWith("Cron 状态：total=3, active=1, paused=1, due=1");
+    }
+
+    @Test
     void shouldClearCronjobToolEditableMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

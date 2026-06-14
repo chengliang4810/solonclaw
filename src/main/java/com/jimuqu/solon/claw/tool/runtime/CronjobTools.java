@@ -252,10 +252,19 @@ public class CronjobTools {
                 List<CronJobRecord> jobs =
                         cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
+                Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
                 return ToolResultEnvelope.ok("已列出定时任务")
+                        .data("count", status.get("total"))
+                        .data("status", status)
+                        .data("total", status.get("total"))
+                        .data("active", status.get("active"))
+                        .data("paused", status.get("paused"))
+                        .data("completed", status.get("completed"))
+                        .data("due", status.get("due"))
+                        .data("next", status.get("next"))
+                        .data("recent_failures", status.get("recent_failures"))
                         .data("jobs", views(jobs))
-                        .data("count", Integer.valueOf(jobs.size()))
-                        .preview(preview(jobs))
+                        .preview(listPreview(jobs, status))
                         .toJson();
             }
 
@@ -1601,6 +1610,26 @@ public class CronjobTools {
             buffer.append(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()));
         }
         return buffer.toString();
+    }
+
+    /**
+     * 生成列表动作的紧凑预览，确保长列表被截断时仍能先看到关键统计。
+     *
+     * @param jobs 当前列表动作返回的定时任务记录。
+     * @param status 由同一批记录计算出的总数、活跃数、到期数和失败摘要。
+     * @return 返回先展示统计、再展示任务样例的列表预览文本。
+     */
+    private String listPreview(List<CronJobRecord> jobs, Map<String, Object> status) {
+        String summary = statusPreview(status);
+        if (jobs.isEmpty()) {
+            return summary + "\n没有定时任务";
+        }
+        List<CronJobRecord> sample = jobs;
+        Object limit = status.get("limit");
+        if (limit instanceof Number && jobs.size() > ((Number) limit).intValue()) {
+            sample = new ArrayList<CronJobRecord>(jobs.subList(0, ((Number) limit).intValue()));
+        }
+        return summary + "\n" + preview(sample);
     }
 
     /**
