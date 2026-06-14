@@ -270,11 +270,13 @@ public class DashboardConfiguration {
      * 执行控制台Logs服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
+     * @param agentRunRepository Agent 运行仓储依赖。
      * @return 返回控制台Logs服务结果。
      */
     @Bean
-    public DashboardLogsService dashboardLogsService(AppConfig appConfig) {
-        return new DashboardLogsService(appConfig);
+    public DashboardLogsService dashboardLogsService(
+            AppConfig appConfig, AgentRunRepository agentRunRepository) {
+        return new DashboardLogsService(appConfig, agentRunRepository);
     }
 
     /**
