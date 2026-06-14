@@ -694,6 +694,21 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldKeepExplicitLongTermPreferenceContainingToolNames() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        String response =
+                env.memoryService.add(
+                        "memory",
+                        "长期偏好：loop-todo-memory-marker-20260615 回归报告要同时复述任务清单与记忆状态");
+
+        assertThat(response).contains("已写入");
+        assertThat(env.memoryService.read("memory"))
+                .contains("loop-todo-memory-marker-20260615")
+                .contains("回归报告要同时复述任务清单与记忆状态");
+    }
+
+    @Test
     void shouldReturnRecoverableSkillToolErrorsInsteadOfThrowing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("demo-skill", null, skill("demo-skill", "demo"));
