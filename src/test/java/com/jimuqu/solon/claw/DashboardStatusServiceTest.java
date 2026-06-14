@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
@@ -236,6 +237,44 @@ public class DashboardStatusServiceTest {
         assertThat(((Map<String, Object>) runtimeStatus.get("gateway")))
                 .containsEntry("state", "running")
                 .containsEntry("running", Boolean.TRUE);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSeparateRecentSessionsFromRunningAgentRuns() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-running-runs-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        ChannelStatus channelStatus =
+                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled");
+        SessionRecord activeSession = new SessionRecord();
+        activeSession.setUpdatedAt(System.currentTimeMillis());
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new FixedSessionRepository(Collections.singletonList(activeSession)),
+                        new FixedDeliveryService(channelStatus),
+                        new FixedAgentRunControlService(0),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config));
+
+        Map<String, Object> status = service.getStatus(true);
+        Map<String, Object> runtimeStatus = (Map<String, Object>) status.get("runtime_status");
+        Map<String, Object> gateway = (Map<String, Object>) runtimeStatus.get("gateway");
+
+        assertThat(status)
+                .containsEntry("active_sessions", Integer.valueOf(1))
+                .containsEntry("running_agent_runs", Integer.valueOf(0));
+        assertThat(runtimeStatus)
+                .containsEntry("active_sessions", Integer.valueOf(1))
+                .containsEntry("running_agent_runs", Integer.valueOf(0));
+        assertThat(gateway)
+                .containsEntry("active_agents", Integer.valueOf(0))
+                .containsEntry("recent_active_sessions", Integer.valueOf(1));
     }
 
     @Test
@@ -507,6 +546,34 @@ public class DashboardStatusServiceTest {
             status.setUpdateErrorMessage("update token=ghp_updateerror123");
             status.setUpdateErrorAt(123L);
             return status;
+        }
+    }
+
+    private static class FixedAgentRunControlService implements AgentRunControlService {
+        private final int runningRunCount;
+
+        private FixedAgentRunControlService(int runningRunCount) {
+            this.runningRunCount = runningRunCount;
+        }
+
+        @Override
+        public com.jimuqu.solon.claw.core.model.AgentRunStopResult stop(String sourceKey) {
+            return com.jimuqu.solon.claw.core.model.AgentRunStopResult.none();
+        }
+
+        @Override
+        public boolean isRunning(String sourceKey) {
+            return runningRunCount > 0;
+        }
+
+        @Override
+        public boolean hasRunningRuns() {
+            return runningRunCount > 0;
+        }
+
+        @Override
+        public int runningRunCount() {
+            return runningRunCount;
         }
     }
 

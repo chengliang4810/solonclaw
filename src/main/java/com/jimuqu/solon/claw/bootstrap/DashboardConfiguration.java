@@ -97,6 +97,7 @@ public class DashboardConfiguration {
      * @param appConfig 应用运行配置。
      * @param sessionRepository 会话仓储依赖。
      * @param deliveryService 投递服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
      * @param appVersionService 应用版本服务依赖。
      * @param appUpdateService 应用Update服务依赖。
@@ -108,6 +109,7 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             SessionRepository sessionRepository,
             DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             AppVersionService appVersionService,
             AppUpdateService appUpdateService,
@@ -116,6 +118,7 @@ public class DashboardConfiguration {
                 appConfig,
                 sessionRepository,
                 deliveryService,
+                agentRunControlService,
                 gatewayRuntimeRefreshService,
                 appVersionService,
                 appUpdateService,
