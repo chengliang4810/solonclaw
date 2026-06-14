@@ -738,6 +738,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                             runContext,
                             streamedReasoningText);
                 }
+                ensureOwnedAssistantToolCallRecorded(agentSession, assistantMessage);
                 for (ToolCall call : calls) {
                     if (call == null || StrUtil.isBlank(call.getName())) {
                         continue;
@@ -1680,6 +1681,66 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         logUsage(session, resolved, result);
         return result;
+    }
+
+    /**
+     * 确保原生工具调用轮的 assistant tool_call 消息先进入会话历史。
+     *
+     * <p>部分流式协议只在聚合响应里返回 tool_calls，并不会把该 assistant 消息同步写入
+     * AgentSession。若后续先追加 tool 结果，消息修复会因为找不到匹配的 tool_call id 而把真实
+     * 工具结果当作游离 tool 消息删除，最大步数恢复阶段就会丢失已经执行的工具事实。
+     *
+     * @param agentSession 当前 Agent 会话。
+     * @param assistantMessage 本轮模型返回的 assistant 消息。
+     */
+    private void ensureOwnedAssistantToolCallRecorded(
+            SqliteAgentSession agentSession, AssistantMessage assistantMessage) {
+        if (agentSession == null || assistantMessage == null) {
+            return;
+        }
+        List<ToolCall> calls = assistantMessage.getToolCalls();
+        if (calls == null || calls.isEmpty()) {
+            return;
+        }
+        List<ChatMessage> messages = agentSession.getMessages();
+        if (messages == null) {
+            return;
+        }
+        int assistantIndex = lastAssistantMessageIndex(messages);
+        if (assistantIndex >= 0
+                && sameToolCallIds((AssistantMessage) messages.get(assistantIndex), calls)) {
+            return;
+        }
+        if (assistantIndex >= 0 && messages.get(assistantIndex) instanceof AssistantMessage) {
+            messages.set(assistantIndex, assistantMessage);
+        } else {
+            messages.add(assistantMessage);
+        }
+    }
+
+    /**
+     * 判断已有 assistant 消息是否已经携带同一批工具调用标识。
+     *
+     * @param assistant 已在会话中的 assistant 消息。
+     * @param calls 当前待执行工具调用。
+     * @return 如果工具调用标识完全一致则返回 true。
+     */
+    private boolean sameToolCallIds(AssistantMessage assistant, List<ToolCall> calls) {
+        if (assistant == null || calls == null) {
+            return false;
+        }
+        List<ToolCall> existing = assistant.getToolCalls();
+        if (existing == null || existing.size() != calls.size()) {
+            return false;
+        }
+        for (int i = 0; i < calls.size(); i++) {
+            String left = calls.get(i) == null ? "" : StrUtil.nullToEmpty(calls.get(i).getId());
+            String right = existing.get(i) == null ? "" : StrUtil.nullToEmpty(existing.get(i).getId());
+            if (!StrUtil.equals(left, right)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

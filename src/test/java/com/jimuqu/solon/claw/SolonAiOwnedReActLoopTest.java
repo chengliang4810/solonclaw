@@ -130,6 +130,49 @@ public class SolonAiOwnedReActLoopTest {
                 .doesNotContain("Content Truncated due to length");
     }
 
+    /** 验证原生工具调用未主动写入会话时，最大步数恢复仍保留真实工具转录。 */
+    @Test
+    void shouldKeepNativeToolTranscriptWhenMaxStepsStopsLoop() throws Exception {
+        AppConfig config = config();
+        config.getReact().setMaxSteps(1);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-native-tool-max-steps-session");
+
+        FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+        echo.description("Echo one value.");
+        echo.doHandle(args -> "工具结果：" + args.get("value"));
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请调用工具后停止",
+                        Collections.singletonList(echo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
+        assertThat(result.getAssistantMessage().getContent()).contains("Maximum steps reached");
+        assertThat(messages)
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && ((AssistantMessage) message).getToolCalls() != null
+                                        && !((AssistantMessage) message).getToolCalls().isEmpty());
+        assertThat(messages)
+                .anyMatch(
+                        message ->
+                                message instanceof ToolMessage
+                                        && message.getContent().contains("工具结果：native"));
+    }
+
     @Test
     void shouldStreamOwnedLoopDeltasWhenEventSinkIsProvided() throws Exception {
         AppConfig config = config();
@@ -526,6 +569,8 @@ public class SolonAiOwnedReActLoopTest {
     private enum FakeMode {
         TEXT_ACTION,
         LONG_TOOL_OUTPUT,
+        /** 模拟协议层只返回 tool_calls 聚合结果但不写入 AgentSession 的场景。 */
+        NATIVE_TOOL_WITHOUT_SESSION_APPEND,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL,
@@ -624,6 +669,9 @@ public class SolonAiOwnedReActLoopTest {
                                     "Thought: 需要读取长文件\n"
                                             + "Action: read_file\n"
                                             + "Action Input: {\"path\":\"runtime/logs/long-observation.json\"}");
+                } else if (model.mode == FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND) {
+                    assistant = assistantWithToolCall("call_native_echo", "echo_tool", "{\"value\":\"native\"}");
+                    return new FakeResponse(model, options, assistant, false);
                 } else {
                     assistant =
                             ChatMessage.ofAssistant(
@@ -679,6 +727,8 @@ public class SolonAiOwnedReActLoopTest {
 
         private AssistantMessage assistantWithToolCall(
                 String callId, String name, String arguments) {
+            Map<String, Object> argumentMap = new LinkedHashMap<String, Object>();
+            argumentMap.put("value", "native");
             Map<String, Object> function = new LinkedHashMap<String, Object>();
             function.put("name", name);
             function.put("arguments", arguments);
@@ -691,7 +741,7 @@ public class SolonAiOwnedReActLoopTest {
             List<Map> rawCalls = new ArrayList<Map>();
             rawCalls.add(rawCall);
             List<ToolCall> toolCalls = new ArrayList<ToolCall>();
-            toolCalls.add(new ToolCall("0", callId, name, arguments, null));
+            toolCalls.add(new ToolCall("0", callId, name, arguments, argumentMap));
             return new AssistantMessage("", false, null, rawCalls, toolCalls, null);
         }
 
