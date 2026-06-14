@@ -1712,10 +1712,62 @@ public class SolonAiLlmGateway implements LlmGateway {
             return;
         }
         if (assistantIndex >= 0 && messages.get(assistantIndex) instanceof AssistantMessage) {
+            int previousAssistantIndex = previousAssistantMessageIndex(messages, assistantIndex);
+            if (previousAssistantIndex >= 0
+                    && sameAssistantVisibleText(
+                            (AssistantMessage) messages.get(previousAssistantIndex),
+                            assistantMessage)) {
+                messages.remove(previousAssistantIndex);
+                assistantIndex--;
+            }
             messages.set(assistantIndex, assistantMessage);
         } else {
             messages.add(assistantMessage);
         }
+    }
+
+    /**
+     * 查找指定位置之前最近的assistant消息索引。
+     *
+     * @param messages 消息列表。
+     * @param beforeIndex 起始位置之前查找。
+     * @return 返回最近assistant索引，未找到返回-1。
+     */
+    private int previousAssistantMessageIndex(List<ChatMessage> messages, int beforeIndex) {
+        if (messages == null) {
+            return -1;
+        }
+        for (int i = Math.min(beforeIndex - 1, messages.size() - 1); i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            if (message instanceof AssistantMessage) {
+                return i;
+            }
+            if (message instanceof ToolMessage) {
+                return -1;
+            }
+            if (message != null
+                    && "user".equalsIgnoreCase(StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 判断两条assistant消息是否包含同一段可见文本。
+     *
+     * @param left 已存在的assistant文本消息。
+     * @param right 当前包含工具调用的assistant消息。
+     * @return 如果可见文本相同则返回 true。
+     */
+    private boolean sameAssistantVisibleText(AssistantMessage left, AssistantMessage right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return StrUtil.isNotBlank(left.getContent())
+                && StrUtil.equals(
+                        StrUtil.nullToEmpty(left.getContent()).trim(),
+                        StrUtil.nullToEmpty(right.getContent()).trim());
     }
 
     /**

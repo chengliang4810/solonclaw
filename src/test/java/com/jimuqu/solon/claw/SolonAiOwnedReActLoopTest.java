@@ -235,6 +235,21 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("{\"pass\":true}");
         assertThat(eventSink.assistantDeltas).containsExactly("{\"pass\":true}");
         assertThat(String.join("", eventSink.assistantDeltas)).doesNotContain("Need second read");
+        List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
+        assertThat(
+                        messages.stream()
+                                .filter(message -> message instanceof AssistantMessage)
+                                .map(ChatMessage::getContent)
+                                .filter("Need second read."::equals)
+                                .count())
+                .isEqualTo(1);
+        assertThat(messages)
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && "Need second read.".equals(message.getContent())
+                                        && ((AssistantMessage) message).getToolCalls() != null
+                                        && !((AssistantMessage) message).getToolCalls().isEmpty());
     }
 
     /** 校验自有循环请求会把已有会话历史和本轮用户输入一起发送给模型。 */
@@ -704,9 +719,11 @@ public class SolonAiOwnedReActLoopTest {
                         AssistantMessage visible = ChatMessage.ofAssistant("Need second read.");
                         AssistantMessage aggregation =
                                 assistantWithToolCall(
+                                        "Need second read.",
                                         "call_preamble_read",
                                         "read_file",
                                         "{\"path\":\"runtime/logs/page.json\"}");
+                        session.addMessage(visible);
                         session.addMessage(aggregation);
                         return Flux.just(new FakeResponse(model, options, visible, true, aggregation));
                     }
@@ -727,6 +744,11 @@ public class SolonAiOwnedReActLoopTest {
 
         private AssistantMessage assistantWithToolCall(
                 String callId, String name, String arguments) {
+            return assistantWithToolCall("", callId, name, arguments);
+        }
+
+        private AssistantMessage assistantWithToolCall(
+                String content, String callId, String name, String arguments) {
             Map<String, Object> argumentMap = new LinkedHashMap<String, Object>();
             argumentMap.put("value", "native");
             Map<String, Object> function = new LinkedHashMap<String, Object>();
@@ -742,7 +764,7 @@ public class SolonAiOwnedReActLoopTest {
             rawCalls.add(rawCall);
             List<ToolCall> toolCalls = new ArrayList<ToolCall>();
             toolCalls.add(new ToolCall("0", callId, name, arguments, argumentMap));
-            return new AssistantMessage("", false, null, rawCalls, toolCalls, null);
+            return new AssistantMessage(content, false, null, rawCalls, toolCalls, null);
         }
 
         private ToolMessage lastToolMessage(List<ChatMessage> messages) {
