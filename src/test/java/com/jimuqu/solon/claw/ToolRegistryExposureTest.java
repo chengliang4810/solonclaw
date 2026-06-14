@@ -5154,6 +5154,32 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReadAndWriteRuntimeReferencesWithinToolRoot() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path input = workspace.resolve("tool-results/run-1/call-1.txt");
+        Files.createDirectories(input.getParent());
+        Files.write(input, Arrays.asList("runtime ref"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode read =
+                ONode.ofJson(fileSkill.read("runtime://tool-results/run-1/call-1.txt", 1, 2));
+        ONode write = ONode.ofJson(fileSkill.write("runtime://notes/out.txt", "saved\n"));
+
+        assertThat(read.get("success").getBoolean()).isTrue();
+        assertThat(read.get("content").getString()).contains("1|runtime ref");
+        assertThat(read.get("resolved_path").getString()).isEqualTo(input.toRealPath().toString());
+        assertThat(write.get("success").getBoolean()).isTrue();
+        assertThat(write.get("resolved_path").getString())
+                .isEqualTo(workspace.resolve("notes/out.txt").toRealPath().toString());
+        assertThat(new String(Files.readAllBytes(workspace.resolve("notes/out.txt")), StandardCharsets.UTF_8))
+                .isEqualTo("saved\n");
+    }
+
+    @Test
     void shouldSuggestSimilarFilesWhenFileReadPathIsMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();

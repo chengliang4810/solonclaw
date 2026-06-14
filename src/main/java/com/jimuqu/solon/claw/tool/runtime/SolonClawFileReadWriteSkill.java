@@ -913,16 +913,30 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
      * @return 返回解析后的路径。
      */
     private Path resolvePath(String name) {
-        String value = StrUtil.nullToEmpty(name);
+        String value = normalizeRuntimeReference(name);
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("jar-internal paths are not disk files");
         }
-        Path path = rootPath.resolve(name).normalize();
+        Path path = rootPath.resolve(value).normalize();
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
         assertResolvedWithinRoot(path);
         return path;
+    }
+
+    /**
+     * 将运行态展示引用转换为文件工具可解析的相对路径。
+     *
+     * @param name 工具入参中的原始路径。
+     * @return 返回去除 runtime:// 前缀后的路径，普通路径保持不变。
+     */
+    private String normalizeRuntimeReference(String name) {
+        String value = StrUtil.nullToEmpty(name);
+        if (StrUtil.startWithIgnoreCase(value, "runtime://")) {
+            return value.substring("runtime://".length());
+        }
+        return value;
     }
 
     /**
