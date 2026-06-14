@@ -266,6 +266,57 @@ public class SessionSearchServiceTest {
         assertThat(entries.get(0).getScore()).isGreaterThan(0L);
     }
 
+    /** 压缩摘要仍应优先展示，但同一 marker 的运行最终回复也要作为可检索证据返回。 */
+    @Test
+    void shouldKeepRunFinalReplyEvidenceWhenCompressedSummaryMatchesCurrentSession()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-post-compression-cron-inspect-20260614-2318";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-current-session");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current session");
+        current.setCompressedSummary("压缩摘要保留历史 marker=" + marker + "，用于恢复长期会话目标。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的下一轮"),
+                                ChatMessage.ofAssistant("继续验证"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-final-reply-marker");
+        run.setSessionId(current.getSessionId());
+        run.setSourceKey("MEMORY:long-loop:user");
+        run.setStatus("success");
+        run.setInputPreview("只读 cron/todo 检查");
+        run.setFinalReplyPreview(
+                "{\"marker\":\""
+                        + marker
+                        + "\",\"tool_sequence\":[\"cronjob:status\",\"cronjob:list\",\"todo:read\"],\"cron_total\":40}");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).hasSize(2);
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getMatchPreview()).contains("压缩摘要保留历史 marker");
+        assertThat(entries)
+                .filteredOn(entry -> "run-final-reply-marker".equals(entry.getRunId()))
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.getMatchPreview()).contains(marker, "cron_total");
+                            assertThat(entry.getScore()).isGreaterThan(0L);
+                        });
+    }
+
     @Test
     void shouldPreferCurrentCompressedMarkerOverBroadFtsNoise()
             throws Exception {

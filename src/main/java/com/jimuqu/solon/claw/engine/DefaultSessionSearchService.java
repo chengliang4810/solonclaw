@@ -171,6 +171,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
             results.add(entry);
         }
         if (StrUtil.isNotBlank(query)) {
+            appendRunResults(sourceKey, query, resolvedLimit, results);
             appendToolCallResults(sourceKey, query, resolvedLimit, results);
             results = retainConfirmedDiscoveryResults(results);
             sortDiscoveryResults(results);
@@ -282,6 +283,17 @@ public class DefaultSessionSearchService implements SessionSearchService {
      * @return 返回entry From运行结果。
      */
     private SessionSearchEntry entryFromRun(AgentRunRecord run) throws Exception {
+        return entryFromRun(run, null);
+    }
+
+    /**
+     * 执行entryFrom运行相关逻辑，并在提供查询词时生成可解释命中片段与分数。
+     *
+     * @param run 运行参数。
+     * @param query 查询参数。
+     * @return 返回entry From运行结果。
+     */
+    private SessionSearchEntry entryFromRun(AgentRunRecord run, String query) throws Exception {
         SessionRecord session =
                 StrUtil.isBlank(run.getSessionId())
                         ? null
@@ -295,16 +307,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setUpdatedAt(Math.max(run.getLastActivityAt(), run.getStartedAt()));
         entry.setMode("discovery");
         entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
-        entry.setMatchPreview(
-                firstNonBlank(
-                        run.getFinalReplyPreview(),
-                        run.getInputPreview(),
-                        run.getError(),
-                        run.getStatus()));
+        entry.setMatchPreview(runPreview(run, query));
         entry.setSummary(entry.getMatchPreview());
         entry.setSnippet(entry.getMatchPreview());
         entry.setRunId(run.getRunId());
         entry.setChannel(run.getSourceKey());
+        entry.setScore(scoreRun(run, query));
         return entry;
     }
 
@@ -759,6 +767,36 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     /**
+     * 将当前来源下匹配的运行终态加入普通发现搜索，补齐压缩摘要命中时最终回复证据不可见的问题。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param results 待追加结果。
+     */
+    private void appendRunResults(
+            String sourceKey, String query, int limit, List<SessionSearchEntry> results) {
+        if (agentRunRepository == null || StrUtil.isBlank(query)) {
+            return;
+        }
+        try {
+            int searchLimit = Math.max(10, limit * 5);
+            for (AgentRunRecord record :
+                    agentRunRepository.searchRuns(sourceKey, null, null, query, 0L, 0L, searchLimit)) {
+                if (record == null) {
+                    continue;
+                }
+                SessionSearchEntry entry = entryFromRun(record, query);
+                if (entry.getScore() > 0L) {
+                    results.add(entry);
+                }
+            }
+        } catch (Exception ignored) {
+            // 运行记录检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        }
+    }
+
+    /**
      * 过滤 discovery 中无法解释命中的候选，避免将 0 分的最近会话伪装成搜索结果。
      *
      * @param entries 原始结果。
@@ -807,6 +845,83 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return results;
         }
         return new ArrayList<SessionSearchEntry>(results.subList(0, limit));
+    }
+
+    /**
+     * 计算运行记录与查询词的匹配分值，优先让最终回复证据排在工具调用补充结果之前。
+     *
+     * @param run 运行记录。
+     * @param query 查询参数。
+     * @return 返回运行记录命中分值。
+     */
+    private long scoreRun(AgentRunRecord run, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (run == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        if (containsIgnoreCase(run.getRunId(), normalizedQuery)) {
+            return 95L;
+        }
+        if (containsIgnoreCase(run.getFinalReplyPreview(), normalizedQuery)) {
+            return 88L;
+        }
+        if (containsIgnoreCase(run.getInputPreview(), normalizedQuery)) {
+            return 82L;
+        }
+        if (containsIgnoreCase(run.getError(), normalizedQuery)) {
+            return 78L;
+        }
+        long partialScore = scorePartialText(runSearchText(run), normalizedQuery);
+        if (partialScore > 0L) {
+            return partialScore;
+        }
+        return 0L;
+    }
+
+    /**
+     * 构建运行记录的查询命中片段。
+     *
+     * @param run 运行记录。
+     * @param query 查询参数。
+     * @return 返回运行记录片段。
+     */
+    private String runPreview(AgentRunRecord run, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        String[] values =
+                new String[] {
+                    run == null ? null : run.getFinalReplyPreview(),
+                    run == null ? null : run.getInputPreview(),
+                    run == null ? null : run.getError(),
+                    run == null ? null : run.getStatus(),
+                    run == null ? null : run.getRunId()
+                };
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value) && textMatchesQuery(value, normalizedQuery)) {
+                return trimAroundMatch(value, normalizedQuery);
+            }
+        }
+        return firstNonBlank(values);
+    }
+
+    /**
+     * 汇总运行记录可检索文本。
+     *
+     * @param run 运行记录。
+     * @return 返回可检索文本。
+     */
+    private String runSearchText(AgentRunRecord run) {
+        if (run == null) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(run.getRunId())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getInputPreview())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getFinalReplyPreview())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getError())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getStatus());
     }
 
     /**
