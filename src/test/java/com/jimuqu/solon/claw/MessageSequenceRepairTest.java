@@ -229,13 +229,62 @@ public class MessageSequenceRepairTest {
 
         int repairs = MessageSupport.repairMessageSequence(messages);
 
-        assertThat(repairs).isEqualTo(2);
+        assertThat(repairs).isEqualTo(1);
         assertThat(messages)
                 .extracting(ChatMessage::getRole)
                 .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
         assertThat(((AssistantMessage) messages.get(1)).getToolCalls())
                 .extracting(ToolCall::getId)
                 .containsExactly("call_duplicated");
+    }
+
+    @Test
+    void shouldDropAdjacentDuplicateAssistantToolCallsBeforeToolResult() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("read status"),
+                                assistantWithToolCalls(
+                                        "<think>\n\n调用 session_search。</think>\n\n",
+                                        "call_search"),
+                                assistantWithToolCalls(
+                                        "<think>\n\n调用 session_search。</think>\n\n",
+                                        "call_search"),
+                                ChatMessage.ofTool("found", "session_search", "call_search"),
+                                ChatMessage.ofAssistant("done")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isEqualTo(1);
+        assertThat(messages)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(
+                        ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.ASSISTANT);
+        assertThat(((AssistantMessage) messages.get(1)).getToolCalls())
+                .extracting(ToolCall::getId)
+                .containsExactly("call_search");
+    }
+
+    @Test
+    void shouldNotTreatDifferentToolCallIdsAsDuplicates() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("read twice"),
+                                assistantWithToolCalls(
+                                        "<think>\n\n第一次读取。</think>\n\n",
+                                        "call_first"),
+                                assistantWithToolCalls(
+                                        "<think>\n\n第二次读取。</think>\n\n",
+                                        "call_second")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages, true);
+
+        assertThat(repairs).isEqualTo(0);
+        assertThat(messages)
+                .filteredOn(message -> message instanceof AssistantMessage)
+                .extracting(message -> ((AssistantMessage) message).getToolCalls().get(0).getId())
+                .containsExactly("call_first", "call_second");
     }
 
     @Test

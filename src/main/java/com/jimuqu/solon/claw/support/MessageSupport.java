@@ -252,6 +252,7 @@ public final class MessageSupport {
         }
 
         int repairs = dropStrayToolMessages(messages);
+        repairs += dropDuplicateAdjacentAssistantToolCalls(messages);
         if (!preserveUnansweredToolCalls) {
             repairs += dropUnansweredAssistantToolCalls(messages);
         }
@@ -346,6 +347,97 @@ public final class MessageSupport {
         }
 
         return toNdjson(messages);
+    }
+
+    /**
+     * 清理相邻重复的 assistant tool_call，避免流式聚合和会话快照同时写入同一工具调用。
+     *
+     * @param messages 会话消息列表。
+     * @return 返回清理数量。
+     */
+    private static int dropDuplicateAdjacentAssistantToolCalls(List<ChatMessage> messages) {
+        int repairs = 0;
+        for (int i = 1; i < messages.size(); i++) {
+            ChatMessage previous = messages.get(i - 1);
+            ChatMessage current = messages.get(i);
+            if (!sameAssistantToolCalls(previous, current)) {
+                continue;
+            }
+            AssistantMessage previousAssistant = (AssistantMessage) previous;
+            AssistantMessage currentAssistant = (AssistantMessage) current;
+            if (assistantInformationScore(currentAssistant)
+                    > assistantInformationScore(previousAssistant)) {
+                messages.set(i - 1, currentAssistant);
+            }
+            messages.remove(i);
+            repairs++;
+            i--;
+        }
+        return repairs;
+    }
+
+    /**
+     * 判断两条消息是否是同一批 assistant 工具调用。
+     *
+     * @param previous 已存在的消息。
+     * @param current 当前待检查消息。
+     * @return 如果工具调用签名完全一致则返回 true。
+     */
+    private static boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage current) {
+        if (!(previous instanceof AssistantMessage) || !(current instanceof AssistantMessage)) {
+            return false;
+        }
+        List<ToolCall> previousCalls = ((AssistantMessage) previous).getToolCalls();
+        List<ToolCall> currentCalls = ((AssistantMessage) current).getToolCalls();
+        if (previousCalls == null
+                || currentCalls == null
+                || previousCalls.isEmpty()
+                || previousCalls.size() != currentCalls.size()) {
+            return false;
+        }
+        for (int i = 0; i < previousCalls.size(); i++) {
+            if (!sameToolCall(previousCalls.get(i), currentCalls.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 比较工具调用签名；相同签名代表同一个模型工具调用，不能在上下文里重复出现。
+     *
+     * @param previous 已存在的工具调用。
+     * @param current 当前待检查工具调用。
+     * @return 如果签名一致则返回 true。
+     */
+    private static boolean sameToolCall(ToolCall previous, ToolCall current) {
+        if (previous == null || current == null) {
+            return false;
+        }
+        return StrUtil.equals(previous.getIndex(), current.getIndex())
+                && StrUtil.equals(previous.getId(), current.getId())
+                && StrUtil.equals(previous.getName(), current.getName())
+                && StrUtil.equals(previous.getArgumentsStr(), current.getArgumentsStr())
+                && StrUtil.equals(
+                        String.valueOf(previous.getArguments()),
+                        String.valueOf(current.getArguments()));
+    }
+
+    /**
+     * 计算 assistant 工具调用消息的信息量，去重时优先保留内容更完整的一条。
+     *
+     * @param message assistant 消息。
+     * @return 返回可比较的信息量分数。
+     */
+    private static int assistantInformationScore(AssistantMessage message) {
+        if (message == null) {
+            return 0;
+        }
+        return StrUtil.nullToEmpty(message.getContent()).length()
+                + StrUtil.nullToEmpty(message.getResultContent()).length()
+                + StrUtil.nullToEmpty(message.getReasoning()).length()
+                + (message.getContentRaw() == null ? 0 : 1)
+                + (message.getToolCallsRaw() == null ? 0 : message.getToolCallsRaw().size());
     }
 
     /**
