@@ -769,6 +769,50 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldKeepBareDashboardMemoryDeliveryInCronHistoryWithoutChannelAdapter()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "dashboard-history.py");
+        FileUtil.writeString("print('dashboard history ok')", script, StandardCharsets.UTF_8);
+
+        CronJobRecord job = job("job-dashboard-history-delivery", "MEMORY:dashboard:cron");
+        job.setDeliverPlatform("MEMORY:dashboard");
+        job.setNoAgent(true);
+        job.setWrapResponse(false);
+        job.setScript(script.getName());
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        new FailingDeliveryService("MEMORY adapter should not be called"),
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        new AttachmentCacheService(env.appConfig),
+                        env.localSkillService,
+                        env.agentRunControlService,
+                        null,
+                        env.sessionRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastStatus()).isEqualTo("ok");
+        assertThat(updated.getLastDeliveryError()).isNull();
+        assertThat(updated.getLastOutput()).contains("dashboard history ok");
+
+        List<CronJobRunRecord> runs = env.cronJobRepository.listRuns(job.getJobId(), 5);
+        assertThat(runs).hasSize(1);
+        assertThat(runs.get(0).getDeliveryError()).isNull();
+        assertThat(runs.get(0).getDeliveryResultJson()).contains("\"delivered\":1");
+        assertThat(runs.get(0).getDeliveryResultJson()).contains("\"chat_id\":\"dashboard\"");
+    }
+
+    @Test
     void shouldFallbackOriginDeliveryToConfiguredHomeChannelWhenSourceMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         HomeChannelRecord feishuHome = new HomeChannelRecord();

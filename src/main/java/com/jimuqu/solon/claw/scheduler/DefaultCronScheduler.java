@@ -1387,7 +1387,7 @@ public class DefaultCronScheduler {
     }
 
     /**
-     * 将 Web 控制台来源的定时任务结果写回会话，避免内部 MEMORY 来源走外部渠道适配器。
+     * 将 Web 控制台来源的定时任务结果写回会话或保留在定时任务历史，避免内部 MEMORY 来源走外部渠道适配器。
      *
      * @param target 投递目标。
      * @param request 投递请求。
@@ -1397,9 +1397,12 @@ public class DefaultCronScheduler {
             CronDeliveryTarget target, DeliveryRequest request) throws Exception {
         if (target == null
                 || target.platform != PlatformType.MEMORY
-                || !"dashboard".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId))
-                || StrUtil.isBlank(target.threadId)) {
+                || !"dashboard".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId))) {
             return false;
+        }
+        if (StrUtil.isBlank(target.threadId)) {
+            // 控制台本地投递没有可写入的会话线程，运行输出由定时任务历史承担恢复与审计职责。
+            return true;
         }
         if (sessionRepository == null) {
             throw new IllegalStateException("Dashboard session repository is not configured");
