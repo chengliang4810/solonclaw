@@ -315,6 +315,32 @@ public class CronjobTools {
                                 state,
                                 pausedReason);
                 applyDefaultOriginDelivery(createBody);
+                CronJobRecord duplicate = findDuplicateCreateJob(sourceKey, createBody);
+                if (duplicate != null) {
+                    Map<String, Object> view = formattedView(duplicate);
+                    return ToolResultEnvelope.ok("已存在相同定时任务：" + duplicate.getJobId())
+                            .data("job_id", duplicate.getJobId())
+                            .data("name", safeText(duplicate.getName()))
+                            .data("skill", view.get("skill"))
+                            .data("skills", view.get("skills"))
+                            .data("schedule", duplicate.getCronExpr())
+                            .data("repeat", repeatDisplay(duplicate))
+                            .data("deliver", safeText(duplicate.getDeliverPlatform()))
+                            .data("wrap_response", Boolean.valueOf(duplicate.isWrapResponse()))
+                            .data("no_agent", Boolean.valueOf(duplicate.isNoAgent()))
+                            .data("script", safeObjectText(view.get("script")))
+                            .data("next_run_at", Long.valueOf(duplicate.getNextRunAt()))
+                            .data("job", view)
+                            .data("deduped", Boolean.TRUE)
+                            .data("message", "相同定时任务已存在，已复用 '" + safeText(duplicate.getName()) + "'。")
+                            .preview(
+                                    safeText(
+                                            duplicate.getJobId()
+                                                    + " "
+                                                    + duplicate.getName()
+                                                    + " DEDUPED"))
+                            .toJson();
+                }
                 CronJobRecord job = cronJobService.create(sourceKey, createBody);
                 Map<String, Object> view = formattedView(job);
                 return ToolResultEnvelope.ok("已创建定时任务：" + job.getJobId())
@@ -330,6 +356,7 @@ public class CronjobTools {
                         .data("script", safeObjectText(view.get("script")))
                         .data("next_run_at", Long.valueOf(job.getNextRunAt()))
                         .data("job", view)
+                        .data("deduped", Boolean.FALSE)
                         .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
                         .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
                         .toJson();
@@ -1234,6 +1261,211 @@ public class CronjobTools {
         if (!body.containsKey("origin")) {
             body.put("origin", originFromSourceKey());
         }
+    }
+
+    /**
+     * 查找同一来源下仍未完成的等价定时任务，避免 ReAct 重试重复制造一次性副作用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param body 即将创建的任务参数。
+     * @return 返回可复用的任务；没有匹配时返回 null。
+     */
+    private CronJobRecord findDuplicateCreateJob(String sourceKey, Map<String, Object> body)
+            throws Exception {
+        List<CronJobRecord> jobs = cronJobService.listBySource(sourceKey, true);
+        for (CronJobRecord job : jobs) {
+            if (job == null || isCompleted(job) || !createMatches(job, body)) {
+                continue;
+            }
+            return job;
+        }
+        return null;
+    }
+
+    /**
+     * 判断已有任务是否与当前 create 参数等价。
+     *
+     * @param job 已有任务。
+     * @param body 即将创建的任务参数。
+     * @return 如果关键字段完全一致则返回 true。
+     */
+    private boolean createMatches(CronJobRecord job, Map<String, Object> body) {
+        return sameText(job.getName(), body.get("name"))
+                && sameText(job.getCronExpr(), body.get("schedule"))
+                && sameText(job.getPrompt(), body.get("prompt"))
+                && sameText(job.getDeliverPlatform(), deliveryFingerprint(body.get("deliver")))
+                && sameText(job.getDeliverChatId(), body.get("deliver_chat_id"))
+                && sameText(job.getDeliverThreadId(), body.get("deliver_thread_id"))
+                && sameJson(job.getOriginJson(), body.get("origin"))
+                && sameJson(job.getSkillsJson(), skillsFingerprint(body))
+                && sameInt(job.getRepeatTimes(), body.get("repeat"))
+                && sameText(job.getScript(), body.get("script"))
+                && sameText(job.getWorkdir(), body.get("workdir"))
+                && sameBoolean(job.isNoAgent(), body.get("no_agent"), false)
+                && sameJson(job.getContextFromJson(), body.get("context_from"))
+                && sameJson(job.getEnabledToolsetsJson(), body.get("enabled_toolsets"))
+                && sameText(job.getModel(), body.get("model"))
+                && sameText(job.getProvider(), body.get("provider"))
+                && sameText(job.getBaseUrl(), body.get("base_url"))
+                && sameBoolean(job.isWrapResponse(), body.get("wrap_response"), true);
+    }
+
+    /**
+     * 判断任务是否已经完成，完成态历史不参与幂等复用。
+     *
+     * @param job 已有任务。
+     * @return 完成态返回 true。
+     */
+    private boolean isCompleted(CronJobRecord job) {
+        return "COMPLETED".equalsIgnoreCase(StrUtil.nullToEmpty(job.getStatus()));
+    }
+
+    /**
+     * 比较文本字段，空白和 null 视为同一默认值。
+     *
+     * @param left 已有任务字段。
+     * @param right 新建参数字段。
+     * @return 一致时返回 true。
+     */
+    private boolean sameText(String left, Object right) {
+        return StrUtil.nullToEmpty(left).trim().equals(StrUtil.nullToEmpty(toText(right)).trim());
+    }
+
+    /**
+     * 比较整数字段，缺省值按 0 处理。
+     *
+     * @param left 已有任务字段。
+     * @param right 新建参数字段。
+     * @return 一致时返回 true。
+     */
+    private boolean sameInt(int left, Object right) {
+        if (right instanceof Number) {
+            return left == ((Number) right).intValue();
+        }
+        String text = StrUtil.nullToEmpty(toText(right)).trim();
+        if (StrUtil.isBlank(text)) {
+            return left == 0;
+        }
+        try {
+            return left == Integer.parseInt(text);
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * 比较布尔字段，缺省值按当前记录值处理。
+     *
+     * @param left 已有任务字段。
+     * @param right 新建参数字段。
+     * @return 一致时返回 true。
+     */
+    private boolean sameBoolean(boolean left, Object right, boolean defaultValue) {
+        if (right == null) {
+            return left == defaultValue;
+        }
+        if (right instanceof Boolean) {
+            return left == ((Boolean) right).booleanValue();
+        }
+        return left == Boolean.parseBoolean(String.valueOf(right).trim());
+    }
+
+    /**
+     * 比较 JSON 字段，使用 Snack4 规范化结构后再比较。
+     *
+     * @param stored 已持久化 JSON。
+     * @param value 新建参数对象。
+     * @return 一致时返回 true。
+     */
+    private boolean sameJson(String stored, Object value) {
+        return canonicalJson(stored).equals(canonicalJson(value));
+    }
+
+    /**
+     * 将 JSON 字符串或对象转为稳定结构字符串。
+     *
+     * @param value 待规范化对象。
+     * @return 返回稳定 JSON 字符串。
+     */
+    private String canonicalJson(Object value) {
+        if (value == null || StrUtil.isBlank(String.valueOf(value))) {
+            return "";
+        }
+        if (value instanceof Iterable && !((Iterable<?>) value).iterator().hasNext()) {
+            return "";
+        }
+        if (value instanceof Map && ((Map<?, ?>) value).isEmpty()) {
+            return "";
+        }
+        try {
+            if (value instanceof String) {
+                Object data = ONode.ofJson((String) value).toData();
+                if (emptyJsonValue(data)) {
+                    return "";
+                }
+                return ONode.serialize(data);
+            }
+            if (emptyJsonValue(value)) {
+                return "";
+            }
+            return ONode.serialize(value);
+        } catch (Exception ignored) {
+            return String.valueOf(value).trim();
+        }
+    }
+
+    /**
+     * 判断 JSON 结构是否等价于未配置值。
+     *
+     * @param value 已解析或原始 JSON 结构。
+     * @return 空数组、空对象和 null 返回 true。
+     */
+    private boolean emptyJsonValue(Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof Iterable && !((Iterable<?>) value).iterator().hasNext()) {
+            return true;
+        }
+        return value instanceof Map && ((Map<?, ?>) value).isEmpty();
+    }
+
+    /**
+     * 生成投递字段指纹，覆盖工具调用中常见的字符串与结构化模式。
+     *
+     * @param value deliver 参数值。
+     * @return 返回投递指纹。
+     */
+    @SuppressWarnings("unchecked")
+    private String deliveryFingerprint(Object value) {
+        if (value instanceof Map) {
+            Object mode = ((Map<String, Object>) value).get("mode");
+            return StrUtil.nullToEmpty(toText(mode)).trim();
+        }
+        return toText(value);
+    }
+
+    /**
+     * 生成技能绑定字段指纹，兼容单 skill 与 skills 列表。
+     *
+     * @param body 新建参数。
+     * @return 返回技能列表。
+     */
+    private List<String> skillsFingerprint(Map<String, Object> body) {
+        List<String> skills = new ArrayList<String>();
+        addAllStrings(skills, body.get("skill"));
+        addAllStrings(skills, body.get("skills"));
+        return skills;
+    }
+
+    /**
+     * 转换为比较用文本。
+     *
+     * @param value 待转换对象。
+     * @return 返回文本。
+     */
+    private String toText(Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 
     /**
