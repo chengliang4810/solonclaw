@@ -10,10 +10,14 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.chat.ChatRole;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class SqliteAgentSessionTest {
     @Test
@@ -67,6 +71,44 @@ public class SqliteAgentSessionTest {
         assertThat(cleared.getPendingMarkedAt()).isEqualTo(markedAt);
         assertThat(cleared.getPendingClearedAt()).isGreaterThanOrEqualTo(markedAt);
         assertThat(cleared.getPendingLastReason()).isEqualTo("restart_timeout");
+    }
+
+    @Test
+    void shouldRepairDuplicatedToolCallMessagesBeforePersistingSnapshot() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:duplicate-tool-room:user");
+
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(
+                Arrays.asList(
+                        ChatMessage.ofUser("创建三个待办，并完成第一项"),
+                        assistantWithToolCall("call_duplicated", "todo"),
+                        assistantWithToolCall("call_duplicated", "todo"),
+                        ChatMessage.ofTool(
+                                "{\"total\":3,\"pending\":2,\"completed\":1}",
+                                "todo",
+                                "call_duplicated"),
+                        ChatMessage.ofAssistant("已完成待办整理。")));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restored =
+                new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()));
+
+        assertThat(restored.getMessages())
+                .extracting(ChatMessage::getRole)
+                .containsExactly(
+                        ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.ASSISTANT);
+        assertThat(
+                        restored.getMessages().stream()
+                                .filter(message -> message instanceof AssistantMessage)
+                                .map(message -> (AssistantMessage) message)
+                                .filter(
+                                        message ->
+                                                message.getToolCalls() != null
+                                                        && !message.getToolCalls().isEmpty())
+                                .count())
+                .isEqualTo(1);
     }
 
     @Test
@@ -240,5 +282,17 @@ public class SqliteAgentSessionTest {
         ReActTrace restoredTrace = restored.getContext().getAs("trace-1");
 
         assertThat(restoredTrace.getExtra("stoploop_history")).isInstanceOf(LinkedList.class);
+    }
+
+    /** 构造带工具调用的 assistant 消息，用于模拟模型返回的原生工具调用历史。 */
+    private static AssistantMessage assistantWithToolCall(String id, String name) {
+        return new AssistantMessage(
+                "",
+                false,
+                null,
+                null,
+                Collections.singletonList(
+                        new ToolCall("0", id, name, "{}", Collections.<String, Object>emptyMap())),
+                null);
     }
 }

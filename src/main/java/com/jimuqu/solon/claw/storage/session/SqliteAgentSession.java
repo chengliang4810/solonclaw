@@ -365,6 +365,7 @@ public class SqliteAgentSession implements AgentSession {
      */
     private void syncRecord(boolean persist) {
         try {
+            repairMessagesBeforePersist();
             sessionRecord.setNdjson(ChatMessage.toNdjson(cache.getMessages()));
             cache.getContext().put(META_PENDING, isPending());
             sessionRecord.setAgentSnapshotJson(cache.getContext().toJson());
@@ -376,6 +377,11 @@ public class SqliteAgentSession implements AgentSession {
             throw new IllegalStateException(
                     "Failed to sync sqlite agent session: " + sessionRecord.getSessionId(), e);
         }
+    }
+
+    /** 写回会话快照前先清理协议层重复消息，避免刷新前的会话 API 暴露脏历史。 */
+    private void repairMessagesBeforePersist() {
+        MessageSupport.repairMessageSequence(cache.getMessages(), isPending());
     }
 
     /**
