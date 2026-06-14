@@ -864,13 +864,25 @@ public class ProcessRegistry {
         if (windows) {
             parts.add("cmd");
             parts.add("/c");
-            parts.add(command);
+            parts.add(windowsUtf8Command(command));
         } else {
             parts.add("/bin/sh");
             parts.add("-lc");
             parts.add(SolonClawShellSkill.prependShellInit(command, shellInitFiles, false));
         }
         return parts;
+    }
+
+    /**
+     * 包装 Windows 后台命令，避免系统代码页导致中文输出被 UTF-8 读取时出现乱码。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回带 UTF-8 代码页初始化的命令文本。
+     */
+    private static String windowsUtf8Command(String command) {
+        return "if exist \"%SystemRoot%\\System32\\chcp.com\" "
+                + "\"%SystemRoot%\\System32\\chcp.com\" 65001 >nul 2>nul & "
+                + command;
     }
 
     /**

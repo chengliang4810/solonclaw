@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.noear.snack4.ONode;
 
 public class SolonClawFileReadWriteSkillTest {
     @Test
@@ -29,6 +30,27 @@ public class SolonClawFileReadWriteSkillTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("读取敏感系统/凭据文件被阻断")
                 .hasMessageNotContaining("secret");
+    }
+
+    /** 验证默认 runtime 工作区下的脚本写入不会落到嵌套 runtime 目录。 */
+    @Test
+    void shouldCollapseRuntimeRootPrefixForScriptWrites() throws Exception {
+        Path tempRoot = Files.createTempDirectory("jimuqu-file-runtime-prefix-test");
+        Path dir = tempRoot.resolve("runtime");
+        Files.createDirectories(dir);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(dir.toString());
+        SolonClawFileReadWriteSkill skill =
+                new SolonClawFileReadWriteSkill(dir.toString(), new SecurityPolicyService(config));
+
+        ONode result = ONode.ofJson(skill.write("runtime/scripts/loop-probe.py", "print('ok')\n"));
+        Path expected = dir.resolve("scripts/loop-probe.py");
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("resolved_path").getString())
+                .isEqualTo(expected.toRealPath().toString());
+        assertThat(Files.exists(expected)).isTrue();
+        assertThat(Files.exists(dir.resolve("runtime/scripts/loop-probe.py"))).isFalse();
     }
 
     @Test

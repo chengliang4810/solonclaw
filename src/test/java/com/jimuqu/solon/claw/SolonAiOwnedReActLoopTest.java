@@ -8,6 +8,8 @@ import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.ToolCallRecord;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
@@ -16,6 +18,7 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -174,6 +177,137 @@ public class SolonAiOwnedReActLoopTest {
     }
 
     @Test
+    void shouldRestoreExplicitCronjobBooleanArgsWhenModelOmitsThem() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-cronjob-boolean-args-session");
+        final List<Map<String, Object>> handledArgs = new ArrayList<Map<String, Object>>();
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        FunctionToolDesc cronjob = new FunctionToolDesc("cronjob");
+        cronjob.description("Manage cron jobs.");
+        cronjob.doHandle(
+                args -> {
+                    handledArgs.add(new HashMap<String, Object>(args));
+                    return "created";
+                });
+
+        invokeExecuteSingle(
+                gateway,
+                session,
+                "system",
+                "创建 cronjob：script=probe.py no_agent=true wrap_response=false",
+                Collections.singletonList(cronjob),
+                ConversationFeedbackSink.noop(),
+                eventSink,
+                false,
+                config.getLlm(),
+                null);
+
+        assertThat(handledArgs).hasSize(1);
+        assertThat(handledArgs.get(0).get("no_agent")).isEqualTo(Boolean.TRUE);
+        assertThat(handledArgs.get(0).get("wrap_response")).isEqualTo(Boolean.FALSE);
+        assertThat(eventSink.toolStartedArgs).hasSize(1);
+        assertThat(eventSink.toolStartedArgs.get(0).get("no_agent")).isEqualTo(Boolean.TRUE);
+        assertThat(eventSink.toolStartedArgs.get(0).get("wrap_response")).isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
+    void shouldAuditTodoWritesAsSideEffectingAndReadsAsReadOnly() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.TODO_WRITE_THEN_READ);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-todo-audit-session");
+        Map<String, ToolCallRecord> records = new LinkedHashMap<String, ToolCallRecord>();
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        recordingRunRepository(records),
+                        "run-todo-audit",
+                        session.getSessionId(),
+                        session.getSourceKey());
+
+        FunctionToolDesc todo = new FunctionToolDesc("todo");
+        todo.description("Manage todos.");
+        todo.doHandle(args -> args.containsKey("todos") ? "written" : "read");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "替换 todo 后立即读取",
+                        Collections.singletonList(todo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("todo audit ok");
+        List<ToolCallRecord> calls = new ArrayList<ToolCallRecord>(records.values());
+        assertThat(calls).hasSize(2);
+        assertThat(calls.get(0).getArgsPreview()).contains("todos", "merge=false");
+        assertThat(calls.get(0).isSideEffecting()).isTrue();
+        assertThat(calls.get(0).isReadOnly()).isFalse();
+        assertThat(calls.get(0).getExecutionPolicy()).isEqualTo("serial");
+        assertThat(calls.get(1).getArgsPreview()).isEqualTo("{}");
+        assertThat(calls.get(1).isSideEffecting()).isFalse();
+        assertThat(calls.get(1).isReadOnly()).isTrue();
+        assertThat(calls.get(1).getExecutionPolicy()).isEqualTo("parallel_readonly");
+    }
+
+    @Test
+    void shouldAuditCronjobInspectAsReadOnlyAndCreateAsSideEffecting() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.CRONJOB_INSPECT_THEN_CREATE);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-cronjob-audit-session");
+        Map<String, ToolCallRecord> records = new LinkedHashMap<String, ToolCallRecord>();
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        recordingRunRepository(records),
+                        "run-cronjob-audit",
+                        session.getSessionId(),
+                        session.getSourceKey());
+
+        FunctionToolDesc cronjob = new FunctionToolDesc("cronjob");
+        cronjob.description("Manage cron jobs.");
+        cronjob.doHandle(args -> "inspect".equals(args.get("action")) ? "inspected" : "created");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "先检查定时任务再创建定时任务",
+                        Collections.singletonList(cronjob),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("cronjob audit ok");
+        List<ToolCallRecord> calls = new ArrayList<ToolCallRecord>(records.values());
+        assertThat(calls).hasSize(2);
+        assertThat(calls.get(0).getArgsPreview()).contains("action=inspect");
+        assertThat(calls.get(0).isSideEffecting()).isFalse();
+        assertThat(calls.get(0).isReadOnly()).isTrue();
+        assertThat(calls.get(0).getExecutionPolicy()).isEqualTo("parallel_readonly");
+        assertThat(calls.get(1).getArgsPreview()).contains("action=create");
+        assertThat(calls.get(1).isSideEffecting()).isTrue();
+        assertThat(calls.get(1).isReadOnly()).isFalse();
+        assertThat(calls.get(1).getExecutionPolicy()).isEqualTo("serial");
+    }
+
+    @Test
     void shouldStreamOwnedLoopDeltasWhenEventSinkIsProvided() throws Exception {
         AppConfig config = config();
         config.getReact().setMaxSteps(2);
@@ -201,6 +335,73 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getReasoningText()).contains("流式思考");
         assertThat(eventSink.reasoningDeltas).contains("流式思考");
         assertThat(eventSink.assistantDeltas).contains("流式答复");
+        assertThat(eventSink.reasoningDeltas).noneMatch(delta -> delta.contains("<think>"));
+        assertThat(eventSink.assistantDeltas).noneMatch(delta -> delta.contains("<think>"));
+    }
+
+    @Test
+    void shouldNotEmitThinkingOnlyAggregationAsAssistantDelta() throws Exception {
+        AppConfig config = config();
+        config.getReact().setMaxSteps(1);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_THINKING_TAGS_ONLY);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-thinking-only-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请只输出思考",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(result.isStreamed()).isTrue();
+        assertThat(result.getReasoningText()).contains("内部计划");
+        assertThat(eventSink.reasoningDeltas).contains("内部计划");
+        assertThat(eventSink.assistantDeltas).isEmpty();
+        assertThat(eventSink.reasoningDeltas).noneMatch(delta -> delta.contains("<think>"));
+    }
+
+    @Test
+    void shouldNotReplayFullAggregationWhenStreamedVisibleTextAlreadyEmitted() throws Exception {
+        AppConfig config = config();
+        config.getReact().setMaxSteps(1);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_AGGREGATION_DIFFERS);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-stream-aggregation-differs-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请输出 JSON",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(result.isStreamed()).isTrue();
+        assertThat(result.getAssistantMessage().getResultContent())
+                .isEqualTo("{\"next_slice\":\"可更新 loop-reset-3 为 in_progress 继续闭环\"}");
+        assertThat(result.getRawResponse())
+                .isEqualTo("{\"next_slice\":\"可更新 loop-reset-3 为 in_progress 继续闭环\"}");
+        assertThat(eventSink.assistantDeltas)
+                .containsExactly("{\"next_slice\":\"可更新 loop-reset-3 为 in_progress继续闭环\"}");
+        assertThat(String.join("", eventSink.assistantDeltas)).doesNotContain("}{");
     }
 
     @Test
@@ -544,9 +745,52 @@ public class SolonAiOwnedReActLoopTest {
         return text.toString();
     }
 
+    /**
+     * 构造只记录工具审计结果的运行仓储，避免单测依赖真实 SQLite。
+     *
+     * @param records 按工具调用标识保存的审计记录。
+     * @return 返回运行仓储代理。
+     */
+    private static AgentRunRepository recordingRunRepository(
+            Map<String, ToolCallRecord> records) {
+        return (AgentRunRepository)
+                Proxy.newProxyInstance(
+                        AgentRunRepository.class.getClassLoader(),
+                        new Class[] {AgentRunRepository.class},
+                        (proxy, method, args) -> {
+                            if ("saveToolCall".equals(method.getName())) {
+                                ToolCallRecord record = (ToolCallRecord) args[0];
+                                records.put(record.getToolCallId(), record);
+                                return null;
+                            }
+                            if ("listToolCalls".equals(method.getName())) {
+                                return new ArrayList<ToolCallRecord>(records.values());
+                            }
+                            Class<?> type = method.getReturnType();
+                            if (Void.TYPE.equals(type)) {
+                                return null;
+                            }
+                            if (Integer.TYPE.equals(type)) {
+                                return Integer.valueOf(0);
+                            }
+                            if (Long.TYPE.equals(type)) {
+                                return Long.valueOf(0L);
+                            }
+                            if (Boolean.TYPE.equals(type)) {
+                                return Boolean.FALSE;
+                            }
+                            if (List.class.isAssignableFrom(type)) {
+                                return Collections.emptyList();
+                            }
+                            return null;
+                        });
+    }
+
     private static class RecordingEventSink implements ConversationEventSink {
         private final List<String> assistantDeltas = new ArrayList<String>();
         private final List<String> reasoningDeltas = new ArrayList<String>();
+        private final List<Map<String, Object>> toolStartedArgs =
+                new ArrayList<Map<String, Object>>();
 
         @Override
         public void onAssistantDelta(String delta) {
@@ -556,6 +800,11 @@ public class SolonAiOwnedReActLoopTest {
         @Override
         public void onReasoningDelta(String delta) {
             reasoningDeltas.add(delta);
+        }
+
+        @Override
+        public void onToolStarted(String toolName, Map<String, Object> args) {
+            toolStartedArgs.add(new HashMap<String, Object>(args));
         }
     }
 
@@ -586,9 +835,14 @@ public class SolonAiOwnedReActLoopTest {
         LONG_TOOL_OUTPUT,
         /** 模拟协议层只返回 tool_calls 聚合结果但不写入 AgentSession 的场景。 */
         NATIVE_TOOL_WITHOUT_SESSION_APPEND,
+        CRONJOB_MISSING_BOOLEAN_ARGS,
+        TODO_WRITE_THEN_READ,
+        CRONJOB_INSPECT_THEN_CREATE,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL,
+        STREAM_THINKING_TAGS_ONLY,
+        STREAM_AGGREGATION_DIFFERS,
         STREAM_VISIBLE_TOOL_PREAMBLE
     }
 
@@ -677,8 +931,48 @@ public class SolonAiOwnedReActLoopTest {
                                 model.mode == FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL
                                         ? "重试答复"
                                         : "历史答复");
+            } else if (model.mode == FakeMode.TODO_WRITE_THEN_READ) {
+                int toolMessages = toolMessageCount(session.getMessages());
+                if (toolMessages == 0) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 需要替换 todo\n"
+                                            + "Action: todo\n"
+                                            + "Action Input: {\"merge\":false,\"todos\":[{\"id\":\"audit-1\",\"content\":\"审计写入\",\"status\":\"pending\"}]}");
+                } else if (toolMessages == 1) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 需要读回 todo\n"
+                                            + "Action: todo\n"
+                                            + "Action Input: {}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("todo audit ok");
+                }
+            } else if (model.mode == FakeMode.CRONJOB_INSPECT_THEN_CREATE) {
+                int toolMessages = toolMessageCount(session.getMessages());
+                if (toolMessages == 0) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 先只读检查定时任务\n"
+                                            + "Action: cronjob\n"
+                                            + "Action Input: {\"action\":\"inspect\",\"job_id\":\"job-audit\",\"limit\":5}");
+                } else if (toolMessages == 1) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 再创建定时任务\n"
+                                            + "Action: cronjob\n"
+                                            + "Action Input: {\"action\":\"create\",\"name\":\"job-new\",\"schedule\":\"2m\",\"deliver\":\"origin\",\"no_agent\":false,\"wrap_response\":true}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("cronjob audit ok");
+                }
             } else if (toolMessage == null) {
-                if (model.mode == FakeMode.LONG_TOOL_OUTPUT) {
+                if (model.mode == FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 需要创建定时任务\n"
+                                            + "Action: cronjob\n"
+                                            + "Action Input: {\"action\":\"create\",\"schedule\":\"2h\",\"script\":\"probe.py\",\"deliver\":\"local\"}");
+                } else if (model.mode == FakeMode.LONG_TOOL_OUTPUT) {
                     assistant =
                             ChatMessage.ofAssistant(
                                     "Thought: 需要读取长文件\n"
@@ -705,6 +999,8 @@ public class SolonAiOwnedReActLoopTest {
         public Flux<ChatResponse> stream() {
             try {
                 if (model.mode != FakeMode.STREAM_FINAL
+                        && model.mode != FakeMode.STREAM_THINKING_TAGS_ONLY
+                        && model.mode != FakeMode.STREAM_AGGREGATION_DIFFERS
                         && model.mode != FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
                     return Flux.just(call());
                 }
@@ -713,6 +1009,20 @@ public class SolonAiOwnedReActLoopTest {
                 }
                 model.calls++;
                 model.requestContents.add(messageContents(session.getMessages()));
+                if (model.mode == FakeMode.STREAM_THINKING_TAGS_ONLY) {
+                    AssistantMessage thinking = new AssistantMessage("<think>内部计划</think>", true);
+                    return Flux.just(new FakeResponse(model, options, thinking, true));
+                }
+                if (model.mode == FakeMode.STREAM_AGGREGATION_DIFFERS) {
+                    AssistantMessage visible =
+                            ChatMessage.ofAssistant(
+                                    "{\"next_slice\":\"可更新 loop-reset-3 为 in_progress继续闭环\"}");
+                    AssistantMessage aggregation =
+                            ChatMessage.ofAssistant(
+                                    "{\"next_slice\":\"可更新 loop-reset-3 为 in_progress 继续闭环\"}");
+                    session.addMessage(aggregation);
+                    return Flux.just(new FakeResponse(model, options, visible, true, aggregation));
+                }
                 if (model.mode == FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
                     ToolMessage toolMessage = lastToolMessage(session.getMessages());
                     if (toolMessage == null) {
@@ -731,7 +1041,7 @@ public class SolonAiOwnedReActLoopTest {
                     session.addMessage(finalJson);
                     return Flux.just(new FakeResponse(model, options, finalJson, true));
                 }
-                AssistantMessage thinking = new AssistantMessage("流式思考", true);
+                AssistantMessage thinking = new AssistantMessage("<think>流式思考</think>", true);
                 AssistantMessage visible = ChatMessage.ofAssistant("流式答复");
                 session.addMessage(visible);
                 return Flux.just(
@@ -740,6 +1050,32 @@ public class SolonAiOwnedReActLoopTest {
             } catch (IOException e) {
                 return Flux.error(e);
             }
+        }
+
+        private ToolMessage lastToolMessage(List<ChatMessage> messages) {
+            if (messages == null) {
+                return null;
+            }
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                ChatMessage message = messages.get(i);
+                if (message instanceof ToolMessage) {
+                    return (ToolMessage) message;
+                }
+            }
+            return null;
+        }
+
+        private int toolMessageCount(List<ChatMessage> messages) {
+            int count = 0;
+            if (messages == null) {
+                return 0;
+            }
+            for (ChatMessage message : messages) {
+                if (message instanceof ToolMessage) {
+                    count++;
+                }
+            }
+            return count;
         }
 
         private AssistantMessage assistantWithToolCall(
@@ -765,19 +1101,6 @@ public class SolonAiOwnedReActLoopTest {
             List<ToolCall> toolCalls = new ArrayList<ToolCall>();
             toolCalls.add(new ToolCall("0", callId, name, arguments, argumentMap));
             return new AssistantMessage(content, false, null, rawCalls, toolCalls, null);
-        }
-
-        private ToolMessage lastToolMessage(List<ChatMessage> messages) {
-            if (messages == null) {
-                return null;
-            }
-            for (int i = messages.size() - 1; i >= 0; i--) {
-                ChatMessage message = messages.get(i);
-                if (message instanceof ToolMessage) {
-                    return (ToolMessage) message;
-                }
-            }
-            return null;
         }
     }
 

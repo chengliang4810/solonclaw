@@ -817,7 +817,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         resolved,
                                         runContext,
                                         eventSink,
-                                        runRecord.getRunId());
+                                        runRecord);
                         session = compression.getSession();
                         if (StrUtil.isBlank(compressionWarning)
                                 && StrUtil.isNotBlank(compression.getWarning())) {
@@ -1043,7 +1043,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param resolved resolved 参数。
      * @param runContext 运行上下文。
      * @param eventSink 事件Sink参数。
-     * @param runId 运行标识。
+     * @param runRecord 当前运行记录，压缩次数必须写回同一对象，避免后续保存覆盖。
      * @return 返回压缩Before Attempt结果。
      */
     private CompressionOutcome compressBeforeAttempt(
@@ -1053,8 +1053,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             AppConfig.LlmConfig resolved,
             AgentRunContext runContext,
             ConversationEventSink eventSink,
-            String runId)
+            AgentRunRecord runRecord)
             throws Exception {
+        String runId = runRecord == null ? "" : runRecord.getRunId();
         ContextBudgetDecision decision =
                 contextBudgetService.decide(session, systemPrompt, userMessage, resolved);
         if (!decision.isShouldCompress()) {
@@ -1099,13 +1100,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (changed) {
             sessionRepository.save(compressed);
         }
-        AgentRunRecord record = agentRunRepository.findRun(runId);
-        if (record != null) {
-            record.setCompressionCount(record.getCompressionCount() + 1);
-            record.setContextEstimateTokens(decision.getEstimatedTokens());
-            record.setContextWindowTokens(decision.getThresholdTokens());
-            heartbeat(record);
-            agentRunRepository.saveRun(record);
+        if (runRecord != null) {
+            runRecord.setCompressionCount(runRecord.getCompressionCount() + 1);
+            runRecord.setContextEstimateTokens(decision.getEstimatedTokens());
+            runRecord.setContextWindowTokens(decision.getThresholdTokens());
+            heartbeat(runRecord);
+            agentRunRepository.saveRun(runRecord);
         }
         outcome.setEstimatedTokens(decision.getEstimatedTokens());
         outcome.setThresholdTokens(decision.getThresholdTokens());

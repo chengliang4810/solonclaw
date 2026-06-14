@@ -7,10 +7,12 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.LinkedList;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.agent.react.ReActTrace;
@@ -109,6 +111,91 @@ public class SqliteAgentSessionTest {
                                                         && !message.getToolCalls().isEmpty())
                                 .count())
                 .isEqualTo(1);
+    }
+
+    @Test
+    void shouldPersistMessageSequenceRepairsOnLoad() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:repair-load:user");
+        AssistantMessage first = assistantWithToolCall("call_1");
+        AssistantMessage duplicate = assistantWithToolCall("call_1");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                first,
+                                duplicate,
+                                ChatMessage.ofTool("done", "todo", "call_1"),
+                                ChatMessage.ofUser("continue"))));
+        env.sessionRepository.save(session);
+
+        SqliteAgentSession restored =
+                new SqliteAgentSession(
+                        env.sessionRepository.findById(session.getSessionId()),
+                        env.sessionRepository);
+
+        assertThat(restored.getMessages())
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+        List<ChatMessage> persisted =
+                MessageSupport.loadMessages(
+                        env.sessionRepository.findById(session.getSessionId()).getNdjson());
+        assertThat(persisted)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+    }
+
+    @Test
+    void shouldDropHistoricalMojibakeSummaryArtifactsOnLoad() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:summary-artifact:user");
+        session.setCompressedSummary("摘要：长期回归 Loop 当前目标是验证会话恢复。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofAssistant(
+                                        "Focus\n"
+                                                + "闀挎湡鍥炲綊 Loop Web origin cron 鑷劧瑙﹀彂楠岃瘉 marker=web-loop-origin-cron-20260613-0736\n\n"
+                                                + "Decisions\n"
+                                                + "- 鏈疆鐩爣锛氶�氳繃 Web 瀵硅瘽验证历史状态。"),
+                                ChatMessage.ofUser("继续验证会话恢复"),
+                                ChatMessage.ofAssistant("下一步检查日志。"))));
+        env.sessionRepository.save(session);
+
+        SqliteAgentSession restored =
+                new SqliteAgentSession(
+                        env.sessionRepository.findById(session.getSessionId()),
+                        env.sessionRepository);
+
+        assertThat(restored.getMessages())
+                .extracting(ChatMessage::getContent)
+                .containsExactly("继续验证会话恢复", "下一步检查日志。");
+        String persisted = env.sessionRepository.findById(session.getSessionId()).getNdjson();
+        assertThat(persisted).doesNotContain("闀挎湡").contains("继续验证会话恢复");
+    }
+
+    @Test
+    void shouldSkipAdjacentDuplicateAssistantToolCallWhenPersisting() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dedupe-tool-call:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        AssistantMessage first = assistantWithToolCall("call_stream");
+        AssistantMessage duplicate = assistantWithToolCall("call_stream");
+
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("读取 todo"), first, duplicate));
+        agentSession.addMessage(
+                Arrays.asList(ChatMessage.ofTool("done", "todo", "call_stream")));
+        agentSession.updateSnapshot();
+
+        List<ChatMessage> persisted =
+                MessageSupport.loadMessages(
+                        env.sessionRepository.findById(session.getSessionId()).getNdjson());
+        assertThat(persisted)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL);
+        assertThat(persisted)
+                .filteredOn(message -> message instanceof AssistantMessage)
+                .hasSize(1);
     }
 
     @Test
@@ -293,6 +380,23 @@ public class SqliteAgentSessionTest {
                 null,
                 Collections.singletonList(
                         new ToolCall("0", id, name, "{}", Collections.<String, Object>emptyMap())),
+                null);
+    }
+
+    /** 构造带默认 todo 工具调用的 assistant 消息，用于模拟流式工具调用去重。 */
+    private static AssistantMessage assistantWithToolCall(String callId) {
+        return new AssistantMessage(
+                "<think>调用 todo。</think>\n\n",
+                false,
+                null,
+                null,
+                Collections.singletonList(
+                        new ToolCall(
+                                callId,
+                                callId,
+                                "todo",
+                                "{}",
+                                Collections.<String, Object>emptyMap())),
                 null);
     }
 }

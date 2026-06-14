@@ -2,7 +2,9 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -99,6 +101,38 @@ public class StorageRepositoryTest {
         env.sessionRepository.delete(session.getSessionId());
 
         assertThat(env.sessionRepository.findById(session.getSessionId())).isNull();
+    }
+
+    @Test
+    void shouldKeepToolCallCountWhenRunIsSavedAfterToolCompletion() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-count:user");
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-tool-count-1");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey(session.getSourceKey());
+        run.setStatus("running");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId("tool-call-count-1");
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(session.getSessionId());
+        toolCall.setSourceKey(session.getSourceKey());
+        toolCall.setToolName("todo");
+        toolCall.setStatus("completed");
+        toolCall.setStartedAt(run.getStartedAt());
+        toolCall.setFinishedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        run.setStatus("success");
+        run.setPhase("completed");
+        run.setFinishedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveRun(run);
+
+        assertThat(env.agentRunRepository.findRun(run.getRunId()).getToolCallCount()).isEqualTo(1);
     }
 
     @Test

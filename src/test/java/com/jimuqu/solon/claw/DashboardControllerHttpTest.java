@@ -151,6 +151,14 @@ public class DashboardControllerHttpTest {
         assertThat(chat.status).isEqualTo(200);
         assertThat(chat.body).contains("__APP_SESSION_TOKEN__");
 
+        HttpResult solonClawChat = request("GET", "/solonclaw/chat", null, null);
+        assertThat(solonClawChat.status).isEqualTo(200);
+        assertThat(solonClawChat.body).contains("__APP_SESSION_TOKEN__");
+
+        HttpResult solonClawBase = request("GET", "/solonclaw", null, null);
+        assertThat(solonClawBase.status).isEqualTo(200);
+        assertThat(solonClawBase.body).contains("__APP_SESSION_TOKEN__");
+
         HttpResult files = request("GET", "/files", null, null);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).contains("__APP_SESSION_TOKEN__");
@@ -2540,6 +2548,24 @@ public class DashboardControllerHttpTest {
         assertThat(statusEvents).contains("event: run.started");
         assertThat(statusEvents).contains("event: message.delta");
         assertThat(statusEvents).contains("event: run.completed");
+        ONode statusMessages =
+                ONode.ofJson(
+                        request(
+                                        "GET",
+                                        "/api/sessions/dashboard-chat-status/messages",
+                                        null,
+                                        token)
+                                .body);
+        ONode persistedMessages = statusMessages.get("data").get("messages");
+        assertThat(persistedMessages.size()).isEqualTo(2);
+        assertThat(persistedMessages.get(0).get("role").getString())
+                .isEqualTo("user");
+        assertThat(persistedMessages.get(0).get("content").getString())
+                .isEqualTo("/status");
+        assertThat(persistedMessages.get(1).get("role").getString())
+                .isEqualTo("assistant");
+        assertThat(persistedMessages.get(1).get("content").getString())
+                .contains("session=dashboard-chat-status");
 
         ONode branchStart =
                 ONode.ofJson(

@@ -87,6 +87,30 @@ public class MessageSequenceRepairTest {
     }
 
     @Test
+    void shouldDropThinkingOnlyAssistantWhenToolCallsArePruned() {
+        AssistantMessage duplicate = assistantWithToolCalls("<think>重复的工具计划</think>\n\n", "call_1");
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("run"),
+                                assistantWithToolCalls(
+                                        "<think>有效工具计划</think>\n\n", "call_1"),
+                                duplicate,
+                                ChatMessage.ofTool("done", "todo", "call_1"),
+                                ChatMessage.ofUser("continue")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isGreaterThanOrEqualTo(1);
+        assertThat(messages)
+                .extracting(ChatMessage::getRole)
+                .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
+        assertThat(messages).noneMatch(message -> message instanceof AssistantMessage
+                && ((AssistantMessage) message).getToolCalls() == null
+                && ((AssistantMessage) message).getResultContent().isEmpty());
+    }
+
+    @Test
     void shouldDemoteSignedThinkingWhenPruningAssistantToolCalls() {
         AssistantMessage assistant =
                 assistantWithToolCalls(
@@ -326,6 +350,23 @@ public class MessageSequenceRepairTest {
                 .extracting(ToolCall::getId)
                 .containsExactly("call_utf8");
         assertThat(messages.get(1).getContent()).contains("\u957f\u671f\u56de\u5f52");
+    }
+
+    @Test
+    void shouldLoadToolMessageWithEscapedJsonTextBlock() throws Exception {
+        String ndjson =
+                "{\"role\":\"USER\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"创建 todo\"}],\"content\":\"创建 todo\"}\n"
+                        + "{\"role\":\"TOOL\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\"}],\"content\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\",\"name\":\"todo\",\"toolCallId\":\"call_todo\"}\n";
+
+        List<ChatMessage> messages = MessageSupport.loadMessages(ndjson);
+
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(1)).isInstanceOf(org.noear.solon.ai.chat.message.ToolMessage.class);
+        assertThat(messages.get(1).getContent()).contains("\"status\":\"success\"");
+        org.noear.solon.ai.chat.message.ToolMessage tool =
+                (org.noear.solon.ai.chat.message.ToolMessage) messages.get(1);
+        assertThat(tool.getName()).isEqualTo("todo");
+        assertThat(tool.getToolCallId()).isEqualTo("call_todo");
     }
 
     private static AssistantMessage assistantWithToolCall(String id, String name) {

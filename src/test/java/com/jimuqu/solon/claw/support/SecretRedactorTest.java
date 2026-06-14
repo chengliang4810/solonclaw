@@ -72,6 +72,29 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactYamlStyleCredentialFields() {
+        String result =
+                SecretRedactor.redact(
+                        "providers:\n"
+                                + "  default:\n"
+                                + "    apiKey: tp-local-provider-secret-1234567890\n"
+                                + "    accessToken: \"access-token-secret\"\n"
+                                + "    clientSecret: 'client-secret-value'\n"
+                                + "    defaultModel: mimo-v2.5-pro\n"
+                                + "    baseUrl: https://example.test/v1\n");
+
+        assertThat(result)
+                .contains("apiKey: ***")
+                .contains("accessToken: \"***\"")
+                .contains("clientSecret: '***'")
+                .contains("defaultModel: mimo-v2.5-pro")
+                .contains("baseUrl: https://example.test/v1")
+                .doesNotContain("tp-local-provider-secret")
+                .doesNotContain("access-token-secret")
+                .doesNotContain("client-secret-value");
+    }
+
+    @Test
     void shouldRedactUrlsPrivateKeysAndDatabasePasswordsLikeJimuqu() {
         String result =
                 SecretRedactor.redact(

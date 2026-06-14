@@ -1331,6 +1331,33 @@ public class SolonClawShellSkillTest {
         assertThat(failed.get("error").isNull()).isTrue();
     }
 
+    /** 验证终端工具读取中文输出时不会把 Windows 编码问题扩散到 Agent 会话。 */
+    @Test
+    void shouldPreserveChineseOutputFromExecuteShellAndTerminal() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+        String marker = "长期回归 Loop 切片";
+
+        String executeOutput = skill.execute(chineseOutputCommand(marker), Integer.valueOf(10000));
+        ONode terminal =
+                ONode.ofJson(
+                        skill.terminal(
+                                chineseOutputCommand(marker),
+                                Boolean.FALSE,
+                                Integer.valueOf(10),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(executeOutput).contains(marker);
+        assertNoMojibake(executeOutput);
+        assertThat(executeOutput).doesNotContain("chcp");
+        assertThat(terminal.get("output").getString()).contains(marker);
+        assertNoMojibake(terminal.get("output").getString());
+        assertThat(terminal.get("output").getString()).doesNotContain("Write-Output");
+        assertThat(terminal.get("output").getString()).doesNotContain("chcp");
+    }
+
     @Test
     void shouldRetryForegroundTerminalExecutionFailuresLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
@@ -1958,6 +1985,19 @@ public class SolonClawShellSkillTest {
             return "echo ready";
         }
         return "printf 'ready\\n'";
+    }
+
+    /** 构建跨平台中文输出命令，用于验证 shell 工具的 UTF-8 回传稳定性。 */
+    private String chineseOutputCommand(String text) {
+        if (isWindows()) {
+            return "powershell -NoProfile -Command \"Write-Output '" + text + "'\"";
+        }
+        return "printf '%s\\n' '" + text + "'";
+    }
+
+    /** 校验输出里没有替换字符或常见 UTF-8 被 GBK 误读后的乱码片段。 */
+    private void assertNoMojibake(String output) {
+        assertThat(output).doesNotContain("\uFFFD").doesNotContain("闀").doesNotContain("鍥炲綊");
     }
 
     private String printTokenCommand() {

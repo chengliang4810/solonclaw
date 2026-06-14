@@ -1,14 +1,18 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.content.ContentBlock;
 import org.noear.solon.ai.chat.message.AssistantMessage;
@@ -37,10 +41,10 @@ public final class MessageSupport {
     }
 
     /**
-     * 直接按 Java 字符串逐行恢复历史消息，避免 Solon AI 整段 NDJSON 读取路径在 Windows 默认字符集下误读 UTF-8 字节。
+     * 逐行恢复历史消息，并兼容旧快照中带转义 JSON 工具结果的文本块。
      *
-     * @param ndjson 历史会话 NDJSON。
-     * @return 返回恢复后的消息列表。
+     * @param ndjson 原始会话快照。
+     * @return 返回兼容解析后的消息列表。
      */
     private static List<ChatMessage> loadMessagesByLine(String ndjson) throws IOException {
         List<ChatMessage> messages = new ArrayList<ChatMessage>();
@@ -53,12 +57,180 @@ public final class MessageSupport {
                 if (StrUtil.isBlank(line)) {
                     continue;
                 }
-                messages.add(ChatMessage.fromJson(line));
+                messages.add(loadMessageCompat(line));
             }
             return messages;
         } catch (RuntimeException e) {
             throw new IOException("Failed to parse session ndjson line " + lineNumber, e);
         }
+    }
+
+    /**
+     * 单行优先使用 Solon AI 原生解析，仅在该行失败时降级为无自动类型解析。
+     *
+     * @param line 单条 NDJSON 消息。
+     * @return 返回解析后的会话消息。
+     */
+    private static ChatMessage loadMessageCompat(String line) {
+        try {
+            return ChatMessage.fromJson(line);
+        } catch (RuntimeException ignored) {
+            return fromPlainJson(ONode.ofJson(line));
+        }
+    }
+
+    /**
+     * 使用无自动类型的 Snack4 节点重建消息，绕开第三方文本块自动类型解析对工具 JSON 内容的限制。
+     *
+     * @param node 单条消息 JSON 节点。
+     * @return 返回重建后的会话消息。
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static ChatMessage fromPlainJson(ONode node) {
+        ChatRole role = ChatRole.ofName(node.get("role").getString());
+        ChatMessage message;
+        if (role == ChatRole.TOOL) {
+            message =
+                    ChatMessage.ofTool(
+                            messageContent(node),
+                            node.get("name").getString(),
+                            node.get("toolCallId").getString());
+        } else if (role == ChatRole.SYSTEM) {
+            message = ChatMessage.ofSystem(messageContent(node));
+        } else if (role == ChatRole.USER) {
+            message = ChatMessage.ofUser(messageContent(node));
+        } else {
+            AssistantMessage assistant =
+                    new AssistantMessage(
+                            messageContent(node),
+                            boolValue(node.get("isThinking")),
+                            node.hasKey("contentRaw") ? node.get("contentRaw").toData() : null,
+                            mapList(node.get("toolCallsRaw")),
+                            toolCalls(node.get("toolCalls")),
+                            mapList(node.get("searchResultsRaw")));
+            if (StrUtil.isNotBlank(node.get("reasoningFieldName").getString())) {
+                assistant.reasoningFieldName(node.get("reasoningFieldName").getString());
+            }
+            message = assistant;
+        }
+        Map metadata = mapValue(node.get("metadata"));
+        if (metadata != null && !metadata.isEmpty()) {
+            message.addMetadata(metadata);
+        }
+        return message;
+    }
+
+    /**
+     * 读取消息正文；当旧快照只有文本块时，回退到第一个文本块内容。
+     *
+     * @param node 单条消息 JSON 节点。
+     * @return 返回可用于单模态恢复的文本内容。
+     */
+    private static String messageContent(ONode node) {
+        String content = node.get("content").getString();
+        if (content != null) {
+            return content;
+        }
+        ONode blocks = node.get("blocks");
+        if (!blocks.isArray() || blocks.size() == 0) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(blocks.get(0).get("text").getString());
+    }
+
+    /**
+     * 读取布尔字段，兼容缺失或 null 值。
+     *
+     * @param node 布尔字段节点。
+     * @return 返回字段是否为 true。
+     */
+    private static boolean boolValue(ONode node) {
+        Boolean value = node.getBoolean(Boolean.FALSE);
+        return value != null && value.booleanValue();
+    }
+
+    /**
+     * 重建工具调用列表，保留模型续轮所需的调用标识、名称和参数。
+     *
+     * @param node 工具调用数组节点。
+     * @return 返回工具调用列表。
+     */
+    private static List<ToolCall> toolCalls(ONode node) {
+        if (!node.isArray() || node.size() == 0) {
+            return null;
+        }
+        List<ToolCall> calls = new ArrayList<ToolCall>();
+        for (int i = 0; i < node.size(); i++) {
+            ONode item = node.get(i);
+            ToolCall call =
+                    new ToolCall(
+                            item.get("index").getString(),
+                            item.get("id").getString(),
+                            item.get("name").getString(),
+                            item.get("argumentsStr").getString(),
+                            stringObjectMap(item.get("arguments")));
+            if (StrUtil.isNotBlank(item.get("thoughtSignature").getString())) {
+                call.setThoughtSignature(item.get("thoughtSignature").getString());
+            }
+            calls.add(call);
+        }
+        return calls;
+    }
+
+    /**
+     * 将 JSON 数组节点转换为原始 Map 列表，用于回传工具调用或搜索结果原文。
+     *
+     * @param node 数组节点。
+     * @return 返回 Map 列表；为空时返回 null。
+     */
+    @SuppressWarnings("rawtypes")
+    private static List<Map> mapList(ONode node) {
+        if (!node.isArray() || node.size() == 0) {
+            return null;
+        }
+        List<Map> values = new ArrayList<Map>();
+        for (int i = 0; i < node.size(); i++) {
+            Map item = mapValue(node.get(i));
+            if (item != null) {
+                values.add(item);
+            }
+        }
+        return values.isEmpty() ? null : values;
+    }
+
+    /**
+     * 将 JSON 对象节点转换为 Map。
+     *
+     * @param node 对象节点。
+     * @return 返回 Map；非对象时返回 null。
+     */
+    @SuppressWarnings("rawtypes")
+    private static Map mapValue(ONode node) {
+        if (!node.isObject()) {
+            return null;
+        }
+        Object data = node.toData();
+        return data instanceof Map ? (Map) data : null;
+    }
+
+    /**
+     * 将工具参数节点转换为字符串键 Map，缺失时返回空 Map。
+     *
+     * @param node 工具参数节点。
+     * @return 返回工具参数 Map。
+     */
+    private static Map<String, Object> stringObjectMap(ONode node) {
+        Map<?, ?> raw = mapValue(node);
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        for (Map.Entry<?, ?> entry : raw.entrySet()) {
+            if (entry.getKey() != null) {
+                result.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return result;
     }
 
     /** 修复发给模型前的消息序列，避免孤儿 tool 消息或连续 user 消息破坏协议。 */
@@ -83,9 +255,61 @@ public final class MessageSupport {
         if (!preserveUnansweredToolCalls) {
             repairs += dropUnansweredAssistantToolCalls(messages);
         }
+        repairs += dropDuplicateAssistantToolPreambles(messages);
         repairs += dropEmptyAssistantMessages(messages);
         repairs += mergeConsecutiveTextUsers(messages);
         return repairs;
+    }
+
+    /**
+     * 清理历史压缩摘要残留，避免旧摘要作为普通消息再次进入模型上下文或 Dashboard 对话流。
+     *
+     * @param messages 会话消息列表。
+     * @param compressedSummary 当前会话独立保存的压缩摘要。
+     * @return 返回被清理的消息数量。
+     */
+    public static int dropHistoricalSummaryArtifacts(
+            List<ChatMessage> messages, String compressedSummary) {
+        if (messages == null
+                || messages.isEmpty()
+                || StrUtil.isBlank(compressedSummary)) {
+            return 0;
+        }
+        int repairs = 0;
+        List<ChatMessage> filtered = new ArrayList<ChatMessage>(messages.size());
+        for (ChatMessage message : messages) {
+            if (isHistoricalSummaryArtifactMessage(message)) {
+                repairs++;
+            } else {
+                filtered.add(message);
+            }
+        }
+        if (repairs > 0) {
+            messages.clear();
+            messages.addAll(filtered);
+        }
+        return repairs;
+    }
+
+    /**
+     * 判断单条消息是否为历史压缩摘要残留；用户消息始终保留，避免误删真实输入。
+     *
+     * @param message 待检查的会话消息。
+     * @return 如果消息应从活跃上下文中移除则返回 true。
+     */
+    private static boolean isHistoricalSummaryArtifactMessage(ChatMessage message) {
+        if (message == null || message.getRole() == ChatRole.USER) {
+            return false;
+        }
+        if (CompressionConstants.isHistoricalSummaryArtifact(message.getContent())) {
+            return true;
+        }
+        if (message instanceof AssistantMessage) {
+            AssistantMessage assistant = (AssistantMessage) message;
+            return CompressionConstants.isHistoricalSummaryArtifact(assistant.getResultContent())
+                    || CompressionConstants.isHistoricalSummaryArtifact(assistant.getReasoning());
+        }
+        return false;
     }
 
     /** 统计消息数量。 */
@@ -208,10 +432,82 @@ public final class MessageSupport {
                 continue;
             }
             repairs += toolCalls.size() - keptCalls.size();
+            if (shouldDropPrunedAssistant(assistant, keptCalls)) {
+                messages.remove(i);
+                i--;
+                repairs++;
+                continue;
+            }
             List<Map> keptRawCalls = filterRawToolCalls(assistant.getToolCallsRaw(), answered);
             messages.set(i, rebuildAssistantAfterToolPrune(assistant, keptCalls, keptRawCalls));
         }
         return repairs;
+    }
+
+    /**
+     * 清理流式工具调用前置文本重复写入：同一可见文本只保留携带 tool_call 的 assistant。
+     *
+     * @param messages 消息列表。
+     * @return 返回清理数量。
+     */
+    private static int dropDuplicateAssistantToolPreambles(List<ChatMessage> messages) {
+        int repairs = 0;
+        for (int i = 1; i < messages.size(); i++) {
+            ChatMessage current = messages.get(i);
+            ChatMessage previous = messages.get(i - 1);
+            if (!(current instanceof AssistantMessage) || !(previous instanceof AssistantMessage)) {
+                continue;
+            }
+            AssistantMessage currentAssistant = (AssistantMessage) current;
+            AssistantMessage previousAssistant = (AssistantMessage) previous;
+            if (!hasToolCalls(currentAssistant)
+                    || hasToolCalls(previousAssistant)
+                    || !sameVisibleContent(previousAssistant, currentAssistant)) {
+                continue;
+            }
+            messages.remove(i - 1);
+            repairs++;
+            i--;
+        }
+        return repairs;
+    }
+
+    /**
+     * 判断 assistant 是否携带工具调用。
+     *
+     * @param message assistant 消息。
+     * @return 如果存在工具调用则返回 true。
+     */
+    private static boolean hasToolCalls(AssistantMessage message) {
+        return message != null && message.getToolCalls() != null && !message.getToolCalls().isEmpty();
+    }
+
+    /**
+     * 判断两条 assistant 的用户可见文本是否一致。
+     *
+     * @param left 左侧消息。
+     * @param right 右侧消息。
+     * @return 如果文本相同则返回 true。
+     */
+    private static boolean sameVisibleContent(AssistantMessage left, AssistantMessage right) {
+        String leftText = StrUtil.nullToEmpty(left.getContent()).trim();
+        String rightText = StrUtil.nullToEmpty(right.getContent()).trim();
+        return StrUtil.isNotBlank(leftText) && StrUtil.equals(leftText, rightText);
+    }
+
+    /**
+     * 判断剪枝后是否应删除 assistant 消息，避免只剩推理标签的空 assistant 破坏模型协议。
+     *
+     * @param assistant 原始 assistant 消息。
+     * @param keptCalls 保留下来的工具调用。
+     * @return 如果剪枝后不再有可发送内容则返回 true。
+     */
+    private static boolean shouldDropPrunedAssistant(
+            AssistantMessage assistant, List<ToolCall> keptCalls) {
+        if (keptCalls != null && !keptCalls.isEmpty()) {
+            return false;
+        }
+        return StrUtil.isBlank(assistant.getResultContent());
     }
 
     /**

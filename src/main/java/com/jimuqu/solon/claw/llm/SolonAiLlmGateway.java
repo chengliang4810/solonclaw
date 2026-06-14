@@ -49,6 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.AiUsage;
 import org.noear.solon.ai.agent.AgentSession;
@@ -97,6 +98,14 @@ public class SolonAiLlmGateway implements LlmGateway {
 
     /** CUSTOMDIALECTSREGISTERED的统一常量值。 */
     private static final AtomicBoolean CUSTOM_DIALECTS_REGISTERED = new AtomicBoolean(false);
+
+    /** 识别用户原文中明确要求 no_agent=true 的布尔赋值。 */
+    private static final Pattern USER_NO_AGENT_TRUE_PATTERN =
+            Pattern.compile("(?i)(^|[^a-z0-9_\\-])no_agent\\s*(=|:|：)\\s*true\\b");
+
+    /** 识别用户原文中明确要求 wrap_response=false 的布尔赋值。 */
+    private static final Pattern USER_WRAP_RESPONSE_FALSE_PATTERN =
+            Pattern.compile("(?i)(^|[^a-z0-9_\\-])wrap_response\\s*(=|:|：)\\s*false\\b");
 
     /** 注入应用配置，用于SolonAi大模型消息网关。 */
     private final AppConfig appConfig;
@@ -877,7 +886,9 @@ public class SolonAiLlmGateway implements LlmGateway {
             assistantMessage = ChatMessage.ofAssistant(rawResponse);
         }
 
-        String finalText = MemoryContextBoundary.scrubVisibleText(extractText(assistantMessage));
+        String finalText =
+                MemoryContextBoundary.scrubVisibleText(
+                        ThinkingStreamSplitter.visibleText(extractText(assistantMessage)));
         if (assistantMessage.isToolCalls()) {
             // 工具调用轮可能带有“我需要继续读取”等中间可见文本；这些文本不是最终答复，不能推给前端消息流。
             return new OwnedModelResponse(
@@ -922,7 +933,6 @@ public class SolonAiLlmGateway implements LlmGateway {
      *
      * @param chunk 响应分片。
      * @param emittedText 已发送文本。
-     * @param bufferedVisibleText 待确认是否可展示的可见文本缓存。
      * @param thinkingSplitter 思考分离器。
      * @param eventSink eventSink参数。
      * @param feedbackSink feedbackSink参数。
@@ -1121,6 +1131,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (assistantIndex >= 0) {
             messages.set(assistantIndex, replacement);
         } else if (messages != null) {
+            // 连续文本 Action 可能出现在上一轮工具结果之后，此时不能替换历史 assistant，需要追加可执行形态。
             messages.add(replacement);
         }
         return calls;
@@ -1150,7 +1161,9 @@ public class SolonAiLlmGateway implements LlmGateway {
             return null;
         }
 
-        ParsedTextAction parsed = parseOwnedJsonAction(actionText);
+        String firstActionLine = firstNonBlankLine(actionText);
+        ParsedTextAction parsed =
+                firstActionLine.startsWith("{") ? parseOwnedJsonAction(actionText) : null;
         if (parsed == null || StrUtil.isBlank(parsed.name)) {
             parsed = parseOwnedPlainAction(actionText, content);
         }
@@ -1554,6 +1567,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 call.getArguments() == null
                         ? Collections.<String, Object>emptyMap()
                         : call.getArguments();
+        args = normalizeOwnedToolArguments(toolName, args, options == null ? null : options.toolContext());
         FunctionTool tool = options.tool(toolName);
         long startedAt = System.currentTimeMillis();
         trace.setLastObservation(null);
@@ -1610,6 +1624,72 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (eventSink != null) {
             eventSink.onToolCompleted(toolName, finalObservation, durationMs);
         }
+    }
+
+    /**
+     * 规范化模型漏传的工具参数。仅当用户原文明确写出布尔赋值时才补齐，避免根据脚本字段猜测任务模式。
+     *
+     * @param toolName 工具名。
+     * @param args 模型生成的工具参数。
+     * @param toolContext 本轮工具上下文。
+     * @return 返回规范化后的工具参数。
+     */
+    private Map<String, Object> normalizeOwnedToolArguments(
+            String toolName, Map<String, Object> args, Map<String, Object> toolContext) {
+        if (!"cronjob".equals(toolName) || args == null || args.isEmpty()) {
+            return args;
+        }
+        if (!isCronjobWriteAction(args.get("action"))) {
+            return args;
+        }
+        Object userMessageValue = toolContext == null ? null : toolContext.get("user_message");
+        String userMessage = userMessageValue == null ? "" : String.valueOf(userMessageValue);
+        if (StrUtil.isBlank(userMessage)) {
+            return args;
+        }
+
+        Map<String, Object> normalized = null;
+        if (!args.containsKey("no_agent")
+                && USER_NO_AGENT_TRUE_PATTERN.matcher(userMessage).find()) {
+            normalized = normalizedArgs(args, normalized);
+            normalized.put("no_agent", Boolean.TRUE);
+        }
+        if (!args.containsKey("wrap_response")
+                && USER_WRAP_RESPONSE_FALSE_PATTERN.matcher(userMessage).find()) {
+            normalized = normalizedArgs(args, normalized);
+            normalized.put("wrap_response", Boolean.FALSE);
+        }
+        return normalized == null ? args : normalized;
+    }
+
+    /**
+     * 判断 cronjob 动作是否会创建或编辑任务配置。
+     *
+     * @param action action 参数。
+     * @return 如果是写配置动作则返回 true。
+     */
+    private boolean isCronjobWriteAction(Object action) {
+        String normalized =
+                action == null ? "list" : String.valueOf(action).trim().toLowerCase(Locale.ROOT);
+        return "create".equals(normalized)
+                || "add".equals(normalized)
+                || "update".equals(normalized)
+                || "edit".equals(normalized);
+    }
+
+    /**
+     * 延迟复制工具参数，保证无补齐时仍沿用模型原始对象。
+     *
+     * @param args 原始参数。
+     * @param normalized 已复制参数。
+     * @return 返回可修改参数。
+     */
+    private Map<String, Object> normalizedArgs(
+            Map<String, Object> args, Map<String, Object> normalized) {
+        if (normalized != null) {
+            return normalized;
+        }
+        return new LinkedHashMap<String, Object>(args);
     }
 
     /**
@@ -1906,7 +1986,6 @@ public class SolonAiLlmGateway implements LlmGateway {
      *
      * @param delta delta 参数。
      * @param emittedText emitted文本参数。
-     * @param bufferedVisibleText 待确认是否可展示的可见文本缓存。
      * @param eventSink 事件Sink参数。
      * @param feedbackSink 反馈Sink参数。
      * @param memoryScrubber 记忆Scrubber参数。
@@ -2070,8 +2149,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 return Delta.empty();
             }
             if (thinkingOnly) {
-                reasoning.append(text);
-                return new Delta("", text);
+                StringBuilder reasoningDelta = new StringBuilder();
+                appendThinkingOnly(text, reasoningDelta);
+                return buildDelta(new StringBuilder(), reasoningDelta);
             }
 
             StringBuilder visibleDelta = new StringBuilder();
@@ -2129,6 +2209,23 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         /**
+         * 提取模型聚合文本中的可见回复，避免流式结束时把 <think> 块补发到前端。
+         *
+         * @param text 模型聚合出的完整文本。
+         * @return 返回剥离思考块后的用户可见文本。
+         */
+        static String visibleText(String text) {
+            if (StrUtil.isBlank(text)) {
+                return "";
+            }
+            ThinkingStreamSplitter splitter = new ThinkingStreamSplitter();
+            Delta accepted = splitter.accept(text, false);
+            Delta flushed = splitter.flushPending();
+            return (StrUtil.nullToEmpty(accepted.visible) + StrUtil.nullToEmpty(flushed.visible))
+                    .trim();
+        }
+
+        /**
          * 构建Delta。
          *
          * @param visibleDelta visibleDelta 参数。
@@ -2159,6 +2256,57 @@ public class SolonAiLlmGateway implements LlmGateway {
             } else {
                 visibleDelta.append(value);
             }
+        }
+
+        /**
+         * 处理模型明确标记为思考态的分片；分片中若仍带 <think> 标签，只保留真实推理文本。
+         *
+         * @param text 思考态分片文本。
+         * @param reasoningDelta 本次新增的推理文本。
+         */
+        private void appendThinkingOnly(String text, StringBuilder reasoningDelta) {
+            for (int i = 0; i < text.length(); i++) {
+                char ch = text.charAt(i);
+                if (pendingTag.length() > 0 || ch == '<') {
+                    pendingTag.append(ch);
+                    String pending = pendingTag.toString();
+                    if (equalsIgnoreCase(THINK_OPEN, pending)
+                            || equalsIgnoreCase(THINK_CLOSE, pending)) {
+                        pendingTag.setLength(0);
+                        continue;
+                    }
+                    if (startsWithIgnoreCase(THINK_OPEN, pending)
+                            || startsWithIgnoreCase(THINK_CLOSE, pending)) {
+                        continue;
+                    }
+                    reasoningDelta.append(pending);
+                    pendingTag.setLength(0);
+                    continue;
+                }
+                reasoningDelta.append(ch);
+            }
+        }
+
+        /**
+         * 判断完整标签是否匹配，兼容模型返回的大小写差异。
+         *
+         * @param expected 期望标签。
+         * @param value 当前缓存。
+         * @return 匹配时返回 true。
+         */
+        private static boolean equalsIgnoreCase(String expected, String value) {
+            return expected.equalsIgnoreCase(value);
+        }
+
+        /**
+         * 判断当前缓存是否仍可能组成目标标签。
+         *
+         * @param expected 期望标签。
+         * @param value 当前缓存。
+         * @return 仍是目标标签前缀时返回 true。
+         */
+        private static boolean startsWithIgnoreCase(String expected, String value) {
+            return expected.regionMatches(true, 0, value, 0, value.length());
         }
 
         /** 承载Delta相关状态和辅助逻辑。 */
@@ -3433,7 +3581,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             record.setStatus("running");
             record.setArgsPreview(AgentRunContext.safe(String.valueOf(args), previewLength));
             record.setInterruptible(true);
-            record.setSideEffecting(isSideEffectingTool(toolName));
+            record.setSideEffecting(isSideEffectingTool(toolName, args));
             record.setReadOnly(!record.isSideEffecting());
             record.setResultIndexable(true);
             record.setOutputLimitBytes(inlineLimitBytes);
@@ -3475,7 +3623,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 record.setToolName(toolName);
                 record.setStartedAt(System.currentTimeMillis());
                 record.setInterruptible(true);
-                record.setSideEffecting(isSideEffectingTool(toolName));
+                record.setSideEffecting(isSideEffectingTool(toolName, null));
                 record.setReadOnly(!record.isSideEffecting());
                 record.setResultIndexable(true);
                 record.setOutputLimitBytes(inlineLimitBytes);
@@ -3497,11 +3645,17 @@ public class SolonAiLlmGateway implements LlmGateway {
          * @param toolName 工具名称。
          * @return 如果Side Effecting工具满足条件则返回 true，否则返回 false。
          */
-        private boolean isSideEffectingTool(String toolName) {
+        private boolean isSideEffectingTool(String toolName, Map<String, Object> args) {
             if (toolName == null) {
                 return false;
             }
             String value = toolName.toLowerCase(java.util.Locale.ROOT);
+            if ("todo".equals(value)) {
+                return args != null && args.containsKey("todos") && args.get("todos") != null;
+            }
+            if ("cronjob".equals(value)) {
+                return isCronjobMutationAction(args == null ? null : args.get("action"));
+            }
             return value.contains("write")
                     || value.contains("delete")
                     || value.contains("shell")
@@ -3511,6 +3665,32 @@ public class SolonAiLlmGateway implements LlmGateway {
                     || value.contains("cron")
                     || value.contains("skill_manage")
                     || value.contains("delegate");
+        }
+
+        /**
+         * 判断 cronjob 动作是否会改变任务或触发执行；inspect/list/history 属于诊断读取。
+         *
+         * @param action action 参数。
+         * @return 如果该动作会改变任务状态或触发任务执行则返回 true。
+         */
+        private boolean isCronjobMutationAction(Object action) {
+            String normalized =
+                    action == null ? "list" : String.valueOf(action).trim().toLowerCase(Locale.ROOT);
+            return "create".equals(normalized)
+                    || "add".equals(normalized)
+                    || "update".equals(normalized)
+                    || "edit".equals(normalized)
+                    || "pause".equals(normalized)
+                    || "disable".equals(normalized)
+                    || "stop".equals(normalized)
+                    || "resume".equals(normalized)
+                    || "enable".equals(normalized)
+                    || "start".equals(normalized)
+                    || "run".equals(normalized)
+                    || "rerun".equals(normalized)
+                    || "retry".equals(normalized)
+                    || "remove".equals(normalized)
+                    || "delete".equals(normalized);
         }
     }
 }
