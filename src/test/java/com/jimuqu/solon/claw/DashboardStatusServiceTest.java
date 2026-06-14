@@ -100,6 +100,11 @@ public class DashboardStatusServiceTest {
     @SuppressWarnings("unchecked")
     void shouldExposeReasoningCapabilityFromModelMetadata() throws Exception {
         AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-reasoning-runtime").getAbsoluteFile();
+        FileUtil.del(runtimeHome);
+        FileUtil.mkdir(runtimeHome);
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setDefaultModel("custom/unknown-small-model");
@@ -120,6 +125,7 @@ public class DashboardStatusServiceTest {
         Map<String, Object> modelInfo = service.getModelInfo(false);
         Map<String, Object> capabilities = (Map<String, Object>) modelInfo.get("capabilities");
 
+        assertThat(modelInfo.get("model")).isEqualTo("custom/unknown-small-model");
         assertThat(capabilities.get("supports_reasoning")).isEqualTo(Boolean.FALSE);
     }
 
@@ -459,6 +465,11 @@ public class DashboardStatusServiceTest {
     @Test
     void shouldAdvertiseVisionCapabilityWhenImageInputsAreSupported() {
         AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-vision-runtime").getAbsoluteFile();
+        FileUtil.del(runtimeHome);
+        FileUtil.mkdir(runtimeHome);
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-4o");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -479,14 +490,21 @@ public class DashboardStatusServiceTest {
                         new FixedUpdateService(config),
                         new LlmProviderService(config));
 
-        Map<?, ?> capabilities = (Map<?, ?>) service.getModelInfo(false).get("capabilities");
+        Map<String, Object> modelInfo = service.getModelInfo(false);
+        Map<?, ?> capabilities = (Map<?, ?>) modelInfo.get("capabilities");
 
+        assertThat(modelInfo.get("model")).isEqualTo("gpt-4o");
         assertThat(capabilities.get("supports_vision")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
     void shouldNotAdvertiseVisionCapabilityForUnknownTextModels() {
         AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/status-text-model-runtime").getAbsoluteFile();
+        FileUtil.del(runtimeHome);
+        FileUtil.mkdir(runtimeHome);
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("custom-text-model");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -507,8 +525,10 @@ public class DashboardStatusServiceTest {
                         new FixedUpdateService(config),
                         new LlmProviderService(config));
 
-        Map<?, ?> capabilities = (Map<?, ?>) service.getModelInfo(false).get("capabilities");
+        Map<String, Object> modelInfo = service.getModelInfo(false);
+        Map<?, ?> capabilities = (Map<?, ?>) modelInfo.get("capabilities");
 
+        assertThat(modelInfo.get("model")).isEqualTo("custom-text-model");
         assertThat(capabilities.get("supports_vision")).isEqualTo(Boolean.FALSE);
     }
 
