@@ -377,6 +377,65 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldKeepFiniteRepeatCountWhenRetryingRecoveredNoAgentScript() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "recovered-watchdog");
+        body.put("schedule", "30m");
+        body.put("script", "recovered-watchdog.py");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("repeat", Integer.valueOf(1));
+        body.put("deliver", "local");
+        CronJobRecord job = service.create("MEMORY:watchdog-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        CronJobRecord failed = env.cronJobRepository.findById(job.getJobId());
+        assertThat(failed.getRepeatCompleted()).isEqualTo(1);
+        assertThat(failed.getRepeatTimes()).isEqualTo(1);
+        assertThat(failed.getStatus()).isEqualTo("COMPLETED");
+        assertThat(failed.getLastStatus()).isEqualTo("error");
+        assertThat(failed.getLastError()).contains("recovered-watchdog.py");
+        assertThat(env.cronJobRepository.listRuns(job.getJobId(), 2).get(0).getAttempt())
+                .isEqualTo(1);
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "recovered-watchdog.py");
+        FileUtil.writeString("print('recovered ok')", script, StandardCharsets.UTF_8);
+        Thread.sleep(5L);
+
+        scheduler.runNow(job.getJobId(), "dashboard_retry");
+
+        CronJobRecord recovered = env.cronJobRepository.findById(job.getJobId());
+        assertThat(recovered.getRepeatCompleted()).isEqualTo(1);
+        assertThat(recovered.getRepeatTimes()).isEqualTo(1);
+        assertThat(recovered.getStatus()).isEqualTo("COMPLETED");
+        assertThat(recovered.getLastStatus()).isEqualTo("ok");
+        assertThat(recovered.getLastOutput()).contains("recovered ok");
+        List<CronJobRunRecord> runs = env.cronJobRepository.listRuns(job.getJobId(), 2);
+        assertThat(runs).hasSize(2);
+        assertThat(runs.get(0).getAttempt()).isEqualTo(2);
+        assertThat(runs.get(0).getTriggerType()).isEqualTo("dashboard_retry");
+        assertThat(runs.get(0).getStatus()).isEqualTo("ok");
+        assertThat(runs.get(0).getOutput()).contains("recovered ok");
+        assertThat(runs.get(1).getAttempt()).isEqualTo(1);
+        assertThat(runs.get(1).getStatus()).isEqualTo("error");
+    }
+
+    @Test
     void shouldInterruptIdleScheduledAgentRun() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getScheduler().setInactivityTimeoutSeconds(1);

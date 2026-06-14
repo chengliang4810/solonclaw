@@ -770,7 +770,8 @@ public class DefaultCronScheduler {
         triggerType = StrUtil.blankToDefault(triggerType, "scheduled");
         job.setPendingTriggerType(null);
         long nextRunAt = CronSupport.nextRunAt(job.getCronExpr(), now);
-        int completed = job.getRepeatCompleted() + 1;
+        int completed = nextRepeatCompleted(job);
+        int attempt = nextRunAttempt(job, completed);
         boolean done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
         String nextStatus =
                 done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
@@ -867,7 +868,7 @@ public class DefaultCronScheduler {
                     output,
                     deliveryError,
                     deliveryResultJson,
-                    completed,
+                    attempt,
                     triggerType);
         } catch (CronApprovalPendingException e) {
             runStatus = "pending_approval";
@@ -893,7 +894,7 @@ public class DefaultCronScheduler {
                     output,
                     null,
                     null,
-                    job.getRepeatCompleted(),
+                    attempt,
                     triggerType);
         } catch (Exception e) {
             runStatus = "error";
@@ -918,12 +919,52 @@ public class DefaultCronScheduler {
                     output,
                     deliveryError,
                     deliveryResultJson,
-                    completed,
+                    attempt,
                     triggerType);
             if (!isCronScriptPathBlock(e)) {
                 throw e;
             }
         }
+    }
+
+    /**
+     * 计算任务层面的重复完成次数；有限重复任务在重试时不能超过配置上限，避免界面显示 2/1 这类越界状态。
+     *
+     * @param job 当前定时任务。
+     * @return 写回任务记录的重复完成次数。
+     */
+    private int nextRepeatCompleted(CronJobRecord job) {
+        int completed = job.getRepeatCompleted() + 1;
+        if (job.getRepeatTimes() <= 0) {
+            return completed;
+        }
+        return Math.min(job.getRepeatTimes(), completed);
+    }
+
+    /**
+     * 计算执行历史的尝试序号；它代表真实运行次数，不能复用被有限 repeat 夹住的任务完成数。
+     *
+     * @param job 当前定时任务。
+     * @param fallbackAttempt 仓储不可用时使用的保守序号。
+     * @return 本次 run history 的 attempt。
+     */
+    private int nextRunAttempt(CronJobRecord job, int fallbackAttempt) {
+        try {
+            List<CronJobRunRecord> runs = cronJobRepository.listRuns(job.getJobId(), 100);
+            int maxAttempt = 0;
+            for (CronJobRunRecord run : runs) {
+                maxAttempt = Math.max(maxAttempt, run.getAttempt());
+            }
+            if (maxAttempt > 0) {
+                return maxAttempt + 1;
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Cron run attempt lookup failed: jobId={}, error={}",
+                    job.getJobId(),
+                    safeError(e));
+        }
+        return Math.max(1, fallbackAttempt);
     }
 
     /**
