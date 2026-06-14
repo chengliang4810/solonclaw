@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -271,12 +272,15 @@ public class DashboardConfiguration {
      *
      * @param appConfig 应用运行配置。
      * @param agentRunRepository Agent 运行仓储依赖。
+     * @param cronJobRepository 定时任务仓储依赖。
      * @return 返回控制台Logs服务结果。
      */
     @Bean
     public DashboardLogsService dashboardLogsService(
-            AppConfig appConfig, AgentRunRepository agentRunRepository) {
-        return new DashboardLogsService(appConfig, agentRunRepository);
+            AppConfig appConfig,
+            AgentRunRepository agentRunRepository,
+            CronJobRepository cronJobRepository) {
+        return new DashboardLogsService(appConfig, agentRunRepository, cronJobRepository);
     }
 
     /**
