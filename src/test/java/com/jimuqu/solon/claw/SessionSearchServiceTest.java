@@ -906,6 +906,37 @@ public class SessionSearchServiceTest {
         assertThat(response).contains("pm-anchor");
     }
 
+    @Test
+    void shouldCompactScrollResultsForSessionSearchTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-scroll-compact:user");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("before compact marker"),
+                                ChatMessage.ofAssistant("anchor compact marker"),
+                                ChatMessage.ofUser("after compact marker"))));
+        env.sessionRepository.save(session);
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        env.sessionSearchService, "MEMORY:tool-scroll-compact:user");
+
+        String response =
+                tools.sessionSearch(
+                        null, session.getSessionId(), "message-1", Integer.valueOf(3));
+        List<?> result = (List<?>) ONode.ofJson(response).toData();
+        Map<?, ?> anchor = (Map<?, ?>) result.get(1);
+
+        assertThat(result).hasSize(3);
+        assertThat(anchor.get("mode")).isEqualTo("scroll");
+        assertThat(anchor.get("messageId")).isEqualTo("message-1");
+        assertThat(anchor.get("anchor")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(anchor.get("text"))).contains("anchor compact marker");
+        assertThat(response).doesNotContain("\"summary\"");
+        assertThat(response).doesNotContain("\"snippet\"");
+        assertThat(response).doesNotContain("\"title\"");
+    }
+
     private AssistantMessage assistantWithToolCall(String name, String arguments) {
         Map<String, Object> function = new LinkedHashMap<String, Object>();
         function.put("name", name);

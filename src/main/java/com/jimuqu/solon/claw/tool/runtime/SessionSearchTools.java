@@ -5,7 +5,10 @@ import com.jimuqu.solon.claw.core.model.SessionSearchQuery;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -70,6 +73,9 @@ public class SessionSearchTools {
             for (SessionSearchEntry session : sessions) {
                 redact(session);
             }
+            if (aroundMessageId != null && aroundMessageId.trim().length() > 0) {
+                return ONode.serialize(compactScrollResults(sessions));
+            }
             return ONode.serialize(sessions);
         } catch (Exception e) {
             return ToolResultEnvelope.error(
@@ -80,6 +86,49 @@ public class SessionSearchTools {
                                     1000))
                     .toJson();
         }
+    }
+
+    /**
+     * 将 scroll 模式结果压缩为模型可直接判断的最小结构，避免 title/summary/snippet 重复导致锚点被预览截断。
+     *
+     * @param sessions scroll 模式检索结果。
+     * @return 返回压缩后的结果。
+     */
+    private List<Map<String, Object>> compactScrollResults(List<SessionSearchEntry> sessions) {
+        List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
+        if (sessions == null) {
+            return results;
+        }
+        for (SessionSearchEntry session : sessions) {
+            if (session == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("mode", session.getMode());
+            item.put("sessionId", session.getSessionId());
+            item.put("messageId", session.getMessageId());
+            item.put("anchor", Boolean.valueOf(session.isAnchor()));
+            item.put("text", scrollText(session));
+            results.add(item);
+        }
+        return results;
+    }
+
+    /**
+     * 选择 scroll 条目的代表文本，优先保留 matchPreview，保证锚点周边内容能进入工具返回。
+     *
+     * @param session scroll 条目。
+     * @return 返回可展示文本。
+     */
+    private String scrollText(SessionSearchEntry session) {
+        String value = session.getMatchPreview();
+        if (value == null || value.length() == 0) {
+            value = session.getSnippet();
+        }
+        if (value == null || value.length() == 0) {
+            value = session.getSummary();
+        }
+        return redact(value, 1000);
     }
 
     /**
