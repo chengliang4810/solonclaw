@@ -5206,6 +5206,29 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldReuseDuplicateDashboardCronCreate() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        DashboardCronService dashboardCronService = new DashboardCronService(service, null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "dashboard-dedupe-job");
+        body.put("schedule", "2m");
+        body.put("prompt", "dashboard dedupe prompt");
+        body.put("deliver", "local");
+        body.put("repeat", Integer.valueOf(1));
+        body.put("wrap_response", Boolean.FALSE);
+        body.put("enabled_toolsets", java.util.Collections.emptyList());
+
+        Map<String, Object> created = dashboardCronService.apiCreate(body);
+        Map<String, Object> duplicate = dashboardCronService.apiCreate(body);
+
+        assertThat(created.get("job_id")).isEqualTo(duplicate.get("job_id"));
+        assertThat(created.get("deduped")).isEqualTo(Boolean.FALSE);
+        assertThat(duplicate.get("deduped")).isEqualTo(Boolean.TRUE);
+        assertThat(env.cronJobRepository.listBySource("MEMORY:dashboard:cron")).hasSize(1);
+    }
+
+    @Test
     void shouldPatchCronSkillsIncrementallyFromDashboardApi() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

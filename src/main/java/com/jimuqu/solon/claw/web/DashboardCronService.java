@@ -256,7 +256,17 @@ public class DashboardCronService {
      * @return 返回create结果。
      */
     public Map<String, Object> create(Map<String, Object> body) throws Exception {
-        return toDashboardView(cronJobService.create("MEMORY:dashboard:cron", body));
+        CronJobRecord duplicate =
+                cronJobService.findDuplicateCreateJob("MEMORY:dashboard:cron", body);
+        if (duplicate != null) {
+            Map<String, Object> view = toDashboardView(duplicate);
+            view.put("deduped", Boolean.TRUE);
+            return view;
+        }
+        Map<String, Object> view =
+                toDashboardView(cronJobService.create("MEMORY:dashboard:cron", body));
+        view.put("deduped", Boolean.FALSE);
+        return view;
     }
 
     /**
