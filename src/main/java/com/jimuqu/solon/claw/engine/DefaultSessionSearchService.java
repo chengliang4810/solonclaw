@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -172,6 +173,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         }
         if (StrUtil.isNotBlank(query)) {
             appendRunResults(sourceKey, query, resolvedLimit, results);
+            appendRunEventResults(sourceKey, query, resolvedLimit, results);
             appendToolCallResults(sourceKey, query, resolvedLimit, results);
             results = retainConfirmedDiscoveryResults(results);
             sortDiscoveryResults(results);
@@ -355,6 +357,38 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setToolName(record.getToolName());
         entry.setChannel(record.getSourceKey());
         entry.setScore(scoreToolCall(record, query));
+        return entry;
+    }
+
+    /**
+     * 将运行事件转换为会话搜索结果，方便长期任务用 session_search 找回审计时间线。
+     *
+     * @param record 运行事件记录。
+     * @param query 查询参数。
+     * @return 返回会话搜索结果条目。
+     */
+    private SessionSearchEntry entryFromRunEvent(AgentRunEventRecord record, String query)
+            throws Exception {
+        SessionRecord session =
+                StrUtil.isBlank(record.getSessionId())
+                        ? null
+                        : sessionRepository.findById(record.getSessionId());
+        SessionSearchEntry entry = new SessionSearchEntry();
+        entry.setSessionId(record.getSessionId());
+        entry.setBranchName(session == null ? null : session.getBranchName());
+        entry.setTitle(
+                StrUtil.blankToDefault(
+                        session == null ? null : session.getTitle(), "run-" + record.getRunId()));
+        entry.setUpdatedAt(record.getCreatedAt());
+        entry.setMode("discovery");
+        entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
+        entry.setMatchPreview(runEventPreview(record, query));
+        entry.setSummary(entry.getMatchPreview());
+        entry.setSnippet(entry.getMatchPreview());
+        entry.setRunId(record.getRunId());
+        entry.setToolName("event:" + StrUtil.blankToDefault(record.getEventType(), "unknown"));
+        entry.setChannel(record.getSourceKey());
+        entry.setScore(scoreRunEvent(record, query));
         return entry;
     }
 
@@ -797,6 +831,37 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     /**
+     * 将当前来源下匹配的运行事件加入普通发现搜索，让工具审批、恢复、压缩等审计事件可被 Agent 回忆。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param results 待追加结果。
+     */
+    private void appendRunEventResults(
+            String sourceKey, String query, int limit, List<SessionSearchEntry> results) {
+        if (agentRunRepository == null || StrUtil.isBlank(query)) {
+            return;
+        }
+        try {
+            int searchLimit = Math.max(10, limit * 5);
+            for (AgentRunEventRecord record :
+                    agentRunRepository.searchEvents(
+                            sourceKey, null, null, query, 0L, 0L, searchLimit)) {
+                if (record == null) {
+                    continue;
+                }
+                SessionSearchEntry entry = entryFromRunEvent(record, query);
+                if (entry.getScore() > 0L) {
+                    results.add(entry);
+                }
+            }
+        } catch (Exception ignored) {
+            // 运行事件检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        }
+    }
+
+    /**
      * 过滤 discovery 中无法解释命中的候选，避免将 0 分的最近会话伪装成搜索结果。
      *
      * @param entries 原始结果。
@@ -922,6 +987,77 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 + StrUtil.nullToEmpty(run.getError())
                 + "\n"
                 + StrUtil.nullToEmpty(run.getStatus());
+    }
+
+    /**
+     * 计算运行事件与查询词的匹配分值，优先返回显式事件类型命中。
+     *
+     * @param record 运行事件记录。
+     * @param query 查询参数。
+     * @return 返回运行事件命中分值。
+     */
+    private long scoreRunEvent(AgentRunEventRecord record, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (record == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        if (containsIgnoreCase(record.getEventType(), normalizedQuery)) {
+            return 92L;
+        }
+        if (containsIgnoreCase(record.getSummary(), normalizedQuery)) {
+            return 86L;
+        }
+        if (containsIgnoreCase(record.getMetadataJson(), normalizedQuery)) {
+            return 82L;
+        }
+        long partialScore = scorePartialText(runEventSearchText(record), normalizedQuery);
+        if (partialScore > 0L) {
+            return partialScore;
+        }
+        return 0L;
+    }
+
+    /**
+     * 构建运行事件的查询命中片段。
+     *
+     * @param record 运行事件记录。
+     * @param query 查询参数。
+     * @return 返回运行事件片段。
+     */
+    private String runEventPreview(AgentRunEventRecord record, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        String[] values =
+                new String[] {
+                    record == null ? null : record.getEventType(),
+                    record == null ? null : record.getSummary(),
+                    record == null ? null : record.getMetadataJson(),
+                    record == null ? null : record.getRunId()
+                };
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value) && textMatchesQuery(value, normalizedQuery)) {
+                return trimAroundMatch(value, normalizedQuery);
+            }
+        }
+        return firstNonBlank(values);
+    }
+
+    /**
+     * 汇总运行事件可检索文本。
+     *
+     * @param record 运行事件记录。
+     * @return 返回可检索文本。
+     */
+    private String runEventSearchText(AgentRunEventRecord record) {
+        if (record == null) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(record.getEventType())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getSummary())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getMetadataJson())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getRunId());
     }
 
     /**

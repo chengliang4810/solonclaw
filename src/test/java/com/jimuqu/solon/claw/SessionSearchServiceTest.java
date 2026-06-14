@@ -572,6 +572,45 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldDiscoverRunEventsInOrdinarySessionSearch() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:event-loop:user");
+        session.setTitle("event backed session");
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource("MEMORY:event-loop:user", session.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-policy-event-search");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:event-loop:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId(IdSupport.newId());
+        event.setRunId(run.getRunId());
+        event.setSessionId(session.getSessionId());
+        event.setSourceKey("MEMORY:event-loop:user");
+        event.setEventType("tool.policy.end");
+        event.setSummary("工具策略拒绝：todo（3ms）");
+        event.setMetadataJson("{\"tool\":\"todo\",\"status\":\"denied\"}");
+        event.setCreatedAt(System.currentTimeMillis());
+        env.agentRunRepository.appendEvent(event);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:event-loop:user", "tool.policy.end", 3);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getRunId()).isEqualTo(run.getRunId());
+        assertThat(entries.get(0).getToolName()).isEqualTo("event:tool.policy.end");
+        assertThat(entries.get(0).getMatchPreview()).contains("tool.policy.end");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
     void shouldSearchRealRunRecordsWhenRunIdIsProvided() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-room:user");

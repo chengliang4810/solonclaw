@@ -425,6 +425,83 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     /**
+     * 搜索运行事件。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runId 运行标识。
+     * @param query 查询参数。
+     * @param timeFrom 时间From参数。
+     * @param timeTo 时间To参数。
+     * @param limit 最大返回数量。
+     * @return 返回运行事件结果。
+     */
+    @Override
+    public List<AgentRunEventRecord> searchEvents(
+            String sourceKey,
+            String sessionId,
+            String runId,
+            String query,
+            long timeFrom,
+            long timeTo,
+            int limit)
+            throws Exception {
+        List<AgentRunEventRecord> events = new ArrayList<AgentRunEventRecord>();
+        Connection connection = database.openConnection();
+        try {
+            StringBuilder sql = new StringBuilder("select e.* from agent_run_events e");
+            List<Object> args = new ArrayList<Object>();
+            sql.append(" where 1 = 1");
+            if (sourceKey != null && sourceKey.trim().length() > 0) {
+                sql.append(" and e.source_key = ?");
+                args.add(sourceKey);
+            }
+            if (sessionId != null && sessionId.trim().length() > 0) {
+                sql.append(" and e.session_id = ?");
+                args.add(sessionId);
+            }
+            if (runId != null && runId.trim().length() > 0) {
+                sql.append(" and e.run_id = ?");
+                args.add(runId);
+            }
+            if (timeFrom > 0) {
+                sql.append(" and e.created_at >= ?");
+                args.add(Long.valueOf(timeFrom));
+            }
+            if (timeTo > 0) {
+                sql.append(" and e.created_at <= ?");
+                args.add(Long.valueOf(timeTo));
+            }
+            if (query != null && query.trim().length() > 0) {
+                sql.append(
+                        " and (lower(coalesce(e.event_type, '')) like ?"
+                                + " or lower(coalesce(e.summary, '')) like ?"
+                                + " or lower(coalesce(e.metadata_json, '')) like ?)");
+                String pattern = "%" + query.trim().toLowerCase(java.util.Locale.ROOT) + "%";
+                args.add(pattern);
+                args.add(pattern);
+                args.add(pattern);
+            }
+            sql.append(" order by e.created_at desc limit ?");
+            args.add(Math.max(1, Math.min(limit <= 0 ? 20 : limit, 200)));
+            PreparedStatement statement = connection.prepareStatement(sql.toString());
+            bindArgs(statement, args);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    events.add(mapEvent(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return events;
+    }
+
+    /**
      * 保存运行Control命令。
      *
      * @param command 待执行或解析的命令文本。
