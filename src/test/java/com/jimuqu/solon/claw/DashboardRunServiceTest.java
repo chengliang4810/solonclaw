@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +47,54 @@ public class DashboardRunServiceTest {
         assertThat(metadata.get("parse_error")).isEqualTo(true);
         assertThat(metadata.get("field")).isEqualTo("metadata");
         assertThat(metadata.get("raw")).isEqualTo("{\"preview\":\"unterminated");
+    }
+
+    @Test
+    void shouldKeepLongMultilineEventMetadataParseableAfterStorage() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-event-multiline-metadata");
+        run.setSessionId("session-event-multiline-metadata");
+        run.setSourceKey("MEMORY:event-multiline:user");
+        run.setStatus("running");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+        metadata.put("tool", "read_file");
+        metadata.put("durationMs", Long.valueOf(7L));
+        metadata.put(
+                "preview",
+                "1|{\n"
+                        + "2|  \"marker\": \"web-loop-session-recovery-log-analysis-20260614-1554\",\n"
+                        + "3|  \"api_key\": \"sk-event-multiline-secret12345\"\n"
+                        + "4|}\n"
+                        + repeat("line\n", 900));
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId("event-multiline-metadata");
+        event.setRunId(run.getRunId());
+        event.setSessionId(run.getSessionId());
+        event.setSourceKey(run.getSourceKey());
+        event.setEventType("tool.end");
+        event.setSummary("工具完成：read_file");
+        event.setMetadataJson(ONode.serialize(metadata));
+        event.setCreatedAt(System.currentTimeMillis());
+        env.agentRunRepository.appendEvent(event);
+
+        DashboardRunService service = new DashboardRunService(env.agentRunRepository);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> events =
+                (List<Map<String, Object>>) service.events(run.getRunId()).get("events");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> parsed = (Map<String, Object>) events.get(0).get("metadata");
+        assertThat(parsed).doesNotContainKey("parse_error");
+        assertThat(parsed.get("tool")).isEqualTo("read_file");
+        assertThat(String.valueOf(parsed.get("preview")))
+                .contains("web-loop-session-recovery-log-analysis-20260614-1554")
+                .contains("\"api_key\": \"***\"")
+                .doesNotContain("sk-event-multiline-secret12345");
     }
 
     @Test
@@ -500,5 +549,13 @@ public class DashboardRunServiceTest {
         public List<Map<String, Object>> activeSubagents() {
             return active;
         }
+    }
+
+    private static String repeat(String value, int count) {
+        StringBuilder builder = new StringBuilder(value.length() * Math.max(0, count));
+        for (int i = 0; i < count; i++) {
+            builder.append(value);
+        }
+        return builder.toString();
     }
 }

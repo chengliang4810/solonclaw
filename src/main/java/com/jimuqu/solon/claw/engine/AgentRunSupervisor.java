@@ -35,6 +35,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.usage.UsageEventRecord;
@@ -2088,8 +2089,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             event.setPhase(record.getPhase());
             event.setSeverity(eventType != null && eventType.contains("reject") ? "warn" : "info");
             event.setSummary(safeText(summary));
-            event.setMetadataJson(
-                    metadataJson == null ? null : SecretRedactor.redact(metadataJson, 4000));
+            event.setMetadataJson(StructuredMetadataSupport.redactJson(metadataJson));
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
         } catch (Exception ignored) {

@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -378,7 +379,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(9, event.getProvider());
             statement.setString(10, event.getModel());
             statement.setString(11, redact(event.getSummary(), 1000));
-            statement.setString(12, redact(event.getMetadataJson(), 4000));
+            statement.setString(12, StructuredMetadataSupport.redactJson(event.getMetadataJson()));
             statement.setLong(13, event.getCreatedAt());
             statement.executeUpdate();
             appendEventFts(connection, event);
@@ -1243,7 +1244,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(3, event.getSourceKey());
             statement.setString(4, event.getEventType());
             statement.setString(5, SecretRedactor.redact(event.getSummary(), 1000));
-            statement.setString(6, SecretRedactor.redact(event.getMetadataJson(), 4000));
+            statement.setString(6, StructuredMetadataSupport.redactJson(event.getMetadataJson()));
             statement.executeUpdate();
             statement.close();
         } catch (Exception ignored) {

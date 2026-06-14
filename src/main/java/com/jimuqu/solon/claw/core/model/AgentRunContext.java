@@ -3,9 +3,9 @@ package com.jimuqu.solon.claw.core.model;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.noear.snack4.ONode;
 
 /** 当前 Agent run 的追踪上下文。 */
 public class AgentRunContext {
@@ -300,7 +300,7 @@ public class AgentRunContext {
             event.setProvider(provider);
             event.setModel(model);
             event.setSummary(safe(summary, 1000));
-            event.setMetadataJson(metadata == null ? null : safe(ONode.serialize(metadata), 4000));
+            event.setMetadataJson(StructuredMetadataSupport.serializeRedacted(metadata));
             event.setCreatedAt(System.currentTimeMillis());
             repository.appendEvent(event);
         } catch (Exception ignored) {
