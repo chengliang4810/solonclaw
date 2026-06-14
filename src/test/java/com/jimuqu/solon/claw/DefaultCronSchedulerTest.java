@@ -2348,9 +2348,15 @@ public class DefaultCronSchedulerTest {
         assertThat(created.get("repeat")).isEqualTo("forever");
         assertThat(created.get("wrap_response")).isEqualTo(Boolean.FALSE);
         assertThat(created.get("no_agent")).isEqualTo(Boolean.FALSE);
+        assertThat(created.get("next_run_at")).isInstanceOf(Number.class);
+        assertThat(String.valueOf(created.get("next_run_at_iso"))).contains("T");
+        assertThat(String.valueOf(created.get("next_run_at_iso"))).contains("+");
         assertThat(((Map<?, ?>) created.get("job")).get("wrap_response")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("schedule")).isEqualTo("30m");
+        assertThat(((Map<?, ?>) created.get("job")).get("next_run_at")).isInstanceOf(Number.class);
+        assertThat(String.valueOf(((Map<?, ?>) created.get("job")).get("next_run_at_iso")))
+                .isEqualTo(String.valueOf(created.get("next_run_at_iso")));
 
         String duplicateJson =
                 tools.cronjob(
@@ -2376,6 +2382,8 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> duplicate = (Map<?, ?>) ONode.ofJson(duplicateJson).toData();
         assertThat(duplicate.get("job_id")).isEqualTo(jobId);
         assertThat(duplicate.get("deduped")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(duplicate.get("next_run_at_iso")))
+                .isEqualTo(String.valueOf(created.get("next_run_at_iso")));
         assertThat(env.cronJobRepository.listBySource("MEMORY:tool-room:user")).hasSize(1);
 
         Map<?, ?> deliveryPayload =

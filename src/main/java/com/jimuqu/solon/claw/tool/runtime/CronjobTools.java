@@ -7,12 +7,15 @@ import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -331,6 +334,7 @@ public class CronjobTools {
                             .data("no_agent", Boolean.valueOf(duplicate.isNoAgent()))
                             .data("script", safeObjectText(view.get("script")))
                             .data("next_run_at", Long.valueOf(duplicate.getNextRunAt()))
+                            .data("next_run_at_iso", view.get("next_run_at_iso"))
                             .data("job", view)
                             .data("deduped", Boolean.TRUE)
                             .data("message", "相同定时任务已存在，已复用 '" + safeText(duplicate.getName()) + "'。")
@@ -356,6 +360,7 @@ public class CronjobTools {
                         .data("no_agent", Boolean.valueOf(job.isNoAgent()))
                         .data("script", safeObjectText(view.get("script")))
                         .data("next_run_at", Long.valueOf(job.getNextRunAt()))
+                        .data("next_run_at_iso", view.get("next_run_at_iso"))
                         .data("job", view)
                         .data("deduped", Boolean.FALSE)
                         .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
@@ -1511,13 +1516,18 @@ public class CronjobTools {
         result.put("deliver_chat_id", safeObjectText(base.get("deliver_chat_id")));
         result.put("deliver_thread_id", safeObjectText(base.get("deliver_thread_id")));
         result.put("next_run_at", base.get("next_run_at"));
+        result.put("next_run_at_iso", isoTime(base.get("next_run_at")));
         result.put("last_run_at", base.get("last_run_at"));
+        result.put("last_run_at_iso", isoTime(base.get("last_run_at")));
         result.put("last_status", safeText(job.getLastStatus()));
         result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
         result.put("enabled", base.get("enabled"));
         result.put("state", safeValue(base.get("state")));
         result.put("paused_at", base.get("paused_at"));
+        result.put("paused_at_iso", isoTime(base.get("paused_at")));
         result.put("paused_reason", safeText(job.getPausedReason()));
+        result.put("created_at", base.get("created_at"));
+        result.put("created_at_iso", isoTime(base.get("created_at")));
         result.put("wrap_response", Boolean.valueOf(job.isWrapResponse()));
         put(result, "script", safeObjectText(base.get("script")));
         result.put("no_agent", Boolean.valueOf(job.isNoAgent()));
@@ -1534,6 +1544,25 @@ public class CronjobTools {
         }
         put(result, "workdir", safeObjectText(base.get("workdir")));
         return result;
+    }
+
+    /**
+     * 将工具视图中的毫秒时间转换为本地 ISO 时间，避免 Agent 在回复用户时自行换算出错。
+     *
+     * @param value 工具视图中的毫秒时间值。
+     * @return 本地时区 ISO 时间；无有效时间时返回 null。
+     */
+    private String isoTime(Object value) {
+        if (!(value instanceof Number)) {
+            return null;
+        }
+        long millis = ((Number) value).longValue();
+        if (millis <= 0L) {
+            return null;
+        }
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+        format.setTimeZone(TimeZone.getDefault());
+        return format.format(new Date(millis));
     }
 
     /**
