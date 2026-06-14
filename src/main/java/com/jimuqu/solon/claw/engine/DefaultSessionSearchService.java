@@ -784,20 +784,65 @@ public class DefaultSessionSearchService implements SessionSearchService {
         }
         try {
             int searchLimit = Math.max(10, limit * 5);
-            for (ToolCallRecord record :
+            List<ToolCallRecord> matched =
                     agentRunRepository.searchToolCalls(
-                            sourceKey, null, null, null, query, 0L, 0L, searchLimit)) {
-                if (record == null || "session_search".equalsIgnoreCase(record.getToolName())) {
-                    continue;
-                }
-                SessionSearchEntry entry = entryFromToolCall(record, query);
-                if (entry.getScore() > 0L) {
-                    results.add(entry);
-                }
+                            sourceKey, null, null, null, query, 0L, 0L, searchLimit);
+            appendScoredToolCallResults(matched, query, results);
+            if (!hasToolCallEvidence(results)) {
+                // 带会话 marker 的恢复查询常把 session_id 和工具名组合在一起，仓储 LIKE 不一定能直接命中工具参数。
+                List<ToolCallRecord> recent =
+                        agentRunRepository.searchToolCalls(
+                                sourceKey, null, null, null, null, 0L, 0L, searchLimit);
+                appendScoredToolCallResults(recent, query, results);
             }
         } catch (Exception ignored) {
             // 工具调用检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
         }
+    }
+
+    /**
+     * 将候选工具调用按服务层评分追加到搜索结果中，保证仓储宽召回后仍由严格命中规则兜底。
+     *
+     * @param records 候选工具调用记录。
+     * @param query 查询参数。
+     * @param results 待追加结果。
+     */
+    private void appendScoredToolCallResults(
+            List<ToolCallRecord> records, String query, List<SessionSearchEntry> results)
+            throws Exception {
+        if (records == null) {
+            return;
+        }
+        for (ToolCallRecord record : records) {
+            if (record == null || "session_search".equalsIgnoreCase(record.getToolName())) {
+                continue;
+            }
+            SessionSearchEntry entry = entryFromToolCall(record, query);
+            if (entry.getScore() > 0L) {
+                results.add(entry);
+            }
+        }
+    }
+
+    /**
+     * 判断当前结果中是否已经有工具调用证据，避免不必要地回退扫描最近工具调用。
+     *
+     * @param results 当前搜索结果。
+     * @return 已存在工具调用证据时返回 true。
+     */
+    private boolean hasToolCallEvidence(List<SessionSearchEntry> results) {
+        if (results == null) {
+            return false;
+        }
+        for (SessionSearchEntry entry : results) {
+            if (entry != null
+                    && StrUtil.isNotBlank(entry.getRunId())
+                    && StrUtil.isNotBlank(entry.getToolName())
+                    && !entry.getToolName().startsWith("event:")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -851,6 +896,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 if (record == null) {
                     continue;
                 }
+                if (isSessionSearchStartEvent(record)) {
+                    continue;
+                }
                 SessionSearchEntry entry = entryFromRunEvent(record, query);
                 if (entry.getScore() > 0L) {
                     results.add(entry);
@@ -859,6 +907,21 @@ public class DefaultSessionSearchService implements SessionSearchService {
         } catch (Exception ignored) {
             // 运行事件检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
         }
+    }
+
+    /**
+     * 判断是否为 session_search 自身的启动事件；普通恢复检索中这类自引用事件会挤占历史工具证据。
+     *
+     * @param record 运行事件记录。
+     * @return 属于 session_search 启动事件时返回 true。
+     */
+    private boolean isSessionSearchStartEvent(AgentRunEventRecord record) {
+        if (record == null || !"tool.start".equalsIgnoreCase(record.getEventType())) {
+            return false;
+        }
+        String metadata = StrUtil.nullToEmpty(record.getMetadataJson()).toLowerCase(Locale.ROOT);
+        String summary = StrUtil.nullToEmpty(record.getSummary()).toLowerCase(Locale.ROOT);
+        return metadata.contains("session_search") || summary.contains("session_search");
     }
 
     /**
@@ -1114,6 +1177,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return "";
         }
         return StrUtil.nullToEmpty(record.getToolName())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getSourceKey())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getSessionId())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getRunId())
                 + "\n"
                 + StrUtil.nullToEmpty(record.getArgsPreview())
                 + "\n"

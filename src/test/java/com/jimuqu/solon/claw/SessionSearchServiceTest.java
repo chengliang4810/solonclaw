@@ -611,6 +611,75 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldPreferHistoricalToolEvidenceOverCurrentSessionSearchEvent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:dashboard:web-loop-state-tool-20260615-0701";
+        String query = "web-loop-state-tool-20260615-0701 read_file HEARTBEAT";
+
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setSessionId("web-loop-state-tool-20260615-0701");
+        session.setSourceKey(sourceKey);
+        session.setTitle("long loop state tool session");
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource(sourceKey, session.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord oldRun =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        oldRun.setRunId("run-read-heartbeat-history");
+        oldRun.setSessionId(session.getSessionId());
+        oldRun.setSourceKey(sourceKey);
+        oldRun.setStatus("success");
+        oldRun.setInputPreview("请读取 runtime/HEARTBEAT.md");
+        oldRun.setFinalReplyPreview("read_file runtime/HEARTBEAT.md 已完成，心跳说明为空。");
+        oldRun.setStartedAt(System.currentTimeMillis() - 20000L);
+        oldRun.setLastActivityAt(oldRun.getStartedAt() + 1000L);
+        env.agentRunRepository.saveRun(oldRun);
+
+        ToolCallRecord readFileToolCall = new ToolCallRecord();
+        readFileToolCall.setToolCallId(IdSupport.newId());
+        readFileToolCall.setRunId(oldRun.getRunId());
+        readFileToolCall.setSessionId(session.getSessionId());
+        readFileToolCall.setSourceKey(sourceKey);
+        readFileToolCall.setToolName("read_file");
+        readFileToolCall.setStatus("completed");
+        readFileToolCall.setArgsPreview("{\"path\":\"runtime/HEARTBEAT.md\"}");
+        readFileToolCall.setResultPreview("runtime/HEARTBEAT.md 中没有启用心跳任务。");
+        readFileToolCall.setStartedAt(oldRun.getStartedAt() + 500L);
+        readFileToolCall.setFinishedAt(oldRun.getStartedAt() + 900L);
+        env.agentRunRepository.saveToolCall(readFileToolCall);
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord currentRun =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        currentRun.setRunId("run-current-session-search");
+        currentRun.setSessionId(session.getSessionId());
+        currentRun.setSourceKey(sourceKey);
+        currentRun.setStatus("running");
+        currentRun.setInputPreview("请调用 session_search 搜索 " + query);
+        currentRun.setStartedAt(System.currentTimeMillis());
+        currentRun.setLastActivityAt(currentRun.getStartedAt());
+        env.agentRunRepository.saveRun(currentRun);
+
+        AgentRunEventRecord currentSearchEvent = new AgentRunEventRecord();
+        currentSearchEvent.setEventId(IdSupport.newId());
+        currentSearchEvent.setRunId(currentRun.getRunId());
+        currentSearchEvent.setSessionId(session.getSessionId());
+        currentSearchEvent.setSourceKey(sourceKey);
+        currentSearchEvent.setEventType("tool.start");
+        currentSearchEvent.setSummary("调用工具：session_search");
+        currentSearchEvent.setMetadataJson("{\"tool\":\"session_search\",\"query\":\"" + query + "\"}");
+        currentSearchEvent.setCreatedAt(currentRun.getStartedAt() + 500L);
+        env.agentRunRepository.appendEvent(currentSearchEvent);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(sourceKey, query, 2);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getToolName)
+                .contains("read_file");
+        assertThat(entries.get(0).getToolName()).isNotEqualTo("event:tool.start");
+    }
+
+    @Test
     void shouldSearchRealRunRecordsWhenRunIdIsProvided() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-room:user");
