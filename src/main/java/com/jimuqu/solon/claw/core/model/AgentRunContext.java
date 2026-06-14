@@ -17,6 +17,9 @@ public class AgentRunContext {
     /** 当前的统一常量值。 */
     private static final ThreadLocal<AgentRunContext> CURRENT = new ThreadLocal<AgentRunContext>();
 
+    /** 工具策略拒绝 observation 的统一前缀，供审计层识别运行时拒绝结果。 */
+    public static final String TOOL_POLICY_REJECTION_PREFIX = "本轮 Web 运行";
+
     /** 保存仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository repository;
 
@@ -331,7 +334,8 @@ public class AgentRunContext {
         attemptedToolCalls++;
         String cleanToolName = toolName == null ? "" : toolName.trim();
         if (maxToolCalls != null && attemptedToolCalls > maxToolCalls.intValue()) {
-            return "本轮 Web 运行最多允许 "
+            return TOOL_POLICY_REJECTION_PREFIX
+                    + "最多允许 "
                     + maxToolCalls
                     + " 次工具调用，当前第 "
                     + attemptedToolCalls
@@ -342,7 +346,8 @@ public class AgentRunContext {
         if (allowedToolNames != null
                 && !allowedToolNames.isEmpty()
                 && !allowedToolNames.contains(cleanToolName)) {
-            return "本轮 Web 运行只允许调用工具 "
+            return TOOL_POLICY_REJECTION_PREFIX
+                    + "只允许调用工具 "
                     + allowedToolNames
                     + "，当前工具 "
                     + cleanToolName

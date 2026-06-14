@@ -359,8 +359,15 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(searchCalls[0]).isEqualTo(1);
         assertThat(todoCalls[0]).isEqualTo(1);
         assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("budget final");
-        assertThat(events).contains("tool.policy.denied");
+        assertThat(events).contains("tool.policy.denied", "tool.policy.end");
         assertThat(runContext.getAttemptedToolCalls()).isEqualTo(3);
+        List<ToolCallRecord> calls = new ArrayList<ToolCallRecord>(records.values());
+        assertThat(calls).hasSize(3);
+        assertThat(countToolCallsByStatus(calls, "completed")).isEqualTo(2);
+        assertThat(countToolCallsByStatus(calls, "denied")).isEqualTo(1);
+        ToolCallRecord denied = findToolCall(calls, "session_search", "denied");
+        assertThat(denied).isNotNull();
+        assertThat(denied.getResultPreview()).contains("本轮 Web 运行最多允许 2 次工具调用");
         List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
         assertThat(messageContents(messages))
                 .anyMatch(content -> content.contains("本轮 Web 运行最多允许 2 次工具调用"));
@@ -406,7 +413,12 @@ public class SolonAiOwnedReActLoopTest {
                         runContext);
 
         assertThat(echoCalls[0]).isEqualTo(0);
-        assertThat(events).contains("tool.policy.denied");
+        assertThat(events).contains("tool.policy.denied", "tool.policy.end");
+        List<ToolCallRecord> calls = new ArrayList<ToolCallRecord>(records.values());
+        assertThat(calls).hasSize(1);
+        ToolCallRecord denied = findToolCall(calls, "echo_tool", "denied");
+        assertThat(denied).isNotNull();
+        assertThat(denied.getResultPreview()).contains("本轮 Web 运行只允许调用工具 [todo]");
         assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
                 .anyMatch(content -> content.contains("本轮 Web 运行只允许调用工具 [todo]"));
     }
@@ -829,6 +841,43 @@ public class SolonAiOwnedReActLoopTest {
             ChatMessage message = messages.get(i);
             if (message instanceof ToolMessage) {
                 return (ToolMessage) message;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 按状态统计工具审计记录数量，用于确认策略拒绝不会被误判为完成。
+     *
+     * @param records 工具审计记录列表。
+     * @param status 目标状态。
+     * @return 返回匹配状态的记录数量。
+     */
+    private static int countToolCallsByStatus(List<ToolCallRecord> records, String status) {
+        int count = 0;
+        for (ToolCallRecord record : records) {
+            if (record != null && status.equals(record.getStatus())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 查找指定工具和状态的审计记录，方便断言策略拒绝结果。
+     *
+     * @param records 工具审计记录列表。
+     * @param toolName 工具名称。
+     * @param status 目标状态。
+     * @return 返回匹配记录；不存在时返回 null。
+     */
+    private static ToolCallRecord findToolCall(
+            List<ToolCallRecord> records, String toolName, String status) {
+        for (ToolCallRecord record : records) {
+            if (record != null
+                    && toolName.equals(record.getToolName())
+                    && status.equals(record.getStatus())) {
+                return record;
             }
         }
         return null;

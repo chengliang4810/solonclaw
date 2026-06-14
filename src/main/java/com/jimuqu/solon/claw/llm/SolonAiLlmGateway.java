@@ -3661,9 +3661,17 @@ public class SolonAiLlmGateway implements LlmGateway {
             ToolResultStorageService.StoredResult output =
                     ToolResultStorageService.describeObservation(
                             StrUtil.blankToDefault(observation, result));
+            boolean policyDenied = isPolicyDeniedObservation(observation);
             metadata.put("preview", output.getPreview());
             metadata.put("result_ref", output.getResultRef());
-            runContext.event("tool.end", "工具完成：" + toolName + "（" + durationMs + "ms）", metadata);
+            runContext.event(
+                    policyDenied ? "tool.policy.end" : "tool.end",
+                    (policyDenied ? "工具策略拒绝：" : "工具完成：")
+                            + toolName
+                            + "（"
+                            + durationMs
+                            + "ms）",
+                    metadata);
             ToolCallRecord record = activeToolCalls.remove(toolName);
             if (record == null) {
                 record = new ToolCallRecord();
@@ -3681,13 +3689,25 @@ public class SolonAiLlmGateway implements LlmGateway {
                 record.setExecutionPolicy(
                         record.isSideEffecting() ? "serial" : "parallel_readonly");
             }
-            record.setStatus("completed");
+            record.setStatus(policyDenied ? "denied" : "completed");
             record.setResultPreview(output.getPreview());
             record.setResultRef(output.getResultRef());
             record.setResultSizeBytes(output.getSizeBytes());
             record.setFinishedAt(System.currentTimeMillis());
             record.setDurationMs(durationMs);
             runContext.saveToolCall(record);
+        }
+
+        /**
+         * 判断 observation 是否来自本轮工具策略硬拒绝，用于避免把未执行工具记为 completed。
+         *
+         * @param observation 工具 observation 文本。
+         * @return 如果是策略拒绝 observation 则返回 true。
+         */
+        private boolean isPolicyDeniedObservation(String observation) {
+            return StrUtil.isNotBlank(observation)
+                    && observation.startsWith(AgentRunContext.TOOL_POLICY_REJECTION_PREFIX)
+                    && observation.contains("已被拒绝执行");
         }
 
         /**
