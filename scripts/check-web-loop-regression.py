@@ -74,6 +74,10 @@ def expect_equal(checks: list[Check], name: str, actual: Any, expected: Any) -> 
     record(checks, name, actual == expected, {"actual": actual, "expected": expected})
 
 
+def compact_check_rows(checks: list[Check]) -> dict[str, bool]:
+    return {item.name: item.ok for item in checks}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check the long Web Agent regression loop archive and live API state.")
     parser.add_argument("--root-path", default=str(REPO_ROOT))
@@ -90,8 +94,10 @@ def main() -> int:
     errors: list[str] = []
 
     archive_files: dict[str, str] = {}
+    marker_verdicts: list[dict[str, Any]] = []
     for marker in CHAIN_MARKERS:
         path = logs_dir / f"{marker}.final-summary.json"
+        strict_path = logs_dir / f"{marker}.strict-verdict.json"
         archive_files[marker] = str(path.relative_to(root))
         record(checks, f"archive_exists:{marker}", path.exists(), archive_files[marker])
         if path.exists():
@@ -101,6 +107,44 @@ def main() -> int:
             except (OSError, json.JSONDecodeError) as exc:
                 record(checks, f"archive_json:{marker}", False, str(exc))
                 errors.append(str(exc))
+        record(checks, f"strict_verdict_exists:{marker}", strict_path.exists(), str(strict_path.relative_to(root)))
+        strict_verdict: dict[str, Any] = {}
+        if strict_path.exists():
+            try:
+                strict_verdict = load_json(strict_path)
+                record(checks, f"strict_verdict_json:{marker}", True, str(strict_path.relative_to(root)))
+            except (OSError, json.JSONDecodeError) as exc:
+                record(checks, f"strict_verdict_json:{marker}", False, str(exc))
+                errors.append(str(exc))
+        strict_value = (
+            strict_verdict.get("strict_verdict")
+            or strict_verdict.get("final_verdict")
+            or strict_verdict.get("verdict")
+        )
+        if strict_value is None:
+            if strict_verdict.get("task_completed") is True and strict_verdict.get("failure_layer") == "none":
+                strict_value = "pass"
+            elif strict_verdict.get("task_completed") is True:
+                strict_value = "pass_with_fix"
+        record(checks, f"strict_verdict_pass:{marker}", strict_value in ("pass", "pass_with_fix"), strict_value)
+        record(
+            checks,
+            f"strict_verdict_no_unresolved:{marker}",
+            strict_verdict.get("unresolved_failure", False) is False
+            and len(strict_verdict.get("failed_checks") or []) == 0,
+            {
+                "unresolved_failure": strict_verdict.get("unresolved_failure"),
+                "failed_checks": strict_verdict.get("failed_checks"),
+            },
+        )
+        marker_verdicts.append(
+            {
+                "marker": marker,
+                "strict_verdict": strict_value,
+                "final_summary": archive_files[marker],
+                "strict_verdict_file": str(strict_path.relative_to(root)),
+            }
+        )
 
     final_summary_path = logs_dir / f"{FINAL_MARKER}.final-summary.json"
     final_parse_path = logs_dir / f"{FINAL_MARKER}.final-parse.json"
@@ -184,26 +228,44 @@ def main() -> int:
 
     check_rows = [{"name": item.name, "ok": item.ok, "detail": item.detail} for item in checks]
     ok = all(item.ok for item in checks)
+    compact_checks = compact_check_rows(checks)
+    failed_checks = [item.name for item in checks if not item.ok]
+    live_summary = {
+        "runtime_status": runtime_status.get("status"),
+        "running_agent_runs": status_data.get("running_agent_runs"),
+        "model": (runtime_status.get("model") or {}).get("model"),
+        "cron_total": cron_data.get("total"),
+        "cron_active": cron_data.get("active"),
+        "cron_due": cron_data.get("due"),
+        "session_present": args.session_id in session_ids,
+    }
     result = {
         "generated_at_epoch_ms": int(time.time() * 1000),
         "task_completed": ok,
         "failure_layer": "none" if ok else "dashboard_api_regression_harness",
         "needs_code_fix": False,
+        "summary": {
+            "task_completed": ok,
+            "failure_layer": "none" if ok else "dashboard_api_regression_harness",
+            "checked_marker_count": len(CHAIN_MARKERS),
+            "final_marker": FINAL_MARKER,
+            "all_prior_verdicts_pass": final_summary.get("all_prior_verdicts_pass") is True,
+            "coverage_all_true": all((coverage or {}).get(name) is True for name in REQUIRED_COVERAGE),
+            "strict_verdicts_all_pass": all(
+                item["strict_verdict"] in ("pass", "pass_with_fix") for item in marker_verdicts
+            ),
+            "live": live_summary,
+            "failed_checks": failed_checks,
+        },
+        "marker_verdicts": marker_verdicts,
+        "compact_checks": compact_checks,
         "checked_markers": CHAIN_MARKERS,
         "final_marker": FINAL_MARKER,
         "session_id": args.session_id,
         "base_url": args.base_url,
         "checks": check_rows,
         "errors": errors,
-        "live_summary": {
-            "runtime_status": runtime_status.get("status"),
-            "running_agent_runs": status_data.get("running_agent_runs"),
-            "model": (runtime_status.get("model") or {}).get("model"),
-            "cron_total": cron_data.get("total"),
-            "cron_active": cron_data.get("active"),
-            "cron_due": cron_data.get("due"),
-            "session_present": args.session_id in session_ids,
-        },
+        "live_summary": live_summary,
     }
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
