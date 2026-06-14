@@ -630,6 +630,9 @@ public class DashboardChatService {
         if (StrUtil.isNotBlank(state.sessionId)) {
             payload.put("session_id", state.sessionId);
         }
+        if (StrUtil.isNotBlank(state.agentRunId)) {
+            payload.put("agent_run_id", state.agentRunId);
+        }
         if (data != null) {
             payload.putAll(data);
         }
@@ -785,8 +788,9 @@ public class DashboardChatService {
          */
         @Override
         public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("attempt_no", attemptNo);
             payload.put("provider", safeText(provider, 120));
             payload.put("model", safeText(model, 120));
@@ -803,8 +807,9 @@ public class DashboardChatService {
          */
         @Override
         public void onAttemptCompleted(String runId, int attemptNo, String status, String reason) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("attempt_no", attemptNo);
             payload.put("status", safeText(status, 120));
             payload.put("reason", safeText(reason, 1000));
@@ -827,8 +832,9 @@ public class DashboardChatService {
                 String reason,
                 int estimatedTokens,
                 int thresholdTokens) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("compressed", compressed);
             payload.put("reason", safeText(reason, 1000));
             payload.put("estimated_tokens", estimatedTokens);
@@ -844,8 +850,9 @@ public class DashboardChatService {
          */
         @Override
         public void onRecoveryStarted(String runId, String recoveryType) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("recovery_type", safeText(recoveryType, 240));
             enqueue(state, "recovery.started", payload);
         }
@@ -861,8 +868,9 @@ public class DashboardChatService {
         @Override
         public void onFallback(
                 String runId, String fromProvider, String toProvider, String reason) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("from_provider", safeText(fromProvider, 120));
             payload.put("to_provider", safeText(toProvider, 120));
             payload.put("reason", safeText(reason, 1000));
@@ -1157,6 +1165,9 @@ public class DashboardChatService {
     private static class ChatRunState {
         /** 记录聊天运行中的运行标识。 */
         private final String runId;
+
+        /** 记录内部 Agent 持久化运行标识，用于把 Web 订阅事件关联到运行记录列表。 */
+        private volatile String agentRunId;
 
         /** 记录聊天运行中的events。 */
         private final BlockingQueue<ChatRunEvent> events = new LinkedBlockingQueue<ChatRunEvent>();

@@ -75,6 +75,22 @@ public class DashboardChatServiceEventSinkTest {
     }
 
     @Test
+    void shouldCarryAgentRunIdOnTerminalDashboardEvents() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("web-run-1", "session-1");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onAttemptStarted("agent-run-1", 1, "provider", "model");
+        sink.onRunCompleted("session-1", "done", null);
+
+        Map<String, Map<String, Object>> events = drainEvents(state);
+        assertThat(events.get("attempt.started").get("run_id")).isEqualTo("web-run-1");
+        assertThat(events.get("attempt.started").get("agent_run_id")).isEqualTo("agent-run-1");
+        assertThat(events.get("run.completed").get("run_id")).isEqualTo("web-run-1");
+        assertThat(events.get("run.completed").get("agent_run_id")).isEqualTo("agent-run-1");
+    }
+
+    @Test
     void shouldClassifySseClientDisconnects() throws Exception {
         DashboardChatService service = new DashboardChatService(null, null, null, null);
 
