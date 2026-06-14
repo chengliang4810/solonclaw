@@ -1,7 +1,9 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -26,12 +28,37 @@ public final class MessageSupport {
             return new ArrayList<ChatMessage>();
         }
 
-        return new ArrayList<ChatMessage>(ChatMessage.fromNdjson(ndjson));
+        return loadMessagesByLine(ndjson);
     }
 
     /** 将消息列表序列化为 NDJSON。 */
     public static String toNdjson(List<ChatMessage> messages) throws IOException {
         return ChatMessage.toNdjson(messages);
+    }
+
+    /**
+     * 直接按 Java 字符串逐行恢复历史消息，避免 Solon AI 整段 NDJSON 读取路径在 Windows 默认字符集下误读 UTF-8 字节。
+     *
+     * @param ndjson 历史会话 NDJSON。
+     * @return 返回恢复后的消息列表。
+     */
+    private static List<ChatMessage> loadMessagesByLine(String ndjson) throws IOException {
+        List<ChatMessage> messages = new ArrayList<ChatMessage>();
+        BufferedReader reader = new BufferedReader(new StringReader(ndjson));
+        String line;
+        int lineNumber = 0;
+        try {
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                if (StrUtil.isBlank(line)) {
+                    continue;
+                }
+                messages.add(ChatMessage.fromJson(line));
+            }
+            return messages;
+        } catch (RuntimeException e) {
+            throw new IOException("Failed to parse session ndjson line " + lineNumber, e);
+        }
     }
 
     /** 修复发给模型前的消息序列，避免孤儿 tool 消息或连续 user 消息破坏协议。 */

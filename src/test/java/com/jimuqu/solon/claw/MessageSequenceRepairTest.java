@@ -1,10 +1,13 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -202,6 +205,48 @@ public class MessageSequenceRepairTest {
         assertThat(agentSession.getMessages().get(0).getContent()).isEqualTo("first");
         assertThat(agentSession.getMessages().get(1).getContent()).isEqualTo("hello");
         assertThat(agentSession.getMessages().get(2).getContent()).isEqualTo("second");
+    }
+
+    @Test
+    void shouldLoadUtf8NdjsonWithoutDefaultCharsetRoundTrip() throws Exception {
+        String content =
+                "<think>\n\n"
+                        + "\u8bfb\u53d6\u5305\u542b\u4e2d\u6587\u8def\u5f84\u4e0e\u8f6c\u4e49 JSON \u7684\u5de5\u5177\u53c2\u6570\u3002"
+                        + "</think>\n\n"
+                        + "\u53c2\u6570={\"path\":\"runtime/logs/\u4e01\\\"loop.json\"}";
+        AssistantMessage assistant =
+                new AssistantMessage(
+                        content,
+                        false,
+                        null,
+                        rawToolCalls("call_utf8"),
+                        toolCalls("call_utf8"),
+                        null);
+        String ndjson =
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                assistant,
+                                ChatMessage.ofTool(
+                                        "{\"status\":\"success\",\"preview\":\"\u957f\u671f\u56de\u5f52\"}",
+                                        "read_file",
+                                        "call_utf8")));
+
+        String misread =
+                new String(ndjson.getBytes(StandardCharsets.UTF_8), Charset.forName("GBK"));
+        assertThat(ChatMessage.fromJson(ndjson.split("\\R", -1)[0]).getContent())
+                .contains("\u4e01\\\"");
+        assertThatThrownBy(() -> ChatMessage.fromJson(misread.split("\\R", -1)[0]))
+                .hasMessageContaining("Expected");
+
+        List<ChatMessage> messages = MessageSupport.loadMessages(ndjson);
+
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(0)).isInstanceOf(AssistantMessage.class);
+        assertThat(messages.get(0).getContent()).contains("\u4e01\\\"loop.json");
+        assertThat(((AssistantMessage) messages.get(0)).getToolCalls())
+                .extracting(ToolCall::getId)
+                .containsExactly("call_utf8");
+        assertThat(messages.get(1).getContent()).contains("\u957f\u671f\u56de\u5f52");
     }
 
     private static AssistantMessage assistantWithToolCall(String id, String name) {
