@@ -520,6 +520,8 @@ public class DashboardChatService {
         message.setChatName("dashboard");
         message.setUserName("dashboard");
         message.setSourceKeyOverride(sourceKey(sessionId));
+        message.setAllowedToolsOverride(request.allowedTools);
+        message.setMaxToolCallsOverride(request.maxToolCalls);
         if (request.attachments != null && !request.attachments.isEmpty()) {
             message.setAttachments(
                     request.resolvedAttachments == null
@@ -1238,6 +1240,12 @@ public class DashboardChatService {
         /** 记录聊天运行请求中的模型。 */
         private String model;
 
+        /** 本轮 Web 运行允许调用的工具名白名单；为空表示不限制工具名。 */
+        private List<String> allowedTools;
+
+        /** 本轮 Web 运行允许尝试的最大工具调用次数；为空表示不限制次数。 */
+        private Integer maxToolCalls;
+
         /** 保存对话历史集合，维持调用顺序或去重语义。 */
         private List<HistoryItem> conversationHistory;
 
@@ -1258,6 +1266,10 @@ public class DashboardChatService {
             request.input = body.get("input").getString();
             request.sessionId = body.get("session_id").getString();
             request.model = body.get("model").getString();
+            request.allowedTools =
+                    parseStringList(firstPresent(body, "allowed_tools", "allowedTools"));
+            request.maxToolCalls =
+                    parsePositiveInteger(firstPresent(body, "max_tool_calls", "maxToolCalls"));
 
             List<HistoryItem> history = new ArrayList<HistoryItem>();
             ONode historyNode = body.get("conversation_history");
@@ -1287,6 +1299,96 @@ public class DashboardChatService {
             }
             request.attachments = attachments;
             return request;
+        }
+
+        /**
+         * 读取首个存在的请求字段，兼容蛇形命名和驼峰命名。
+         *
+         * @param body 请求体节点。
+         * @param names 候选字段名。
+         * @return 返回第一个存在的字段节点；不存在时返回 null。
+         */
+        private static ONode firstPresent(ONode body, String... names) {
+            if (body == null || names == null) {
+                return null;
+            }
+            for (String name : names) {
+                ONode value = body.get(name);
+                if (value != null && !value.isNull()) {
+                    return value;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * 解析工具名列表，支持 JSON 数组和逗号分隔字符串。
+         *
+         * @param node 请求字段节点。
+         * @return 返回去空白后的工具名集合。
+         */
+        private static List<String> parseStringList(ONode node) {
+            List<String> values = new ArrayList<String>();
+            if (node == null || node.isNull()) {
+                return values;
+            }
+            if (node.isArray()) {
+                for (int i = 0; i < node.size(); i++) {
+                    addStringValue(values, node.get(i).getString());
+                }
+            } else {
+                String raw = node.getString();
+                if (raw != null) {
+                    String[] parts = raw.split(",");
+                    for (String part : parts) {
+                        addStringValue(values, part);
+                    }
+                }
+            }
+            return values;
+        }
+
+        /**
+         * 解析正整数请求字段，非法或非正数表示不启用次数限制。
+         *
+         * @param node 请求字段节点。
+         * @return 返回正整数；未配置时返回 null。
+         */
+        private static Integer parsePositiveInteger(ONode node) {
+            if (node == null || node.isNull()) {
+                return null;
+            }
+            try {
+                int value = node.getInt();
+                return value > 0 ? Integer.valueOf(value) : null;
+            } catch (Exception e) {
+                String raw = node.getString();
+                if (raw == null) {
+                    return null;
+                }
+                try {
+                    int value = Integer.parseInt(raw.trim());
+                    return value > 0 ? Integer.valueOf(value) : null;
+                } catch (Exception ignored) {
+                    return null;
+                }
+            }
+        }
+
+        /**
+         * 添加单个工具名，避免空白项进入运行策略。
+         *
+         * @param values 目标集合。
+         * @param raw 原始工具名。
+         */
+        private static void addStringValue(List<String> values, String raw) {
+            if (raw == null) {
+                return;
+            }
+            String clean = raw.trim();
+            if (StrUtil.isNotBlank(clean)) {
+                values.add(clean);
+            }
         }
     }
 

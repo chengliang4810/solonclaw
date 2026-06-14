@@ -668,7 +668,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
-     * 执行异步任务主体，并携带本轮临时记忆召回上下文。
+     * 执行异步任务主体；未显式传入 Web 工具策略时保持历史默认行为。
      *
      * @param session 会话参数。
      * @param systemPrompt 系统提示词参数。
@@ -693,6 +693,52 @@ public class AgentRunSupervisor implements AgentRunControlService {
             AgentRuntimeScope agentScope,
             List<MessageAttachment> userAttachments,
             String memoryPrefetchContext)
+            throws Exception {
+        return run(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                userAttachments,
+                memoryPrefetchContext,
+                java.util.Collections.<String>emptyList(),
+                null);
+    }
+
+    /**
+     * 执行异步任务主体，并携带本轮临时记忆召回上下文。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param userAttachments 用户Attachments参数。
+     * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
+     * @param allowedToolNames 本轮允许调用的工具名称白名单。
+     * @param maxToolCalls 本轮允许尝试的最大工具调用次数。
+     * @return 返回运行结果。
+     */
+    public AgentRunOutcome run(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext,
+            List<String> allowedToolNames,
+            Integer maxToolCalls)
             throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
@@ -744,6 +790,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runContext.setParentRunId(runRecord.getParentRunId());
         runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
+        runContext.setToolPolicy(allowedToolNames, maxToolCalls);
         if (!resume && StrUtil.isNotBlank(memoryPrefetchContext)) {
             runContext.setMemoryPrefetchContext(userMessage, memoryPrefetchContext);
         }

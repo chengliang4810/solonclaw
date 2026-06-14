@@ -1472,15 +1472,18 @@ public class SolonAiLlmGateway implements LlmGateway {
                 new ToolResultStorageInterceptor(
                         toolResultStorageService,
                         runContext == null ? null : runContext.getRunId()));
-        if (feedbackSink != null && feedbackSink != ConversationFeedbackSink.noop()) {
-            options.interceptorAdd(new FeedbackInterceptor(feedbackSink, dangerousCommandApprovalService));
-        }
         if (runContext != null) {
             options.interceptorAdd(
                     new TracingReActInterceptor(
                             runContext,
                             appConfig.getTrace().getToolPreviewLength(),
                             appConfig.getTask().getToolOutputInlineLimit()));
+            if (runContext.hasToolPolicy()) {
+                options.interceptorAdd(new ToolPolicyInterceptor(runContext));
+            }
+        }
+        if (feedbackSink != null && feedbackSink != ConversationFeedbackSink.noop()) {
+            options.interceptorAdd(new FeedbackInterceptor(feedbackSink, dangerousCommandApprovalService));
         }
         if (usageCollector != null) {
             options.interceptorAdd(new UsageCollectingInterceptor(usageCollector));
@@ -3106,6 +3109,51 @@ public class SolonAiLlmGateway implements LlmGateway {
         return "path://" + SecretRedactor.redact(name, 200);
     }
 
+    /** 根据 Web 单轮运行策略在工具真正执行前拒绝越界调用。 */
+    private static class ToolPolicyInterceptor implements ReActInterceptor {
+        /** 保存当前运行上下文，用于读取工具白名单和次数预算。 */
+        private final AgentRunContext runContext;
+
+        /**
+         * 创建工具策略拦截器。
+         *
+         * @param runContext 当前 Agent 运行上下文。
+         */
+        private ToolPolicyInterceptor(AgentRunContext runContext) {
+            this.runContext = runContext;
+        }
+
+        /**
+         * 在模型选择工具后、真实工具执行前检查本轮 Web 运行策略。
+         *
+         * @param trace ReAct 轨迹对象。
+         * @param toolName 模型请求调用的工具名称。
+         * @param args 工具参数。
+         */
+        @Override
+        public void onAction(ReActTrace trace, String toolName, Map<String, Object> args) {
+            if (runContext == null || !runContext.hasToolPolicy()) {
+                return;
+            }
+            String rejection = runContext.recordToolAttempt(toolName);
+            if (StrUtil.isBlank(rejection)) {
+                return;
+            }
+            if (trace != null) {
+                trace.setLastObservation(rejection);
+            }
+            Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+            metadata.put("tool", toolName);
+            metadata.put("args", args);
+            metadata.put("allowed_tools", runContext.getAllowedToolNames());
+            metadata.put("max_tool_calls", runContext.getMaxToolCalls());
+            metadata.put(
+                    "attempted_tool_calls",
+                    Integer.valueOf(runContext.getAttemptedToolCalls()));
+            runContext.event("tool.policy.denied", rejection, metadata);
+        }
+    }
+
     /** 将 ReAct 生命周期事件桥接到网关反馈 sink。 */
     private static class FeedbackInterceptor implements ReActInterceptor {
         /** 记录反馈Interceptor中的反馈接收端。 */
@@ -3147,6 +3195,9 @@ public class SolonAiLlmGateway implements LlmGateway {
          */
         @Override
         public void onAction(ReActTrace trace, String toolName, Map<String, Object> args) {
+            if (trace != null && StrUtil.isNotBlank(trace.getLastObservation())) {
+                return;
+            }
             if (trace != null && trace.getSession() != null && trace.getSession().isPending()) {
                 return;
             }

@@ -308,6 +308,110 @@ public class SolonAiOwnedReActLoopTest {
     }
 
     @Test
+    void shouldRejectOwnedLoopToolCallWhenWebRunBudgetIsExceeded() throws Exception {
+        AppConfig config = config();
+        config.getReact().setMaxSteps(5);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.THREE_TOOL_CALLS_THEN_FINAL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-tool-budget-session");
+        Map<String, ToolCallRecord> records = new LinkedHashMap<String, ToolCallRecord>();
+        List<String> events = new ArrayList<String>();
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        recordingRunRepository(records, events),
+                        "run-tool-budget",
+                        session.getSessionId(),
+                        session.getSourceKey());
+        runContext.setToolPolicy(Arrays.asList("session_search", "todo"), Integer.valueOf(2));
+        final int[] searchCalls = new int[] {0};
+        final int[] todoCalls = new int[] {0};
+
+        FunctionToolDesc sessionSearch = new FunctionToolDesc("session_search");
+        sessionSearch.description("Search sessions.");
+        sessionSearch.doHandle(
+                args -> {
+                    searchCalls[0]++;
+                    return "search-" + searchCalls[0];
+                });
+        FunctionToolDesc todo = new FunctionToolDesc("todo");
+        todo.description("Manage todos.");
+        todo.doHandle(
+                args -> {
+                    todoCalls[0]++;
+                    return "todo-" + todoCalls[0];
+                });
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "先搜索再读 todo，不要第三次调用工具",
+                        Arrays.asList(sessionSearch, todo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(searchCalls[0]).isEqualTo(1);
+        assertThat(todoCalls[0]).isEqualTo(1);
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("budget final");
+        assertThat(events).contains("tool.policy.denied");
+        assertThat(runContext.getAttemptedToolCalls()).isEqualTo(3);
+        List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
+        assertThat(messageContents(messages))
+                .anyMatch(content -> content.contains("本轮 Web 运行最多允许 2 次工具调用"));
+    }
+
+    @Test
+    void shouldRejectOwnedLoopToolCallOutsideAllowedTools() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.TEXT_ACTION);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-tool-allow-list-session");
+        Map<String, ToolCallRecord> records = new LinkedHashMap<String, ToolCallRecord>();
+        List<String> events = new ArrayList<String>();
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        recordingRunRepository(records, events),
+                        "run-tool-allow-list",
+                        session.getSessionId(),
+                        session.getSourceKey());
+        runContext.setToolPolicy(Collections.singletonList("todo"), Integer.valueOf(5));
+        final int[] echoCalls = new int[] {0};
+
+        FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+        echo.description("Echo one value.");
+        echo.doHandle(
+                args -> {
+                    echoCalls[0]++;
+                    return "工具结果：" + args.get("value");
+                });
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请调用工具",
+                        Collections.singletonList(echo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(echoCalls[0]).isEqualTo(0);
+        assertThat(events).contains("tool.policy.denied");
+        assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
+                .anyMatch(content -> content.contains("本轮 Web 运行只允许调用工具 [todo]"));
+    }
+
+    @Test
     void shouldStreamOwnedLoopDeltasWhenEventSinkIsProvided() throws Exception {
         AppConfig config = config();
         config.getReact().setMaxSteps(2);
@@ -753,6 +857,18 @@ public class SolonAiOwnedReActLoopTest {
      */
     private static AgentRunRepository recordingRunRepository(
             Map<String, ToolCallRecord> records) {
+        return recordingRunRepository(records, null);
+    }
+
+    /**
+     * 构造只记录工具审计和事件类型的运行仓储，避免单测依赖真实 SQLite。
+     *
+     * @param records 按工具调用标识保存的审计记录。
+     * @param events 需要记录的运行事件类型集合。
+     * @return 返回运行仓储代理。
+     */
+    private static AgentRunRepository recordingRunRepository(
+            Map<String, ToolCallRecord> records, List<String> events) {
         return (AgentRunRepository)
                 Proxy.newProxyInstance(
                         AgentRunRepository.class.getClassLoader(),
@@ -765,6 +881,17 @@ public class SolonAiOwnedReActLoopTest {
                             }
                             if ("listToolCalls".equals(method.getName())) {
                                 return new ArrayList<ToolCallRecord>(records.values());
+                            }
+                            if ("appendEvent".equals(method.getName())) {
+                                if (events != null && args != null && args.length > 0) {
+                                    Object event = args[0];
+                                    try {
+                                        Method getter = event.getClass().getMethod("getEventType");
+                                        events.add(String.valueOf(getter.invoke(event)));
+                                    } catch (Exception ignored) {
+                                    }
+                                }
+                                return null;
                             }
                             Class<?> type = method.getReturnType();
                             if (Void.TYPE.equals(type)) {
@@ -838,6 +965,7 @@ public class SolonAiOwnedReActLoopTest {
         CRONJOB_MISSING_BOOLEAN_ARGS,
         TODO_WRITE_THEN_READ,
         CRONJOB_INSPECT_THEN_CREATE,
+        THREE_TOOL_CALLS_THEN_FINAL,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL,
@@ -964,6 +1092,29 @@ public class SolonAiOwnedReActLoopTest {
                                             + "Action Input: {\"action\":\"create\",\"name\":\"job-new\",\"schedule\":\"2m\",\"deliver\":\"origin\",\"no_agent\":false,\"wrap_response\":true}");
                 } else {
                     assistant = ChatMessage.ofAssistant("cronjob audit ok");
+                }
+            } else if (model.mode == FakeMode.THREE_TOOL_CALLS_THEN_FINAL) {
+                int toolMessages = toolMessageCount(session.getMessages());
+                if (toolMessages == 0) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 先检索会话\n"
+                                            + "Action: session_search\n"
+                                            + "Action Input: {\"query\":\"tool budget\"}");
+                } else if (toolMessages == 1) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 再读取 todo\n"
+                                            + "Action: todo\n"
+                                            + "Action Input: {}");
+                } else if (toolMessages == 2) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 尝试第三次检索\n"
+                                            + "Action: session_search\n"
+                                            + "Action Input: {\"query\":\"extra search\"}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("budget final");
                 }
             } else if (toolMessage == null) {
                 if (model.mode == FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS) {
