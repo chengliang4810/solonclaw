@@ -472,6 +472,49 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldNotDenyCompletedToolResultDuringMaxStepsRecovery() throws Exception {
+        Fixture fixture = fixture();
+        RecoveryTranscriptGateway gateway =
+                new RecoveryTranscriptGateway(
+                        ChatMessage.toNdjson(
+                                java.util.Arrays.asList(
+                                        ChatMessage.ofUser("创建一次性提醒"),
+                                        ChatMessage.ofTool(
+                                                "{\"success\":true,\"job_id\":\"job_123\",\"next_run_at\":\"2026-06-15T02:13:43+08:00\",\"deliver\":\"origin\"}",
+                                                "cronjob",
+                                                "call_cron_1"),
+                                        ChatMessage.ofAssistant(
+                                                "Agent error: Maximum steps reached (12)."))),
+                        "抱歉，任务尚未完成。我没有成功执行工具调用。");
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:room:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "创建一次性提醒",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        SessionRecord updated = fixture.sessionRepository.findById(session.getSessionId());
+        String persisted = updated.getNdjson();
+        assertThat(outcome.getFinalReply()).contains("已执行工具调用");
+        assertThat(outcome.getFinalReply()).contains("cronjob");
+        assertThat(outcome.getFinalReply()).contains("job_123");
+        assertThat(outcome.getFinalReply()).doesNotContain("没有成功执行工具");
+        assertThat(persisted).contains("已执行工具调用");
+        assertThat(persisted).contains("job_123");
+        assertThat(persisted).doesNotContain("没有成功执行工具");
+    }
+
+    @Test
     void shouldMarkQueuedRunCompletedWhenBusyQueueDrains() throws Exception {
         Fixture fixture = fixture();
         RecordingGateway gateway = new RecordingGateway();
@@ -536,6 +579,7 @@ public class AgentRunSupervisorTest {
     private static Fixture fixture() throws Exception {
         AppConfig config = new AppConfig();
         File runtimeHome = Files.createTempDirectory("solon-claw-supervisor").toFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
         config.getRuntime()
                 .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
         config.getTrace().setMaxAttempts(1);

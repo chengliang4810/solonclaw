@@ -53,6 +53,7 @@ import java.util.function.Function;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
     /** 最大STEPS恢复提示词的统一常量值。 */
     private static final String MAX_STEPS_RECOVERY_PROMPT =
-            "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。";
+            "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。"
+                    + "如果历史里已经有 tool 角色消息，必须承认这些工具已经执行并以工具返回内容为事实依据，禁止声称工具没有调用或没有执行。";
 
     /** 最大STEPS恢复兜底的统一常量值。 */
     private static final String MAX_STEPS_RECOVERY_FALLBACK =
@@ -862,6 +864,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             runContext);
                             checkCancellation(session.getSourceKey());
                             if (hasUsableRecoveryReply(recovered)) {
+                                correctContradictingRecoveryReply(result, recovered);
                                 mergeUsage(result, recovered);
                                 applyRecoveredTranscript(result, recovered);
                                 result = recovered;
@@ -886,6 +889,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             runContext);
                             checkCancellation(session.getSourceKey());
                             if (hasUsableRecoveryReply(recovered)) {
+                                correctContradictingRecoveryReply(result, recovered);
                                 mergeUsage(result, recovered);
                                 applyRecoveredTranscript(result, recovered);
                                 result = recovered;
@@ -1348,6 +1352,98 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private boolean hasUsableRecoveryReply(LlmResult recovered) {
         String text = recovered == null ? "" : extractText(recovered.getAssistantMessage());
         return StrUtil.isNotBlank(text) && !isMaxStepsReply(text);
+    }
+
+    /**
+     * 修正与工具结果矛盾的恢复答复，避免最大步数收敛阶段否认已完成的真实副作用。
+     *
+     * @param base 最大步数前已经产生工具结果的基础结果。
+     * @param recovered 恢复模型返回的收敛结果。
+     */
+    private void correctContradictingRecoveryReply(LlmResult base, LlmResult recovered) {
+        if (base == null || recovered == null || recovered.getAssistantMessage() == null) {
+            return;
+        }
+        String recoveryText = extractText(recovered.getAssistantMessage());
+        if (!deniesCompletedToolActivity(recoveryText)) {
+            return;
+        }
+        ToolMessage latestTool = latestToolMessage(base.getNdjson());
+        if (latestTool == null || StrUtil.isBlank(latestTool.getContent())) {
+            return;
+        }
+        String toolName = StrUtil.blankToDefault(latestTool.getName(), "工具");
+        String content = truncateForRecovery(latestTool.getContent(), 600);
+        recovered.setAssistantMessage(
+                ChatMessage.ofAssistant(
+                        "已执行工具调用，最新工具 "
+                                + toolName
+                                + " 返回："
+                                + content
+                                + "\n\n本轮在生成最终总结前达到最大步骤上限；以上述工具返回为准，请继续给出下一步指令或检查任务结果。"));
+    }
+
+    /**
+     * 判断恢复文本是否否认已经发生的工具调用。
+     *
+     * @param text 恢复模型返回的文本。
+     * @return 如果文本与已完成工具事实矛盾则返回 true。
+     */
+    private boolean deniesCompletedToolActivity(String text) {
+        if (StrUtil.isBlank(text)) {
+            return false;
+        }
+        String normalized = text.toLowerCase(Locale.ROOT);
+        return text.contains("没有成功执行工具")
+                || text.contains("实际上没有成功执行工具")
+                || text.contains("未成功执行工具")
+                || text.contains("没有执行工具")
+                || text.contains("没有调用工具")
+                || text.contains("未调用工具")
+                || text.contains("工具未执行")
+                || normalized.contains("tool was not called")
+                || normalized.contains("tool was not executed")
+                || normalized.contains("did not call the tool")
+                || normalized.contains("did not execute the tool");
+    }
+
+    /**
+     * 提取最近一条工具消息，用于恢复阶段的事实兜底。
+     *
+     * @param ndjson 会话历史 NDJSON。
+     * @return 返回最近的工具消息；无法解析时返回 null。
+     */
+    private ToolMessage latestToolMessage(String ndjson) {
+        try {
+            List<ChatMessage> messages = MessageSupport.loadMessages(ndjson);
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                ChatMessage message = messages.get(i);
+                if (message instanceof ToolMessage) {
+                    return (ToolMessage) message;
+                }
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to inspect tool transcript for recovery correction: error={}",
+                    safeError(e));
+        }
+        return null;
+    }
+
+    /**
+     * 截断恢复阶段展示的工具结果，避免把长输出完整写入最终回复。
+     *
+     * @param text 工具结果文本。
+     * @param maxChars 最大字符数。
+     * @return 返回截断后的文本。
+     */
+    private String truncateForRecovery(String text, int maxChars) {
+        String safe = StrUtil.nullToEmpty(text).trim();
+        int safeMax = Math.max(32, maxChars);
+        if (safe.length() <= safeMax) {
+            return safe;
+        }
+        return safe.substring(0, safeMax) + "...";
     }
 
     /**
