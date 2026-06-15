@@ -340,6 +340,50 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldFailRunWhenRequiredToolsWereNotActuallyCompleted() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new SuccessfulGateway("我已经调用 session_search 并完成验证"),
+                        noCompressionBudget(),
+                        noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:required-tool:user");
+
+        boolean failed = false;
+        try {
+            supervisor.run(
+                    session,
+                    "system",
+                    "必须调用 session_search",
+                    Collections.emptyList(),
+                    ConversationFeedbackSink.noop(),
+                    ConversationEventSink.noop(),
+                    false,
+                    null,
+                    Collections.emptyList(),
+                    null,
+                    Collections.singletonList("session_search"),
+                    Collections.singletonList("session_search"),
+                    Integer.valueOf(1));
+        } catch (Exception expected) {
+            failed = true;
+            assertThat(expected.getMessage()).contains("必需工具未真实完成");
+        }
+        assertThat(failed).isTrue();
+
+        List<AgentRunRecord> runs = fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
+        assertThat(runs).hasSize(1);
+        AgentRunRecord run = runs.get(0);
+        assertThat(run.getStatus()).isEqualTo("failed");
+        assertThat(run.getError()).contains("session_search");
+        assertThat(run.getToolCallCount()).isEqualTo(0);
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
+                .contains("tool.required.missing", "attempt.error", "run.failed");
+    }
+
+    @Test
     void shouldRedactRecoveryFailureLogs() throws Exception {
         Fixture fixture = fixture();
         String leakedToken = "sk-supervisor-recovery12345";

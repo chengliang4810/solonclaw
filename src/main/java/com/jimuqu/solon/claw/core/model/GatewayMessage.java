@@ -53,6 +53,9 @@ public class GatewayMessage {
     /** 本轮消息允许调用的工具名白名单；仅影响当前运行，不写入会话配置。 */
     private List<String> allowedToolsOverride = new ArrayList<String>();
 
+    /** 本轮消息必须真实完成的工具名列表；仅用于受控 Web 回归的运行后校验。 */
+    private List<String> requiredToolsOverride = new ArrayList<String>();
+
     /** 本轮消息允许尝试的最大工具调用次数；仅影响当前运行，不写入会话配置。 */
     private Integer maxToolCallsOverride;
 

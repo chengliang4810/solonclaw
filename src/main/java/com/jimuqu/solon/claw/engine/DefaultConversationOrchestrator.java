@@ -529,6 +529,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             Collections.emptyList(),
                             null,
                             Collections.emptyList(),
+                            Collections.emptyList(),
                             null);
             String finalReply =
                     sanitizeFinalReply(
@@ -802,6 +803,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             MessageAttachmentSupport.safeAttachments(message),
                             memoryPrefetchContext,
                             message.getAllowedToolsOverride(),
+                            message.getRequiredToolsOverride(),
                             message.getMaxToolCallsOverride());
             shouldDrainQueue = true;
             String finalReply =

@@ -521,6 +521,7 @@ public class DashboardChatService {
         message.setUserName("dashboard");
         message.setSourceKeyOverride(sourceKey(sessionId));
         message.setAllowedToolsOverride(request.allowedTools);
+        message.setRequiredToolsOverride(request.requiredTools);
         message.setMaxToolCallsOverride(request.maxToolCalls);
         if (request.attachments != null && !request.attachments.isEmpty()) {
             message.setAttachments(
@@ -1254,6 +1255,9 @@ public class DashboardChatService {
         /** 本轮 Web 运行允许调用的工具名白名单；为空表示不限制工具名。 */
         private List<String> allowedTools;
 
+        /** 本轮 Web 运行必须真实完成的工具名列表；为空表示不做运行后工具校验。 */
+        private List<String> requiredTools;
+
         /** 本轮 Web 运行允许尝试的最大工具调用次数；为空表示不限制次数。 */
         private Integer maxToolCalls;
 
@@ -1279,6 +1283,8 @@ public class DashboardChatService {
             request.model = body.get("model").getString();
             request.allowedTools =
                     parseStringList(firstPresent(body, "allowed_tools", "allowedTools"));
+            request.requiredTools =
+                    parseStringList(firstPresent(body, "required_tools", "requiredTools"));
             request.maxToolCalls =
                     parsePositiveInteger(firstPresent(body, "max_tool_calls", "maxToolCalls"));
 

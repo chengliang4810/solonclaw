@@ -706,6 +706,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 userAttachments,
                 memoryPrefetchContext,
                 java.util.Collections.<String>emptyList(),
+                java.util.Collections.<String>emptyList(),
                 null);
     }
 
@@ -723,6 +724,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param userAttachments 用户Attachments参数。
      * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
      * @param allowedToolNames 本轮允许调用的工具名称白名单。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
      * @param maxToolCalls 本轮允许尝试的最大工具调用次数。
      * @return 返回运行结果。
      */
@@ -738,6 +740,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             List<MessageAttachment> userAttachments,
             String memoryPrefetchContext,
             List<String> allowedToolNames,
+            List<String> requiredToolNames,
             Integer maxToolCalls)
             throws Exception {
         if (agentScope == null) {
@@ -946,6 +949,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             }
                         }
 
+                        validateRequiredTools(runRecord, runContext, requiredToolNames);
                         if (StrUtil.isNotBlank(currentReply) || hasVisibleContent(result)) {
                             finalResult = result;
                             replyText = StrUtil.blankToDefault(currentReply, EMPTY_REPLY_FALLBACK);
@@ -1342,6 +1346,73 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return result != null
                 && (StrUtil.isNotBlank(extractText(result.getAssistantMessage()))
                         || StrUtil.isNotBlank(result.getRawResponse()));
+    }
+
+    /**
+     * 校验受控 Web 回归声明的必需工具是否真实完成，避免模型在未调用工具时编造执行结果。
+     *
+     * @param runRecord 当前运行记录。
+     * @param runContext 当前运行上下文。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
+     */
+    private void validateRequiredTools(
+            AgentRunRecord runRecord, AgentRunContext runContext, List<String> requiredToolNames)
+            throws Exception {
+        List<String> required = normalizeRequiredToolNames(requiredToolNames);
+        if (required.isEmpty()) {
+            return;
+        }
+        List<com.jimuqu.solon.claw.core.model.ToolCallRecord> calls =
+                agentRunRepository.listToolCalls(runRecord.getRunId());
+        List<String> completed = new ArrayList<String>();
+        for (com.jimuqu.solon.claw.core.model.ToolCallRecord call : calls) {
+            if (call != null
+                    && StrUtil.isNotBlank(call.getToolName())
+                    && "completed".equals(call.getStatus())) {
+                completed.add(call.getToolName().trim());
+            }
+        }
+        List<String> missing = new ArrayList<String>();
+        for (String toolName : required) {
+            if (!completed.contains(toolName)) {
+                missing.add(toolName);
+            }
+        }
+        if (missing.isEmpty()) {
+            return;
+        }
+        Map<String, Object> metadata = new java.util.LinkedHashMap<String, Object>();
+        metadata.put("required_tools", required);
+        metadata.put("completed_tools", completed);
+        metadata.put("missing_tools", missing);
+        metadata.put("tool_call_count", Integer.valueOf(calls.size()));
+        String message =
+                "必需工具未真实完成："
+                        + missing
+                        + "；模型不能在未调用工具时报告工具执行结果。";
+        if (runContext != null) {
+            runContext.event("tool.required.missing", message, metadata);
+        }
+        throw new IllegalStateException(message);
+    }
+
+    /**
+     * 归一化必需工具列表，保留调用顺序并去重，空值表示不启用必需工具后验收。
+     *
+     * @param requiredToolNames 原始工具名称列表。
+     * @return 返回可用于后验收的工具名称列表。
+     */
+    private List<String> normalizeRequiredToolNames(List<String> requiredToolNames) {
+        if (requiredToolNames == null || requiredToolNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> names = new LinkedHashSet<String>();
+        for (String toolName : requiredToolNames) {
+            if (StrUtil.isNotBlank(toolName)) {
+                names.add(toolName.trim());
+            }
+        }
+        return new ArrayList<String>(names);
     }
 
     /**
