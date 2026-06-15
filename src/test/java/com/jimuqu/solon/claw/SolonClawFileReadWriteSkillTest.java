@@ -53,6 +53,22 @@ public class SolonClawFileReadWriteSkillTest {
         assertThat(Files.exists(dir.resolve("runtime/scripts/loop-probe.py"))).isFalse();
     }
 
+    /**
+     * 验证参考风格读取工具能够兼容内置文件工具常用的fileName参数名，避免模型重试浪费工具调用次数。
+     */
+    @Test
+    void shouldAcceptFileNameAliasForReadFileTool() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-file-read-alias-test");
+        Files.write(dir.resolve("state.json"), "{\"ok\":true}\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
+
+        ONode result = ONode.ofJson(skill.readFile(null, "state.json", 1, 5));
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("path").getString()).isEqualTo("state.json");
+        assertThat(result.get("content").getString()).contains("1|{\"ok\":true}");
+    }
+
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void shouldWriteByAtomicFileSwap() throws Exception {

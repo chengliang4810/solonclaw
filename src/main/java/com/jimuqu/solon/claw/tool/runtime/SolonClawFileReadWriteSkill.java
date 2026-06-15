@@ -286,6 +286,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
      * 参考风格读取工具名，复用当前分页、去重和安全策略。
      *
      * @param path 文件路径。
+     * @param fileName 兼容内置文件工具参数名的文件路径。
      * @param offset 从第几行开始读取。
      * @param limit 最大返回行数。
      * @return 返回read结果。
@@ -294,11 +295,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             name = "read_file",
             description = "Read a text file with line numbers. offset starts at 1 and limit defaults to 500.")
     public String readFile(
-            @Param("path") String path,
+            @Param(name = "path", required = false) String path,
+            @Param(name = "fileName", required = false) String fileName,
             @Param(name = "offset", required = false, defaultValue = "1") Integer offset,
             @Param(name = "limit", required = false, defaultValue = "500") Integer limit) {
-        assertSafe(ToolNameConstants.READ_FILE, path);
-        return readPaged(path, offset, limit);
+        String resolvedPath = StrUtil.blankToDefault(path, fileName);
+        assertSafe(ToolNameConstants.READ_FILE, resolvedPath);
+        return readPaged(resolvedPath, offset, limit);
     }
 
     /**
