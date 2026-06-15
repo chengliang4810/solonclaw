@@ -795,6 +795,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
                                 sourceKey, null, null, null, null, 0L, 0L, searchLimit);
                 appendScoredToolCallResults(recent, query, results);
             }
+            if (!hasToolCallEvidence(results) && StrUtil.isNotBlank(sourceKey)) {
+                // Web 端每轮回归会话会生成新的 sourceKey；恢复型检索需要跨 Web 会话找回已落盘的工具证据。
+                List<ToolCallRecord> globalRecent =
+                        agentRunRepository.searchToolCalls(
+                                null, null, null, null, null, 0L, 0L, searchLimit);
+                appendScoredToolCallResults(globalRecent, query, results);
+            }
         } catch (Exception ignored) {
             // 工具调用检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
         }
@@ -1139,7 +1146,50 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (text.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
             return 85L;
         }
+        if (containsStrictFragmentsAndPath(text, normalizedQuery)) {
+            return 90L;
+        }
         return scorePartialText(text, normalizedQuery);
+    }
+
+    /**
+     * 判断工具调用是否同时命中历史 marker 与文件路径，确保恢复型检索优先返回可执行证据。
+     *
+     * @param value 工具调用可检索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 同时命中 marker 和路径片段时返回 true。
+     */
+    private boolean containsStrictFragmentsAndPath(String value, String normalizedQuery) {
+        String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        if (!strictMarkerFragmentsSatisfied(normalizedValue, normalizedQuery)) {
+            return false;
+        }
+        for (String fragment : strictMarkerFragments(normalizedQuery)) {
+            if (fragment.indexOf('/') >= 0 || fragment.indexOf('\\') >= 0) {
+                return true;
+            }
+            if (looksLikeFilePathFragment(fragment)) {
+                return true;
+            }
+        }
+        return normalizedQuery.indexOf('/') >= 0
+                && scorePartialText(normalizedValue, normalizedQuery) > 0L;
+    }
+
+    /**
+     * 判断严格片段是否像文件路径主体，例如 missing-long-loop-state-20260615。
+     *
+     * @param fragment 严格匹配片段。
+     * @return 像文件路径主体时返回 true。
+     */
+    private boolean looksLikeFilePathFragment(String fragment) {
+        String value = StrUtil.nullToEmpty(fragment);
+        return value.indexOf('-') >= 0
+                && (value.endsWith(".json")
+                        || value.endsWith(".txt")
+                        || value.endsWith(".md")
+                        || value.contains("state")
+                        || value.contains("cache"));
     }
 
     /**

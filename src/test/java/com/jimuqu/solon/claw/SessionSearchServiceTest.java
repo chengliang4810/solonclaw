@@ -319,6 +319,65 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRecallToolPathEvidenceAcrossWebSessionSources() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-recovery-strategy-20260615-0808";
+        String path = "runtime/cache/missing-long-loop-state-20260615.json";
+        String query = marker + " " + path;
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:dashboard:new-run");
+        current.setTitle("当前路径召回复测");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("只验证 session_search 查询 " + query),
+                                ChatMessage.ofAssistant("当前会话只是引用查询文本"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:dashboard:new-run", current.getSessionId());
+
+        SessionRecord historical =
+                env.sessionRepository.bindNewSession("MEMORY:dashboard:old-run");
+        historical.setTitle("历史恢复运行");
+        historical.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("历史运行写入状态文件"))));
+        env.sessionRepository.save(historical);
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-cross-source-path");
+        run.setSessionId(historical.getSessionId());
+        run.setSourceKey("MEMORY:dashboard:old-run");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis() - 1_000L);
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(historical.getSessionId());
+        toolCall.setSourceKey("MEMORY:dashboard:old-run");
+        toolCall.setToolName("write_file");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("{path=" + path + ", content={\"marker\":\"" + marker + "\"}}");
+        toolCall.setResultPreview("文件保存成功: " + path);
+        toolCall.setResultIndexable(true);
+        toolCall.setStartedAt(System.currentTimeMillis() - 900L);
+        toolCall.setFinishedAt(System.currentTimeMillis() - 800L);
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:dashboard:new-run", query, 3);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).getRunId()).isEqualTo("run-cross-source-path");
+        assertThat(entries.get(0).getToolName()).isEqualTo("write_file");
+        assertThat(entries.get(0).getMatchPreview()).contains(marker, path);
+        assertThat(entries.get(0).getScore()).isGreaterThan(85L);
+    }
+
+    @Test
     void shouldPreferCurrentCompressedMarkerOverBroadFtsNoise()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
