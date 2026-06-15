@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -25,6 +27,11 @@ public class SessionSearchTools {
 
     /** discovery/browse 工具结果中标识类字段的最大字符数，避免异常长 ID 影响输出预算。 */
     private static final int COMPACT_ID_LIMIT = 160;
+
+    /** 可执行证据路径的匹配规则，用于避免会话搜索摘要把文件路径裁剪成不可读取的半截文本。 */
+    private static final Pattern ACTIONABLE_PATH =
+            Pattern.compile(
+                    "(?<![A-Za-z0-9_.:/\\\\-])((?:[A-Za-z]:[\\\\/]|\\.{1,2}[\\\\/]|[A-Za-z0-9_.-]+[\\\\/])[^\\s\"'<>|;?#，。；：]+(?:[\\\\/][^\\s\"'<>|;?#，。；：]+)*)(?![A-Za-z0-9_.:/\\\\-])");
 
     /** 注入会话搜索服务，用于调用对应业务能力。 */
     private final SessionSearchService sessionSearchService;
@@ -154,7 +161,7 @@ public class SessionSearchTools {
         if (value == null || value.length() == 0) {
             value = session.getTitle();
         }
-        return compactRedact(value, COMPACT_TEXT_LIMIT);
+        return compactDiscoveryText(value, COMPACT_TEXT_LIMIT);
     }
 
     /**
@@ -247,6 +254,95 @@ public class SessionSearchTools {
             return redacted;
         }
         return redacted.substring(0, Math.max(0, maxLength));
+    }
+
+    /**
+     * 压缩 discovery 命中文本时优先保留完整文件路径，避免模型拿到半截路径后浪费额外工具调用纠错。
+     *
+     * @param value 待压缩文本。
+     * @param maxLength 最大保留字符数。
+     * @return 返回路径感知压缩后的文本。
+     */
+    private String compactDiscoveryText(String value, int maxLength) {
+        String redacted = redact(value, Math.max(maxLength, 2000));
+        if (redacted == null || redacted.length() <= maxLength) {
+            return redacted;
+        }
+        PathSpan span = firstPathOutsideHardCut(redacted, maxLength);
+        if (span == null) {
+            return redacted.substring(0, Math.max(0, maxLength));
+        }
+        return compactAroundSpan(redacted, span.start, span.end, maxLength);
+    }
+
+    /**
+     * 查找会被普通硬裁剪破坏的第一个文件路径，路径已在脱敏之后判断，敏感路径不会被恢复。
+     *
+     * @param value 已脱敏文本。
+     * @param maxLength 普通硬裁剪长度。
+     * @return 返回需要保护的路径范围。
+     */
+    private PathSpan firstPathOutsideHardCut(String value, int maxLength) {
+        Matcher matcher = ACTIONABLE_PATH.matcher(value);
+        while (matcher.find()) {
+            String candidate = matcher.group(1);
+            if (candidate == null || candidate.indexOf("://") >= 0) {
+                continue;
+            }
+            if (matcher.end(1) > maxLength) {
+                return new PathSpan(matcher.start(1), matcher.end(1));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 围绕关键路径截取上下文，保证返回值仍受工具结果预算约束。
+     *
+     * @param value 已脱敏文本。
+     * @param start 关键片段起始位置。
+     * @param end 关键片段结束位置。
+     * @param maxLength 最大保留字符数。
+     * @return 返回围绕关键片段压缩后的文本。
+     */
+    private String compactAroundSpan(String value, int start, int end, int maxLength) {
+        int safeStart = Math.max(0, Math.min(start, value.length()));
+        int safeEnd = Math.max(safeStart, Math.min(end, value.length()));
+        int spanLength = safeEnd - safeStart;
+        int prefixLength = safeStart > 0 ? 3 : 0;
+        int suffixLength = safeEnd < value.length() ? 3 : 0;
+        int contextBudget = maxLength - prefixLength - suffixLength - spanLength;
+        if (contextBudget < 0) {
+            return value.substring(0, Math.max(0, maxLength));
+        }
+        int left = Math.min(safeStart, contextBudget / 2);
+        int right = Math.min(value.length() - safeEnd, contextBudget - left);
+        left += Math.min(safeStart - left, contextBudget - left - right);
+        int windowStart = safeStart - left;
+        int windowEnd = safeEnd + right;
+        return (windowStart > 0 ? "..." : "")
+                + value.substring(windowStart, windowEnd)
+                + (windowEnd < value.length() ? "..." : "");
+    }
+
+    /** 记录需要在紧凑摘要中完整保留的文本范围。 */
+    private static class PathSpan {
+        /** 路径起始位置。 */
+        private final int start;
+
+        /** 路径结束位置。 */
+        private final int end;
+
+        /**
+         * 创建路径范围。
+         *
+         * @param start 路径起始位置。
+         * @param end 路径结束位置。
+         */
+        private PathSpan(int start, int end) {
+            this.start = start;
+            this.end = end;
+        }
     }
 
     /**

@@ -1124,6 +1124,24 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldPreserveActionablePathWhenCompactingSessionSearchToolText() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new PathBearingSessionSearchService(), "MEMORY:search-path:user");
+
+        String response = tools.sessionSearch("marker", Integer.valueOf(1));
+        List<?> result = (List<?>) ONode.ofJson(response).toData();
+        Map<?, ?> first = (Map<?, ?>) result.get(0);
+        String text = String.valueOf(first.get("text"));
+
+        assertThat(result).hasSize(1);
+        assertThat(text)
+                .contains("runtime/cache/missing-long-loop-state-20260615.json")
+                .doesNotContain("runtime/cache/missing-lo...")
+                .hasSizeLessThanOrEqualTo(280);
+    }
+
+    @Test
     void shouldKeepCompactDiscoveryResultsInlineUnderDefaultRegressionLimit() throws Exception {
         SessionSearchTools tools =
                 new SessionSearchTools(
@@ -1275,6 +1293,22 @@ public class SessionSearchServiceTest {
                 buffer.append(value);
             }
             return buffer.toString();
+        }
+    }
+
+    private static class PathBearingSessionSearchService implements SessionSearchService {
+        @Override
+        public List<SessionSearchEntry> search(String sourceKey, String query, int limit) {
+            SessionSearchEntry entry = new SessionSearchEntry();
+            entry.setMode("discovery");
+            entry.setSessionId("session-path");
+            entry.setMessageId("message-path");
+            entry.setScore(100L);
+            entry.setMatchPreview(
+                    VerboseSessionSearchService.repeat("路径前置上下文 ", 34)
+                            + "runtime/cache/missing-long-loop-state-20260615.json "
+                            + VerboseSessionSearchService.repeat("路径后置上下文 ", 40));
+            return java.util.Collections.singletonList(entry);
         }
     }
 
