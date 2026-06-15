@@ -381,6 +381,8 @@ public class AgentRunSupervisorTest {
         assertThat(run.getToolCallCount()).isEqualTo(0);
         assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
                 .contains("tool.required.missing", "attempt.error", "run.failed");
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
+                .doesNotContain("fallback");
     }
 
     @Test

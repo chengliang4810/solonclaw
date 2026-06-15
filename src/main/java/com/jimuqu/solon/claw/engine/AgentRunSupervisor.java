@@ -985,6 +985,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                 "attempt.error",
                                 "第 " + attemptNo + " 次尝试失败：" + errorMessage,
                                 errorMetadata(e, resolved, attemptNo, candidateIndex));
+                        if (isRequiredToolsMissing(e)) {
+                            break;
+                        }
                         if (classifyRetryable(e) && attempt < maxAttempts) {
                             continue;
                         }
@@ -996,6 +999,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 }
 
                 previousProvider = resolved.getProvider();
+                if (isRequiredToolsMissing(lastError)) {
+                    break;
+                }
                 if (candidateIndex + 1 < candidates.size()) {
                     AppConfig.LlmConfig next = candidates.get(candidateIndex + 1);
                     runRecord.setFallbackCount(runRecord.getFallbackCount() + 1);
@@ -1393,7 +1399,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (runContext != null) {
             runContext.event("tool.required.missing", message, metadata);
         }
-        throw new IllegalStateException(message);
+        throw new RequiredToolsMissingException(message);
     }
 
     /**
@@ -1630,7 +1636,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @return 返回classify Retryable结果。
      */
     private boolean classifyRetryable(Throwable error) {
+        if (isRequiredToolsMissing(error)) {
+            return false;
+        }
         return LlmErrorClassifier.classify(error).isRetryable();
+    }
+
+    /**
+     * 判断错误是否为必需工具后验收失败，这类错误是回归策略失败，不应重试或切换模型。
+     *
+     * @param error 错误参数。
+     * @return 如果错误来自必需工具缺失则返回 true。
+     */
+    private boolean isRequiredToolsMissing(Throwable error) {
+        return error instanceof RequiredToolsMissingException;
     }
 
     /**
@@ -2412,6 +2431,18 @@ public class AgentRunSupervisor implements AgentRunControlService {
      */
     private String normalizeSourceKey(String sourceKey) {
         return StrUtil.blankToDefault(sourceKey, "__default__");
+    }
+
+    /** 必需工具后验收失败，表示模型没有真实完成受控 Web 回归声明的工具调用链。 */
+    private static class RequiredToolsMissingException extends IllegalStateException {
+        /**
+         * 创建必需工具缺失错误。
+         *
+         * @param message 可展示的失败原因。
+         */
+        private RequiredToolsMissingException(String message) {
+            super(message);
+        }
     }
 
     /** 承载运行Handle相关状态和辅助逻辑。 */
