@@ -1143,6 +1143,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return 0L;
         }
         String text = toolCallSearchText(record);
+        if (containsExactPathFragments(text, normalizedQuery)) {
+            return 94L;
+        }
         if (text.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
             return 85L;
         }
@@ -1150,6 +1153,45 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return 90L;
         }
         return scorePartialText(text, normalizedQuery);
+    }
+
+    /**
+     * 判断工具调用文本是否包含查询里的完整路径片段，避免短路径证据抢占完整路径证据。
+     *
+     * @param value 工具调用可检索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 包含完整路径片段时返回 true。
+     */
+    private boolean containsExactPathFragments(String value, String normalizedQuery) {
+        String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        if (!strictMarkerFragmentsSatisfied(normalizedValue, normalizedQuery)) {
+            return false;
+        }
+        List<String> fragments = pathFragments(normalizedQuery);
+        for (String fragment : fragments) {
+            if (!normalizedValue.contains(fragment)) {
+                return false;
+            }
+        }
+        return !fragments.isEmpty();
+    }
+
+    /**
+     * 从查询中提取带目录分隔符的路径片段。
+     *
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 返回路径片段集合。
+     */
+    private List<String> pathFragments(String normalizedQuery) {
+        List<String> fragments = new ArrayList<String>();
+        String[] parts = StrUtil.nullToEmpty(normalizedQuery).split("\\s+");
+        for (String part : parts) {
+            String value = part.trim();
+            if (value.indexOf('/') >= 0 || value.indexOf('\\') >= 0) {
+                fragments.add(value);
+            }
+        }
+        return fragments;
     }
 
     /**

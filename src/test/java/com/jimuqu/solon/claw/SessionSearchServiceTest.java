@@ -367,6 +367,22 @@ public class SessionSearchServiceTest {
         toolCall.setFinishedAt(System.currentTimeMillis() - 800L);
         env.agentRunRepository.saveToolCall(toolCall);
 
+        ToolCallRecord shortPathToolCall = new ToolCallRecord();
+        shortPathToolCall.setToolCallId(IdSupport.newId());
+        shortPathToolCall.setRunId("run-short-path");
+        shortPathToolCall.setSessionId(historical.getSessionId());
+        shortPathToolCall.setSourceKey("MEMORY:dashboard:old-run");
+        shortPathToolCall.setToolName("read_file");
+        shortPathToolCall.setStatus("completed");
+        shortPathToolCall.setArgsPreview(
+                "{path=cache/missing-long-loop-state-20260615.json}");
+        shortPathToolCall.setResultPreview(
+                "{\"marker\":\"" + marker + "\",\"status\":\"recovered\"}");
+        shortPathToolCall.setResultIndexable(true);
+        shortPathToolCall.setStartedAt(System.currentTimeMillis());
+        shortPathToolCall.setFinishedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveToolCall(shortPathToolCall);
+
         List<SessionSearchEntry> entries =
                 env.sessionSearchService.search("MEMORY:dashboard:new-run", query, 3);
 
