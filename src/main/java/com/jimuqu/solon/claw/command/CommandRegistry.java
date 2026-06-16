@@ -68,6 +68,7 @@ public final class CommandRegistry {
         register(core("confirm", "security", "查看当前待确认 slash 命令"));
         register(core("agent", "agent", "切换或管理当前会话 Agent"));
         register(core("cron", "automation", "管理定时任务"));
+        register(core("proactive", "automation", "查看、暂停或调节主动协作"));
         register(core("recap", "session", "显示恢复会话用的紧凑历史摘要"));
         register(core("trajectory", "session", "导出会话 trajectory JSON"));
         register(core("compact", "session", "压缩当前会话上下文").alias("compress"));

@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -13,8 +14,10 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.ChatRole;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.UserMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 import org.noear.solon.flow.FlowContext;
 import org.noear.solon.flow.FlowContextInternal;
 
@@ -113,8 +116,17 @@ public class SqliteAgentSession implements AgentSession {
      */
     @Override
     public void addMessage(Collection<? extends ChatMessage> messages) {
-        cache.addMessage(messages);
-        syncRecord(false);
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+
+        boolean changed = false;
+        for (ChatMessage message : messages) {
+            changed = addMessageIfChanged(message) || changed;
+        }
+        if (changed) {
+            syncRecord(false);
+        }
     }
 
     /**
@@ -289,8 +301,14 @@ public class SqliteAgentSession implements AgentSession {
         try {
             if (StrUtil.isNotBlank(sessionRecord.getNdjson())) {
                 List<ChatMessage> messages = MessageSupport.loadMessages(sessionRecord.getNdjson());
-                MessageSupport.repairMessageSequence(messages, isPending());
+                int repairs =
+                        MessageSupport.dropHistoricalSummaryArtifacts(
+                                messages, sessionRecord.getCompressedSummary());
+                repairs += MessageSupport.repairMessageSequence(messages, isPending());
                 cache.addMessage(messages);
+                if (repairs > 0) {
+                    syncRecord(sessionRepository != null);
+                }
             }
         } catch (Exception e) {
             throw new IllegalStateException(
@@ -322,6 +340,99 @@ public class SqliteAgentSession implements AgentSession {
             // 这里保留兜底路径，避免兼容输入导致主流程中断。
         }
         return FlowContext.of(sessionRecord.getSessionId());
+    }
+
+    /**
+     * 追加单条消息，并过滤 Solon AI 流式工具调用在聚合结束时可能重复写入的 assistant tool_call。
+     *
+     * @param message 待追加的消息。
+     * @return 如果会话消息发生变化则返回 true。
+     */
+    private boolean addMessageIfChanged(ChatMessage message) {
+        if (message == null) {
+            return false;
+        }
+        List<ChatMessage> messages = cache.getMessages();
+        if (messages != null && !messages.isEmpty()) {
+            int lastIndex = messages.size() - 1;
+            ChatMessage previous = messages.get(lastIndex);
+            if (sameAssistantToolCalls(previous, message)) {
+                if (assistantInformationScore((AssistantMessage) message)
+                        > assistantInformationScore((AssistantMessage) previous)) {
+                    messages.set(lastIndex, message);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        int before = messages == null ? 0 : messages.size();
+        cache.addMessage(Collections.singletonList(message));
+        return cache.getMessages().size() != before;
+    }
+
+    /**
+     * 判断两条 assistant 消息是否承载同一组工具调用；相同工具调用只能在历史中保留一次。
+     *
+     * @param previous 已存在的消息。
+     * @param incoming 待追加的消息。
+     * @return 如果两条消息代表同一批工具调用则返回 true。
+     */
+    private boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage incoming) {
+        if (!(previous instanceof AssistantMessage) || !(incoming instanceof AssistantMessage)) {
+            return false;
+        }
+        List<ToolCall> previousCalls = ((AssistantMessage) previous).getToolCalls();
+        List<ToolCall> incomingCalls = ((AssistantMessage) incoming).getToolCalls();
+        if (previousCalls == null
+                || incomingCalls == null
+                || previousCalls.isEmpty()
+                || previousCalls.size() != incomingCalls.size()) {
+            return false;
+        }
+        for (int i = 0; i < previousCalls.size(); i++) {
+            if (!sameToolCall(previousCalls.get(i), incomingCalls.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 比较工具调用签名，避免同一个 tool_call_id 在相邻 assistant 消息中重复落盘。
+     *
+     * @param previous 已存在的工具调用。
+     * @param incoming 待追加的工具调用。
+     * @return 如果工具调用签名一致则返回 true。
+     */
+    private boolean sameToolCall(ToolCall previous, ToolCall incoming) {
+        if (previous == null || incoming == null) {
+            return false;
+        }
+        return StrUtil.equals(previous.getIndex(), incoming.getIndex())
+                && StrUtil.equals(previous.getId(), incoming.getId())
+                && StrUtil.equals(previous.getName(), incoming.getName())
+                && StrUtil.equals(previous.getArgumentsStr(), incoming.getArgumentsStr())
+                && StrUtil.equals(
+                        String.valueOf(previous.getArguments()),
+                        String.valueOf(incoming.getArguments()));
+    }
+
+    /**
+     * 计算 assistant 消息的信息量，重复工具调用去重时优先保留文本和推理内容更完整的一条。
+     *
+     * @param message assistant 消息。
+     * @return 返回可比较的信息量分数。
+     */
+    private int assistantInformationScore(AssistantMessage message) {
+        if (message == null) {
+            return 0;
+        }
+        return StrUtil.nullToEmpty(message.getContent()).length()
+                + StrUtil.nullToEmpty(message.getResultContent()).length()
+                + StrUtil.nullToEmpty(message.getReasoning()).length()
+                + (message.getContentRaw() == null ? 0 : 1)
+                + (message.getToolCallsRaw() == null ? 0 : message.getToolCallsRaw().size());
     }
 
     /**
@@ -365,6 +476,7 @@ public class SqliteAgentSession implements AgentSession {
      */
     private void syncRecord(boolean persist) {
         try {
+            repairMessagesBeforePersist();
             sessionRecord.setNdjson(ChatMessage.toNdjson(cache.getMessages()));
             cache.getContext().put(META_PENDING, isPending());
             sessionRecord.setAgentSnapshotJson(cache.getContext().toJson());
@@ -376,6 +488,11 @@ public class SqliteAgentSession implements AgentSession {
             throw new IllegalStateException(
                     "Failed to sync sqlite agent session: " + sessionRecord.getSessionId(), e);
         }
+    }
+
+    /** 写回会话快照前先清理协议层重复消息，但保留尚未落盘工具结果的待回答 tool_call。 */
+    private void repairMessagesBeforePersist() {
+        MessageSupport.repairMessageSequence(cache.getMessages(), true);
     }
 
     /**

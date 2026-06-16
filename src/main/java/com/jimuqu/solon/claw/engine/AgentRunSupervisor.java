@@ -35,6 +35,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.usage.UsageEventRecord;
@@ -52,6 +53,7 @@ import java.util.function.Function;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +72,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
     /** 最大STEPS恢复提示词的统一常量值。 */
     private static final String MAX_STEPS_RECOVERY_PROMPT =
-            "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。";
+            "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。"
+                    + "如果历史里已经有 tool 角色消息，必须承认这些工具已经执行并以工具返回内容为事实依据，禁止声称工具没有调用或没有执行。";
 
     /** 最大STEPS恢复兜底的统一常量值。 */
     private static final String MAX_STEPS_RECOVERY_FALLBACK =
@@ -665,7 +668,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
-     * 执行异步任务主体，并携带本轮临时记忆召回上下文。
+     * 执行异步任务主体；未显式传入 Web 工具策略时保持历史默认行为。
      *
      * @param session 会话参数。
      * @param systemPrompt 系统提示词参数。
@@ -690,6 +693,55 @@ public class AgentRunSupervisor implements AgentRunControlService {
             AgentRuntimeScope agentScope,
             List<MessageAttachment> userAttachments,
             String memoryPrefetchContext)
+            throws Exception {
+        return run(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                userAttachments,
+                memoryPrefetchContext,
+                java.util.Collections.<String>emptyList(),
+                java.util.Collections.<String>emptyList(),
+                null);
+    }
+
+    /**
+     * 执行异步任务主体，并携带本轮临时记忆召回上下文。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param userAttachments 用户Attachments参数。
+     * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
+     * @param allowedToolNames 本轮允许调用的工具名称白名单。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
+     * @param maxToolCalls 本轮允许尝试的最大工具调用次数。
+     * @return 返回运行结果。
+     */
+    public AgentRunOutcome run(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext,
+            List<String> allowedToolNames,
+            List<String> requiredToolNames,
+            Integer maxToolCalls)
             throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
@@ -741,6 +793,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runContext.setParentRunId(runRecord.getParentRunId());
         runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
+        runContext.setToolPolicy(allowedToolNames, maxToolCalls);
         if (!resume && StrUtil.isNotBlank(memoryPrefetchContext)) {
             runContext.setMemoryPrefetchContext(userMessage, memoryPrefetchContext);
         }
@@ -814,7 +867,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         resolved,
                                         runContext,
                                         eventSink,
-                                        runRecord.getRunId());
+                                        runRecord);
                         session = compression.getSession();
                         if (StrUtil.isBlank(compressionWarning)
                                 && StrUtil.isNotBlank(compression.getWarning())) {
@@ -861,6 +914,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             runContext);
                             checkCancellation(session.getSourceKey());
                             if (hasUsableRecoveryReply(recovered)) {
+                                correctContradictingRecoveryReply(result, recovered);
                                 mergeUsage(result, recovered);
                                 applyRecoveredTranscript(result, recovered);
                                 result = recovered;
@@ -885,6 +939,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             runContext);
                             checkCancellation(session.getSourceKey());
                             if (hasUsableRecoveryReply(recovered)) {
+                                correctContradictingRecoveryReply(result, recovered);
                                 mergeUsage(result, recovered);
                                 applyRecoveredTranscript(result, recovered);
                                 result = recovered;
@@ -894,6 +949,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             }
                         }
 
+                        validateRequiredTools(runRecord, runContext, requiredToolNames);
                         if (StrUtil.isNotBlank(currentReply) || hasVisibleContent(result)) {
                             finalResult = result;
                             replyText = StrUtil.blankToDefault(currentReply, EMPTY_REPLY_FALLBACK);
@@ -929,6 +985,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                 "attempt.error",
                                 "第 " + attemptNo + " 次尝试失败：" + errorMessage,
                                 errorMetadata(e, resolved, attemptNo, candidateIndex));
+                        if (isRequiredToolsMissing(e)) {
+                            break;
+                        }
                         if (classifyRetryable(e) && attempt < maxAttempts) {
                             continue;
                         }
@@ -940,6 +999,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 }
 
                 previousProvider = resolved.getProvider();
+                if (isRequiredToolsMissing(lastError)) {
+                    break;
+                }
                 if (candidateIndex + 1 < candidates.size()) {
                     AppConfig.LlmConfig next = candidates.get(candidateIndex + 1);
                     runRecord.setFallbackCount(runRecord.getFallbackCount() + 1);
@@ -1038,7 +1100,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param resolved resolved 参数。
      * @param runContext 运行上下文。
      * @param eventSink 事件Sink参数。
-     * @param runId 运行标识。
+     * @param runRecord 当前运行记录，压缩次数必须写回同一对象，避免后续保存覆盖。
      * @return 返回压缩Before Attempt结果。
      */
     private CompressionOutcome compressBeforeAttempt(
@@ -1048,8 +1110,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             AppConfig.LlmConfig resolved,
             AgentRunContext runContext,
             ConversationEventSink eventSink,
-            String runId)
+            AgentRunRecord runRecord)
             throws Exception {
+        String runId = runRecord == null ? "" : runRecord.getRunId();
         ContextBudgetDecision decision =
                 contextBudgetService.decide(session, systemPrompt, userMessage, resolved);
         if (!decision.isShouldCompress()) {
@@ -1094,13 +1157,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (changed) {
             sessionRepository.save(compressed);
         }
-        AgentRunRecord record = agentRunRepository.findRun(runId);
-        if (record != null) {
-            record.setCompressionCount(record.getCompressionCount() + 1);
-            record.setContextEstimateTokens(decision.getEstimatedTokens());
-            record.setContextWindowTokens(decision.getThresholdTokens());
-            heartbeat(record);
-            agentRunRepository.saveRun(record);
+        if (runRecord != null) {
+            runRecord.setCompressionCount(runRecord.getCompressionCount() + 1);
+            runRecord.setContextEstimateTokens(decision.getEstimatedTokens());
+            runRecord.setContextWindowTokens(decision.getThresholdTokens());
+            heartbeat(runRecord);
+            agentRunRepository.saveRun(runRecord);
         }
         outcome.setEstimatedTokens(decision.getEstimatedTokens());
         outcome.setThresholdTokens(decision.getThresholdTokens());
@@ -1293,6 +1355,73 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
+     * 校验受控 Web 回归声明的必需工具是否真实完成，避免模型在未调用工具时编造执行结果。
+     *
+     * @param runRecord 当前运行记录。
+     * @param runContext 当前运行上下文。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
+     */
+    private void validateRequiredTools(
+            AgentRunRecord runRecord, AgentRunContext runContext, List<String> requiredToolNames)
+            throws Exception {
+        List<String> required = normalizeRequiredToolNames(requiredToolNames);
+        if (required.isEmpty()) {
+            return;
+        }
+        List<com.jimuqu.solon.claw.core.model.ToolCallRecord> calls =
+                agentRunRepository.listToolCalls(runRecord.getRunId());
+        List<String> completed = new ArrayList<String>();
+        for (com.jimuqu.solon.claw.core.model.ToolCallRecord call : calls) {
+            if (call != null
+                    && StrUtil.isNotBlank(call.getToolName())
+                    && "completed".equals(call.getStatus())) {
+                completed.add(call.getToolName().trim());
+            }
+        }
+        List<String> missing = new ArrayList<String>();
+        for (String toolName : required) {
+            if (!completed.contains(toolName)) {
+                missing.add(toolName);
+            }
+        }
+        if (missing.isEmpty()) {
+            return;
+        }
+        Map<String, Object> metadata = new java.util.LinkedHashMap<String, Object>();
+        metadata.put("required_tools", required);
+        metadata.put("completed_tools", completed);
+        metadata.put("missing_tools", missing);
+        metadata.put("tool_call_count", Integer.valueOf(calls.size()));
+        String message =
+                "必需工具未真实完成："
+                        + missing
+                        + "；模型不能在未调用工具时报告工具执行结果。";
+        if (runContext != null) {
+            runContext.event("tool.required.missing", message, metadata);
+        }
+        throw new RequiredToolsMissingException(message);
+    }
+
+    /**
+     * 归一化必需工具列表，保留调用顺序并去重，空值表示不启用必需工具后验收。
+     *
+     * @param requiredToolNames 原始工具名称列表。
+     * @return 返回可用于后验收的工具名称列表。
+     */
+    private List<String> normalizeRequiredToolNames(List<String> requiredToolNames) {
+        if (requiredToolNames == null || requiredToolNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> names = new LinkedHashSet<String>();
+        for (String toolName : requiredToolNames) {
+            if (StrUtil.isNotBlank(toolName)) {
+                names.add(toolName.trim());
+            }
+        }
+        return new ArrayList<String>(names);
+    }
+
+    /**
      * 判断是否存在Recent工具Activity。
      *
      * @param previousNdjson previousNdjson 参数。
@@ -1347,6 +1476,98 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private boolean hasUsableRecoveryReply(LlmResult recovered) {
         String text = recovered == null ? "" : extractText(recovered.getAssistantMessage());
         return StrUtil.isNotBlank(text) && !isMaxStepsReply(text);
+    }
+
+    /**
+     * 修正与工具结果矛盾的恢复答复，避免最大步数收敛阶段否认已完成的真实副作用。
+     *
+     * @param base 最大步数前已经产生工具结果的基础结果。
+     * @param recovered 恢复模型返回的收敛结果。
+     */
+    private void correctContradictingRecoveryReply(LlmResult base, LlmResult recovered) {
+        if (base == null || recovered == null || recovered.getAssistantMessage() == null) {
+            return;
+        }
+        String recoveryText = extractText(recovered.getAssistantMessage());
+        if (!deniesCompletedToolActivity(recoveryText)) {
+            return;
+        }
+        ToolMessage latestTool = latestToolMessage(base.getNdjson());
+        if (latestTool == null || StrUtil.isBlank(latestTool.getContent())) {
+            return;
+        }
+        String toolName = StrUtil.blankToDefault(latestTool.getName(), "工具");
+        String content = truncateForRecovery(latestTool.getContent(), 600);
+        recovered.setAssistantMessage(
+                ChatMessage.ofAssistant(
+                        "已执行工具调用，最新工具 "
+                                + toolName
+                                + " 返回："
+                                + content
+                                + "\n\n本轮在生成最终总结前达到最大步骤上限；以上述工具返回为准，请继续给出下一步指令或检查任务结果。"));
+    }
+
+    /**
+     * 判断恢复文本是否否认已经发生的工具调用。
+     *
+     * @param text 恢复模型返回的文本。
+     * @return 如果文本与已完成工具事实矛盾则返回 true。
+     */
+    private boolean deniesCompletedToolActivity(String text) {
+        if (StrUtil.isBlank(text)) {
+            return false;
+        }
+        String normalized = text.toLowerCase(Locale.ROOT);
+        return text.contains("没有成功执行工具")
+                || text.contains("实际上没有成功执行工具")
+                || text.contains("未成功执行工具")
+                || text.contains("没有执行工具")
+                || text.contains("没有调用工具")
+                || text.contains("未调用工具")
+                || text.contains("工具未执行")
+                || normalized.contains("tool was not called")
+                || normalized.contains("tool was not executed")
+                || normalized.contains("did not call the tool")
+                || normalized.contains("did not execute the tool");
+    }
+
+    /**
+     * 提取最近一条工具消息，用于恢复阶段的事实兜底。
+     *
+     * @param ndjson 会话历史 NDJSON。
+     * @return 返回最近的工具消息；无法解析时返回 null。
+     */
+    private ToolMessage latestToolMessage(String ndjson) {
+        try {
+            List<ChatMessage> messages = MessageSupport.loadMessages(ndjson);
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                ChatMessage message = messages.get(i);
+                if (message instanceof ToolMessage) {
+                    return (ToolMessage) message;
+                }
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to inspect tool transcript for recovery correction: error={}",
+                    safeError(e));
+        }
+        return null;
+    }
+
+    /**
+     * 截断恢复阶段展示的工具结果，避免把长输出完整写入最终回复。
+     *
+     * @param text 工具结果文本。
+     * @param maxChars 最大字符数。
+     * @return 返回截断后的文本。
+     */
+    private String truncateForRecovery(String text, int maxChars) {
+        String safe = StrUtil.nullToEmpty(text).trim();
+        int safeMax = Math.max(32, maxChars);
+        if (safe.length() <= safeMax) {
+            return safe;
+        }
+        return safe.substring(0, safeMax) + "...";
     }
 
     /**
@@ -1415,7 +1636,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @return 返回classify Retryable结果。
      */
     private boolean classifyRetryable(Throwable error) {
+        if (isRequiredToolsMissing(error)) {
+            return false;
+        }
         return LlmErrorClassifier.classify(error).isRetryable();
+    }
+
+    /**
+     * 判断错误是否为必需工具后验收失败，这类错误是回归策略失败，不应重试或切换模型。
+     *
+     * @param error 错误参数。
+     * @return 如果错误来自必需工具缺失则返回 true。
+     */
+    private boolean isRequiredToolsMissing(Throwable error) {
+        return error instanceof RequiredToolsMissingException;
     }
 
     /**
@@ -2088,8 +2322,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             event.setPhase(record.getPhase());
             event.setSeverity(eventType != null && eventType.contains("reject") ? "warn" : "info");
             event.setSummary(safeText(summary));
-            event.setMetadataJson(
-                    metadataJson == null ? null : SecretRedactor.redact(metadataJson, 4000));
+            event.setMetadataJson(StructuredMetadataSupport.redactJson(metadataJson));
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
         } catch (Exception ignored) {
@@ -2198,6 +2431,18 @@ public class AgentRunSupervisor implements AgentRunControlService {
      */
     private String normalizeSourceKey(String sourceKey) {
         return StrUtil.blankToDefault(sourceKey, "__default__");
+    }
+
+    /** 必需工具后验收失败，表示模型没有真实完成受控 Web 回归声明的工具调用链。 */
+    private static class RequiredToolsMissingException extends IllegalStateException {
+        /**
+         * 创建必需工具缺失错误。
+         *
+         * @param message 可展示的失败原因。
+         */
+        private RequiredToolsMissingException(String message) {
+            super(message);
+        }
     }
 
     /** 承载运行Handle相关状态和辅助逻辑。 */

@@ -50,6 +50,23 @@ public class DashboardAuthFilter implements Filter {
             return;
         }
 
-        chain.doFilter(ctx);
+        try {
+            chain.doFilter(ctx);
+        } catch (Throwable e) {
+            if (isClientDisconnect(e)) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * 判断请求输出时的异常是否来自浏览器刷新、关闭页面或请求超时后的客户端断连。
+     *
+     * @param error 下游处理链抛出的异常。
+     * @return 如果是客户端断连则返回 true，避免将正常的连接关闭记录成服务端处理失败。
+     */
+    private boolean isClientDisconnect(Throwable error) {
+        return DashboardClientDisconnects.isClientDisconnected(error);
     }
 }

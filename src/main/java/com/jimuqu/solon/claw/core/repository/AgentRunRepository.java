@@ -115,6 +115,28 @@ public interface AgentRunRepository {
     List<AgentRunEventRecord> listEvents(String runId) throws Exception;
 
     /**
+     * 搜索运行事件。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runId 运行标识。
+     * @param query 查询参数。
+     * @param timeFrom 时间From参数。
+     * @param timeTo 时间To参数。
+     * @param limit 最大返回数量。
+     * @return 返回运行事件结果。
+     */
+    List<AgentRunEventRecord> searchEvents(
+            String sourceKey,
+            String sessionId,
+            String runId,
+            String query,
+            long timeFrom,
+            long timeTo,
+            int limit)
+            throws Exception;
+
+    /**
      * 保存运行Control命令。
      *
      * @param command 待执行或解析的命令文本。

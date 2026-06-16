@@ -28,6 +28,11 @@ public final class SecretRedactor {
             Pattern.compile(
                     "(?i)(\"(?:api_?key|token|secret|password|access_?token|refresh_?token|auth_?token|bearer_?token|client_?secret|secret_?value|raw_?secret|secret_?input|key_?material|private_?key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
 
+    /** 配置文件冒号字段的统一常量值，用于覆盖 YAML 等非 JSON 格式中的密钥。 */
+    private static final Pattern CONFIG_COLON_FIELD =
+            Pattern.compile(
+                    "(?im)^([ \\t-]*[A-Za-z0-9_.-]*(?:api[_-]?key|apikey|token|secret|password|passwd|credential|access[_-]?token|refresh[_-]?token|bearer[_-]?token|client[_-]?secret|private[_-]?key)[A-Za-z0-9_.-]*[ \\t]*:[ \\t]*)(['\"]?)([^\\r\\n#]+?)(\\2)([ \\t]*(?:#.*)?)$");
+
     /** URLUSERINFO的统一常量值。 */
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
@@ -196,6 +201,7 @@ public final class SecretRedactor {
         result = ENV_ASSIGNMENT.matcher(result).replaceAll("$1$2$3***$3");
         result = SHELL_KEY_VALUE.matcher(result).replaceAll("$1$2***");
         result = JSON_FIELD.matcher(result).replaceAll("$1$2***$4");
+        result = CONFIG_COLON_FIELD.matcher(result).replaceAll("$1$2***$4$5");
         result = PREFIX_SECRET.matcher(result).replaceAll("***");
         result = EMBEDDED_PREFIX_SECRET.matcher(result).replaceAll("$1***");
         result = PRIVATE_KEY.matcher(result).replaceAll("[REDACTED PRIVATE KEY]");

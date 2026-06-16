@@ -10,6 +10,9 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.ToolCallRecord;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
@@ -147,6 +150,14 @@ public class DashboardControllerHttpTest {
         HttpResult chat = request("GET", "/chat", null, null);
         assertThat(chat.status).isEqualTo(200);
         assertThat(chat.body).contains("__APP_SESSION_TOKEN__");
+
+        HttpResult solonClawChat = request("GET", "/solonclaw/chat", null, null);
+        assertThat(solonClawChat.status).isEqualTo(200);
+        assertThat(solonClawChat.body).contains("__APP_SESSION_TOKEN__");
+
+        HttpResult solonClawBase = request("GET", "/solonclaw", null, null);
+        assertThat(solonClawBase.status).isEqualTo(200);
+        assertThat(solonClawBase.body).contains("__APP_SESSION_TOKEN__");
 
         HttpResult files = request("GET", "/files", null, null);
         assertThat(files.status).isEqualTo(200);
@@ -1842,6 +1853,97 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldFilterDashboardLogsByQueryAndKeyword() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File agentLog = FileUtil.file(runtimeHome, "logs", "agent.log");
+        FileUtil.appendUtf8String(
+                "2026-06-13 10:10:10.000 ERROR [test] "
+                        + "com.jimuqu.solon.claw.web.DashboardLogsService - "
+                        + "web-loop-log-query-20260613-include token=ghp_dashboardlogsecret12345\n"
+                        + "2026-06-13 10:10:11.000 ERROR [test] "
+                        + "com.jimuqu.solon.claw.web.DashboardLogsService - "
+                        + "web-loop-log-query-20260613-other\n",
+                agentLog);
+
+        HttpResult queriedLogs =
+                request(
+                        "GET",
+                        "/api/logs?file=agent&lines=20&query=web-loop-log-query-20260613-include",
+                        null,
+                        token);
+        assertThat(queriedLogs.status).isEqualTo(200);
+        assertThat(queriedLogs.body)
+                .contains("web-loop-log-query-20260613-include")
+                .contains("token=***")
+                .doesNotContain("web-loop-log-query-20260613-other")
+                .doesNotContain("ghp_dashboardlogsecret12345");
+
+        HttpResult keywordLogs =
+                request(
+                        "GET",
+                        "/api/logs?file=agent&lines=20&keyword=web-loop-log-query-20260613-include",
+                        null,
+                        token);
+        assertThat(keywordLogs.status).isEqualTo(200);
+        assertThat(keywordLogs.body).contains("web-loop-log-query-20260613-include");
+    }
+
+    @Test
+    void shouldIncludeRunAndToolIndexMatchesInDashboardLogQuery() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        String marker = "web-loop-log-index-tool-20260614";
+        long now = System.currentTimeMillis();
+
+        AgentRunRepository repository = bean(AgentRunRepository.class);
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-log-index-tool-20260614");
+        run.setSessionId("session-log-index-tool-20260614");
+        run.setSourceKey("MEMORY:session-log-index-tool-20260614:user");
+        run.setRunKind("conversation");
+        run.setAgentName("default");
+        run.setStatus("success");
+        run.setPhase("completed");
+        run.setInputPreview("请执行只读工具 " + marker + " api_key=sk-logindex-runsecret12345");
+        run.setFinalReplyPreview("工具索引验证完成 " + marker);
+        run.setProvider("default");
+        run.setModel("mimo-v2.5-pro");
+        run.setStartedAt(now);
+        run.setLastActivityAt(now);
+        run.setFinishedAt(now);
+        repository.saveRun(run);
+
+        ToolCallRecord tool = new ToolCallRecord();
+        tool.setToolCallId("tool-log-index-20260614");
+        tool.setRunId(run.getRunId());
+        tool.setSessionId(run.getSessionId());
+        tool.setSourceKey(run.getSourceKey());
+        tool.setToolName("read_file");
+        tool.setStatus("completed");
+        tool.setArgsPreview(
+                "{path=runtime/logs/compact-summary.json, token=ghp_logindextoolsecret12345}");
+        tool.setResultPreview("{\"ok\":true}");
+        tool.setReadOnly(true);
+        tool.setResultIndexable(true);
+        tool.setStartedAt(now);
+        tool.setFinishedAt(now);
+        repository.saveToolCall(tool);
+
+        HttpResult queriedLogs =
+                request("GET", "/api/logs?file=agent&lines=20&query=" + marker, null, token);
+
+        assertThat(queriedLogs.status).isEqualTo(200);
+        assertThat(queriedLogs.body)
+                .contains("run-index:run")
+                .contains("run-index:tool")
+                .contains("read_file")
+                .contains(marker)
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-logindex-runsecret12345")
+                .doesNotContain("ghp_logindextoolsecret12345");
+    }
+
+    @Test
     void shouldListAndResolvePendingDashboardApprovals() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         seedPendingApproval(
@@ -2446,6 +2548,24 @@ public class DashboardControllerHttpTest {
         assertThat(statusEvents).contains("event: run.started");
         assertThat(statusEvents).contains("event: message.delta");
         assertThat(statusEvents).contains("event: run.completed");
+        ONode statusMessages =
+                ONode.ofJson(
+                        request(
+                                        "GET",
+                                        "/api/sessions/dashboard-chat-status/messages",
+                                        null,
+                                        token)
+                                .body);
+        ONode persistedMessages = statusMessages.get("data").get("messages");
+        assertThat(persistedMessages.size()).isEqualTo(2);
+        assertThat(persistedMessages.get(0).get("role").getString())
+                .isEqualTo("user");
+        assertThat(persistedMessages.get(0).get("content").getString())
+                .isEqualTo("/status");
+        assertThat(persistedMessages.get(1).get("role").getString())
+                .isEqualTo("assistant");
+        assertThat(persistedMessages.get(1).get("content").getString())
+                .contains("session=dashboard-chat-status");
 
         ONode branchStart =
                 ONode.ofJson(

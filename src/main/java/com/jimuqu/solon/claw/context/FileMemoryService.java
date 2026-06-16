@@ -17,7 +17,16 @@ public class FileMemoryService implements MemoryService {
     /** 明显属于短期任务状态的关键词。 */
     private static final String[] TRANSIENT_PATTERNS =
             new String[] {
-                "本会话", "临时", "TODO", "todo", "rollback", "checkpoint", "sessionId", "session_id"
+                "本会话", "临时", "rollback", "checkpoint", "sessionId", "session_id"
+            };
+
+    /** 需要在没有长期语义时拦截的弱短期状态关键词。 */
+    private static final String[] WEAK_TRANSIENT_PATTERNS = new String[] {"TODO", "todo"};
+
+    /** 明确表达长期记忆价值的中文前缀。 */
+    private static final String[] LONG_TERM_PREFIXES =
+            new String[] {
+                "长期偏好", "长期记忆", "用户偏好", "项目约定", "环境细节", "常见纠正", "工具怪癖"
             };
 
     /** 应用配置。 */
@@ -235,6 +244,25 @@ public class FileMemoryService implements MemoryService {
         }
         for (String pattern : TRANSIENT_PATTERNS) {
             if (StrUtil.containsIgnoreCase(content, pattern)) {
+                return true;
+            }
+        }
+        if (hasExplicitLongTermPrefix(content)) {
+            return false;
+        }
+        for (String pattern : WEAK_TRANSIENT_PATTERNS) {
+            if (StrUtil.containsIgnoreCase(content, pattern)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 判断内容是否用稳定前缀明确表达长期记忆价值。 */
+    private boolean hasExplicitLongTermPrefix(String content) {
+        String normalized = StrUtil.nullToEmpty(content).trim();
+        for (String prefix : LONG_TERM_PREFIXES) {
+            if (normalized.startsWith(prefix)) {
                 return true;
             }
         }

@@ -80,7 +80,7 @@ public class HealthController {
         result.put("runtime", runtime);
         result.put("gateway_state", status.get("gateway_state"));
         result.put("platforms", status.get("gateway_platforms"));
-        result.put("active_agents", status.get("active_sessions"));
+        result.put("active_agents", status.get("running_agent_runs"));
         result.put("pid", runtime.get("pid"));
         result.put("updated_at", updatedAt);
         result.put("gateway", runtime.get("gateway"));
@@ -124,6 +124,9 @@ public class HealthController {
         }
         if (!result.containsKey("active_sessions")) {
             result.put("active_sessions", Integer.valueOf(0));
+        }
+        if (!result.containsKey("running_agent_runs")) {
+            result.put("running_agent_runs", Integer.valueOf(0));
         }
         if (!result.containsKey("gateway_running")) {
             result.put("gateway_running", Boolean.FALSE);
@@ -170,6 +173,7 @@ public class HealthController {
         snapshot.put("service", SERVICE_NAME);
         snapshot.put("status", "ok");
         snapshot.put("active_sessions", status.get("active_sessions"));
+        snapshot.put("running_agent_runs", status.get("running_agent_runs"));
         snapshot.put("gateway", gatewaySummary(status, isoNow()));
         snapshot.put("diagnostics", fallbackDiagnosticsStatus(status));
         return snapshot;
@@ -222,7 +226,8 @@ public class HealthController {
         gateway.put("state", status.get("gateway_state"));
         gateway.put("running", status.get("gateway_running"));
         gateway.put("platforms", status.get("gateway_platforms"));
-        gateway.put("active_agents", status.get("active_sessions"));
+        gateway.put("active_agents", status.get("running_agent_runs"));
+        gateway.put("recent_active_sessions", status.get("active_sessions"));
         gateway.put("pid", parsePid());
         gateway.put("exit_reason", status.get("gateway_exit_reason"));
         gateway.put("runtime_config_refresh", status.get("runtime_config_refresh"));

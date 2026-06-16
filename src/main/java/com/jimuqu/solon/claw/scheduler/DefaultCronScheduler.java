@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MediaDirectiveSupport;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -60,6 +61,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.Utils;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.slf4j.Logger;
@@ -768,10 +770,12 @@ public class DefaultCronScheduler {
         triggerType = StrUtil.blankToDefault(triggerType, "scheduled");
         job.setPendingTriggerType(null);
         long nextRunAt = CronSupport.nextRunAt(job.getCronExpr(), now);
-        int completed = job.getRepeatCompleted() + 1;
+        int completed = nextRepeatCompleted(job);
+        int attempt = nextRunAttempt(job, completed);
         boolean done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
         String nextStatus =
                 done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
+        long storedNextRunAt = nextRunAtAfterExecution(nextStatus, nextRunAt);
         String output = "";
         String error = null;
         String deliveryError = null;
@@ -840,7 +844,7 @@ public class DefaultCronScheduler {
             cronJobRepository.markRunResult(
                     job.getJobId(),
                     now,
-                    nextRunAt,
+                    storedNextRunAt,
                     runStatus,
                     error,
                     AgentRunPreview.safe(output),
@@ -864,7 +868,7 @@ public class DefaultCronScheduler {
                     output,
                     deliveryError,
                     deliveryResultJson,
-                    completed,
+                    attempt,
                     triggerType);
         } catch (CronApprovalPendingException e) {
             runStatus = "pending_approval";
@@ -890,7 +894,7 @@ public class DefaultCronScheduler {
                     output,
                     null,
                     null,
-                    job.getRepeatCompleted(),
+                    attempt,
                     triggerType);
         } catch (Exception e) {
             runStatus = "error";
@@ -898,7 +902,7 @@ public class DefaultCronScheduler {
             cronJobRepository.markRunResult(
                     job.getJobId(),
                     now,
-                    nextRunAt,
+                    storedNextRunAt,
                     runStatus,
                     error,
                     AgentRunPreview.safe(output),
@@ -915,12 +919,66 @@ public class DefaultCronScheduler {
                     output,
                     deliveryError,
                     deliveryResultJson,
-                    completed,
+                    attempt,
                     triggerType);
             if (!isCronScriptPathBlock(e)) {
                 throw e;
             }
         }
+    }
+
+    /**
+     * 计算任务层面的重复完成次数；有限重复任务在重试时不能超过配置上限，避免界面显示 2/1 这类越界状态。
+     *
+     * @param job 当前定时任务。
+     * @return 写回任务记录的重复完成次数。
+     */
+    private int nextRepeatCompleted(CronJobRecord job) {
+        int completed = job.getRepeatCompleted() + 1;
+        if (job.getRepeatTimes() <= 0) {
+            return completed;
+        }
+        return Math.min(job.getRepeatTimes(), completed);
+    }
+
+    /**
+     * 计算执行历史的尝试序号；它代表真实运行次数，不能复用被有限 repeat 夹住的任务完成数。
+     *
+     * @param job 当前定时任务。
+     * @param fallbackAttempt 仓储不可用时使用的保守序号。
+     * @return 本次 run history 的 attempt。
+     */
+    private int nextRunAttempt(CronJobRecord job, int fallbackAttempt) {
+        try {
+            List<CronJobRunRecord> runs = cronJobRepository.listRuns(job.getJobId(), 100);
+            int maxAttempt = 0;
+            for (CronJobRunRecord run : runs) {
+                maxAttempt = Math.max(maxAttempt, run.getAttempt());
+            }
+            if (maxAttempt > 0) {
+                return maxAttempt + 1;
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Cron run attempt lookup failed: jobId={}, error={}",
+                    job.getJobId(),
+                    safeError(e));
+        }
+        return Math.max(1, fallbackAttempt);
+    }
+
+    /**
+     * 完成态任务不再保留下一次执行时间，避免Dashboard把一次性任务展示为仍有后续触发。
+     *
+     * @param nextStatus 本次执行后写入的任务状态。
+     * @param nextRunAt 预计算的下一次执行时间。
+     * @return 应写入仓储的下一次执行时间。
+     */
+    private long nextRunAtAfterExecution(String nextStatus, long nextRunAt) {
+        if ("COMPLETED".equalsIgnoreCase(nextStatus)) {
+            return 0L;
+        }
+        return nextRunAt;
     }
 
     /**
@@ -1340,7 +1398,11 @@ public class DefaultCronScheduler {
             request.setText(removeResolvedMediaTags(payload.text, resolvedMedia.resolved));
             request.setAttachments(resolvedMedia.attachments);
             try {
-                deliveryService.deliver(request);
+                if (deliverDashboardMemoryOrigin(target, request)) {
+                    // Web 控制台来源没有外部渠道适配器，直接写入会话历史作为可恢复回投。
+                } else {
+                    deliveryService.deliver(request);
+                }
                 report.addOk(
                         target,
                         request.getAttachments() == null ? 0 : request.getAttachments().size());
@@ -1363,6 +1425,48 @@ public class DefaultCronScheduler {
             cronJobRepository.markDeliveryError(job.getJobId(), report.errorSummary());
         }
         return report;
+    }
+
+    /**
+     * 将 Web 控制台来源的定时任务结果写回会话或保留在定时任务历史，避免内部 MEMORY 来源走外部渠道适配器。
+     *
+     * @param target 投递目标。
+     * @param request 投递请求。
+     * @return 如果已完成内部 Web 回投则返回 true。
+     */
+    private boolean deliverDashboardMemoryOrigin(
+            CronDeliveryTarget target, DeliveryRequest request) throws Exception {
+        if (target == null
+                || target.platform != PlatformType.MEMORY
+                || !"dashboard".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId))) {
+            return false;
+        }
+        if (StrUtil.isBlank(target.threadId)) {
+            // 控制台本地投递没有可写入的会话线程，运行输出由定时任务历史承担恢复与审计职责。
+            return true;
+        }
+        if (sessionRepository == null) {
+            throw new IllegalStateException("Dashboard session repository is not configured");
+        }
+        SessionRecord session = sessionRepository.findById(target.threadId);
+        if (session == null) {
+            throw new IllegalStateException("Dashboard session not found: " + target.threadId);
+        }
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        String text = StrUtil.nullToEmpty(request == null ? null : request.getText()).trim();
+        if (StrUtil.isBlank(text)) {
+            return true;
+        }
+        if (messages.isEmpty()
+                || !StrUtil.equals(
+                        StrUtil.nullToEmpty(messages.get(messages.size() - 1).getContent()).trim(),
+                        text)) {
+            messages.add(ChatMessage.ofAssistant(text));
+            session.setNdjson(MessageSupport.toNdjson(messages));
+            session.setUpdatedAt(System.currentTimeMillis());
+            sessionRepository.save(session);
+        }
+        return true;
     }
 
     /**
@@ -1594,6 +1698,11 @@ public class DefaultCronScheduler {
         String threadId = firstString(origin, "thread_id", "threadId", "topic_id", "topicId");
         if (platform == null || StrUtil.isBlank(chatId)) {
             return null;
+        }
+        if (platform == PlatformType.MEMORY
+                && "dashboard".equalsIgnoreCase(chatId)
+                && StrUtil.isBlank(threadId)) {
+            threadId = firstString(origin, "user_id", "userId", "session_id", "sessionId");
         }
         return new CronDeliveryTarget(platform, chatId.trim(), normalizeBlank(threadId));
     }
@@ -1994,10 +2103,11 @@ public class DefaultCronScheduler {
         List<String> command = new ArrayList<String>();
         if (name.endsWith(".sh") || name.endsWith(".bash")) {
             command.add("bash");
+            command.add(bashScriptPath(script));
         } else {
             command.add(defaultPythonCommand());
+            command.add(script.getAbsolutePath());
         }
-        command.add(script.getAbsolutePath());
         ProcessBuilder builder = new ProcessBuilder(command);
         if (StrUtil.isNotBlank(job.getWorkdir())) {
             builder.directory(new File(job.getWorkdir()));
@@ -2328,6 +2438,28 @@ public class DefaultCronScheduler {
         return System.getProperty("os.name", "").toLowerCase().contains("win")
                 ? "python"
                 : "python3";
+    }
+
+    /**
+     * 生成 bash 可识别的脚本路径；Windows 上常见 bash 来自 WSL，不能直接打开反斜杠盘符路径。
+     *
+     * @param script 已通过 runtime/scripts 边界校验的脚本文件。
+     * @return 可传给 bash 的脚本路径。
+     */
+    private String bashScriptPath(File script) {
+        String path = script.getAbsolutePath();
+        if (!System.getProperty("os.name", "").toLowerCase().contains("win")) {
+            return path;
+        }
+        if (path.length() > 2 && path.charAt(1) == ':') {
+            char drive = Character.toLowerCase(path.charAt(0));
+            String rest = path.substring(2).replace('\\', '/');
+            if (!rest.startsWith("/")) {
+                rest = "/" + rest;
+            }
+            return "/mnt/" + drive + rest;
+        }
+        return path.replace('\\', '/');
     }
 
     /**

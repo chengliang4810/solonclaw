@@ -108,8 +108,11 @@ public class DashboardSessionService {
             return Collections.singletonMap("messages", Collections.emptyList());
         }
 
+        List<ChatMessage> loadedMessages = MessageSupport.loadMessages(record.getNdjson());
+        MessageSupport.dropHistoricalSummaryArtifacts(
+                loadedMessages, record.getCompressedSummary());
         List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
-        for (ChatMessage message : MessageSupport.loadMessages(record.getNdjson())) {
+        for (ChatMessage message : loadedMessages) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("role", message.getRole().name().toLowerCase(Locale.ROOT));
             String content = message.getContent();

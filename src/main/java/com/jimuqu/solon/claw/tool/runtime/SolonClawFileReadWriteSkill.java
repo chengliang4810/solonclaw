@@ -286,6 +286,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
      * 参考风格读取工具名，复用当前分页、去重和安全策略。
      *
      * @param path 文件路径。
+     * @param fileName 兼容内置文件工具参数名的文件路径。
      * @param offset 从第几行开始读取。
      * @param limit 最大返回行数。
      * @return 返回read结果。
@@ -294,11 +295,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             name = "read_file",
             description = "Read a text file with line numbers. offset starts at 1 and limit defaults to 500.")
     public String readFile(
-            @Param("path") String path,
+            @Param(name = "path", required = false) String path,
+            @Param(name = "fileName", required = false) String fileName,
             @Param(name = "offset", required = false, defaultValue = "1") Integer offset,
             @Param(name = "limit", required = false, defaultValue = "500") Integer limit) {
-        assertSafe(ToolNameConstants.READ_FILE, path);
-        return readPaged(path, offset, limit);
+        String resolvedPath = StrUtil.blankToDefault(path, fileName);
+        assertSafe(ToolNameConstants.READ_FILE, resolvedPath);
+        return readPaged(resolvedPath, offset, limit);
     }
 
     /**
@@ -913,16 +916,64 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
      * @return 返回解析后的路径。
      */
     private Path resolvePath(String name) {
-        String value = StrUtil.nullToEmpty(name);
+        String value = normalizeRuntimeReference(name);
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("jar-internal paths are not disk files");
         }
-        Path path = rootPath.resolve(name).normalize();
+        Path path = rootPath.resolve(normalizeWorkspacePath(value)).normalize();
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
         assertResolvedWithinRoot(path);
         return path;
+    }
+
+    /**
+     * 将运行态展示引用转换为文件工具可解析的相对路径。
+     *
+     * @param name 工具入参中的原始路径。
+     * @return 返回去除 runtime:// 前缀后的路径，普通路径保持不变。
+     */
+    private String normalizeRuntimeReference(String name) {
+        String value = StrUtil.nullToEmpty(name);
+        if (StrUtil.startWithIgnoreCase(value, "runtime://")) {
+            return value.substring("runtime://".length());
+        }
+        return value;
+    }
+
+    /**
+     * 将用户可见的工作区根目录前缀折叠为当前工具根，避免默认 Agent 下写出 runtime/runtime。
+     *
+     * @param rawPath 用户传入的文件路径。
+     * @return 返回用于解析的工作区相对路径。
+     */
+    private String normalizeWorkspacePath(String rawPath) {
+        String value = StrUtil.nullToEmpty(rawPath);
+        if (StrUtil.isBlank(value)) {
+            return value;
+        }
+        String normalized = value.replace('\\', '/');
+        if (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        if (normalized.startsWith("/")) {
+            return value;
+        }
+        Path fileName = rootPath.getFileName();
+        if (fileName == null) {
+            return value;
+        }
+        String rootName = fileName.toString();
+        if (!"runtime".equalsIgnoreCase(rootName)) {
+            return value;
+        }
+        String prefix = rootName + "/";
+        if (normalized.length() > prefix.length()
+                && normalized.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
+            return normalized.substring(prefix.length());
+        }
+        return value;
     }
 
     /**

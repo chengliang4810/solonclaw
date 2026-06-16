@@ -54,7 +54,7 @@ RUN apt-get update \
         ca-certificates \
         tzdata \
         locales \
-        gosu \
+        openssh-client \
         tini \
         fontconfig \
         python3 \
@@ -75,13 +75,10 @@ RUN apt-get update \
 COPY --from=builder /tmp/solon-claw.jar /app/solon-claw.jar
 COPY docker/entrypoint.sh /app/docker-entrypoint.sh
 
-RUN groupadd -g 10000 solonclaw \
-    && useradd -u 10000 -g solonclaw -m -d /home/solonclaw solonclaw \
-    && mkdir -p /app/runtime \
+RUN mkdir -p /app/runtime \
     && sed -i 's/\r$//' /app/docker-entrypoint.sh \
     && chmod 755 /app/docker-entrypoint.sh \
-    && chmod -R a+rX /app \
-    && chown -R solonclaw:solonclaw /app/runtime
+    && chmod -R a+rX /app
 
 EXPOSE 8080
 

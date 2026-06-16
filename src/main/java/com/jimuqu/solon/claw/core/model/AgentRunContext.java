@@ -3,14 +3,22 @@ package com.jimuqu.solon.claw.core.model;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import org.noear.snack4.ONode;
+import java.util.Set;
 
 /** 当前 Agent run 的追踪上下文。 */
 public class AgentRunContext {
     /** 当前的统一常量值。 */
     private static final ThreadLocal<AgentRunContext> CURRENT = new ThreadLocal<AgentRunContext>();
+
+    /** 工具策略拒绝 observation 的统一前缀，供审计层识别运行时拒绝结果。 */
+    public static final String TOOL_POLICY_REJECTION_PREFIX = "本轮 Web 运行";
 
     /** 保存仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository repository;
@@ -53,6 +61,15 @@ public class AgentRunContext {
 
     /** 记录临时记忆对应的用户原文，避免恢复或内部提示词误用召回内容。 */
     private String memoryPrefetchUserMessage;
+
+    /** 本轮允许调用的工具名称白名单；为空表示不限制具体工具名。 */
+    private List<String> allowedToolNames;
+
+    /** 本轮允许尝试的最大工具调用次数；为空或小于等于零表示不限制次数。 */
+    private Integer maxToolCalls;
+
+    /** 记录本轮已经尝试的工具调用次数，包含被策略拒绝的调用。 */
+    private int attemptedToolCalls;
 
     /**
      * 创建Agent运行上下文实例，并注入运行所需依赖。
@@ -267,6 +284,88 @@ public class AgentRunContext {
     }
 
     /**
+     * 写入本轮工具运行策略，用于 Web 回归或受控任务在工具真正执行前进行硬限制。
+     *
+     * @param allowedToolNames 本轮允许调用的工具名集合；为空表示不限制工具名。
+     * @param maxToolCalls 本轮允许尝试的最大工具调用次数；为空或小于等于零表示不限制次数。
+     */
+    public synchronized void setToolPolicy(List<String> allowedToolNames, Integer maxToolCalls) {
+        this.allowedToolNames = normalizeToolNames(allowedToolNames);
+        this.maxToolCalls = maxToolCalls == null || maxToolCalls.intValue() <= 0 ? null : maxToolCalls;
+        this.attemptedToolCalls = 0;
+    }
+
+    /**
+     * 判断本轮是否配置了工具运行策略。
+     *
+     * @return 如果存在工具名或次数限制则返回 true。
+     */
+    public synchronized boolean hasToolPolicy() {
+        return (allowedToolNames != null && !allowedToolNames.isEmpty()) || maxToolCalls != null;
+    }
+
+    /**
+     * 读取本轮允许工具白名单。
+     *
+     * @return 返回不可变工具名列表；未配置时返回空列表。
+     */
+    public synchronized List<String> getAllowedToolNames() {
+        return allowedToolNames == null
+                ? Collections.<String>emptyList()
+                : Collections.unmodifiableList(new ArrayList<String>(allowedToolNames));
+    }
+
+    /**
+     * 读取本轮最大工具调用次数。
+     *
+     * @return 返回最大工具调用次数；未配置时返回 null。
+     */
+    public synchronized Integer getMaxToolCalls() {
+        return maxToolCalls;
+    }
+
+    /**
+     * 记录一次模型发起的工具调用尝试，并返回是否需要拒绝执行。
+     *
+     * @param toolName 模型请求调用的工具名称。
+     * @return 返回拒绝原因；允许执行时返回 null。
+     */
+    public synchronized String recordToolAttempt(String toolName) {
+        attemptedToolCalls++;
+        String cleanToolName = toolName == null ? "" : toolName.trim();
+        if (maxToolCalls != null && attemptedToolCalls > maxToolCalls.intValue()) {
+            return TOOL_POLICY_REJECTION_PREFIX
+                    + "最多允许 "
+                    + maxToolCalls
+                    + " 次工具调用，当前第 "
+                    + attemptedToolCalls
+                    + " 次调用 "
+                    + cleanToolName
+                    + " 已被拒绝执行。";
+        }
+        if (allowedToolNames != null
+                && !allowedToolNames.isEmpty()
+                && !allowedToolNames.contains(cleanToolName)) {
+            return TOOL_POLICY_REJECTION_PREFIX
+                    + "只允许调用工具 "
+                    + allowedToolNames
+                    + "，当前工具 "
+                    + cleanToolName
+                    + " 已被拒绝执行。";
+        }
+        return null;
+    }
+
+    /**
+     * 读取本轮已经尝试的工具调用次数。
+     *
+     * @return 返回工具调用尝试次数。
+     */
+    public synchronized int getAttemptedToolCalls() {
+        return attemptedToolCalls;
+    }
+
+    /**
      * 执行事件相关逻辑。
      *
      * @param eventType 事件类型参数。
@@ -300,7 +399,7 @@ public class AgentRunContext {
             event.setProvider(provider);
             event.setModel(model);
             event.setSummary(safe(summary, 1000));
-            event.setMetadataJson(metadata == null ? null : safe(ONode.serialize(metadata), 4000));
+            event.setMetadataJson(StructuredMetadataSupport.serializeRedacted(metadata));
             event.setCreatedAt(System.currentTimeMillis());
             repository.appendEvent(event);
         } catch (Exception ignored) {
@@ -363,6 +462,29 @@ public class AgentRunContext {
             return null;
         }
         return redacted.length() <= limit ? redacted : redacted.substring(0, limit) + "...";
+    }
+
+    /**
+     * 规范化工具名称集合，去除空白项并保持调用方提供的顺序。
+     *
+     * @param names 原始工具名称集合。
+     * @return 返回去重后的工具名称列表；没有有效项时返回 null。
+     */
+    private List<String> normalizeToolNames(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return null;
+        }
+        Set<String> clean = new LinkedHashSet<String>();
+        for (String name : names) {
+            if (name == null) {
+                continue;
+            }
+            String trimmed = name.trim();
+            if (trimmed.length() > 0) {
+                clean.add(trimmed);
+            }
+        }
+        return clean.isEmpty() ? null : new ArrayList<String>(clean);
     }
 
     /**

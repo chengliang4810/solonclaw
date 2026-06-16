@@ -442,6 +442,53 @@ solonclaw:
         # 人格表达风格说明。
         style: 优先用清晰术语描述系统行为和实现边界
 
+  # 主动协作配置。主动协作会观察会话、运行状态、记忆、仓库更新和定时任务结果，寻找值得询问用户的协作机会。
+  # 它不是固定提醒类型；只会先询问用户是否需要处理，不会在未确认时直接执行动作。
+  # 主动协作投递复用现有 home channel / 国内消息渠道投递链路，不单独新增外部投递入口。
+  proactive:
+    # 是否启用主动协作调度。
+    enabled: true
+    # 主动协作扫描间隔，单位分钟。
+    intervalMinutes: 30
+    # 服务启动后首次扫描前的延迟，单位秒。
+    initialDelaySeconds: 60
+    # 单日最多主动触达次数，限制打扰频率。
+    dailyMaxContacts: 3
+    # 同一用户或会话两次主动触达之间的冷却时间，单位分钟。
+    cooldownMinutes: 120
+    # 免打扰开始小时，使用 0-23 的本地小时。
+    quietStartHour: 23
+    # 免打扰结束小时，使用 0-23 的本地小时。
+    quietEndHour: 8
+    # 允许主动触达的最低候选置信度，低于该值仅记录不投递。
+    minConfidenceToContact: 0.65
+    # 是否启用大模型辅助判断候选事项是否值得主动触达。
+    llmDecisionEnabled: true
+    # 是否启用大模型润色主动协作投递文案。
+    llmPolishEnabled: true
+    # 单次扫描最多评估的候选事项数量。
+    maxCandidatesPerTick: 20
+    # 单次扫描最多实际触达次数。
+    maxContactsPerTick: 1
+    # 候选事项有效期，单位小时。
+    candidateTtlHours: 72
+    # 是否启用仓库状态检查候选源；仅使用只读探测，不拉取、不切换、不写入仓库。
+    repositoryCheckEnabled: true
+    # 仓库状态检查的最小间隔，单位分钟。
+    repositoryCheckIntervalMinutes: 360
+    # 会话记录回看窗口，单位天。
+    sessionLookbackDays: 30
+    # Agent 运行记录回看窗口，单位天。
+    runLookbackDays: 14
+    # 定时任务记录回看窗口，单位天。
+    cronLookbackDays: 14
+    # 是否启用长时间空闲后的关怀式确认候选，用于询问最近是否有工作需要协作。
+    careCheckinEnabled: true
+    # 用户长时间无互动后触发关怀候选的空闲阈值，单位小时。
+    careCheckinAfterIdleHours: 48
+    # 主动协作投递预览前缀，用于渠道消息中标识触达来源。
+    deliveryPreviewPrefix: 主动协作
+
   # 国内消息渠道配置。
   channels:
     # 飞书渠道配置。

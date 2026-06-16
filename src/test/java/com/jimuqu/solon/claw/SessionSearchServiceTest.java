@@ -3,15 +3,18 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SessionSearchEntry;
 import com.jimuqu.solon.claw.core.model.SessionSearchQuery;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
+import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SessionSearchTools;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardSearchController;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -190,6 +193,565 @@ public class SessionSearchServiceTest {
         assertThat(entries)
                 .extracting(SessionSearchEntry::getTitle)
                 .doesNotContain("root current", "child current");
+    }
+
+    @Test
+    void shouldRecallCurrentSessionCompressedSummaryWhenQueryMatchesHistoricalMarker()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-current-session");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current session");
+        current.setCompressedSummary(
+                "长期回归 Loop 已压缩摘要，历史 marker=web-loop-session-recovery-readback-20260613-1758");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的新一轮问题"),
+                                ChatMessage.ofAssistant("继续执行下一步"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        SessionRecord previous = env.sessionRepository.bindNewSession("MEMORY:other-room:user");
+        previous.setTitle("unrelated older session");
+        previous.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("没有目标 marker 的历史会话"))));
+        env.sessionRepository.save(previous);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search(
+                        "MEMORY:long-loop:user",
+                        "web-loop-session-recovery-readback-20260613-1758",
+                        3);
+
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getSessionId)
+                .contains(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview())
+                .contains("web-loop-session-recovery-readback-20260613-1758");
+        assertThat(entries.get(0).getMode()).isEqualTo("discovery");
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldPreferCompressedSummaryPreviewOverLaterDiagnosticMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-session-recovery-readback-20260613-1758";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-current-session");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current session");
+        current.setCompressedSummary("压缩摘要保留的真实历史 marker=" + marker + "，并记录 todo 读回成功。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("后续复盘再次提到 " + marker),
+                                ChatMessage.ofAssistant("这是后续诊断文本，不应抢占压缩摘要锚点"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 3);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview()).contains("压缩摘要保留的真实历史 marker");
+        assertThat(entries.get(0).getMatchPreview()).doesNotContain("后续复盘");
+        assertThat(entries.get(0).getSnippet()).contains(marker);
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    /** 压缩摘要仍应优先展示，但同一 marker 的运行最终回复也要作为可检索证据返回。 */
+    @Test
+    void shouldKeepRunFinalReplyEvidenceWhenCompressedSummaryMatchesCurrentSession()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-post-compression-cron-inspect-20260614-2318";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-current-session");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current session");
+        current.setCompressedSummary("压缩摘要保留历史 marker=" + marker + "，用于恢复长期会话目标。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的下一轮"),
+                                ChatMessage.ofAssistant("继续验证"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-final-reply-marker");
+        run.setSessionId(current.getSessionId());
+        run.setSourceKey("MEMORY:long-loop:user");
+        run.setStatus("success");
+        run.setInputPreview("只读 cron/todo 检查");
+        run.setFinalReplyPreview(
+                "{\"marker\":\""
+                        + marker
+                        + "\",\"tool_sequence\":[\"cronjob:status\",\"cronjob:list\",\"todo:read\"],\"cron_total\":40}");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).hasSize(2);
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getMatchPreview()).contains("压缩摘要保留历史 marker");
+        assertThat(entries)
+                .filteredOn(entry -> "run-final-reply-marker".equals(entry.getRunId()))
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.getMatchPreview()).contains(marker, "cron_total");
+                            assertThat(entry.getScore()).isGreaterThan(0L);
+                        });
+    }
+
+    @Test
+    void shouldRecallToolPathEvidenceAcrossWebSessionSources() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-recovery-strategy-20260615-0808";
+        String path = "runtime/cache/missing-long-loop-state-20260615.json";
+        String query = marker + " " + path;
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:dashboard:new-run");
+        current.setTitle("当前路径召回复测");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("只验证 session_search 查询 " + query),
+                                ChatMessage.ofAssistant("当前会话只是引用查询文本"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:dashboard:new-run", current.getSessionId());
+
+        SessionRecord historical =
+                env.sessionRepository.bindNewSession("MEMORY:dashboard:old-run");
+        historical.setTitle("历史恢复运行");
+        historical.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("历史运行写入状态文件"))));
+        env.sessionRepository.save(historical);
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-cross-source-path");
+        run.setSessionId(historical.getSessionId());
+        run.setSourceKey("MEMORY:dashboard:old-run");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis() - 1_000L);
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(historical.getSessionId());
+        toolCall.setSourceKey("MEMORY:dashboard:old-run");
+        toolCall.setToolName("write_file");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("{path=" + path + ", content={\"marker\":\"" + marker + "\"}}");
+        toolCall.setResultPreview("文件保存成功: " + path);
+        toolCall.setResultIndexable(true);
+        toolCall.setStartedAt(System.currentTimeMillis() - 900L);
+        toolCall.setFinishedAt(System.currentTimeMillis() - 800L);
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        ToolCallRecord shortPathToolCall = new ToolCallRecord();
+        shortPathToolCall.setToolCallId(IdSupport.newId());
+        shortPathToolCall.setRunId("run-short-path");
+        shortPathToolCall.setSessionId(historical.getSessionId());
+        shortPathToolCall.setSourceKey("MEMORY:dashboard:old-run");
+        shortPathToolCall.setToolName("read_file");
+        shortPathToolCall.setStatus("completed");
+        shortPathToolCall.setArgsPreview(
+                "{path=cache/missing-long-loop-state-20260615.json}");
+        shortPathToolCall.setResultPreview(
+                "{\"marker\":\"" + marker + "\",\"status\":\"recovered\"}");
+        shortPathToolCall.setResultIndexable(true);
+        shortPathToolCall.setStartedAt(System.currentTimeMillis());
+        shortPathToolCall.setFinishedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveToolCall(shortPathToolCall);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:dashboard:new-run", query, 3);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).getRunId()).isEqualTo("run-cross-source-path");
+        assertThat(entries.get(0).getToolName()).isEqualTo("write_file");
+        assertThat(entries.get(0).getMatchPreview()).contains(marker, path);
+        assertThat(entries.get(0).getScore()).isGreaterThan(85L);
+    }
+
+    @Test
+    void shouldPreferCurrentCompressedMarkerOverBroadFtsNoise()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-session-search-fastpath-recheck";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-compressed-current");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop compressed current");
+        current.setCompressedSummary("压缩摘要保留历史 marker=" + marker + "，用于恢复 session_search 快速路径复测。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的下一轮"),
+                                ChatMessage.ofAssistant("继续验证"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        for (int i = 0; i < 6; i++) {
+            SessionRecord noise =
+                    env.sessionRepository.bindNewSession("MEMORY:noise-room-" + i + ":user");
+            noise.setTitle("web loop session search fastpath noise " + i);
+            noise.setNdjson(
+                    MessageSupport.toNdjson(
+                            Arrays.asList(
+                                    ChatMessage.ofUser("web loop session search fastpath"),
+                                    ChatMessage.ofAssistant("只有拆词命中，没有完整 marker"))));
+            env.sessionRepository.save(noise);
+        }
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview()).contains(marker);
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldRecallCurrentCompressedSummaryWhenQueryContainsMultipleMarkers()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String latestMarker = "web-loop-todo-readonly-completed-recovery-20260614-0529";
+        String previousMarker = "web-loop-todo-summary-complete-20260614-0522";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-compressed-current");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop compressed current");
+        current.setCompressedSummary(
+                "长期回归 Loop 压缩摘要："
+                        + latestMarker
+                        + " 已只读确认三项 todo 全部 completed；"
+                        + previousMarker
+                        + " 已将 B/C 推进 completed，next_round_task 是执行 memory/session 接续切片。");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("压缩后的下一轮"),
+                                ChatMessage.ofAssistant("继续验证"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search(
+                        "MEMORY:long-loop:user",
+                        latestMarker + " " + previousMarker + " next_round_task",
+                        5);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getMatchPreview())
+                .contains(latestMarker, previousMarker, "next_round_task");
+        assertThat(entries.get(0).getMessageId()).isEqualTo("compressed_summary");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldRespectLimitAndPreferOriginalMarkerSessionOverCurrentReference()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-sse-start-once-20260613-0041";
+
+        SessionRecord original = env.sessionRepository.bindNewSession("MEMORY:sse-room:user");
+        original.setSessionId(marker);
+        original.setSourceKey("MEMORY:sse-room:user");
+        original.setTitle("长期回归 Loop SSE 启动事件验证，marker: " + marker);
+        original.setUpdatedAt(System.currentTimeMillis() - 60_000L);
+        original.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("启动事件 marker=" + marker),
+                                ChatMessage.ofAssistant("SSE_START_ONCE_OK"))));
+        env.sessionRepository.save(original);
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setSessionId("web-loop-todo-20260612-2234");
+        current.setSourceKey("MEMORY:long-loop:user");
+        current.setTitle("long loop current");
+        current.setUpdatedAt(System.currentTimeMillis());
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("复盘上一轮 session_search 命中了 " + marker),
+                                ChatMessage.ofAssistant("当前会话只是引用历史 marker"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 1);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSessionId()).isEqualTo(marker);
+        assertThat(entries.get(0).getTitle()).contains(marker);
+        assertThat(entries.get(0).getScore()).isGreaterThan(80L);
+    }
+
+    @Test
+    void shouldReturnEmptyWhenExactMarkerQueryOnlyMatchesWeakFragments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-generated-write-search-z9q8x7";
+
+        for (int i = 0; i < 3; i++) {
+            SessionRecord noise =
+                    env.sessionRepository.bindNewSession("MEMORY:weak-fragment-" + i + ":user");
+            noise.setTitle("web loop generated write search noise " + i);
+            noise.setNdjson(
+                    MessageSupport.toNdjson(
+                            Arrays.asList(
+                                    ChatMessage.ofUser(
+                                            "web loop generated write search without exact marker"))));
+            env.sessionRepository.save(noise);
+        }
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 3);
+
+        assertThat(entries).isEmpty();
+    }
+
+    @Test
+    void shouldReturnEmptyWhenMarkerWithSuffixOnlyMatchesWeakFragments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-generated-write-search-nohit-20260613-2212";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setTitle("长期回归 Loop todo 连续性测试");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("长期回归 Loop 中复盘 write search 与 cron delivery"),
+                                ChatMessage.ofAssistant("这里没有完整 nohit marker"))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        SessionRecord cronNoise =
+                env.sessionRepository.bindNewSession("MEMORY:cron-noise:user");
+        cronNoise.setTitle(
+                "[IMPORTANT: 你正在以定时任务身份运行。DELIVERY: 你的最终回复会自动投递给用户]");
+        cronNoise.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("web loop cron delivery runtime hint"),
+                                ChatMessage.ofAssistant("普通定时任务输出，不包含完整 marker"))));
+        env.sessionRepository.save(cronNoise);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).isEmpty();
+    }
+
+    @Test
+    void shouldFilterWeakCronSessionsWhenSearchingDeliveredMarker() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker =
+                "WEB_LOOP_DASHBOARD_ORIGIN_DELIVERY_OK web-loop-dashboard-origin-delivery-live-20260613-2206";
+
+        SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        current.setTitle("长期回归 Loop todo 连续性测试");
+        current.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofAssistant(
+                                        "cron 回投脚本输出文本：" + marker))));
+        env.sessionRepository.save(current);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", current.getSessionId());
+
+        SessionRecord cronNoise =
+                env.sessionRepository.bindNewSession("MEMORY:cron-noise:user");
+        cronNoise.setTitle(
+                "[IMPORTANT: 你正在以定时任务身份运行。DELIVERY: 你的最终回复会自动投递给用户]");
+        cronNoise.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("web loop dashboard origin delivery cron hint"),
+                                ChatMessage.ofAssistant("没有完整回投 marker 的定时任务会话"))));
+        env.sessionRepository.save(cronNoise);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 5);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSessionId()).isEqualTo(current.getSessionId());
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldDiscoverToolCallRecordsInOrdinarySessionSearch() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String marker = "web-loop-generated-write-search-k7m2x9p3";
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:long-loop:user");
+        session.setTitle("long loop current");
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource("MEMORY:long-loop:user", session.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-write-search-marker");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:long-loop:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(session.getSessionId());
+        toolCall.setSourceKey("MEMORY:long-loop:user");
+        toolCall.setToolName("todo");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("{\"content\":\"验证同轮写入后可检索 " + marker + "\"}");
+        toolCall.setResultPreview("{\"success\":true,\"pending\":2}");
+        toolCall.setStartedAt(System.currentTimeMillis());
+        toolCall.setFinishedAt(toolCall.getStartedAt());
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:long-loop:user", marker, 3);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getRunId()).isEqualTo(run.getRunId());
+        assertThat(entries.get(0).getToolName()).isEqualTo("todo");
+        assertThat(entries.get(0).getMatchPreview()).contains(marker);
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldDiscoverRunEventsInOrdinarySessionSearch() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:event-loop:user");
+        session.setTitle("event backed session");
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource("MEMORY:event-loop:user", session.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-policy-event-search");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:event-loop:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId(IdSupport.newId());
+        event.setRunId(run.getRunId());
+        event.setSessionId(session.getSessionId());
+        event.setSourceKey("MEMORY:event-loop:user");
+        event.setEventType("tool.policy.end");
+        event.setSummary("工具策略拒绝：todo（3ms）");
+        event.setMetadataJson("{\"tool\":\"todo\",\"status\":\"denied\"}");
+        event.setCreatedAt(System.currentTimeMillis());
+        env.agentRunRepository.appendEvent(event);
+
+        List<SessionSearchEntry> entries =
+                env.sessionSearchService.search("MEMORY:event-loop:user", "tool.policy.end", 3);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getRunId()).isEqualTo(run.getRunId());
+        assertThat(entries.get(0).getToolName()).isEqualTo("event:tool.policy.end");
+        assertThat(entries.get(0).getMatchPreview()).contains("tool.policy.end");
+        assertThat(entries.get(0).getScore()).isGreaterThan(0L);
+    }
+
+    @Test
+    void shouldPreferHistoricalToolEvidenceOverCurrentSessionSearchEvent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:dashboard:web-loop-state-tool-20260615-0701";
+        String query = "web-loop-state-tool-20260615-0701 read_file HEARTBEAT";
+
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setSessionId("web-loop-state-tool-20260615-0701");
+        session.setSourceKey(sourceKey);
+        session.setTitle("long loop state tool session");
+        env.sessionRepository.save(session);
+        env.sessionRepository.bindSource(sourceKey, session.getSessionId());
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord oldRun =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        oldRun.setRunId("run-read-heartbeat-history");
+        oldRun.setSessionId(session.getSessionId());
+        oldRun.setSourceKey(sourceKey);
+        oldRun.setStatus("success");
+        oldRun.setInputPreview("请读取 runtime/HEARTBEAT.md");
+        oldRun.setFinalReplyPreview("read_file runtime/HEARTBEAT.md 已完成，心跳说明为空。");
+        oldRun.setStartedAt(System.currentTimeMillis() - 20000L);
+        oldRun.setLastActivityAt(oldRun.getStartedAt() + 1000L);
+        env.agentRunRepository.saveRun(oldRun);
+
+        ToolCallRecord readFileToolCall = new ToolCallRecord();
+        readFileToolCall.setToolCallId(IdSupport.newId());
+        readFileToolCall.setRunId(oldRun.getRunId());
+        readFileToolCall.setSessionId(session.getSessionId());
+        readFileToolCall.setSourceKey(sourceKey);
+        readFileToolCall.setToolName("read_file");
+        readFileToolCall.setStatus("completed");
+        readFileToolCall.setArgsPreview("{\"path\":\"runtime/HEARTBEAT.md\"}");
+        readFileToolCall.setResultPreview("runtime/HEARTBEAT.md 中没有启用心跳任务。");
+        readFileToolCall.setStartedAt(oldRun.getStartedAt() + 500L);
+        readFileToolCall.setFinishedAt(oldRun.getStartedAt() + 900L);
+        env.agentRunRepository.saveToolCall(readFileToolCall);
+
+        com.jimuqu.solon.claw.core.model.AgentRunRecord currentRun =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        currentRun.setRunId("run-current-session-search");
+        currentRun.setSessionId(session.getSessionId());
+        currentRun.setSourceKey(sourceKey);
+        currentRun.setStatus("running");
+        currentRun.setInputPreview("请调用 session_search 搜索 " + query);
+        currentRun.setStartedAt(System.currentTimeMillis());
+        currentRun.setLastActivityAt(currentRun.getStartedAt());
+        env.agentRunRepository.saveRun(currentRun);
+
+        AgentRunEventRecord currentSearchEvent = new AgentRunEventRecord();
+        currentSearchEvent.setEventId(IdSupport.newId());
+        currentSearchEvent.setRunId(currentRun.getRunId());
+        currentSearchEvent.setSessionId(session.getSessionId());
+        currentSearchEvent.setSourceKey(sourceKey);
+        currentSearchEvent.setEventType("tool.start");
+        currentSearchEvent.setSummary("调用工具：session_search");
+        currentSearchEvent.setMetadataJson("{\"tool\":\"session_search\",\"query\":\"" + query + "\"}");
+        currentSearchEvent.setCreatedAt(currentRun.getStartedAt() + 500L);
+        env.agentRunRepository.appendEvent(currentSearchEvent);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(sourceKey, query, 2);
+
+        assertThat(entries).isNotEmpty();
+        assertThat(entries)
+                .extracting(SessionSearchEntry::getToolName)
+                .contains("read_file");
+        assertThat(entries.get(0).getToolName()).isNotEqualTo("event:tool.start");
     }
 
     @Test
@@ -512,6 +1074,52 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldAvoidModelSummaryByDefaultForDiscoverySearch() throws Exception {
+        CountingLlmGateway llmGateway = new CountingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:fast-search:user");
+        session.setTitle("fast search session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("alpha performance-marker omega"))));
+        env.sessionRepository.save(session);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setQuery("performance-marker");
+        query.setLimit(3);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSummary()).contains("搜索主题：performance-marker");
+        assertThat(entries.get(0).getSummary()).contains("匹配片段：");
+        assertThat(llmGateway.chatCalls).isZero();
+    }
+
+    @Test
+    void shouldUseModelSummaryOnlyWhenExplicitlyRequested() throws Exception {
+        CountingLlmGateway llmGateway = new CountingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:summary-search:user");
+        session.setTitle("summary search session");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("alpha explicit-summary-marker omega"))));
+        env.sessionRepository.save(session);
+
+        SessionSearchQuery query = new SessionSearchQuery();
+        query.setQuery("explicit-summary-marker");
+        query.setSummarize(true);
+        query.setLimit(3);
+
+        List<SessionSearchEntry> entries = env.sessionSearchService.search(query);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getSummary()).contains("echo:Search topic: explicit-summary-marker");
+        assertThat(llmGateway.chatCalls).isEqualTo(1);
+    }
+
+    @Test
     void shouldPassScrollParametersThroughSessionSearchTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-scroll:user");
@@ -531,6 +1139,100 @@ public class SessionSearchServiceTest {
 
         assertThat(response).contains("\"mode\":\"scroll\"");
         assertThat(response).contains("pm-anchor");
+    }
+
+    @Test
+    void shouldCompactScrollResultsForSessionSearchTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-scroll-compact:user");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("before compact marker"),
+                                ChatMessage.ofAssistant("anchor compact marker"),
+                                ChatMessage.ofUser("after compact marker"))));
+        env.sessionRepository.save(session);
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        env.sessionSearchService, "MEMORY:tool-scroll-compact:user");
+
+        String response =
+                tools.sessionSearch(
+                        null, session.getSessionId(), "message-1", Integer.valueOf(3));
+        List<?> result = (List<?>) ONode.ofJson(response).toData();
+        Map<?, ?> anchor = (Map<?, ?>) result.get(1);
+
+        assertThat(result).hasSize(3);
+        assertThat(anchor.get("mode")).isEqualTo("scroll");
+        assertThat(anchor.get("messageId")).isEqualTo("message-1");
+        assertThat(anchor.get("anchor")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(anchor.get("text"))).contains("anchor compact marker");
+        assertThat(response).doesNotContain("\"summary\"");
+        assertThat(response).doesNotContain("\"snippet\"");
+        assertThat(response).doesNotContain("\"title\"");
+    }
+
+    @Test
+    void shouldCompactDiscoveryResultsForSessionSearchTool() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new VerboseSessionSearchService(), "MEMORY:search-compact:user");
+
+        String response = tools.sessionSearch("marker", Integer.valueOf(5));
+        List<?> result = (List<?>) ONode.ofJson(response).toData();
+        Map<?, ?> first = (Map<?, ?>) result.get(0);
+
+        assertThat(result).hasSize(5);
+        assertThat(first.get("mode")).isEqualTo("discovery");
+        assertThat(first.get("sessionId")).isEqualTo("session-0");
+        assertThat(first.get("messageId")).isEqualTo("compressed_summary");
+        assertThat(first.get("runId")).isEqualTo("run-0");
+        assertThat(first.get("toolName")).isEqualTo("cronjob");
+        assertThat(String.valueOf(first.get("text")))
+                .contains("web-loop-post-compression-cron-inspect-20260614-2318")
+                .hasSizeLessThanOrEqualTo(280);
+        assertThat(response).doesNotContain("\"summary\"");
+        assertThat(response).doesNotContain("\"snippet\"");
+        assertThat(response).doesNotContain("\"matchPreview\"");
+        assertThat(response).doesNotContain("\"branchName\"");
+        assertThat(response).doesNotContain("summary filler");
+    }
+
+    @Test
+    void shouldPreserveActionablePathWhenCompactingSessionSearchToolText() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new PathBearingSessionSearchService(), "MEMORY:search-path:user");
+
+        String response = tools.sessionSearch("marker", Integer.valueOf(1));
+        List<?> result = (List<?>) ONode.ofJson(response).toData();
+        Map<?, ?> first = (Map<?, ?>) result.get(0);
+        String text = String.valueOf(first.get("text"));
+
+        assertThat(result).hasSize(1);
+        assertThat(text)
+                .contains("runtime/cache/missing-long-loop-state-20260615.json")
+                .doesNotContain("runtime/cache/missing-lo...")
+                .hasSizeLessThanOrEqualTo(280);
+    }
+
+    @Test
+    void shouldKeepCompactDiscoveryResultsInlineUnderDefaultRegressionLimit() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new VerboseSessionSearchService(), "MEMORY:search-compact:user");
+        ToolResultStorageService storageService =
+                new ToolResultStorageService("target/session-search-tool-results", 4000, 1200);
+
+        String response = tools.sessionSearch("marker", Integer.valueOf(5));
+        ToolResultStorageService.StoredResult stored =
+                storageService.observe("session_search", response, "run-search-compact", "call-1");
+
+        assertThat(stored.isTruncated()).isFalse();
+        assertThat(stored.getResultRef()).isNull();
+        assertThat(stored.getObservation()).contains("compressed_summary");
+        assertThat(stored.getObservation())
+                .contains("web-loop-post-compression-cron-inspect-20260614-2318");
     }
 
     private AssistantMessage assistantWithToolCall(String name, String arguments) {
@@ -615,6 +1317,89 @@ public class SessionSearchServiceTest {
             entry.setToolName("tool-ghp_toolnamesecret12345");
             entry.setChannel("channel-ghp_channelsecret12345");
             return java.util.Collections.singletonList(entry);
+        }
+    }
+
+    private static class VerboseSessionSearchService implements SessionSearchService {
+        @Override
+        public List<SessionSearchEntry> search(String sourceKey, String query, int limit) {
+            SessionSearchQuery searchQuery = new SessionSearchQuery();
+            searchQuery.setSourceKey(sourceKey);
+            searchQuery.setQuery(query);
+            searchQuery.setLimit(limit);
+            return search(searchQuery);
+        }
+
+        @Override
+        public List<SessionSearchEntry> search(SessionSearchQuery query) {
+            int limit = query == null || query.getLimit() <= 0 ? 5 : query.getLimit();
+            List<SessionSearchEntry> entries = new ArrayList<SessionSearchEntry>();
+            for (int i = 0; i < limit; i++) {
+                SessionSearchEntry entry = new SessionSearchEntry();
+                entry.setMode("discovery");
+                entry.setSessionId("session-" + i);
+                entry.setBranchName("main");
+                entry.setTitle(
+                        "长期回归 Loop todo 连续性测试标题 "
+                                + i
+                                + " "
+                                + repeat("title filler ", 20));
+                entry.setUpdatedAt(1781453738490L - i);
+                entry.setMessageId(i == 0 ? "compressed_summary" : "message-" + i);
+                entry.setPlatformMessageId("platform-" + i);
+                entry.setRunId("run-" + i);
+                entry.setToolName(i == 0 ? "cronjob" : "todo");
+                entry.setScore(100L - i);
+                String preview =
+                        "外部对标仓库能力点：上下文压缩后的跨压缩边界会话检索，marker="
+                                + "web-loop-post-compression-cron-inspect-20260614-2318。"
+                                + repeat("preview filler ", 80);
+                entry.setMatchPreview(preview);
+                entry.setSnippet(preview + repeat("snippet filler ", 80));
+                entry.setSummary(preview + repeat("summary filler ", 120));
+                entries.add(entry);
+            }
+            return entries;
+        }
+
+        private static String repeat(String value, int count) {
+            StringBuilder buffer = new StringBuilder();
+            for (int i = 0; i < count; i++) {
+                buffer.append(value);
+            }
+            return buffer.toString();
+        }
+    }
+
+    private static class PathBearingSessionSearchService implements SessionSearchService {
+        @Override
+        public List<SessionSearchEntry> search(String sourceKey, String query, int limit) {
+            SessionSearchEntry entry = new SessionSearchEntry();
+            entry.setMode("discovery");
+            entry.setSessionId("session-path");
+            entry.setMessageId("message-path");
+            entry.setScore(100L);
+            entry.setMatchPreview(
+                    VerboseSessionSearchService.repeat("路径前置上下文 ", 34)
+                            + "runtime/cache/missing-long-loop-state-20260615.json "
+                            + VerboseSessionSearchService.repeat("路径后置上下文 ", 40));
+            return java.util.Collections.singletonList(entry);
+        }
+    }
+
+    private static class CountingLlmGateway extends FakeLlmGateway {
+        /** 记录会话搜索测试中模型摘要调用次数。 */
+        private int chatCalls;
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            chatCalls++;
+            return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
     }
 }

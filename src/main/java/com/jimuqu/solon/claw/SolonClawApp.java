@@ -4,7 +4,6 @@ import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliModeParser;
 import com.jimuqu.solon.claw.cli.CliRunner;
 import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
-import com.jimuqu.solon.claw.security.SolonClawDockerRootGuard;
 import org.noear.solon.Solon;
 import org.noear.solon.annotation.SolonMain;
 
@@ -24,9 +23,6 @@ public class SolonClawApp {
         final CliMode cliMode = CliModeParser.parse(startupArgs);
         StartupModeContext.set(cliMode);
         configureConsoleLogging(cliMode);
-        if (!cliMode.isConsoleMode()) {
-            SolonClawDockerRootGuard.requireServerMayStart();
-        }
         Solon.start(
                 SolonClawApp.class,
                 args,

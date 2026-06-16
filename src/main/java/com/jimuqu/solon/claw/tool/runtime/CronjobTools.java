@@ -7,12 +7,15 @@ import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -69,7 +72,7 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。")
+                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、no_agent、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。用户明确要求 no_agent=true 或 wrap_response=false 时，必须在工具参数中显式传入对应布尔值；仅设置 script 不会隐式启用 no_agent。")
     public String cronjob(
             @Param(
                             name = "action",
@@ -89,7 +92,8 @@ public class CronjobTools {
             @Param(
                             name = "deliver",
                             description =
-                                    "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标")
+                                    "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标",
+                            required = false)
                     Object deliver,
             @Param(
                             name = "deliver_chat_id",
@@ -141,7 +145,8 @@ public class CronjobTools {
             @Param(
                             name = "no_agent",
                             description =
-                                    "是否跳过 Agent 直接投递脚本输出；true 时必须设置 script，非空 stdout 原样投递，空 stdout 静默，非零退出发送错误")
+                                    "是否跳过 Agent 直接投递脚本输出；true 时必须设置 script，非空 stdout 原样投递，空 stdout 静默，非零退出发送错误",
+                            required = false)
                     Boolean noAgent,
             @Param(
                             name = "context_from",
@@ -250,10 +255,19 @@ public class CronjobTools {
                 List<CronJobRecord> jobs =
                         cronJobService.listAll(
                                 includeDisabled == null || includeDisabled.booleanValue());
+                Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
                 return ToolResultEnvelope.ok("已列出定时任务")
+                        .data("count", status.get("total"))
+                        .data("status", status)
+                        .data("total", status.get("total"))
+                        .data("active", status.get("active"))
+                        .data("paused", status.get("paused"))
+                        .data("completed", status.get("completed"))
+                        .data("due", status.get("due"))
+                        .data("next", status.get("next"))
+                        .data("recent_failures", status.get("recent_failures"))
                         .data("jobs", views(jobs))
-                        .data("count", Integer.valueOf(jobs.size()))
-                        .preview(preview(jobs))
+                        .preview(listPreview(jobs, status))
                         .toJson();
             }
 
@@ -304,6 +318,34 @@ public class CronjobTools {
                                 state,
                                 pausedReason);
                 applyDefaultOriginDelivery(createBody);
+                CronJobRecord duplicate =
+                        cronJobService.findDuplicateCreateJob(sourceKey, createBody);
+                if (duplicate != null) {
+                    Map<String, Object> view = formattedView(duplicate);
+                    return ToolResultEnvelope.ok("已存在相同定时任务：" + duplicate.getJobId())
+                            .data("job_id", duplicate.getJobId())
+                            .data("name", safeText(duplicate.getName()))
+                            .data("skill", view.get("skill"))
+                            .data("skills", view.get("skills"))
+                            .data("schedule", duplicate.getCronExpr())
+                            .data("repeat", repeatDisplay(duplicate))
+                            .data("deliver", safeText(duplicate.getDeliverPlatform()))
+                            .data("wrap_response", Boolean.valueOf(duplicate.isWrapResponse()))
+                            .data("no_agent", Boolean.valueOf(duplicate.isNoAgent()))
+                            .data("script", safeObjectText(view.get("script")))
+                            .data("next_run_at", Long.valueOf(duplicate.getNextRunAt()))
+                            .data("next_run_at_iso", view.get("next_run_at_iso"))
+                            .data("job", view)
+                            .data("deduped", Boolean.TRUE)
+                            .data("message", "相同定时任务已存在，已复用 '" + safeText(duplicate.getName()) + "'。")
+                            .preview(
+                                    safeText(
+                                            duplicate.getJobId()
+                                                    + " "
+                                                    + duplicate.getName()
+                                                    + " DEDUPED"))
+                            .toJson();
+                }
                 CronJobRecord job = cronJobService.create(sourceKey, createBody);
                 Map<String, Object> view = formattedView(job);
                 return ToolResultEnvelope.ok("已创建定时任务：" + job.getJobId())
@@ -314,8 +356,13 @@ public class CronjobTools {
                         .data("schedule", job.getCronExpr())
                         .data("repeat", repeatDisplay(job))
                         .data("deliver", safeText(job.getDeliverPlatform()))
+                        .data("wrap_response", Boolean.valueOf(job.isWrapResponse()))
+                        .data("no_agent", Boolean.valueOf(job.isNoAgent()))
+                        .data("script", safeObjectText(view.get("script")))
                         .data("next_run_at", Long.valueOf(job.getNextRunAt()))
+                        .data("next_run_at_iso", view.get("next_run_at_iso"))
                         .data("job", view)
+                        .data("deduped", Boolean.FALSE)
                         .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
                         .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
                         .toJson();
@@ -1469,18 +1516,21 @@ public class CronjobTools {
         result.put("deliver_chat_id", safeObjectText(base.get("deliver_chat_id")));
         result.put("deliver_thread_id", safeObjectText(base.get("deliver_thread_id")));
         result.put("next_run_at", base.get("next_run_at"));
+        result.put("next_run_at_iso", isoTime(base.get("next_run_at")));
         result.put("last_run_at", base.get("last_run_at"));
+        result.put("last_run_at_iso", isoTime(base.get("last_run_at")));
         result.put("last_status", safeText(job.getLastStatus()));
         result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
         result.put("enabled", base.get("enabled"));
         result.put("state", safeValue(base.get("state")));
         result.put("paused_at", base.get("paused_at"));
+        result.put("paused_at_iso", isoTime(base.get("paused_at")));
         result.put("paused_reason", safeText(job.getPausedReason()));
+        result.put("created_at", base.get("created_at"));
+        result.put("created_at_iso", isoTime(base.get("created_at")));
         result.put("wrap_response", Boolean.valueOf(job.isWrapResponse()));
         put(result, "script", safeObjectText(base.get("script")));
-        if (job.isNoAgent()) {
-            result.put("no_agent", Boolean.TRUE);
-        }
+        result.put("no_agent", Boolean.valueOf(job.isNoAgent()));
         Object contextFrom = base.get("context_from");
         if (contextFrom instanceof Iterable && ((Iterable<?>) contextFrom).iterator().hasNext()) {
             Object safeContextFrom = safeValue(contextFrom);
@@ -1494,6 +1544,25 @@ public class CronjobTools {
         }
         put(result, "workdir", safeObjectText(base.get("workdir")));
         return result;
+    }
+
+    /**
+     * 将工具视图中的毫秒时间转换为本地 ISO 时间，避免 Agent 在回复用户时自行换算出错。
+     *
+     * @param value 工具视图中的毫秒时间值。
+     * @return 本地时区 ISO 时间；无有效时间时返回 null。
+     */
+    private String isoTime(Object value) {
+        if (!(value instanceof Number)) {
+            return null;
+        }
+        long millis = ((Number) value).longValue();
+        if (millis <= 0L) {
+            return null;
+        }
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+        format.setTimeZone(TimeZone.getDefault());
+        return format.format(new Date(millis));
     }
 
     /**
@@ -1598,6 +1667,26 @@ public class CronjobTools {
             buffer.append(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()));
         }
         return buffer.toString();
+    }
+
+    /**
+     * 生成列表动作的紧凑预览，确保长列表被截断时仍能先看到关键统计。
+     *
+     * @param jobs 当前列表动作返回的定时任务记录。
+     * @param status 由同一批记录计算出的总数、活跃数、到期数和失败摘要。
+     * @return 返回先展示统计、再展示任务样例的列表预览文本。
+     */
+    private String listPreview(List<CronJobRecord> jobs, Map<String, Object> status) {
+        String summary = statusPreview(status);
+        if (jobs.isEmpty()) {
+            return summary + "\n没有定时任务";
+        }
+        List<CronJobRecord> sample = jobs;
+        Object limit = status.get("limit");
+        if (limit instanceof Number && jobs.size() > ((Number) limit).intValue()) {
+            sample = new ArrayList<CronJobRecord>(jobs.subList(0, ((Number) limit).intValue()));
+        }
+        return summary + "\n" + preview(sample);
     }
 
     /**

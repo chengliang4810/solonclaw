@@ -81,6 +81,28 @@ public class DashboardPageController {
     }
 
     /**
+     * 执行控制台前端路由兜底相关逻辑。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回Dashboard页面入口。
+     */
+    @Mapping("/solonclaw/**")
+    public DownloadedFile solonClawRoutes(Context context) {
+        return renderIndex(context);
+    }
+
+    /**
+     * 执行控制台基础路径兜底相关逻辑，保证刷新或分享基础路径时仍能进入前端应用。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回Dashboard页面入口。
+     */
+    @Mapping("/solonclaw")
+    public DownloadedFile solonClawBase(Context context) {
+        return renderIndex(context);
+    }
+
+    /**
      * 执行sessions相关逻辑。
      *
      * @param context 当前请求或运行上下文。

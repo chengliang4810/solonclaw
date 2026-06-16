@@ -1,5 +1,8 @@
 import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage, type RunEvent } from '@/api/solonclaw/chat'
+import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
+import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { selectSessionId } from '@/shared/sessionSelection'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
@@ -40,6 +43,7 @@ export interface Session {
   messageCount?: number
   inputTokens?: number
   outputTokens?: number
+  lastTotalTokens?: number
   endedAt?: number | null
   lastActiveAt?: number
   activeAgentName?: string
@@ -143,6 +147,9 @@ function mapSolonClawSession(s: SessionSummary): Session {
     model: s.model,
     provider: s.provider || '',
     messageCount: s.message_count,
+    inputTokens: s.input_tokens,
+    outputTokens: s.output_tokens,
+    lastTotalTokens: s.last_total_tokens || undefined,
     endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
     lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
     activeAgentName: s.active_agent_name || 'default',
@@ -170,6 +177,7 @@ function inFlightKey(sid: string): string { return `solonclaw_in_flight_v1_${sid
 
 interface InFlightRun {
   runId: string
+  agentRunId?: string
   startedAt: number
 }
 
@@ -255,6 +263,10 @@ function sanitizeForCache(msgs: Message[]): Message[] {
   })
 }
 
+function isTerminalRunStatus(status?: string): boolean {
+  return status === 'success' || status === 'failed' || status === 'cancelled'
+}
+
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
   const activeSessionId = ref<string | null>(null)
@@ -302,8 +314,15 @@ export const useChatStore = defineStore('chat', () => {
     if (s) saveJson(msgsCacheKey(sid), sanitizeForCache(s.messages))
   }
 
-  function markInFlight(sid: string, runId: string) {
-    saveJson(inFlightKey(sid), { runId, startedAt: Date.now() } as InFlightRun)
+  function markInFlight(sid: string, runId: string, agentRunId?: string) {
+    saveJson(inFlightKey(sid), { runId, agentRunId, startedAt: Date.now() } as InFlightRun)
+  }
+
+  function markAgentRunInFlight(sid: string, agentRunId?: string) {
+    if (!agentRunId) return
+    const current = readInFlight(sid)
+    if (!current) return
+    saveJson(inFlightKey(sid), { ...current, agentRunId } as InFlightRun)
   }
 
   function clearInFlight(sid: string) {
@@ -354,29 +373,37 @@ export const useChatStore = defineStore('chat', () => {
         return
       }
       try {
+        if (inFlight.agentRunId) {
+          const runDetail = await fetchRunDetail(inFlight.agentRunId)
+          if (!isTerminalRunStatus(runDetail.run?.status)) {
+            return
+          }
+        }
         const detail = await fetchSession(sid)
         if (!detail) return
         const mapped = mapSolonClawMessages(detail.messages || [])
         const target = sessions.value.find(s => s.id === sid)
         if (!target) return
+        if (inFlight.agentRunId) {
+          target.messages = mapped
+          if (detail.title) target.title = detail.title
+          target.goalState = detail.goal_state || null
+          if (sid === activeSessionId.value) persistActiveMessages()
+          clearInFlight(sid)
+          stopPolling(sid)
+          return
+        }
         // Use the same "content-aware" comparison as switchSession: server
         // is ahead iff it knows about at least as many user turns and its
         // last assistant text is at least as long as ours.
         const local = target.messages
-        const localLastAssistant = [...local].reverse().find(m => m.role === 'assistant')
-        const serverLastAssistant = [...mapped].reverse().find(m => m.role === 'assistant')
-        const localAssistantLen = localLastAssistant?.content?.length ?? 0
-        const serverAssistantLen = serverLastAssistant?.content?.length ?? 0
         const localUsers = local.filter(m => m.role === 'user').length
         const serverUsers = mapped.filter(m => m.role === 'user').length
         const serverIsCaughtUp = serverUsers >= localUsers
         // Same rationale as switchSession: strictly more user turns means
         // server is ahead (new turn complete). Equal user turns + longer
         // assistant means server caught up on the current turn.
-        const serverIsAhead =
-          serverUsers > localUsers
-          || (serverUsers === localUsers && serverAssistantLen >= localAssistantLen)
-        if (serverIsAhead) {
+        if (shouldUseServerMessages(local, mapped)) {
           target.messages = mapped
           if (detail.title && !target.title) target.title = detail.title
           target.goalState = detail.goal_state || null
@@ -417,7 +444,7 @@ export const useChatStore = defineStore('chat', () => {
     pollTimers.set(sid, timer)
   }
 
-  async function loadSessions() {
+  async function loadSessions(preferredSessionId?: string | null) {
     isLoadingSessions.value = true
     try {
       // 从会话维度缓存中恢复，实现 instant render
@@ -454,11 +481,7 @@ export const useChatStore = defineStore('chat', () => {
       sessions.value = [...localOnly, ...fresh]
       persistSessionsList()
 
-      // Restore last active session, fallback to most recent
-      const savedId = activeSessionId.value
-      const candidateId = savedId && sessions.value.some(s => s.id === savedId)
-        ? savedId
-        : sessions.value[0]?.id
+      const candidateId = selectSessionId(sessions.value, preferredSessionId, activeSessionId.value)
       const targetId = candidateId ? await resolveLatestDescendantId(candidateId) : candidateId
       if (targetId) {
         if (targetId === activeSessionId.value && activeSession.value && streamStates.value.has(targetId)) {
@@ -487,8 +510,15 @@ export const useChatStore = defineStore('chat', () => {
       const target = sessions.value.find(s => s.id === sid)
       if (!target) return false
       const mapped = mapSolonClawMessages(detail.messages || [])
-      target.messages = mapped
+      // SSE 断开后的主动刷新可能早于后端会话落库完成，不能用旧服务端视图
+      // 覆盖本地仍在推进的新用户轮次；统一复用会话切换的内容感知合并规则。
+      if (shouldUseServerMessages(target.messages, mapped)) {
+        target.messages = mapped
+      }
       target.goalState = detail.goal_state || null
+      target.inputTokens = detail.input_tokens
+      target.outputTokens = detail.output_tokens
+      target.lastTotalTokens = detail.last_total_tokens || undefined
       if (detail.title) target.title = detail.title
       persistActiveMessages()
       return true
@@ -550,12 +580,6 @@ export const useChatStore = defineStore('chat', () => {
         // is up-to-date (and has the final complete text); otherwise keep
         // local (in-flight window where server hasn't flushed the new turn).
         const local = activeSession.value.messages
-        const localLastAssistant = [...local].reverse().find(m => m.role === 'assistant')
-        const serverLastAssistant = [...mapped].reverse().find(m => m.role === 'assistant')
-        const localAssistantLen = localLastAssistant?.content?.length ?? 0
-        const serverAssistantLen = serverLastAssistant?.content?.length ?? 0
-        const localUsers = local.filter(m => m.role === 'user').length
-        const serverUsers = mapped.filter(m => m.role === 'user').length
         // Trust server when:
         //   - it has STRICTLY MORE user turns than we do (new turn landed),
         //     OR
@@ -565,13 +589,13 @@ export const useChatStore = defineStore('chat', () => {
         // race during in-flight runs). Length comparison alone is wrong
         // across different turns because each turn's last assistant is
         // unrelated to the previous turn's.
-        const serverIsAhead =
-          serverUsers > localUsers
-          || (serverUsers === localUsers && serverAssistantLen >= localAssistantLen)
-        if (serverIsAhead) {
+        if (shouldUseServerMessages(local, mapped)) {
           activeSession.value.messages = mapped
         }
         activeSession.value.goalState = detail.goal_state || null
+        activeSession.value.inputTokens = detail.input_tokens
+        activeSession.value.outputTokens = detail.output_tokens
+        activeSession.value.lastTotalTokens = detail.last_total_tokens || undefined
         // Update title: use Jimuqu title, or fallback to first user message
         if (detail.title) {
           activeSession.value.title = detail.title
@@ -603,6 +627,7 @@ export const useChatStore = defineStore('chat', () => {
       if (usage) {
         activeSession.value.inputTokens = usage.input_tokens
         activeSession.value.outputTokens = usage.output_tokens
+        activeSession.value.lastTotalTokens = usage.last_total_tokens || undefined
       }
     } catch { /* non-critical */ }
   }
@@ -816,6 +841,7 @@ export const useChatStore = defineStore('chat', () => {
               break
 
             case 'attempt.started':
+              markAgentRunInFlight(sid, evt.agent_run_id)
               addMessage(sid, {
                 id: uid(),
                 role: 'system',
@@ -927,6 +953,7 @@ export const useChatStore = defineStore('chat', () => {
             }
 
             case 'run.completed': {
+              markAgentRunInFlight(sid, evt.agent_run_id)
               const completedSessionId = evt.session_id || sid
               const msgs = getSessionMsgs(sid)
               const lastMsg = msgs[msgs.length - 1]
@@ -938,6 +965,7 @@ export const useChatStore = defineStore('chat', () => {
                 if (target) {
                   target.inputTokens = evt.usage.input_tokens
                   target.outputTokens = evt.usage.output_tokens
+                  target.lastTotalTokens = evt.usage.total_tokens
                 }
               }
               if (evt.reasoning) {
@@ -977,6 +1005,7 @@ export const useChatStore = defineStore('chat', () => {
             }
 
             case 'run.failed': {
+              markAgentRunInFlight(sid, evt.agent_run_id)
               const msgs = getSessionMsgs(sid)
               const lastErr = msgs[msgs.length - 1]
               if (lastErr?.isStreaming) {

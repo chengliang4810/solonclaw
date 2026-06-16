@@ -195,6 +195,25 @@ public class CronJobService {
     }
 
     /**
+     * 查找同一来源下仍未完成的等价定时任务，供会产生副作用的入口实现幂等复用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param body 即将创建的任务参数。
+     * @return 找到可复用任务时返回记录，否则返回 null。
+     */
+    public CronJobRecord findDuplicateCreateJob(String sourceKey, Map<String, Object> body)
+            throws Exception {
+        String normalizedSource = StrUtil.blankToDefault(sourceKey, DEFAULT_SOURCE);
+        for (CronJobRecord job : cronJobRepository.listBySource(normalizedSource)) {
+            if (job == null || isCompleted(job) || !createMatches(job, body)) {
+                continue;
+            }
+            return job;
+        }
+        return null;
+    }
+
+    /**
      * 执行更新相关逻辑。
      *
      * @param jobId job标识。
@@ -394,6 +413,135 @@ public class CronJobService {
             }
         }
         return result;
+    }
+
+    /**
+     * 判断已有任务是否与当前 create 参数等价。
+     *
+     * @param job 已持久化任务。
+     * @param body 即将创建的任务参数。
+     * @return 关键字段一致时返回 true。
+     */
+    private boolean createMatches(CronJobRecord job, Map<String, Object> body) {
+        String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), null);
+        String prompt = string(body.get("prompt"), "");
+        List<String> skills = canonicalSkills(body);
+        String script = string(body.get("script"), null);
+        boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
+        ModelOverride modelOverride =
+                modelOverride(
+                        body.get("model"),
+                        body.get("provider"),
+                        body.get("base_url"),
+                        body.get("baseUrl"),
+                        null,
+                        null,
+                        null);
+        String workdir = normalizeWorkdir(string(body.get("workdir"), null));
+        List<String> dependencyRefs = dependencyRefs(body);
+        String deliver = deliverValue(body.get("deliver"), defaultDeliver(body));
+        boolean wrapResponse =
+                bool(
+                        body.get("wrap_response"),
+                        bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse()));
+        return sameText(job.getName(), defaultJobName(body, prompt, skills, script, noAgent))
+                && sameText(job.getCronExpr(), schedule)
+                && sameText(job.getPrompt(), prompt)
+                && sameText(job.getDeliverPlatform(), deliver)
+                && sameText(
+                        job.getDeliverChatId(),
+                        string(
+                                body.get("deliver_chat_id"),
+                                string(body.get("deliverChatId"), null)))
+                && sameText(
+                        job.getDeliverThreadId(),
+                        string(
+                                body.get("deliver_thread_id"),
+                                string(body.get("deliverThreadId"), null)))
+                && sameJson(job.getOriginJson(), body.get("origin"))
+                && sameJson(job.getSkillsJson(), skills)
+                && job.getRepeatTimes() == intValue(body.get("repeat"), 0)
+                && sameText(job.getScript(), script)
+                && sameText(job.getWorkdir(), workdir)
+                && job.isNoAgent() == noAgent
+                && sameJson(job.getContextFromJson(), dependencyRefs)
+                && sameJson(job.getEnabledToolsetsJson(), cronEnabledToolsets(body))
+                && sameText(job.getModel(), modelOverride.model)
+                && sameText(job.getProvider(), modelOverride.provider)
+                && sameText(job.getBaseUrl(), modelOverride.baseUrl)
+                && job.isWrapResponse() == wrapResponse;
+    }
+
+    /**
+     * 判断任务是否已经完成，完成态历史不参与幂等复用。
+     *
+     * @param job 已持久化任务。
+     * @return 完成态返回 true。
+     */
+    private boolean isCompleted(CronJobRecord job) {
+        return STATUS_COMPLETED.equalsIgnoreCase(StrUtil.nullToEmpty(job.getStatus()));
+    }
+
+    /**
+     * 比较文本字段，null 与空白按同一缺省值处理。
+     *
+     * @param left 已持久化字段。
+     * @param right 当前入参字段。
+     * @return 一致时返回 true。
+     */
+    private boolean sameText(String left, String right) {
+        return StrUtil.nullToEmpty(left).trim().equals(StrUtil.nullToEmpty(right).trim());
+    }
+
+    /**
+     * 比较 JSON 字段，空数组、空对象与未配置值视为等价。
+     *
+     * @param stored 已持久化 JSON。
+     * @param value 当前入参结构。
+     * @return 结构等价时返回 true。
+     */
+    private boolean sameJson(String stored, Object value) {
+        return canonicalJson(stored).equals(canonicalJson(value));
+    }
+
+    /**
+     * 将 JSON 字符串或对象转为稳定结构字符串。
+     *
+     * @param value 待规范化对象。
+     * @return 稳定 JSON 字符串。
+     */
+    private String canonicalJson(Object value) {
+        if (value == null || StrUtil.isBlank(String.valueOf(value))) {
+            return "";
+        }
+        if (emptyJsonValue(value)) {
+            return "";
+        }
+        try {
+            if (value instanceof String) {
+                Object data = ONode.ofJson((String) value).toData();
+                return emptyJsonValue(data) ? "" : ONode.serialize(data);
+            }
+            return ONode.serialize(value);
+        } catch (Exception ignored) {
+            return String.valueOf(value).trim();
+        }
+    }
+
+    /**
+     * 判断 JSON 结构是否等价于未配置值。
+     *
+     * @param value 已解析或原始 JSON 结构。
+     * @return 空数组、空对象和 null 返回 true。
+     */
+    private boolean emptyJsonValue(Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof Iterable && !((Iterable<?>) value).iterator().hasNext()) {
+            return true;
+        }
+        return value instanceof Map && ((Map<?, ?>) value).isEmpty();
     }
 
     /**
@@ -618,9 +766,7 @@ public class CronJobService {
             schedule.put("minutes", CronSupport.intervalMinutes(record.getCronExpr()));
         } else if ("once".equals(scheduleKind)) {
             Long absoluteRunAt = CronSupport.absoluteRunAt(record.getCronExpr());
-            schedule.put(
-                    "run_at",
-                    absoluteRunAt == null ? Long.valueOf(record.getNextRunAt()) : absoluteRunAt);
+            schedule.put("run_at", visibleOnceRunAt(record, absoluteRunAt));
         } else {
             schedule.put("expr", record.getCronExpr());
         }
@@ -669,10 +815,11 @@ public class CronJobService {
                 record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
         result.put(
                 "next_run_at",
-                record.getNextRunAt() <= 0 ? null : Long.valueOf(record.getNextRunAt()));
+                visibleNextRunAt(record));
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeViewText(record.getLastError()));
         result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
+        result.put("diagnostics", diagnostics(record));
         result.put("pending_trigger", safeViewText(record.getPendingTriggerType()));
         result.put("last_output", safeViewText(record.getLastOutput()));
         result.put(
@@ -1266,6 +1413,38 @@ public class CronJobService {
     }
 
     /**
+     * 计算对外可见的下一次运行时间；完成态任务不再暴露历史残留时间，避免误判为待触发。
+     *
+     * @param record 定时任务记录。
+     * @return 可展示的下一次运行时间，完成或无后续触发时返回 null。
+     */
+    private Long visibleNextRunAt(CronJobRecord record) {
+        if (record == null
+                || STATUS_COMPLETED.equalsIgnoreCase(record.getStatus())
+                || record.getNextRunAt() <= 0L) {
+            return null;
+        }
+        return Long.valueOf(record.getNextRunAt());
+    }
+
+    /**
+     * 计算一次性任务的可见计划时间；完成态任务没有后续触发点，视图层统一隐藏。
+     *
+     * @param record 定时任务记录。
+     * @param absoluteRunAt ISO 时间表达式解析出的绝对运行时间。
+     * @return 可展示的一次性运行时间，完成态返回 null。
+     */
+    private Long visibleOnceRunAt(CronJobRecord record, Long absoluteRunAt) {
+        if (record == null || STATUS_COMPLETED.equalsIgnoreCase(record.getStatus())) {
+            return null;
+        }
+        if (absoluteRunAt != null) {
+            return absoluteRunAt;
+        }
+        return record.getNextRunAt() <= 0L ? null : Long.valueOf(record.getNextRunAt());
+    }
+
+    /**
      * 执行actions相关逻辑。
      *
      * @param record 记录参数。
@@ -1404,6 +1583,59 @@ public class CronJobService {
             return false;
         }
         return targetPath.startsWith(rootPath);
+    }
+
+    /**
+     * 生成定时任务诊断信息，帮助控制台把运行失败转换为可操作的修复提示。
+     *
+     * @param record 定时任务记录。
+     * @return 返回诊断信息列表。
+     */
+    private List<Map<String, Object>> diagnostics(CronJobRecord record) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        Map<String, Object> missingScript = missingScriptDiagnostic(record);
+        if (missingScript != null) {
+            result.add(missingScript);
+        }
+        return result;
+    }
+
+    /**
+     * 识别脚本缺失或越界错误，给出保持在 runtime/scripts 下的恢复建议。
+     *
+     * @param record 定时任务记录。
+     * @return 命中时返回诊断项，否则返回 null。
+     */
+    private Map<String, Object> missingScriptDiagnostic(CronJobRecord record) {
+        if (record == null || !record.isNoAgent() || StrUtil.isBlank(record.getScript())) {
+            return null;
+        }
+        String lastError = StrUtil.nullToEmpty(record.getLastError());
+        if (!isMissingCronScriptError(lastError)) {
+            return null;
+        }
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        String script = safeViewText(record.getScript());
+        item.put("code", "cron_script_missing");
+        item.put("level", "error");
+        item.put("message", "定时任务脚本缺失或不在 runtime/scripts 下");
+        item.put("script", script);
+        item.put("runtime_dir", "runtime://scripts");
+        item.put("suggestion", "请恢复脚本到 runtime/scripts 后重试，或编辑任务选择新的脚本。");
+        item.put("retryable_after_fix", Boolean.TRUE);
+        return item;
+    }
+
+    /**
+     * 判断错误是否属于定时任务脚本缺失或越界。
+     *
+     * @param error 错误文本。
+     * @return 如果是脚本缺失或越界错误则返回 true。
+     */
+    private boolean isMissingCronScriptError(String error) {
+        String value = StrUtil.nullToEmpty(error);
+        return value.startsWith("定时任务脚本不在 runtime/scripts 下")
+                || value.startsWith("Cron script not found under runtime/scripts");
     }
 
     /**
@@ -2024,7 +2256,7 @@ public class CronJobService {
         if (value == null || value.isEmpty()) {
             return null;
         }
-        String platform = firstString(value, "platform", "type", "channel");
+        String platform = firstString(value, "platform", "type", "channel", "mode");
         String chatId = firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
         String threadId = firstString(value, "thread_id", "threadId", "message_id", "messageId");
         if (StrUtil.isBlank(platform)) {

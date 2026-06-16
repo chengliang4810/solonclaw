@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -860,12 +861,46 @@ public class SolonClawPatchTools {
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("invalid file path: " + rawPath);
         }
-        Path target = rootPath.resolve(value).normalize();
+        Path target = rootPath.resolve(normalizeWorkspacePath(value)).normalize();
         if (!target.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
         assertResolvedWithinRoot(target);
         return target;
+    }
+
+    /**
+     * 将用户可见的 runtime 根目录前缀折叠到当前工具根，确保 patch 与读写工具使用一致的相对路径语义。
+     *
+     * @param rawPath 用户传入的文件路径。
+     * @return 返回用于解析的工作区相对路径。
+     */
+    private String normalizeWorkspacePath(String rawPath) {
+        String value = StrUtil.nullToEmpty(rawPath);
+        if (StrUtil.isBlank(value)) {
+            return value;
+        }
+        String normalized = value.replace('\\', '/');
+        if (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        if (normalized.startsWith("/")) {
+            return value;
+        }
+        Path fileName = rootPath.getFileName();
+        if (fileName == null) {
+            return value;
+        }
+        String rootName = fileName.toString();
+        if (!"runtime".equalsIgnoreCase(rootName)) {
+            return value;
+        }
+        String prefix = rootName + "/";
+        if (normalized.length() > prefix.length()
+                && normalized.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
+            return normalized.substring(prefix.length());
+        }
+        return value;
     }
 
     /**

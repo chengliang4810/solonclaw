@@ -43,6 +43,8 @@ import com.jimuqu.solon.claw.plugin.AgentPluginManifest;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.plugin.PluginLoadDiagnostic;
 import com.jimuqu.solon.claw.plugin.PluginLoadStatus;
+import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
+import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
@@ -174,6 +176,12 @@ public class DefaultCommandService implements CommandService {
 
     /** 注入浏览器运行时服务，用于调用对应业务能力。 */
     private final BrowserRuntimeService browserRuntimeService;
+
+    /** 注入主动协作诊断服务，用于命令侧只读状态和 why 查询。 */
+    private ProactiveDiagnosticsService proactiveDiagnosticsService;
+
+    /** 注入主动协作仓储，用于命令侧忽略候选。 */
+    private ProactiveRepository proactiveRepository;
 
     /** 保存插件Commands映射，便于按键快速查询。 */
     private final Map<String, CommandHandler> pluginCommands;
@@ -1329,6 +1337,116 @@ public class DefaultCommandService implements CommandService {
         this.pluginManager = pluginManager;
     }
 
+    /**
+     * 创建带主动协作控制面的默认命令服务实例。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param localSkillService 本地技能服务依赖。
+     * @param cronJobRepository 定时任务Job仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param contextService 上下文Service上下文。
+     * @param contextCompressionService 上下文CompressionService上下文。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param appConfig 应用运行配置。
+     * @param globalSettingRepository globalSetting仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param displaySettingsService 展示Settings服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param dashboardMcpService dashboardMCP服务依赖。
+     * @param goalService 目标服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param cronScheduler 定时任务调度器参数。
+     * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param pluginCommands 插件Commands参数。
+     * @param pluginManager 插件Manager参数。
+     * @param dashboardCuratorService dashboardCurator服务依赖。
+     * @param dashboardSkillsService dashboard技能服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
+     * @param proactiveRepository 主动协作仓储依赖。
+     */
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService,
+            Map<String, CommandHandler> pluginCommands,
+            AgentPluginManager pluginManager,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardSkillsService dashboardSkillsService,
+            BrowserRuntimeService browserRuntimeService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            ProactiveRepository proactiveRepository) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                slashConfirmService,
+                pluginCommands,
+                pluginManager,
+                dashboardCuratorService,
+                dashboardSkillsService,
+                browserRuntimeService);
+        this.proactiveDiagnosticsService = proactiveDiagnosticsService;
+        this.proactiveRepository = proactiveRepository;
+    }
+
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
@@ -1717,6 +1835,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_CRON.equals(command)) {
             return handleCron(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_PROACTIVE.equals(command)) {
+            return handleProactive(args);
         }
 
         if (isCompressionCommand(command)) {
@@ -3878,6 +4000,173 @@ public class DefaultCommandService implements CommandService {
         }
         globalSettingRepository.set(AgentSettingConstants.ACTIVE_PERSONALITY, matchedName);
         return GatewayReply.ok("已切换人格为：" + matchedName + "，将从下一条消息开始生效。");
+    }
+
+    /**
+     * 执行主动协作命令相关逻辑；命令只改变控制面设置或候选状态，不触发调度、投递或工具执行。
+     *
+     * @param args 工具或命令参数。
+     * @return 返回主动协作命令结果。
+     */
+    private GatewayReply handleProactive(String args) throws Exception {
+        String[] parts = StrUtil.nullToEmpty(args).trim().split("\\s+", 2);
+        String action =
+                parts.length == 0 || StrUtil.isBlank(parts[0])
+                        ? "status"
+                        : parts[0].trim().toLowerCase(java.util.Locale.ROOT);
+        String tail = parts.length > 1 ? parts[1].trim() : "";
+        GatewayReply reply;
+        if ("status".equals(action) || "state".equals(action)) {
+            reply = GatewayReply.ok(proactiveStatusText());
+        } else if (GatewayCommandConstants.ACTION_PAUSE.equals(action)
+                || "off".equals(action)
+                || "disable".equals(action)) {
+            setProactiveSetting("proactive.enabled", "false");
+            if (appConfig != null && appConfig.getProactive() != null) {
+                appConfig.getProactive().setEnabled(false);
+            }
+            reply = GatewayReply.ok("已暂停主动协作。后续不会主动联系，直到使用 /proactive resume。");
+        } else if (GatewayCommandConstants.ACTION_RESUME.equals(action)
+                || "on".equals(action)
+                || "enable".equals(action)) {
+            setProactiveSetting("proactive.enabled", "true");
+            if (appConfig != null && appConfig.getProactive() != null) {
+                appConfig.getProactive().setEnabled(true);
+            }
+            reply = GatewayReply.ok("已恢复主动协作。系统仍会遵守免打扰、冷却和每日上限。");
+        } else if ("why".equals(action)) {
+            reply = GatewayReply.ok(proactiveWhyText());
+        } else if ("less".equals(action)) {
+            int cooldown =
+                    Math.min(
+                            24 * 60,
+                            Math.max(
+                                            30,
+                                            appConfig.getProactive().getCooldownMinutes())
+                                    + 60);
+            int dailyMax = Math.max(1, appConfig.getProactive().getDailyMaxContacts() - 1);
+            setProactiveSetting("proactive.cooldownMinutes", String.valueOf(cooldown));
+            setProactiveSetting("proactive.dailyMaxContacts", String.valueOf(dailyMax));
+            appConfig.getProactive().setCooldownMinutes(cooldown);
+            appConfig.getProactive().setDailyMaxContacts(dailyMax);
+            reply =
+                    GatewayReply.ok(
+                            "已降低主动联系频率：冷却时间 "
+                                    + cooldown
+                                    + " 分钟，每日最多 "
+                                    + dailyMax
+                                    + " 次。");
+        } else if ("more".equals(action)) {
+            int cooldown = Math.max(15, appConfig.getProactive().getCooldownMinutes() - 60);
+            int dailyMax = Math.min(12, appConfig.getProactive().getDailyMaxContacts() + 1);
+            setProactiveSetting("proactive.cooldownMinutes", String.valueOf(cooldown));
+            setProactiveSetting("proactive.dailyMaxContacts", String.valueOf(dailyMax));
+            appConfig.getProactive().setCooldownMinutes(cooldown);
+            appConfig.getProactive().setDailyMaxContacts(dailyMax);
+            reply =
+                    GatewayReply.ok(
+                            "已提高主动联系频率：冷却时间 "
+                                    + cooldown
+                                    + " 分钟，每日最多 "
+                                    + dailyMax
+                                    + " 次。");
+        } else if ("ignore".equals(action)) {
+            reply = GatewayReply.ok(ignoreProactiveCandidate(tail));
+        } else {
+            reply = GatewayReply.error(proactiveUsage());
+        }
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_PROACTIVE);
+        reply.getRuntimeMetadata().put("action", action);
+        return reply;
+    }
+
+    /**
+     * 生成主动协作状态文本。
+     *
+     * @return 主动协作状态文本。
+     */
+    private String proactiveStatusText() {
+        if (proactiveDiagnosticsService != null) {
+            return proactiveDiagnosticsService.statusLine();
+        }
+        AppConfig.ProactiveConfig config = appConfig.getProactive();
+        return "主动协作"
+                + (config.isEnabled() ? "已启用" : "已暂停")
+                + "，检查间隔 "
+                + config.getIntervalMinutes()
+                + " 分钟，每日最多 "
+                + config.getDailyMaxContacts()
+                + " 次。";
+    }
+
+    /**
+     * 生成最近一次主动协作决策解释。
+     *
+     * @return 决策解释文本。
+     */
+    private String proactiveWhyText() {
+        if (proactiveDiagnosticsService == null) {
+            return "主动协作诊断服务尚未启用。";
+        }
+        com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord decision =
+                proactiveDiagnosticsService.latestDecision();
+        if (decision == null) {
+            return "暂无主动协作决策记录。可以在 Dashboard 诊断里检查 home channel、免打扰和候选生成状态。";
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("最近一次主动协作决策：")
+                .append(StrUtil.blankToDefault(decision.getDecision(), "-"));
+        if (StrUtil.isNotBlank(decision.getReason())) {
+            buffer.append("\n原因：").append(SecretRedactor.redact(decision.getReason(), 800));
+        }
+        if (StrUtil.isNotBlank(decision.getDeliveryStatus())) {
+            buffer.append("\n投递状态：").append(decision.getDeliveryStatus());
+        }
+        if (StrUtil.isNotBlank(decision.getDeliveryError())) {
+            buffer.append("\n投递错误：").append(SecretRedactor.redact(decision.getDeliveryError(), 500));
+        }
+        buffer.append("\n时间：").append(formatTimestamp(decision.getCreatedAt()));
+        return buffer.toString();
+    }
+
+    /**
+     * 忽略指定主动协作候选。
+     *
+     * @param candidateId 候选 ID。
+     * @return 用户可见结果。
+     */
+    private String ignoreProactiveCandidate(String candidateId) throws Exception {
+        if (proactiveRepository == null) {
+            return "主动协作仓储尚未启用，无法忽略候选。";
+        }
+        if (StrUtil.isBlank(candidateId)) {
+            return proactiveUsage();
+        }
+        proactiveRepository.markCandidateStatus(
+                candidateId.trim(), "IGNORED", "user-command", System.currentTimeMillis());
+        return "已忽略主动协作候选：" + candidateId.trim();
+    }
+
+    /**
+     * 写入主动协作运行时设置覆盖。
+     *
+     * @param key 设置键。
+     * @param value 设置值。
+     */
+    private void setProactiveSetting(String key, String value) throws Exception {
+        if (globalSettingRepository != null) {
+            globalSettingRepository.set(key, value);
+        }
+    }
+
+    /**
+     * 生成主动协作命令用法文本。
+     *
+     * @return 用法文本。
+     */
+    private String proactiveUsage() {
+        return "用法：/proactive status|pause|resume|why|less|more|ignore <candidateId>";
     }
 
     /** 执行定时任务命令相关逻辑。 */

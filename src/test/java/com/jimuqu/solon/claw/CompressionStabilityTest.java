@@ -426,6 +426,38 @@ public class CompressionStabilityTest {
         assertThat(compressed.getNdjson()).contains("必须保留的最后用户消息");
     }
 
+    /** 验证压缩摘要和写回的 NDJSON 都保留中文，不把长会话状态写成乱码。 */
+    @Test
+    void shouldPreserveChineseTextInSummaryAndNdjsonWhenCompressing() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setProtectHeadMessages(1);
+        config.getCompression().setTailRatio(0.01D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-chinese-compression");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("长期回归 Loop：验证历史状态连续"),
+                                ChatMessage.ofAssistant("已经完成日志检索，下一步验证会话恢复。"),
+                                ChatMessage.ofUser("长期回归 Loop：请继续检查 todo 状态是否保留"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary())
+                .contains("已经完成日志检索")
+                .contains("请继续检查 todo 状态是否保留")
+                .doesNotContain("闀挎湡")
+                .doesNotContain("�");
+        assertThat(compressed.getNdjson())
+                .contains("长期回归 Loop")
+                .contains("请继续检查 todo 状态是否保留")
+                .doesNotContain("闀挎湡")
+                .doesNotContain("�");
+    }
+
     @Test
     void shouldPreserveRecentCompactedTurnsInSummaryWithoutCopyingProtectedTail() throws Exception {
         AppConfig config = config();

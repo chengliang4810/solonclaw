@@ -64,8 +64,13 @@ export interface ToolCall {
   result_preview?: string
   result_ref?: string
   error?: string
+  read_only?: boolean
   interruptible?: boolean
   side_effecting?: boolean
+  result_indexable?: boolean
+  output_limit_bytes?: number
+  result_size_bytes?: number
+  execution_policy?: string
   started_at: number
   finished_at: number
   duration_ms: number

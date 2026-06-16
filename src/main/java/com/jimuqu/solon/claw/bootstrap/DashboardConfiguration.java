@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -19,6 +20,8 @@ import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
+import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -97,10 +100,12 @@ public class DashboardConfiguration {
      * @param appConfig 应用运行配置。
      * @param sessionRepository 会话仓储依赖。
      * @param deliveryService 投递服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
      * @param appVersionService 应用版本服务依赖。
      * @param appUpdateService 应用Update服务依赖。
      * @param llmProviderService LLM提供方Service标识或键值。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
      * @return 返回控制台状态服务结果。
      */
     @Bean
@@ -108,18 +113,38 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             SessionRepository sessionRepository,
             DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             AppVersionService appVersionService,
             AppUpdateService appUpdateService,
-            LlmProviderService llmProviderService) {
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService) {
         return new DashboardStatusService(
                 appConfig,
                 sessionRepository,
                 deliveryService,
+                agentRunControlService,
                 gatewayRuntimeRefreshService,
                 appVersionService,
                 appUpdateService,
-                llmProviderService);
+                llmProviderService,
+                proactiveDiagnosticsService);
+    }
+
+    /**
+     * 执行主动协作诊断服务相关逻辑。
+     *
+     * @param appConfig 应用运行配置。
+     * @param proactiveRepository 主动协作仓储依赖。
+     * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @return 返回主动协作诊断服务结果。
+     */
+    @Bean
+    public ProactiveDiagnosticsService proactiveDiagnosticsService(
+            AppConfig appConfig,
+            ProactiveRepository proactiveRepository,
+            com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository gatewayPolicyRepository) {
+        return new ProactiveDiagnosticsService(appConfig, proactiveRepository, gatewayPolicyRepository);
     }
 
     /**
@@ -207,6 +232,7 @@ public class DashboardConfiguration {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
      * @return 返回控制台诊断服务结果。
      */
     @Bean
@@ -228,7 +254,8 @@ public class DashboardConfiguration {
             RuntimeMemoryMonitorService runtimeMemoryMonitorService,
             AgentRunRepository agentRunRepository,
             ProcessRegistry processRegistry,
-            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -247,7 +274,8 @@ public class DashboardConfiguration {
                 runtimeMemoryMonitorService,
                 agentRunRepository,
                 processRegistry,
-                gatewayRuntimeRefreshService);
+                gatewayRuntimeRefreshService,
+                proactiveDiagnosticsService);
     }
 
     /**
@@ -267,11 +295,16 @@ public class DashboardConfiguration {
      * 执行控制台Logs服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
+     * @param agentRunRepository Agent 运行仓储依赖。
+     * @param cronJobRepository 定时任务仓储依赖。
      * @return 返回控制台Logs服务结果。
      */
     @Bean
-    public DashboardLogsService dashboardLogsService(AppConfig appConfig) {
-        return new DashboardLogsService(appConfig);
+    public DashboardLogsService dashboardLogsService(
+            AppConfig appConfig,
+            AgentRunRepository agentRunRepository,
+            CronJobRepository cronJobRepository) {
+        return new DashboardLogsService(appConfig, agentRunRepository, cronJobRepository);
     }
 
     /**

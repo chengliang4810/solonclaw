@@ -117,6 +117,38 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldKeepCompressionCountWhenCompressedRunCompletes() throws Exception {
+        Fixture fixture = fixture();
+        SuccessfulGateway gateway = new SuccessfulGateway("compressed ok");
+        MutatingCompressionService compressionService = new MutatingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, compressingBudget(), compressionService);
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:compressed:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "hello",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        AgentRunRecord persisted =
+                fixture.agentRunRepository.findRun(outcome.getRunRecord().getRunId());
+
+        assertThat(outcome.getRunRecord().getCompressionCount()).isEqualTo(1);
+        assertThat(persisted.getCompressionCount()).isEqualTo(1);
+        assertThat(compressionService.compressCount).isEqualTo(1);
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(persisted.getRunId())))
+                .contains("compression.done");
+    }
+
+    @Test
     void shouldRedactSubagentAndRecoveryRecordsBeforeStorage() throws Exception {
         Fixture fixture = fixture();
         AgentRunRecord run = new AgentRunRecord();
@@ -308,6 +340,52 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldFailRunWhenRequiredToolsWereNotActuallyCompleted() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new SuccessfulGateway("我已经调用 session_search 并完成验证"),
+                        noCompressionBudget(),
+                        noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:required-tool:user");
+
+        boolean failed = false;
+        try {
+            supervisor.run(
+                    session,
+                    "system",
+                    "必须调用 session_search",
+                    Collections.emptyList(),
+                    ConversationFeedbackSink.noop(),
+                    ConversationEventSink.noop(),
+                    false,
+                    null,
+                    Collections.emptyList(),
+                    null,
+                    Collections.singletonList("session_search"),
+                    Collections.singletonList("session_search"),
+                    Integer.valueOf(1));
+        } catch (Exception expected) {
+            failed = true;
+            assertThat(expected.getMessage()).contains("必需工具未真实完成");
+        }
+        assertThat(failed).isTrue();
+
+        List<AgentRunRecord> runs = fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
+        assertThat(runs).hasSize(1);
+        AgentRunRecord run = runs.get(0);
+        assertThat(run.getStatus()).isEqualTo("failed");
+        assertThat(run.getError()).contains("session_search");
+        assertThat(run.getToolCallCount()).isEqualTo(0);
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
+                .contains("tool.required.missing", "attempt.error", "run.failed");
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
+                .doesNotContain("fallback");
+    }
+
+    @Test
     void shouldRedactRecoveryFailureLogs() throws Exception {
         Fixture fixture = fixture();
         String leakedToken = "sk-supervisor-recovery12345";
@@ -472,6 +550,49 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldNotDenyCompletedToolResultDuringMaxStepsRecovery() throws Exception {
+        Fixture fixture = fixture();
+        RecoveryTranscriptGateway gateway =
+                new RecoveryTranscriptGateway(
+                        ChatMessage.toNdjson(
+                                java.util.Arrays.asList(
+                                        ChatMessage.ofUser("创建一次性提醒"),
+                                        ChatMessage.ofTool(
+                                                "{\"success\":true,\"job_id\":\"job_123\",\"next_run_at\":\"2026-06-15T02:13:43+08:00\",\"deliver\":\"origin\"}",
+                                                "cronjob",
+                                                "call_cron_1"),
+                                        ChatMessage.ofAssistant(
+                                                "Agent error: Maximum steps reached (12)."))),
+                        "抱歉，任务尚未完成。我没有成功执行工具调用。");
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:room:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "创建一次性提醒",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        SessionRecord updated = fixture.sessionRepository.findById(session.getSessionId());
+        String persisted = updated.getNdjson();
+        assertThat(outcome.getFinalReply()).contains("已执行工具调用");
+        assertThat(outcome.getFinalReply()).contains("cronjob");
+        assertThat(outcome.getFinalReply()).contains("job_123");
+        assertThat(outcome.getFinalReply()).doesNotContain("没有成功执行工具");
+        assertThat(persisted).contains("已执行工具调用");
+        assertThat(persisted).contains("job_123");
+        assertThat(persisted).doesNotContain("没有成功执行工具");
+    }
+
+    @Test
     void shouldMarkQueuedRunCompletedWhenBusyQueueDrains() throws Exception {
         Fixture fixture = fixture();
         RecordingGateway gateway = new RecordingGateway();
@@ -536,8 +657,15 @@ public class AgentRunSupervisorTest {
     private static Fixture fixture() throws Exception {
         AppConfig config = new AppConfig();
         File runtimeHome = Files.createTempDirectory("solon-claw-supervisor").toFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime()
                 .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        writeProviderConfig(runtimeHome);
         config.getTrace().setMaxAttempts(1);
 
         AppConfig.ProviderConfig primary = new AppConfig.ProviderConfig();
@@ -567,6 +695,34 @@ public class AgentRunSupervisorTest {
         fixture.sessionRepository = new SqliteSessionRepository(database);
         fixture.agentRunRepository = new SqliteAgentRunRepository(database);
         return fixture;
+    }
+
+    /**
+     * 写入测试专用运行时模型配置，避免全局 RuntimeConfigResolver 读取本机默认 runtime。
+     *
+     * @param runtimeHome 测试运行时根目录。
+     */
+    private static void writeProviderConfig(File runtimeHome) throws Exception {
+        Files.write(
+                new File(runtimeHome, "config.yml").toPath(),
+                Collections.singletonList(
+                        "providers:\n"
+                                + "  primary:\n"
+                                + "    name: Primary\n"
+                                + "    baseUrl: https://api.openai.com\n"
+                                + "    apiKey: primary-key\n"
+                                + "    defaultModel: gpt-5-mini\n"
+                                + "    dialect: openai-responses\n"
+                                + "  backup:\n"
+                                + "    name: Backup\n"
+                                + "    baseUrl: https://api.anthropic.com\n"
+                                + "    apiKey: backup-key\n"
+                                + "    defaultModel: claude-sonnet-4\n"
+                                + "    dialect: anthropic\n"
+                                + "model:\n"
+                                + "  providerKey: primary\n"
+                                + "fallbackProviders:\n"
+                                + "  - provider: backup\n"));
     }
 
     private static ContextBudgetService noCompressionBudget() {
@@ -661,6 +817,49 @@ public class AgentRunSupervisorTest {
             result.setModel(resolved.getModel());
             result.setRawResponse("ok");
             result.setAssistantMessage(new AssistantMessage("backup ok"));
+            result.setNdjson(session.getNdjson());
+            return result;
+        }
+    }
+
+    private static class SuccessfulGateway implements LlmGateway {
+        private final String reply;
+
+        private SuccessfulGateway(String reply) {
+            this.reply = reply;
+        }
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setRawResponse("ok");
+            result.setAssistantMessage(new AssistantMessage(reply));
             result.setNdjson(session.getNdjson());
             return result;
         }
@@ -868,6 +1067,45 @@ public class AgentRunSupervisorTest {
         @Override
         public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
             compressCount++;
+            return session;
+        }
+    }
+
+    private static class MutatingCompressionService implements ContextCompressionService {
+        private int compressCount;
+
+        @Override
+        public SessionRecord compressIfNeeded(
+                SessionRecord session, String systemPrompt, String userMessage)
+                throws Exception {
+            return mutate(session);
+        }
+
+        @Override
+        public SessionRecord compressNow(SessionRecord session, String systemPrompt)
+                throws Exception {
+            return mutate(session);
+        }
+
+        @Override
+        public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus)
+                throws Exception {
+            return mutate(session);
+        }
+
+        /**
+         * 模拟一次真正改变会话历史的压缩，验证运行完成保存不会覆盖压缩次数。
+         *
+         * @param session 当前测试会话。
+         * @return 返回已写入压缩摘要的会话。
+         */
+        private SessionRecord mutate(SessionRecord session) throws Exception {
+            compressCount++;
+            List<ChatMessage> messages = new ArrayList<ChatMessage>();
+            messages.add(ChatMessage.ofAssistant("压缩摘要 #" + compressCount));
+            session.setCompressedSummary("压缩摘要 #" + compressCount);
+            session.setNdjson(MessageSupport.toNdjson(messages));
+            session.setLastCompressionAt(System.currentTimeMillis());
             return session;
         }
     }

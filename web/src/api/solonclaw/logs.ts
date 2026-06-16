@@ -50,11 +50,13 @@ export async function fetchLogs(name: string, params?: {
   level?: string
   session?: string
   since?: string
+  query?: string
 }): Promise<LogEntry[]> {
   const query = new URLSearchParams()
   query.set('file', name)
   if (params?.lines) query.set('lines', String(params.lines))
   if (params?.level) query.set('level', params.level)
+  if (params?.query) query.set('query', params.query)
   const res = await request<{ file: string; lines: string[] }>(`/api/logs?${query}`)
   return (res.lines || []).map(parseLine)
 }

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -15,6 +16,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -22,6 +24,7 @@ import java.util.Map;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 默认会话搜索服务。 */
 public class DefaultSessionSearchService implements SessionSearchService {
@@ -83,6 +86,20 @@ public class DefaultSessionSearchService implements SessionSearchService {
     @Override
     public List<SessionSearchEntry> search(String sourceKey, String query, int limit)
             throws Exception {
+        return search(sourceKey, query, limit, false);
+    }
+
+    /**
+     * 执行搜索相关逻辑，并按调用方要求决定是否额外调用模型生成聚焦总结。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param summarize 是否调用模型生成搜索聚焦总结；默认工具路径关闭以保证长会话检索延迟稳定。
+     * @return 返回搜索结果。
+     */
+    private List<SessionSearchEntry> search(
+            String sourceKey, String query, int limit, boolean summarize) throws Exception {
         int resolvedLimit = Math.max(1, Math.min(limit <= 0 ? DEFAULT_LIMIT : limit, MAX_LIMIT));
         SessionRecord currentSession =
                 StrUtil.isBlank(sourceKey) ? null : sessionRepository.getBoundSession(sourceKey);
@@ -94,13 +111,22 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         : sessionRepository.search(query.trim(), Math.max(10, resolvedLimit * 5));
 
         Map<String, SearchCandidate> grouped = new LinkedHashMap<String, SearchCandidate>();
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        // 当前绑定会话的压缩摘要可能尚未进入底层索引，仅对摘要命中走快速召回，避免后续复盘文本抢占原始目标会话。
+        if (StrUtil.isNotBlank(query)
+                && currentSession != null
+                && compressedSummaryMatches(currentSession, normalizedQuery)) {
+            grouped.put(currentRootId, new SearchCandidate(currentSession, currentSession));
+        }
         for (SessionRecord candidate : raw) {
             if (candidate == null) {
                 continue;
             }
             String rootId = resolveRootId(candidate);
             if (StrUtil.isNotBlank(currentRootId) && currentRootId.equals(rootId)) {
-                continue;
+                if (StrUtil.isBlank(query) || !sessionMatchesQuery(candidate, query)) {
+                    continue;
+                }
             }
             if (!grouped.containsKey(rootId)) {
                 SessionRecord display = candidate;
@@ -112,7 +138,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 }
                 grouped.put(rootId, new SearchCandidate(display, candidate));
             }
-            if (grouped.size() >= resolvedLimit) {
+            if (StrUtil.isBlank(query) && grouped.size() >= resolvedLimit) {
                 break;
             }
         }
@@ -133,16 +159,26 @@ public class DefaultSessionSearchService implements SessionSearchService {
             entry.setMatchPreview(buildPreview(representative, query));
             entry.setSnippet(entry.getMatchPreview());
             entry.setMessageId(findPreviewMessageId(representative, query));
+            entry.setScore(scoreMatch(representative, query));
             if (StrUtil.isBlank(query)) {
                 entry.setSummary(entry.getMatchPreview());
-            } else {
+            } else if (summarize) {
                 entry.setSummary(
                         buildSummary(
                                 currentSession, representative, query, entry.getMatchPreview()));
+            } else {
+                entry.setSummary(buildDeterministicSummary(representative, query, entry));
             }
             results.add(entry);
         }
-        return results;
+        if (StrUtil.isNotBlank(query)) {
+            appendRunResults(sourceKey, query, resolvedLimit, results);
+            appendRunEventResults(sourceKey, query, resolvedLimit, results);
+            appendToolCallResults(sourceKey, query, resolvedLimit, results);
+            results = retainConfirmedDiscoveryResults(results);
+            sortDiscoveryResults(results);
+        }
+        return limitResults(results, resolvedLimit);
     }
 
     /**
@@ -164,7 +200,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return scroll(query);
         }
         List<SessionSearchEntry> entries =
-                search(query.getSourceKey(), query.getQuery(), query.getLimit());
+                search(query.getSourceKey(), query.getQuery(), query.getLimit(), query.isSummarize());
         List<SessionSearchEntry> filtered = new ArrayList<SessionSearchEntry>();
         for (SessionSearchEntry entry : entries) {
             if (StrUtil.isNotBlank(query.getSessionId())
@@ -216,7 +252,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
                             query.getTimeFrom(),
                             query.getTimeTo(),
                             limit)) {
-                SessionSearchEntry entry = entryFromToolCall(toolCall);
+                SessionSearchEntry entry = entryFromToolCall(toolCall, query.getQuery());
                 results.put(entryKey(entry), entry);
                 if (results.size() >= limit) {
                     break;
@@ -249,6 +285,17 @@ public class DefaultSessionSearchService implements SessionSearchService {
      * @return 返回entry From运行结果。
      */
     private SessionSearchEntry entryFromRun(AgentRunRecord run) throws Exception {
+        return entryFromRun(run, null);
+    }
+
+    /**
+     * 执行entryFrom运行相关逻辑，并在提供查询词时生成可解释命中片段与分数。
+     *
+     * @param run 运行参数。
+     * @param query 查询参数。
+     * @return 返回entry From运行结果。
+     */
+    private SessionSearchEntry entryFromRun(AgentRunRecord run, String query) throws Exception {
         SessionRecord session =
                 StrUtil.isBlank(run.getSessionId())
                         ? null
@@ -262,16 +309,12 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setUpdatedAt(Math.max(run.getLastActivityAt(), run.getStartedAt()));
         entry.setMode("discovery");
         entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
-        entry.setMatchPreview(
-                firstNonBlank(
-                        run.getFinalReplyPreview(),
-                        run.getInputPreview(),
-                        run.getError(),
-                        run.getStatus()));
+        entry.setMatchPreview(runPreview(run, query));
         entry.setSummary(entry.getMatchPreview());
         entry.setSnippet(entry.getMatchPreview());
         entry.setRunId(run.getRunId());
         entry.setChannel(run.getSourceKey());
+        entry.setScore(scoreRun(run, query));
         return entry;
     }
 
@@ -282,6 +325,18 @@ public class DefaultSessionSearchService implements SessionSearchService {
      * @return 返回entry From工具Call结果。
      */
     private SessionSearchEntry entryFromToolCall(ToolCallRecord record) throws Exception {
+        return entryFromToolCall(record, null);
+    }
+
+    /**
+     * 执行entryFrom工具Call相关逻辑，并在提供查询词时生成可解释命中片段与分数。
+     *
+     * @param record 记录参数。
+     * @param query 查询参数。
+     * @return 返回entry From工具Call结果。
+     */
+    private SessionSearchEntry entryFromToolCall(ToolCallRecord record, String query)
+            throws Exception {
         SessionRecord session =
                 StrUtil.isBlank(record.getSessionId())
                         ? null
@@ -295,17 +350,45 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setUpdatedAt(Math.max(record.getFinishedAt(), record.getStartedAt()));
         entry.setMode("discovery");
         entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
-        entry.setMatchPreview(
-                firstNonBlank(
-                        record.getResultPreview(),
-                        record.getArgsPreview(),
-                        record.getError(),
-                        record.getToolName()));
+        entry.setMatchPreview(toolCallPreview(record, query));
         entry.setSummary(entry.getMatchPreview());
         entry.setSnippet(entry.getMatchPreview());
         entry.setRunId(record.getRunId());
         entry.setToolName(record.getToolName());
         entry.setChannel(record.getSourceKey());
+        entry.setScore(scoreToolCall(record, query));
+        return entry;
+    }
+
+    /**
+     * 将运行事件转换为会话搜索结果，方便长期任务用 session_search 找回审计时间线。
+     *
+     * @param record 运行事件记录。
+     * @param query 查询参数。
+     * @return 返回会话搜索结果条目。
+     */
+    private SessionSearchEntry entryFromRunEvent(AgentRunEventRecord record, String query)
+            throws Exception {
+        SessionRecord session =
+                StrUtil.isBlank(record.getSessionId())
+                        ? null
+                        : sessionRepository.findById(record.getSessionId());
+        SessionSearchEntry entry = new SessionSearchEntry();
+        entry.setSessionId(record.getSessionId());
+        entry.setBranchName(session == null ? null : session.getBranchName());
+        entry.setTitle(
+                StrUtil.blankToDefault(
+                        session == null ? null : session.getTitle(), "run-" + record.getRunId()));
+        entry.setUpdatedAt(record.getCreatedAt());
+        entry.setMode("discovery");
+        entry.setPlatformMessageId(session == null ? null : session.getPlatformMessageId());
+        entry.setMatchPreview(runEventPreview(record, query));
+        entry.setSummary(entry.getMatchPreview());
+        entry.setSnippet(entry.getMatchPreview());
+        entry.setRunId(record.getRunId());
+        entry.setToolName("event:" + StrUtil.blankToDefault(record.getEventType(), "unknown"));
+        entry.setChannel(record.getSourceKey());
+        entry.setScore(scoreRunEvent(record, query));
         return entry;
     }
 
@@ -406,6 +489,27 @@ public class DefaultSessionSearchService implements SessionSearchService {
     }
 
     /**
+     * 构建无需模型调用的搜索摘要，避免会话搜索工具在长对话中因为额外总结模型调用而阻塞主循环。
+     *
+     * @param representative 命中的代表会话。
+     * @param query 查询参数。
+     * @param entry 已组装的搜索结果条目。
+     * @return 返回确定性搜索摘要。
+     */
+    private String buildDeterministicSummary(
+            SessionRecord representative, String query, SessionSearchEntry entry) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("搜索主题：").append(StrUtil.blankToDefault(query, "最近会话"));
+        buffer.append("\n命中会话：").append(resolveTitle(representative, representative));
+        if (StrUtil.isNotBlank(entry.getMessageId())) {
+            buffer.append("\n命中位置：").append(entry.getMessageId());
+        }
+        buffer.append("\n匹配片段：")
+                .append(StrUtil.blankToDefault(entry.getMatchPreview(), "未生成匹配片段"));
+        return trim(buffer.toString(), 1200);
+    }
+
+    /**
      * 提取Text。
      *
      * @param assistantMessage assistant消息参数。
@@ -433,6 +537,10 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private String formatConversation(SessionRecord session) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         StringBuilder buffer = new StringBuilder();
+        if (StrUtil.isNotBlank(session.getCompressedSummary())) {
+            buffer.append("Compressed summary: ")
+                    .append(trim(session.getCompressedSummary(), 1200));
+        }
         for (ChatMessage message : messages) {
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
             if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
@@ -517,18 +625,49 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private String findPreviewMessageId(SessionRecord session, String query) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return "compressed_summary";
+        }
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
-            String content = StrUtil.nullToEmpty(message.getContent()).trim();
+            String content = messageSearchText(message);
             if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
                 continue;
             }
-            if (normalizedQuery.length() == 0
-                    || content.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            if (normalizedQuery.length() == 0 || textMatchesQuery(content, normalizedQuery)) {
                 return resolveMessageId(message, i);
             }
         }
         return null;
+    }
+
+    /**
+     * 判断会话自身是否命中检索词；非空检索允许召回当前会话里被压缩摘要承载的历史 marker。
+     *
+     * @param session 会话记录。
+     * @param query 查询参数。
+     * @return 命中时返回 true。
+     */
+    private boolean sessionMatchesQuery(SessionRecord session, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (session == null || normalizedQuery.length() == 0) {
+            return false;
+        }
+        return containsIgnoreCase(session.getNdjson(), normalizedQuery)
+                || containsIgnoreCase(session.getCompressedSummary(), normalizedQuery)
+                || containsIgnoreCase(session.getTitle(), normalizedQuery);
+    }
+
+    /**
+     * 判断文本是否包含已归一化的检索词。
+     *
+     * @param value 待搜索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 命中时返回 true。
+     */
+    private boolean containsIgnoreCase(String value, String normalizedQuery) {
+        return StrUtil.isNotBlank(value)
+                && value.toLowerCase(Locale.ROOT).contains(normalizedQuery);
     }
 
     /**
@@ -564,18 +703,873 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private String buildPreview(SessionRecord session, String query) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return trimAroundMatch(session.getCompressedSummary(), normalizedQuery);
+        }
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
-            String content = StrUtil.nullToEmpty(message.getContent()).trim();
+            String content = messageSearchText(message);
             if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
                 continue;
             }
-            if (normalizedQuery.length() == 0
-                    || content.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            if (normalizedQuery.length() == 0 || textMatchesQuery(content, normalizedQuery)) {
                 return trimAroundMatch(content, normalizedQuery);
             }
         }
+        if (StrUtil.isNotBlank(session.getTitle())
+                && (normalizedQuery.length() == 0
+                        || session.getTitle().toLowerCase(Locale.ROOT).contains(normalizedQuery))) {
+            return trimAroundMatch(session.getTitle(), normalizedQuery);
+        }
+        if (normalizedQuery.length() > 0
+                && containsIgnoreCase(session.getNdjson(), normalizedQuery)) {
+            return trimAroundMatch(session.getNdjson(), normalizedQuery);
+        }
         return "";
+    }
+
+    /**
+     * 计算发现模式的可解释命中分值，避免压缩摘要召回只返回 score=0。
+     *
+     * @param session 会话记录。
+     * @param query 查询参数。
+     * @return 命中强度分值；0 表示未能确认直接命中。
+     */
+    private long scoreMatch(SessionRecord session, String query) throws Exception {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (session == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return 100L;
+        }
+        if (containsIgnoreCase(session.getSessionId(), normalizedQuery)) {
+            return 95L;
+        }
+        if (containsIgnoreCase(session.getTitle(), normalizedQuery)) {
+            return 90L;
+        }
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        for (ChatMessage message : messages) {
+            String content = messageSearchText(message);
+            if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
+                continue;
+            }
+            if (content.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+                return 80L;
+            }
+        }
+        if (containsIgnoreCase(session.getNdjson(), normalizedQuery)) {
+            return 75L;
+        }
+        long partialScore = scorePartialText(sessionSearchText(session), normalizedQuery);
+        if (partialScore > 0L) {
+            return partialScore;
+        }
+        return 0L;
+    }
+
+    /**
+     * 将当前来源下已落盘的工具调用加入普通发现搜索，覆盖同轮工具写入尚未进入会话索引的窗口。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param results 待追加结果。
+     */
+    private void appendToolCallResults(
+            String sourceKey, String query, int limit, List<SessionSearchEntry> results) {
+        if (agentRunRepository == null || StrUtil.isBlank(query)) {
+            return;
+        }
+        try {
+            int searchLimit = Math.max(10, limit * 5);
+            List<ToolCallRecord> matched =
+                    agentRunRepository.searchToolCalls(
+                            sourceKey, null, null, null, query, 0L, 0L, searchLimit);
+            appendScoredToolCallResults(matched, query, results);
+            if (!hasToolCallEvidence(results)) {
+                // 带会话 marker 的恢复查询常把 session_id 和工具名组合在一起，仓储 LIKE 不一定能直接命中工具参数。
+                List<ToolCallRecord> recent =
+                        agentRunRepository.searchToolCalls(
+                                sourceKey, null, null, null, null, 0L, 0L, searchLimit);
+                appendScoredToolCallResults(recent, query, results);
+            }
+            if (!hasToolCallEvidence(results) && StrUtil.isNotBlank(sourceKey)) {
+                // Web 端每轮回归会话会生成新的 sourceKey；恢复型检索需要跨 Web 会话找回已落盘的工具证据。
+                List<ToolCallRecord> globalRecent =
+                        agentRunRepository.searchToolCalls(
+                                null, null, null, null, null, 0L, 0L, searchLimit);
+                appendScoredToolCallResults(globalRecent, query, results);
+            }
+        } catch (Exception ignored) {
+            // 工具调用检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        }
+    }
+
+    /**
+     * 将候选工具调用按服务层评分追加到搜索结果中，保证仓储宽召回后仍由严格命中规则兜底。
+     *
+     * @param records 候选工具调用记录。
+     * @param query 查询参数。
+     * @param results 待追加结果。
+     */
+    private void appendScoredToolCallResults(
+            List<ToolCallRecord> records, String query, List<SessionSearchEntry> results)
+            throws Exception {
+        if (records == null) {
+            return;
+        }
+        for (ToolCallRecord record : records) {
+            if (record == null || "session_search".equalsIgnoreCase(record.getToolName())) {
+                continue;
+            }
+            SessionSearchEntry entry = entryFromToolCall(record, query);
+            if (entry.getScore() > 0L) {
+                results.add(entry);
+            }
+        }
+    }
+
+    /**
+     * 判断当前结果中是否已经有工具调用证据，避免不必要地回退扫描最近工具调用。
+     *
+     * @param results 当前搜索结果。
+     * @return 已存在工具调用证据时返回 true。
+     */
+    private boolean hasToolCallEvidence(List<SessionSearchEntry> results) {
+        if (results == null) {
+            return false;
+        }
+        for (SessionSearchEntry entry : results) {
+            if (entry != null
+                    && StrUtil.isNotBlank(entry.getRunId())
+                    && StrUtil.isNotBlank(entry.getToolName())
+                    && !entry.getToolName().startsWith("event:")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 将当前来源下匹配的运行终态加入普通发现搜索，补齐压缩摘要命中时最终回复证据不可见的问题。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param results 待追加结果。
+     */
+    private void appendRunResults(
+            String sourceKey, String query, int limit, List<SessionSearchEntry> results) {
+        if (agentRunRepository == null || StrUtil.isBlank(query)) {
+            return;
+        }
+        try {
+            int searchLimit = Math.max(10, limit * 5);
+            for (AgentRunRecord record :
+                    agentRunRepository.searchRuns(sourceKey, null, null, query, 0L, 0L, searchLimit)) {
+                if (record == null) {
+                    continue;
+                }
+                SessionSearchEntry entry = entryFromRun(record, query);
+                if (entry.getScore() > 0L) {
+                    results.add(entry);
+                }
+            }
+        } catch (Exception ignored) {
+            // 运行记录检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        }
+    }
+
+    /**
+     * 将当前来源下匹配的运行事件加入普通发现搜索，让工具审批、恢复、压缩等审计事件可被 Agent 回忆。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param results 待追加结果。
+     */
+    private void appendRunEventResults(
+            String sourceKey, String query, int limit, List<SessionSearchEntry> results) {
+        if (agentRunRepository == null || StrUtil.isBlank(query)) {
+            return;
+        }
+        try {
+            int searchLimit = Math.max(10, limit * 5);
+            for (AgentRunEventRecord record :
+                    agentRunRepository.searchEvents(
+                            sourceKey, null, null, query, 0L, 0L, searchLimit)) {
+                if (record == null) {
+                    continue;
+                }
+                if (isSessionSearchStartEvent(record)) {
+                    continue;
+                }
+                SessionSearchEntry entry = entryFromRunEvent(record, query);
+                if (entry.getScore() > 0L) {
+                    results.add(entry);
+                }
+            }
+        } catch (Exception ignored) {
+            // 运行事件检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        }
+    }
+
+    /**
+     * 判断是否为 session_search 自身的启动事件；普通恢复检索中这类自引用事件会挤占历史工具证据。
+     *
+     * @param record 运行事件记录。
+     * @return 属于 session_search 启动事件时返回 true。
+     */
+    private boolean isSessionSearchStartEvent(AgentRunEventRecord record) {
+        if (record == null || !"tool.start".equalsIgnoreCase(record.getEventType())) {
+            return false;
+        }
+        String metadata = StrUtil.nullToEmpty(record.getMetadataJson()).toLowerCase(Locale.ROOT);
+        String summary = StrUtil.nullToEmpty(record.getSummary()).toLowerCase(Locale.ROOT);
+        return metadata.contains("session_search") || summary.contains("session_search");
+    }
+
+    /**
+     * 过滤 discovery 中无法解释命中的候选，避免将 0 分的最近会话伪装成搜索结果。
+     *
+     * @param entries 原始结果。
+     * @return 返回已确认命中的结果。
+     */
+    private List<SessionSearchEntry> retainConfirmedDiscoveryResults(
+            List<SessionSearchEntry> entries) {
+        List<SessionSearchEntry> confirmed = new ArrayList<SessionSearchEntry>();
+        for (SessionSearchEntry entry : entries) {
+            if (entry != null && entry.getScore() > 0L) {
+                confirmed.add(entry);
+            }
+        }
+        return confirmed;
+    }
+
+    /**
+     * 对发现模式结果执行稳定排序，优先返回直接命中的原始会话，再用更新时间处理同分结果。
+     *
+     * @param results 待排序结果。
+     */
+    private void sortDiscoveryResults(List<SessionSearchEntry> results) {
+        Collections.sort(
+                results,
+                new Comparator<SessionSearchEntry>() {
+                    @Override
+                    public int compare(SessionSearchEntry left, SessionSearchEntry right) {
+                        int scoreCompare = Long.compare(right.getScore(), left.getScore());
+                        if (scoreCompare != 0) {
+                            return scoreCompare;
+                        }
+                        return Long.compare(right.getUpdatedAt(), left.getUpdatedAt());
+                    }
+                });
+    }
+
+    /**
+     * 按调用方请求的数量裁剪结果，保证工具参数 limit 是硬上限。
+     *
+     * @param results 原始结果列表。
+     * @param limit 最大返回数量。
+     * @return 返回裁剪后的结果。
+     */
+    private List<SessionSearchEntry> limitResults(List<SessionSearchEntry> results, int limit) {
+        if (results == null || results.size() <= limit) {
+            return results;
+        }
+        return new ArrayList<SessionSearchEntry>(results.subList(0, limit));
+    }
+
+    /**
+     * 计算运行记录与查询词的匹配分值，优先让最终回复证据排在工具调用补充结果之前。
+     *
+     * @param run 运行记录。
+     * @param query 查询参数。
+     * @return 返回运行记录命中分值。
+     */
+    private long scoreRun(AgentRunRecord run, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (run == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        if (containsIgnoreCase(run.getRunId(), normalizedQuery)) {
+            return 95L;
+        }
+        if (containsIgnoreCase(run.getFinalReplyPreview(), normalizedQuery)) {
+            return 88L;
+        }
+        if (containsIgnoreCase(run.getInputPreview(), normalizedQuery)) {
+            return 82L;
+        }
+        if (containsIgnoreCase(run.getError(), normalizedQuery)) {
+            return 78L;
+        }
+        long partialScore = scorePartialText(runSearchText(run), normalizedQuery);
+        if (partialScore > 0L) {
+            return partialScore;
+        }
+        return 0L;
+    }
+
+    /**
+     * 构建运行记录的查询命中片段。
+     *
+     * @param run 运行记录。
+     * @param query 查询参数。
+     * @return 返回运行记录片段。
+     */
+    private String runPreview(AgentRunRecord run, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        String[] values =
+                new String[] {
+                    run == null ? null : run.getFinalReplyPreview(),
+                    run == null ? null : run.getInputPreview(),
+                    run == null ? null : run.getError(),
+                    run == null ? null : run.getStatus(),
+                    run == null ? null : run.getRunId()
+                };
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value) && textMatchesQuery(value, normalizedQuery)) {
+                return trimAroundMatch(value, normalizedQuery);
+            }
+        }
+        return firstNonBlank(values);
+    }
+
+    /**
+     * 汇总运行记录可检索文本。
+     *
+     * @param run 运行记录。
+     * @return 返回可检索文本。
+     */
+    private String runSearchText(AgentRunRecord run) {
+        if (run == null) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(run.getRunId())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getInputPreview())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getFinalReplyPreview())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getError())
+                + "\n"
+                + StrUtil.nullToEmpty(run.getStatus());
+    }
+
+    /**
+     * 计算运行事件与查询词的匹配分值，优先返回显式事件类型命中。
+     *
+     * @param record 运行事件记录。
+     * @param query 查询参数。
+     * @return 返回运行事件命中分值。
+     */
+    private long scoreRunEvent(AgentRunEventRecord record, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (record == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        if (containsIgnoreCase(record.getEventType(), normalizedQuery)) {
+            return 92L;
+        }
+        if (containsIgnoreCase(record.getSummary(), normalizedQuery)) {
+            return 86L;
+        }
+        if (containsIgnoreCase(record.getMetadataJson(), normalizedQuery)) {
+            return 82L;
+        }
+        long partialScore = scorePartialText(runEventSearchText(record), normalizedQuery);
+        if (partialScore > 0L) {
+            return partialScore;
+        }
+        return 0L;
+    }
+
+    /**
+     * 构建运行事件的查询命中片段。
+     *
+     * @param record 运行事件记录。
+     * @param query 查询参数。
+     * @return 返回运行事件片段。
+     */
+    private String runEventPreview(AgentRunEventRecord record, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        String[] values =
+                new String[] {
+                    record == null ? null : record.getEventType(),
+                    record == null ? null : record.getSummary(),
+                    record == null ? null : record.getMetadataJson(),
+                    record == null ? null : record.getRunId()
+                };
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value) && textMatchesQuery(value, normalizedQuery)) {
+                return trimAroundMatch(value, normalizedQuery);
+            }
+        }
+        return firstNonBlank(values);
+    }
+
+    /**
+     * 汇总运行事件可检索文本。
+     *
+     * @param record 运行事件记录。
+     * @return 返回可检索文本。
+     */
+    private String runEventSearchText(AgentRunEventRecord record) {
+        if (record == null) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(record.getEventType())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getSummary())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getMetadataJson())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getRunId());
+    }
+
+    /**
+     * 计算工具调用与查询词的匹配分值，优先匹配参数和结果内容。
+     *
+     * @param record 工具调用记录。
+     * @param query 查询参数。
+     * @return 返回工具调用命中分值。
+     */
+    private long scoreToolCall(ToolCallRecord record, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (record == null || normalizedQuery.length() == 0) {
+            return 0L;
+        }
+        String text = toolCallSearchText(record);
+        if (containsExactPathFragments(text, normalizedQuery)) {
+            return 94L;
+        }
+        if (text.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            return 85L;
+        }
+        if (containsStrictFragmentsAndPath(text, normalizedQuery)) {
+            return 90L;
+        }
+        return scorePartialText(text, normalizedQuery);
+    }
+
+    /**
+     * 判断工具调用文本是否包含查询里的完整路径片段，避免短路径证据抢占完整路径证据。
+     *
+     * @param value 工具调用可检索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 包含完整路径片段时返回 true。
+     */
+    private boolean containsExactPathFragments(String value, String normalizedQuery) {
+        String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        if (!strictMarkerFragmentsSatisfied(normalizedValue, normalizedQuery)) {
+            return false;
+        }
+        List<String> fragments = pathFragments(normalizedQuery);
+        for (String fragment : fragments) {
+            if (!normalizedValue.contains(fragment)) {
+                return false;
+            }
+        }
+        return !fragments.isEmpty();
+    }
+
+    /**
+     * 从查询中提取带目录分隔符的路径片段。
+     *
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 返回路径片段集合。
+     */
+    private List<String> pathFragments(String normalizedQuery) {
+        List<String> fragments = new ArrayList<String>();
+        String[] parts = StrUtil.nullToEmpty(normalizedQuery).split("\\s+");
+        for (String part : parts) {
+            String value = part.trim();
+            if (value.indexOf('/') >= 0 || value.indexOf('\\') >= 0) {
+                fragments.add(value);
+            }
+        }
+        return fragments;
+    }
+
+    /**
+     * 判断工具调用是否同时命中历史 marker 与文件路径，确保恢复型检索优先返回可执行证据。
+     *
+     * @param value 工具调用可检索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 同时命中 marker 和路径片段时返回 true。
+     */
+    private boolean containsStrictFragmentsAndPath(String value, String normalizedQuery) {
+        String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        if (!strictMarkerFragmentsSatisfied(normalizedValue, normalizedQuery)) {
+            return false;
+        }
+        for (String fragment : strictMarkerFragments(normalizedQuery)) {
+            if (fragment.indexOf('/') >= 0 || fragment.indexOf('\\') >= 0) {
+                return true;
+            }
+            if (looksLikeFilePathFragment(fragment)) {
+                return true;
+            }
+        }
+        return normalizedQuery.indexOf('/') >= 0
+                && scorePartialText(normalizedValue, normalizedQuery) > 0L;
+    }
+
+    /**
+     * 判断严格片段是否像文件路径主体，例如 missing-long-loop-state-20260615。
+     *
+     * @param fragment 严格匹配片段。
+     * @return 像文件路径主体时返回 true。
+     */
+    private boolean looksLikeFilePathFragment(String fragment) {
+        String value = StrUtil.nullToEmpty(fragment);
+        return value.indexOf('-') >= 0
+                && (value.endsWith(".json")
+                        || value.endsWith(".txt")
+                        || value.endsWith(".md")
+                        || value.contains("state")
+                        || value.contains("cache"));
+    }
+
+    /**
+     * 构建工具调用的查询命中片段。
+     *
+     * @param record 工具调用记录。
+     * @param query 查询参数。
+     * @return 返回工具调用片段。
+     */
+    private String toolCallPreview(ToolCallRecord record, String query) {
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        String[] values =
+                new String[] {
+                    record == null ? null : record.getArgsPreview(),
+                    record == null ? null : record.getResultPreview(),
+                    record == null ? null : record.getError(),
+                    record == null ? null : record.getToolName()
+                };
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value) && textMatchesQuery(value, normalizedQuery)) {
+                return trimAroundMatch(value, normalizedQuery);
+            }
+        }
+        return firstNonBlank(values);
+    }
+
+    /**
+     * 汇总工具调用可检索文本。
+     *
+     * @param record 工具调用记录。
+     * @return 返回可检索文本。
+     */
+    private String toolCallSearchText(ToolCallRecord record) {
+        if (record == null) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(record.getToolName())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getSourceKey())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getSessionId())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getRunId())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getArgsPreview())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getResultPreview())
+                + "\n"
+                + StrUtil.nullToEmpty(record.getError());
+    }
+
+    /**
+     * 汇总会话可检索文本，用于对拆词召回结果进行二次确认。
+     *
+     * @param session 会话记录。
+     * @return 返回可检索文本。
+     */
+    private String sessionSearchText(SessionRecord session) throws Exception {
+        if (session == null) {
+            return "";
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(StrUtil.nullToEmpty(session.getSessionId())).append('\n');
+        buffer.append(StrUtil.nullToEmpty(session.getTitle())).append('\n');
+        buffer.append(StrUtil.nullToEmpty(session.getCompressedSummary())).append('\n');
+        for (ChatMessage message : MessageSupport.loadMessages(session.getNdjson())) {
+            buffer.append(messageSearchText(message)).append('\n');
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * 提取消息正文和工具调用参数，保证工具型历史也能被普通会话搜索解释命中。
+     *
+     * @param message 聊天消息。
+     * @return 返回可检索文本。
+     */
+    private String messageSearchText(ChatMessage message) {
+        if (message == null) {
+            return "";
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(StrUtil.nullToEmpty(message.getContent()).trim());
+        if (message instanceof AssistantMessage) {
+            List<ToolCall> toolCalls = ((AssistantMessage) message).getToolCalls();
+            if (toolCalls != null) {
+                for (ToolCall toolCall : toolCalls) {
+                    if (toolCall == null) {
+                        continue;
+                    }
+                    buffer.append('\n')
+                            .append(StrUtil.nullToEmpty(toolCall.getName()))
+                            .append(' ')
+                            .append(StrUtil.nullToEmpty(toolCall.getArgumentsStr()));
+                }
+            }
+        }
+        return buffer.toString().trim();
+    }
+
+    /**
+     * 判断文本是否能用完整查询或足够多的拆分词元确认命中。
+     *
+     * @param value 待搜索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 命中时返回 true。
+     */
+    private boolean textMatchesQuery(String value, String normalizedQuery) {
+        String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        return normalizedQuery.length() == 0
+                || normalizedValue.contains(normalizedQuery)
+                || scorePartialText(value, normalizedQuery) > 0L;
+    }
+
+    /**
+     * 对拆词召回做二次评分，避免只命中 web/loop 这类弱词的结果混入精确 marker 查询。
+     *
+     * @param value 待搜索文本。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 返回部分命中分值。
+     */
+    private long scorePartialText(String value, String normalizedQuery) {
+        List<String> terms = searchTerms(normalizedQuery);
+        if (terms.size() < 2) {
+            return 0L;
+        }
+        String normalizedValue = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        if (!strictMarkerFragmentsSatisfied(normalizedValue, normalizedQuery)) {
+            return 0L;
+        }
+        int matched = 0;
+        for (String term : terms) {
+            if (normalizedValue.contains(term.toLowerCase(Locale.ROOT))) {
+                matched++;
+            }
+        }
+        if (requiresStrictFragmentMatch(normalizedQuery, terms) && matched < terms.size()) {
+            return 0L;
+        }
+        double ratio = matched / (double) terms.size();
+        if (matched >= 2 && ratio >= 0.5d) {
+            return 50L + Math.min(25L, matched * 3L);
+        }
+        return 0L;
+    }
+
+    /**
+     * 判断查询是否像单个历史 marker；这类查询不能只靠 web/loop/search 等弱片段命中。
+     *
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 需要严格片段命中的查询返回 true。
+     */
+    private boolean isStrictFragmentQuery(String normalizedQuery) {
+        String query = StrUtil.nullToEmpty(normalizedQuery).trim();
+        return query.indexOf('-') >= 0
+                && query.indexOf(' ') < 0
+                && query.indexOf('\t') < 0
+                && query.indexOf('\n') < 0;
+    }
+
+    /**
+     * 判断查询是否包含需要完整命中的历史标识；这类查询常由 marker 加说明词组成，不能按公共词宽松召回。
+     *
+     * @param normalizedQuery 已转小写的查询词。
+     * @param terms 查询拆分出的词元。
+     * @return 需要所有词元全部命中时返回 true。
+     */
+    private boolean requiresStrictFragmentMatch(String normalizedQuery, List<String> terms) {
+        if (isStrictFragmentQuery(normalizedQuery)) {
+            return true;
+        }
+        if (terms == null) {
+            return false;
+        }
+        for (String term : terms) {
+            if (looksLikeHistoryMarkerTerm(term)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断词元是否像一次长期回归或任务历史 marker 的主体片段。
+     *
+     * @param term 查询词元。
+     * @return 像历史 marker 时返回 true。
+     */
+    private boolean looksLikeHistoryMarkerTerm(String term) {
+        String value = StrUtil.nullToEmpty(term).trim();
+        return value.indexOf('-') >= 0 && value.length() >= 24;
+    }
+
+    /**
+     * 长历史 marker 必须按原片段命中，避免 FTS 拆词召回的公共词污染搜索结果。
+     *
+     * @param normalizedValue 候选文本的小写形式。
+     * @param normalizedQuery 查询文本的小写形式。
+     * @return 所有长 marker 片段均满足命中要求时返回 true。
+     */
+    private boolean strictMarkerFragmentsSatisfied(String normalizedValue, String normalizedQuery) {
+        List<String> fragments = strictMarkerFragments(normalizedQuery);
+        if (fragments.isEmpty()) {
+            return true;
+        }
+        for (String fragment : fragments) {
+            if (!normalizedValue.contains(fragment)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 从查询中提取较长的连字符历史 marker 片段。
+     *
+     * @param normalizedQuery 查询文本的小写形式。
+     * @return 返回需要精确命中的 marker 片段。
+     */
+    private List<String> strictMarkerFragments(String normalizedQuery) {
+        List<String> fragments = new ArrayList<String>();
+        StringBuilder current = new StringBuilder();
+        String query = StrUtil.nullToEmpty(normalizedQuery).trim();
+        for (int i = 0; i < query.length(); i++) {
+            char ch = query.charAt(i);
+            if (ch == '-' || ch == '_' || Character.isLetterOrDigit(ch)) {
+                current.append(ch);
+            } else {
+                addStrictMarkerFragment(fragments, current);
+            }
+        }
+        addStrictMarkerFragment(fragments, current);
+        return fragments;
+    }
+
+    /**
+     * 追加需要严格匹配的 marker 片段。
+     *
+     * @param fragments 已收集片段。
+     * @param current 当前缓冲。
+     */
+    private void addStrictMarkerFragment(List<String> fragments, StringBuilder current) {
+        if (current.length() == 0) {
+            return;
+        }
+        String fragment = current.toString();
+        current.setLength(0);
+        if (fragment.indexOf('-') >= 0 && fragment.length() >= 24) {
+            fragments.add(fragment);
+        }
+    }
+
+    /**
+     * 提取查询词元，和 SQLite FTS 兜底拆词保持同一语义。
+     *
+     * @param query 查询参数。
+     * @return 返回查询词元。
+     */
+    private List<String> searchTerms(String query) {
+        List<String> terms = new ArrayList<String>();
+        StringBuilder current = new StringBuilder();
+        int currentKind = 0;
+        String value = StrUtil.nullToEmpty(query).trim();
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            int kind = searchCharKind(ch);
+            if (kind == 0) {
+                addSearchTerm(terms, current);
+                currentKind = 0;
+                continue;
+            }
+            if (current.length() > 0 && currentKind != 0 && currentKind != kind) {
+                addSearchTerm(terms, current);
+            }
+            current.append(ch);
+            currentKind = kind;
+        }
+        addSearchTerm(terms, current);
+        return terms;
+    }
+
+    /**
+     * 区分 ASCII、中文和其他字母数字，便于拆分中英文混合查询。
+     *
+     * @param ch 待分类字符。
+     * @return 返回字符类别。
+     */
+    private int searchCharKind(char ch) {
+        if ((ch >= 'A' && ch <= 'Z')
+                || (ch >= 'a' && ch <= 'z')
+                || (ch >= '0' && ch <= '9')
+                || ch == '_') {
+            return 1;
+        }
+        if (ch >= '\u4e00' && ch <= '\u9fff') {
+            return 2;
+        }
+        if (Character.isLetterOrDigit(ch)) {
+            return 3;
+        }
+        return 0;
+    }
+
+    /**
+     * 追加有效查询词元。
+     *
+     * @param terms 词元集合。
+     * @param current 当前缓冲。
+     */
+    private void addSearchTerm(List<String> terms, StringBuilder current) {
+        if (current.length() == 0) {
+            return;
+        }
+        String term = current.toString().trim();
+        current.setLength(0);
+        if (term.length() == 0 || terms.contains(term)) {
+            return;
+        }
+        terms.add(term.length() > 80 ? term.substring(0, 80) : term);
+    }
+
+    /**
+     * 判断压缩摘要是否承载检索词；历史 marker 可按严格片段命中，避免多 marker 查询因非连续文本漏召回。
+     *
+     * @param session 会话记录。
+     * @param normalizedQuery 已转小写的查询词。
+     * @return 压缩摘要命中时返回 true。
+     */
+    private boolean compressedSummaryMatches(SessionRecord session, String normalizedQuery) {
+        if (session == null || normalizedQuery.length() == 0) {
+            return false;
+        }
+        String summary = session.getCompressedSummary();
+        if (containsIgnoreCase(summary, normalizedQuery)) {
+            return true;
+        }
+        return !strictMarkerFragments(normalizedQuery).isEmpty()
+                && textMatchesQuery(summary, normalizedQuery);
     }
 
     /**

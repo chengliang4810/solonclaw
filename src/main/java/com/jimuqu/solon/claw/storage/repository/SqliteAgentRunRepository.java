@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,6 +32,11 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     public void saveRun(AgentRunRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
+            int toolCallCount =
+                    Math.max(
+                            Math.max(0, record.getToolCallCount()),
+                            countPersistedToolCalls(connection, record.getRunId()));
+            record.setToolCallCount(toolCallCount);
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert or replace into agent_runs (run_id, session_id, source_key, run_kind, parent_run_id, agent_name, agent_snapshot_json, status, phase, busy_policy, backgrounded, input_preview, final_reply_preview, provider, model, attempts, context_estimate_tokens, context_window_tokens, compression_count, fallback_count, tool_call_count, subtask_count, input_tokens, output_tokens, total_tokens, queued_at, started_at, heartbeat_at, last_activity_at, finished_at, exit_reason, recoverable, recovery_hint, error) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -54,7 +60,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setInt(18, record.getContextWindowTokens());
             statement.setInt(19, record.getCompressionCount());
             statement.setInt(20, record.getFallbackCount());
-            statement.setInt(21, record.getToolCallCount());
+            statement.setInt(21, toolCallCount);
             statement.setInt(22, record.getSubtaskCount());
             statement.setLong(23, record.getInputTokens());
             statement.setLong(24, record.getOutputTokens());
@@ -378,7 +384,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(9, event.getProvider());
             statement.setString(10, event.getModel());
             statement.setString(11, redact(event.getSummary(), 1000));
-            statement.setString(12, redact(event.getMetadataJson(), 4000));
+            statement.setString(12, StructuredMetadataSupport.redactJson(event.getMetadataJson()));
             statement.setLong(13, event.getCreatedAt());
             statement.executeUpdate();
             appendEventFts(connection, event);
@@ -403,6 +409,83 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                     connection.prepareStatement(
                             "select * from agent_run_events where run_id = ? order by created_at asc");
             statement.setString(1, runId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    events.add(mapEvent(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return events;
+    }
+
+    /**
+     * 搜索运行事件。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param runId 运行标识。
+     * @param query 查询参数。
+     * @param timeFrom 时间From参数。
+     * @param timeTo 时间To参数。
+     * @param limit 最大返回数量。
+     * @return 返回运行事件结果。
+     */
+    @Override
+    public List<AgentRunEventRecord> searchEvents(
+            String sourceKey,
+            String sessionId,
+            String runId,
+            String query,
+            long timeFrom,
+            long timeTo,
+            int limit)
+            throws Exception {
+        List<AgentRunEventRecord> events = new ArrayList<AgentRunEventRecord>();
+        Connection connection = database.openConnection();
+        try {
+            StringBuilder sql = new StringBuilder("select e.* from agent_run_events e");
+            List<Object> args = new ArrayList<Object>();
+            sql.append(" where 1 = 1");
+            if (sourceKey != null && sourceKey.trim().length() > 0) {
+                sql.append(" and e.source_key = ?");
+                args.add(sourceKey);
+            }
+            if (sessionId != null && sessionId.trim().length() > 0) {
+                sql.append(" and e.session_id = ?");
+                args.add(sessionId);
+            }
+            if (runId != null && runId.trim().length() > 0) {
+                sql.append(" and e.run_id = ?");
+                args.add(runId);
+            }
+            if (timeFrom > 0) {
+                sql.append(" and e.created_at >= ?");
+                args.add(Long.valueOf(timeFrom));
+            }
+            if (timeTo > 0) {
+                sql.append(" and e.created_at <= ?");
+                args.add(Long.valueOf(timeTo));
+            }
+            if (query != null && query.trim().length() > 0) {
+                sql.append(
+                        " and (lower(coalesce(e.event_type, '')) like ?"
+                                + " or lower(coalesce(e.summary, '')) like ?"
+                                + " or lower(coalesce(e.metadata_json, '')) like ?)");
+                String pattern = "%" + query.trim().toLowerCase(java.util.Locale.ROOT) + "%";
+                args.add(pattern);
+                args.add(pattern);
+                args.add(pattern);
+            }
+            sql.append(" order by e.created_at desc limit ?");
+            args.add(Math.max(1, Math.min(limit <= 0 ? 20 : limit, 200)));
+            PreparedStatement statement = connection.prepareStatement(sql.toString());
+            bindArgs(statement, args);
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {
@@ -1243,7 +1326,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(3, event.getSourceKey());
             statement.setString(4, event.getEventType());
             statement.setString(5, SecretRedactor.redact(event.getSummary(), 1000));
-            statement.setString(6, SecretRedactor.redact(event.getMetadataJson(), 4000));
+            statement.setString(6, StructuredMetadataSupport.redactJson(event.getMetadataJson()));
             statement.executeUpdate();
             statement.close();
         } catch (Exception ignored) {
@@ -1259,7 +1342,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     private void incrementToolCallCount(Connection connection, ToolCallRecord record) {
         if (record == null
                 || record.getRunId() == null
-                || !"completed".equalsIgnoreCase(record.getStatus())) {
+                || (!"completed".equalsIgnoreCase(record.getStatus())
+                        && !"failed".equalsIgnoreCase(record.getStatus()))) {
             return;
         }
         try {
@@ -1271,6 +1355,34 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.executeUpdate();
             statement.close();
         } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 统计已落库的工具调用数量，避免运行结束再次保存 run 时覆盖工具表派生计数。
+     *
+     * @param connection 当前数据库连接。
+     * @param runId 运行标识。
+     * @return 返回已完成或失败的工具调用数量。
+     */
+    private int countPersistedToolCalls(Connection connection, String runId) {
+        if (connection == null || runId == null) {
+            return 0;
+        }
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select count(*) from tool_calls where run_id = ? and status in ('completed','failed')");
+            statement.setString(1, runId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } catch (Exception ignored) {
+            return 0;
         }
     }
 
