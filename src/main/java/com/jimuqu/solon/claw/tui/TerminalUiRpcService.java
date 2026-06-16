@@ -1840,8 +1840,6 @@ public class TerminalUiRpcService {
                 java.util.Arrays.asList(
                         ToolNameConstants.WEBSEARCH,
                         ToolNameConstants.WEBFETCH,
-                        "web_search",
-                        "web_extract",
                         ToolNameConstants.CODESEARCH,
                         ToolNameConstants.BROWSER));
         result.put(

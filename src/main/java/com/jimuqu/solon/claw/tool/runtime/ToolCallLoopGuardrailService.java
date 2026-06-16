@@ -43,8 +43,6 @@ public class ToolCallLoopGuardrailService {
                                     ToolNameConstants.SEARCH_FILES,
                                     ToolNameConstants.WEBSEARCH,
                                     ToolNameConstants.WEBFETCH,
-                                    "web_search",
-                                    "web_extract",
                                     ToolNameConstants.SESSION_SEARCH,
                                     "browser_snapshot",
                                     "browser_console",

@@ -237,8 +237,8 @@ class AgentPluginManagerTest {
                     return null;
                 });
 
-        registry.invoke("post_tool_call", Map.of("tool_name", "web_search"));
-        assertEquals("web_search", captured.get());
+        registry.invoke("post_tool_call", Map.of("tool_name", "websearch"));
+        assertEquals("websearch", captured.get());
     }
 
     @Test

@@ -274,42 +274,6 @@ public class SolonClawWebTools {
             return safeDocument(document);
         }
 
-        /**
-         * 参考风格Web提取工具名。
-         *
-         * @param urls 目标URL列表。
-         * @param format 返回格式。
-         * @param timeoutSeconds 超时时间。
-         * @return 返回提取结果。
-         */
-        @ToolMapping(name = "web_extract", description = "Extract content from a URL or URL list.")
-        public Document webExtract(
-                @Param(name = "urls", description = "URL or list of URLs to extract") Object urls,
-                @Param(name = "format", required = false, defaultValue = "markdown") String format,
-                @Param(name = "timeout", required = false) Integer timeoutSeconds)
-                throws Exception {
-            String url = firstUrl(urls);
-            return webfetch(url, format, timeoutSeconds);
-        }
-
-        /**
-         * 解析首个URL。
-         *
-         * @param urls URL输入。
-         * @return 返回URL。
-         */
-        private String firstUrl(Object urls) {
-            if (urls instanceof Iterable) {
-                java.util.Iterator<?> iterator = ((Iterable<?>) urls).iterator();
-                return iterator.hasNext()
-                        ? StrUtil.nullToEmpty(String.valueOf(iterator.next())).trim()
-                        : "";
-            }
-            if (urls != null && urls.getClass().isArray() && java.lang.reflect.Array.getLength(urls) > 0) {
-                return StrUtil.nullToEmpty(String.valueOf(java.lang.reflect.Array.get(urls, 0))).trim();
-            }
-            return urls == null ? "" : StrUtil.nullToEmpty(String.valueOf(urls)).trim();
-        }
     }
 
     /** 提供Safe Websearch工具能力，供 Agent 运行时按安全策略调用。 */
@@ -434,21 +398,6 @@ public class SolonClawWebTools {
                     delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
-        }
-
-        /**
-         * 参考风格Web搜索工具名。
-         *
-         * @param query 查询参数。
-         * @param limit 最大结果数量。
-         * @return 返回搜索结果。
-         */
-        @ToolMapping(name = "web_search", description = "Search the web.")
-        public Document webSearch(
-                @Param(name = "query", description = "Search query") String query,
-                @Param(name = "limit", required = false, defaultValue = "5") Integer limit)
-                throws Exception {
-            return websearch(query, limit, "fallback", "auto", Integer.valueOf(10000));
         }
 
         /**

@@ -309,8 +309,6 @@ public final class AgentRuntimePolicy {
         if ("web".equals(key) || "search".equals(key)) {
             output.add(ToolNameConstants.WEBSEARCH);
             output.add(ToolNameConstants.WEBFETCH);
-            output.add("web_search");
-            output.add("web_extract");
             output.add(ToolNameConstants.CODESEARCH);
             return;
         }

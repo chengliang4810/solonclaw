@@ -1415,8 +1415,6 @@ public class LocalSkillService implements SkillCatalogService {
             return java.util.Arrays.asList(
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    "web_search",
-                    "web_extract",
                     ToolNameConstants.CODESEARCH);
         }
         if ("gateway".equalsIgnoreCase(toolset) || "tool_gateway".equalsIgnoreCase(toolset)) {

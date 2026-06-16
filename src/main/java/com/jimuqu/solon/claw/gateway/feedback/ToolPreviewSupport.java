@@ -176,11 +176,10 @@ public final class ToolPreviewSupport {
         }
         if ("session_search".equals(toolName)
                 || "websearch".equals(toolName)
-                || "web_search".equals(toolName)
                 || "codesearch".equals(toolName)) {
             return new String[] {"query", "q", "keyword"};
         }
-        if ("webfetch".equals(toolName) || "web_extract".equals(toolName)) {
+        if ("webfetch".equals(toolName)) {
             return new String[] {"url", "urls"};
         }
         if ("cronjob".equals(toolName)) {

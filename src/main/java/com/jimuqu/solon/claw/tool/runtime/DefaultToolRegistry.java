@@ -90,8 +90,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    "web_search",
-                    "web_extract",
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
@@ -970,12 +968,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(agentTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
-            } else if (ToolNameConstants.WEBSEARCH.equals(toolName) || "web_search".equals(toolName)) {
+            } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {
                 if (!websearchToolAdded) {
                     tools.add(websearchTool);
                     websearchToolAdded = true;
                 }
-            } else if (ToolNameConstants.WEBFETCH.equals(toolName) || "web_extract".equals(toolName)) {
+            } else if (ToolNameConstants.WEBFETCH.equals(toolName)) {
                 if (!webfetchToolAdded) {
                     tools.add(webfetchTool);
                     webfetchToolAdded = true;

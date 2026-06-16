@@ -89,14 +89,14 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
-    void shouldExposeAliasToolsInsideExecuteCode() throws Exception {
+    void shouldExposeWebToolsInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         java.nio.file.Path workspace =
                 new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         java.nio.file.Files.write(
-                workspace.resolve("alias-source.txt"),
-                java.util.Arrays.asList("alias input"),
+                workspace.resolve("web-rpc-source.txt"),
+                java.util.Arrays.asList("web rpc input"),
                 java.nio.charset.StandardCharsets.UTF_8);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
@@ -110,17 +110,17 @@ public class SolonClawExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from solonclaw_tools import file_read, file_write, web_search, web_extract\n"
-                                        + "print(file_read('alias-source.txt')['content'].splitlines()[0])\n"
-                                        + "print(file_write('alias-output.txt', 'alias output\\n')['success'])\n"
-                                        + "print(web_search('solon ai')['data']['web'][0]['title'])\n"
-                                        + "print(web_extract(['https://example.com/docs'])['title'])\n",
+                                "from solonclaw_tools import file_read, file_write, websearch, webfetch\n"
+                                        + "print(file_read('web-rpc-source.txt')['content'].splitlines()[0])\n"
+                                        + "print(file_write('web-rpc-output.txt', 'web rpc output\\n')['success'])\n"
+                                        + "print(websearch('solon ai')['data']['web'][0]['title'])\n"
+                                        + "print(webfetch('https://example.com/docs')['title'])\n",
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("tool_calls_made").getInt()).isEqualTo(4);
         assertThat(result.get("output").getString())
-                .contains("alias input")
+                .contains("web rpc input")
                 .contains("True")
                 .contains("Solon AI")
                 .contains("Example Docs");

@@ -48,8 +48,6 @@ public class SolonClawCodeExecutionSkills {
                     Arrays.asList(
                             "websearch",
                             "webfetch",
-                            "web_search",
-                            "web_extract",
                             "file_read",
                             "file_write",
                             "read_file",
@@ -217,7 +215,7 @@ public class SolonClawCodeExecutionSkills {
         @ToolMapping(
                 name = "execute_code",
                 description =
-                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes websearch/web_search, webfetch/web_extract, file_read/read_file, file_write/write_file, search_files, patch and terminal for multi-step local processing.")
+                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes websearch, webfetch, file_read/read_file, file_write/write_file, search_files, patch and terminal for multi-step local processing.")
         public String executeCode(
                 @Param(
                                 name = "code",
@@ -506,9 +504,7 @@ public class SolonClawCodeExecutionSkills {
                             + "    raise RuntimeError(name + ' is not available in jimuqu-agent execute_code yet. Use normal tool calls instead.')\n"
                             + "\n"
                             + "def websearch(query, limit=5): return _call('websearch', {'query': query, 'limit': limit})\n"
-                            + "def web_search(query, limit=5): return _call('web_search', {'query': query, 'limit': limit})\n"
                             + "def webfetch(url, format='markdown', timeout=120): return _call('webfetch', {'url': url, 'format': format, 'timeout': timeout})\n"
-                            + "def web_extract(urls, format='markdown', timeout=120): return _call('web_extract', {'urls': urls, 'format': format, 'timeout': timeout})\n"
                             + "def file_read(path, offset=1, limit=500): return _call('file_read', {'path': path, 'offset': offset, 'limit': limit})\n"
                             + "def read_file(path, offset=1, limit=500): return _call('read_file', {'path': path, 'offset': offset, 'limit': limit})\n"
                             + "def file_write(path, content): return _call('file_write', {'path': path, 'content': content})\n"
@@ -639,10 +635,10 @@ public class SolonClawCodeExecutionSkills {
                 if ("search_files".equals(toolName)) {
                     return rpcJson(searchFiles(args));
                 }
-                if ("websearch".equals(toolName) || "web_search".equals(toolName)) {
+                if ("websearch".equals(toolName)) {
                     return rpcJson(webSearch(args));
                 }
-                if ("webfetch".equals(toolName) || "web_extract".equals(toolName)) {
+                if ("webfetch".equals(toolName)) {
                     return rpcJson(webFetch(args));
                 }
                 return rpcJson(

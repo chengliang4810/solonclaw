@@ -59,8 +59,6 @@ public class ToolRegistryExposureTest {
                         "read_file",
                         "write_file",
                         "search_files",
-                        "web_search",
-                        "web_extract",
                         "security_audit",
                         "clarify",
                         "file_list",
@@ -84,6 +82,8 @@ public class ToolRegistryExposureTest {
         assertThat(names).contains("tool_gateway");
         assertThat(names)
                 .doesNotContain(
+                        "web_search",
+                        "web_extract",
                         "exists_cmd",
                         "list_files");
 
