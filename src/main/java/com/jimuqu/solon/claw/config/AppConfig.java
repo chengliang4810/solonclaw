@@ -79,6 +79,9 @@ public class AppConfig {
     /** Agent 运行配置。 */
     private AgentConfig agent = new AgentConfig();
 
+    /** 主动协作运行配置。 */
+    private ProactiveConfig proactive = new ProactiveConfig();
+
     /** ReAct 运行配置。 */
     private ReActConfig react = new ReActConfig();
 
@@ -1121,6 +1124,175 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.agent.heartbeat.intervalMinutes",
                                         RuntimePathConstants.DEFAULT_HEARTBEAT_INTERVAL_MINUTES)));
+        ProactiveConfig proactiveDefaults = new ProactiveConfig();
+        config.getProactive()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.enabled",
+                                        proactiveDefaults.isEnabled())));
+        config.getProactive()
+                .setIntervalMinutes(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.intervalMinutes",
+                                        proactiveDefaults.getIntervalMinutes())));
+        config.getProactive()
+                .setInitialDelaySeconds(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.initialDelaySeconds",
+                                        proactiveDefaults.getInitialDelaySeconds())));
+        config.getProactive()
+                .setDailyMaxContacts(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.dailyMaxContacts",
+                                        proactiveDefaults.getDailyMaxContacts())));
+        config.getProactive()
+                .setCooldownMinutes(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.cooldownMinutes",
+                                        proactiveDefaults.getCooldownMinutes())));
+        config.getProactive()
+                .setQuietStartHour(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.quietStartHour",
+                                        proactiveDefaults.getQuietStartHour())));
+        config.getProactive()
+                .setQuietEndHour(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.quietEndHour",
+                                        proactiveDefaults.getQuietEndHour())));
+        config.getProactive()
+                .setMinConfidenceToContact(
+                        resolveDouble(
+                                readDouble(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.minConfidenceToContact",
+                                        proactiveDefaults.getMinConfidenceToContact())));
+        config.getProactive()
+                .setLlmDecisionEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.llmDecisionEnabled",
+                                        proactiveDefaults.isLlmDecisionEnabled())));
+        config.getProactive()
+                .setLlmPolishEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.llmPolishEnabled",
+                                        proactiveDefaults.isLlmPolishEnabled())));
+        config.getProactive()
+                .setMaxCandidatesPerTick(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.maxCandidatesPerTick",
+                                        proactiveDefaults.getMaxCandidatesPerTick())));
+        config.getProactive()
+                .setMaxContactsPerTick(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.maxContactsPerTick",
+                                        proactiveDefaults.getMaxContactsPerTick())));
+        config.getProactive()
+                .setCandidateTtlHours(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.candidateTtlHours",
+                                        proactiveDefaults.getCandidateTtlHours())));
+        config.getProactive()
+                .setRepositoryCheckEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.repositoryCheckEnabled",
+                                        proactiveDefaults.isRepositoryCheckEnabled())));
+        config.getProactive()
+                .setRepositoryCheckIntervalMinutes(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.repositoryCheckIntervalMinutes",
+                                        proactiveDefaults.getRepositoryCheckIntervalMinutes())));
+        config.getProactive()
+                .setSessionLookbackDays(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.sessionLookbackDays",
+                                        proactiveDefaults.getSessionLookbackDays())));
+        config.getProactive()
+                .setRunLookbackDays(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.runLookbackDays",
+                                        proactiveDefaults.getRunLookbackDays())));
+        config.getProactive()
+                .setCronLookbackDays(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.cronLookbackDays",
+                                        proactiveDefaults.getCronLookbackDays())));
+        config.getProactive()
+                .setCareCheckinEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.careCheckinEnabled",
+                                        proactiveDefaults.isCareCheckinEnabled())));
+        config.getProactive()
+                .setCareCheckinAfterIdleHours(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.careCheckinAfterIdleHours",
+                                        proactiveDefaults.getCareCheckinAfterIdleHours())));
+        config.getProactive()
+                .setDeliveryPreviewPrefix(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.deliveryPreviewPrefix",
+                                        proactiveDefaults.getDeliveryPreviewPrefix())));
         config.getReact()
                 .setMaxSteps(resolveInt(readInt(props, overrides, "solonclaw.react.maxSteps", 12)));
         config.getReact()
@@ -1699,6 +1871,7 @@ public class AppConfig {
         copyPricing(other.getPricing());
         copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
+        copyProactive(other.getProactive());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
         copyChannel(this.channels.getDingtalk(), other.getChannels().getDingtalk());
         copyChannel(this.channels.getWecom(), other.getChannels().getWecom());
@@ -2072,6 +2245,36 @@ public class AppConfig {
             this.mcp.getOauth().setTokenUrl(other.getOauth().getTokenUrl());
             this.mcp.getOauth().setScope(other.getOauth().getScope());
         }
+    }
+
+    /**
+     * 复制主动协作配置。
+     *
+     * @param other 待比较对象。
+     */
+    private void copyProactive(ProactiveConfig other) {
+        this.proactive.setEnabled(other.isEnabled());
+        this.proactive.setIntervalMinutes(other.getIntervalMinutes());
+        this.proactive.setInitialDelaySeconds(other.getInitialDelaySeconds());
+        this.proactive.setDailyMaxContacts(other.getDailyMaxContacts());
+        this.proactive.setCooldownMinutes(other.getCooldownMinutes());
+        this.proactive.setQuietStartHour(other.getQuietStartHour());
+        this.proactive.setQuietEndHour(other.getQuietEndHour());
+        this.proactive.setMinConfidenceToContact(other.getMinConfidenceToContact());
+        this.proactive.setLlmDecisionEnabled(other.isLlmDecisionEnabled());
+        this.proactive.setLlmPolishEnabled(other.isLlmPolishEnabled());
+        this.proactive.setMaxCandidatesPerTick(other.getMaxCandidatesPerTick());
+        this.proactive.setMaxContactsPerTick(other.getMaxContactsPerTick());
+        this.proactive.setCandidateTtlHours(other.getCandidateTtlHours());
+        this.proactive.setRepositoryCheckEnabled(other.isRepositoryCheckEnabled());
+        this.proactive.setRepositoryCheckIntervalMinutes(
+                other.getRepositoryCheckIntervalMinutes());
+        this.proactive.setSessionLookbackDays(other.getSessionLookbackDays());
+        this.proactive.setRunLookbackDays(other.getRunLookbackDays());
+        this.proactive.setCronLookbackDays(other.getCronLookbackDays());
+        this.proactive.setCareCheckinEnabled(other.isCareCheckinEnabled());
+        this.proactive.setCareCheckinAfterIdleHours(other.getCareCheckinAfterIdleHours());
+        this.proactive.setDeliveryPreviewPrefix(other.getDeliveryPreviewPrefix());
     }
 
     /**
@@ -4141,6 +4344,75 @@ public class AppConfig {
     public static class HeartbeatConfig {
         /** 固定轮询间隔（分钟）；0 表示关闭 heartbeat。 */
         private int intervalMinutes = RuntimePathConstants.DEFAULT_HEARTBEAT_INTERVAL_MINUTES;
+    }
+
+    /** 主动协作配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class ProactiveConfig {
+        /** 是否启用主动协作调度；关闭后不扫描候选事项也不主动触达用户。 */
+        private boolean enabled = true;
+
+        /** 主动协作扫描间隔，单位分钟。 */
+        private int intervalMinutes = 30;
+
+        /** 服务启动后首次扫描前的延迟，单位秒，避免启动阶段抢占资源。 */
+        private int initialDelaySeconds = 60;
+
+        /** 单日最多主动触达次数，用于限制打扰频率。 */
+        private int dailyMaxContacts = 3;
+
+        /** 同一用户或会话两次主动触达之间的冷却时间，单位分钟。 */
+        private int cooldownMinutes = 120;
+
+        /** 免打扰开始小时，使用 0-23 的本地小时。 */
+        private int quietStartHour = 23;
+
+        /** 免打扰结束小时，使用 0-23 的本地小时。 */
+        private int quietEndHour = 8;
+
+        /** 允许主动触达的最低候选置信度，低于该值仅记录不投递。 */
+        private double minConfidenceToContact = 0.65D;
+
+        /** 是否启用大模型辅助判断候选事项是否值得主动触达。 */
+        private boolean llmDecisionEnabled = true;
+
+        /** 是否启用大模型润色主动协作投递文案。 */
+        private boolean llmPolishEnabled = true;
+
+        /** 单次扫描最多评估的候选事项数量。 */
+        private int maxCandidatesPerTick = 20;
+
+        /** 单次扫描最多实际触达次数，防止一次扫描集中打扰。 */
+        private int maxContactsPerTick = 1;
+
+        /** 候选事项有效期，单位小时，超过后不再触达。 */
+        private int candidateTtlHours = 72;
+
+        /** 是否启用仓库状态检查候选源。 */
+        private boolean repositoryCheckEnabled = true;
+
+        /** 仓库状态检查的最小间隔，单位分钟。 */
+        private int repositoryCheckIntervalMinutes = 360;
+
+        /** 会话记录回看窗口，单位天。 */
+        private int sessionLookbackDays = 30;
+
+        /** Agent 运行记录回看窗口，单位天。 */
+        private int runLookbackDays = 14;
+
+        /** 定时任务记录回看窗口，单位天。 */
+        private int cronLookbackDays = 14;
+
+        /** 是否启用长时间空闲后的关怀式确认候选。 */
+        private boolean careCheckinEnabled = true;
+
+        /** 用户长时间无互动后触发关怀候选的空闲阈值，单位小时。 */
+        private int careCheckinAfterIdleHours = 48;
+
+        /** 主动协作投递预览前缀，用于渠道消息中标识触达来源。 */
+        private String deliveryPreviewPrefix = "主动协作";
     }
 
     /** ReAct 推理控制配置。 */
