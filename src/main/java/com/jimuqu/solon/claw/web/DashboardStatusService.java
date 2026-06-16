@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
+import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -49,6 +50,9 @@ public class DashboardStatusService {
     /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
 
+    /** 注入主动协作诊断服务，用于展示主动联系状态。 */
+    private final ProactiveDiagnosticsService proactiveDiagnosticsService;
+
     /**
      * 创建控制台状态服务实例，并注入运行所需依赖。
      *
@@ -69,6 +73,39 @@ public class DashboardStatusService {
             AppVersionService appVersionService,
             AppUpdateService appUpdateService,
             LlmProviderService llmProviderService) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                null);
+    }
+
+    /**
+     * 创建控制台状态服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param appVersionService 应用版本服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.deliveryService = deliveryService;
@@ -76,6 +113,7 @@ public class DashboardStatusService {
         this.appVersionService = appVersionService;
         this.appUpdateService = appUpdateService;
         this.llmProviderService = llmProviderService;
+        this.proactiveDiagnosticsService = proactiveDiagnosticsService;
     }
 
     /**
@@ -117,6 +155,9 @@ public class DashboardStatusService {
             result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
             result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
         }
+        if (proactiveDiagnosticsService != null) {
+            result.put("proactive", proactiveDiagnosticsService.status());
+        }
         result.put("latest_config_version", configVersion());
         result.put("release_date", new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
         AppUpdateService.VersionStatus versionStatus = appUpdateService.getVersionStatus(false);
@@ -154,6 +195,9 @@ public class DashboardStatusService {
         result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
         result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
         result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, false));
+        if (proactiveDiagnosticsService != null) {
+            result.put("proactive", proactiveDiagnosticsService.status());
+        }
         return result;
     }
 

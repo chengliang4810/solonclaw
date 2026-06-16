@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -127,6 +128,9 @@ public class DashboardDiagnosticsService {
 
     /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
+
+    /** 注入主动协作诊断服务，用于回答主动联系为什么没有触发。 */
+    private final ProactiveDiagnosticsService proactiveDiagnosticsService;
 
     /**
      * 创建控制台诊断服务实例，并注入运行所需依赖。
@@ -491,6 +495,71 @@ public class DashboardDiagnosticsService {
             AgentRunRepository agentRunRepository,
             ProcessRegistry processRegistry,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                toolResultStorageService,
+                shutdownForensicsService,
+                runtimeMemoryMonitorService,
+                agentRunRepository,
+                processRegistry,
+                gatewayRuntimeRefreshService,
+                null);
+    }
+
+    /**
+     * 创建控制台诊断服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param deliveryService 投递服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param toolRegistry 工具注册表依赖组件。
+     * @param sessionRepository 会话仓储依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param approvalAuditRepository 审批Audit仓储依赖。
+     * @param slashConfirmService 斜杠命令Confirm服务依赖。
+     * @param commandService 命令服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param tirithSecurityService 待校验或访问的地址参数。
+     * @param toolResultStorageService 工具结果StorageService响应或执行结果。
+     * @param shutdownForensicsService 关闭Forensics服务依赖。
+     * @param runtimeMemoryMonitorService 运行时记忆Monitor服务依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
+     */
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            ShutdownForensicsService shutdownForensicsService,
+            RuntimeMemoryMonitorService runtimeMemoryMonitorService,
+            AgentRunRepository agentRunRepository,
+            ProcessRegistry processRegistry,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -509,6 +578,7 @@ public class DashboardDiagnosticsService {
         this.agentRunRepository = agentRunRepository;
         this.processRegistry = processRegistry;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
+        this.proactiveDiagnosticsService = proactiveDiagnosticsService;
     }
 
     /**
@@ -526,6 +596,9 @@ public class DashboardDiagnosticsService {
         result.put("mcp", mcp());
         result.put("security", security());
         result.put("runs", runs());
+        if (proactiveDiagnosticsService != null) {
+            result.put("proactive", proactiveDiagnosticsService.diagnostics());
+        }
         return result;
     }
 

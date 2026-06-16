@@ -42,6 +42,8 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
+import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
+import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -297,6 +299,8 @@ public class GatewayConfiguration {
      * @param dashboardCuratorService dashboardCurator服务依赖。
      * @param dashboardSkillsService dashboard技能服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param proactiveDiagnosticsService 主动协作诊断服务，供 /proactive status 与 why 查询复用。
+     * @param proactiveRepository 主动协作仓储，供 /proactive ignore 更新候选状态。
      * @param pluginCommands 插件Commands参数。
      * @return 返回命令服务结果。
      */
@@ -333,6 +337,8 @@ public class GatewayConfiguration {
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService,
             BrowserRuntimeService browserRuntimeService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            ProactiveRepository proactiveRepository,
             Map<String, CommandHandler> pluginCommands) {
         return new DefaultCommandService(
                 sessionRepository,
@@ -366,7 +372,9 @@ public class GatewayConfiguration {
                 pluginManager,
                 dashboardCuratorService,
                 dashboardSkillsService,
-                browserRuntimeService);
+                browserRuntimeService,
+                proactiveDiagnosticsService,
+                proactiveRepository);
     }
 
     /**

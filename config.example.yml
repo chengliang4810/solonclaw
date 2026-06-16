@@ -442,7 +442,8 @@ solonclaw:
         # 人格表达风格说明。
         style: 优先用清晰术语描述系统行为和实现边界
 
-  # 主动协作配置。主动协作只会先询问用户是否需要处理，不会在未确认时直接执行动作。
+  # 主动协作配置。主动协作会观察会话、运行状态、记忆、仓库更新和定时任务结果，寻找值得询问用户的协作机会。
+  # 它不是固定提醒类型；只会先询问用户是否需要处理，不会在未确认时直接执行动作。
   # 主动协作投递复用现有 home channel / 国内消息渠道投递链路，不单独新增外部投递入口。
   proactive:
     # 是否启用主动协作调度。
@@ -471,7 +472,7 @@ solonclaw:
     maxContactsPerTick: 1
     # 候选事项有效期，单位小时。
     candidateTtlHours: 72
-    # 是否启用仓库状态检查候选源。
+    # 是否启用仓库状态检查候选源；仅使用只读探测，不拉取、不切换、不写入仓库。
     repositoryCheckEnabled: true
     # 仓库状态检查的最小间隔，单位分钟。
     repositoryCheckIntervalMinutes: 360
@@ -481,7 +482,7 @@ solonclaw:
     runLookbackDays: 14
     # 定时任务记录回看窗口，单位天。
     cronLookbackDays: 14
-    # 是否启用长时间空闲后的关怀式确认候选。
+    # 是否启用长时间空闲后的关怀式确认候选，用于询问最近是否有工作需要协作。
     careCheckinEnabled: true
     # 用户长时间无互动后触发关怀候选的空闲阈值，单位小时。
     careCheckinAfterIdleHours: 48
