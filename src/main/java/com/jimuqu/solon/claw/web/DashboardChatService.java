@@ -40,15 +40,23 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.UploadedFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Dashboard chat 运行服务。 */
 @Component
 public class DashboardChatService {
+    /** 记录 Dashboard chat 运行服务的内部诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardChatService.class);
+
     /** SSE保活MILLIS的统一常量值。 */
     private static final long SSE_KEEPALIVE_MILLIS = 15_000L;
 
     /** 运行TTLMILLIS的统一常量值。 */
     private static final long RUN_TTL_MILLIS = 5L * 60L * 1000L;
+
+    /** Web 用户主动取消运行时写入会话历史的可恢复提示。 */
+    private static final String CANCELED_ASSISTANT_TEXT = "当前 Web 运行已取消。";
 
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
@@ -161,7 +169,7 @@ public class DashboardChatService {
         request.resolvedAttachments = resolveAttachments(request.attachments);
 
         final String runId = IdSupport.newId();
-        final ChatRunState state = new ChatRunState(runId, request.sessionId);
+        final ChatRunState state = new ChatRunState(runId, request.sessionId, request);
         runs.put(runId, state);
 
         Future<?> future =
@@ -221,6 +229,10 @@ public class DashboardChatService {
                     break;
                 }
             }
+        } catch (IOException e) {
+            if (!DashboardClientDisconnects.isClientDisconnected(e)) {
+                throw e;
+            }
         } finally {
             if (state.completed && state.events.isEmpty()) {
                 runs.remove(runId, state);
@@ -244,6 +256,8 @@ public class DashboardChatService {
         state.canceled = true;
         state.completed = true;
         state.status = "canceled";
+        state.updatedAt = System.currentTimeMillis();
+        persistCanceledTurnSafely(state);
         enqueue(
                 state,
                 "run.failed",
@@ -266,6 +280,47 @@ public class DashboardChatService {
     }
 
     /**
+     * 持久化用户取消的 Web 运行轮次，避免刷新或恢复会话后丢失取消上下文。
+     *
+     * @param state 当前运行状态。
+     */
+    private void persistCanceledTurnSafely(ChatRunState state) {
+        try {
+            persistCanceledTurn(state);
+        } catch (Exception e) {
+            log.warn(
+                    "Persist dashboard chat cancel turn failed: runId={}, sessionId={}, error={}",
+                    state == null ? "" : state.runId,
+                    state == null ? "" : state.sessionId,
+                    SecretRedactor.redact(
+                            StrUtil.blankToDefault(
+                                    e.getMessage(), e.getClass().getSimpleName()),
+                            500));
+        }
+    }
+
+    /**
+     * 写入一次 Web 取消轮次，记录原始输入和取消提示，供会话恢复与历史检索使用。
+     *
+     * @param state 当前运行状态。
+     */
+    private void persistCanceledTurn(ChatRunState state) throws Exception {
+        if (state == null || state.request == null) {
+            return;
+        }
+        ChatRunRequest request = state.request;
+        String userText = StrUtil.nullToEmpty(request.input).trim();
+        if (StrUtil.isBlank(userText)) {
+            return;
+        }
+
+        SessionRecord session = prepareSession(request);
+        state.sessionId = session.getSessionId();
+        persistVisibleTurn(
+                session.getSessionId(), request, userText, CANCELED_ASSISTANT_TEXT);
+    }
+
+    /**
      * 执行运行。
      *
      * @param state 状态参数。
@@ -276,13 +331,22 @@ public class DashboardChatService {
         try {
             SessionRecord session = prepareSession(request);
             state.sessionId = session.getSessionId();
+            if (state.canceled) {
+                return;
+            }
             state.status = "running";
             eventSink.onRunStarted(state.sessionId);
+            if (state.canceled) {
+                return;
+            }
 
             GatewayMessage message = buildMessage(request, state.sessionId);
             GatewayReply reply;
             if (request.input.trim().startsWith("/")) {
-                reply = commandService.handle(message, request.input.trim(), eventSink);
+                DashboardCommandEventSink commandEventSink =
+                        new DashboardCommandEventSink(eventSink, request);
+                reply = commandService.handle(message, request.input.trim(), commandEventSink);
+                commandEventSink.persistIfDirectReply(reply);
             } else {
                 reply = conversationOrchestrator.handleIncoming(message, eventSink);
             }
@@ -342,6 +406,107 @@ public class DashboardChatService {
     }
 
     /**
+     * 持久化 Web 端直连 slash 命令轮次，确保刷新、恢复和历史检索能看到命令结果。
+     *
+     * @param sessionId 命令最终归属的会话标识。
+     * @param request 当前聊天运行请求。
+     * @param assistantText 命令返回给用户的可见文本。
+     */
+    private void persistDirectCommandTurn(
+            String sessionId, ChatRunRequest request, String assistantText) throws Exception {
+        String targetSessionId = StrUtil.blankToDefault(sessionId, request.sessionId);
+        String userText = StrUtil.nullToEmpty(request.input).trim();
+        String assistant = StrUtil.nullToEmpty(assistantText).trim();
+        if (StrUtil.isBlank(targetSessionId)
+                || StrUtil.isBlank(userText)
+                || StrUtil.isBlank(assistant)) {
+            return;
+        }
+
+        persistVisibleTurn(targetSessionId, request, userText, assistant);
+    }
+
+    /**
+     * 持久化 Web 可见的用户输入和助手文本，统一处理刷新恢复所需的尾部去重与标题维护。
+     *
+     * @param sessionId 当前会话标识。
+     * @param request 当前聊天运行请求。
+     * @param userText 用户可见输入。
+     * @param assistantText 助手可见文本。
+     */
+    private void persistVisibleTurn(
+            String sessionId, ChatRunRequest request, String userText, String assistantText)
+            throws Exception {
+        if (StrUtil.isBlank(sessionId)
+                || StrUtil.isBlank(userText)
+                || StrUtil.isBlank(assistantText)) {
+            return;
+        }
+
+        SessionRecord session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            return;
+        }
+
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        if (isSameTrailingTurn(messages, userText, assistantText)) {
+            return;
+        }
+
+        if (!isSameTrailingUser(messages, userText)) {
+            messages.add(ChatMessage.ofUser(userText));
+        }
+        messages.add(ChatMessage.ofAssistant(assistantText));
+        session.setNdjson(MessageSupport.toNdjson(messages));
+        if (StrUtil.isBlank(session.getTitle())) {
+            session.setTitle(extractTitle(request));
+        }
+        session.setUpdatedAt(System.currentTimeMillis());
+        sessionRepository.save(session);
+    }
+
+    /**
+     * 判断末尾是否已经是同一条命令及其回复，避免事件回调和兜底持久化重复写入。
+     *
+     * @param messages 当前会话消息。
+     * @param userText 用户命令文本。
+     * @param assistantText 助手回复文本。
+     * @return 如果末尾轮次一致则返回 true。
+     */
+    private boolean isSameTrailingTurn(
+            List<ChatMessage> messages, String userText, String assistantText) {
+        if (messages == null || messages.size() < 2) {
+            return false;
+        }
+        ChatMessage user = messages.get(messages.size() - 2);
+        ChatMessage assistant = messages.get(messages.size() - 1);
+        return user != null
+                && assistant != null
+                && "USER".equals(user.getRole().name())
+                && "ASSISTANT".equals(assistant.getRole().name())
+                && StrUtil.equals(StrUtil.nullToEmpty(user.getContent()).trim(), userText)
+                && StrUtil.equals(
+                        StrUtil.nullToEmpty(assistant.getContent()).trim(), assistantText);
+    }
+
+    /**
+     * 判断末尾是否已写入同一条用户输入，用于取消发生在模型落库用户消息之后时只补助手取消提示。
+     *
+     * @param messages 当前会话消息。
+     * @param userText 用户输入文本。
+     * @return 如果最后一条消息就是同一条用户输入则返回 true。
+     */
+    private boolean isSameTrailingUser(List<ChatMessage> messages, String userText) {
+        if (messages == null || messages.isEmpty()) {
+            return false;
+        }
+        ChatMessage user = messages.get(messages.size() - 1);
+        return user != null
+                && "USER".equals(user.getRole().name())
+                && StrUtil.equals(StrUtil.nullToEmpty(user.getContent()).trim(), userText);
+    }
+
+    /**
      * 构建消息。
      *
      * @param request 当前请求对象。
@@ -355,6 +520,9 @@ public class DashboardChatService {
         message.setChatName("dashboard");
         message.setUserName("dashboard");
         message.setSourceKeyOverride(sourceKey(sessionId));
+        message.setAllowedToolsOverride(request.allowedTools);
+        message.setRequiredToolsOverride(request.requiredTools);
+        message.setMaxToolCallsOverride(request.maxToolCalls);
         if (request.attachments != null && !request.attachments.isEmpty()) {
             message.setAttachments(
                     request.resolvedAttachments == null
@@ -463,6 +631,9 @@ public class DashboardChatService {
         if (StrUtil.isNotBlank(state.sessionId)) {
             payload.put("session_id", state.sessionId);
         }
+        if (StrUtil.isNotBlank(state.agentRunId)) {
+            payload.put("agent_run_id", state.agentRunId);
+        }
         if (data != null) {
             payload.putAll(data);
         }
@@ -511,6 +682,9 @@ public class DashboardChatService {
         /** 记录控制台运行事件接收端中的状态。 */
         private final ChatRunState state;
 
+        /** 标记启动事件是否已投递，避免外层运行和模型编排层重复发送同一类事件。 */
+        private boolean runStartedEmitted;
+
         /**
          * 创建控制台运行事件接收端实例，并注入运行所需依赖。
          *
@@ -528,6 +702,10 @@ public class DashboardChatService {
         @Override
         public void onRunStarted(String sessionId) {
             state.sessionId = sessionId;
+            if (runStartedEmitted) {
+                return;
+            }
+            runStartedEmitted = true;
             enqueue(state, "run.started", Collections.<String, Object>emptyMap());
         }
 
@@ -611,8 +789,9 @@ public class DashboardChatService {
          */
         @Override
         public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("attempt_no", attemptNo);
             payload.put("provider", safeText(provider, 120));
             payload.put("model", safeText(model, 120));
@@ -629,8 +808,9 @@ public class DashboardChatService {
          */
         @Override
         public void onAttemptCompleted(String runId, int attemptNo, String status, String reason) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("attempt_no", attemptNo);
             payload.put("status", safeText(status, 120));
             payload.put("reason", safeText(reason, 1000));
@@ -653,8 +833,9 @@ public class DashboardChatService {
                 String reason,
                 int estimatedTokens,
                 int thresholdTokens) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("compressed", compressed);
             payload.put("reason", safeText(reason, 1000));
             payload.put("estimated_tokens", estimatedTokens);
@@ -670,8 +851,9 @@ public class DashboardChatService {
          */
         @Override
         public void onRecoveryStarted(String runId, String recoveryType) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("recovery_type", safeText(recoveryType, 240));
             enqueue(state, "recovery.started", payload);
         }
@@ -687,8 +869,9 @@ public class DashboardChatService {
         @Override
         public void onFallback(
                 String runId, String fromProvider, String toProvider, String reason) {
+            state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("agent_run_id", safeText(runId, 120));
+            payload.put("agent_run_id", state.agentRunId);
             payload.put("from_provider", safeText(fromProvider, 120));
             payload.put("to_provider", safeText(toProvider, 120));
             payload.put("reason", safeText(reason, 1000));
@@ -779,10 +962,213 @@ public class DashboardChatService {
         }
     }
 
+    /** Web 端 slash 命令事件包装器，负责在完成事件前落库直连命令回复。 */
+    private final class DashboardCommandEventSink implements ConversationEventSink {
+        /** 委托给原有运行事件接收端，保持 SSE 事件协议不变。 */
+        private final ConversationEventSink delegate;
+
+        /** 保存当前请求，便于写入用户原始命令。 */
+        private final ChatRunRequest request;
+
+        /** 收集命令直连回复的增量文本。 */
+        private final StringBuilder assistantBuffer = new StringBuilder();
+
+        /** 标记当前命令是否转入模型运行，避免重复写入模型已持久化的会话。 */
+        private boolean modelRunCompleted;
+
+        /** 标记直连命令轮次是否已经持久化。 */
+        private boolean persisted;
+
+        /**
+         * 创建 Web 端命令事件包装器。
+         *
+         * @param delegate 原有事件接收端。
+         * @param request 当前聊天运行请求。
+         */
+        private DashboardCommandEventSink(
+                ConversationEventSink delegate, ChatRunRequest request) {
+            this.delegate = delegate == null ? ConversationEventSink.noop() : delegate;
+            this.request = request;
+        }
+
+        /**
+         * 当命令服务没有主动发出完成事件时，使用返回值做一次持久化兜底。
+         *
+         * @param reply 命令服务返回结果。
+         */
+        private void persistIfDirectReply(GatewayReply reply) throws Exception {
+            if (reply == null || reply.isError() || modelRunCompleted || persisted) {
+                return;
+            }
+            String sessionId = StrUtil.blankToDefault(reply.getSessionId(), request.sessionId);
+            String content =
+                    StrUtil.blankToDefault(
+                            assistantBuffer.toString(), StrUtil.nullToEmpty(reply.getContent()));
+            persist(sessionId, content);
+        }
+
+        /**
+         * 写入一次直连命令轮次。
+         *
+         * @param sessionId 命令归属会话。
+         * @param content 可见回复文本。
+         */
+        private void persist(String sessionId, String content) throws Exception {
+            if (persisted) {
+                return;
+            }
+            persistDirectCommandTurn(sessionId, request, content);
+            persisted = true;
+        }
+
+        /** 运行开始。 */
+        @Override
+        public void onRunStarted(String sessionId) {
+            delegate.onRunStarted(sessionId);
+        }
+
+        /**
+         * 响应AttemptStarted事件。
+         *
+         * @param runId 运行标识。
+         * @param attemptNo attemptNo 参数。
+         * @param provider 模型或能力提供方。
+         * @param model 模型名称。
+         */
+        @Override
+        public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
+            delegate.onAttemptStarted(runId, attemptNo, provider, model);
+        }
+
+        /**
+         * 响应AttemptCompleted事件。
+         *
+         * @param runId 运行标识。
+         * @param attemptNo attemptNo 参数。
+         * @param status 状态参数。
+         * @param reason 原因参数。
+         */
+        @Override
+        public void onAttemptCompleted(String runId, int attemptNo, String status, String reason) {
+            delegate.onAttemptCompleted(runId, attemptNo, status, reason);
+        }
+
+        /**
+         * 响应压缩决策事件。
+         *
+         * @param runId 运行标识。
+         * @param compressed compressed 参数。
+         * @param reason 原因参数。
+         * @param estimatedTokens estimatedtoken参数。
+         * @param thresholdTokens thresholdtoken参数。
+         */
+        @Override
+        public void onCompressionDecision(
+                String runId,
+                boolean compressed,
+                String reason,
+                int estimatedTokens,
+                int thresholdTokens) {
+            delegate.onCompressionDecision(
+                    runId, compressed, reason, estimatedTokens, thresholdTokens);
+        }
+
+        /**
+         * 响应恢复Started事件。
+         *
+         * @param runId 运行标识。
+         * @param recoveryType 恢复类型参数。
+         */
+        @Override
+        public void onRecoveryStarted(String runId, String recoveryType) {
+            delegate.onRecoveryStarted(runId, recoveryType);
+        }
+
+        /**
+         * 响应兜底事件。
+         *
+         * @param runId 运行标识。
+         * @param fromProvider from提供方标识或键值。
+         * @param toProvider to提供方标识或键值。
+         * @param reason 原因参数。
+         */
+        @Override
+        public void onFallback(
+                String runId, String fromProvider, String toProvider, String reason) {
+            delegate.onFallback(runId, fromProvider, toProvider, reason);
+        }
+
+        /**
+         * 响应投递事件事件。
+         *
+         * @param runId 运行标识。
+         * @param status 状态参数。
+         * @param detail 详情参数。
+         */
+        @Override
+        public void onDeliveryEvent(String runId, String status, String detail) {
+            delegate.onDeliveryEvent(runId, status, detail);
+        }
+
+        /** assistant 文本增量。 */
+        @Override
+        public void onAssistantDelta(String delta) {
+            if (StrUtil.isNotBlank(delta)) {
+                assistantBuffer.append(delta);
+            }
+            delegate.onAssistantDelta(delta);
+        }
+
+        /** assistant reasoning 文本增量。 */
+        @Override
+        public void onReasoningDelta(String delta) {
+            delegate.onReasoningDelta(delta);
+        }
+
+        /** 工具开始。 */
+        @Override
+        public void onToolStarted(String toolName, Map<String, Object> args) {
+            delegate.onToolStarted(toolName, args);
+        }
+
+        /** 工具结束。 */
+        @Override
+        public void onToolCompleted(String toolName, String result, long durationMs) {
+            delegate.onToolCompleted(toolName, result, durationMs);
+        }
+
+        /** 运行成功完成。 */
+        @Override
+        public void onRunCompleted(String sessionId, String finalReply, LlmResult result) {
+            if (result != null) {
+                modelRunCompleted = true;
+            } else {
+                try {
+                    persist(
+                            sessionId,
+                            StrUtil.blankToDefault(finalReply, assistantBuffer.toString()));
+                } catch (Exception e) {
+                    delegate.onRunFailed(sessionId, e);
+                    return;
+                }
+            }
+            delegate.onRunCompleted(sessionId, finalReply, result);
+        }
+
+        /** 运行失败。 */
+        @Override
+        public void onRunFailed(String sessionId, Throwable error) {
+            delegate.onRunFailed(sessionId, error);
+        }
+    }
+
     /** 表示聊天运行数据，在服务、仓储和接口之间传递。 */
     private static class ChatRunState {
         /** 记录聊天运行中的运行标识。 */
         private final String runId;
+
+        /** 记录内部 Agent 持久化运行标识，用于把 Web 订阅事件关联到运行记录列表。 */
+        private volatile String agentRunId;
 
         /** 记录聊天运行中的events。 */
         private final BlockingQueue<ChatRunEvent> events = new LinkedBlockingQueue<ChatRunEvent>();
@@ -808,15 +1194,30 @@ public class DashboardChatService {
         /** 记录聊天运行中的future。 */
         private volatile Future<?> future;
 
+        /** 保存原始请求，便于取消、恢复和诊断路径写入可追溯上下文。 */
+        private final ChatRunRequest request;
+
         /**
-         * 创建Chat运行状态实例，并注入运行所需依赖。
+         * 创建不绑定原始请求的状态实例，仅供事件单元测试或兼容旧反射路径使用。
          *
          * @param runId 运行标识。
          * @param sessionId 当前会话标识。
          */
         private ChatRunState(String runId, String sessionId) {
+            this(runId, sessionId, null);
+        }
+
+        /**
+         * 创建Chat运行状态实例，并注入运行所需依赖。
+         *
+         * @param runId 运行标识。
+         * @param sessionId 当前会话标识。
+         * @param request 原始聊天运行请求。
+         */
+        private ChatRunState(String runId, String sessionId, ChatRunRequest request) {
             this.runId = runId;
             this.sessionId = sessionId;
+            this.request = request;
         }
     }
 
@@ -851,6 +1252,15 @@ public class DashboardChatService {
         /** 记录聊天运行请求中的模型。 */
         private String model;
 
+        /** 本轮 Web 运行允许调用的工具名白名单；为空表示不限制工具名。 */
+        private List<String> allowedTools;
+
+        /** 本轮 Web 运行必须真实完成的工具名列表；为空表示不做运行后工具校验。 */
+        private List<String> requiredTools;
+
+        /** 本轮 Web 运行允许尝试的最大工具调用次数；为空表示不限制次数。 */
+        private Integer maxToolCalls;
+
         /** 保存对话历史集合，维持调用顺序或去重语义。 */
         private List<HistoryItem> conversationHistory;
 
@@ -871,6 +1281,12 @@ public class DashboardChatService {
             request.input = body.get("input").getString();
             request.sessionId = body.get("session_id").getString();
             request.model = body.get("model").getString();
+            request.allowedTools =
+                    parseStringList(firstPresent(body, "allowed_tools", "allowedTools"));
+            request.requiredTools =
+                    parseStringList(firstPresent(body, "required_tools", "requiredTools"));
+            request.maxToolCalls =
+                    parsePositiveInteger(firstPresent(body, "max_tool_calls", "maxToolCalls"));
 
             List<HistoryItem> history = new ArrayList<HistoryItem>();
             ONode historyNode = body.get("conversation_history");
@@ -900,6 +1316,96 @@ public class DashboardChatService {
             }
             request.attachments = attachments;
             return request;
+        }
+
+        /**
+         * 读取首个存在的请求字段，兼容蛇形命名和驼峰命名。
+         *
+         * @param body 请求体节点。
+         * @param names 候选字段名。
+         * @return 返回第一个存在的字段节点；不存在时返回 null。
+         */
+        private static ONode firstPresent(ONode body, String... names) {
+            if (body == null || names == null) {
+                return null;
+            }
+            for (String name : names) {
+                ONode value = body.get(name);
+                if (value != null && !value.isNull()) {
+                    return value;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * 解析工具名列表，支持 JSON 数组和逗号分隔字符串。
+         *
+         * @param node 请求字段节点。
+         * @return 返回去空白后的工具名集合。
+         */
+        private static List<String> parseStringList(ONode node) {
+            List<String> values = new ArrayList<String>();
+            if (node == null || node.isNull()) {
+                return values;
+            }
+            if (node.isArray()) {
+                for (int i = 0; i < node.size(); i++) {
+                    addStringValue(values, node.get(i).getString());
+                }
+            } else {
+                String raw = node.getString();
+                if (raw != null) {
+                    String[] parts = raw.split(",");
+                    for (String part : parts) {
+                        addStringValue(values, part);
+                    }
+                }
+            }
+            return values;
+        }
+
+        /**
+         * 解析正整数请求字段，非法或非正数表示不启用次数限制。
+         *
+         * @param node 请求字段节点。
+         * @return 返回正整数；未配置时返回 null。
+         */
+        private static Integer parsePositiveInteger(ONode node) {
+            if (node == null || node.isNull()) {
+                return null;
+            }
+            try {
+                int value = node.getInt();
+                return value > 0 ? Integer.valueOf(value) : null;
+            } catch (Exception e) {
+                String raw = node.getString();
+                if (raw == null) {
+                    return null;
+                }
+                try {
+                    int value = Integer.parseInt(raw.trim());
+                    return value > 0 ? Integer.valueOf(value) : null;
+                } catch (Exception ignored) {
+                    return null;
+                }
+            }
+        }
+
+        /**
+         * 添加单个工具名，避免空白项进入运行策略。
+         *
+         * @param values 目标集合。
+         * @param raw 原始工具名。
+         */
+        private static void addStringValue(List<String> values, String raw) {
+            if (raw == null) {
+                return;
+            }
+            String clean = raw.trim();
+            if (StrUtil.isNotBlank(clean)) {
+                values.add(clean);
+            }
         }
     }
 

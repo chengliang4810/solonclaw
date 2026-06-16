@@ -16,6 +16,7 @@ export interface SessionSummary {
   cache_read_tokens: number
   cache_write_tokens: number
   reasoning_tokens: number
+  last_total_tokens?: number
   provider: string | null
   parent_session_id?: string | null
   branch_name?: string | null
@@ -87,6 +88,7 @@ interface DashboardSessionSummary {
   cache_read_tokens?: number
   cache_write_tokens?: number
   total_tokens?: number
+  last_total_tokens?: number
   preview: string | null
   parent_session_id?: string | null
   branch_name?: string | null
@@ -149,6 +151,7 @@ function mapSummary(s: DashboardSessionSummary): SessionSummary {
     cache_read_tokens: s.cache_read_tokens || 0,
     cache_write_tokens: s.cache_write_tokens || 0,
     reasoning_tokens: s.reasoning_tokens || 0,
+    last_total_tokens: s.last_total_tokens || 0,
     provider: s.provider || null,
     parent_session_id: s.parent_session_id || null,
     branch_name: s.branch_name || null,
@@ -260,6 +263,7 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
       cache_read_tokens: detail.cache_read_tokens,
       cache_write_tokens: detail.cache_write_tokens,
       reasoning_tokens: detail.reasoning_tokens,
+      last_total_tokens: detail.last_total_tokens || 0,
       provider: detail.provider || null,
       parent_session_id: detail.parent_session_id || null,
       branch_name: detail.branch_name || null,
@@ -273,6 +277,7 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
 
     return {
       ...base,
+      last_total_tokens: detail.last_total_tokens || 0,
       messages: mapMessages(id, detail.messages),
     }
   } catch {
@@ -309,26 +314,28 @@ export async function renameSession(id: string, title: string): Promise<boolean>
   }
 }
 
-export async function fetchSessionUsage(ids: string[]): Promise<Record<string, { input_tokens: number; output_tokens: number }>> {
-  const results: Record<string, { input_tokens: number; output_tokens: number }> = {}
+export async function fetchSessionUsage(ids: string[]): Promise<Record<string, { input_tokens: number; output_tokens: number; last_total_tokens?: number }>> {
+  const results: Record<string, { input_tokens: number; output_tokens: number; last_total_tokens?: number }> = {}
   const sessions = await fetchSessions(undefined, 500)
   for (const session of sessions) {
     if (ids.includes(session.id)) {
       results[session.id] = {
         input_tokens: session.input_tokens,
         output_tokens: session.output_tokens,
+        last_total_tokens: session.last_total_tokens || 0,
       }
     }
   }
   return results
 }
 
-export async function fetchSessionUsageSingle(id: string): Promise<{ input_tokens: number; output_tokens: number } | null> {
+export async function fetchSessionUsageSingle(id: string): Promise<{ input_tokens: number; output_tokens: number; last_total_tokens?: number } | null> {
   const detail = await fetchSession(id)
   if (!detail) return null
   return {
     input_tokens: detail.input_tokens,
     output_tokens: detail.output_tokens,
+    last_total_tokens: detail.last_total_tokens || 0,
   }
 }
 

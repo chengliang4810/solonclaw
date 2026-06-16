@@ -129,7 +129,7 @@ onUnmounted(() => {
   <div class="conversation-monitor">
     <aside class="conversation-monitor__sidebar">
       <div v-if="sessionsLoading && sessions.length === 0" class="conversation-monitor__empty">{{ t('common.loading') }}</div>
-      <div v-else-if="sessions.length === 0" class="conversation-monitor__empty">{{ t('chat.noSessions') }}</div>
+      <div v-else-if="sessions.length === 0" class="conversation-monitor__empty">{{ t('chat.noLiveSessions') }}</div>
       <button
         v-for="session in sessions"
         :key="session.id"

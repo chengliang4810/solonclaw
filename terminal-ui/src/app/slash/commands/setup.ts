@@ -2,14 +2,14 @@ import { patchOverlayState } from '../../overlayStore.js'
 import type { SlashCommand } from '../types.js'
 
 const setupUsage = [
-  'setup:',
-  '  /setup model    configure provider and model',
-  '  /setup gateway  configure domestic messaging channels'
+  '设置：',
+  '  /setup model    配置提供方与模型',
+  '  /setup gateway  配置国内消息渠道'
 ].join('\n')
 
 export const setupCommands: SlashCommand[] = [
   {
-    help: 'configure model and gateway in-place',
+    help: '就地配置模型与渠道',
     name: 'setup',
     run: (arg, ctx) => {
       const target = arg.trim().toLowerCase()
@@ -26,7 +26,7 @@ export const setupCommands: SlashCommand[] = [
         return patchOverlayState({ channelSetup: true, modelPicker: false, setupPanel: false })
       }
 
-      ctx.transcript.page(setupUsage, 'Setup')
+      ctx.transcript.page(setupUsage, '设置')
     }
   }
 ]

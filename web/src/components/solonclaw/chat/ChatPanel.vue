@@ -31,7 +31,38 @@ const showSessions = ref(
 )
 const lastChatSessionsVisibility = ref(showSessions.value)
 let mobileQuery: MediaQueryList | null = null
+let passiveRefreshTimer: ReturnType<typeof setInterval> | null = null
 const isMobile = ref(false)
+const PASSIVE_REFRESH_INTERVAL_MS = 15000
+const COLLAPSED_GROUPS_KEY = 'solonclaw_collapsed_groups'
+
+// 会话分组折叠状态只影响当前浏览器；缓存损坏时回退默认值，避免聊天页启动失败。
+function loadCollapsedGroupSources(): string[] {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_GROUPS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((source): source is string => typeof source === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function hasStoredCollapsedGroups(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_GROUPS_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+function saveCollapsedGroupSources(groups: Set<string>) {
+  try {
+    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...groups]))
+  } catch {
+    // 本地偏好保存失败时只影响当前浏览器，不影响对话主流程。
+  }
+}
 
 function handleSessionClick(sessionId: string) {
   chatStore.switchSession(sessionId)
@@ -56,20 +87,32 @@ function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
   }
 }
 
+async function refreshVisibleActiveSession() {
+  if (currentMode.value !== 'chat' || chatStore.isRunActive || document.hidden) return
+  await chatStore.refreshActiveSession()
+}
+
 onMounted(() => {
   mobileQuery = window.matchMedia('(max-width: 768px)')
   handleMobileChange(mobileQuery)
   mobileQuery.addEventListener('change', handleMobileChange)
+  passiveRefreshTimer = setInterval(refreshVisibleActiveSession, PASSIVE_REFRESH_INTERVAL_MS)
+  document.addEventListener('visibilitychange', refreshVisibleActiveSession)
 })
 
 onUnmounted(() => {
   mobileQuery?.removeEventListener('change', handleMobileChange)
+  if (passiveRefreshTimer) {
+    clearInterval(passiveRefreshTimer)
+    passiveRefreshTimer = null
+  }
+  document.removeEventListener('visibilitychange', refreshVisibleActiveSession)
 })
 const showRenameModal = ref(false)
 const renameValue = ref('')
 const renameSessionId = ref<string | null>(null)
 const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
-const collapsedGroups = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem('solonclaw_collapsed_groups') || '[]')))
+const collapsedGroups = ref<Set<string>>(new Set(loadCollapsedGroupSources()))
 
 // Source sort order: api_server first, cron last, others alphabetical
 function sourceSortKey(source: string): number {
@@ -137,20 +180,20 @@ function toggleGroup(source: string) {
       chatStore.switchSession(group.sessions[0].id)
     }
   }
-  localStorage.setItem('solonclaw_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+  saveCollapsedGroupSources(collapsedGroups.value)
 }
 
 watch(groupedSessions, groups => {
-  if (localStorage.getItem('solonclaw_collapsed_groups') !== null) {
+  if (hasStoredCollapsedGroups()) {
     const activeSource = chatStore.activeSession?.source
     if (activeSource && collapsedGroups.value.has(activeSource)) {
       collapsedGroups.value = new Set([...collapsedGroups.value].filter(source => source !== activeSource))
-      localStorage.setItem('solonclaw_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+      saveCollapsedGroupSources(collapsedGroups.value)
     }
     return
   }
   collapsedGroups.value = new Set(groups.slice(1).map(group => group.source))
-  localStorage.setItem('solonclaw_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+  saveCollapsedGroupSources(collapsedGroups.value)
 }, { once: true })
 
 watch(
@@ -183,19 +226,23 @@ const activeGoalLabel = computed(() => {
   const goal = activeGoalState.value
   if (!goal) return ''
   const statusMap: Record<string, string> = {
-    active: '目标进行中',
-    paused: '目标暂停',
-    done: '目标完成',
+    active: t('chat.goalStatusActive'),
+    paused: t('chat.goalStatusPaused'),
+    done: t('chat.goalStatusDone'),
   }
-  const status = statusMap[goal.status] || `目标 ${goal.status}`
-  return `${status} ${goal.turns_used}/${goal.max_turns}`
+  const status = statusMap[goal.status] || t('chat.goalStatusUnknown', { status: goal.status })
+  return t('chat.goalProgress', {
+    status,
+    used: goal.turns_used,
+    max: goal.max_turns,
+  })
 })
 
 const activeGoalTitle = computed(() => {
   const goal = activeGoalState.value
   if (!goal) return ''
   const parts = [goal.goal]
-  if (goal.last_verdict) parts.push(`judge=${goal.last_verdict}`)
+  if (goal.last_verdict) parts.push(t('chat.goalJudge', { verdict: goal.last_verdict }))
   if (goal.last_reason) parts.push(goal.last_reason)
   if (goal.paused_reason) parts.push(goal.paused_reason)
   return parts.filter(Boolean).join('\n')
@@ -426,7 +473,7 @@ async function handleRenameConfirm() {
                   </template>
                 </NButton>
               </template>
-              暂停目标
+              {{ t('chat.pauseGoal') }}
             </NTooltip>
             <NTooltip v-if="activeGoalState.status === 'paused'" trigger="hover">
               <template #trigger>
@@ -438,7 +485,7 @@ async function handleRenameConfirm() {
                   </template>
                 </NButton>
               </template>
-              恢复目标
+              {{ t('chat.resumeGoal') }}
             </NTooltip>
             <NTooltip v-if="activeGoalState.status !== 'done'" trigger="hover">
               <template #trigger>
@@ -451,7 +498,7 @@ async function handleRenameConfirm() {
                   </template>
                 </NButton>
               </template>
-              清除目标
+              {{ t('chat.clearGoal') }}
             </NTooltip>
           </div>
         </div>

@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.cli.ConsoleEventSink;
 import com.jimuqu.solon.claw.cli.LocalTerminalHelp;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
@@ -19,9 +20,25 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 public class CliShellTipsTest {
+    @Test
+    void shouldResolveCliHistoryFileInsideRuntimeHome() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("solonclaw-cli-history");
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null), null, config, null, null, null, null);
+
+        java.io.File historyFile = historyFile(shell);
+
+        assertThat(historyFile)
+                .isEqualTo(runtimeHome.resolve("history").resolve("cli.history").toFile());
+        assertThat(historyFile.getParentFile()).isDirectory();
+    }
+
     @Test
     void shouldHandleTipsLocallyAndExposeCompletion() throws Exception {
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
@@ -547,6 +564,12 @@ public class CliShellTipsTest {
         Method method = CliShell.class.getDeclaredMethod("renderEvents");
         method.setAccessible(true);
         return (String) method.invoke(shell);
+    }
+
+    private static java.io.File historyFile(CliShell shell) throws Exception {
+        Method method = CliShell.class.getDeclaredMethod("historyFile");
+        method.setAccessible(true);
+        return (java.io.File) method.invoke(shell);
     }
 
     private static void setField(CliShell shell, String name, Object value) throws Exception {

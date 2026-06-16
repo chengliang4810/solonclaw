@@ -28,16 +28,23 @@ function refreshUpcoming() {
   jobsStore.fetchUpcomingJobs()
 }
 
+function humanizeToken(value: string): string {
+  const normalized = value.trim()
+  if (!normalized) return ''
+  const translated = t(`jobs.humanize.${normalized}`)
+  return translated === `jobs.humanize.${normalized}` ? normalized : translated
+}
+
 const guideActions = computed(() => {
   const actions = jobsStore.guide?.actions || {}
-  return Object.keys(actions).map(key => `${key}: ${actions[key]}`)
+  return Object.keys(actions).map(key => `${humanizeToken(key)}：${actions[key]}`)
 })
 
 const guideAliases = computed(() => {
   const aliases = jobsStore.guide?.aliases || {}
   return Object.keys(aliases).map(key => {
     const value = aliases[key]
-    return Array.isArray(value) && value.length ? `${key}: ${value.join(', ')}` : key
+    return Array.isArray(value) && value.length ? `${humanizeToken(key)}：${value.join('、')}` : humanizeToken(key)
   })
 })
 
@@ -48,8 +55,8 @@ const guideDeliveries = computed(() => {
   const modes = Array.isArray(delivery.modes) ? delivery.modes : []
   const targets = Array.isArray(delivery.targets) ? delivery.targets : []
   return [
-    ...modes.map(String),
-    targets.length ? `${t('jobs.guideTargets')}: ${targets.join(', ')}` : '',
+    ...modes.map(item => humanizeToken(String(item))),
+    targets.length ? `${t('jobs.guideTargets')}：${targets.map(item => humanizeToken(String(item))).join('、')}` : '',
   ].filter(Boolean)
 })
 
@@ -76,7 +83,7 @@ const guideTriggerSources = computed(() => {
     policy?.custom_retry_trigger_supported ? t('jobs.guideRetryTriggerSource') : '',
     policy?.queued_trigger_type_persisted ? t('jobs.guideQueuedTriggerSource') : '',
     Array.isArray(policy?.trigger_type_fields) && policy.trigger_type_fields.length
-      ? `${t('jobs.guideTriggerFields')}: ${policy.trigger_type_fields.join(', ')}`
+      ? `${t('jobs.guideTriggerFields')}：${policy.trigger_type_fields.map(item => humanizeToken(String(item))).join('、')}`
       : '',
   ].filter(Boolean)
 })

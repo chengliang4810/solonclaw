@@ -35,6 +35,32 @@ assert.equal(normalizeChannelQrStatus({
   error_code: 'qr_failed',
 }).status, 'error')
 
+assert.deepEqual(normalizeChannelQrStatus({
+  ticket: 'wx-ticket',
+  status: 'pending',
+  qrcode: 'wx-qrcode',
+  qrcode_url: 'https://liteapp.weixin.qq.com/q/7GiQu1?qrcode=wx-qrcode&bot_type=3',
+  message: '请使用微信扫码',
+  account_id: 'wx-account',
+  base_url: 'https://ilink.example',
+}), {
+  status: 'wait',
+  qrcode: 'wx-ticket',
+  qrcode_url: 'https://liteapp.weixin.qq.com/q/7GiQu1?qrcode=wx-qrcode&bot_type=3',
+  message: '请使用微信扫码',
+  error_message: '',
+  account_id: 'wx-account',
+  base_url: 'https://ilink.example',
+  client_id: undefined,
+  app_id: undefined,
+  open_id: undefined,
+  domain: undefined,
+})
+
+assert.equal(normalizeChannelQrStatus({
+  status: 'scaned',
+}).status, 'scaned')
+
 assert.equal(normalizeChannelQrStatus({
   status: 'confirmed',
   client_id: 'ding-client',

@@ -1654,7 +1654,7 @@ public class SolonClawShellSkill extends ShellSkill {
     private void writeShellScript(Path tempScript, String code) throws Exception {
         String script = prependShellInit(code);
         if (isWindows()) {
-            Files.write(tempScript, script.getBytes(StandardCharsets.UTF_8));
+            Files.write(tempScript, windowsShellScript(script).getBytes(StandardCharsets.UTF_8));
             return;
         }
         try (BufferedWriter writer = Files.newBufferedWriter(tempScript, StandardCharsets.UTF_8)) {
@@ -1667,6 +1667,26 @@ public class SolonClawShellSkill extends ShellSkill {
             writer.write("exit $__solon_claw_status");
             writer.newLine();
         }
+    }
+
+    /**
+     * 构建 Windows 批处理脚本头，确保命令输出按 UTF-8 返回且不会把命令文本回显给 Agent。
+     *
+     * @param script 原始批处理命令文本。
+     * @return 返回可写入临时 .bat 文件的脚本内容。
+     */
+    private static String windowsShellScript(String script) {
+        return "@echo off\r\n" + windowsUtf8CodePageInit() + "\r\n" + StrUtil.nullToEmpty(script);
+    }
+
+    /**
+     * 构建 Windows 代码页初始化命令；使用 SystemRoot 直达 chcp.com，避免受清理后的 PATH 影响。
+     *
+     * @return 返回静默初始化 UTF-8 代码页的批处理命令。
+     */
+    private static String windowsUtf8CodePageInit() {
+        return "if exist \"%SystemRoot%\\System32\\chcp.com\" "
+                + "\"%SystemRoot%\\System32\\chcp.com\" 65001 >nul 2>nul";
     }
 
     /**

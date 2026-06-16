@@ -525,7 +525,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             feedbackSink,
                             eventSink,
                             true,
-                            agentScope);
+                            agentScope,
+                            Collections.emptyList(),
+                            null,
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            null);
             String finalReply =
                     sanitizeFinalReply(
                             StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
@@ -775,10 +780,16 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             + "\n\n"
                             + runtimeSettingsService.buildAgentRuntimePrompt(
                                     message.sourceKey(), session, enabledToolNames, agentScope);
+            systemPrompt =
+                    appendToolPolicySystemNote(
+                            systemPrompt,
+                            message.getAllowedToolsOverride(),
+                            message.getMaxToolCallsOverride());
             session.setSystemPromptSnapshot(systemPrompt);
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
             invokeHook(AgentHookName.PRE_LLM_CALL, session.getSessionId(), effectiveUserText);
+            String memoryPrefetchContext = prefetchMemory(message.sourceKey(), effectiveUserText);
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
                             session,
@@ -789,7 +800,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             eventSink,
                             false,
                             agentScope,
-                            MessageAttachmentSupport.safeAttachments(message));
+                            MessageAttachmentSupport.safeAttachments(message),
+                            memoryPrefetchContext,
+                            message.getAllowedToolsOverride(),
+                            message.getRequiredToolsOverride(),
+                            message.getMaxToolCallsOverride());
             shouldDrainQueue = true;
             String finalReply =
                     sanitizeFinalReply(
@@ -829,6 +844,35 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         });
             }
         }
+    }
+
+    /**
+     * 追加 Web 单轮工具策略提示，提示模型在受控回归场景中主动收敛工具使用。
+     *
+     * @param systemPrompt 原始系统提示词。
+     * @param allowedTools 本轮允许工具白名单。
+     * @param maxToolCalls 本轮最大工具调用次数。
+     * @return 返回追加策略后的系统提示词。
+     */
+    private String appendToolPolicySystemNote(
+            String systemPrompt, List<String> allowedTools, Integer maxToolCalls) {
+        boolean hasAllowedTools = allowedTools != null && !allowedTools.isEmpty();
+        boolean hasMaxToolCalls = maxToolCalls != null && maxToolCalls.intValue() > 0;
+        if (!hasAllowedTools && !hasMaxToolCalls) {
+            return systemPrompt;
+        }
+        StringBuilder note = new StringBuilder(StrUtil.nullToEmpty(systemPrompt));
+        note.append("\n\n[本轮 Web 运行工具策略]\n");
+        if (hasAllowedTools) {
+            note.append("- 只允许调用这些工具：").append(allowedTools).append('\n');
+        }
+        if (hasMaxToolCalls) {
+            note.append("- 最多允许尝试 ")
+                    .append(maxToolCalls.intValue())
+                    .append(" 次工具调用，超过后工具会被拒绝执行。\n");
+        }
+        note.append("- 如果策略不足以完成任务，停止继续调用工具，并在最终回复中说明受限原因。");
+        return note.toString();
     }
 
     /**
@@ -1138,6 +1182,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
         reply.getChannelExtras()
                 .putAll(dangerousCommandApprovalService.buildDeliveryExtras(platform, pending));
+    }
+
+    /**
+     * 预取本轮用户输入相关的长期记忆，只作为模型请求期上下文使用。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param userMessage 用户消息参数。
+     * @return 返回预取到的临时记忆上下文。
+     */
+    private String prefetchMemory(String sourceKey, String userMessage) {
+        if (memoryManager == null || StrUtil.isBlank(userMessage)) {
+            return "";
+        }
+        try {
+            return StrUtil.nullToEmpty(memoryManager.prefetch(sourceKey, userMessage));
+        } catch (Exception e) {
+            log.warn("Memory prefetch failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            return "";
+        }
     }
 
     /**

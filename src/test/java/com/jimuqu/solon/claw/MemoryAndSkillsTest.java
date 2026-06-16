@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class MemoryAndSkillsTest {
@@ -161,7 +162,8 @@ public class MemoryAndSkillsTest {
                 .contains("Session: ${SOLONCLAW_SESSION_ID}")
                 .contains("Unknown: ${SOLONCLAW_UNKNOWN}")
                 .contains("Inline shell stays literal: !`date +%s`");
-        assertThat(toolView)
+        String toolViewContent = ONode.ofJson(toolView).get("content").getString();
+        assertThat(toolViewContent)
                 .contains("Skill dir: " + skillDir.getAbsolutePath())
                 .contains("Session: " + session.getSessionId())
                 .contains("Unknown: ${SOLONCLAW_UNKNOWN}")
@@ -580,6 +582,29 @@ public class MemoryAndSkillsTest {
         assertThat(provider.context.getTotalTokens()).isPositive();
     }
 
+    /** 校验对话执行前会预取记忆，并把召回结果写入本轮运行上下文。 */
+    @Test
+    void shouldPrefetchMemoryIntoRunContextBeforeGatewayReply() throws Exception {
+        CapturingMemoryProvider provider = new CapturingMemoryProvider();
+        provider.prefetchBlock = "召回：用户喜欢中文短答";
+        TestEnvironment env =
+                TestEnvironment.withMemoryProviders(java.util.Arrays.asList(provider));
+
+        env.send("memory-prefetch-chat", "memory-prefetch-user", "hello");
+        env.send("memory-prefetch-chat", "memory-prefetch-user", "/pairing claim-admin");
+        GatewayReply reply = env.send("memory-prefetch-chat", "memory-prefetch-user", "本轮问题");
+
+        FakeLlmGateway fake = (FakeLlmGateway) env.llmGateway;
+        assertThat(provider.prefetchSourceKey)
+                .isEqualTo("MEMORY:memory-prefetch-chat:memory-prefetch-user");
+        assertThat(provider.prefetchUserMessage).isEqualTo("本轮问题");
+        assertThat(fake.lastRunContextMemoryPrefetch)
+                .contains(MemoryContextBoundary.OPEN_TAG)
+                .contains("召回：用户喜欢中文短答");
+        assertThat(reply.getContent()).contains("echo:本轮问题").doesNotContain("召回：用户喜欢中文短答");
+        assertThat(provider.context.getUserMessage()).isEqualTo("本轮问题");
+    }
+
     @Test
     void shouldNotUpdateTodayMemoryWhenOrchestratorIsCalledDirectly() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -596,6 +621,12 @@ public class MemoryAndSkillsTest {
         private int legacyCalls;
         private String systemPromptBlock = "";
         private String prefetchBlock = "";
+
+        /** 记录最近一次预取记忆使用的来源键。 */
+        private String prefetchSourceKey;
+
+        /** 记录最近一次预取记忆使用的用户原文。 */
+        private String prefetchUserMessage;
 
         private CapturingMemoryProvider() {
             this("capture");
@@ -617,6 +648,8 @@ public class MemoryAndSkillsTest {
 
         @Override
         public String prefetch(String sourceKey, String userMessage) {
+            this.prefetchSourceKey = sourceKey;
+            this.prefetchUserMessage = userMessage;
             return prefetchBlock;
         }
 
@@ -658,6 +691,21 @@ public class MemoryAndSkillsTest {
 
         assertThat(response).contains("不会写入长期记忆");
         assertThat(env.memoryService.read("memory")).isBlank();
+    }
+
+    @Test
+    void shouldKeepExplicitLongTermPreferenceContainingToolNames() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        String response =
+                env.memoryService.add(
+                        "memory",
+                        "长期偏好：loop-todo-memory-marker-20260615 回归报告要同时复述任务清单与记忆状态");
+
+        assertThat(response).contains("已写入");
+        assertThat(env.memoryService.read("memory"))
+                .contains("loop-todo-memory-marker-20260615")
+                .contains("回归报告要同时复述任务清单与记忆状态");
     }
 
     @Test

@@ -230,6 +230,18 @@ public class QuietContextCollectorTest {
         }
 
         @Override
+        public List<AgentRunEventRecord> searchEvents(
+                String sourceKey,
+                String sessionId,
+                String runId,
+                String query,
+                long timeFrom,
+                long timeTo,
+                int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
         public void saveRunControlCommand(RunControlCommand command) {
             throw unsupported();
         }

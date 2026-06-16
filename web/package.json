@@ -7,6 +7,9 @@
     "dev": "vite --host",
     "test:model-picker-navigation": "node --experimental-strip-types tests/modelPickerNavigation.test.ts",
     "test:panel-navigation": "node --experimental-strip-types tests/panelNavigation.test.ts",
+    "test:chat-message-merge": "node --experimental-strip-types tests/chatMessageMerge.test.ts",
+    "test:session-selection": "node --experimental-strip-types tests/sessionSelection.test.ts",
+    "test:chat-context-usage": "node --experimental-strip-types tests/chatContextUsage.test.ts",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"
   },

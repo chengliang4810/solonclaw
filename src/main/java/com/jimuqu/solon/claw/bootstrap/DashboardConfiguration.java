@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -99,6 +100,7 @@ public class DashboardConfiguration {
      * @param appConfig 应用运行配置。
      * @param sessionRepository 会话仓储依赖。
      * @param deliveryService 投递服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
      * @param appVersionService 应用版本服务依赖。
      * @param appUpdateService 应用Update服务依赖。
@@ -111,6 +113,7 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             SessionRepository sessionRepository,
             DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             AppVersionService appVersionService,
             AppUpdateService appUpdateService,
@@ -120,6 +123,7 @@ public class DashboardConfiguration {
                 appConfig,
                 sessionRepository,
                 deliveryService,
+                agentRunControlService,
                 gatewayRuntimeRefreshService,
                 appVersionService,
                 appUpdateService,
@@ -291,11 +295,16 @@ public class DashboardConfiguration {
      * 执行控制台Logs服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
+     * @param agentRunRepository Agent 运行仓储依赖。
+     * @param cronJobRepository 定时任务仓储依赖。
      * @return 返回控制台Logs服务结果。
      */
     @Bean
-    public DashboardLogsService dashboardLogsService(AppConfig appConfig) {
-        return new DashboardLogsService(appConfig);
+    public DashboardLogsService dashboardLogsService(
+            AppConfig appConfig,
+            AgentRunRepository agentRunRepository,
+            CronJobRepository cronJobRepository) {
+        return new DashboardLogsService(appConfig, agentRunRepository, cronJobRepository);
     }
 
     /**

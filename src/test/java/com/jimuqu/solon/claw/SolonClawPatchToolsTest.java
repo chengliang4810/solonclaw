@@ -49,9 +49,37 @@ public class SolonClawPatchToolsTest {
 
         Map<?, ?> result = parse(json);
         assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
-        assertThat(String.valueOf(result.get("files_modified"))).contains("src/app.txt");
+        assertThat(String.valueOf(result.get("files_modified")))
+                .contains(file.toRealPath().toString());
         assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
                 .isEqualTo("hi\nworld\n");
+    }
+
+    /** 验证默认 runtime 工具根下的 patch 路径语义与 read_file/write_file 保持一致。 */
+    @Test
+    void shouldCollapseRuntimeRootPrefixForReplaceMode() throws Exception {
+        Path tempRoot = Files.createTempDirectory("jimuqu-patch-runtime-prefix-test");
+        Path dir = tempRoot.resolve("runtime");
+        Path file = dir.resolve("logs/patch-target.txt");
+        Files.createDirectories(file.getParent());
+        Files.write(file, "line_1\nline_2=old\nline_3\n".getBytes(StandardCharsets.UTF_8));
+
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String json =
+                tools.patch(
+                        "replace",
+                        "runtime/logs/patch-target.txt",
+                        "line_2=old",
+                        "line_2=new",
+                        false,
+                        null);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("resolved_path")).isEqualTo(file.toRealPath().toString());
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("line_1\nline_2=new\nline_3\n");
+        assertThat(Files.exists(dir.resolve("runtime/logs/patch-target.txt"))).isFalse();
     }
 
     @Test

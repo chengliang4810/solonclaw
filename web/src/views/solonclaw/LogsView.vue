@@ -13,6 +13,7 @@ const loading = ref(false)
 const lineCount = ref(100)
 const levelFilter = ref<string>('')
 const searchQuery = ref('')
+const appliedSearchQuery = ref('')
 
 const logOptions = computed(() =>
   logFiles.value.map(f => ({ label: `${f.name} (${f.size})`, value: f.name })),
@@ -34,8 +35,8 @@ const lineOptions = [
 ]
 
 const filteredEntries = computed(() => {
-  if (!searchQuery.value) return entries.value
-  const q = searchQuery.value.toLowerCase()
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q || q === appliedSearchQuery.value.toLowerCase()) return entries.value
   return entries.value.filter(e =>
     e.message.toLowerCase().includes(q) ||
     e.logger.toLowerCase().includes(q) ||
@@ -66,11 +67,14 @@ function parseAccessLog(msg: string) {
 async function loadLogs() {
   loading.value = true
   try {
+    const query = searchQuery.value.trim()
     const data = await fetchLogs(selectedLog.value, {
       lines: lineCount.value,
       level: levelFilter.value || undefined,
+      query: query || undefined,
     })
     entries.value = data.filter((e): e is LogEntry => e !== null)
+    appliedSearchQuery.value = query
   } catch (e: any) {
     message.error(e.message)
   } finally {
@@ -87,7 +91,10 @@ onMounted(async () => {
 <template>
   <div class="logs-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('logs.title') }}</h2>
+      <div>
+        <h2 class="header-title">{{ t('logs.title') }}</h2>
+        <p class="header-subtitle">{{ t('logs.description') }}</p>
+      </div>
       <div class="header-actions">
         <NSelect
           v-model:value="selectedLog"
@@ -114,6 +121,7 @@ onMounted(async () => {
           v-model="searchQuery"
           class="search-input"
           :placeholder="t('logs.searchPlaceholder')"
+          @keydown.enter="loadLogs"
         />
         <NButton size="small" :loading="loading" @click="loadLogs">{{ t('logs.refresh') }}</NButton>
       </div>

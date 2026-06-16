@@ -295,7 +295,7 @@ const renderedToolResult = computed(() => {
                 >
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
-                <span>思考过程</span>
+                <span>{{ t('chat.reasoningLabel') }}</span>
               </button>
               <div v-if="reasoningExpanded" class="reasoning-content">
                 <MarkdownRenderer :content="message.reasoning || ''" />

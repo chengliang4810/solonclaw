@@ -34,10 +34,14 @@ public class DashboardLogsController {
         int lines = context.paramAsInt("lines", 100);
         String level = context.param("level");
         String component = context.param("component");
+        String query = context.param("query");
+        if (query == null) {
+            query = context.param("keyword");
+        }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("file", file == null ? "agent" : file);
-        result.put("lines", logsService.read(file, lines, level, component));
+        result.put("lines", logsService.read(file, lines, level, component, query));
         return result;
     }
 }

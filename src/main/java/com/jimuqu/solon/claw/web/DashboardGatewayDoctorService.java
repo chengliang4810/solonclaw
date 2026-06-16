@@ -147,7 +147,8 @@ public class DashboardGatewayDoctorService {
         }
         List<Map<String, Object>> platforms = new ArrayList<Map<String, Object>>();
         List<ChannelStatus> statuses = deliveryService.statuses();
-        for (String platform : Arrays.asList("feishu", "dingtalk", "wecom", "weixin")) {
+        for (String platform :
+                Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao")) {
             ChannelStatus status = findStatus(statuses, platform);
             if (status != null) {
                 platforms.add(toDoctorItem(status));

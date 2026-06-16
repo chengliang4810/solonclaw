@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.web.DashboardChatService;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -54,6 +55,49 @@ public class DashboardChatServiceEventSinkTest {
         sink.onAssistantDelta("assistant says " + SECRET);
 
         assertThat(drainEvents(state).toString()).contains("assistant says " + SECRET);
+    }
+
+    @Test
+    void shouldEmitRunStartedOnlyOnceForDashboardRun() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("run-1", "session-initial");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onRunStarted("session-initial");
+        sink.onRunStarted("session-orchestrator");
+
+        BlockingQueue<Object> queue = events(state);
+        assertThat(queue).hasSize(1);
+        Object event = queue.peek();
+        assertThat(eventName(event)).isEqualTo("run.started");
+        assertThat(eventData(event).get("session_id")).isEqualTo("session-initial");
+        assertThat(sessionId(state)).isEqualTo("session-orchestrator");
+    }
+
+    @Test
+    void shouldCarryAgentRunIdOnTerminalDashboardEvents() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("web-run-1", "session-1");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onAttemptStarted("agent-run-1", 1, "provider", "model");
+        sink.onRunCompleted("session-1", "done", null);
+
+        Map<String, Map<String, Object>> events = drainEvents(state);
+        assertThat(events.get("attempt.started").get("run_id")).isEqualTo("web-run-1");
+        assertThat(events.get("attempt.started").get("agent_run_id")).isEqualTo("agent-run-1");
+        assertThat(events.get("run.completed").get("run_id")).isEqualTo("web-run-1");
+        assertThat(events.get("run.completed").get("agent_run_id")).isEqualTo("agent-run-1");
+    }
+
+    @Test
+    void shouldClassifySseClientDisconnects() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+
+        assertThat(isClientDisconnected("writeBuffer has closed")).isTrue();
+        assertThat(isClientDisconnected("OutputStream has closed")).isTrue();
+        assertThat(isClientDisconnected("connection reset by peer")).isTrue();
+        assertThat(isClientDisconnected("disk write failed")).isFalse();
     }
 
     private Object newState(String runId, String sessionId) throws Exception {
@@ -105,5 +149,20 @@ public class DashboardChatServiceEventSinkTest {
         Field field = event.getClass().getDeclaredField("name");
         field.setAccessible(true);
         return (String) field.get(event);
+    }
+
+    private String sessionId(Object state) throws Exception {
+        Field field = state.getClass().getDeclaredField("sessionId");
+        field.setAccessible(true);
+        return (String) field.get(state);
+    }
+
+    private boolean isClientDisconnected(String message) throws Exception {
+        Class<?> disconnectsClass =
+                Class.forName("com.jimuqu.solon.claw.web.DashboardClientDisconnects");
+        Method method =
+                disconnectsClass.getDeclaredMethod("isClientDisconnected", Throwable.class);
+        method.setAccessible(true);
+        return (Boolean) method.invoke(null, new RuntimeException(message));
     }
 }

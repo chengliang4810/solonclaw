@@ -10,19 +10,19 @@ import { OverlayHint, useOverlayKeys } from './overlayControls.js'
 
 const SETUP_ACTIONS = [
   {
-    description: 'Provider, API key, model',
+    description: '提供方、API Key、模型',
     key: 'model',
-    label: 'Model'
+    label: '模型'
   },
   {
-    description: 'Domestic messaging channels',
+    description: '国内消息渠道',
     key: 'gateway',
-    label: 'Channels'
+    label: '渠道'
   },
   {
-    description: 'Run model and channel checks',
+    description: '检查模型与渠道配置',
     key: 'doctor',
-    label: 'Doctor'
+    label: '诊断'
   }
 ] as const
 
@@ -50,10 +50,10 @@ export const createSetupPanelNavigator = (initialIndex = 0) => {
 }
 
 export const setupStatusLines = (status: SetupStatusResponse | null) => [
-  `model: ${status?.provider_configured ? 'configured' : 'missing'}`,
-  `provider: ${status?.provider || '(unset)'}`,
-  `current: ${status?.model || '(unset)'}`,
-  `config: ${status?.runtime_config || '(unknown)'}`
+  `模型：${status?.provider_configured ? '已配置' : '未配置'}`,
+  `提供方：${status?.provider || '（未设置）'}`,
+  `当前模型：${status?.model || '（未设置）'}`,
+  `配置文件：${status?.runtime_config || '（未知）'}`
 ]
 
 export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: SetupPanelProps) {
@@ -113,11 +113,11 @@ export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: Set
   return (
     <Box flexDirection="column" width={64}>
       <Text bold color={t.color.accent} wrap="truncate-end">
-        Setup
+        设置
       </Text>
 
       <Text color={t.color.muted} wrap="truncate-end">
-        Model, channel, and runtime checks
+        模型、渠道与运行时检查
       </Text>
 
       {setupStatusLines(status).map((line, lineIdx) => (
@@ -128,7 +128,7 @@ export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: Set
 
       {err ? (
         <Text color={t.color.label} wrap="truncate-end">
-          error: {err}
+          错误：{err}
         </Text>
       ) : (
         <Text color={t.color.muted} wrap="truncate-end">
@@ -153,7 +153,7 @@ export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: Set
         {' '}
       </Text>
 
-      <OverlayHint t={t}>↑/↓ select · Enter open · Esc/q close</OverlayHint>
+      <OverlayHint t={t}>↑/↓ 选择 · Enter 打开 · Esc/q 关闭</OverlayHint>
     </Box>
   )
 }

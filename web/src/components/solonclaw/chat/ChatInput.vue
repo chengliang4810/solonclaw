@@ -3,6 +3,7 @@ import type { Attachment } from '@/stores/solonclaw/chat'
 import { useChatStore } from '@/stores/solonclaw/chat'
 import { useAppStore } from '@/stores/solonclaw/app'
 import { fetchContextLength } from '@/api/solonclaw/sessions'
+import { computeChatContextUsage } from '@/shared/chatContextUsage'
 import { NButton, NTooltip } from 'naive-ui'
 import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -35,17 +36,15 @@ async function loadContextLength() {
 onMounted(loadContextLength)
 watch(() => useAppStore().selectedModel, loadContextLength)
 
-const totalTokens = computed(() => {
-  const input = chatStore.activeSession?.inputTokens ?? 0
-  const output = chatStore.activeSession?.outputTokens ?? 0
-  return input + output
-})
-
-const remainingTokens = computed(() => contextLength.value - totalTokens.value)
-
-const usagePercent = computed(() =>
-  Math.min((totalTokens.value / contextLength.value) * 100, 100),
+const contextUsage = computed(() =>
+  computeChatContextUsage(chatStore.activeSession, contextLength.value),
 )
+
+const totalTokens = computed(() => contextUsage.value.usedTokens)
+
+const remainingTokens = computed(() => contextUsage.value.remainingTokens)
+
+const usagePercent = computed(() => contextUsage.value.usagePercent)
 
 function formatTokens(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'

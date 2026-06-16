@@ -47,6 +47,13 @@ const canInspect = computed(() => actionFlags.value.can_inspect !== false)
 const canEdit = computed(() => actionFlags.value.can_edit !== false)
 const canRemove = computed(() => actionFlags.value.can_remove !== false)
 
+function humanizeToken(value?: string | null): string {
+  const normalized = (value || '').trim()
+  if (!normalized) return '—'
+  const translated = t(`jobs.humanize.${normalized}`)
+  return translated === `jobs.humanize.${normalized}` ? normalized : translated
+}
+
 const actionSummary = computed(() => {
   const actions: string[] = []
   if (actionFlags.value.can_pause) actions.push(t('jobs.action.pause'))
@@ -56,15 +63,15 @@ const actionSummary = computed(() => {
   if (actionFlags.value.can_history !== false) actions.push(t('jobs.action.history'))
   if (actionFlags.value.can_edit !== false) actions.push(t('common.edit'))
   if (actionFlags.value.can_remove !== false) actions.push(t('common.delete'))
-  return actions.length ? actions.join(', ') : '—'
+  return actions.length ? actions.join('、') : '—'
 })
 
 const aliasSummary = computed(() => {
   const aliases: string[] = []
-  if (actionFlags.value.supports_enable_alias) aliases.push('enable/start')
-  if (actionFlags.value.supports_disable_alias) aliases.push('disable/stop')
-  if (actionFlags.value.supports_rerun_alias) aliases.push('retry/rerun')
-  return aliases.length ? aliases.join(', ') : '—'
+  if (actionFlags.value.supports_enable_alias) aliases.push(t('jobs.alias.enableStart'))
+  if (actionFlags.value.supports_disable_alias) aliases.push(t('jobs.alias.disableStop'))
+  if (actionFlags.value.supports_rerun_alias) aliases.push(t('jobs.alias.retryRerun'))
+  return aliases.length ? aliases.join('、') : '—'
 })
 
 const scheduleExpr = computed(() => {
@@ -123,8 +130,8 @@ const jobBadges = computed(() => {
 
 const deliverDetail = computed(() => {
   const job = activeJob.value
-  const parts = [job.deliver || 'local']
-  if (job.origin?.platform) parts.push(job.origin.platform)
+  const parts = [humanizeToken(job.deliver || 'local')]
+  if (job.origin?.platform) parts.push(humanizeToken(job.origin.platform))
   if (job.deliver_chat_id) parts.push(job.deliver_chat_id)
   if (job.deliver_thread_id) parts.push(`#${job.deliver_thread_id}`)
   return parts.join(' · ')
@@ -144,7 +151,7 @@ function boolDetail(value: boolean) {
 }
 
 function deliveryTargetLabel(target: JobRunDeliveryResultTarget) {
-  const parts = [target.platform || '—', target.chat_id || '—']
+  const parts = [humanizeToken(target.platform), target.chat_id || '—']
   if (target.thread_id) parts.push(`#${target.thread_id}`)
   return parts.join(' · ')
 }
@@ -245,7 +252,7 @@ async function handleDelete() {
         <span class="info-value">
           {{ formatTime(job.last_run_at) }}
           <span v-if="job.last_status" class="run-status" :class="{ ok: job.last_status === 'ok', err: job.last_status !== 'ok' }">
-            {{ job.last_status === 'ok' ? t('common.ok') : job.last_status }}
+            {{ humanizeToken(job.last_status === 'ok' ? 'ok' : job.last_status) }}
           </span>
         </span>
       </div>
@@ -369,12 +376,12 @@ async function handleDelete() {
             <div v-for="run in runs" :key="run.run_id" class="run-item">
               <div class="run-head">
                 <span class="run-status" :class="{ ok: run.status === 'ok', err: run.status && run.status !== 'ok' }">
-                  {{ run.status || '—' }}
+                  {{ humanizeToken(run.status) }}
                 </span>
                 <span class="run-time">{{ formatTime(run.started_at) }}</span>
               </div>
               <div class="run-meta">
-                {{ t('jobs.historyTrigger') }} {{ run.trigger || 'scheduled' }}
+                {{ t('jobs.historyTrigger') }} {{ humanizeToken(run.trigger || 'scheduled') }}
                 <template v-if="run.attempt"> · {{ t('jobs.historyAttempt') }} {{ run.attempt }}</template>
                 <template v-if="run.finished !== undefined">
                   · {{ run.finished ? t('jobs.historyFinished') : t('jobs.historyUnfinished') }}
@@ -406,7 +413,7 @@ async function handleDelete() {
                     :class="{ err: target.status === 'error' }"
                   >
                     <span>{{ deliveryTargetLabel(target) }}</span>
-                    <span>{{ target.status || '—' }}</span>
+                    <span>{{ humanizeToken(target.status) }}</span>
                     <span v-if="target.attachments">{{ t('jobs.historyDeliveryAttachments') }} {{ target.attachments }}</span>
                     <span v-if="target.error" class="delivery-target-error">{{ target.error }}</span>
                   </div>

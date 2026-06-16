@@ -113,6 +113,7 @@ watch(currentToolCalls, () => {
     <div v-if="chatStore.messages.length === 0" class="empty-state">
       <img src="/logo.png" alt="SolonClaw" class="empty-logo" />
       <p>{{ t("chat.emptyState") }}</p>
+      <span class="empty-hint">{{ t("chat.emptyStateHint") }}</span>
     </div>
     <MessageItem
       v-for="msg in displayMessages"
@@ -201,6 +202,11 @@ watch(currentToolCalls, () => {
 
   p {
     font-size: 14px;
+  }
+
+  .empty-hint {
+    font-size: 12px;
+    color: $text-muted;
   }
 }
 

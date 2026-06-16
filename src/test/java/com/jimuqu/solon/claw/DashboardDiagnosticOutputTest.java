@@ -530,6 +530,44 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldIncludeQqbotAndYuanbaoInDoctorPlatforms() throws Exception {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/diagnostic-domestic-platforms-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("gpt-test");
+
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Default");
+        provider.setBaseUrl("https://api.example.com/v1");
+        provider.setDefaultModel("gpt-test");
+        provider.setDialect("openai");
+        provider.setApiKey("sk-test-domestic-platforms");
+        config.getProviders().put("default", provider);
+
+        ChannelStatus qqbot = new ChannelStatus(PlatformType.QQBOT, true, false, "qqbot pending");
+        qqbot.setSetupState("pending");
+        ChannelStatus yuanbao = new ChannelStatus(PlatformType.YUANBAO, true, true, "yuanbao ready");
+        yuanbao.setSetupState("connected");
+
+        DashboardGatewayDoctorService doctorService =
+                new DashboardGatewayDoctorService(
+                        config,
+                        new FixedDeliveryService(qqbot, yuanbao),
+                        new LlmProviderService(config),
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())));
+
+        Map<String, Object> doctor = doctorService.doctor();
+        List<Map<String, Object>> platforms = (List<Map<String, Object>>) doctor.get("platforms");
+
+        assertThat(platforms)
+                .extracting(item -> item.get("platform"))
+                .contains("qqbot", "yuanbao");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldExposeRedactedShutdownForensicsSummary() throws Exception {
         Path parent = Files.createTempDirectory("solon-claw-dashboard-forensics");
         Path runtimeHome =
@@ -5516,10 +5554,19 @@ public class DashboardDiagnosticOutputTest {
     }
 
     private static class FixedDeliveryService implements DeliveryService {
-        private final ChannelStatus status;
+        private final List<ChannelStatus> statuses;
 
-        private FixedDeliveryService(ChannelStatus status) {
-            this.status = status;
+        private FixedDeliveryService(ChannelStatus... statuses) {
+            if (statuses == null || statuses.length == 0) {
+                this.statuses = Collections.emptyList();
+                return;
+            }
+            this.statuses = new ArrayList<ChannelStatus>();
+            for (ChannelStatus status : statuses) {
+                if (status != null) {
+                    this.statuses.add(status);
+                }
+            }
         }
 
         @Override
@@ -5527,9 +5574,7 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public List<ChannelStatus> statuses() {
-            return status == null
-                    ? Collections.<ChannelStatus>emptyList()
-                    : Collections.singletonList(status);
+            return statuses;
         }
     }
 
@@ -5727,6 +5772,18 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public List<AgentRunEventRecord> listEvents(String runId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<AgentRunEventRecord> searchEvents(
+                String sourceKey,
+                String sessionId,
+                String runId,
+                String query,
+                long timeFrom,
+                long timeTo,
+                int limit) {
             return Collections.emptyList();
         }
 

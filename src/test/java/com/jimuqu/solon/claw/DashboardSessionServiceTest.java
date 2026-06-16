@@ -44,6 +44,85 @@ public class DashboardSessionServiceTest {
         assertThat(assistant.get("reasoning")).isEqualTo("先分析路径");
     }
 
+    /** 验证 Dashboard 会话接口从持久化层读取中文消息和压缩摘要时不产生乱码。 */
+    @Test
+    void shouldExposeChineseMessagesAndCompressedSummaryWithoutEncodingCorruption()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dash-chinese:user");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("长期回归 Loop：检查会话恢复"),
+                                ChatMessage.ofAssistant("日志检索已通过，下一轮验证 UI 渲染。"))));
+        session.setCompressedSummary("摘要：长期任务目标仍然是验证状态连续。");
+        env.sessionRepository.save(session);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
+
+        assertThat(detail.get("compressed_summary"))
+                .isEqualTo("摘要：长期任务目标仍然是验证状态连续。");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) detail.get("messages");
+        assertThat(messages.get(0).get("content")).isEqualTo("长期回归 Loop：检查会话恢复");
+        assertThat(messages.get(1).get("content")).isEqualTo("日志检索已通过，下一轮验证 UI 渲染。");
+        String detailText = String.valueOf(detail);
+        assertThat(detailText).doesNotContain("闀挎湡").doesNotContain("�");
+    }
+
+    /** 验证 Dashboard 不把已进入独立压缩摘要的历史乱码摘要残留展示为当前对话消息。 */
+    @Test
+    void shouldHideHistoricalMojibakeSummaryArtifactsFromMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:dash-summary-artifact:user");
+        session.setCompressedSummary("摘要：长期回归 Loop 当前目标是验证会话恢复。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofAssistant(
+                                        "Focus\n"
+                                                + "闀挎湡鍥炲綊 Loop 会话恢复 marker=web-loop-recovery-20260613\n\n"
+                                                + "Decisions\n"
+                                                + "- 楠岃瘉历史摘要不应继续污染消息列表。"),
+                                ChatMessage.ofUser("继续验证会话恢复"),
+                                ChatMessage.ofAssistant("下一步检查日志。"))));
+        env.sessionRepository.save(session);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) detail.get("messages");
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(0).get("content")).isEqualTo("继续验证会话恢复");
+        assertThat(messages.get(1).get("content")).isEqualTo("下一步检查日志。");
+        assertThat(String.valueOf(detail)).doesNotContain("闀挎湡").doesNotContain("楠岃瘉");
+    }
+
+    @Test
+    void shouldExposeToolMessagesWithEscapedJsonTextBlocks() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dash-tool-json:user");
+        session.setNdjson(
+                "{\"role\":\"USER\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"创建 todo\"}],\"content\":\"创建 todo\"}\n"
+                        + "{\"role\":\"TOOL\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\"}],\"content\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\",\"name\":\"todo\",\"toolCallId\":\"call_todo\"}\n");
+        env.sessionRepository.save(session);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) detail.get("messages");
+        assertThat(messages).hasSize(2);
+        Map<String, Object> tool = messages.get(1);
+        assertThat(tool.get("role")).isEqualTo("tool");
+        assertThat(tool.get("tool_name")).isEqualTo("todo");
+        assertThat(tool.get("tool_call_id")).isEqualTo("call_todo");
+        assertThat(String.valueOf(tool.get("content"))).contains("\"status\":\"success\"");
+    }
+
     @Test
     void shouldBuildSessionTreeFromParentLinksAcrossSourceKeys() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

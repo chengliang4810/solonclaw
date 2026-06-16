@@ -30,13 +30,16 @@ async function handleToggle(name: string, running: boolean) {
 <template>
   <div class="gateways-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('gateways.title') }}</h2>
+      <div>
+        <h2 class="header-title">{{ t('gateways.title') }}</h2>
+        <p class="header-subtitle">{{ t('gateways.description') }}</p>
+      </div>
     </header>
 
     <div class="gateways-content">
       <NSpin :show="gatewayStore.loading" size="large">
         <div v-if="gatewayStore.gateways.length === 0" class="empty-state">
-          {{ t('common.noData') }}
+          {{ t('gateways.emptyState') }}
         </div>
 
         <div v-else class="gateway-list">

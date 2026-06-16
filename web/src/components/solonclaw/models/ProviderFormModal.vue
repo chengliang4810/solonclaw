@@ -215,10 +215,13 @@ function handleClose() {
       </NFormItem>
 
       <NFormItem :label="t('models.dialect')" required>
-        <NSelect
-          v-model:value="formData.dialect"
-          :options="dialectOptions"
-        />
+        <div class="dialect-field">
+          <NSelect
+            v-model:value="formData.dialect"
+            :options="dialectOptions"
+          />
+          <p class="field-hint">{{ t('models.dialectHint') }}</p>
+        </div>
       </NFormItem>
     </NForm>
 
@@ -244,5 +247,16 @@ function handleClose() {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+}
+
+.dialect-field {
+  width: 100%;
+}
+
+.field-hint {
+  margin: 8px 0 0;
+  color: var(--text-color-3);
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

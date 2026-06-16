@@ -232,13 +232,37 @@ public class ProcessRegistryTest {
         assertThat(command.get(2)).endsWith("npm run dev");
     }
 
+    /** 验证 Windows 后台命令会先切换 UTF-8 代码页，避免中文输出被错误解码。 */
     @Test
-    void shouldKeepWindowsBackgroundShellCommandUnwrapped() {
+    void shouldWrapWindowsBackgroundShellCommandWithUtf8CodePage() {
         List<String> command =
                 ProcessRegistry.shellCommand(
                         "npm run dev", Collections.singletonList("/tmp/profile.sh"), true);
 
-        assertThat(command).containsExactly("cmd", "/c", "npm run dev");
+        assertThat(command).containsExactly("cmd", "/c", command.get(2));
+        assertThat(command.get(2))
+                .startsWith(
+                        "if exist \"%SystemRoot%\\System32\\chcp.com\" "
+                                + "\"%SystemRoot%\\System32\\chcp.com\" 65001 >nul 2>nul & ");
+        assertThat(command.get(2)).doesNotContain("chcp 65001 >nul & ");
+        assertThat(command.get(2)).endsWith("npm run dev");
+    }
+
+    /** 验证受管后台进程的中文输出可以按 UTF-8 被注册表稳定读取。 */
+    @Test
+    void shouldPreserveChineseOutputFromManagedBackgroundProcess() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry(config);
+        Path home = Files.createTempDirectory("jimuqu-process-encoding");
+        String marker = "长期回归 Loop 切片";
+
+        ProcessRegistry.ManagedProcess managed =
+                registry.start(chineseOutputCommand(marker), home.toFile());
+        assertThat(registry.waitFor(managed.getId(), 10000L)).isTrue();
+
+        assertThat(managed.getOutput()).contains(marker);
+        assertNoMojibake(managed.getOutput());
+        assertThat(managed.getOutput()).doesNotContain("chcp");
     }
 
     @Test
@@ -325,5 +349,23 @@ public class ProcessRegistryTest {
                         new SecurityPolicyService(new AppConfig()));
 
         assertThat(resolved).containsExactly(safe.toString());
+    }
+
+    /** 构建跨平台中文输出命令，用于覆盖后台进程输出读取链路。 */
+    private String chineseOutputCommand(String text) {
+        if (isWindows()) {
+            return "powershell -NoProfile -Command \"Write-Output '" + text + "'\"";
+        }
+        return "printf '%s\\n' '" + text + "'";
+    }
+
+    /** 校验输出中不存在替换字符或典型 UTF-8/GBK 误读片段。 */
+    private void assertNoMojibake(String output) {
+        assertThat(output).doesNotContain("\uFFFD").doesNotContain("闀").doesNotContain("鍥炲綊");
+    }
+
+    /** 判断当前测试运行环境是否为 Windows。 */
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
 }

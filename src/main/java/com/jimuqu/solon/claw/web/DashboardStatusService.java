@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
@@ -37,6 +38,9 @@ public class DashboardStatusService {
     /** 注入投递服务，用于调用对应业务能力。 */
     private final DeliveryService deliveryService;
 
+    /** 注入Agent运行控制服务，用于区分近期会话和真实运行中的任务。 */
+    private final AgentRunControlService agentRunControlService;
+
     /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
@@ -54,7 +58,7 @@ public class DashboardStatusService {
     private final ProactiveDiagnosticsService proactiveDiagnosticsService;
 
     /**
-     * 创建控制台状态服务实例，并注入运行所需依赖。
+     * 创建控制台状态服务实例，并兼容未接入运行控制服务的测试或轻量调用路径。
      *
      * @param appConfig 应用运行配置。
      * @param sessionRepository 会话仓储依赖。
@@ -77,6 +81,7 @@ public class DashboardStatusService {
                 appConfig,
                 sessionRepository,
                 deliveryService,
+                null,
                 gatewayRuntimeRefreshService,
                 appVersionService,
                 appUpdateService,
@@ -85,7 +90,41 @@ public class DashboardStatusService {
     }
 
     /**
-     * 创建控制台状态服务实例，并注入运行所需依赖。
+     * 创建控制台状态服务实例，并兼容尚未接入主动协作诊断的运行状态统计调用路径。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param appVersionService 应用版本服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                agentRunControlService,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                null);
+    }
+
+    /**
+     * 创建控制台状态服务实例，并兼容未接入运行控制服务但需要主动协作诊断的测试路径。
      *
      * @param appConfig 应用运行配置。
      * @param sessionRepository 会话仓储依赖。
@@ -106,9 +145,46 @@ public class DashboardStatusService {
             AppUpdateService appUpdateService,
             LlmProviderService llmProviderService,
             ProactiveDiagnosticsService proactiveDiagnosticsService) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                null,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                proactiveDiagnosticsService);
+    }
+
+    /**
+     * 创建控制台状态服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param appVersionService 应用版本服务依赖。
+     * @param appUpdateService 应用Update服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.deliveryService = deliveryService;
+        this.agentRunControlService = agentRunControlService;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.appVersionService = appVersionService;
         this.appUpdateService = appUpdateService;
@@ -135,6 +211,7 @@ public class DashboardStatusService {
         RuntimeStatusSnapshot snapshot = buildRuntimeStatusSnapshot(detailed);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
+        result.put("running_agent_runs", Integer.valueOf(snapshot.runningAgentRuns));
         if (detailed) {
             result.put("config_path", runtimeReference(appConfig.getRuntime().getConfigFile()));
         }
@@ -187,6 +264,7 @@ public class DashboardStatusService {
         RuntimeStatusSnapshot snapshot = buildRuntimeStatusSnapshot(false);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
+        result.put("running_agent_runs", Integer.valueOf(snapshot.runningAgentRuns));
         result.put("gateway_exit_reason", snapshot.firstFatalDetail);
         result.put("gateway_platforms", snapshot.platformStates);
         result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
@@ -336,6 +414,7 @@ public class DashboardStatusService {
 
         RuntimeStatusSnapshot snapshot = new RuntimeStatusSnapshot();
         snapshot.activeSessions = activeSessions;
+        snapshot.runningAgentRuns = runningAgentRuns();
         snapshot.anyConnected = anyConnected;
         snapshot.anyFatal = anyFatal;
         snapshot.firstFatalDetail = anyFatal ? redact(firstFatalDetail(statuses), 1000) : null;
@@ -385,6 +464,7 @@ public class DashboardStatusService {
         status.put("status", snapshot.anyFatal ? "degraded" : "ok");
         status.put("updated_at", snapshot.updatedAt);
         status.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
+        status.put("running_agent_runs", Integer.valueOf(snapshot.runningAgentRuns));
         status.put("gateway", gatewayRuntimeStatus(snapshot));
         status.put("runtime_config", runtimeConfigStatus(detailed));
         status.put("diagnostics", diagnosticsStatus(snapshot));
@@ -562,10 +642,23 @@ public class DashboardStatusService {
         status.put("running", Boolean.valueOf(snapshot.anyConnected));
         status.put("platforms", snapshot.platformStates);
         status.put("supported_channels", supportedChannels());
-        status.put("active_agents", Integer.valueOf(snapshot.activeSessions));
+        status.put("active_agents", Integer.valueOf(snapshot.runningAgentRuns));
+        status.put("recent_active_sessions", Integer.valueOf(snapshot.activeSessions));
         status.put("exit_reason", snapshot.firstFatalDetail);
         status.put("updated_at", snapshot.updatedAt);
         return status;
+    }
+
+    /**
+     * 读取真实运行中的 Agent run 数量，避免把最近更新过的会话误报为仍在执行。
+     *
+     * @return 返回当前运行中的 Agent run 数量。
+     */
+    private int runningAgentRuns() {
+        if (agentRunControlService == null) {
+            return 0;
+        }
+        return Math.max(0, agentRunControlService.runningRunCount());
     }
 
     /**
@@ -1064,6 +1157,9 @@ public class DashboardStatusService {
     private static class RuntimeStatusSnapshot {
         /** 记录运行时状态快照中的activeSessions。 */
         private int activeSessions;
+
+        /** 记录当前真实运行中的Agent run数量。 */
+        private int runningAgentRuns;
 
         /** 是否启用anyConnected。 */
         private boolean anyConnected;
