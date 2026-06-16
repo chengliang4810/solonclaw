@@ -106,6 +106,9 @@ public class DashboardLogsService {
         if ("cron".equals(normalized)) {
             return line.contains(".scheduler.");
         }
+        if ("proactive".equals(normalized)) {
+            return line.contains(".proactive.");
+        }
         if ("agent".equals(normalized)) {
             return line.contains("com.jimuqu.solon.claw");
         }

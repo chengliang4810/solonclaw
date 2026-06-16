@@ -194,6 +194,9 @@ public interface GatewayCommandConstants {
     /** 命令TRAJECTORY的统一常量值。 */
     String COMMAND_TRAJECTORY = "trajectory";
 
+    /** 命令主动协作的统一常量值。 */
+    String COMMAND_PROACTIVE = "proactive";
+
     /** 命令PLATFORMS的统一常量值。 */
     String COMMAND_PLATFORMS = "platforms";
 
@@ -313,6 +316,9 @@ public interface GatewayCommandConstants {
 
     /** 斜杠命令工具的统一常量值。 */
     String SLASH_TOOLS = COMMAND_PREFIX + COMMAND_TOOLS;
+
+    /** 斜杠命令主动协作的统一常量值。 */
+    String SLASH_PROACTIVE = COMMAND_PREFIX + COMMAND_PROACTIVE;
 
     /** 斜杠命令TOOLSETS的统一常量值。 */
     String SLASH_TOOLSETS = COMMAND_PREFIX + COMMAND_TOOLSETS;
