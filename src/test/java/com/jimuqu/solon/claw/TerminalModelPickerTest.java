@@ -5,9 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.cli.TerminalModelPicker;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TerminalModelPickerTest {
+    /** 隔离运行时配置目录，避免本机 runtime/config.yml 覆盖测试夹具中的 provider 展示名。 */
+    @TempDir
+    Path runtimeHome;
+
     @Test
     void shouldRenderCurrentAndFallbackModels() {
         TerminalModelPicker picker =
@@ -75,6 +81,7 @@ public class TerminalModelPickerTest {
 
     private AppConfig config() {
         AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com");
