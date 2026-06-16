@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteApprovalAuditRepository;
@@ -19,6 +20,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.storage.repository.SqliteProactiveRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteUsageEventRepository;
 import com.jimuqu.solon.claw.support.DefaultCheckpointService;
@@ -148,6 +150,17 @@ public class StorageConfiguration {
     @Bean
     public GatewayPolicyRepository gatewayPolicyRepository(SqliteDatabase sqliteDatabase) {
         return new SqliteGatewayPolicyRepository(sqliteDatabase);
+    }
+
+    /**
+     * 执行主动协作仓储相关逻辑。
+     *
+     * @param sqliteDatabase SQLiteDatabase参数。
+     * @return 返回主动协作仓储结果。
+     */
+    @Bean
+    public ProactiveRepository proactiveRepository(SqliteDatabase sqliteDatabase) {
+        return new SqliteProactiveRepository(sqliteDatabase);
     }
 
     /**
