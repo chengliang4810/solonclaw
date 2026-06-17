@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.core.model;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -11,50 +13,51 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 
-/** 当前 Agent run 的追踪上下文。 */
+/** 当前 Agent run 的线程级追踪上下文，集中记录审计事件、工具策略和本轮临时上下文。 */
 public class AgentRunContext {
-    /** 当前的统一常量值。 */
+    /** 当前线程正在执行的 Agent run，上层编排器进入和退出运行时负责写入与清理。 */
     private static final ThreadLocal<AgentRunContext> CURRENT = new ThreadLocal<AgentRunContext>();
 
     /** 工具策略拒绝 observation 的统一前缀，供审计层识别运行时拒绝结果。 */
     public static final String TOOL_POLICY_REJECTION_PREFIX = "本轮 Web 运行";
 
-    /** 保存仓储依赖，用于访问持久化数据。 */
+    /** 运行仓储，用于追加事件和工具调用审计记录；为空时上下文只承担内存态控制。 */
     private final AgentRunRepository repository;
 
-    /** 记录Agent运行上下文中的运行标识。 */
+    /** 本轮 Agent run 的唯一标识。 */
     private final String runId;
 
-    /** 记录Agent运行上下文中的会话标识。 */
+    /** 本轮 run 所属会话标识。 */
     private final String sessionId;
 
-    /** 记录Agent运行上下文中的来源键。 */
+    /** 渠道来源键，用于把运行事件关联回具体入口。 */
     private final String sourceKey;
 
-    /** 记录Agent运行上下文中的工作区目录。 */
+    /** 本轮工具执行默认工作区目录。 */
     private String workspaceDir;
 
-    /** 记录Agent运行上下文中的phase。 */
+    /** 当前运行阶段，例如模型请求、工具调用或恢复流程。 */
     private String phase;
 
-    /** 记录Agent运行上下文中的运行Kind。 */
+    /** 运行类型，区分普通会话、定时任务和子 Agent 等来源。 */
     private String runKind;
 
-    /** 记录Agent运行上下文中的parent运行标识。 */
+    /** 父级 run 标识，用于子 Agent 和委派任务串联审计链路。 */
     private String parentRunId;
 
-    /** 记录Agent运行上下文中的attemptNo。 */
+    /** 当前模型请求重试序号。 */
     private int attemptNo;
 
-    /** 记录Agent运行上下文中的提供方。 */
+    /** 当前尝试使用的模型提供方。 */
     private String provider;
 
-    /** 记录Agent运行上下文中的模型。 */
+    /** 当前尝试使用的模型名称。 */
     private String model;
 
-    /** 保存用户附件集合，维持调用顺序或去重语义。 */
-    private java.util.List<MessageAttachment> userAttachments;
+    /** 用户本轮上传或渠道转入的附件集合，保留原始顺序供多模态请求使用。 */
+    private List<MessageAttachment> userAttachments;
 
     /** 保存本轮召回的临时记忆上下文，仅用于模型请求，不写入会话历史。 */
     private String memoryPrefetchContext;
@@ -72,9 +75,9 @@ public class AgentRunContext {
     private int attemptedToolCalls;
 
     /**
-     * 创建Agent运行上下文实例，并注入运行所需依赖。
+     * 创建 Agent run 上下文。
      *
-     * @param repository repository依赖组件。
+     * @param repository 运行仓储；为空时跳过持久化审计。
      * @param runId 运行标识。
      * @param sessionId 当前会话标识。
      * @param sourceKey 渠道来源键。
@@ -88,18 +91,17 @@ public class AgentRunContext {
     }
 
     /**
-     * 执行当前相关逻辑。
+     * 读取当前线程绑定的 Agent run 上下文。
      *
-     * @return 返回当前结果。
+     * @return 当前上下文；未进入 Agent run 时返回 null。
      */
     public static AgentRunContext current() {
         return CURRENT.get();
     }
 
     /**
-     * 写入当前。
+     * 写入或清理当前线程绑定的 Agent run 上下文。
      *
-     * @param context 当前请求或运行上下文。
      */
     public static void setCurrent(AgentRunContext context) {
         if (context == null) {
@@ -146,9 +148,9 @@ public class AgentRunContext {
     }
 
     /**
-     * 写入Attempt。
+     * 写入当前模型请求尝试信息，用于后续事件记录补充 provider/model/attempt。
      *
-     * @param attemptNo attemptNo 参数。
+     * @param attemptNo 当前尝试序号。
      * @param provider 模型或能力提供方。
      * @param model 模型名称。
      */
@@ -159,36 +161,36 @@ public class AgentRunContext {
     }
 
     /**
-     * 读取工作区Dir。
+     * 读取工具执行工作区目录。
      *
-     * @return 返回读取到的工作区Dir。
+     * @return 返回本轮工具执行默认工作区目录。
      */
     public String getWorkspaceDir() {
         return workspaceDir;
     }
 
     /**
-     * 写入工作区Dir。
+     * 写入工具执行工作区目录。
      *
-     * @param workspaceDir 文件或目录路径参数。
+     * @param workspaceDir 本轮工具执行默认工作区目录。
      */
     public void setWorkspaceDir(String workspaceDir) {
         this.workspaceDir = workspaceDir;
     }
 
     /**
-     * 读取Phase。
+     * 读取当前运行阶段。
      *
-     * @return 返回读取到的Phase。
+     * @return 返回当前运行阶段。
      */
     public String getPhase() {
         return phase;
     }
 
     /**
-     * 写入Phase。
+     * 写入当前运行阶段。
      *
-     * @param phase phase 参数。
+     * @param phase 当前运行阶段。
      */
     public void setPhase(String phase) {
         this.phase = phase;
@@ -206,7 +208,7 @@ public class AgentRunContext {
     /**
      * 写入运行Kind。
      *
-     * @param runKind 运行Kind参数。
+     * @param runKind 当前 run 的类型标记，例如 chat、cron 或 subagent。
      */
     public void setRunKind(String runKind) {
         this.runKind = runKind;
@@ -233,24 +235,23 @@ public class AgentRunContext {
     /**
      * 读取用户附件。
      *
-     * @return 返回读取到的用户附件。
      */
-    public java.util.List<MessageAttachment> getUserAttachments() {
+    public List<MessageAttachment> getUserAttachments() {
         return userAttachments == null
-                ? java.util.Collections.<MessageAttachment>emptyList()
+                ? Collections.<MessageAttachment>emptyList()
                 : userAttachments;
     }
 
     /**
-     * 写入用户附件。
+     * 写入用户附件副本，避免调用方后续修改影响本轮多模态上下文。
      *
-     * @param userAttachments 用户Attachments参数。
+     * @param userAttachments 渠道消息或前端请求携带的附件集合。
      */
-    public void setUserAttachments(java.util.List<MessageAttachment> userAttachments) {
-        if (userAttachments == null || userAttachments.isEmpty()) {
+    public void setUserAttachments(List<MessageAttachment> userAttachments) {
+        if (CollUtil.isEmpty(userAttachments)) {
             this.userAttachments = null;
         } else {
-            this.userAttachments = new java.util.ArrayList<MessageAttachment>(userAttachments);
+            this.userAttachments = new ArrayList<MessageAttachment>(userAttachments);
         }
     }
 
@@ -291,7 +292,8 @@ public class AgentRunContext {
      */
     public synchronized void setToolPolicy(List<String> allowedToolNames, Integer maxToolCalls) {
         this.allowedToolNames = normalizeToolNames(allowedToolNames);
-        this.maxToolCalls = maxToolCalls == null || maxToolCalls.intValue() <= 0 ? null : maxToolCalls;
+        this.maxToolCalls =
+                maxToolCalls == null || maxToolCalls.intValue() <= 0 ? null : maxToolCalls;
         this.attemptedToolCalls = 0;
     }
 
@@ -301,7 +303,7 @@ public class AgentRunContext {
      * @return 如果存在工具名或次数限制则返回 true。
      */
     public synchronized boolean hasToolPolicy() {
-        return (allowedToolNames != null && !allowedToolNames.isEmpty()) || maxToolCalls != null;
+        return CollUtil.isNotEmpty(allowedToolNames) || maxToolCalls != null;
     }
 
     /**
@@ -332,7 +334,7 @@ public class AgentRunContext {
      */
     public synchronized String recordToolAttempt(String toolName) {
         attemptedToolCalls++;
-        String cleanToolName = toolName == null ? "" : toolName.trim();
+        String cleanToolName = StrUtil.trimToEmpty(toolName);
         if (maxToolCalls != null && attemptedToolCalls > maxToolCalls.intValue()) {
             return TOOL_POLICY_REJECTION_PREFIX
                     + "最多允许 "
@@ -343,9 +345,7 @@ public class AgentRunContext {
                     + cleanToolName
                     + " 已被拒绝执行。";
         }
-        if (allowedToolNames != null
-                && !allowedToolNames.isEmpty()
-                && !allowedToolNames.contains(cleanToolName)) {
+        if (CollUtil.isNotEmpty(allowedToolNames) && !allowedToolNames.contains(cleanToolName)) {
             return TOOL_POLICY_REJECTION_PREFIX
                     + "只允许调用工具 "
                     + allowedToolNames
@@ -366,21 +366,21 @@ public class AgentRunContext {
     }
 
     /**
-     * 执行事件相关逻辑。
+     * 记录一条运行事件，忽略持久化异常以免影响主对话流程。
      *
-     * @param eventType 事件类型参数。
-     * @param summary 摘要参数。
+     * @param eventType 事件类型，例如 tool.start 或 llm.failed。
+     * @param summary 面向诊断页面展示的事件摘要。
      */
     public void event(String eventType, String summary) {
         event(eventType, summary, null);
     }
 
     /**
-     * 执行事件相关逻辑。
+     * 记录一条带结构化元数据的运行事件。
      *
-     * @param eventType 事件类型参数。
-     * @param summary 摘要参数。
-     * @param metadata 元数据参数。
+     * @param eventType 事件类型，例如 tool.start 或 llm.failed。
+     * @param summary 面向诊断页面展示的事件摘要。
+     * @param metadata 需要随事件保存的结构化元数据，会在序列化前脱敏。
      */
     public void event(String eventType, String summary, Map<String, Object> metadata) {
         if (repository == null) {
@@ -407,11 +407,11 @@ public class AgentRunContext {
     }
 
     /**
-     * 执行元数据相关逻辑。
+     * 构造单键元数据 Map，减少事件记录调用点的样板代码。
      *
      * @param key 配置键或映射键。
      * @param value 待规范化或校验的原始值。
-     * @return 返回元数据结果。
+     * @return 返回仅包含该键值对的元数据 Map。
      */
     public Map<String, Object> metadata(String key, Object value) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
@@ -420,13 +420,13 @@ public class AgentRunContext {
     }
 
     /**
-     * 执行元数据相关逻辑。
+     * 构造双键元数据 Map，减少事件记录调用点的样板代码。
      *
      * @param key 配置键或映射键。
      * @param value 待规范化或校验的原始值。
-     * @param key2 key2 参数。
-     * @param value2 value2 参数。
-     * @return 返回元数据结果。
+     * @param key2 第二个配置键或映射键。
+     * @param value2 第二个待记录值。
+     * @return 返回包含两个键值对的元数据 Map。
      */
     public Map<String, Object> metadata(String key, Object value, String key2, Object value2) {
         Map<String, Object> map = metadata(key, value);
@@ -435,9 +435,9 @@ public class AgentRunContext {
     }
 
     /**
-     * 保存工具Call。
+     * 保存工具调用审计记录，失败时不打断模型主循环。
      *
-     * @param record 记录参数。
+     * @param record 待保存的工具调用记录。
      */
     public void saveToolCall(ToolCallRecord record) {
         if (repository == null || record == null) {
@@ -450,11 +450,11 @@ public class AgentRunContext {
     }
 
     /**
-     * 执行安全相关逻辑。
+     * 对事件摘要或工具预览文本进行脱敏并裁剪到指定长度。
      *
      * @param text 待处理文本。
      * @param limit 最大返回数量。
-     * @return 返回safe结果。
+     * @return 返回可安全展示的文本。
      */
     public static String safe(String text, int limit) {
         String redacted = SecretRedactor.redact(text, limit);
@@ -471,30 +471,27 @@ public class AgentRunContext {
      * @return 返回去重后的工具名称列表；没有有效项时返回 null。
      */
     private List<String> normalizeToolNames(List<String> names) {
-        if (names == null || names.isEmpty()) {
+        if (CollUtil.isEmpty(names)) {
             return null;
         }
         Set<String> clean = new LinkedHashSet<String>();
         for (String name : names) {
-            if (name == null) {
-                continue;
-            }
-            String trimmed = name.trim();
-            if (trimmed.length() > 0) {
+            String trimmed = StrUtil.trimToEmpty(name);
+            if (StrUtil.isNotEmpty(trimmed)) {
                 clean.add(trimmed);
             }
         }
-        return clean.isEmpty() ? null : new ArrayList<String>(clean);
+        return CollUtil.isEmpty(clean) ? null : new ArrayList<String>(clean);
     }
 
     /**
-     * 解析Severity。
+     * 根据事件类型推导日志严重程度，供运行日志和诊断页面筛选。
      *
-     * @param eventType 事件类型参数。
-     * @return 返回解析后的Severity。
+     * @param eventType 事件类型。
+     * @return 返回 info、warn 或 error。
      */
     private String resolveSeverity(String eventType) {
-        String value = eventType == null ? "" : eventType.toLowerCase(java.util.Locale.ROOT);
+        String value = StrUtil.trimToEmpty(eventType).toLowerCase(Locale.ROOT);
         if (value.contains("failed") || value.contains("error")) {
             return "error";
         }

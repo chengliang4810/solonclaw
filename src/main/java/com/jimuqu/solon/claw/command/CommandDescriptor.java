@@ -1,33 +1,35 @@
 package com.jimuqu.solon.claw.command;
 
+import cn.hutool.core.util.ArrayUtil;
+import cn.hutool.core.util.StrUtil;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** 承载命令描述符相关状态和辅助逻辑。 */
+/** 描述一条对话内 slash command，统一提供 CLI、TUI 与消息网关可复用的命令元数据。 */
 public final class CommandDescriptor {
-    /** 记录命令描述符中的名称。 */
+    /** 命令规范名，不包含斜杠前缀，用于注册表索引和用户输入解析。 */
     private final String name;
 
-    /** 保存aliases集合，维持调用顺序或去重语义。 */
+    /** 可解析到同一命令的别名列表，保持声明顺序便于终端帮助稳定展示。 */
     private final List<String> aliases;
 
-    /** 记录命令描述符中的category。 */
+    /** 命令所属功能域，例如 session、runtime、security，供帮助和权限视图分组。 */
     private final String category;
 
-    /** 记录命令描述符中的描述。 */
+    /** 面向用户展示的中文命令用途说明。 */
     private final String description;
 
-    /** 保存scopes集合，维持调用顺序或去重语义。 */
+    /** 命令可用入口范围，例如 cli、tui、gateway，避免不同入口维护多套清单。 */
     private final List<String> scopes;
 
-    /** 标记是否启用根据默认。 */
+    /** 命令是否默认启用，后续可被安全策略或入口能力裁剪。 */
     private final boolean enabledByDefault;
 
     /**
-     * 创建命令描述符实例，并注入运行所需依赖。
+     * 从构建器创建不可变命令描述符。
      *
-     * @param builder 构建器参数。
+     * @param builder 已填充的命令元数据构建器。
      */
     private CommandDescriptor(Builder builder) {
         this.name = builder.name;
@@ -39,63 +41,63 @@ public final class CommandDescriptor {
     }
 
     /**
-     * 读取名称。
+     * 读取不带斜杠的命令规范名。
      *
-     * @return 返回读取到的名称。
+     * @return 命令规范名。
      */
     public String getName() {
         return name;
     }
 
     /**
-     * 读取Aliases。
+     * 读取命令别名列表。
      *
-     * @return 返回读取到的Aliases。
+     * @return 不可变别名列表。
      */
     public List<String> getAliases() {
         return aliases;
     }
 
     /**
-     * 读取Category。
+     * 读取命令功能分组。
      *
-     * @return 返回读取到的Category。
+     * @return 功能分组标识。
      */
     public String getCategory() {
         return category;
     }
 
     /**
-     * 读取Description。
+     * 读取面向终端和 Dashboard 的命令说明。
      *
-     * @return 返回读取到的Description。
+     * @return 中文命令说明。
      */
     public String getDescription() {
         return description;
     }
 
     /**
-     * 读取Scopes。
+     * 读取命令可用入口范围。
      *
-     * @return 返回读取到的Scopes。
+     * @return 不可变入口范围列表。
      */
     public List<String> getScopes() {
         return scopes;
     }
 
     /**
-     * 判断是否启用根据默认。
+     * 判断命令是否按默认策略启用。
      *
-     * @return 如果启用根据默认满足条件则返回 true，否则返回 false。
+     * @return 默认启用返回 true。
      */
     public boolean isEnabledByDefault() {
         return enabledByDefault;
     }
 
     /**
-     * 执行斜杠命令名称相关逻辑。
+     * 返回用户可输入的斜杠命令名。
      *
-     * @return 返回slash名称结果。
+     * @return 带 "/" 前缀的命令名。
      */
     public String slashName() {
         return "/" + name;
@@ -104,47 +106,47 @@ public final class CommandDescriptor {
     /**
      * 创建当前类型的构建器。
      *
-     * @param name 名称参数。
-     * @return 返回builder结果。
+     * @param name 命令规范名或带斜杠的命令文本。
+     * @return 命令描述符构建器。
      */
     public static Builder builder(String name) {
         return new Builder(name);
     }
 
-    /** 承载构建器相关状态和辅助逻辑。 */
+    /** 以链式方式声明命令元数据，集中服务注册表初始化。 */
     public static final class Builder {
-        /** 记录构建器中的名称。 */
+        /** 命令规范名，不包含斜杠前缀。 */
         private final String name;
 
-        /** 保存aliases集合，维持调用顺序或去重语义。 */
+        /** 命令别名，构建时会复制为不可变列表。 */
         private final List<String> aliases = new ArrayList<String>();
 
-        /** 记录构建器中的category。 */
+        /** 命令功能分组。 */
         private String category;
 
-        /** 记录构建器中的描述。 */
+        /** 用户可见的命令用途说明。 */
         private String description;
 
-        /** 保存scopes集合，维持调用顺序或去重语义。 */
+        /** 命令可用入口范围。 */
         private final List<String> scopes = new ArrayList<String>();
 
-        /** 标记是否启用根据默认。 */
+        /** 命令默认启用状态。 */
         private boolean enabledByDefault = true;
 
         /**
-         * 创建Builder实例，并注入运行所需依赖。
+         * 创建命令描述符构建器。
          *
-         * @param name 名称参数。
+         * @param name 命令规范名或带斜杠的命令文本。
          */
         private Builder(String name) {
             this.name = normalize(name);
         }
 
         /**
-         * 执行alias相关逻辑。
+         * 为命令添加一个可解析别名。
          *
-         * @param alias 别名参数。
-         * @return 返回alias结果。
+         * @param alias 别名文本，可带斜杠。
+         * @return 当前构建器，便于链式声明。
          */
         public Builder alias(String alias) {
             this.aliases.add(normalize(alias));
@@ -152,10 +154,9 @@ public final class CommandDescriptor {
         }
 
         /**
-         * 执行category相关逻辑。
+         * 设置命令功能分组。
          *
-         * @param category 分类参数。
-         * @return 返回category结果。
+         * @return 当前构建器，便于链式声明。
          */
         public Builder category(String category) {
             this.category = category;
@@ -163,10 +164,9 @@ public final class CommandDescriptor {
         }
 
         /**
-         * 执行description相关逻辑。
+         * 设置用户可见的中文说明。
          *
-         * @param description 描述参数。
-         * @return 返回description结果。
+         * @return 当前构建器，便于链式声明。
          */
         public Builder description(String description) {
             this.description = description;
@@ -174,21 +174,21 @@ public final class CommandDescriptor {
         }
 
         /**
-         * 执行scopes相关逻辑。
+         * 设置命令可用入口范围。
          *
-         * @param scopes scopes 参数。
-         * @return 返回scopes结果。
+         * @return 当前构建器，便于链式声明。
          */
         public Builder scopes(String... scopes) {
-            Collections.addAll(this.scopes, scopes);
+            if (ArrayUtil.isNotEmpty(scopes)) {
+                Collections.addAll(this.scopes, scopes);
+            }
             return this;
         }
 
         /**
-         * 执行启用状态根据默认相关逻辑。
+         * 设置命令是否默认启用。
          *
-         * @param enabledByDefault 启用状态By默认开关值。
-         * @return 返回enabled根据默认结果。
+         * @return 当前构建器，便于链式声明。
          */
         public Builder enabledByDefault(boolean enabledByDefault) {
             this.enabledByDefault = enabledByDefault;
@@ -198,7 +198,7 @@ public final class CommandDescriptor {
         /**
          * 构建当前对象并返回不可变结果。
          *
-         * @return 返回build结果。
+         * @return 不可变命令描述符。
          */
         public CommandDescriptor build() {
             return new CommandDescriptor(this);
@@ -206,13 +206,12 @@ public final class CommandDescriptor {
     }
 
     /**
-     * 执行规范化相关逻辑。
+     * 将用户输入或注册文本归一化为注册表 key。
      *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回规范化结果。
+     * @return 去掉斜杠前缀并转小写后的命令 key。
      */
     static String normalize(String command) {
-        String value = command == null ? "" : command.trim().toLowerCase();
-        return value.startsWith("/") ? value.substring(1) : value;
+        String value = StrUtil.nullToEmpty(command).trim().toLowerCase();
+        return StrUtil.startWith(value, "/") ? value.substring(1) : value;
     }
 }

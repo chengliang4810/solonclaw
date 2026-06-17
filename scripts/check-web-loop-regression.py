@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from guardlib import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_SESSION_ID = "web-loop-todo-20260612-2234"
 FINAL_MARKER = "web-loop-final-marker-summary-20260614-1850"

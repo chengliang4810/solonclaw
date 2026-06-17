@@ -1,14 +1,18 @@
 package com.jimuqu.solon.claw.gateway.feedback;
 
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+
+import org.noear.snack4.ONode;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.noear.snack4.ONode;
 
 /** 工具参数预览辅助。 */
 public final class ToolPreviewSupport {
@@ -16,17 +20,17 @@ public final class ToolPreviewSupport {
     private ToolPreviewSupport() {}
 
     /**
-     * 构建Preview。
+     * 构建可发送到消息渠道的工具调用参数预览。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
-     * @param maxLen 最大保留字符数。
-     * @param verbose verbose 参数。
-     * @return 返回创建好的Preview。
+     * @param args 工具调用参数。
+     * @param maxLen 渠道消息中允许展示的最大长度。
+     * @param verbose 是否展示完整 JSON 参数。
+     * @return 已脱敏、已截断的预览文本。
      */
     public static String buildPreview(
             String toolName, Map<String, Object> args, int maxLen, boolean verbose) {
-        if (args == null || args.isEmpty()) {
+        if (MapUtil.isEmpty(args)) {
             return "";
         }
 
@@ -49,11 +53,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 构建JSON Safe Preview。
+     * 在 verbose 模式下生成尽量合法且短小的 JSON 预览。
      *
-     * @param args 工具或命令参数。
+     * @param args 已脱敏的工具参数。
      * @param maxLen 最大保留字符数。
-     * @return 返回创建好的JSON Safe Preview。
+     * @return 长度受控的 JSON 文本。
      */
     private static String buildJsonSafePreview(Map<String, Object> args, int maxLen) {
         try {
@@ -74,10 +78,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行shrinkJSON字符串s相关逻辑。
+     * 递归收缩 JSON 对象中的长字符串，保留字段结构用于排查。
      *
-     * @param value 待规范化或校验的原始值。
-     * @param maxStringLength max字符串Length参数。
+     * @param value 反序列化后的 Map/List/普通值。
+     * @param maxStringLength 单个字符串字段允许保留的最大长度。
      */
     @SuppressWarnings("unchecked")
     private static void shrinkJsonStrings(Object value, int maxStringLength) {
@@ -100,11 +104,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行pickPrimary值相关逻辑。
+     * 从工具参数中选择最有诊断价值的字段作为简短预览。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
-     * @return 返回pick Primary Value结果。
+     * @param args 已脱敏的工具参数。
+     * @return 命中的 key=value 文本，未命中时返回整体 JSON。
      */
     private static String pickPrimaryValue(String toolName, Map<String, Object> args) {
         String[] candidates = preferredKeys(toolName);
@@ -132,10 +136,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行preferredKeys相关逻辑。
+     * 根据工具类型返回优先展示的参数键。
      *
      * @param toolName 工具名称。
-     * @return 返回preferred Keys结果。
+     * @return 按优先级排序的参数键列表。
      */
     private static String[] preferredKeys(String toolName) {
         if ("file_read".equals(toolName)
@@ -193,11 +197,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 清理参数。
+     * 复制并脱敏工具参数，避免 token、密钥或密码进入渠道消息。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
-     * @return 返回参数结果。
+     * @param args 原始工具参数。
+     * @return 保持原有层级结构的安全参数副本。
      */
     private static Map<String, Object> sanitizeArgs(String toolName, Map<String, Object> args) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -217,11 +221,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 清理Value。
+     * 递归脱敏单个参数值。
      *
      * @param key 配置键或映射键。
      * @param value 待规范化或校验的原始值。
-     * @return 返回Value结果。
+     * @return 字符串、Map 和 Iterable 的安全副本；其他对象保持原值。
      */
     @SuppressWarnings("unchecked")
     private static Object sanitizeValue(String key, Object value) {
@@ -253,10 +257,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 判断是否Sensitive Arg键。
+     * 判断参数名是否表示敏感信息。
      *
      * @param key 配置键或映射键。
-     * @return 如果Sensitive Arg键满足条件则返回 true，否则返回 false。
+     * @return 命中常见 token、secret、password 等关键词时返回 true。
      */
     private static boolean isSensitiveArgKey(String key) {
         String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
@@ -271,10 +275,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行规范化相关逻辑。
+     * 将多行预览压成单行，适配国内消息渠道的进度提示。
      *
      * @param text 待处理文本。
-     * @return 返回规范化结果。
+     * @return 去掉首尾空白后的单行文本。
      */
     private static String normalize(String text) {
         return StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();

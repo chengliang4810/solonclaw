@@ -13,21 +13,21 @@ import java.util.Map;
 
 /** AgentPluginContext 默认实现。将注册操作委托给 HookRegistry 和 RegistrationSink。 */
 public class DefaultAgentPluginContext implements AgentPluginContext {
-    /** 记录默认Agent插件上下文中的manifest。 */
+    /** 当前插件清单，供插件读取自身元数据。 */
     private final AgentPluginManifest manifest;
 
-    /** 记录默认Agent插件上下文中的钩子注册表。 */
+    /** 共享钩子注册表，插件钩子统一写入此处。 */
     private final AgentHookRegistry hookRegistry;
 
-    /** 记录默认Agent插件上下文中的接收端。 */
+    /** 插件注册事件接收器，负责把组件交给主应用。 */
     private final PluginRegistrationSink sink;
 
     /**
-     * 创建默认Agent插件上下文实例，并注入运行所需依赖。
+     * 创建默认插件上下文。
      *
-     * @param manifest manifest 参数。
+     * @param manifest 当前插件清单。
      * @param hookRegistry 钩子注册表依赖组件。
-     * @param sink sink 参数。
+     * @param sink 注册事件接收器。
      */
     public DefaultAgentPluginContext(
             AgentPluginManifest manifest,
@@ -39,9 +39,9 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册工具。
+     * 注册插件工具。
      *
-     * @param registration registration 参数。
+     * @param registration 工具注册信息。
      */
     @Override
     public void registerTool(ToolRegistration registration) {
@@ -49,10 +49,10 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册钩子。
+     * 注册插件钩子回调。
      *
-     * @param hookName 钩子名称参数。
-     * @param callback 回调参数。
+     * @param hookName 钩子名称。
+     * @param callback 钩子回调。
      */
     @Override
     public void registerHook(String hookName, HookCallback callback) {
@@ -60,11 +60,11 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册命令。
+     * 注册插件命令。
      *
-     * @param name 名称参数。
-     * @param handler handler 参数。
-     * @param description 描述参数。
+     * @param name 命令名称。
+     * @param handler 命令处理器。
+     * @param description 命令展示说明。
      */
     @Override
     public void registerCommand(String name, CommandHandler handler, String description) {
@@ -72,7 +72,7 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册Web搜索提供方。
+     * 注册 Web 搜索提供方。
      *
      * @param provider 模型或能力提供方。
      */
@@ -82,7 +82,7 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册图片Gen提供方。
+     * 注册图像生成提供方。
      *
      * @param provider 模型或能力提供方。
      */
@@ -92,7 +92,7 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册Video Gen提供方。
+     * 注册视频生成提供方。
      *
      * @param provider 模型或能力提供方。
      */
@@ -122,7 +122,7 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册Transcription提供方。
+     * 注册语音转写提供方。
      *
      * @param provider 模型或能力提供方。
      */
@@ -142,7 +142,7 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 注册平台。
+     * 注册国内渠道平台适配器。
      *
      * @param registration registration 参数。
      */
@@ -152,9 +152,9 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 读取插件配置。
+     * 读取插件配置块。
      *
-     * @return 返回读取到的插件配置。
+     * @return 当前版本暂未接入持久化插件配置，固定返回空 Map。
      */
     @Override
     public Map<String, Object> getPluginConfig() {
@@ -162,10 +162,10 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 读取Env。
+     * 从进程环境变量读取插件配置值。
      *
      * @param key 配置键或映射键。
-     * @return 返回读取到的Env。
+     * @return 环境变量值，缺失时返回 null。
      */
     @Override
     public String getEnv(String key) {
@@ -173,9 +173,9 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
     }
 
     /**
-     * 读取Manifest。
+     * 读取当前插件清单。
      *
-     * @return 返回读取到的Manifest。
+     * @return 插件清单元数据。
      */
     @Override
     public AgentPluginManifest getManifest() {

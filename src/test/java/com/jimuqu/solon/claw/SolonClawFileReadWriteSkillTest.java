@@ -3,10 +3,12 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import static com.jimuqu.solon.claw.support.TestToolSupport.guardedFileSkill;
+import static com.jimuqu.solon.claw.support.TestToolSupport.readUtf8;
+import static com.jimuqu.solon.claw.support.TestToolSupport.tempDir;
+import static com.jimuqu.solon.claw.support.TestToolSupport.writeUtf8;
+
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -18,13 +20,10 @@ import org.noear.snack4.ONode;
 public class SolonClawFileReadWriteSkillTest {
     @Test
     void shouldBlockRuntimeCredentialCacheRead() throws Exception {
-        Path dir = Files.createTempDirectory("jimuqu-file-read-safety-test");
+        Path dir = tempDir("file-read-safety");
         Files.createDirectories(dir.resolve("cache"));
-        Files.write(dir.resolve("cache/bws_cache.json"), "secret".getBytes(StandardCharsets.UTF_8));
-        AppConfig config = new AppConfig();
-        config.getRuntime().setHome(dir.toString());
-        SolonClawFileReadWriteSkill skill =
-                new SolonClawFileReadWriteSkill(dir.toString(), new SecurityPolicyService(config));
+        writeUtf8(dir.resolve("cache/bws_cache.json"), "secret");
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(dir);
 
         assertThatThrownBy(() -> skill.read("cache/bws_cache.json"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -35,13 +34,10 @@ public class SolonClawFileReadWriteSkillTest {
     /** 验证默认 runtime 工作区下的脚本写入不会落到嵌套 runtime 目录。 */
     @Test
     void shouldCollapseRuntimeRootPrefixForScriptWrites() throws Exception {
-        Path tempRoot = Files.createTempDirectory("jimuqu-file-runtime-prefix-test");
+        Path tempRoot = tempDir("file-runtime-prefix");
         Path dir = tempRoot.resolve("runtime");
         Files.createDirectories(dir);
-        AppConfig config = new AppConfig();
-        config.getRuntime().setHome(dir.toString());
-        SolonClawFileReadWriteSkill skill =
-                new SolonClawFileReadWriteSkill(dir.toString(), new SecurityPolicyService(config));
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(dir);
 
         ONode result = ONode.ofJson(skill.write("runtime/scripts/loop-probe.py", "print('ok')\n"));
         Path expected = dir.resolve("scripts/loop-probe.py");
@@ -49,17 +45,17 @@ public class SolonClawFileReadWriteSkillTest {
         assertThat(result.get("success").getBoolean()).isTrue();
         assertThat(result.get("resolved_path").getString())
                 .isEqualTo(expected.toRealPath().toString());
-        assertThat(Files.exists(expected)).isTrue();
-        assertThat(Files.exists(dir.resolve("runtime/scripts/loop-probe.py"))).isFalse();
+        assertThat(expected).exists();
+        assertThat(dir.resolve("runtime/scripts/loop-probe.py")).doesNotExist();
     }
 
     /**
-     * 验证参考风格读取工具能够兼容内置文件工具常用的fileName参数名，避免模型重试浪费工具调用次数。
+     * 验证对标行为读取工具能够兼容内置文件工具常用的fileName参数名，避免模型重试浪费工具调用次数。
      */
     @Test
     void shouldAcceptFileNameAliasForReadFileTool() throws Exception {
-        Path dir = Files.createTempDirectory("jimuqu-file-read-alias-test");
-        Files.write(dir.resolve("state.json"), "{\"ok\":true}\n".getBytes(StandardCharsets.UTF_8));
+        Path dir = tempDir("file-read-alias");
+        writeUtf8(dir.resolve("state.json"), "{\"ok\":true}\n");
         SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
 
         ONode result = ONode.ofJson(skill.readFile(null, "state.json", 1, 5));
@@ -72,17 +68,16 @@ public class SolonClawFileReadWriteSkillTest {
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void shouldWriteByAtomicFileSwap() throws Exception {
-        Path dir = Files.createTempDirectory("jimuqu-file-write-test");
+        Path dir = tempDir("file-write");
         Path file = dir.resolve("target.txt");
-        Files.write(file, "before\n".getBytes(StandardCharsets.UTF_8));
+        writeUtf8(file, "before\n");
         Object beforeKey = Files.getAttribute(file, "unix:ino");
 
         SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
         String result = skill.write("target.txt", "after\n");
 
         assertThat(result).contains("\"success\":true");
-        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
-                .isEqualTo("after\n");
+        assertThat(readUtf8(file)).isEqualTo("after\n");
         assertThat(Files.getAttribute(file, "unix:ino")).isNotEqualTo(beforeKey);
         try (Stream<Path> files = Files.list(dir)) {
             assertThat(
@@ -99,9 +94,9 @@ public class SolonClawFileReadWriteSkillTest {
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void shouldPreserveExistingFilePermissions() throws Exception {
-        Path dir = Files.createTempDirectory("jimuqu-file-write-test");
+        Path dir = tempDir("file-write");
         Path file = dir.resolve("mode.txt");
-        Files.write(file, "before\n".getBytes(StandardCharsets.UTF_8));
+        writeUtf8(file, "before\n");
         Files.setPosixFilePermissions(
                 file,
                 java.util.EnumSet.of(

@@ -12,16 +12,23 @@ solon.logging.logger.root.level: INFO
 # 运行时目录配置
 solonclaw.runtime.home: runtime
 
-# Dashboard and API shared access token.
+# Dashboard 页面与 /api/* 接口共用的访问令牌，生产环境必须改成高强度随机值。
 solonclaw.dashboard.accessToken: admin
 
 # 默认大模型配置
+# 默认提供方显示名称，用于 Dashboard 和诊断输出。
 providers.default.name: DefaultProvider
+# 默认模型服务基础地址。
 providers.default.baseUrl: https://api.openai.com
+# 默认模型服务密钥，建议通过 runtime/config.yml 或环境注入，不要提交真实密钥。
 providers.default.apiKey:
+# 默认模型名称；model.default 为空时使用该值。
 providers.default.defaultModel: gpt-5.4
+# 模型协议方言，可选 openai、openai-responses、ollama、gemini、anthropic。
 providers.default.dialect: openai
+# 当前默认提供方键名，必须匹配 providers 下的条目。
 model.providerKey: default
+# 全局默认模型覆盖；留空时使用当前 provider 的 defaultModel。
 model.default:
 solonclaw.llm.stream: true
 solonclaw.llm.reasoningEffort: medium
@@ -108,8 +115,14 @@ security.hardlineAllowlist:
   - hardline_windows_shutdown
 
 # 审批/确认策略
-jimuqu.approvals.subagentAutoApprove: false
-jimuqu.approvals.mcpReloadConfirm: true
+# 子 Agent 遇到可审批危险命令时默认拒绝，避免无人值守等待本地交互。
+approvals.subagentAutoApprove: false
+# 本地/直接审批超时秒数；超时后旧审批令牌不再放行。
+approvals.timeoutSeconds: 60
+# 消息渠道审批超时秒数。
+approvals.gatewayTimeoutSeconds: 300
+# /reload-mcp 默认需要确认，避免工具 schema 变更影响下一轮模型调用。
+approvals.mcpReloadConfirm: true
 
 # 预定义人格
 solonclaw.agent.personalities.helpful.description: 友好、通用的默认助手

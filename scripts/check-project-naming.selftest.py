@@ -10,8 +10,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from guardlib import REPO_ROOT, temp_prefix
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = REPO_ROOT / "scripts"
 NAMING_SCRIPT = SCRIPT_DIR / "check-project-naming.py"
 GITHUB_PACKAGE_SCRIPT = SCRIPT_DIR / "check-github-package-name.py"
@@ -133,7 +133,7 @@ def create_zip(source_dir: Path, archive_path: Path) -> None:
 
 
 def main() -> int:
-    sandbox = Path(tempfile.mkdtemp(prefix="jimuqu-naming-check-selftest-"))
+    sandbox = Path(tempfile.mkdtemp(prefix=temp_prefix("naming-check-selftest")))
     try:
         reset_sandbox(sandbox)
         write_text(sandbox / "src" / "config.txt", BLOCKED_FIXTURE + "=true")

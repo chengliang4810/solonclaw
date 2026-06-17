@@ -1,7 +1,9 @@
 import { atom } from 'nanostores'
 
 import type { SpawnTreeLoadResponse } from '../gatewayTypes.js'
-import type { SubagentProgress, SubagentStatus } from '../types.js'
+import { normalizeSubagentStatus } from '../lib/subagentStatus.js'
+import { asArray, asNumber, asOptionalArray, asOptionalString, asOptionalStringArray, asStringArray } from '../lib/value.js'
+import type { SubagentProgress } from '../types.js'
 
 export interface SpawnSnapshot {
   finishedAt: number
@@ -20,26 +22,6 @@ export interface SpawnDiffPair {
 }
 
 const HISTORY_LIMIT = 10
-
-const KNOWN_SUBAGENT_STATUSES = new Set<SubagentStatus>([
-  'completed',
-  'error',
-  'failed',
-  'interrupted',
-  'queued',
-  'running',
-  'timeout'
-])
-
-const normalizeSubagentStatus = (status: unknown, fallback: SubagentStatus): SubagentStatus => {
-  if (typeof status !== 'string') {
-    return fallback
-  }
-
-  const normalized = status.toLowerCase() as SubagentStatus
-
-  return KNOWN_SUBAGENT_STATUSES.has(normalized) ? normalized : fallback
-}
 
 export const $spawnHistory = atom<SpawnSnapshot[]>([])
 export const $spawnDiff = atom<null | SpawnDiffPair>(null)
@@ -95,13 +77,10 @@ function summarizeLabel(subagents: readonly SubagentProgress[]): string {
 }
 
 /**
- * Push a disk-loaded snapshot onto the front of the history stack so the
- * overlay can pick it up at index 1 via /replay load.  Normalises the
- * server payload (arbitrary list) into the same SubagentProgress shape
- * used for live data — defensive against cross-version reads.
+ * 磁盘快照来自历史版本的网关载荷；这里只补齐 TUI 必需字段，可选字段缺省时继续保持 undefined，避免回放视图误判为空值是有效数据。
  */
 export const pushDiskSnapshot = (r: SpawnTreeLoadResponse, path: string) => {
-  const raw = Array.isArray(r.subagents) ? r.subagents : []
+  const raw = asArray(r.subagents)
   const normalised = raw.map(normaliseSubagent)
 
   if (!normalised.length) {
@@ -125,35 +104,32 @@ export const pushDiskSnapshot = (r: SpawnTreeLoadResponse, path: string) => {
 
 function normaliseSubagent(raw: unknown): SubagentProgress {
   const o = raw as Record<string, unknown>
-  const s = (v: unknown) => (typeof v === 'string' ? v : undefined)
-  const n = (v: unknown) => (typeof v === 'number' ? v : undefined)
-  const arr = <T>(v: unknown): T[] | undefined => (Array.isArray(v) ? (v as T[]) : undefined)
 
   return {
-    apiCalls: n(o.apiCalls),
-    costUsd: n(o.costUsd),
+    apiCalls: asNumber(o.apiCalls),
+    costUsd: asNumber(o.costUsd),
     depth: typeof o.depth === 'number' ? o.depth : 0,
-    durationSeconds: n(o.durationSeconds),
-    filesRead: arr<string>(o.filesRead),
-    filesWritten: arr<string>(o.filesWritten),
-    goal: s(o.goal) ?? 'subagent',
-    id: s(o.id) ?? `sa-${Math.random().toString(36).slice(2, 8)}`,
+    durationSeconds: asNumber(o.durationSeconds),
+    filesRead: asOptionalStringArray(o.filesRead),
+    filesWritten: asOptionalStringArray(o.filesWritten),
+    goal: asOptionalString(o.goal) ?? 'subagent',
+    id: asOptionalString(o.id) ?? `sa-${Math.random().toString(36).slice(2, 8)}`,
     index: typeof o.index === 'number' ? o.index : 0,
-    inputTokens: n(o.inputTokens),
-    iteration: n(o.iteration),
-    model: s(o.model),
-    notes: (arr<string>(o.notes) ?? []).filter(x => typeof x === 'string'),
-    outputTail: arr(o.outputTail) as SubagentProgress['outputTail'],
-    outputTokens: n(o.outputTokens),
-    parentId: s(o.parentId) ?? null,
-    reasoningTokens: n(o.reasoningTokens),
-    startedAt: n(o.startedAt),
+    inputTokens: asNumber(o.inputTokens),
+    iteration: asNumber(o.iteration),
+    model: asOptionalString(o.model),
+    notes: asStringArray(o.notes),
+    outputTail: asOptionalArray(o.outputTail) as SubagentProgress['outputTail'],
+    outputTokens: asNumber(o.outputTokens),
+    parentId: asOptionalString(o.parentId) ?? null,
+    reasoningTokens: asNumber(o.reasoningTokens),
+    startedAt: asNumber(o.startedAt),
     status: normalizeSubagentStatus(o.status, 'completed'),
-    summary: s(o.summary),
+    summary: asOptionalString(o.summary),
     taskCount: typeof o.taskCount === 'number' ? o.taskCount : 1,
-    thinking: (arr<string>(o.thinking) ?? []).filter(x => typeof x === 'string'),
+    thinking: asStringArray(o.thinking),
     toolCount: typeof o.toolCount === 'number' ? o.toolCount : 0,
-    tools: (arr<string>(o.tools) ?? []).filter(x => typeof x === 'string'),
-    toolsets: arr<string>(o.toolsets)
+    tools: asStringArray(o.tools),
+    toolsets: asOptionalStringArray(o.toolsets)
   }
 }

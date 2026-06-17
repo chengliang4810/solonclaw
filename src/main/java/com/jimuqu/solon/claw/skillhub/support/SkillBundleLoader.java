@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.skillhub.support;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.skillhub.model.SkillBundle;
@@ -15,15 +17,15 @@ import java.util.Map;
 import org.noear.snack4.ONode;
 import org.yaml.snakeyaml.Yaml;
 
-/** 承载技能包Loader相关状态和辅助逻辑。 */
+/** 负责读取、保存和缓存本地 Skills Hub 技能包清单。 */
 public class SkillBundleLoader {
-    /** 记录技能包Loader中的bundles目录。 */
+    /** 技能包清单目录，位于运行时 skills 目录下的 bundles 子目录。 */
     private final File bundlesDir;
 
-    /** 保存cachedBundles集合，维持调用顺序或去重语义。 */
+    /** 最近一次加载成功的技能包清单缓存。 */
     private volatile List<SkillBundle> cachedBundles;
 
-    /** 记录技能包Loader中的cached最近一次Touched时间。 */
+    /** 缓存对应的目录最新修改时间，用于避免重复解析清单文件。 */
     private volatile long cachedLastTouchedAt = Long.MIN_VALUE;
 
     /**
@@ -36,9 +38,9 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 列出Bundles。
+     * 列出当前本地缓存中的技能包。
      *
-     * @return 返回Bundles列表。
+     * @return 技能包清单副本，调用方修改不会污染缓存。
      */
     public List<SkillBundle> listBundles() {
         long lastTouchedAt = lastTouchedAt();
@@ -50,9 +52,9 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 重新加载目标服务端配置与工具清单。
+     * 重新扫描并解析 bundles 目录。
      *
-     * @return 返回reload结果。
+     * @return 解析后的技能包清单副本。
      */
     public synchronized List<SkillBundle> reload() {
         List<SkillBundle> bundles = new ArrayList<SkillBundle>();
@@ -78,10 +80,9 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 读取包。
+     * 按名称读取技能包。
      *
-     * @param name 名称参数。
-     * @return 返回读取到的包。
+     * @return 名称规范化后匹配的技能包；不存在时返回 null。
      */
     public SkillBundle getBundle(String name) {
         String slug = slugify(name);
@@ -97,9 +98,8 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 保存包。
+     * 保存技能包清单文件。
      *
-     * @param bundle bundle 参数。
      */
     public synchronized void saveBundle(SkillBundle bundle) {
         FileUtil.mkdir(bundlesDir);
@@ -114,7 +114,7 @@ public class SkillBundleLoader {
         if (StrUtil.isNotBlank(bundle.getSource())) {
             data.put("source", bundle.getSource());
         }
-        if (bundle.getMetadata() != null && !bundle.getMetadata().isEmpty()) {
+        if (CollUtil.isNotEmpty(bundle.getMetadata())) {
             data.put("metadata", bundle.getMetadata());
         }
         String json = ONode.serialize(data);
@@ -123,10 +123,10 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 删除包。
+     * 删除本地技能包清单。
      *
-     * @param name 名称参数。
-     * @return 返回包结果。
+     * @param name 技能包名称或名称 slug。
+     * @return 找到并删除清单文件时返回 true。
      */
     public synchronized boolean deleteBundle(String name) {
         File file = findBundleFile(name);
@@ -139,9 +139,9 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 执行摘要相关逻辑。
+     * 生成技能包缓存摘要。
      *
-     * @return 返回summary结果。
+     * @return 包含数量、目录和每个包基础信息的摘要 Map。
      */
     public Map<String, Object> summary() {
         List<SkillBundle> bundles = listBundles();
@@ -161,10 +161,10 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 查找包文件。
+     * 按名称查找技能包清单文件。
      *
-     * @param name 名称参数。
-     * @return 返回包文件结果。
+     * @param name 技能包名称或名称 slug。
+     * @return 文件名或清单内名称匹配的清单文件。
      */
     private File findBundleFile(String name) {
         String slug = slugify(name);
@@ -193,10 +193,9 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 加载包。
+     * 从单个 JSON/YAML 文件中加载技能包。
      *
-     * @param file 文件或目录路径参数。
-     * @return 返回包结果。
+     * @return 解析成功的技能包；内容无效时返回 null。
      */
     @SuppressWarnings("unchecked")
     private SkillBundle loadBundle(File file) {
@@ -239,9 +238,9 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 执行包Files相关逻辑。
+     * 读取并排序 bundles 目录下的清单文件。
      *
-     * @return 返回包Files结果。
+     * @return 支持的 JSON/YAML 清单文件数组，目录不存在时返回 null。
      */
     private File[] bundleFiles() {
         if (!bundlesDir.isDirectory()) {
@@ -259,7 +258,7 @@ public class SkillBundleLoader {
                          *
                          * @param left 左侧比较对象。
                          * @param right 右侧比较对象。
-                         * @return 返回compare结果。
+                         * @return 按文件名忽略大小写排序后的比较结果。
                          */
                         @Override
                         public int compare(File left, File right) {
@@ -275,21 +274,20 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 判断是否包文件名称。
+     * 判断文件名是否为支持的技能包清单格式。
      *
-     * @param name 名称参数。
-     * @return 如果包文件名称满足条件则返回 true，否则返回 false。
+     * @param name 小写后的文件名。
+     * @return 文件名以 json、yml 或 yaml 结尾时返回 true。
      */
     private boolean isBundleFileName(String name) {
         return name.endsWith(".json") || name.endsWith(".yml") || name.endsWith(".yaml");
     }
 
     /**
-     * 解析包Content。
+     * 按文件扩展名解析技能包清单内容。
      *
-     * @param file 文件或目录路径参数。
      * @param content 待处理内容。
-     * @return 返回解析后的包Content。
+     * @return YAML 或 JSON 解析后的对象。
      */
     private Object parseBundleContent(File file, String content) {
         String name = file.getName().toLowerCase();
@@ -300,23 +298,23 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 执行lastTouched时间相关逻辑。
+     * 读取 bundles 目录和清单文件的最新修改时间。
      *
-     * @return 返回last Touched时间结果。
+     * @return 用于缓存失效判断的时间戳。
      */
     private long lastTouchedAt() {
         return lastTouchedAt(bundleFiles());
     }
 
     /**
-     * 执行lastTouched时间相关逻辑。
+     * 基于给定文件数组计算最新修改时间。
      *
-     * @param files 文件或目录路径参数。
-     * @return 返回last Touched时间结果。
+     * @param files 当前已发现的技能包清单文件数组。
+     * @return 目录或清单文件的最大 lastModified 值。
      */
     private long lastTouchedAt(File[] files) {
         long latest = bundlesDir.exists() ? bundlesDir.lastModified() : 0L;
-        if (files == null || files.length == 0) {
+        if (ArrayUtil.isEmpty(files)) {
             return latest;
         }
         for (File file : files) {
@@ -326,10 +324,10 @@ public class SkillBundleLoader {
     }
 
     /**
-     * 执行slugify相关逻辑。
+     * 将技能包名称转换为稳定 slug。
      *
      * @param value 待规范化或校验的原始值。
-     * @return 返回slugify结果。
+     * @return 仅包含小写字母、数字和连字符的 slug。
      */
     private String slugify(String value) {
         String text = StrUtil.nullToEmpty(value).trim().toLowerCase().replace('_', '-');
@@ -359,13 +357,13 @@ public class SkillBundleLoader {
      * 将输入对象转换为去除首尾空白的字符串。
      *
      * @param value 待规范化或校验的原始值。
-     * @return 返回string Value结果。
+     * @return null 保持为 null，其余值转为字符串。
      */
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
-    /** 执行invalidate缓存相关逻辑。 */
+    /** 清空缓存，确保下一次读取重新扫描 bundles 目录。 */
     private void invalidateCache() {
         cachedBundles = null;
         cachedLastTouchedAt = Long.MIN_VALUE;

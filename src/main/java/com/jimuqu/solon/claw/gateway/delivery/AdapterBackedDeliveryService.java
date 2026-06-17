@@ -1,20 +1,23 @@
 package com.jimuqu.solon.claw.gateway.delivery;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
-import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+
+import lombok.RequiredArgsConstructor;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 
 /** 基于渠道适配器集合实现的投递服务。 */
 @RequiredArgsConstructor
@@ -54,10 +57,10 @@ public class AdapterBackedDeliveryService implements DeliveryService {
     }
 
     /**
-     * 判断是否需要Filter Silence Narration。
+     * 判断是否需要丢弃模型生成的静默占位回复。
      *
-     * @param request 当前请求对象。
-     * @return 如果Filter Silence Narration满足条件则返回 true，否则返回 false。
+     * @param request 待投递到国内消息渠道的请求。
+     * @return 文本是静默占位且没有附件时返回 true。
      */
     private boolean shouldFilterSilenceNarration(DeliveryRequest request) {
         return appConfig != null
@@ -67,24 +70,20 @@ public class AdapterBackedDeliveryService implements DeliveryService {
     }
 
     /**
-     * 判断是否存在附件。
+     * 判断请求是否携带需要保留的附件。
      *
-     * @param request 当前请求对象。
-     * @return 如果附件满足条件则返回 true，否则返回 false。
+     * @param request 待投递请求。
+     * @return 附件列表非空时返回 true。
      */
     private boolean hasAttachments(DeliveryRequest request) {
-        if (request == null) {
-            return false;
-        }
-        List<MessageAttachment> attachments = request.getAttachments();
-        return attachments != null && !attachments.isEmpty();
+        return request != null && CollUtil.isNotEmpty(request.getAttachments());
     }
 
     /**
-     * 判断是否Silence Narration。
+     * 判断短文本是否为“无需回复”的模型静默占位。
      *
-     * @param content 待处理内容。
-     * @return 如果Silence Narration满足条件则返回 true，否则返回 false。
+     * @param content 模型输出或渠道待发送文本。
+     * @return 命中静默占位词、单独省略号或静音符号时返回 true。
      */
     static boolean isSilenceNarration(String content) {
         if (StrUtil.isBlank(content)) {
@@ -109,13 +108,13 @@ public class AdapterBackedDeliveryService implements DeliveryService {
     }
 
     /**
-     * 剥离SilenceDecorators。
+     * 剥离 Markdown 或括号包裹，便于识别包在格式符内的静默占位词。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回strip Silence Decorators结果。
+     * @param value 待识别的短文本。
+     * @return 去掉两端装饰符后的文本。
      */
     private static String stripSilenceDecorators(String value) {
-        String result = value == null ? "" : value.trim();
+        String result = StrUtil.nullToEmpty(value).trim();
         while (result.length() > 1 && isSilenceDecorator(result.charAt(0))) {
             result = result.substring(1).trim();
         }
@@ -126,10 +125,10 @@ public class AdapterBackedDeliveryService implements DeliveryService {
     }
 
     /**
-     * 判断是否Silence Decorator。
+     * 判断字符是否属于静默占位常见包裹符。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 如果Silence Decorator满足条件则返回 true，否则返回 false。
+     * @param value 待检测字符。
+     * @return 是 Markdown、引号或括号装饰符时返回 true。
      */
     private static boolean isSilenceDecorator(char value) {
         return value == '`'

@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.core.repository;
 
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -118,7 +119,7 @@ public interface SessionRepository {
                 new LinkedHashMap<String, List<SessionRecord>>();
         for (SessionRecord record : records) {
             String parent = record.getParentSessionId();
-            if (!isNotBlank(parent)) {
+            if (StrUtil.isBlank(parent)) {
                 continue;
             }
             List<SessionRecord> children = childrenByParent.get(parent);
@@ -165,14 +166,14 @@ public interface SessionRepository {
     /** 解析 lineage 根会话。 */
     default SessionRecord resolveRootSession(String sessionId) throws Exception {
         SessionRecord current = findById(sessionId);
-        if (current == null || !isNotBlank(current.getSessionId())) {
+        if (current == null || StrUtil.isBlank(current.getSessionId())) {
             return null;
         }
         String currentId = current.getSessionId();
         LinkedHashSet<String> visited = new LinkedHashSet<String>();
-        while (isNotBlank(current.getParentSessionId()) && visited.add(currentId)) {
+        while (StrUtil.isNotBlank(current.getParentSessionId()) && visited.add(currentId)) {
             SessionRecord parent = findById(current.getParentSessionId());
-            if (parent == null || !isNotBlank(parent.getSessionId())) {
+            if (parent == null || StrUtil.isBlank(parent.getSessionId())) {
                 break;
             }
             current = parent;
@@ -212,12 +213,12 @@ public interface SessionRepository {
     void setLastLearningAt(String sessionId, long lastLearningAt) throws Exception;
 
     /**
-     * 判断是否Not Blank。
+     * 判断会话标识是否存在有效文本。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 如果Not Blank满足条件则返回 true，否则返回 false。
+     * @param value 待校验的会话或父会话标识。
+     * @return 非空白时返回 true。
      */
     default boolean isNotBlank(String value) {
-        return value != null && value.trim().length() > 0;
+        return StrUtil.isNotBlank(value);
     }
 }

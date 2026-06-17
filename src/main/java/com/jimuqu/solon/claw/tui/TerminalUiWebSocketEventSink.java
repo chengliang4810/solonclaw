@@ -1,5 +1,8 @@
 package com.jimuqu.solon.claw.tui;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import java.util.HashMap;
@@ -186,7 +189,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             Map<String, Object> payload = pair("name", toolName);
             payload.put("tool_id", activeToolId(toolName));
             payload.put("context", "");
-            if (args != null && !args.isEmpty()) {
+            if (CollUtil.isNotEmpty(args)) {
                 payload.put("args_text", ONode.serialize(args));
             }
             send("tool.start", payload, activeSessionId);
@@ -258,7 +261,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         Map<String, Object> event = new LinkedHashMap<String, Object>();
         event.put("type", type);
         event.put("payload", payload == null ? new LinkedHashMap<String, Object>() : payload);
-        if (sessionId != null) {
+        if (ObjectUtil.isNotNull(sessionId)) {
             event.put("session_id", sessionId);
         }
         if (!rpcEnvelope) {
@@ -291,12 +294,12 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
 
     /** 为当前工具事件生成稳定可读的前端工具编号。 */
     private String toolId(String toolName) {
-        return String.valueOf(toolName == null ? "tool" : toolName) + "-" + System.nanoTime();
+        return safeToolName(toolName) + "-" + System.nanoTime();
     }
 
     /** 读取或创建当前工具的稳定前端 ID。 */
     private String activeToolId(String toolName) {
-        String key = String.valueOf(toolName == null ? "tool" : toolName);
+        String key = safeToolName(toolName);
         if (!activeToolIds.containsKey(key)) {
             activeToolIds.put(key, toolId(key));
         }
@@ -321,7 +324,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
 
     /** 将 JSON-RPC assistant delta 拆成 reasoning 与可见文本，避免 TUI 正文出现 <think> 标签。 */
     private void appendJsonRpcAssistantDelta(String delta) {
-        if (delta == null || delta.length() == 0) {
+        if (StrUtil.isEmpty(delta)) {
             return;
         }
         ThinkTagSplitter.Delta split = thinkTagSplitter.accept(delta);
@@ -371,7 +374,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
 
     /** 构造可展示的非空短文本，避免状态栏出现 null。 */
     private String safe(String value) {
-        return value == null || value.trim().length() == 0 ? "-" : value.trim();
+        return StrUtil.isBlank(value) ? "-" : value.trim();
     }
 
     /** 构造状态补充说明，空原因不展示尾随分隔符。 */
@@ -404,6 +407,16 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             usage.put("model", result.getModel());
         }
         return usage;
+    }
+
+    /**
+     * 生成工具事件索引用的非空名称。
+     *
+     * @param toolName 原始工具名称，可能来自工具注册表或模型返回。
+     * @return 可用于前端工具事件配对的非空名称。
+     */
+    private String safeToolName(String toolName) {
+        return ObjectUtil.defaultIfNull(toolName, "tool");
     }
 
     /** 面向 JSON-RPC 事件的轻量 think 标签拆分器，仅处理模型输出开头或流中完整出现的 think 标签。 */

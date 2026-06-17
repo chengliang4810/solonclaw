@@ -1,43 +1,47 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
+
+import org.noear.solon.core.handle.Context;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import org.noear.solon.core.handle.Context;
 
 /** 提供消息网关Injection认证相关业务能力，封装调用方不需要感知的运行细节。 */
 public class GatewayInjectionAuthService {
-    /** 签名请求头的统一常量值。 */
+    /** 外部注入请求携带的 HMAC 签名请求头。 */
     private static final String HEADER_SIGNATURE = "X-SolonClaw-Signature";
 
-    /** 时间戳请求头的统一常量值。 */
+    /** 外部注入请求携带的秒级时间戳请求头，用于防重放。 */
     private static final String HEADER_TIMESTAMP = "X-SolonClaw-Timestamp";
 
-    /** 随机串请求头的统一常量值。 */
+    /** 外部注入请求携带的随机串请求头，用于同一窗口内去重。 */
     private static final String HEADER_NONCE = "X-SolonClaw-Nonce";
 
-    /** HMAC算法的统一常量值。 */
+    /** 网关注入签名采用的 HMAC 算法。 */
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
-    /** 随机串缓存上限的统一常量值。 */
+    /** 随机串缓存上限，避免长期运行后内存无限增长。 */
     private static final int MAX_NONCES = 2048;
 
-    /** 注入应用配置，用于消息网关Injection认证。 */
+    /** 应用配置，提供签名密钥、请求体上限和重放窗口。 */
     private final AppConfig appConfig;
 
-    /** 保存已使用随机串映射，便于按键快速查询。 */
+    /** 已使用随机串和首次出现时间，按插入顺序淘汰过期项。 */
     private final Map<String, Long> seenNonces =
             Collections.synchronizedMap(new LinkedHashMap<String, Long>());
 
     /**
-     * 创建消息网关Injection认证服务实例，并注入运行所需依赖。
+     * 创建外部网关注入请求认证服务。
      *
      * @param appConfig 应用运行配置。
      */
@@ -103,16 +107,16 @@ public class GatewayInjectionAuthService {
     }
 
     /**
-     * 标记随机串。
+     * 记录随机串并淘汰过期缓存，阻止同一重放窗口内重复提交。
      *
      * @param nonce 用于防重放的随机串。
      * @param now 当前时间戳。
      * @param window 重放检测时间窗口。
-     * @return 返回随机串结果。
+     * @return 随机串首次出现时返回 true，已使用或为空时返回 false。
      */
     private boolean markNonce(String nonce, long now, long window) {
-        String key = nonce == null ? "" : nonce.trim();
-        if (key.length() == 0) {
+        String key = StrUtil.nullToEmpty(nonce).trim();
+        if (StrUtil.isEmpty(key)) {
             return false;
         }
         synchronized (seenNonces) {
@@ -134,8 +138,8 @@ public class GatewayInjectionAuthService {
     /**
      * 移除签名前缀，得到纯十六进制签名。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回strip Prefix结果。
+     * @param value 请求头中的签名文本。
+     * @return 去掉 sha256= 前缀后的十六进制签名。
      */
     private String stripPrefix(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
@@ -150,7 +154,7 @@ public class GatewayInjectionAuthService {
      *
      * @param secret 签名使用的共享密钥。
      * @param payload 待签名或解析的载荷内容。
-     * @return 返回hmac Sha256 Hex结果。
+     * @return 小写十六进制签名。
      */
     private String hmacSha256Hex(String secret, String payload) {
         try {
@@ -165,9 +169,9 @@ public class GatewayInjectionAuthService {
     /**
      * 用常量时间比较方式校验签名，降低时序侧信道风险。
      *
-     * @param expectedHex expectedHex 参数。
-     * @param actualHex actualHex 参数。
-     * @return 返回constant时间Equals结果。
+     * @param expectedHex 服务端根据请求体计算出的签名。
+     * @param actualHex 客户端随请求提交的签名。
+     * @return 两个签名按字节一致时返回 true。
      */
     private boolean constantTimeEquals(String expectedHex, String actualHex) {
         byte[] expected =
@@ -180,8 +184,8 @@ public class GatewayInjectionAuthService {
     /**
      * 转换为Hex。
      *
-     * @param bytes 字节参数。
-     * @return 返回转换后的Hex。
+     * @param bytes HMAC 原始字节。
+     * @return 小写十六进制字符串。
      */
     private String toHex(byte[] bytes) {
         StringBuilder builder = new StringBuilder(bytes.length * 2);

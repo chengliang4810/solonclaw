@@ -12,6 +12,7 @@ from guardlib import (
     GuardFailure,
     fetch_github_release,
     scan_directory,
+    temp_prefix,
 )
 
 
@@ -54,7 +55,7 @@ def main() -> int:
     args = parser.parse_args()
 
     release = read_release(args)
-    with tempfile.TemporaryDirectory(prefix="jimuqu-release-naming-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix=temp_prefix("release-naming")) as temp_dir:
         snapshot_path = Path(temp_dir) / "release.json"
         snapshot_path.write_text(json.dumps(release_snapshot(release), ensure_ascii=False, indent=2), encoding="utf-8")
         findings = scan_directory(Path(temp_dir))

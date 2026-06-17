@@ -3,6 +3,8 @@ import JobCard from './JobCard.vue'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
 import { computed, onMounted } from 'vue'
+import { formatJobTime, humanizeJobToken, jobScheduleLabel } from '@/shared/jobsDisplay'
+import { asArray } from '@/shared/text'
 
 const { t } = useI18n()
 
@@ -13,50 +15,33 @@ const emit = defineEmits<{
 
 const jobsStore = useJobsStore()
 
-const formatTime = (value?: string | null) => {
-  if (!value) return '—'
-  return new Date(value).toLocaleString()
-}
-
-const scheduleLabel = (job: any) => {
-  const schedule = job.schedule
-  if (typeof schedule === 'string') return schedule
-  return schedule?.display || schedule?.expr || job.schedule_display || '—'
-}
-
 function refreshUpcoming() {
   jobsStore.fetchUpcomingJobs()
 }
 
-function humanizeToken(value: string): string {
-  const normalized = value.trim()
-  if (!normalized) return ''
-  const translated = t(`jobs.humanize.${normalized}`)
-  return translated === `jobs.humanize.${normalized}` ? normalized : translated
-}
-
 const guideActions = computed(() => {
   const actions = jobsStore.guide?.actions || {}
-  return Object.keys(actions).map(key => `${humanizeToken(key)}：${actions[key]}`)
+  return Object.keys(actions).map(key => `${humanizeJobToken(t, key)}：${actions[key]}`)
 })
 
 const guideAliases = computed(() => {
   const aliases = jobsStore.guide?.aliases || {}
   return Object.keys(aliases).map(key => {
     const value = aliases[key]
-    return Array.isArray(value) && value.length ? `${humanizeToken(key)}：${value.join('、')}` : humanizeToken(key)
+    const items = asArray<string>(value)
+    return items.length ? `${humanizeJobToken(t, key)}：${items.join('、')}` : humanizeJobToken(t, key)
   })
 })
 
-const guideExamples = computed(() => (jobsStore.guide?.slash_examples || []).slice(0, 6))
+const guideExamples = computed(() => asArray<string>(jobsStore.guide?.slash_examples).slice(0, 6))
 
 const guideDeliveries = computed(() => {
   const delivery = jobsStore.guide?.delivery || {}
-  const modes = Array.isArray(delivery.modes) ? delivery.modes : []
-  const targets = Array.isArray(delivery.targets) ? delivery.targets : []
+  const modes = asArray<unknown>(delivery.modes)
+  const targets = asArray<unknown>(delivery.targets)
   return [
-    ...modes.map(item => humanizeToken(String(item))),
-    targets.length ? `${t('jobs.guideTargets')}：${targets.map(item => humanizeToken(String(item))).join('、')}` : '',
+    ...modes.map(item => humanizeJobToken(t, String(item))),
+    targets.length ? `${t('jobs.guideTargets')}：${targets.map(item => humanizeJobToken(t, String(item))).join('、')}` : '',
   ].filter(Boolean)
 })
 
@@ -78,12 +63,13 @@ const guideAutomation = computed(() => {
 
 const guideTriggerSources = computed(() => {
   const policy = jobsStore.policy
+  const fields = asArray<unknown>(policy?.trigger_type_fields)
   return [
     policy?.custom_manual_trigger_supported ? t('jobs.guideManualTriggerSource') : '',
     policy?.custom_retry_trigger_supported ? t('jobs.guideRetryTriggerSource') : '',
     policy?.queued_trigger_type_persisted ? t('jobs.guideQueuedTriggerSource') : '',
-    Array.isArray(policy?.trigger_type_fields) && policy.trigger_type_fields.length
-      ? `${t('jobs.guideTriggerFields')}：${policy.trigger_type_fields.map(item => humanizeToken(String(item))).join('、')}`
+    fields.length
+      ? `${t('jobs.guideTriggerFields')}：${fields.map(item => humanizeJobToken(t, String(item))).join('、')}`
       : '',
   ].filter(Boolean)
 })
@@ -113,9 +99,9 @@ onMounted(() => {
           type="button"
           @click="emit('edit', job.id)"
         >
-          <span class="upcoming-time">{{ formatTime(job.next_run_at) }}</span>
+          <span class="upcoming-time">{{ formatJobTime(job.next_run_at) }}</span>
           <span class="upcoming-name">{{ job.name }}</span>
-          <code class="upcoming-schedule">{{ scheduleLabel(job) }}</code>
+          <code class="upcoming-schedule">{{ jobScheduleLabel(job) }}</code>
         </button>
       </div>
     </section>

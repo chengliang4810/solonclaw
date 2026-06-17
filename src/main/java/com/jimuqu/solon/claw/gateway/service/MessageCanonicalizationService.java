@@ -1,29 +1,31 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 /** 提供消息规范化相关业务能力，封装调用方不需要感知的运行细节。 */
 public class MessageCanonicalizationService {
-    /** MENTION正则的统一常量值。 */
+    /** 通用 @ 提及格式预留正则，保留给后续渠道差异化规则复用。 */
     private static final Pattern MENTION_PATTERN =
             Pattern.compile("<@[A-Za-z0-9_-]+>|@[A-Za-z0-9_\\u4e00-\\u9fff]+");
 
-    /** EMOJICODE正则的统一常量值。 */
+    /** emoji 短码格式预留正则，保留现有规范化策略的扩展入口。 */
     private static final Pattern EMOJI_CODE_PATTERN = Pattern.compile(":[a-z0-9_+-]+:");
 
-    /** 最大文本LENGTH的统一常量值。 */
+    /** 单条入站文本进入 Agent 主循环前允许保留的最大字符数。 */
     private static final int MAX_TEXT_LENGTH = 32000;
 
     /**
-     * 执行canonicalize相关逻辑。
+     * 对入站消息执行跨平台文本规范化。
      *
-     * @param message 平台消息或错误消息。
-     * @return 返回canonicalize结果。
+     * @param message 国内渠道收到的原始消息。
+     * @return 已原地更新文本字段的消息对象；入参为空时仍返回空。
      */
     public GatewayMessage canonicalize(GatewayMessage message) {
         if (message == null) {
@@ -39,9 +41,9 @@ public class MessageCanonicalizationService {
     }
 
     /**
-     * 执行策略相关逻辑。
+     * 输出当前消息规范化策略，供 dashboard 诊断页展示。
      *
-     * @return 返回策略结果。
+     * @return 包含长度、提及和空白处理开关的策略快照。
      */
     public Map<String, Object> policy() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -53,10 +55,10 @@ public class MessageCanonicalizationService {
     }
 
     /**
-     * 规范化Whitespace。
+     * 统一不同平台换行和行尾空白，避免渠道格式差异进入会话历史。
      *
-     * @param text 待处理文本。
-     * @return 返回Whitespace结果。
+     * @param text 待规范化的消息文本。
+     * @return 统一换行并压缩超长空行后的文本。
      */
     private String normalizeWhitespace(String text) {
         text = text.replace("\r\n", "\n").replace("\r", "\n");
@@ -66,11 +68,11 @@ public class MessageCanonicalizationService {
     }
 
     /**
-     * 剥离平台Mentions。
+     * 按平台剥离机器人提及文本，保留用户真实输入。
      *
      * @param text 待处理文本。
-     * @param platform 平台参数。
-     * @return 返回strip平台Mentions结果。
+     * @param platform 消息来源平台。
+     * @return 去掉平台提及标记后的文本。
      */
     private String stripPlatformMentions(String text, PlatformType platform) {
         if (platform == null) {
@@ -91,20 +93,20 @@ public class MessageCanonicalizationService {
     }
 
     /**
-     * 规范化Emoji Codes。
+     * 保留 emoji 短码规范化入口；当前行为是不改写原文本。
      *
      * @param text 待处理文本。
-     * @return 返回Emoji Codes结果。
+     * @return 与入参相同的文本。
      */
     private String normalizeEmojiCodes(String text) {
         return text;
     }
 
     /**
-     * 执行truncateIfNeeded相关逻辑。
+     * 在进入会话前截断过长消息，避免单条渠道输入撑爆上下文。
      *
      * @param text 待处理文本。
-     * @return 返回truncate If Needed结果。
+     * @return 未超过限制时返回原文，否则追加截断提示。
      */
     private String truncateIfNeeded(String text) {
         if (text.length() <= MAX_TEXT_LENGTH) {

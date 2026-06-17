@@ -18,7 +18,18 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
+# 项目级脚本共享的根路径和公开命名，避免发布、归档、镜像检查各自硬编码。
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_NAME = "solon-claw"
+CLI_NAME = "solonclaw"
+GITHUB_PACKAGE_IMAGE = "ghcr.io/chengliang4810/solon-claw"
+
+
+def temp_prefix(name: str) -> str:
+    """生成脚本临时目录前缀，统一使用 solonclaw 项目命名。"""
+    normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", name.strip()).strip("-")
+    suffix = f"{normalized}-" if normalized else ""
+    return f"{CLI_NAME}-{suffix}"
 
 IGNORED_DIRS = {
     ".git",

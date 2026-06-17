@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.agent;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -11,9 +12,9 @@ import java.util.Locale;
 import java.util.Set;
 import org.noear.snack4.ONode;
 
-/** Agent 运行时 tools / skills 选择策略。 */
+/** Agent 运行时工具与技能选择策略，负责把角色配置冻结成单轮可执行的白名单。 */
 public final class AgentRuntimePolicy {
-    /** KNOWN工具名称列表的统一常量值。 */
+    /** 内置工具名全集，支持 Agent 配置中的 all / * 选择器展开。 */
     private static final List<String> KNOWN_TOOL_NAMES =
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
@@ -66,34 +67,24 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.SECURITY_AUDIT,
                     ToolNameConstants.CLARIFY);
 
-    /** 创建Agent运行时策略实例。 */
+    /** 工具类只暴露静态策略方法，不允许实例化。 */
     private AgentRuntimePolicy() {}
 
     /**
-     * 解析Allowed工具。
+     * 根据 Agent 配置解析本轮实际允许注册给模型的工具集合。
      *
      * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @param allToolNames all工具Names参数。
-     * @return 返回解析后的Allowed工具。
+     * @param allToolNames 当前运行时已注册的全部工具名，返回结果会保留该顺序。
+     * @return 返回本轮可暴露给模型的工具名集合。
      */
     public static List<String> resolveAllowedTools(
             AgentRuntimeScope agentScope, List<String> allToolNames) {
-        if (agentScope == null) {
-            return new ArrayList<String>(allToolNames);
-        }
-        List<String> configured = parseStringList(agentScope.getAllowedToolsJson());
-        if (configured.isEmpty() && agentScope.isDefaultAgentName()) {
-            return new ArrayList<String>(allToolNames);
-        }
-        if (configured.isEmpty()) {
+        List<String> configured = configuredToolSelectors(agentScope);
+        if (allowsAllTools(agentScope, configured)) {
             return new ArrayList<String>(allToolNames);
         }
 
-        LinkedHashSet<String> expanded = new LinkedHashSet<String>();
-        for (String item : configured) {
-            addToolOrGroup(expanded, item);
-        }
-
+        LinkedHashSet<String> expanded = expandToolSelectors(configured);
         List<String> allowed = new ArrayList<String>();
         for (String toolName : allToolNames) {
             if (expanded.contains(toolName)) {
@@ -104,14 +95,14 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 执行expand工具Selectors相关逻辑。
+     * 展开工具选择器，支持单个工具名、all 与 * 三种配置形态。
      *
-     * @param selectors selectors 参数。
-     * @return 返回expand工具Selectors结果。
+     * @param selectors Agent 配置或命令行传入的工具选择器。
+     * @return 返回去重且保持声明顺序的工具名集合。
      */
     public static LinkedHashSet<String> expandToolSelectors(List<String> selectors) {
         LinkedHashSet<String> expanded = new LinkedHashSet<String>();
-        if (selectors == null) {
+        if (CollUtil.isEmpty(selectors)) {
             return expanded;
         }
         for (String item : selectors) {
@@ -121,43 +112,33 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 判断是否工具Allowed。
+     * 判断指定工具是否允许在当前 Agent 运行范围内执行。
      *
      * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @param toolName 工具名称。
-     * @return 如果工具Allowed满足条件则返回 true，否则返回 false。
+     * @param toolName 待校验的工具名称。
+     * @return 如果未配置白名单或工具命中白名单则返回 true。
      */
     public static boolean isToolAllowed(AgentRuntimeScope agentScope, String toolName) {
-        if (agentScope == null) {
+        List<String> configured = configuredToolSelectors(agentScope);
+        if (allowsAllTools(agentScope, configured)) {
             return true;
         }
-        List<String> configured = parseStringList(agentScope.getAllowedToolsJson());
-        if (configured.isEmpty() && agentScope.isDefaultAgentName()) {
-            return true;
-        }
-        if (configured.isEmpty()) {
-            return true;
-        }
-        LinkedHashSet<String> expanded = new LinkedHashSet<String>();
-        for (String item : configured) {
-            addToolOrGroup(expanded, item);
-        }
-        return expanded.contains(toolName);
+        return expandToolSelectors(configured).contains(toolName);
     }
 
     /**
-     * 判断是否技能Allowed。
+     * 判断技能描述是否允许被当前 Agent 召回。
      *
      * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @param descriptor descriptor 参数。
-     * @return 如果技能Allowed满足条件则返回 true，否则返回 false。
+     * @param descriptor 技能元数据描述。
+     * @return 默认 Agent 或未配置技能白名单时返回 true，否则要求命中标准名或短名。
      */
     public static boolean isSkillAllowed(AgentRuntimeScope agentScope, SkillDescriptor descriptor) {
         if (descriptor == null || agentScope == null || agentScope.isDefaultAgentName()) {
             return true;
         }
         Set<String> allowed = resolveAllowedSkills(agentScope);
-        if (allowed.isEmpty()) {
+        if (CollUtil.isEmpty(allowed)) {
             return true;
         }
         return allowed.contains(descriptor.canonicalName())
@@ -165,10 +146,10 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 解析Allowed技能。
+     * 解析当前 Agent 配置的技能白名单。
      *
      * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回解析后的Allowed技能。
+     * @return 返回去重后的技能名集合；空集合表示不限制技能。
      */
     public static Set<String> resolveAllowedSkills(AgentRuntimeScope agentScope) {
         LinkedHashSet<String> allowed = new LinkedHashSet<String>();
@@ -184,10 +165,10 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 解析String List。
+     * 解析配置项中的字符串列表，兼容 JSON 数组、JSON 字符串和逗号分隔文本。
      *
-     * @param raw 原始输入值。
-     * @return 返回解析后的String List。
+     * @param raw Agent 配置中的原始列表文本。
+     * @return 返回去掉空白项后的字符串列表。
      */
     public static List<String> parseStringList(String raw) {
         List<String> result = new ArrayList<String>();
@@ -217,10 +198,10 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 追加字符串。
+     * 将非空字符串项追加到结果列表，保留调用方声明顺序。
      *
-     * @param result 结果响应或执行结果。
-     * @param item item 参数。
+     * @param result 正在构建的列表。
+     * @param item JSON 解析出的候选项。
      */
     private static void addString(List<String> result, Object item) {
         String text = item == null ? "" : String.valueOf(item).trim();
@@ -230,10 +211,10 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 追加CSV。
+     * 解析逗号分隔文本并追加非空选择器。
      *
-     * @param result 结果响应或执行结果。
-     * @param csv csv 参数。
+     * @param result 正在构建的列表。
+     * @param csv 逗号分隔的原始文本。
      */
     private static void addCsv(List<String> result, String csv) {
         for (String item : StrUtil.nullToEmpty(csv).split("\\s*,\\s*")) {
@@ -244,10 +225,10 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 追加工具Or群组。
+     * 将工具名或工具组选择器写入展开结果。
      *
-     * @param output 命令执行输出文本。
-     * @param value 待规范化或校验的原始值。
+     * @param output 工具名展开结果。
+     * @param value 待展开的工具选择器。
      */
     private static void addToolOrGroup(LinkedHashSet<String> output, String value) {
         String name = StrUtil.nullToEmpty(value).trim();
@@ -378,5 +359,26 @@ public final class AgentRuntimePolicy {
             return;
         }
         output.add(name);
+    }
+
+    /**
+     * 读取当前 Agent 的工具选择器配置。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @return 返回配置中的选择器；scope 为空时返回 null 以保持默认放行语义。
+     */
+    private static List<String> configuredToolSelectors(AgentRuntimeScope agentScope) {
+        return agentScope == null ? null : parseStringList(agentScope.getAllowedToolsJson());
+    }
+
+    /**
+     * 判断工具配置是否等价于不限制工具。
+     *
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param configured 已解析的工具选择器。
+     * @return scope 为空或选择器为空时返回 true，与历史默认放行行为保持一致。
+     */
+    private static boolean allowsAllTools(AgentRuntimeScope agentScope, List<String> configured) {
+        return agentScope == null || CollUtil.isEmpty(configured);
     }
 }

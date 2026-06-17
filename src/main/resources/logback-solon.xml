@@ -2,12 +2,15 @@
 
 <!DOCTYPE configuration>
 <configuration scan="true" scanPeriod="60 seconds" debug="false">
+    <!-- Solon 日志桥接规则，用于把框架侧标签写入统一日志格式。 -->
     <conversionRule conversionWord="tags" converterClass="ch.qos.logback.solon.SolonTagsConverter" />
 
+    <!-- 应用名与运行目录来自 Solon 配置；日志文件统一落在 runtime/logs。 -->
     <solonProperty name="APP_NAME" source="solon.app.name" defaultValue="solon-claw" />
     <solonProperty name="RUNTIME_HOME" source="solonclaw.runtime.home" defaultValue="runtime" />
     <property name="LOG_DIR" value="${RUNTIME_HOME}/logs" />
 
+    <!-- 控制台与文件日志格式分别可通过 app.yml 或 runtime/config.yml 覆盖。 -->
     <solonProperty name="CONSOLE_LOG_PATTERN" source="solon.logging.appender.console.pattern"
                    defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{48} - %msg%n%ex" />
     <solonProperty name="CONSOLE_LOG_LEVEL" source="solon.logging.appender.console.level"
@@ -24,6 +27,7 @@
     <solonProperty name="LOGGER_ROOT_LEVEL" source="solon.logging.logger.root.level"
                    defaultValue="INFO" />
 
+    <!-- 控制台日志用于本地 java -jar、Docker stdout 和部署平台采集。 -->
     <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
         <immediateFlush>true</immediateFlush>
@@ -36,6 +40,7 @@
         </encoder>
     </appender>
 
+    <!-- 主 Agent 日志，记录会话、工具、调度和后台任务的常规运行信息。 -->
     <appender name="AgentFile" class="com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>${FILE_LOG_LEVEL}</level>
@@ -53,6 +58,7 @@
         </encoder>
     </appender>
 
+    <!-- 国内消息渠道网关日志，便于单独排查连接、鉴权、投递和回调问题。 -->
     <appender name="GatewayFile" class="com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>${FILE_LOG_LEVEL}</level>
@@ -70,6 +76,7 @@
         </encoder>
     </appender>
 
+    <!-- 错误日志单独归档，供 Dashboard doctor、部署排障和发布回归检查使用。 -->
     <appender name="ErrorFile" class="com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>ERROR</level>
@@ -87,12 +94,14 @@
         </encoder>
     </appender>
 
+    <!-- Solon 内部日志通道，保留框架事件但不替代业务日志文件。 -->
     <appender name="Solon" class="ch.qos.logback.solon.SolonAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>TRACE</level>
         </filter>
     </appender>
 
+    <!-- 网关包关闭 additivity，避免同一条渠道日志重复写入主 Agent 文件。 -->
     <logger name="com.jimuqu.solon.claw.gateway" level="INFO" additivity="false">
         <appender-ref ref="Console" />
         <appender-ref ref="GatewayFile" />
@@ -103,6 +112,7 @@
     <logger name="com.jimuqu.solon.claw.scheduler" level="INFO" />
     <logger name="com.jimuqu.solon.claw.tool" level="INFO" />
 
+    <!-- 根日志保留控制台、主文件、错误文件和 Solon 桥接四个出口。 -->
     <root level="${LOGGER_ROOT_LEVEL}">
         <appender-ref ref="Console" />
         <appender-ref ref="AgentFile" />

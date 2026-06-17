@@ -4,6 +4,15 @@ import { NButton, NDrawer, NDrawerContent, NInput, NModal, NSpin, NTooltip, useM
 import type { Job, JobRun, JobRunDeliveryResultTarget } from '@/api/solonclaw/jobs'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
+import {
+  formatJobTime,
+  humanizeJobToken,
+  inferJobScheduleKind,
+  jobListDetail,
+  jobScheduleLabel,
+  joinJobDetailParts,
+} from '@/shared/jobsDisplay'
+import { hasItems } from '@/shared/text'
 
 const props = defineProps<{ job: Job }>()
 const emit = defineEmits<{
@@ -47,13 +56,6 @@ const canInspect = computed(() => actionFlags.value.can_inspect !== false)
 const canEdit = computed(() => actionFlags.value.can_edit !== false)
 const canRemove = computed(() => actionFlags.value.can_remove !== false)
 
-function humanizeToken(value?: string | null): string {
-  const normalized = (value || '').trim()
-  if (!normalized) return '—'
-  const translated = t(`jobs.humanize.${normalized}`)
-  return translated === `jobs.humanize.${normalized}` ? normalized : translated
-}
-
 const actionSummary = computed(() => {
   const actions: string[] = []
   if (actionFlags.value.can_pause) actions.push(t('jobs.action.pause'))
@@ -74,32 +76,14 @@ const aliasSummary = computed(() => {
   return aliases.length ? aliases.join('、') : '—'
 })
 
-const scheduleExpr = computed(() => {
-  const s = props.job.schedule
-  if (typeof s === 'string') return s
-  return s?.display || s?.expr || props.job.schedule_display || '—'
-})
-
-const scheduleKind = computed(() => {
-  const s = props.job.schedule
-  if (typeof s === 'object' && s?.kind) return s.kind
-  const expr = scheduleExpr.value.trim()
-  if (/^every\s+\d+/i.test(expr)) return 'interval'
-  if (/^\d+\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.test(expr)) return 'once'
-  if (/^\d{4}-\d{2}-\d{2}T/.test(expr)) return 'once'
-  return 'cron'
-})
+const scheduleExpr = computed(() => jobScheduleLabel(props.job))
+const scheduleKind = computed(() => inferJobScheduleKind(props.job))
 
 const scheduleKindLabel = computed(() => {
   if (scheduleKind.value === 'interval') return t('jobs.scheduleKindInterval')
   if (scheduleKind.value === 'once') return t('jobs.scheduleKindOnce')
   return t('jobs.scheduleKindCron')
 })
-
-const formatTime = (t?: string | null) => {
-  if (!t) return '—'
-  return new Date(t).toLocaleString()
-}
 
 function formatDuration(durationMs?: number | null) {
   if (durationMs === null || durationMs === undefined) return '—'
@@ -121,20 +105,20 @@ const jobBadges = computed(() => {
   if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
   if (props.job.script) badges.push(t('jobs.badge.script'))
   if (props.job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
-  if (props.job.skills?.length) badges.push(t('jobs.badge.skills', { count: props.job.skills.length }))
-  if (props.job.context_from?.length) badges.push(t('jobs.badge.context', { count: props.job.context_from.length }))
-  if (props.job.enabled_toolsets?.length) badges.push(t('jobs.badge.toolsets', { count: props.job.enabled_toolsets.length }))
+  if (hasItems(props.job.skills)) badges.push(t('jobs.badge.skills', { count: props.job.skills.length }))
+  if (hasItems(props.job.context_from)) badges.push(t('jobs.badge.context', { count: props.job.context_from.length }))
+  if (hasItems(props.job.enabled_toolsets)) badges.push(t('jobs.badge.toolsets', { count: props.job.enabled_toolsets.length }))
   if (props.job.model) badges.push(props.job.provider ? `${props.job.provider}:${props.job.model}` : props.job.model)
   return badges
 })
 
 const deliverDetail = computed(() => {
   const job = activeJob.value
-  const parts = [humanizeToken(job.deliver || 'local')]
-  if (job.origin?.platform) parts.push(humanizeToken(job.origin.platform))
+  const parts = [humanizeJobToken(t, job.deliver || 'local', { fallback: '—' })]
+  if (job.origin?.platform) parts.push(humanizeJobToken(t, job.origin.platform, { fallback: '—' }))
   if (job.deliver_chat_id) parts.push(job.deliver_chat_id)
   if (job.deliver_thread_id) parts.push(`#${job.deliver_thread_id}`)
-  return parts.join(' · ')
+  return joinJobDetailParts(parts)
 })
 
 const modelDetail = computed(() => {
@@ -143,15 +127,19 @@ const modelDetail = computed(() => {
 })
 
 function listDetail(values?: string[] | null) {
-  return values && values.length ? values.join(', ') : '—'
+  return jobListDetail(values)
 }
 
 function boolDetail(value: boolean) {
   return value ? t('jobs.detail.yes') : t('jobs.detail.no')
 }
 
+function tokenLabel(value?: string | null) {
+  return humanizeJobToken(t, value, { fallback: '—' })
+}
+
 function deliveryTargetLabel(target: JobRunDeliveryResultTarget) {
-  const parts = [humanizeToken(target.platform), target.chat_id || '—']
+  const parts = [tokenLabel(target.platform), target.chat_id || '—']
   if (target.thread_id) parts.push(`#${target.thread_id}`)
   return parts.join(' · ')
 }
@@ -250,15 +238,15 @@ async function handleDelete() {
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.lastRun') }}</span>
         <span class="info-value">
-          {{ formatTime(job.last_run_at) }}
+          {{ formatJobTime(job.last_run_at) }}
           <span v-if="job.last_status" class="run-status" :class="{ ok: job.last_status === 'ok', err: job.last_status !== 'ok' }">
-            {{ humanizeToken(job.last_status === 'ok' ? 'ok' : job.last_status) }}
+            {{ tokenLabel(job.last_status === 'ok' ? 'ok' : job.last_status) }}
           </span>
         </span>
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.nextRun') }}</span>
-        <span class="info-value">{{ formatTime(job.next_run_at) }}</span>
+        <span class="info-value">{{ formatJobTime(job.next_run_at) }}</span>
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.deliver') }}</span>
@@ -376,12 +364,12 @@ async function handleDelete() {
             <div v-for="run in runs" :key="run.run_id" class="run-item">
               <div class="run-head">
                 <span class="run-status" :class="{ ok: run.status === 'ok', err: run.status && run.status !== 'ok' }">
-                  {{ humanizeToken(run.status) }}
+                  {{ tokenLabel(run.status) }}
                 </span>
-                <span class="run-time">{{ formatTime(run.started_at) }}</span>
+                <span class="run-time">{{ formatJobTime(run.started_at) }}</span>
               </div>
               <div class="run-meta">
-                {{ t('jobs.historyTrigger') }} {{ humanizeToken(run.trigger || 'scheduled') }}
+                {{ t('jobs.historyTrigger') }} {{ tokenLabel(run.trigger || 'scheduled') }}
                 <template v-if="run.attempt"> · {{ t('jobs.historyAttempt') }} {{ run.attempt }}</template>
                 <template v-if="run.finished !== undefined">
                   · {{ run.finished ? t('jobs.historyFinished') : t('jobs.historyUnfinished') }}
@@ -413,7 +401,7 @@ async function handleDelete() {
                     :class="{ err: target.status === 'error' }"
                   >
                     <span>{{ deliveryTargetLabel(target) }}</span>
-                    <span>{{ humanizeToken(target.status) }}</span>
+                    <span>{{ tokenLabel(target.status) }}</span>
                     <span v-if="target.attachments">{{ t('jobs.historyDeliveryAttachments') }} {{ target.attachments }}</span>
                     <span v-if="target.error" class="delivery-target-error">{{ target.error }}</span>
                   </div>

@@ -11,94 +11,93 @@ import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 /** 插件注册事件接收器。主应用实现此接口以接收插件注册的组件。 */
 public interface PluginRegistrationSink {
     /**
-     * 判断是否存在工具。
+     * 判断主应用侧是否已经存在指定工具名。
      *
-     * @param name 名称参数。
-     * @return 如果工具满足条件则返回 true，否则返回 false。
+     * @return 已存在时返回 true，插件管理器据此阻止重复注册。
      */
     default boolean hasTool(String name) {
         return false;
     }
 
     /**
-     * 判断是否存在命令。
+     * 判断主应用侧是否已经存在指定命令名。
      *
      * @param name 名称参数。
-     * @return 如果命令满足条件则返回 true，否则返回 false。
+     * @return 已存在时返回 true，插件管理器据此阻止重复注册。
      */
     default boolean hasCommand(String name) {
         return false;
     }
 
     /**
-     * 响应工具Registered事件。
+     * 接收插件注册的函数工具。
      *
-     * @param registration registration 参数。
+     * @param registration 工具名称、schema 和执行函数。
      */
     void onToolRegistered(ToolRegistration registration);
 
     /**
-     * 响应命令Registered事件。
+     * 接收插件注册的对话命令。
      *
-     * @param name 名称参数。
-     * @param handler handler 参数。
-     * @param description 描述参数。
+     * @param name 命令名称。
+     * @param handler 命令执行函数。
+     * @param description 展示说明。
      */
     void onCommandRegistered(String name, CommandHandler handler, String description);
 
     /**
-     * 响应Web搜索提供方Registered事件。
+     * 接收 Web 搜索提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 搜索或抽取 Provider。
      */
     void onWebSearchProviderRegistered(WebSearchProvider provider);
 
     /**
-     * 响应图片Gen提供方Registered事件。
+     * 接收图像生成提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 图像生成 Provider。
      */
     void onImageGenProviderRegistered(ImageGenProvider provider);
 
     /**
-     * 响应VideoGen提供方Registered事件。
+     * 接收视频生成提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 视频生成 Provider。
      */
     void onVideoGenProviderRegistered(VideoGenProvider provider);
 
     /**
-     * 响应浏览器提供方Registered事件。
+     * 接收浏览器自动化提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 浏览器 Provider。
      */
     void onBrowserProviderRegistered(BrowserProvider provider);
 
     /**
-     * 响应语音提供方Registered事件。
+     * 接收 TTS 语音合成提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 语音合成 Provider。
      */
     default void onSpeechProviderRegistered(SpeechProvider provider) {}
 
     /**
-     * 响应转写提供方Registered事件。
+     * 接收独立语音转写提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 语音转写 Provider。
      */
     default void onTranscriptionProviderRegistered(TranscriptionProvider provider) {}
 
     /**
-     * 响应记忆提供方Registered事件。
+     * 接收长期记忆提供方。
      *
-     * @param provider 模型或能力提供方。
+     * @param provider 记忆读写 Provider。
      */
     void onMemoryProviderRegistered(MemoryProvider provider);
 
     /**
-     * 响应平台Registered事件。
+     * 接收国内消息渠道平台适配器。
      *
-     * @param registration registration 参数。
+     * @param registration 平台适配器注册信息。
      */
     void onPlatformRegistered(PlatformRegistration registration);
 }

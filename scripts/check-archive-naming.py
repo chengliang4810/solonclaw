@@ -12,6 +12,7 @@ from guardlib import (
     add_extra_blocked_terms_argument,
     parse_extra_blocked_terms,
     scan_directory,
+    temp_prefix,
 )
 
 FIRST_PARTY_FILES = {
@@ -40,7 +41,7 @@ def check_archive_naming(archive_paths: list[str], extra_terms: list[str]) -> No
         if not archive.strip():
             continue
         archive_path = Path(archive).resolve()
-        with tempfile.TemporaryDirectory(prefix="jimuqu-archive-naming-") as temp_dir:
+        with tempfile.TemporaryDirectory(prefix=temp_prefix("archive-naming")) as temp_dir:
             temp_path = Path(temp_dir)
             extract_path = temp_path / "extract"
             scan_path = temp_path / "scan"

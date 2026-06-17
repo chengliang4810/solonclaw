@@ -10,25 +10,25 @@ import java.util.logging.Logger;
 
 /** 提供MCP保活相关业务能力，封装调用方不需要感知的运行细节。 */
 public class McpKeepaliveService implements Closeable {
-    /** 日志的统一常量值。 */
+    /** MCP 保活任务的日志记录器。 */
     private static final Logger LOG = Logger.getLogger(McpKeepaliveService.class.getName());
 
-    /** 默认整型ERVALSECONDS的统一常量值。 */
+    /** 未显式配置时的 MCP 保活间隔，避免过于频繁地触发工具发现。 */
     private static final long DEFAULT_INTERVAL_SECONDS = 30L;
 
-    /** 注入运行时服务，用于调用对应业务能力。 */
+    /** MCP 运行时服务，负责解析启用的服务端并刷新工具提供方。 */
     private final McpRuntimeService runtimeService;
 
-    /** 记录MCP保活中的intervalSeconds。 */
+    /** 每轮保活之间的固定延迟秒数。 */
     private final long intervalSeconds;
 
-    /** 保存调度器执行组件，负责调度异步或定时任务。 */
+    /** 单线程调度器，保证同一时间只有一个保活任务访问 MCP 运行时。 */
     private final ScheduledExecutorService scheduler;
 
-    /** 记录MCP保活中的running。 */
+    /** 当前保活调度是否处于运行状态。 */
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    /** 记录MCP保活中的任务。 */
+    /** 已提交的周期性保活任务句柄，用于停止时取消。 */
     private ScheduledFuture<?> task;
 
     /**
@@ -44,7 +44,7 @@ public class McpKeepaliveService implements Closeable {
      * 创建MCP保活服务实例，并注入运行所需依赖。
      *
      * @param runtimeService 运行时服务依赖。
-     * @param intervalSeconds intervalSeconds 参数。
+     * @param intervalSeconds 保活间隔秒数，小于等于 0 时回退到默认值。
      */
     public McpKeepaliveService(McpRuntimeService runtimeService, long intervalSeconds) {
         this.runtimeService = runtimeService;
@@ -83,31 +83,31 @@ public class McpKeepaliveService implements Closeable {
         stop();
         scheduler.shutdownNow();
         try {
-            scheduler.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
+            scheduler.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
         }
     }
 
     /**
-     * 读取Interval Seconds。
+     * 读取当前保活间隔。
      *
-     * @return 返回读取到的Interval Seconds。
+     * @return 实际生效的保活间隔秒数。
      */
     public long getIntervalSeconds() {
         return intervalSeconds;
     }
 
     /**
-     * 判断是否Running。
+     * 判断保活调度是否已经启动。
      *
-     * @return 如果Running满足条件则返回 true，否则返回 false。
+     * @return 已启动且尚未停止时返回 true。
      */
     public boolean isRunning() {
         return running.get();
     }
 
-    /** 执行ping相关逻辑。 */
+    /** 执行单轮保活探测，并隔离异常避免调度线程退出。 */
     private void ping() {
         if (!running.get()) {
             return;
@@ -119,7 +119,7 @@ public class McpKeepaliveService implements Closeable {
         }
     }
 
-    /** 执行ping全部服务端相关逻辑。 */
+    /** 触发启用 MCP 服务端的工具提供方解析，用作轻量保活。 */
     private void pingAllServers() {
         // 保活任务只记录失败，不向外抛出异常，避免调度线程被单次 MCP 故障终止。
         try {
@@ -130,10 +130,10 @@ public class McpKeepaliveService implements Closeable {
     }
 
     /**
-     * 执行reconnect相关逻辑。
+     * 请求异步重连指定 MCP 服务端。
      *
      * @param serverId MCP 服务端标识。
-     * @return 返回reconnect结果。
+     * @return 成功提交重连任务时返回 true，提交失败时返回 false。
      */
     public boolean reconnect(String serverId) {
         try {

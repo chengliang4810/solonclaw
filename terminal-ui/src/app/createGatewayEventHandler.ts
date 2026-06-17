@@ -11,10 +11,15 @@ import type {
 } from '../gatewayTypes.js'
 import { recordParentLifecycle } from '../lib/parentLog.js'
 import { rpcErrorMessage } from '../lib/rpc.js'
+import {
+  isTerminalSubagentStatus,
+  keepTerminalSubagentStatusElseRunning,
+  normalizeSubagentStatus
+} from '../lib/subagentStatus.js'
 import { topLevelSubagents } from '../lib/subagentTree.js'
 import { formatToolCall, stripAnsi } from '../lib/text.js'
 import { fromSkin } from '../theme.js'
-import type { Msg, SubagentProgress, SubagentStatus } from '../types.js'
+import type { Msg } from '../types.js'
 
 import { applyDelegationStatus, getDelegationState } from './delegationStore.js'
 import type { GatewayEventHandlerContext } from './interfaces.js'
@@ -54,26 +59,6 @@ const pushUnique =
 const pushThinking = pushUnique(6)
 const pushNote = pushUnique(6)
 const pushTool = pushUnique(8)
-
-const KNOWN_SUBAGENT_STATUSES = new Set<SubagentStatus>([
-  'completed',
-  'error',
-  'failed',
-  'interrupted',
-  'queued',
-  'running',
-  'timeout'
-])
-
-const normalizeSubagentStatus = (status: unknown, fallback: SubagentStatus): SubagentStatus => {
-  if (typeof status !== 'string') {
-    return fallback
-  }
-
-  const normalized = status.toLowerCase() as SubagentStatus
-
-  return KNOWN_SUBAGENT_STATUSES.has(normalized) ? normalized : fallback
-}
 
 export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev: GatewayEvent) => void {
   const { rpc } = ctx.gateway
@@ -277,14 +262,6 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       submitRef.current(STARTUP_QUERY || 'What do you see in this image?')
     }, 0)
   }
-
-  // Terminal statuses are never overwritten by late-arriving live events —
-  // otherwise a stale `subagent.start` / `spawn_requested` can clobber a
-  // terminal state from complete (failed/interrupted/timeout/error).
-  const isTerminalStatus = (s: SubagentProgress['status']) =>
-    s === 'completed' || s === 'error' || s === 'failed' || s === 'interrupted' || s === 'timeout'
-
-  const keepTerminalElseRunning = (s: SubagentProgress['status']) => (isTerminalStatus(s) ? s : 'running')
 
   const handleReady = (skin?: GatewaySkin) => {
     recordParentLifecycle('[startup] handle gateway.ready')
@@ -719,7 +696,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       case 'subagent.spawn_requested':
         // Child built but not yet running (waiting on ThreadPoolExecutor slot).
         // Preserve completed state if a later event races in before this one.
-        turnController.upsertSubagent(ev.payload, c => (isTerminalStatus(c.status) ? {} : { status: 'queued' }))
+        turnController.upsertSubagent(ev.payload, c => (isTerminalSubagentStatus(c.status) ? {} : { status: 'queued' }))
 
         // First sign of delegation this turn → nudge toward /agents.
         maybeNudgeAgents()
@@ -735,7 +712,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         return
 
       case 'subagent.start':
-        turnController.upsertSubagent(ev.payload, c => (isTerminalStatus(c.status) ? {} : { status: 'running' }))
+        turnController.upsertSubagent(ev.payload, c => (isTerminalSubagentStatus(c.status) ? {} : { status: 'running' }))
 
         // `subagent.start` is the first delegation event the TUI reliably
         // receives (the delegate callback drops `spawn_requested` in the
@@ -756,7 +733,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         turnController.upsertSubagent(
           ev.payload,
           c => ({
-            status: keepTerminalElseRunning(c.status),
+            status: keepTerminalSubagentStatusElseRunning(c.status),
             thinking: pushThinking(c.thinking, text)
           }),
           { createIfMissing: false }
@@ -774,7 +751,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         turnController.upsertSubagent(
           ev.payload,
           c => ({
-            status: keepTerminalElseRunning(c.status),
+            status: keepTerminalSubagentStatusElseRunning(c.status),
             tools: pushTool(c.tools, line)
           }),
           { createIfMissing: false }
@@ -794,7 +771,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           ev.payload,
           c => ({
             notes: pushNote(c.notes, text),
-            status: keepTerminalElseRunning(c.status)
+            status: keepTerminalSubagentStatusElseRunning(c.status)
           }),
           { createIfMissing: false }
         )

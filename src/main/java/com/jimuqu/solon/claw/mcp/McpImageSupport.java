@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.mcp;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -12,14 +13,20 @@ public class McpImageSupport {
     /** 单张 MCP 图片允许进入附件链路的最大字节数。 */
     private static final int MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+    /** MCP 服务端未声明 MIME 类型时使用的默认图片类型。 */
+    private static final String DEFAULT_IMAGE_MIME_TYPE = "image/png";
+
+    /** MCP 图片类型块的固定标识。 */
+    private static final String MCP_IMAGE_TYPE = "image";
+
     /** 创建MCP图片辅助实例。 */
     private McpImageSupport() {}
 
     /**
-     * 提取图片。
+     * 从 MCP 工具结果中递归提取图片块，兼容 result envelope 的 content 数组。
      *
-     * @param toolResult 工具结果响应或执行结果。
-     * @return 返回图片结果。
+     * @param toolResult MCP 工具调用返回的原始对象，可能是 Map、List 或普通文本。
+     * @return 已校验和规范化后的图片描述符列表，列表元素可直接进入媒体附件链路。
      */
     public static List<Map<String, Object>> extractImages(Object toolResult) {
         List<Map<String, Object>> images = new ArrayList<Map<String, Object>>();
@@ -35,7 +42,7 @@ public class McpImageSupport {
         if (toolResult instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) toolResult;
             String type = stringValue(map.get("type"));
-            if ("image".equals(type)) {
+            if (MCP_IMAGE_TYPE.equals(type)) {
                 Map<String, Object> image = extractImageBlock(map);
                 if (image != null) {
                     images.add(image);
@@ -54,20 +61,20 @@ public class McpImageSupport {
     }
 
     /**
-     * 判断是否存在图片。
+     * 快速判断 MCP 工具结果中是否包含可用图片。
      *
-     * @param toolResult 工具结果响应或执行结果。
-     * @return 如果图片满足条件则返回 true，否则返回 false。
+     * @param toolResult MCP 工具调用返回的原始对象。
+     * @return 存在可进入附件链路的图片时返回 true。
      */
     public static boolean hasImages(Object toolResult) {
-        return !extractImages(toolResult).isEmpty();
+        return CollUtil.isNotEmpty(extractImages(toolResult));
     }
 
     /**
-     * 转换为Data URI。
+     * 将规范化图片描述符转换为浏览器和多模态模型可识别的 Data URI。
      *
-     * @param image描述符 图片描述符参数。
-     * @return 返回转换后的Data URI。
+     * @param imageDescriptor {@link #extractImages(Object)} 输出的单个图片描述符。
+     * @return MIME 类型或 base64 数据缺失时返回空字符串，否则返回 Data URI。
      */
     public static String toDataUri(Map<String, Object> imageDescriptor) {
         if (imageDescriptor == null) {
@@ -82,10 +89,10 @@ public class McpImageSupport {
     }
 
     /**
-     * 提取图片块。
+     * 从单个 MCP image block 中提取 MIME、base64 数据或来源 URL。
      *
-     * @param block 阻断参数。
-     * @return 返回图片块结果。
+     * @param block MCP 协议返回的 image 类型块。
+     * @return 合法图片描述符；类型不安全、base64 非法或超过大小限制时返回 null。
      */
     private static Map<String, Object> extractImageBlock(Map<?, ?> block) {
         String source = stringValue(block.get("source"));
@@ -115,7 +122,7 @@ public class McpImageSupport {
             }
         }
         if (StrUtil.isBlank(mimeType)) {
-            mimeType = "image/png";
+            mimeType = DEFAULT_IMAGE_MIME_TYPE;
         }
         if (!mimeType.startsWith("image/")) {
             return null;
@@ -152,10 +159,10 @@ public class McpImageSupport {
     }
 
     /**
-     * 剥离数据URI。
+     * 去掉 Data URI 前缀，仅保留 base64 主体，便于统一校验图片大小。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回strip Data URI结果。
+     * @param value 可能带有 {@code data:*;base64,} 前缀的原始图片数据。
+     * @return 可直接交给 Base64 解码器的文本。
      */
     private static String stripDataUri(String value) {
         String text = StrUtil.nullToEmpty(value).trim();
@@ -167,10 +174,10 @@ public class McpImageSupport {
     }
 
     /**
-     * 将输入对象转换为去除首尾空白的字符串。
+     * 将 MCP 返回值安全转换为去除首尾空白的字符串。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回string Value结果。
+     * @param value 任意来源字段值。
+     * @return null 转为空字符串，其余值使用 {@link String#valueOf(Object)} 后 trim。
      */
     private static String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value).trim();

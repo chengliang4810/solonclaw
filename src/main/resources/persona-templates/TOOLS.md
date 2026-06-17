@@ -25,10 +25,10 @@ Skills 负责定义工具_如何_工作。这个文件记录的是_你的_具体
 
 - home-server → 192.168.1.100，user: admin
 
-### TTS
+### 语音
 
-- Preferred voice: "Nova"（温暖，略带英式口音）
-- Default speaker: Kitchen HomePod
+- 偏好的语音：温暖、清晰、语速适中
+- 默认扬声器：工作区里实际可用的设备名称
 ```
 
 ## 为什么要单独放在这里？
